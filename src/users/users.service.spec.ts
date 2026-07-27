@@ -1,0 +1,63 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { UsersService } from './users.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { NotFoundException, ConflictException } from '@nestjs/common';
+
+const mockPrisma = {
+  user: {
+    findUnique: jest.fn(),
+    update: jest.fn(),
+  },
+};
+
+describe('UsersService', () => {
+  let service: UsersService;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        UsersService,
+        { provide: PrismaService, useValue: mockPrisma },
+      ],
+    }).compile();
+    service = module.get<UsersService>(UsersService);
+    jest.clearAllMocks();
+  });
+
+  it('findById 应该返回用户信息', async () => {
+    const user = { id: 'u1', username: 'test', nickname: 't', avatar: null, bio: null, role: 'USER' };
+    mockPrisma.user.findUnique.mockResolvedValue(user);
+    const result = await service.findById('u1');
+    expect(result.id).toBe('u1');
+    expect(result.username).toBe('test');
+  });
+
+  it('findById 用户不存在应该返回404', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue(null);
+    await expect(service.findById('x')).rejects.toThrow(NotFoundException);
+  });
+
+  it('update 应该成功更新昵称', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'u1', username: 'test' });
+    mockPrisma.user.update.mockResolvedValue({
+      id: 'u1', username: 'test', nickname: '新昵称',
+    });
+    const result = await service.update('u1', { nickname: '新昵称' });
+    expect(result.nickname).toBe('新昵称');
+  });
+
+  it('修改用户名重复应该返回409', async () => {
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce({ id: 'u1', username: 'oldname' })
+      .mockResolvedValueOnce({ id: 'other' }); // findByUsername 返回已占用
+    await expect(
+      service.update('u1', { username: 'newname' }),
+    ).rejects.toThrow(ConflictException);
+  });
+
+  it('update 不存在的用户应该返回404', async () => {
+    mockPrisma.user.findUnique.mockReset();
+    mockPrisma.user.findUnique.mockResolvedValue(null);
+    await expect(service.update('x', { nickname: 'y' })).rejects.toThrow(NotFoundException);
+  });
+});

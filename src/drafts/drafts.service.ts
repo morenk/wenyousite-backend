@@ -39,15 +39,17 @@ export class DraftsService {
         select: { slot: true },
       });
       const usedSlots = new Set(existing.map((d) => d.slot));
-      slot = 1;
+      // 找第一个空闲槽位
+      let found = false;
       for (let i = 1; i <= 5; i++) {
         if (!usedSlots.has(i)) {
           slot = i;
+          found = true;
           break;
         }
       }
       // 如果 5 个槽位都满了，覆盖最旧的
-      if (slot === 6) {
+      if (!found) {
         const oldest = await this.prisma.draft.findFirst({
           where: { userId, subthreadId: dto.subthreadId },
           orderBy: { updatedAt: 'asc' },
