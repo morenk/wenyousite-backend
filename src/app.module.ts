@@ -8,6 +8,7 @@ import { UsersModule } from './users/users.module';
 import { TagsModule } from './tags/tags.module';
 import { ThreadsModule } from './threads/threads.module';
 import { SubthreadsModule } from './subthreads/subthreads.module';
+import { PostsModule } from './posts/posts.module';
 import { CommonModule } from './common/common.module';
 import configuration from './config/configuration';
 import { validate } from './config/env.validation';
@@ -42,6 +43,7 @@ import { validate } from './config/env.validation';
     TagsModule,     // 主题帖标签
     ThreadsModule,  // 主题帖
     SubthreadsModule, // 子贴
+    PostsModule,     // 楼层与楼中楼
   ],
 })
 export class AppModule {}

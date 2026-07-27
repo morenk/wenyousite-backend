@@ -188,7 +188,7 @@ model Post {
   threadId      String    @map("thread_id")
   subthreadId   String    @map("subthread_id")
   authorId      String    @map("author_id")
-  floorNumber   Int       @map("floor_number")
+  floorNumber   Int?      @map("floor_number")
   parentPostId  String?   @map("parent_post_id")
   replyToPostId String?   @map("reply_to_post_id")
   content       String
