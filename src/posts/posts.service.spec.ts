@@ -1,33 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PostsService } from './posts.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { MentionsService } from '../mentions/mentions.service';
-import { NotificationProducer } from '../jobs/notification.producer';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
 
 const mockPrisma = {
   $transaction: jest.fn(),
-  user: {
-    findUnique: jest.fn(),
-  },
-  subthread: {
-    findUnique: jest.fn(),
-  },
-  threadMember: {
-    findUnique: jest.fn(),
-    upsert: jest.fn(),
-  },
-  post: {
-    findUnique: jest.fn(),
-    aggregate: jest.fn(),
-    create: jest.fn(),
-    findMany: jest.fn(),
-    update: jest.fn(),
-  },
+  user: { findUnique: jest.fn() },
+  subthread: { findUnique: jest.fn() },
+  threadMember: { findUnique: jest.fn(), upsert: jest.fn() },
+  post: { findUnique: jest.fn(), aggregate: jest.fn(), create: jest.fn(), findMany: jest.fn(), update: jest.fn() },
 };
 
-const mockMentions = { parseAndCreate: jest.fn() };
-const mockNotification = { notify: jest.fn() };
+const mockEventEmitter = { emit: jest.fn() };
 
 describe('PostsService', () => {
   let service: PostsService;
@@ -37,8 +22,7 @@ describe('PostsService', () => {
       providers: [
         PostsService,
         { provide: PrismaService, useValue: mockPrisma },
-        { provide: MentionsService, useValue: mockMentions },
-        { provide: NotificationProducer, useValue: mockNotification },
+        { provide: EventEmitter2, useValue: mockEventEmitter },
       ],
     }).compile();
     service = module.get<PostsService>(PostsService);

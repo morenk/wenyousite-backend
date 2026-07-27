@@ -5,7 +5,8 @@ import { UpdateUserDto } from './dto/update-user.dto';
 // 用户公开字段选择器（排除 password 等敏感字段）
 const userSelect = {
   id: true, email: true, username: true, nickname: true, avatar: true, bio: true,
-  role: true, createdAt: true, updatedAt: true,
+  role: true, showRecentReplies: true, showPlayerBadges: true, showBookmarks: true,
+  emailVerified: true, createdAt: true, updatedAt: true,
 };
 
 /** 用户服务：用户资料查询与更新 */

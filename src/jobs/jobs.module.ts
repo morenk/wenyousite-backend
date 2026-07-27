@@ -2,9 +2,11 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { NotificationProducer } from './notification.producer';
 import { NotificationProcessor } from './notification.processor';
-import { PrismaModule } from '../prisma/prisma.module';
+import { PostEventsListener } from './post-events.listener';
+import { CleanupTask } from './cleanup.task';
+import { MentionsModule } from '../mentions/mentions.module';
 
-/** 任务队列模块：注册 BullMQ queue 与 processor */
+/** 任务队列模块：BullMQ + 事件监听 + 定时任务 */
 @Module({
   imports: [
     BullModule.registerQueue({
@@ -16,8 +18,9 @@ import { PrismaModule } from '../prisma/prisma.module';
         removeOnFail: { age: 3600 * 24 * 7 },
       },
     }),
+    MentionsModule,
   ],
-  providers: [NotificationProducer, NotificationProcessor],
+  providers: [NotificationProducer, NotificationProcessor, PostEventsListener, CleanupTask],
   exports: [NotificationProducer],
 })
 export class JobsModule {}

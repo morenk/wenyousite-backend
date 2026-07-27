@@ -1,7 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
-import { MentionsService } from '../mentions/mentions.service';
-import { NotificationProducer } from '../jobs/notification.producer';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 
@@ -10,8 +9,7 @@ import { UpdatePostDto } from './dto/update-post.dto';
 export class PostsService {
   constructor(
     private prisma: PrismaService,
-    private mentionsService: MentionsService,
-    private notificationProducer: NotificationProducer,
+    private eventEmitter: EventEmitter2,
   ) {}
 
   /** 获取子贴的楼层列表（Cursor 分页） */
@@ -138,89 +136,17 @@ export class PostsService {
       return p;
     });
 
-    // 解析 @提及
-    try {
-      const mentionedUsers = await this.mentionsService.parseAndCreate(
-        post.id,
-        dto.content,
-        userId,
-        subthread.threadId,
-      );
-      // 通知被 @ 的用户
-      if (mentionedUsers.length > 0) {
-        // 过滤掉被拉黑的用户
-        const blockedMap = await this.prisma.userBlock.findMany({
-          where: { blockedId: userId, blockerId: { in: mentionedUsers.map(u => u.userId) } },
-          select: { blockerId: true },
-        });
-        const blockedIds = new Set(blockedMap.map(b => b.blockerId));
-        const filtered = mentionedUsers.filter(u => !blockedIds.has(u.userId));
-        if (filtered.length > 0) {
-          await this.notificationProducer.notify(
-            'mention',
-            filtered.map((u) => u.userId),
-            `在 ${subthread.title} 中提到了你`,
-            post.id,
-          );
-        }
-      }
-    } catch {
-      // @提及不影响发帖
-    }
-
-    // 新楼层通知楼主和协作者
-    try {
-      if (!dto.parentPostId) {
-        const members = await this.prisma.threadMember.findMany({
-          where: {
-            threadId: subthread.threadId,
-            role: { in: ['OWNER', 'COLLABORATOR'] },
-            userId: { not: userId },
-          },
-          select: { userId: true },
-        });
-        if (members.length > 0) {
-          // 过滤拉黑发帖人的成员
-          const memberIds = members.map((m) => m.userId);
-          const blocks = await this.prisma.userBlock.findMany({
-            where: { blockerId: { in: memberIds }, blockedId: userId },
-            select: { blockerId: true },
-          });
-          const blockedSet = new Set(blocks.map((b) => b.blockerId));
-          const filtered = memberIds.filter((id) => !blockedSet.has(id));
-          if (filtered.length > 0) {
-            await this.notificationProducer.notify(
-              'new_floor',
-              filtered,
-              `${subthread.title} 有新楼层`,
-              post.id,
-            );
-          }
-        }
-      }
-    } catch {
-      // 通知失败不影响
-    }
-
-    // 楼中楼回复通知被回复者
-    try {
-      if (dto.replyToPostId) {
-        const targetPost = await this.prisma.post.findUnique({
-          where: { id: dto.replyToPostId },
-          select: { authorId: true },
-        });
-        if (targetPost && targetPost.authorId !== userId) {
-          await this.notificationProducer.notify(
-            'reply',
-            [targetPost.authorId],
-            `有人在 ${subthread.title} 回复了你`,
-            post.id,
-          );
-        }
-      }
-    } catch {
-      // 通知失败不影响
-    }
+    // 发帖后通过事件解耦：@提及、通知由 PostEventsListener 处理
+    this.eventEmitter.emit('post.created', {
+      postId: post.id,
+      content: dto.content,
+      userId,
+      threadId: subthread.threadId,
+      subthreadId: subthread.id,
+      subthreadTitle: subthread.title,
+      parentPostId: dto.parentPostId ?? null,
+      replyToPostId: dto.replyToPostId ?? null,
+    });
 
     return post;
   }
