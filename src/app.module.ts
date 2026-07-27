@@ -14,7 +14,9 @@ import { DraftsModule } from './drafts/drafts.module';
 import { MentionsModule } from './mentions/mentions.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { ReportsModule } from './reports/reports.module';
 import { ReadingProgressModule } from './reading-progress/reading-progress.module';
+import { AdminModule } from './admin/admin.module';
 import { JobsModule } from './jobs/jobs.module';
 import { CommonModule } from './common/common.module';
 import configuration from './config/configuration';
@@ -63,6 +65,8 @@ import { validate } from './config/env.validation';
     NotificationsModule,
     SubscriptionsModule,
     ReadingProgressModule,
+    ReportsModule,
+    AdminModule,
     JobsModule,
   ],
 })
