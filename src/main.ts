@@ -5,6 +5,7 @@ import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Logger } from 'nestjs-pino';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import helmet from 'helmet';
 import * as Sentry from '@sentry/node';
 import { AppModule } from './app.module';
 
@@ -27,6 +28,7 @@ async function bootstrap() {
   app.useLogger(app.get(Logger));
   app.setGlobalPrefix('api/v1');
   app.enableCors();
+  await app.register(helmet as any);
 
   // Swagger 文档：仅 dev 环境
   if (process.env.NODE_ENV !== 'production') {

@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { ScheduleModule } from '@nestjs/schedule';
 import { LoggerModule } from 'nestjs-pino';
 import { BullModule } from '@nestjs/bullmq';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
@@ -56,6 +58,10 @@ import { validate } from './config/env.validation';
     }),
     // 全局限流：每秒最多 10 个请求
     ThrottlerModule.forRoot([{ ttl: 1000, limit: 10 }]),
+    // 事件发射器：模块间解耦（发帖 → 通知/提及/订阅等）
+    EventEmitterModule.forRoot(),
+    // 定时任务：清理过期数据
+    ScheduleModule.forRoot(),
     // 基础设施模块
     PrismaModule,
     HealthModule,
