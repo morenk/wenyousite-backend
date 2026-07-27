@@ -26,7 +26,7 @@ export class CreateSubthreadDto {
   @IsIn(['PUBLIC', 'MEMBERS'])
   visibility?: string;
 
-  @ApiPropertyOptional({ enum: ['COLLABORATORS', 'PARTICIPANTS'], default: 'PARTICIPANTS', description: '发帖权限' })
+  @ApiPropertyOptional({ enum: ['COLLABORATORS', 'PARTICIPANTS'], default: 'PARTICIPANTS', description: '发帖权限（PARTICIPANTS=所有成员, COLLABORATORS=仅协作者）' })
   @IsOptional()
   @IsString()
   @IsIn(['COLLABORATORS', 'PARTICIPANTS'])

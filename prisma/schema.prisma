@@ -107,7 +107,7 @@ model Subthread {
   title         String
   sortOrder     Int       @default(0) @map("sort_order")
   visibility    String    @default("PUBLIC")
-  postingPolicy String    @default("COLLABORATORS") @map("posting_policy")
+  postingPolicy String    @default("PARTICIPANTS") @map("posting_policy")
   lastPostAt    DateTime? @map("last_post_at")
   createdAt     DateTime  @default(now()) @map("created_at")
 

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
+import { BullModule } from '@nestjs/bullmq';
 import { PrismaModule } from './prisma/prisma.module';
 import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
@@ -11,6 +12,9 @@ import { SubthreadsModule } from './subthreads/subthreads.module';
 import { PostsModule } from './posts/posts.module';
 import { DraftsModule } from './drafts/drafts.module';
 import { MentionsModule } from './mentions/mentions.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { JobsModule } from './jobs/jobs.module';
 import { CommonModule } from './common/common.module';
 import configuration from './config/configuration';
 import { validate } from './config/env.validation';
@@ -18,36 +22,46 @@ import { validate } from './config/env.validation';
 /** 根模块：注册所有特性模块和全局功能 */
 @Module({
   imports: [
-    // 环境变量配置：全局可用，从 .env 和 .env.local 加载，启动时校验
     ConfigModule.forRoot({
       isGlobal: true,
       load: [configuration],
       validate,
       envFilePath: ['.env.local', '.env'],
     }),
-    // Pino 结构化日志：开发环境使用 pino-pretty 彩色输出，生产环境输出 JSON
     LoggerModule.forRoot({
       pinoHttp: {
-        transport:
-          process.env.NODE_ENV !== 'production'
-            ? { target: 'pino-pretty', options: { colorize: true } }
-            : undefined,
+        transport: process.env.NODE_ENV !== 'production'
+          ? { target: 'pino-pretty', options: { colorize: true } }
+          : undefined,
         level: process.env.LOG_LEVEL ?? 'info',
       },
     }),
+    // BullMQ 队列：全局 Redis 连接
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        connection: {
+          host: config.get<string>('redis.host'),
+          port: config.get<number>('redis.port'),
+        },
+      }),
+    }),
     // 基础设施模块
-    PrismaModule,   // 数据库连接
-    HealthModule,   // 健康检查
-    CommonModule,   // 公共组件
+    PrismaModule,
+    HealthModule,
+    CommonModule,
     // 业务模块
-    AuthModule,     // 认证（注册/登录/JWT）
-    UsersModule,    // 用户资料
-    TagsModule,     // 主题帖标签
-    ThreadsModule,  // 主题帖
-    SubthreadsModule, // 子贴
-    PostsModule,     // 楼层与楼中楼
-    DraftsModule,    // 草稿
-    MentionsModule,  // @提及
+    AuthModule,
+    UsersModule,
+    TagsModule,
+    ThreadsModule,
+    SubthreadsModule,
+    PostsModule,
+    DraftsModule,
+    MentionsModule,
+    NotificationsModule,
+    SubscriptionsModule,
+    JobsModule,
   ],
 })
 export class AppModule {}

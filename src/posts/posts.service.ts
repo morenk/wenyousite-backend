@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MentionsService } from '../mentions/mentions.service';
+import { NotificationProducer } from '../jobs/notification.producer';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 
@@ -10,6 +11,7 @@ export class PostsService {
   constructor(
     private prisma: PrismaService,
     private mentionsService: MentionsService,
+    private notificationProducer: NotificationProducer,
   ) {}
 
   /** 获取子贴的楼层列表（Cursor 分页） */
@@ -131,11 +133,64 @@ export class PostsService {
       return p;
     });
 
-    // 解析 @提及（事务外，不影响发帖）
+    // 解析 @提及
     try {
-      await this.mentionsService.parseAndCreate(post.id, dto.content, userId);
+      const mentionedUsers = await this.mentionsService.parseAndCreate(post.id, dto.content, userId);
+      // 通知被 @ 的用户
+      if (mentionedUsers.length > 0) {
+        await this.notificationProducer.notify(
+          'mention',
+          mentionedUsers.map((u) => u.userId),
+          `在 ${subthread.title} 中提到了你`,
+          post.id,
+        );
+      }
     } catch {
-      // @提及解析失败不影响发帖
+      // @提及不影响发帖
+    }
+
+    // 新楼层通知楼主和协作者
+    try {
+      if (!dto.parentPostId) {
+        const members = await this.prisma.threadMember.findMany({
+          where: {
+            threadId: subthread.threadId,
+            role: { in: ['OWNER', 'COLLABORATOR'] },
+            userId: { not: userId },
+          },
+          select: { userId: true },
+        });
+        if (members.length > 0) {
+          await this.notificationProducer.notify(
+            'new_floor',
+            members.map((m) => m.userId),
+            `${subthread.title} 有新楼层`,
+            post.id,
+          );
+        }
+      }
+    } catch {
+      // 通知失败不影响
+    }
+
+    // 楼中楼回复通知被回复者
+    try {
+      if (dto.replyToPostId) {
+        const targetPost = await this.prisma.post.findUnique({
+          where: { id: dto.replyToPostId },
+          select: { authorId: true },
+        });
+        if (targetPost && targetPost.authorId !== userId) {
+          await this.notificationProducer.notify(
+            'reply',
+            [targetPost.authorId],
+            `有人在 ${subthread.title} 回复了你`,
+            post.id,
+          );
+        }
+      }
+    } catch {
+      // 通知失败不影响
     }
 
     return post;
