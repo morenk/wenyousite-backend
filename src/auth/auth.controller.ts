@@ -10,7 +10,7 @@ import { AuthResponseDto } from './dto/auth-response.dto';
 /** 认证控制器：注册、登录、Token 刷新 */
 @ApiTags('Auth')
 @Controller('auth')
-@Throttle({ default: { ttl: 60000, limit: 3 } })
+@Throttle({ default: { ttl: 60000, limit: 20 } })
 export class AuthController {
   constructor(private authService: AuthService) {}
 
