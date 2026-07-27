@@ -10,6 +10,7 @@ import { ThreadsModule } from './threads/threads.module';
 import { SubthreadsModule } from './subthreads/subthreads.module';
 import { PostsModule } from './posts/posts.module';
 import { DraftsModule } from './drafts/drafts.module';
+import { MentionsModule } from './mentions/mentions.module';
 import { CommonModule } from './common/common.module';
 import configuration from './config/configuration';
 import { validate } from './config/env.validation';
@@ -46,6 +47,7 @@ import { validate } from './config/env.validation';
     SubthreadsModule, // 子贴
     PostsModule,     // 楼层与楼中楼
     DraftsModule,    // 草稿
+    MentionsModule,  // @提及
   ],
 })
 export class AppModule {}

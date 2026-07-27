@@ -1,12 +1,16 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { MentionsService } from '../mentions/mentions.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 
 /** 楼层服务：发帖（事务楼层编号）、楼中楼、编辑、软删除 */
 @Injectable()
 export class PostsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private mentionsService: MentionsService,
+  ) {}
 
   /** 获取子贴的楼层列表（Cursor 分页） */
   async findAllBySubthread(subthreadId: string, cursor?: string, limit = 20) {
@@ -38,7 +42,7 @@ export class PostsService {
     };
   }
 
-  /** 获取楼中楼回复列表（平级，按创建时间排序） */
+  /** 获取楼中楼回复列表 */
   async findReplies(postId: string) {
     const post = await this.prisma.post.findUnique({ where: { id: postId } });
     if (!post) throw new NotFoundException('楼层不存在');
@@ -63,7 +67,7 @@ export class PostsService {
     });
     if (!subthread) throw new NotFoundException('子贴不存在');
 
-    // 自动加入主题帖（如还不是成员）
+    // 自动加入主题帖
     await this.prisma.threadMember.upsert({
       where: { threadId_userId: { threadId: subthread.threadId, userId } },
       create: { threadId: subthread.threadId, userId, role: 'PARTICIPANT' },
@@ -80,7 +84,7 @@ export class PostsService {
       }
     }
 
-    // 验证 parentPost 存在（如果是楼中楼）
+    // 验证 parentPost 存在
     if (dto.parentPostId) {
       const parent = await this.prisma.post.findUnique({ where: { id: dto.parentPostId } });
       if (!parent) throw new NotFoundException('父楼层不存在');
@@ -93,11 +97,10 @@ export class PostsService {
     }
 
     // 事务：分配楼层编号 + 创建帖子 + 更新 lastPostAt
-    return this.prisma.$transaction(async (tx) => {
+    const post = await this.prisma.$transaction(async (tx) => {
       let floorNumber: number | null = null;
 
       if (!dto.parentPostId) {
-        // 新楼层：分配楼层编号
         const maxFloor = await tx.post.aggregate({
           where: { subthreadId, parentPostId: null },
           _max: { floorNumber: true },
@@ -105,7 +108,7 @@ export class PostsService {
         floorNumber = (maxFloor._max.floorNumber ?? 0) + 1;
       }
 
-      const post = await tx.post.create({
+      const p = await tx.post.create({
         data: {
           threadId: subthread.threadId,
           subthreadId,
@@ -120,14 +123,22 @@ export class PostsService {
         },
       });
 
-      // 更新子贴的最后回复时间
       await tx.subthread.update({
         where: { id: subthreadId },
         data: { lastPostAt: new Date() },
       });
 
-      return post;
+      return p;
     });
+
+    // 解析 @提及（事务外，不影响发帖）
+    try {
+      await this.mentionsService.parseAndCreate(post.id, dto.content, userId);
+    } catch {
+      // @提及解析失败不影响发帖
+    }
+
+    return post;
   }
 
   /** 编辑帖子 */
@@ -151,7 +162,7 @@ export class PostsService {
     if (!post) throw new NotFoundException('帖子不存在');
     if (post.authorId !== userId) throw new ForbiddenException('只能删除自己的帖子');
 
-    // 检查是否是子贴第一楼（floorNumber === 1 且 parentPostId === null）
+    // 检查是否是子贴第一楼
     if (post.floorNumber === 1 && !post.parentPostId) {
       throw new ForbiddenException(
         '这是子贴正文，删除将同时删除整个子贴。请使用子贴管理功能进行删除。',
