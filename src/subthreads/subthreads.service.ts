@@ -72,19 +72,20 @@ export class SubthreadsService {
   }
 
   /** 修改子贴（仅 OWNER/COLLABORATOR） */
-  async update(id: string, dto: UpdateSubthreadDto, userId: string) {
+  async update(id: string, dto: UpdateSubthreadDto & { version?: number }, userId: string) {
     const subthread = await this.prisma.subthread.findUnique({ where: { id } });
     if (!subthread) throw new NotFoundException('子贴不存在');
     await this.assertCanManage(subthread.threadId, userId);
 
+    const { version, ...data } = dto;
     return this.prisma.subthread.update({
-      where: { id },
-      data: dto,
+      where: { id, version },
+      data: { ...data, version: { increment: 1 } },
       include: {
         tags: { include: { tag: true } },
         _count: { select: { posts: true } },
       },
-    });
+    }).catch(() => { throw new NotFoundException('子贴已被修改，请刷新后重试'); });
   }
 
   /** 删除子贴（仅 OWNER/COLLABORATOR） */

@@ -148,12 +148,13 @@ export class ThreadsService {
   }
 
   /** 修改主题帖（仅 OWNER/COLLABORATOR） */
-  async update(id: string, dto: UpdateThreadDto, userId: string) {
+  async update(id: string, dto: UpdateThreadDto & { version?: number }, userId: string) {
     await this.assertCanManage(id, userId);
+    const { version, ...data } = dto;
     return this.prisma.thread.update({
-      where: { id },
-      data: dto,
-    });
+      where: { id, version },
+      data: { ...data, version: { increment: 1 } },
+    }).catch(() => { throw new NotFoundException('主题帖已被修改，请刷新后重试'); });
   }
 
   /** 软删除（仅 OWNER） */

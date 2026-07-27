@@ -221,18 +221,18 @@ export class PostsService {
   }
 
   /** 编辑帖子 */
-  async update(id: string, dto: UpdatePostDto, userId: string) {
+  async update(id: string, dto: UpdatePostDto & { version?: number }, userId: string) {
     const post = await this.prisma.post.findUnique({ where: { id } });
     if (!post) throw new NotFoundException('帖子不存在');
     if (post.authorId !== userId) throw new ForbiddenException('只能编辑自己的帖子');
 
     return this.prisma.post.update({
-      where: { id },
-      data: { content: dto.content },
+      where: { id, version: dto.version },
+      data: { content: dto.content, version: { increment: 1 } },
       include: {
         author: { select: { id: true, username: true, nickname: true, avatar: true } },
       },
-    });
+    }).catch(() => { throw new NotFoundException('帖子已被编辑，请刷新后重试'); });
   }
 
   /** 软删除帖子 */

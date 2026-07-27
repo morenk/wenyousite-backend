@@ -14,14 +14,14 @@ export class UpdateSubthreadDto {
   @IsNumber()
   sortOrder?: number;
 
-  @ApiPropertyOptional({ enum: ['PUBLIC', 'MEMBERS'] })
-  @IsOptional()
-  @IsString()
-  @IsIn(['PUBLIC', 'MEMBERS'])
-
   @ApiPropertyOptional({ enum: ['COLLABORATORS', 'PARTICIPANTS'] })
   @IsOptional()
   @IsString()
   @IsIn(['COLLABORATORS', 'PARTICIPANTS'])
   postingPolicy?: string;
+
+  @ApiPropertyOptional({ description: '乐观锁版本号' })
+  @IsOptional()
+  @IsNumber()
+  version?: number;
 }

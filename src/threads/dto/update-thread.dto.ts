@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsIn, MinLength, MaxLength } from 'class-validator';
+import { IsOptional, IsString, IsIn, IsNumber, MinLength, MaxLength } from 'class-validator';
 
 /** 更新主题帖 DTO：全部可选 */
 export class UpdateThreadDto {
@@ -16,9 +16,14 @@ export class UpdateThreadDto {
   @IsIn(['DEDUCTION', 'NATION', 'RPG'])
   category?: string;
 
-  @ApiPropertyOptional({ example: 'PAUSED', enum: ['ACTIVE', 'PAUSED', 'ARCHIVED'] })
+  @ApiPropertyOptional({ example: 'CLOSED', enum: ['RECRUITING', 'CLOSED', 'FINISHED'] })
   @IsOptional()
   @IsString()
-  @IsIn(['ACTIVE', 'PAUSED', 'ARCHIVED'])
+  @IsIn(['RECRUITING', 'CLOSED', 'FINISHED'])
   status?: string;
+
+  @ApiPropertyOptional({ description: '乐观锁版本号' })
+  @IsOptional()
+  @IsNumber()
+  version?: number;
 }

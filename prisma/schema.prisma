@@ -70,7 +70,8 @@ model Thread {
   id        String   @id @default(cuid())
   title     String
   category  String   @default("DEDUCTION")
-  status    String   @default("ACTIVE")
+  status    String   @default("RECRUITING")
+  version   Int      @default(1) @map("lock_version")
   ownerId   String   @map("owner_id")
   owner     User     @relation("ThreadOwner", fields: [ownerId], references: [id])
   createdAt DateTime @default(now()) @map("created_at")
@@ -108,6 +109,7 @@ model Subthread {
   title         String
   sortOrder     Int       @default(0) @map("sort_order")
   postingPolicy String    @default("PARTICIPANTS") @map("posting_policy")
+  version       Int      @default(1) @map("lock_version")
   lastPostAt    DateTime? @map("last_post_at")
   createdAt     DateTime  @default(now()) @map("created_at")
 
@@ -193,6 +195,7 @@ model Post {
   replyToPostId String?   @map("reply_to_post_id")
   content       String
   status        String    @default("ACTIVE")
+  version       Int      @default(1) @map("lock_version")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
   deletedAt    DateTime? @map("deleted_at")
