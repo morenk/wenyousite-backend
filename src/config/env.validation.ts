@@ -1,6 +1,7 @@
 import { plainToInstance } from 'class-transformer';
 import { IsEnum, IsNumber, IsOptional, IsString, validateSync } from 'class-validator';
 
+/** 环境变量校验器：应用启动时验证必要的环境变量 */
 enum Environment {
   Development = 'development',
   Production = 'production',
@@ -16,6 +17,7 @@ class EnvironmentVariables {
   @IsOptional()
   PORT: number = 3000;
 
+  // 数据库连接串，生产环境必须设置
   @IsString()
   DATABASE_URL: string;
 
@@ -44,6 +46,7 @@ class EnvironmentVariables {
   JWT_REFRESH_EXPIRES_IN: string = '7d';
 }
 
+/** 校验函数：在 ConfigModule.forRoot 中调用，启动时验证环境变量完整性 */
 export function validate(config: Record<string, unknown>) {
   const validatedConfig = plainToInstance(EnvironmentVariables, config, {
     enableImplicitConversion: true,

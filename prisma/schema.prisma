@@ -25,6 +25,7 @@ model User {
   drafts       Draft[]
   mentions     PostMention[]   @relation("mentionedUser")
   notifications Notification[]
+  readProgress   UserReadProgress[]
 
   @@map("users")
 }
@@ -74,6 +75,7 @@ model Subthread {
   thread Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
   tags   SubthreadTag[]
   posts  Post[]
+  readProgress UserReadProgress[]
 
   @@map("subthreads")
 }
@@ -197,4 +199,18 @@ model AuditLog {
   createdAt  DateTime @default(now()) @map("created_at")
 
   @@map("audit_logs")
+}
+
+model UserReadProgress {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  subthreadId String   @map("subthread_id")
+  postId      String?  @map("post_id")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subthread Subthread @relation(fields: [subthreadId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, subthreadId])
+  @@map("user_read_progress")
 }

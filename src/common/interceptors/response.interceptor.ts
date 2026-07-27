@@ -7,6 +7,7 @@ import {
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
+/** 统一响应包装器：将所有成功响应包装为 { data } 格式 */
 export interface Response<T> {
   data: T;
   meta?: Record<string, unknown>;

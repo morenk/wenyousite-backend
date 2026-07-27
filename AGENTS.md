@@ -61,3 +61,15 @@ src/
 - 错误格式: `{ statusCode, message, timestamp, path }`
 - 分页: cursor-based
 - OpenAPI 文档: `/api/docs` (dev only)
+
+## 当前 API 端点（已实现）
+
+| 方法 | 路径 | 说明 | 认证 |
+|------|------|------|------|
+| GET | `/api/v1/health` | 健康检查 | 否 |
+| POST | `/api/v1/auth/register` | 注册新账号 | 否 |
+| POST | `/api/v1/auth/login` | 邮箱登录 | 否 |
+| POST | `/api/v1/auth/refresh` | 刷新 Token | 否 |
+| GET | `/api/v1/users/me` | 当前用户信息 | 是 |
+| PATCH | `/api/v1/users/me` | 修改个人资料 | 是 |
+| GET | `/api/v1/users/:id` | 查看用户公开信息 | 否 |
