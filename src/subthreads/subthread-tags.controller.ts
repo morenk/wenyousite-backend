@@ -6,7 +6,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubthreadsService } from './subthreads.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
 
 /** 子贴标签关联控制器 */
@@ -29,7 +29,7 @@ export class SubthreadTagsController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '为子贴添加标签（仅 OWNER/COLLABORATOR）' })
   async add(
@@ -62,7 +62,7 @@ export class SubthreadTagsController {
   }
 
   @Delete(':tagId')
-  @UseGuards(JwtAuthGuard)
+  @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '移除子贴的标签（仅 OWNER/COLLABORATOR）' })
   async remove(

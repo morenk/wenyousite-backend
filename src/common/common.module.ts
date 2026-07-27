@@ -1,8 +1,6 @@
-import { Module } from '@nestjs/common';
+import { Module, Global } from '@nestjs/common';
 
-/** 公共模块：导出统一异常过滤器、拦截器、分页 DTO 等通用组件 */
-@Module({
-  imports: [],
-  exports: [],
-})
+/** 公共模块：全局导出装饰器、过滤器、拦截器、分页 DTO */
+@Global()
+@Module({})
 export class CommonModule {}

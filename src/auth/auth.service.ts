@@ -136,5 +136,21 @@ export class AuthService {
     await this.prisma.emailVerification.delete({ where: { id: record.id } });
     return { message: '邮箱验证成功' };
   }
+
+  /** 修改密码 */
+  async changePassword(userId: string, oldPassword: string, newPassword: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException();
+
+    const valid = await argon2.verify(user.password, oldPassword);
+    if (!valid) throw new UnauthorizedException('原密码错误');
+
+    const hashed = await argon2.hash(newPassword, {
+      timeCost: this.configService.get<number>('argon2.timeCost')!,
+      memoryCost: this.configService.get<number>('argon2.memoryCost')!,
+    });
+    await this.prisma.user.update({ where: { id: userId }, data: { password: hashed } });
+    return { message: '密码已修改' };
+  }
 }
 

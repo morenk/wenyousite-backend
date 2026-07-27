@@ -6,7 +6,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { PrismaService } from '../prisma/prisma.service';
 import { TagsService } from '../tags/tags.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { ThreadsService } from './threads.service';
 
@@ -31,7 +31,7 @@ export class ThreadTagsController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '为主题帖添加标签（仅 OWNER/COLLABORATOR）' })
   async add(@Param('threadId') threadId: string, @Body('name') name: string, @Req() req: FastifyRequest) {
@@ -49,7 +49,7 @@ export class ThreadTagsController {
   }
 
   @Delete(':tagId')
-  @UseGuards(JwtAuthGuard)
+  @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '移除主题帖的标签（仅 OWNER/COLLABORATOR）' })
   async remove(@Param('threadId') threadId: string, @Param('tagId') tagId: string, @Req() req: FastifyRequest) {

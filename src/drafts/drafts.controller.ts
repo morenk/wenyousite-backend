@@ -6,12 +6,12 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 import { FastifyRequest } from 'fastify';
 import { DraftsService } from './drafts.service';
 import { CreateDraftDto } from './dto/create-draft.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 
 /** 草稿控制器：5 槽位自动/手动保存 */
 @ApiTags('Drafts')
 @Controller('drafts')
-@UseGuards(JwtAuthGuard)
+@AuthRead()
 @ApiBearerAuth()
 export class DraftsController {
   constructor(private draftsService: DraftsService) {}

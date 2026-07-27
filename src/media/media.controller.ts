@@ -2,11 +2,11 @@ import { Controller, Post, Body, Req, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { MediaService } from './media.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 
 @ApiTags('Media')
 @Controller('media')
-@UseGuards(JwtAuthGuard)
+@AuthRead()
 @ApiBearerAuth()
 export class MediaController {
   constructor(private mediaService: MediaService) {}

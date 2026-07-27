@@ -7,7 +7,7 @@ import { FastifyRequest } from 'fastify';
 import { SubthreadsService } from './subthreads.service';
 import { CreateSubthreadDto } from './dto/create-subthread.dto';
 import { UpdateSubthreadDto } from './dto/update-subthread.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
 
 /** 子贴控制器：列表、创建、详情、修改、删除 */
@@ -24,7 +24,7 @@ export class SubthreadsController {
   }
 
   @Post('threads/:threadId/subthreads')
-  @UseGuards(JwtAuthGuard)
+  @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '创建子贴（仅 OWNER/COLLABORATOR）' })
   async create(
@@ -44,7 +44,7 @@ export class SubthreadsController {
   }
 
   @Patch('subthreads/:id')
-  @UseGuards(JwtAuthGuard)
+  @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '修改子贴（仅 OWNER/COLLABORATOR）' })
   async update(
@@ -57,7 +57,7 @@ export class SubthreadsController {
   }
 
   @Delete('subthreads/:id')
-  @UseGuards(JwtAuthGuard)
+  @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除子贴（仅 OWNER/COLLABORATOR）' })
   async remove(@Param('id') id: string, @Req() req: FastifyRequest) {

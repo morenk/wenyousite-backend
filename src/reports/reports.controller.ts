@@ -4,7 +4,7 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { ReportsService } from './reports.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 
 @ApiTags('Reports')
 @Controller('reports')
@@ -12,7 +12,7 @@ export class ReportsController {
   constructor(private reportsService: ReportsService) {}
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '提交举报' })
   async create(
@@ -24,7 +24,7 @@ export class ReportsController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '举报列表（管理员）' })
   async findAll(@Req() req: FastifyRequest, @Query('status') status?: string) {
@@ -34,7 +34,7 @@ export class ReportsController {
   }
 
   @Patch(':id/handle')
-  @UseGuards(JwtAuthGuard)
+  @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '处理举报（管理员）' })
   async handle(

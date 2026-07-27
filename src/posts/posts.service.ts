@@ -69,9 +69,6 @@ export class PostsService {
     });
     if (!subthread) throw new NotFoundException('子贴不存在');
 
-    // 邮箱验证检查
-    const author = await this.prisma.user.findUnique({ where: { id: userId }, select: { emailVerified: true } });
-    if (!author?.emailVerified) throw new ForbiddenException("请先验证邮箱后才能发帖");
     // 自动加入主题帖
     await this.prisma.threadMember.upsert({
       where: { threadId_userId: { threadId: subthread.threadId, userId } },
@@ -146,12 +143,21 @@ export class PostsService {
       );
       // 通知被 @ 的用户
       if (mentionedUsers.length > 0) {
-        await this.notificationProducer.notify(
-          'mention',
-          mentionedUsers.map((u) => u.userId),
-          `在 ${subthread.title} 中提到了你`,
-          post.id,
-        );
+        // 过滤掉被拉黑的用户
+        const blockedMap = await this.prisma.userBlock.findMany({
+          where: { blockedId: userId, blockerId: { in: mentionedUsers.map(u => u.userId) } },
+          select: { blockerId: true },
+        });
+        const blockedIds = new Set(blockedMap.map(b => b.blockerId));
+        const filtered = mentionedUsers.filter(u => !blockedIds.has(u.userId));
+        if (filtered.length > 0) {
+          await this.notificationProducer.notify(
+            'mention',
+            filtered.map((u) => u.userId),
+            `在 ${subthread.title} 中提到了你`,
+            post.id,
+          );
+        }
       }
     } catch {
       // @提及不影响发帖
@@ -169,12 +175,22 @@ export class PostsService {
           select: { userId: true },
         });
         if (members.length > 0) {
-          await this.notificationProducer.notify(
-            'new_floor',
-            members.map((m) => m.userId),
-            `${subthread.title} 有新楼层`,
-            post.id,
-          );
+          // 过滤拉黑发帖人的成员
+          const memberIds = members.map((m) => m.userId);
+          const blocks = await this.prisma.userBlock.findMany({
+            where: { blockerId: { in: memberIds }, blockedId: userId },
+            select: { blockerId: true },
+          });
+          const blockedSet = new Set(blocks.map((b) => b.blockerId));
+          const filtered = memberIds.filter((id) => !blockedSet.has(id));
+          if (filtered.length > 0) {
+            await this.notificationProducer.notify(
+              'new_floor',
+              filtered,
+              `${subthread.title} 有新楼层`,
+              post.id,
+            );
+          }
         }
       }
     } catch {

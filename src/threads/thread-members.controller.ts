@@ -5,7 +5,7 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { ThreadMembersService } from './thread-members.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
 
 /** 主题帖成员控制器：加入、管理、踢出 */
@@ -22,7 +22,7 @@ export class ThreadMembersController {
   }
 
   @Post('join')
-  @UseGuards(JwtAuthGuard)
+  @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '用户自由加入主题帖' })
   async join(@Param('threadId') threadId: string, @Req() req: FastifyRequest) {
@@ -31,7 +31,7 @@ export class ThreadMembersController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '邀请用户加入（仅 OWNER/COLLABORATOR）' })
   @ApiBody({ schema: { properties: { userId: { type: 'string' } } } })
@@ -45,7 +45,7 @@ export class ThreadMembersController {
   }
 
   @Patch(':userId')
-  @UseGuards(JwtAuthGuard)
+  @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '修改成员角色或玩家标记（仅 OWNER/COLLABORATOR）' })
   @ApiBody({
@@ -67,7 +67,7 @@ export class ThreadMembersController {
   }
 
   @Delete(':userId')
-  @UseGuards(JwtAuthGuard)
+  @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '踢出成员（仅 OWNER/COLLABORATOR）' })
   async removeMember(

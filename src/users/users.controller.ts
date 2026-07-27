@@ -3,7 +3,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 import { FastifyRequest } from 'fastify';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -14,7 +14,7 @@ export class UsersController {
   constructor(private usersService: UsersService, private prisma: PrismaService) {}
 
   @Get('search')
-  @UseGuards(JwtAuthGuard)
+  @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '搜索用户（@提及用）' })
   @ApiQuery({ name: 'q', description: '用户名搜索关键词' })
@@ -29,7 +29,7 @@ export class UsersController {
   }
 
   @Get('me')
-  @UseGuards(JwtAuthGuard)
+  @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '获取当前登录用户资料' })
   async getMe(@Req() req: FastifyRequest) {
@@ -38,7 +38,7 @@ export class UsersController {
   }
 
   @Patch('me')
-  @UseGuards(JwtAuthGuard)
+  @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '修改当前登录用户资料' })
   async updateMe(@Req() req: FastifyRequest, @Body() dto: UpdateUserDto) {

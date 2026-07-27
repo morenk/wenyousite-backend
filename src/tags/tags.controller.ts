@@ -3,7 +3,7 @@ import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { TagsService } from './tags.service';
 import { CreateTagDto } from './dto/create-tag.dto';
 import { UseGuards } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
 
 /** 主题帖标签控制器：搜索与创建全局标签 */
@@ -21,7 +21,7 @@ export class TagsController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @AuthRead()
   @ApiOperation({ summary: '创建主题帖标签' })
   async create(@Body() dto: CreateTagDto) {
     return this.tagsService.create(dto);

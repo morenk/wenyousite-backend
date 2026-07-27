@@ -7,7 +7,7 @@ import { FastifyRequest } from 'fastify';
 import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
 
 /** 楼层控制器：发帖、楼中楼、编辑、删除 */
@@ -37,7 +37,7 @@ export class PostsController {
   }
 
   @Post('subthreads/:subthreadId/posts')
-  @UseGuards(JwtAuthGuard)
+  @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '发帖（创建新楼层或楼中楼回复）' })
   async create(
@@ -57,7 +57,7 @@ export class PostsController {
   }
 
   @Patch('posts/:id')
-  @UseGuards(JwtAuthGuard)
+  @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '编辑帖子' })
   async update(
@@ -70,7 +70,7 @@ export class PostsController {
   }
 
   @Delete('posts/:id')
-  @UseGuards(JwtAuthGuard)
+  @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '软删除帖子（不能删除子贴第一楼）' })
   async remove(@Param('id') id: string, @Req() req: FastifyRequest) {

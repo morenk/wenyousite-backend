@@ -4,11 +4,11 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { SubscriptionsService } from './subscriptions.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 
 @ApiTags('Subscriptions')
 @Controller('subscriptions')
-@UseGuards(JwtAuthGuard)
+@AuthRead()
 @ApiBearerAuth()
 export class SubscriptionsController {
   constructor(private subscriptionsService: SubscriptionsService) {}

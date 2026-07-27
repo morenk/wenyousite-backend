@@ -8,7 +8,7 @@ import { ThreadsService } from './threads.service';
 import { CreateThreadDto } from './dto/create-thread.dto';
 import { UpdateThreadDto } from './dto/update-thread.dto';
 import { ThreadQueryDto } from './dto/thread-query.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
 
 /** 主题帖控制器：列表、创建、详情、修改、删除 */
@@ -25,7 +25,7 @@ export class ThreadsController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '创建主题帖（自动生成第一个子贴和第一楼）' })
   async create(@Body() dto: CreateThreadDto, @Req() req: FastifyRequest) {
@@ -41,7 +41,7 @@ export class ThreadsController {
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
+  @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '修改主题帖（仅 OWNER/COLLABORATOR）' })
   async update(
@@ -54,7 +54,7 @@ export class ThreadsController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
+  @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '软删除主题帖（仅 OWNER）' })
   async remove(@Param('id') id: string, @Req() req: FastifyRequest) {
