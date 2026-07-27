@@ -1,5 +1,6 @@
 import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -9,6 +10,7 @@ import { AuthResponseDto } from './dto/auth-response.dto';
 /** 认证控制器：注册、登录、Token 刷新 */
 @ApiTags('Auth')
 @Controller('auth')
+@Throttle({ default: { ttl: 60000, limit: 3 } })
 export class AuthController {
   constructor(private authService: AuthService) {}
 

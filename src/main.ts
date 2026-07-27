@@ -1,19 +1,23 @@
 /**
- * 应用入口：创建 NestJS 应用实例
- * - Fastify 适配器替代默认 Express
- * - Pino 结构化日志
- * - Swagger API 文档（仅 dev 环境）
+ * 应用入口：Fastify + Pino + Swagger + Sentry + 限流
  */
 import { NestFactory } from '@nestjs/core';
-import {
-  FastifyAdapter,
-  NestFastifyApplication,
-} from '@nestjs/platform-fastify';
+import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Logger } from 'nestjs-pino';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import * as Sentry from '@sentry/node';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
+  // Sentry 错误监控：配置 DSN 时启用
+  if (process.env.SENTRY_DSN) {
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN,
+      environment: process.env.NODE_ENV ?? 'development',
+      tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+    });
+  }
+
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter(),
@@ -24,7 +28,7 @@ async function bootstrap() {
   app.setGlobalPrefix('api/v1');
   app.enableCors();
 
-  // Swagger 文档：仅开发环境暴露
+  // Swagger 文档：仅 dev 环境
   if (process.env.NODE_ENV !== 'production') {
     const config = new DocumentBuilder()
       .setTitle('温油站 API')

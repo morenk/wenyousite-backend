@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
 import { BullModule } from '@nestjs/bullmq';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
 import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
@@ -17,6 +19,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { ReportsModule } from './reports/reports.module';
 import { ReadingProgressModule } from './reading-progress/reading-progress.module';
 import { AdminModule } from './admin/admin.module';
+import { MediaModule } from './media/media.module';
 import { JobsModule } from './jobs/jobs.module';
 import { CommonModule } from './common/common.module';
 import configuration from './config/configuration';
@@ -25,6 +28,7 @@ import { validate } from './config/env.validation';
 /** 根模块：注册所有特性模块和全局功能 */
 @Module({
   imports: [
+    // 环境变量配置
     ConfigModule.forRoot({
       isGlobal: true,
       load: [configuration],
@@ -49,6 +53,8 @@ import { validate } from './config/env.validation';
         },
       }),
     }),
+    // 全局限流：每秒最多 10 个请求
+    ThrottlerModule.forRoot([{ ttl: 1000, limit: 10 }]),
     // 基础设施模块
     PrismaModule,
     HealthModule,
@@ -67,7 +73,11 @@ import { validate } from './config/env.validation';
     ReadingProgressModule,
     ReportsModule,
     AdminModule,
+    MediaModule,
     JobsModule,
+  ],
+  providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
 })
 export class AppModule {}
