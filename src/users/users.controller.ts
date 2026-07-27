@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Body, Param, Query, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Patch, Delete, Body, Param, Query, UseGuards, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { UsersService } from './users.service';
@@ -21,7 +21,7 @@ export class UsersController {
   async search(@Query('q') q: string) {
     if (!q || q.length < 1) return [];
     return this.prisma.user.findMany({
-      where: { username: { contains: q, mode: 'insensitive' } },
+      where: { username: { contains: q, mode: 'insensitive' }, deletedAt: null },
       select: { id: true, username: true, nickname: true, avatar: true },
       take: 10,
       orderBy: { username: 'asc' },
@@ -44,6 +44,15 @@ export class UsersController {
   async updateMe(@Req() req: FastifyRequest, @Body() dto: UpdateUserDto) {
     const user = req['user'] as { id: string };
     return this.usersService.update(user.id, dto);
+  }
+
+  @Delete('me')
+  @AuthRead()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '注销当前账号' })
+  async deleteMe(@Req() req: FastifyRequest) {
+    const user = req['user'] as { id: string };
+    return this.usersService.deactivate(user.id);
   }
 
   @Get(':id')

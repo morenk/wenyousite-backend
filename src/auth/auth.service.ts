@@ -66,6 +66,10 @@ export class AuthService {
       throw new UnauthorizedException('邮箱或密码错误');
     }
 
+    if (user.deletedAt) {
+      throw new UnauthorizedException('该账号已注销');
+    }
+
     const valid = await argon2.verify(user.password, dto.password);
     if (!valid) {
       throw new UnauthorizedException('邮箱或密码错误');
@@ -95,9 +99,10 @@ export class AuthService {
 
       const user = await this.prisma.user.findUnique({
         where: { id: payload.sub },
-        select: { id: true, email: true, username: true, nickname: true, avatar: true, role: true },
+        select: { id: true, email: true, username: true, nickname: true, avatar: true, role: true, deletedAt: true },
       });
       if (!user) throw new UnauthorizedException();
+      if (user.deletedAt) throw new UnauthorizedException('账号已注销');
 
       const tokens = await this.generateTokens(user.id);
       return { ...tokens, user };

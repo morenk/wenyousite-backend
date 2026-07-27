@@ -1,28 +1,26 @@
-import {
-  Controller, Get, Post, Patch, Body, Param, Query, Req, UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Query, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { ReportsService } from './reports.service';
-import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
+import { AuthRead } from '../auth/decorators/auth.decorator';
 
+/** 举报控制器：举报提交与管理员处理 */
 @ApiTags('Reports')
 @Controller('reports')
 export class ReportsController {
   constructor(private reportsService: ReportsService) {}
 
+  /** 用户提交举报 */
   @Post()
   @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '提交举报' })
-  async create(
-    @Req() req: FastifyRequest,
-    @Body() dto: { targetType: string; targetId: string; reason: string },
-  ) {
+  async create(@Req() req: FastifyRequest, @Body() dto: { targetType: string; targetId: string; reason: string }) {
     const user = req['user'] as { id: string };
     return this.reportsService.create(user.id, dto.targetType, dto.targetId, dto.reason);
   }
 
+  /** 管理员查看举报列表 */
   @Get()
   @AuthRead()
   @ApiBearerAuth()
@@ -33,15 +31,12 @@ export class ReportsController {
     return this.reportsService.findAll(status);
   }
 
+  /** 管理员处理举报（标记已处理/驳回） */
   @Patch(':id/handle')
   @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '处理举报（管理员）' })
-  async handle(
-    @Req() req: FastifyRequest,
-    @Param('id') id: string,
-    @Body('status') status: string,
-  ) {
+  async handle(@Req() req: FastifyRequest, @Param('id') id: string, @Body('status') status: string) {
     const user = req['user'] as { id: string; role: string };
     if (user.role !== 'ADMIN') return { message: '无权限' };
     return this.reportsService.handle(id, user.id, status);

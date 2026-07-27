@@ -2,15 +2,17 @@ import { Controller, Post, Body, Req, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { MediaService } from './media.service';
-import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
+import { AuthRead } from '../auth/decorators/auth.decorator';
 
+/** 媒体上传控制器：生成 S3 预签名上传 URL */
 @ApiTags('Media')
 @Controller('media')
-@AuthRead()
+@UseGuards(AuthRead())
 @ApiBearerAuth()
 export class MediaController {
   constructor(private mediaService: MediaService) {}
 
+  /** 获取 S3 预签名上传 URL，客户端凭此 URL 直传对象存储 */
   @Post('upload-url')
   @ApiOperation({ summary: '获取临时上传 URL（客户端直传对象存储）' })
   async getUploadUrl(

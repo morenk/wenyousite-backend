@@ -4,18 +4,7 @@ import { MentionsService } from '../mentions/mentions.service';
 import { NotificationProducer } from './notification.producer';
 import { PrismaService } from '../prisma/prisma.service';
 
-export interface PostCreatedEvent {
-  postId: string;
-  content: string;
-  userId: string;
-  threadId: string;
-  subthreadId: string;
-  subthreadTitle: string;
-  parentPostId: string | null;
-  replyToPostId: string | null;
-}
-
-/** 监听 post.created 事件，处理 @提及 + 通知 */
+/** 发帖事件监听器：PostCreated → @提及解析 + 通知队列投递 */
 @Injectable()
 export class PostEventsListener {
   private readonly logger = new Logger(PostEventsListener.name);
@@ -26,15 +15,16 @@ export class PostEventsListener {
     private prisma: PrismaService,
   ) {}
 
+  /** 监听 post.created 事件，处理三类通知：@提及、新楼层通知楼主协作者、楼中楼回复通知被回复者 */
   @OnEvent('post.created')
   async handlePostCreated(event: PostCreatedEvent) {
-    // 1. @提及解析
+    // 1. @提及：解析正文中的 @用户名，验证权限规则，过滤拉黑，入队通知
     try {
       const mentionedUsers = await this.mentionsService.parseAndCreate(
         event.postId, event.content, event.userId, event.threadId,
       );
-      // 通知被 @ 的用户
       if (mentionedUsers.length > 0) {
+        // 过滤：被 @ 的用户如果拉黑了发帖人，不通知
         const blocks = await this.prisma.userBlock.findMany({
           where: { blockedId: event.userId, blockerId: { in: mentionedUsers.map(u => u.userId) } },
           select: { blockerId: true },
@@ -46,13 +36,13 @@ export class PostEventsListener {
             'mention',
             filtered.map(u => u.userId),
             `在 ${event.subthreadTitle} 中提到了你`,
-            event.postId,
+            { postId: event.postId, threadId: event.threadId, fromUserId: event.userId },
           );
         }
       }
     } catch (e) { this.logger.error('mention processing failed', e); }
 
-    // 2. 新楼层通知楼主和协作者
+    // 2. 新楼层：通知楼主和协作者（排除发帖人自己，过滤拉黑）
     try {
       if (!event.parentPostId) {
         const members = await this.prisma.threadMember.findMany({
@@ -76,14 +66,14 @@ export class PostEventsListener {
               'new_floor',
               filtered,
               `${event.subthreadTitle} 有新楼层`,
-              event.postId,
+              { postId: event.postId, threadId: event.threadId, fromUserId: event.userId },
             );
           }
         }
       }
     } catch (e) { this.logger.error('new floor notification failed', e); }
 
-    // 3. 楼中楼回复通知被回复者
+    // 3. 楼中楼回复：通知被回复者（排除自己，过滤拉黑）
     try {
       if (event.replyToPostId) {
         const targetPost = await this.prisma.post.findUnique({
@@ -99,11 +89,22 @@ export class PostEventsListener {
               'reply',
               [targetPost.authorId],
               `有人在 ${event.subthreadTitle} 回复了你`,
-              event.postId,
+              { postId: event.postId, threadId: event.threadId, fromUserId: event.userId },
             );
           }
         }
       }
     } catch (e) { this.logger.error('reply notification failed', e); }
   }
+}
+
+export interface PostCreatedEvent {
+  postId: string;
+  content: string;
+  userId: string;
+  threadId: string;
+  subthreadId: string;
+  subthreadTitle: string;
+  parentPostId: string | null;
+  replyToPostId: string | null;
 }

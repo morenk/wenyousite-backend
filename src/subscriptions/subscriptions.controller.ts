@@ -1,36 +1,37 @@
-import {
-  Controller, Get, Post, Delete, Body, Param, Req, UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { SubscriptionsService } from './subscriptions.service';
 import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 
+/** 订阅控制器：玩家订阅主题帖或特定用户回复 */
 @ApiTags('Subscriptions')
 @Controller('subscriptions')
-@AuthRead()
 @ApiBearerAuth()
 export class SubscriptionsController {
   constructor(private subscriptionsService: SubscriptionsService) {}
 
+  /** 我的订阅列表 */
   @Get()
+  @AuthRead()
   @ApiOperation({ summary: '我的订阅列表' })
   async findAll(@Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     return this.subscriptionsService.findAll(user.id);
   }
 
+  /** 创建订阅（type=THREAD 整帖 / type=USER 某个用户在该主题帖下的回复） */
   @Post()
-  @ApiOperation({ summary: '创建订阅（type=THREAD 整帖 / type=USER 某个用户）' })
-  async create(
-    @Body() dto: { threadId: string; type: 'THREAD' | 'USER'; targetUserId?: string },
-    @Req() req: FastifyRequest,
-  ) {
+  @Auth()
+  @ApiOperation({ summary: '创建订阅' })
+  async create(@Req() req: FastifyRequest, @Body() dto: { threadId: string; type: 'THREAD' | 'USER'; targetUserId?: string }) {
     const user = req['user'] as { id: string };
     return this.subscriptionsService.create(user.id, dto.threadId, dto.type, dto.targetUserId);
   }
 
+  /** 取消订阅 */
   @Delete(':id')
+  @Auth()
   @ApiOperation({ summary: '取消订阅' })
   async remove(@Param('id') id: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };

@@ -1,11 +1,10 @@
-import {
-  Controller, Get, Post, Patch, Param, Query, Req, UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { NotificationsService } from './notifications.service';
-import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
+import { AuthRead } from '../auth/decorators/auth.decorator';
 
+/** 通知控制器：站内通知的查询、标记已读 */
 @ApiTags('Notifications')
 @Controller('notifications')
 @AuthRead()
@@ -13,6 +12,7 @@ import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 export class NotificationsController {
   constructor(private notificationsService: NotificationsService) {}
 
+  /** 通知列表（cursor 分页，含关联帖子/主题/发信人信息） */
   @Get()
   @ApiOperation({ summary: '通知列表' })
   @ApiQuery({ name: 'cursor', required: false })
@@ -21,6 +21,7 @@ export class NotificationsController {
     return this.notificationsService.findAll(user.id, cursor);
   }
 
+  /** 未读通知数量 */
   @Get('unread')
   @ApiOperation({ summary: '未读通知数' })
   async unreadCount(@Req() req: FastifyRequest) {
@@ -29,6 +30,7 @@ export class NotificationsController {
     return { unreadCount: count };
   }
 
+  /** 标记单条通知为已读 */
   @Patch(':id/read')
   @ApiOperation({ summary: '标记单条已读' })
   async markAsRead(@Param('id') id: string, @Req() req: FastifyRequest) {
@@ -37,6 +39,7 @@ export class NotificationsController {
     return { message: '已标记为已读' };
   }
 
+  /** 一键全部标记已读 */
   @Post('read-all')
   @ApiOperation({ summary: '全部已读' })
   async markAllAsRead(@Req() req: FastifyRequest) {

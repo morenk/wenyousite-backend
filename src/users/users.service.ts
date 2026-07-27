@@ -2,11 +2,15 @@ import { Injectable, NotFoundException, ConflictException } from '@nestjs/common
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 
-// 用户公开字段选择器（排除 password 等敏感字段）
 const userSelect = {
   id: true, email: true, username: true, nickname: true, avatar: true, bio: true,
   role: true, showRecentReplies: true, showPlayerBadges: true, showBookmarks: true,
-  emailVerified: true, createdAt: true, updatedAt: true,
+  emailVerified: true, deletedAt: true, createdAt: true, updatedAt: true,
+};
+
+const maskDeactivated = (user: Record<string, any>) => {
+  if (!user.deletedAt) return user;
+  return { id: user.id, username: '已注销用户', deletedAt: user.deletedAt, isDeactivated: true };
 };
 
 /** 用户服务：用户资料查询与更新 */
@@ -18,7 +22,7 @@ export class UsersService {
   async findById(id: string) {
     const user = await this.prisma.user.findUnique({ where: { id }, select: userSelect });
     if (!user) throw new NotFoundException('用户不存在');
-    return user;
+    return maskDeactivated(user);
   }
 
   /** 根据邮箱查找用户（内部使用，包含密码字段） */
@@ -46,5 +50,17 @@ export class UsersService {
       data: dto,
       select: userSelect,
     });
+  }
+
+  async deactivate(id: string) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('用户不存在');
+    if (user.deletedAt) throw new NotFoundException('用户不存在');
+
+    await this.prisma.user.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+    return { message: '账号已注销' };
   }
 }

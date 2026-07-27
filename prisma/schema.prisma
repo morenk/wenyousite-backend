@@ -7,6 +7,18 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum ThreadCategory {
+  DEDUCTION
+  NATION
+  RPG
+}
+
+enum ThreadStatus {
+  RECRUITING
+  CLOSED
+  FINISHED
+}
+
 model User {
   id               String   @id @default(cuid())
   email            String   @unique
@@ -20,6 +32,7 @@ model User {
   showRecentReplies Boolean @default(true) @map("show_recent_replies")
   showPlayerBadges  Boolean @default(true) @map("show_player_badges")
   showBookmarks    Boolean  @default(true) @map("show_bookmarks")
+  deletedAt        DateTime? @map("deleted_at")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
@@ -37,6 +50,10 @@ model User {
   followers      UserFollow[]    @relation("Followers")
   emailVerifications EmailVerification[]
   subscriptions   Subscription[]
+  sentNotifications Notification[] @relation("NotificationFromUser")
+  reportedReports Report[]        @relation("Reporter")
+  handledReports  Report[]        @relation("Handler")
+  auditLogs       AuditLog[]      @relation("AuditAdmin")
 
   @@map("users")
 }
@@ -67,12 +84,12 @@ model UserBlock {
 }
 
 model Thread {
-  id        String   @id @default(cuid())
+  id        String         @id @default(cuid())
   title     String
-  category  String   @default("DEDUCTION")
-  status    String   @default("RECRUITING")
-  version   Int      @default(1) @map("lock_version")
-  ownerId   String   @map("owner_id")
+  category  ThreadCategory @default(DEDUCTION)
+  status    ThreadStatus   @default(RECRUITING)
+  version   Int            @default(1) @map("lock_version")
+  ownerId   String         @map("owner_id")
   owner     User     @relation("ThreadOwner", fields: [ownerId], references: [id])
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -84,6 +101,7 @@ model Thread {
   posts         Post[]
   topicTags     ThreadTopicTag[]
   subscriptions Subscription[]
+  notifications Notification[]
 
   @@map("threads")
 }
@@ -181,6 +199,7 @@ model Subscription {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
 
+  @@index([userId, type])
   @@unique([userId, threadId, targetUserId])
   @@map("subscriptions")
 }
@@ -194,7 +213,6 @@ model Post {
   parentPostId  String?   @map("parent_post_id")
   replyToPostId String?   @map("reply_to_post_id")
   content       String
-  status        String    @default("ACTIVE")
   version       Int      @default(1) @map("lock_version")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
@@ -209,7 +227,10 @@ model Post {
   repliedBy   Post[]    @relation("ReplyTo")
   readProgressBy UserReadProgress[]
   mentions    PostMention[]
+  notifications Notification[]
 
+  @@index([subthreadId, createdAt])
+  @@index([threadId, createdAt])
   @@unique([subthreadId, floorNumber])
   @@map("posts")
 }
@@ -236,7 +257,6 @@ model Draft {
   content     String
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
-  deletedAt    DateTime? @map("deleted_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -249,12 +269,18 @@ model Notification {
   userId      String   @map("user_id")
   type        String
   content     String?
-  referenceId String?  @map("reference_id")
+  postId      String?  @map("post_id")
+  threadId    String?  @map("thread_id")
+  fromUserId  String?  @map("from_user_id")
   isRead      Boolean  @default(false) @map("is_read")
   createdAt   DateTime @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post   Post?   @relation(fields: [postId], references: [id], onDelete: SetNull)
+  thread Thread? @relation(fields: [threadId], references: [id], onDelete: SetNull)
+  fromUser User? @relation("NotificationFromUser", fields: [fromUserId], references: [id], onDelete: SetNull)
 
+  @@index([userId, isRead, createdAt])
   @@map("notifications")
 }
 
@@ -269,6 +295,9 @@ model Report {
   handledAt  DateTime? @map("handled_at")
   createdAt  DateTime  @default(now()) @map("created_at")
 
+  reporter User  @relation("Reporter", fields: [reporterId], references: [id], onDelete: SetNull)
+  handler  User? @relation("Handler", fields: [handledBy], references: [id], onDelete: SetNull)
+
   @@map("reports")
 }
 
@@ -281,6 +310,8 @@ model AuditLog {
   detail     String?
   ip         String?
   createdAt  DateTime @default(now()) @map("created_at")
+
+  admin User @relation("AuditAdmin", fields: [adminId], references: [id], onDelete: SetNull)
 
   @@map("audit_logs")
 }

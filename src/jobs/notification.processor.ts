@@ -13,14 +13,14 @@ export class NotificationProcessor extends WorkerHost {
   }
 
   async process(job: Job): Promise<void> {
-    const { type, recipients, content, referenceId } = job.data;
+    const { type, recipients, content, postId, threadId, fromUserId } = job.data;
 
     switch (type) {
       case 'reply':
       case 'mention':
       case 'new_floor':
       case 'new_subthread':
-        await this.createNotifications(recipients, type, content, referenceId);
+        await this.createNotifications(recipients, type, content, postId, threadId, fromUserId);
         break;
       default:
         this.logger.warn(`Unknown notification type: ${type}`);
@@ -31,11 +31,13 @@ export class NotificationProcessor extends WorkerHost {
     userIds: string[],
     type: string,
     content: string,
-    referenceId?: string,
+    postId?: string,
+    threadId?: string,
+    fromUserId?: string,
   ) {
     if (userIds.length === 0) return;
 
-    const data = userIds.map((userId) => ({ userId, type, content, referenceId }));
+    const data = userIds.map((userId) => ({ userId, type, content, postId, threadId, fromUserId }));
     await this.prisma.notification.createMany({ data });
     this.logger.log(`Created ${userIds.length} notifications of type '${type}'`);
   }

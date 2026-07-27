@@ -114,10 +114,20 @@ describe('AuthService', () => {
     ).rejects.toThrow(UnauthorizedException);
   });
 
+  it('已注销用户登录应该返回401', async () => {
+    const hashed = await argon2.hash('Test1234!');
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 'u1', email: 'a@b.com', password: hashed, deletedAt: new Date(),
+    });
+    await expect(
+      service.login({ email: 'a@b.com', password: 'Test1234!' }),
+    ).rejects.toThrow(UnauthorizedException);
+  });
+
   it('refresh token 有效时应该返回新Token', async () => {
     mockJwt.verify.mockReturnValue({ sub: 'u1' });
     mockPrisma.user.findUnique.mockResolvedValue({
-      id: 'u1', email: 'a@b.com', username: 'test', nickname: 'test', avatar: null, role: 'USER',
+      id: 'u1', email: 'a@b.com', username: 'test', nickname: 'test', avatar: null, role: 'USER', deletedAt: null,
     });
     mockJwt.signAsync
       .mockResolvedValueOnce('new-at')

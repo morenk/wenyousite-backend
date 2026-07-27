@@ -21,7 +21,7 @@ export class ThreadsService {
           title: dto.title,
           category: dto.category,
           ownerId: userId,
-        },
+        } as any,
       });
 
       const subthread = await tx.subthread.create({
@@ -153,7 +153,7 @@ export class ThreadsService {
     const { version, ...data } = dto;
     return this.prisma.thread.update({
       where: { id, version },
-      data: { ...data, version: { increment: 1 } },
+      data: { ...data, version: { increment: 1 } } as any,
     }).catch(() => { throw new NotFoundException('主题帖已被修改，请刷新后重试'); });
   }
 

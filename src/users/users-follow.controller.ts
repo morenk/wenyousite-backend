@@ -1,17 +1,20 @@
-import { Controller, Post, Delete, Get, Param, Req, UseGuards } from '@nestjs/common';
+import { Controller, Post, Delete, Get, Param, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { PrismaService } from '../prisma/prisma.service';
 import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 
+/** 关注与拉黑控制器 */
 @ApiTags('Users')
 @Controller('users')
 export class UsersFollowController {
   constructor(private prisma: PrismaService) {}
 
-  // --- 关注 ---
+  // ====== 关注 ======
+
+  /** 关注指定用户 */
   @Post('follow/:id')
-  @AuthRead()
+  @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '关注用户' })
   async follow(@Param('id') targetId: string, @Req() req: FastifyRequest) {
@@ -25,8 +28,9 @@ export class UsersFollowController {
     return { message: '已关注' };
   }
 
+  /** 取消关注 */
   @Delete('follow/:id')
-  @AuthRead()
+  @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '取消关注' })
   async unfollow(@Param('id') targetId: string, @Req() req: FastifyRequest) {
@@ -37,6 +41,7 @@ export class UsersFollowController {
     return { message: '已取消关注' };
   }
 
+  /** 我的关注列表 */
   @Get('following')
   @AuthRead()
   @ApiBearerAuth()
@@ -49,6 +54,7 @@ export class UsersFollowController {
     });
   }
 
+  /** 我的粉丝列表 */
   @Get('followers')
   @AuthRead()
   @ApiBearerAuth()
@@ -61,9 +67,11 @@ export class UsersFollowController {
     });
   }
 
-  // --- 拉黑 ---
+  // ====== 拉黑 ======
+
+  /** 拉黑指定用户（双向阻止发帖 + 通知） */
   @Post('me/block/:id')
-  @AuthRead()
+  @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '拉黑用户' })
   async block(@Param('id') targetId: string, @Req() req: FastifyRequest) {
@@ -77,8 +85,9 @@ export class UsersFollowController {
     return { message: '已拉黑' };
   }
 
+  /** 取消拉黑 */
   @Delete('me/block/:id')
-  @AuthRead()
+  @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '取消拉黑' })
   async unblock(@Param('id') targetId: string, @Req() req: FastifyRequest) {
@@ -89,6 +98,7 @@ export class UsersFollowController {
     return { message: '已取消拉黑' };
   }
 
+  /** 我的黑名单 */
   @Get('me/blocks')
   @AuthRead()
   @ApiBearerAuth()

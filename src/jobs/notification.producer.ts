@@ -8,11 +8,16 @@ export class NotificationProducer {
   constructor(@InjectQueue('notification') private notificationQueue: Queue) {}
 
   /** 批量发送通知 */
-  async notify(type: string, recipients: string[], content: string, referenceId?: string) {
+  async notify(
+    type: string,
+    recipients: string[],
+    content: string,
+    opts?: { postId?: string; threadId?: string; fromUserId?: string },
+  ) {
     if (recipients.length === 0) return;
     await this.notificationQueue.add(
       type,
-      { type, recipients, content, referenceId },
+      { type, recipients, content, ...opts },
       { removeOnComplete: { age: 3600 * 24 }, removeOnFail: { age: 3600 * 24 * 7 } },
     );
   }

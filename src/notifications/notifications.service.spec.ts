@@ -28,15 +28,15 @@ describe('NotificationsService', () => {
 
   it('create 应该创建通知', async () => {
     mockPrisma.notification.create.mockResolvedValue({ id: 'n1', userId: 'u1' });
-    const result = await service.create('u1', 'reply', '内容');
+    const result = await service.create('u1', 'reply', '内容', { postId: 'p1', threadId: 't1', fromUserId: 'u2' });
     expect(result.id).toBe('n1');
   });
 
   it('createMany 应该批量创建', async () => {
     mockPrisma.notification.createMany.mockResolvedValue({});
     await service.createMany([
-      { userId: 'u1', type: 'reply', content: 'a' },
-      { userId: 'u2', type: 'reply', content: 'a' },
+      { userId: 'u1', type: 'reply', content: 'a', postId: 'p1', threadId: 't1', fromUserId: 'u2' },
+      { userId: 'u2', type: 'reply', content: 'a', postId: 'p1', threadId: 't1', fromUserId: 'u3' },
     ]);
     expect(mockPrisma.notification.createMany).toHaveBeenCalled();
   });

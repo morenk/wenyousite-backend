@@ -10,6 +10,8 @@ const mockPrisma = {
   },
 };
 
+const userFixture = { id: 'u1', username: 'test', nickname: 't', avatar: null, bio: null, role: 'USER', deletedAt: null };
+
 describe('UsersService', () => {
   let service: UsersService;
 
@@ -25,7 +27,7 @@ describe('UsersService', () => {
   });
 
   it('findById 应该返回用户信息', async () => {
-    const user = { id: 'u1', username: 'test', nickname: 't', avatar: null, bio: null, role: 'USER' };
+    const user = { ...userFixture };
     mockPrisma.user.findUnique.mockResolvedValue(user);
     const result = await service.findById('u1');
     expect(result.id).toBe('u1');
@@ -38,9 +40,9 @@ describe('UsersService', () => {
   });
 
   it('update 应该成功更新昵称', async () => {
-    mockPrisma.user.findUnique.mockResolvedValue({ id: 'u1', username: 'test' });
+    mockPrisma.user.findUnique.mockResolvedValue({ ...userFixture });
     mockPrisma.user.update.mockResolvedValue({
-      id: 'u1', username: 'test', nickname: '新昵称',
+      ...userFixture, nickname: '新昵称',
     });
     const result = await service.update('u1', { nickname: '新昵称' });
     expect(result.nickname).toBe('新昵称');
@@ -48,8 +50,8 @@ describe('UsersService', () => {
 
   it('修改用户名重复应该返回409', async () => {
     mockPrisma.user.findUnique
-      .mockResolvedValueOnce({ id: 'u1', username: 'oldname' })
-      .mockResolvedValueOnce({ id: 'other' }); // findByUsername 返回已占用
+      .mockResolvedValueOnce({ ...userFixture, username: 'oldname' })
+      .mockResolvedValueOnce({ id: 'other' });
     await expect(
       service.update('u1', { username: 'newname' }),
     ).rejects.toThrow(ConflictException);
@@ -59,5 +61,17 @@ describe('UsersService', () => {
     mockPrisma.user.findUnique.mockReset();
     mockPrisma.user.findUnique.mockResolvedValue(null);
     await expect(service.update('x', { nickname: 'y' })).rejects.toThrow(NotFoundException);
+  });
+
+  it('deactivate 应该成功注销', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({ ...userFixture });
+    mockPrisma.user.update.mockResolvedValue({});
+    const result = await service.deactivate('u1');
+    expect(result.message).toBe('账号已注销');
+  });
+
+  it('deactivate 已注销再次调用应该返回404', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({ ...userFixture, deletedAt: new Date() });
+    await expect(service.deactivate('u1')).rejects.toThrow(NotFoundException);
   });
 });
