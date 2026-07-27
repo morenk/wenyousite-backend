@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../prisma/prisma.service';
+import * as crypto from 'crypto';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 
@@ -46,6 +47,13 @@ export class AuthService {
     });
 
     const tokens = await this.generateTokens(user.id);
+
+    // 生成邮箱验证 token（开发环境打印到控制台）
+    const verifyToken = crypto.randomBytes(32).toString('hex');
+    await this.prisma.emailVerification.create({
+      data: { userId: user.id, token: verifyToken, expiresAt: new Date(Date.now() + 24*60*60*1000) },
+    });
+    console.log('[DEV] 验证链接: POST /auth/verify-email', { token: verifyToken, email: user.email });
 
     return { ...tokens, user };
   }
@@ -113,4 +121,20 @@ export class AuthService {
 
     return { accessToken, refreshToken };
   }
+
+  /** 验证邮箱 */
+  async verifyEmail(token: string) {
+    const record = await this.prisma.emailVerification.findFirst({
+      where: { token, expiresAt: { gt: new Date() } },
+    });
+    if (!record) throw new UnauthorizedException('验证链接无效或已过期');
+
+    await this.prisma.user.update({
+      where: { id: record.userId },
+      data: { emailVerified: true },
+    });
+    await this.prisma.emailVerification.delete({ where: { id: record.id } });
+    return { message: '邮箱验证成功' };
+  }
 }
+

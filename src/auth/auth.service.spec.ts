@@ -12,6 +12,11 @@ const mockPrisma = {
     create: jest.fn(),
     update: jest.fn(),
   },
+  emailVerification: {
+    create: jest.fn(),
+    findFirst: jest.fn(),
+    delete: jest.fn(),
+  },
 };
 
 const mockJwt = { signAsync: jest.fn(), verify: jest.fn() };

@@ -38,4 +38,44 @@ export class ReadingProgressService {
       update: { postId, updatedAt: new Date() },
     });
   }
+
+  /** 查询自上次阅读后的新增回复数 */
+  async newRepliesSince(userId: string, subthreadId: string) {
+    const progress = await this.prisma.userReadProgress.findUnique({
+      where: { userId_subthreadId: { userId, subthreadId } },
+    });
+    const lastReadTime = progress?.updatedAt;
+    const lastPostId = progress?.postId;
+
+    // 若从未读过，返回全部楼层数
+    const totalPosts = await this.prisma.post.count({
+      where: { subthreadId, deletedAt: null },
+    });
+
+    if (!lastReadTime) {
+      return { newReplies: totalPosts, totalPosts, lastReadPostId: null, continueFrom: null };
+    }
+
+    // 统计上次阅读后新增的帖子
+    const newPosts = await this.prisma.post.count({
+      where: {
+        subthreadId,
+        deletedAt: null,
+        createdAt: { gt: lastReadTime },
+      },
+    });
+
+    return {
+      newReplies: newPosts,
+      totalPosts,
+      lastReadPostId: lastPostId,
+      lastReadTime,
+      continueFrom: lastPostId
+        ? await this.prisma.post.findUnique({
+            where: { id: lastPostId },
+            select: { id: true, floorNumber: true, parentPostId: true },
+          })
+        : null,
+    };
+  }
 }

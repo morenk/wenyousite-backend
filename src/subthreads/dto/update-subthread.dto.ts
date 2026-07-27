@@ -18,7 +18,6 @@ export class UpdateSubthreadDto {
   @IsOptional()
   @IsString()
   @IsIn(['PUBLIC', 'MEMBERS'])
-  visibility?: string;
 
   @ApiPropertyOptional({ enum: ['COLLABORATORS', 'PARTICIPANTS'] })
   @IsOptional()

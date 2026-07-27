@@ -7,6 +7,9 @@ import { NotFoundException, ForbiddenException } from '@nestjs/common';
 
 const mockPrisma = {
   $transaction: jest.fn(),
+  user: {
+    findUnique: jest.fn(),
+  },
   subthread: {
     findUnique: jest.fn(),
   },
@@ -40,9 +43,11 @@ describe('PostsService', () => {
     }).compile();
     service = module.get<PostsService>(PostsService);
     jest.clearAllMocks();
+    mockPrisma.user.findUnique.mockResolvedValue({ emailVerified: true });
   });
 
   it('create 新楼层应该正确分配 floorNumber', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({ emailVerified: true });
     const subthread = { id: 's1', threadId: 't1', postingPolicy: 'PARTICIPANTS' };
     mockPrisma.subthread.findUnique.mockResolvedValue(subthread);
     mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });

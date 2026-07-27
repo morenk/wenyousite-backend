@@ -47,7 +47,6 @@ export class SubthreadsService {
           threadId,
           title: dto.title,
           sortOrder: dto.sortOrder ?? 0,
-          visibility: dto.visibility ?? 'PUBLIC',
           postingPolicy: dto.postingPolicy ?? 'PARTICIPANTS',
         },
       });

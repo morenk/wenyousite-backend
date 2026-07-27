@@ -1,16 +1,32 @@
-import { Controller, Get, Patch, Body, Param, UseGuards, Req } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Get, Patch, Body, Param, Query, UseGuards, Req } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Public } from '../common/decorators/public.decorator';
+import { PrismaService } from '../prisma/prisma.service';
 
 /** 用户控制器：查询和修改个人资料 */
 @ApiTags('Users')
 @Controller('users')
 export class UsersController {
-  constructor(private usersService: UsersService) {}
+  constructor(private usersService: UsersService, private prisma: PrismaService) {}
+
+  @Get('search')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '搜索用户（@提及用）' })
+  @ApiQuery({ name: 'q', description: '用户名搜索关键词' })
+  async search(@Query('q') q: string) {
+    if (!q || q.length < 1) return [];
+    return this.prisma.user.findMany({
+      where: { username: { contains: q, mode: 'insensitive' } },
+      select: { id: true, username: true, nickname: true, avatar: true },
+      take: 10,
+      orderBy: { username: 'asc' },
+    });
+  }
 
   @Get('me')
   @UseGuards(JwtAuthGuard)

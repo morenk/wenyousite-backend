@@ -39,4 +39,11 @@ export class AuthController {
   async refresh(@Body() dto: RefreshDto) {
     return this.authService.refresh(dto.refreshToken);
   }
+
+  @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '验证邮箱' })
+  async verifyEmail(@Body('token') token: string) {
+    return this.authService.verifyEmail(token);
+  }
 }

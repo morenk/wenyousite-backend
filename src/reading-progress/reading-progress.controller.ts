@@ -21,6 +21,13 @@ export class ReadingProgressController {
     return this.readingProgressService.findBySubthread(user.id, subthreadId);
   }
 
+  @Get('new-replies')
+  @ApiOperation({ summary: '自上次阅读后子贴新增回复数' })
+  async newReplies(@Req() req: FastifyRequest, @Query('subthreadId') subthreadId: string) {
+    const user = req['user'] as { id: string };
+    return this.readingProgressService.newRepliesSince(user.id, subthreadId);
+  }
+
   @Post()
   @ApiOperation({ summary: '记录阅读进度（精确到楼层/楼中楼）' })
   async update(

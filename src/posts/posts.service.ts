@@ -69,6 +69,9 @@ export class PostsService {
     });
     if (!subthread) throw new NotFoundException('子贴不存在');
 
+    // 邮箱验证检查
+    const author = await this.prisma.user.findUnique({ where: { id: userId }, select: { emailVerified: true } });
+    if (!author?.emailVerified) throw new ForbiddenException("请先验证邮箱后才能发帖");
     // 自动加入主题帖
     await this.prisma.threadMember.upsert({
       where: { threadId_userId: { threadId: subthread.threadId, userId } },
@@ -135,7 +138,12 @@ export class PostsService {
 
     // 解析 @提及
     try {
-      const mentionedUsers = await this.mentionsService.parseAndCreate(post.id, dto.content, userId);
+      const mentionedUsers = await this.mentionsService.parseAndCreate(
+        post.id,
+        dto.content,
+        userId,
+        subthread.threadId,
+      );
       // 通知被 @ 的用户
       if (mentionedUsers.length > 0) {
         await this.notificationProducer.notify(

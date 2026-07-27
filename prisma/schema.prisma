@@ -33,6 +33,8 @@ model User {
 
   userBlocks      UserBlock[]      @relation("Blocker")
   blockedBy       UserBlock[]      @relation("Blocked")
+  following      UserFollow[]    @relation("Following")
+  followers      UserFollow[]    @relation("Followers")
   emailVerifications EmailVerification[]
   subscriptions   Subscription[]
 
@@ -105,7 +107,6 @@ model Subthread {
   threadId      String    @map("thread_id")
   title         String
   sortOrder     Int       @default(0) @map("sort_order")
-  visibility    String    @default("PUBLIC")
   postingPolicy String    @default("PARTICIPANTS") @map("posting_policy")
   lastPostAt    DateTime? @map("last_post_at")
   createdAt     DateTime  @default(now()) @map("created_at")
@@ -294,4 +295,17 @@ model UserReadProgress {
 
   @@unique([userId, subthreadId])
   @@map("user_read_progress")
+}
+
+model UserFollow {
+  id          String   @id @default(cuid())
+  followerId  String   @map("follower_id")
+  followingId String   @map("following_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  follower  User @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@map("user_follows")
 }
