@@ -62,4 +62,21 @@ export class AuthController {
     const user = req['user'] as { id: string };
     return this.authService.changePassword(user.id, oldPassword, newPassword);
   }
+
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '忘记密码 — 发送重置邮件' })
+  async forgotPassword(@Body('email') email: string) {
+    return this.authService.forgotPassword(email);
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '重置密码' })
+  async resetPassword(
+    @Body('token') token: string,
+    @Body('newPassword') newPassword: string,
+  ) {
+    return this.authService.resetPassword(token, newPassword);
+  }
 }

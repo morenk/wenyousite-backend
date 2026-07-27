@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../email/email.service';
 import * as crypto from 'crypto';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -18,6 +19,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private emailService: EmailService,
   ) {}
 
   /** 注册新用户：检查邮箱和用户名唯一性，Argon2 哈希密码，签发双 Token */
@@ -48,12 +50,13 @@ export class AuthService {
 
     const tokens = await this.generateTokens(user.id);
 
-    // 生成邮箱验证 token（开发环境打印到控制台）
+    // 生成邮箱验证 token 并发送邮件
     const verifyToken = crypto.randomBytes(32).toString('hex');
     await this.prisma.emailVerification.create({
-      data: { userId: user.id, token: verifyToken, expiresAt: new Date(Date.now() + 24*60*60*1000) },
+      data: { userId: user.id, token: verifyToken, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) },
     });
-    console.log('[DEV] 验证链接: POST /auth/verify-email', { token: verifyToken, email: user.email });
+    // 异步发送验证邮件（不阻塞注册响应）
+    this.emailService.sendVerification(user.email, verifyToken).catch(() => {});
 
     return { ...tokens, user };
   }
@@ -151,6 +154,38 @@ export class AuthService {
     });
     await this.prisma.user.update({ where: { id: userId }, data: { password: hashed } });
     return { message: '密码已修改' };
+  }
+
+  /** 忘记密码 — 发送重置邮件 */
+  async forgotPassword(email: string) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) return { message: '如果该邮箱已注册，重置邮件已发送' };
+
+    const token = crypto.randomBytes(32).toString('hex');
+    await this.prisma.emailVerification.create({
+      data: { userId: user.id, token, expiresAt: new Date(Date.now() + 60 * 60 * 1000) },
+    });
+    this.emailService.sendPasswordReset(email, token).catch(() => {});
+    return { message: '如果该邮箱已注册，重置邮件已发送' };
+  }
+
+  /** 重置密码 */
+  async resetPassword(token: string, newPassword: string) {
+    const record = await this.prisma.emailVerification.findFirst({
+      where: { token, expiresAt: { gt: new Date() } },
+    });
+    if (!record) throw new UnauthorizedException('重置链接无效或已过期');
+
+    const hashed = await argon2.hash(newPassword, {
+      timeCost: this.configService.get<number>('argon2.timeCost')!,
+      memoryCost: this.configService.get<number>('argon2.memoryCost')!,
+    });
+    await this.prisma.user.update({
+      where: { id: record.userId },
+      data: { password: hashed, emailVerified: true },
+    });
+    await this.prisma.emailVerification.delete({ where: { id: record.id } });
+    return { message: '密码已重置，请重新登录' };
   }
 }
 
