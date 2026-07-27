@@ -1,0 +1,71 @@
+services:
+  # Caddy 反向代理 + 自动 SSL
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  # NestJS API（包含 BullMQ Worker）
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://wenyou:${DB_PASSWORD:-wenyou}@postgres:5432/wenyouzhan?schema=public
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - COS_ENDPOINT=${COS_ENDPOINT}
+      - COS_BUCKET=${COS_BUCKET}
+      - COS_ACCESS_KEY_ID=${COS_ACCESS_KEY_ID}
+      - COS_SECRET_ACCESS_KEY=${COS_SECRET_ACCESS_KEY}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - APP_URL=${APP_URL}
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  # PostgreSQL
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=wenyou
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-wenyou}
+      - POSTGRES_DB=wenyouzhan
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wenyou -d wenyouzhan"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
+  redisdata:
+  caddy_data:
+  caddy_config:
