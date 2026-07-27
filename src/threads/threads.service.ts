@@ -19,7 +19,6 @@ export class ThreadsService {
       const thread = await tx.thread.create({
         data: {
           title: dto.title,
-          content: dto.content,
           category: dto.category,
           ownerId: userId,
         },

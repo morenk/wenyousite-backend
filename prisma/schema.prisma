@@ -67,7 +67,6 @@ model UserBlock {
 model Thread {
   id        String   @id @default(cuid())
   title     String
-  content   String?
   category  String   @default("DEDUCTION")
   status    String   @default("ACTIVE")
   ownerId   String   @map("owner_id")
@@ -204,6 +203,7 @@ model Post {
   replyToPost Post?     @relation("ReplyTo", fields: [replyToPostId], references: [id])
   replies     Post[]    @relation("PostReplies")
   repliedBy   Post[]    @relation("ReplyTo")
+  readProgressBy UserReadProgress[]
   mentions    PostMention[]
 
   @@unique([subthreadId, floorNumber])
@@ -290,6 +290,7 @@ model UserReadProgress {
 
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   subthread Subthread @relation(fields: [subthreadId], references: [id], onDelete: Cascade)
+  post      Post?     @relation(fields: [postId], references: [id], onDelete: SetNull)
 
   @@unique([userId, subthreadId])
   @@map("user_read_progress")
