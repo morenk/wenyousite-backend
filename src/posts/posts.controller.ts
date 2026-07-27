@@ -31,9 +31,15 @@ export class PostsController {
 
   @Get('posts/:id/replies')
   @Public()
-  @ApiOperation({ summary: '获取楼中楼回复列表' })
-  async findReplies(@Param('id') id: string) {
-    return this.postsService.findReplies(id);
+  @ApiOperation({ summary: '获取楼中楼回复列表（cursor 分页，无限下拉）' })
+  @ApiQuery({ name: 'cursor', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  async findReplies(
+    @Param('id') id: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.postsService.findReplies(id, cursor, limit ? parseInt(limit) : undefined);
   }
 
   @Post('subthreads/:subthreadId/posts')

@@ -44,21 +44,26 @@ export class PostsService {
     };
   }
 
-  /** 获取楼中楼回复列表 */
-  async findReplies(postId: string) {
+  /** 获取楼中楼回复列表（cursor 分页，用于无限下拉） */
+  async findReplies(postId: string, cursor?: string, limit = 20) {
     const post = await this.prisma.post.findUnique({ where: { id: postId } });
     if (!post) throw new NotFoundException('楼层不存在');
 
-    return this.prisma.post.findMany({
+    const take = Math.min(limit, 50);
+    const replies = await this.prisma.post.findMany({
       where: { parentPostId: postId, deletedAt: null },
       orderBy: { createdAt: 'asc' },
+      take: take + 1,
+      cursor: cursor ? { id: cursor } : undefined,
+      skip: cursor ? 1 : 0,
       include: {
         author: { select: { id: true, username: true, nickname: true, avatar: true } },
-        replyToPost: {
-          select: { id: true, authorId: true },
-        },
+        replyToPost: { select: { id: true, authorId: true } },
       },
     });
+    const hasMore = replies.length > take;
+    if (hasMore) replies.pop();
+    return { items: replies, pagination: { cursor: replies.length > 0 ? replies[replies.length - 1].id : null, hasMore } };
   }
 
   /** 发帖：楼层或楼中楼回复 */
@@ -254,12 +259,15 @@ export class PostsService {
     });
   }
 
-  /** 获取单条帖子 */
+  /** 获取单条帖子 + 导航上下文（用于通知跳转"查看原帖"） */
   async findById(id: string) {
     const post = await this.prisma.post.findUnique({
       where: { id },
       include: {
         author: { select: { id: true, username: true, nickname: true, avatar: true } },
+        thread: { select: { id: true, title: true } },
+        subthread: { select: { id: true, title: true } },
+        parentPost: { select: { id: true, floorNumber: true } },
         _count: { select: { replies: true } },
       },
     });
