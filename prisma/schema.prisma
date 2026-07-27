@@ -22,6 +22,7 @@ model User {
   showBookmarks    Boolean  @default(true) @map("show_bookmarks")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
 
   ownedThreads Thread[]        @relation("ThreadOwner")
   threads      ThreadMember[]
@@ -74,6 +75,7 @@ model Thread {
   owner     User     @relation("ThreadOwner", fields: [ownerId], references: [id])
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
 
   members       ThreadMember[]
   subthreads    Subthread[]
@@ -194,6 +196,7 @@ model Post {
   status        String    @default("ACTIVE")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
   deletedAt     DateTime? @map("deleted_at")
 
   thread      Thread    @relation(fields: [threadId], references: [id], onDelete: Cascade)
@@ -231,6 +234,7 @@ model Draft {
   content     String
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -285,6 +289,7 @@ model UserReadProgress {
   subthreadId String   @map("subthread_id")
   postId      String?  @map("post_id")
   updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
 
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   subthread Subthread @relation(fields: [subthreadId], references: [id], onDelete: Cascade)
