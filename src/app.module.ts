@@ -22,6 +22,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { ReportsModule } from './reports/reports.module';
 import { ReadingProgressModule } from './reading-progress/reading-progress.module';
 import { AdminModule } from './admin/admin.module';
+import { SearchModule } from './search/search.module';
 import { MediaModule } from './media/media.module';
 import { JobsModule } from './jobs/jobs.module';
 import { CommonModule } from './common/common.module';
@@ -80,6 +81,7 @@ import { validate } from './config/env.validation';
     ReadingProgressModule,
     ReportsModule,
     AdminModule,
+    SearchModule,
     MediaModule,
     JobsModule,
   ],
