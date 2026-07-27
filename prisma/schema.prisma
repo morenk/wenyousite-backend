@@ -8,16 +8,20 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  username  String   @unique
-  password  String
-  nickname  String?
-  avatar    String?
-  bio       String?
-  role      String   @default("USER")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id               String   @id @default(cuid())
+  email            String   @unique
+  username         String   @unique
+  password         String
+  nickname         String?
+  avatar           String?
+  bio              String?
+  role             String   @default("USER")
+  emailVerified    Boolean  @default(false) @map("email_verified")
+  showRecentReplies Boolean @default(true) @map("show_recent_replies")
+  showPlayerBadges  Boolean @default(true) @map("show_player_badges")
+  showBookmarks    Boolean  @default(true) @map("show_bookmarks")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   ownedThreads Thread[]        @relation("ThreadOwner")
   threads      ThreadMember[]
@@ -25,35 +29,69 @@ model User {
   drafts       Draft[]
   mentions     PostMention[]   @relation("mentionedUser")
   notifications Notification[]
-  readProgress   UserReadProgress[]
+  readProgress UserReadProgress[]
+
+  userBlocks      UserBlock[]      @relation("Blocker")
+  blockedBy       UserBlock[]      @relation("Blocked")
+  emailVerifications EmailVerification[]
+  subscriptions   Subscription[]
 
   @@map("users")
+}
+
+model EmailVerification {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  token     String
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("email_verifications")
+}
+
+model UserBlock {
+  id        String   @id @default(cuid())
+  blockerId String   @map("blocker_id")
+  blockedId String   @map("blocked_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  blocker User @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@map("user_blocks")
 }
 
 model Thread {
   id        String   @id @default(cuid())
   title     String
   content   String?
+  category  String   @default("DEDUCTION")
   status    String   @default("ACTIVE")
   ownerId   String   @map("owner_id")
   owner     User     @relation("ThreadOwner", fields: [ownerId], references: [id])
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  members    ThreadMember[]
-  subthreads Subthread[]
-  tags       Tag[]
-  posts      Post[]
+  members       ThreadMember[]
+  subthreads    Subthread[]
+  subthreadTags SubthreadTagDef[]
+  posts         Post[]
+  topicTags     ThreadTopicTag[]
+  subscriptions Subscription[]
 
   @@map("threads")
 }
 
 model ThreadMember {
-  id        String   @id @default(cuid())
-  threadId  String   @map("thread_id")
-  userId    String   @map("user_id")
-  role      String   @default("PARTICIPANT")
-  joinedAt  DateTime @default(now()) @map("joined_at")
+  id           String   @id @default(cuid())
+  threadId     String   @map("thread_id")
+  userId       String   @map("user_id")
+  role         String   @default("PARTICIPANT")
+  playerMarked Boolean  @default(false) @map("player_marked")
+  joinedAt     DateTime @default(now()) @map("joined_at")
 
   thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -68,7 +106,7 @@ model Subthread {
   title         String
   sortOrder     Int       @default(0) @map("sort_order")
   visibility    String    @default("PUBLIC")
-  postingPolicy String    @default("PARTICIPANTS") @map("posting_policy")
+  postingPolicy String    @default("COLLABORATORS") @map("posting_policy")
   lastPostAt    DateTime? @map("last_post_at")
   createdAt     DateTime  @default(now()) @map("created_at")
 
@@ -80,7 +118,7 @@ model Subthread {
   @@map("subthreads")
 }
 
-model Tag {
+model SubthreadTagDef {
   id        String   @id @default(cuid())
   threadId  String   @map("thread_id")
   name      String
@@ -91,7 +129,7 @@ model Tag {
   subthreads SubthreadTag[]
 
   @@unique([threadId, name])
-  @@map("tags")
+  @@map("subthread_tag_defs")
 }
 
 model SubthreadTag {
@@ -99,11 +137,49 @@ model SubthreadTag {
   subthreadId String    @map("subthread_id")
   tagId       String    @map("tag_id")
 
-  subthread Subthread @relation(fields: [subthreadId], references: [id], onDelete: Cascade)
-  tag       Tag       @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  subthread Subthread      @relation(fields: [subthreadId], references: [id], onDelete: Cascade)
+  tag       SubthreadTagDef @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   @@unique([subthreadId, tagId])
   @@map("subthread_tags")
+}
+
+model TopicTag {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  color     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  threads ThreadTopicTag[]
+
+  @@map("topic_tags")
+}
+
+model ThreadTopicTag {
+  id        String @id @default(cuid())
+  threadId  String @map("thread_id")
+  tagId     String @map("tag_id")
+
+  thread Thread  @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  tag    TopicTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, tagId])
+  @@map("thread_topic_tags")
+}
+
+model Subscription {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  threadId     String   @map("thread_id")
+  targetUserId String?  @map("target_user_id")
+  type         String   @default("THREAD")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, threadId, targetUserId])
+  @@map("subscriptions")
 }
 
 model Post {
@@ -150,13 +226,15 @@ model Draft {
   id          String   @id @default(cuid())
   userId      String   @map("user_id")
   threadId    String?  @map("thread_id")
-  subthreadId String?  @map("subthread_id")
+  subthreadId String   @map("subthread_id")
+  slot        Int      @default(1)
   content     String
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, subthreadId, slot])
   @@map("drafts")
 }
 
