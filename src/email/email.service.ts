@@ -18,23 +18,23 @@ export class EmailService {
     });
   }
 
-  async sendVerification(to: string, token: string) {
+  async sendVerification(to: string, code: string) {
     const from = this.config.get<string>('ses.from');
     await this.transporter.sendMail({
       from,
       to,
-      subject: '温油站 — 请验证你的邮箱',
-      html: `<p>你的验证码：<strong>${token}</strong></p><p>发送 POST /auth/verify-email 请求，body 中携带 { token: "${token}" }。</p>`,
+      subject: '温油站 — 邮箱验证码',
+      html: `<h2>你的验证码：<strong style="font-size:32px;letter-spacing:8px">${code}</strong></h2><p>6 位数字，24 小时内有效。</p>`,
     });
   }
 
-  async sendPasswordReset(to: string, token: string) {
+  async sendPasswordReset(to: string, code: string) {
     const from = this.config.get<string>('ses.from');
     await this.transporter.sendMail({
       from,
       to,
-      subject: '温油站 — 重置密码',
-      html: `<p>你的重置验证码：<strong>${token}</strong></p><p>发送 POST /auth/reset-password 请求，body 中携带 { token: "${token}", newPassword: "..." }。</p>`,
+      subject: '温油站 — 重置密码验证码',
+      html: `<h2>你的验证码：<strong style="font-size:32px;letter-spacing:8px">${code}</strong></h2><p>6 位数字，1 小时内有效。</p>`,
     });
   }
 }

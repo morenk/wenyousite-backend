@@ -8,7 +8,6 @@ import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
-import * as crypto from 'crypto';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 
@@ -50,13 +49,12 @@ export class AuthService {
 
     const tokens = await this.generateTokens(user.id);
 
-    // 生成邮箱验证 token 并发送邮件
-    const verifyToken = crypto.randomBytes(32).toString('hex');
+    // 生成 6 位数字验证码
+    const code = String(Math.floor(100000 + Math.random() * 900000));
     await this.prisma.emailVerification.create({
-      data: { userId: user.id, token: verifyToken, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) },
+      data: { userId: user.id, token: code, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) },
     });
-    // 异步发送验证邮件（不阻塞注册响应）
-    this.emailService.sendVerification(user.email, verifyToken).catch(() => {});
+    this.emailService.sendVerification(user.email, code).catch(() => {});
 
     return { ...tokens, user };
   }
@@ -161,11 +159,11 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) return { message: '如果该邮箱已注册，重置邮件已发送' };
 
-    const token = crypto.randomBytes(32).toString('hex');
+    const code = String(Math.floor(100000 + Math.random() * 900000));
     await this.prisma.emailVerification.create({
-      data: { userId: user.id, token, expiresAt: new Date(Date.now() + 60 * 60 * 1000) },
+      data: { userId: user.id, token: code, expiresAt: new Date(Date.now() + 60 * 60 * 1000) },
     });
-    this.emailService.sendPasswordReset(email, token).catch(() => {});
+    this.emailService.sendPasswordReset(email, code).catch(() => {});
     return { message: '如果该邮箱已注册，重置邮件已发送' };
   }
 
