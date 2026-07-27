@@ -59,7 +59,22 @@ export class ThreadsService {
         });
       }
 
-      return this.findById(thread.id);
+      // 返回完整数据（在事务内查询，避免提交后查不到）
+      return tx.thread.findUnique({
+        where: { id: thread.id },
+        include: {
+          owner: { select: { id: true, username: true, nickname: true, avatar: true } },
+          subthreads: {
+            orderBy: { sortOrder: 'asc' },
+            include: {
+              _count: { select: { posts: true } },
+              tags: { include: { tag: true } },
+            },
+          },
+          topicTags: { include: { tag: true } },
+          _count: { select: { members: true, posts: true } },
+        },
+      });
     });
   }
 
@@ -70,7 +85,6 @@ export class ThreadsService {
       include: {
         owner: { select: { id: true, username: true, nickname: true, avatar: true } },
         subthreads: {
-          where: { deletedAt: null },
           orderBy: { sortOrder: 'asc' },
           include: {
             _count: { select: { posts: true } },
@@ -113,7 +127,6 @@ export class ThreadsService {
       include: {
         owner: { select: { id: true, username: true, nickname: true, avatar: true } },
         subthreads: {
-          where: { deletedAt: null },
           orderBy: { sortOrder: 'asc' },
           take: 1,
           select: { id: true, title: true, lastPostAt: true },

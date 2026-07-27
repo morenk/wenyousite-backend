@@ -24,6 +24,7 @@
     "@aws-sdk/s3-request-presigner": "^3.800.0",
     "@bull-board/api": "^6.7.1",
     "@bull-board/nestjs": "^6.7.1",
+    "@fastify/static": "^10.1.2",
     "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.0.0",
     "@nestjs/config": "^4.0.2",
@@ -89,4 +90,5 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
-  }}
+  }
+}
