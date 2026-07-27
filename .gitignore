@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.turbo
+coverage/
+.nyc_output/
+.DS_Store
+*.tsbuildinfo
+.cache
+.tmp

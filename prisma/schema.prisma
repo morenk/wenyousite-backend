@@ -1,0 +1,200 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  username  String   @unique
+  password  String
+  nickname  String?
+  avatar    String?
+  bio       String?
+  role      String   @default("USER")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  ownedThreads Thread[]        @relation("ThreadOwner")
+  threads      ThreadMember[]
+  posts        Post[]
+  drafts       Draft[]
+  mentions     PostMention[]   @relation("mentionedUser")
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model Thread {
+  id        String   @id @default(cuid())
+  title     String
+  content   String?
+  status    String   @default("ACTIVE")
+  ownerId   String   @map("owner_id")
+  owner     User     @relation("ThreadOwner", fields: [ownerId], references: [id])
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  members    ThreadMember[]
+  subthreads Subthread[]
+  tags       Tag[]
+  posts      Post[]
+
+  @@map("threads")
+}
+
+model ThreadMember {
+  id        String   @id @default(cuid())
+  threadId  String   @map("thread_id")
+  userId    String   @map("user_id")
+  role      String   @default("PARTICIPANT")
+  joinedAt  DateTime @default(now()) @map("joined_at")
+
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, userId])
+  @@map("thread_members")
+}
+
+model Subthread {
+  id            String    @id @default(cuid())
+  threadId      String    @map("thread_id")
+  title         String
+  sortOrder     Int       @default(0) @map("sort_order")
+  visibility    String    @default("PUBLIC")
+  postingPolicy String    @default("PARTICIPANTS") @map("posting_policy")
+  lastPostAt    DateTime? @map("last_post_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  thread Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  tags   SubthreadTag[]
+  posts  Post[]
+
+  @@map("subthreads")
+}
+
+model Tag {
+  id        String   @id @default(cuid())
+  threadId  String   @map("thread_id")
+  name      String
+  color     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  thread     Thread         @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  subthreads SubthreadTag[]
+
+  @@unique([threadId, name])
+  @@map("tags")
+}
+
+model SubthreadTag {
+  id          String    @id @default(cuid())
+  subthreadId String    @map("subthread_id")
+  tagId       String    @map("tag_id")
+
+  subthread Subthread @relation(fields: [subthreadId], references: [id], onDelete: Cascade)
+  tag       Tag       @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([subthreadId, tagId])
+  @@map("subthread_tags")
+}
+
+model Post {
+  id            String    @id @default(cuid())
+  threadId      String    @map("thread_id")
+  subthreadId   String    @map("subthread_id")
+  authorId      String    @map("author_id")
+  floorNumber   Int       @map("floor_number")
+  parentPostId  String?   @map("parent_post_id")
+  replyToPostId String?   @map("reply_to_post_id")
+  content       String
+  status        String    @default("ACTIVE")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  thread      Thread    @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  subthread   Subthread @relation(fields: [subthreadId], references: [id], onDelete: Cascade)
+  author      User      @relation(fields: [authorId], references: [id])
+  parentPost  Post?     @relation("PostReplies", fields: [parentPostId], references: [id])
+  replyToPost Post?     @relation("ReplyTo", fields: [replyToPostId], references: [id])
+  replies     Post[]    @relation("PostReplies")
+  repliedBy   Post[]    @relation("ReplyTo")
+  mentions    PostMention[]
+
+  @@unique([subthreadId, floorNumber])
+  @@map("posts")
+}
+
+model PostMention {
+  id              String   @id @default(cuid())
+  postId          String   @map("post_id")
+  mentionedUserId String   @map("mentioned_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  post          Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  mentionedUser User @relation("mentionedUser", fields: [mentionedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, mentionedUserId])
+  @@map("post_mentions")
+}
+
+model Draft {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  threadId    String?  @map("thread_id")
+  subthreadId String?  @map("subthread_id")
+  content     String
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("drafts")
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  type        String
+  content     String?
+  referenceId String?  @map("reference_id")
+  isRead      Boolean  @default(false) @map("is_read")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model Report {
+  id         String    @id @default(cuid())
+  reporterId String    @map("reporter_id")
+  targetType String    @map("target_type")
+  targetId   String    @map("target_id")
+  reason     String
+  status     String    @default("PENDING")
+  handledBy  String?   @map("handled_by")
+  handledAt  DateTime? @map("handled_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@map("reports")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  adminId    String   @map("admin_id")
+  action     String
+  targetType String   @map("target_type")
+  targetId   String?  @map("target_id")
+  detail     String?
+  ip         String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("audit_logs")
+}
