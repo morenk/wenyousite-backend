@@ -1,9 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, MinLength, MaxLength, Matches } from 'class-validator';
+import { IsEmail, IsString, MinLength, MaxLength, Matches } from 'class-validator';
 
 /** 重置密码 DTO */
 export class ResetPasswordDto {
-  @ApiProperty({ description: '密码重置 token' })
+  @ApiProperty({ description: '注册邮箱（用于锚定用户身份）' })
+  @IsEmail()
+  email: string;
+
+  @ApiProperty({ description: '密码重置验证码' })
   @IsString()
   @MinLength(1)
   token: string;

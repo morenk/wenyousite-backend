@@ -132,10 +132,13 @@
 ### 验证码规则
 
 - 统一有效期 15 分钟
-- `EmailVerification` 通过 `type` 字段区分用途（REGISTRATION / EMAIL_VERIFY / PASSWORD_RESET）
+- `EmailVerification` 通过 `type` 字段区分用途（REGISTRATION / EMAIL_VERIFY / PASSWORD_RESET），`@@unique([email, type])` 防重复
+- `verifyAndComplete` 和 `verifyEmail` 及 `resetPassword` 均按用户锚定查询（email 或 userId），避免 token 跨用户碰撞
 - 验证码校验错误递增 `attempts`，超过 5 次删除记录（需重新获取）
 - 验证码使用完毕后立即删除 `EmailVerification` 记录
 - 重发验证/重置邮件时，若存在未过期的同类型记录，复用同一验证码重发
+- `verify-email` 需登录（AuthRead），从 JWT 获取 userId 进行记录锚定
+- `reset-password` 需同时提供邮箱（锚定身份），与 `forgot-password` 流程匹配
 - 敏感端点（verify-email/reset-password 5/min，forgot-password/resend-verification/request-code 1/min）有独立限流
 - 邮件发送失败通过 `emailSent` 字段和 Logger 反馈（不阻断用户流程）
 
@@ -173,8 +176,9 @@
 
 - 用户名唯一性在第二步校验（try-catch Prisma P2002 转换为 409）
 - 已注销用户（deletedAt 非 null）拒绝登录、刷新和 JWT validate，返回 "该账号已注销"
-- accessToken 为无状态 JWT（15 分钟），payload 仅含 `sub`（用户 ID）
-- JWT 策略在 validate 阶段仅校验用户存在且未注销，无 tokenVersion
+- 注销时同时吊销全部 refresh token
+- 登录失败 5 次后账号锁定 15 分钟，成功后自动重置计数器
+- 已注销的邮箱不可重用注册
 
 ## 设计决策
 

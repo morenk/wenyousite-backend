@@ -8,6 +8,10 @@ const mockPrisma = {
     findUnique: jest.fn(),
     update: jest.fn(),
   },
+  refreshToken: {
+    updateMany: jest.fn(),
+  },
+  $transaction: jest.fn((ops: any[]) => Promise.all(ops)),
 };
 
 const userFixture = { id: 'u1', username: 'test', nickname: 't', avatar: null, bio: null, role: 'USER', deletedAt: null };

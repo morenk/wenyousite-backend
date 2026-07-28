@@ -8,7 +8,7 @@
 
 | 值 | 说明 |
 |----|------|
-| `DEDUCTION` | 推理/解谜 |
+| `DEDUCTION` | 演绎 |
 | `NATION` | 国策 |
 | `RPG` | 角色扮演 |
 
@@ -89,6 +89,8 @@
 | showPlayerBadges | Boolean | default true | 隐私：允许显示玩家标记 |
 | showBookmarks | Boolean | default true | 隐私：允许显示收藏/订阅 |
 | deletedAt | DateTime? | — | 软删除（注销时间） |
+| failedLoginAttempts | Int | default 0 | 连续登录失败次数（>=5 锁定） |
+| lockedUntil | DateTime? | — | 锁定解除时间（15 分钟） |
 | createdAt | DateTime | default now() | — |
 | updatedAt | DateTime | @updatedAt | — |
 
@@ -105,8 +107,9 @@
 | expiresAt | DateTime | — | 过期时间（统一 15 分钟） |
 | createdAt | DateTime | — | — |
 
-> 索引：`@@index([token])`, `@@index([userId, type])`, `@@index([email, type])`  
-> 已废弃 `registration_drafts` 表，统一使用本表承载注册/验证/重置三类用途。
+> 索引：`@@index([token])`, `@@index([userId, type])`, `@@unique([email, type])`  
+> 已废弃 `registration_drafts` 表，统一使用本表承载注册/验证/重置三类用途。  
+> `@@unique([email, type])` 防止同一邮箱同时存在多条 REGISTRATION 记录。
 
 ### refresh_tokens — 多设备会话
 

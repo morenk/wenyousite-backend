@@ -69,10 +69,16 @@ export class UsersService {
     if (!user) throw new NotFoundException('用户不存在');
     if (user.deletedAt) throw new NotFoundException('用户不存在');
 
-    await this.prisma.user.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      }),
+      this.prisma.refreshToken.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
     return { message: '账号已注销' };
   }
 }

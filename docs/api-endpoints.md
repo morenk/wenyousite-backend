@@ -7,14 +7,14 @@
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
 | POST | `/auth/register/request-code` | 无 | 注册第一步：请求邮箱验证码（限流 1/min） |
-| POST | `/auth/register/verify-and-complete` | 无 | 注册第二步：验证码+用户名+密码，完成注册（emailVerified=false，只读态） |
-| POST | `/auth/login` | 无 | 邮箱+密码登录，返回双 Token + 用户信息，创建独立设备会话 |
+| POST | `/auth/register/verify-and-complete` | 无 | 注册第二步：验证码+用户名+密码（支持 X-Client-Platform 区分 web/mobile），完成注册（emailVerified=false，只读态） |
+| POST | `/auth/login` | 无 | 邮箱+密码登录，返回双 Token + 用户信息，创建独立设备会话。5 次失败锁定 15 分钟 |
 | POST | `/auth/refresh` | 无 | 用 refreshToken 轮转换取新双 Token（含盗用检测） |
-| POST | `/auth/verify-email` | 无 | 邮箱验证码校验（限流 5/min），成功后 emailVerified=true |
+| POST | `/auth/verify-email` | AuthRead | 验证当前登录用户的邮箱（需登录 + 6 位验证码），限流 5/min |
 | POST | `/auth/resend-verification` | 无 | 重发验证邮件（限流 1/min） |
 | POST | `/auth/change-password` | AuthRead | 修改密码（需旧密码），成功后吊销全部 refresh token |
 | POST | `/auth/forgot-password` | 无 | 发送找回密码邮件（限流 1/min） |
-| POST | `/auth/reset-password` | 无 | 用验证码重置密码，成功后吊销全部 refresh token（限流 5/min） |
+| POST | `/auth/reset-password` | 无 | 用邮件 + 验证码重置密码（需提供邮箱锚定身份），成功后吊销全部 refresh token（限流 5/min） |
 | POST | `/auth/logout` | AuthRead | 登出，传入 refreshToken 撤销指定设备会话（Cookie 优先） |
 | GET | `/auth/sessions` | AuthRead | 获取当前用户所有活跃会话列表 |
 | DELETE | `/auth/sessions/:id` | AuthRead | 撤销指定会话（远程登出设备） |

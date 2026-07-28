@@ -69,6 +69,8 @@ model User {
   showPlayerBadges  Boolean @default(true) @map("show_player_badges")
   showBookmarks    Boolean  @default(true) @map("show_bookmarks")
   deletedAt    DateTime? @map("deleted_at")
+  failedLoginAttempts Int @default(0) @map("failed_login_attempts")
+  lockedUntil   DateTime? @map("locked_until")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
@@ -111,7 +113,7 @@ model EmailVerification {
 
   @@index([token])
   @@index([userId, type])
-  @@index([email, type])
+  @@unique([email, type])
   @@map("email_verifications")
 }
 

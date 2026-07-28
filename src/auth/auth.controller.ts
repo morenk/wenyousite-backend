@@ -45,9 +45,11 @@ export class AuthController {
   @ApiOperation({ summary: '注册第二步：验证邮箱 + 设置用户名密码，一步完成注册' })
   @ApiResponse({ status: 201, type: AuthResponseDto, description: '注册成功返回双 Token 和用户信息' })
   @ApiResponse({ status: 409, description: '用户名已被占用' })
-  async verifyAndComplete(@Body() dto: VerifyAndCompleteDto, @Res({ passthrough: true }) res: FastifyReply) {
-    const result = await this.authService.verifyAndComplete(dto);
-    const ttl = 7 * 24 * 60 * 60; // 默认 web 端 7 天
+  async verifyAndComplete(@Body() dto: VerifyAndCompleteDto, @Req() req: FastifyRequest, @Res({ passthrough: true }) res: FastifyReply) {
+    const deviceInfo = req.headers['user-agent']?.slice(0, 512) ?? undefined;
+    const platform = (req.headers['x-client-platform'] as string) || 'web';
+    const result = await this.authService.verifyAndComplete(dto, deviceInfo, platform);
+    const ttl = platform === 'mobile' ? 30 * 24 * 60 * 60 : 7 * 24 * 60 * 60;
     res.setCookie('refreshToken', result.refreshToken, { ...COOKIE_BASE, maxAge: ttl });
     return result;
   }
@@ -85,12 +87,14 @@ export class AuthController {
   }
 
   @Post('verify-email')
-  @Public()
+  @AuthRead()
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: 60000, limit: 5 } })
-  @ApiOperation({ summary: '验证邮箱' })
-  async verifyEmail(@Body() dto: VerifyEmailDto) {
-    return this.authService.verifyEmail(dto.token);
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '验证当前登录用户的邮箱' })
+  async verifyEmail(@Req() req: FastifyRequest, @Body() dto: VerifyEmailDto) {
+    const user = req['user'] as { id: string };
+    return this.authService.verifyEmail(user.id, dto.token);
   }
 
   @Post('resend-verification')
@@ -130,7 +134,7 @@ export class AuthController {
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @ApiOperation({ summary: '重置密码' })
   async resetPassword(@Body() dto: ResetPasswordDto) {
-    return this.authService.resetPassword(dto.token, dto.newPassword);
+    return this.authService.resetPassword(dto.email, dto.token, dto.newPassword);
   }
 
   @Post('logout')
