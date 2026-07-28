@@ -202,6 +202,10 @@ export class ThreadsService {
 
     // 发布后通知粉丝
     if (published === true) {
+      // 先补发草稿期间帖子的 @提及解析和新楼层/子贴通知
+      await this.replayDraftPostEvents(updated.id).catch(() => {});
+
+      // 再通知粉丝（确保以上通知入队后才发）
       const followers = await this.prisma.userFollow.findMany({
         where: { followingId: userId },
         select: { followerId: true },
@@ -215,9 +219,6 @@ export class ThreadsService {
           { threadId: updated.id, fromUserId: userId },
         ).catch(() => {});
       }
-
-      // 补发草稿期间帖子的 @提及解析和新楼层/子贴通知
-      this.replayDraftPostEvents(updated.id).catch(() => {});
     }
 
     return updated;
@@ -319,10 +320,9 @@ export class ThreadsService {
         authorId: true,
         author: { select: { username: true } },
         subthreadId: true,
-        subthread: { select: { title: true } },
+        subthread: { select: { title: true, bodyPostId: true } },
         parentPostId: true,
         replyToPostId: true,
-        floorNumber: true,
       },
       orderBy: { createdAt: 'asc' },
     });
@@ -338,7 +338,7 @@ export class ThreadsService {
         subthreadTitle: post.subthread.title,
         parentPostId: post.parentPostId ?? null,
         replyToPostId: post.replyToPostId ?? null,
-        isSubthreadBody: post.parentPostId === null && post.floorNumber === 1,
+        isSubthreadBody: post.subthread.bodyPostId === post.id,
       });
     }
   }

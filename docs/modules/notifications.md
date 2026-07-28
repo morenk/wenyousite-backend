@@ -12,7 +12,7 @@
 
 | 枚举 | 值 |
 |------|-----|
-| `NotificationType` | reply, mention, new_floor, thread_created, follow |
+| `NotificationType` | reply, mention, new_floor, subthread_created, thread_created, follow |
 
 ## API 端点
 

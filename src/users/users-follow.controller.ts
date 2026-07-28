@@ -16,7 +16,7 @@ export class UsersFollowController {
 
   // ====== 关注 ======
 
-  /** 关注指定用户，发送关注通知给被关注者 */
+  /** 关注指定用户，仅在首次关注时发送通知 */
   @Post('follow/:id')
   @Auth()
   @ApiBearerAuth()
@@ -24,12 +24,17 @@ export class UsersFollowController {
   async follow(@Param('id') targetId: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string; username: string };
     if (user.id === targetId) return { message: '不能关注自己' };
-    await this.prisma.userFollow.upsert({
+
+    // 检查是否已关注，仅在首次关注时发送通知，避免重复通知
+    const existing = await this.prisma.userFollow.findUnique({
       where: { followerId_followingId: { followerId: user.id, followingId: targetId } },
-      create: { followerId: user.id, followingId: targetId },
-      update: {},
     });
-    // 发通知给被关注者
+    if (existing) return { message: '已关注' };
+
+    await this.prisma.userFollow.create({
+      data: { followerId: user.id, followingId: targetId },
+    });
+
     this.notificationProducer.notify(
       'follow',
       [targetId],

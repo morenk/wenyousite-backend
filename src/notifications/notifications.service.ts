@@ -7,11 +7,22 @@ import { paginate } from '../common/dto/paginated-result';
 export class NotificationsService {
   constructor(private prisma: PrismaService) {}
 
-  /** 获取用户通知列表（含关联的帖子/主题/发信人信息，供前端拼接跳转 URL） */
+  /** 获取用户通知列表（过滤已软删帖/子贴，含关联的帖子/主题/发信人信息） */
   async findAll(userId: string, cursor?: string, limit = 20) {
     const take = Math.min(limit, 50);
     const notifs = await this.prisma.notification.findMany({
-      where: { userId },
+      where: {
+        userId,
+        // 过滤已被软删的主题帖和帖子的通知
+        OR: [
+          // 无关联帖子的通知（如 关注 / 帖创建）
+          { AND: [{ threadId: null }, { postId: null }] },
+          // 关联的线程未被软删
+          { threadId: { not: null }, thread: { deletedAt: null } },
+          // 关联的帖子未被软删
+          { postId: { not: null }, post: { deletedAt: null } },
+        ],
+      },
       orderBy: { createdAt: 'desc' },
       take: take + 1,
       cursor: cursor ? { id: cursor } : undefined,

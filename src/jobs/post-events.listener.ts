@@ -129,7 +129,7 @@ export class PostEventsListener {
           const managerIds = managers.map(m => m.userId);
           const replyTargetId = targetPost.authorId;
           const recipients = [...new Set([replyTargetId, ...managerIds, ...subscriberIds])]
-            .filter(id => !authorBlockedIds.has(id));
+            .filter(id => !authorBlockedIds.has(id) && !blockedAuthorIds.has(id));
           if (recipients.length > 0) {
             await this.notificationProducer.notify(
               'reply',
