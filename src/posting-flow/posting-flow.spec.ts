@@ -24,7 +24,7 @@ const createMockPrisma = () => ({
   threadTopicTag: { createMany: jest.fn() },
   subthread: { findMany: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn(), aggregate: jest.fn(), create: jest.fn(), update: jest.fn() },
   post: { findUnique: jest.fn(), findMany: jest.fn(), findFirst: jest.fn(), aggregate: jest.fn(), create: jest.fn(), update: jest.fn() },
-  postLike: { upsert: jest.fn(), deleteMany: jest.fn(), findUnique: jest.fn() },
+  postLike: { findUnique: jest.fn(), create: jest.fn(), upsert: jest.fn(), deleteMany: jest.fn() },
   postMention: { createMany: jest.fn(), findMany: jest.fn() },
   userFollow: { findMany: jest.fn() },
   userBlock: { findMany: jest.fn() },
@@ -760,36 +760,44 @@ prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', subthread: 
 
   // ======================== 第九部分：点赞 ========================
   describe('点赞 (Like)', () => {
-    it('点赞：upsert + likeCount +1', async () => {
+    it('点赞：首次点赞 create + likeCount +1', async () => {
       prisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', likeCount: 0 });
-      prisma.postLike.upsert.mockResolvedValue({});
+      prisma.postLike.findUnique.mockResolvedValue(null);
+      prisma.postLike.create.mockResolvedValue({});
       prisma.post.update.mockResolvedValue({ id: 'p1', likeCount: 1 });
       await postsService.like('p1', 'u1');
-      expect(prisma.postLike.upsert).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { postId_userId: { postId: 'p1', userId: 'u1' } } }),
-      );
+      expect(prisma.postLike.create).toHaveBeenCalledWith({ data: { postId: 'p1', userId: 'u1' } });
       expect(prisma.post.update).toHaveBeenCalledWith({
         where: { id: 'p1' }, data: { likeCount: { increment: 1 } },
       });
     });
 
-    it('点赞：重复调用应幂等', async () => {
+    it('点赞：重复调用应幂等（不递增 likeCount）', async () => {
       prisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', likeCount: 1 });
-      prisma.postLike.upsert.mockResolvedValue({});
-      prisma.post.update.mockResolvedValue({ id: 'p1', likeCount: 2 });
-      await postsService.like('p1', 'u1');
-      expect(prisma.postLike.upsert).toHaveBeenCalledTimes(1);
+      prisma.postLike.findUnique.mockResolvedValue({ postId: 'p1', userId: 'u1' });
+      const result = await postsService.like('p1', 'u1');
+      expect(prisma.postLike.create).not.toHaveBeenCalled();
+      expect(prisma.post.update).not.toHaveBeenCalled();
+      expect(result.likeCount).toBe(1);
     });
 
     it('取消点赞：deleteMany + likeCount -1', async () => {
       prisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', likeCount: 1 });
-      prisma.postLike.deleteMany.mockResolvedValue({});
+      prisma.postLike.deleteMany.mockResolvedValue({ count: 1 });
       prisma.post.update.mockResolvedValue({ id: 'p1', likeCount: 0 });
       await postsService.unlike('p1', 'u1');
       expect(prisma.postLike.deleteMany).toHaveBeenCalledWith({ where: { postId: 'p1', userId: 'u1' } });
       expect(prisma.post.update).toHaveBeenCalledWith({
         where: { id: 'p1' }, data: { likeCount: { increment: -1 } },
       });
+    });
+
+    it('取消点赞：未点赞时不递减（幂等）', async () => {
+      prisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', likeCount: 0 });
+      prisma.postLike.deleteMany.mockResolvedValue({ count: 0 });
+      const result = await postsService.unlike('p1', 'u1');
+      expect(prisma.post.update).not.toHaveBeenCalled();
+      expect(result.likeCount).toBe(0);
     });
 
     it('点赞不存在的帖子 → 404', async () => {

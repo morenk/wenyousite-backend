@@ -12,7 +12,7 @@ const mockPrisma = {
   subthread: { findUnique: jest.fn() },
   threadMember: { findUnique: jest.fn(), upsert: jest.fn() },
   post: { findUnique: jest.fn(), aggregate: jest.fn(), create: jest.fn(), findMany: jest.fn(), update: jest.fn() },
-  postLike: { upsert: jest.fn(), deleteMany: jest.fn() },
+  postLike: { findUnique: jest.fn(), create: jest.fn(), upsert: jest.fn(), deleteMany: jest.fn() },
 };
 
 const mockEventEmitter = { emit: jest.fn() };
@@ -128,26 +128,44 @@ describe('PostsService', () => {
 
   it('like 应该创建点赞并加计数', async () => {
     mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', likeCount: 0 });
-    mockPrisma.postLike.upsert.mockResolvedValue({});
+    mockPrisma.postLike.findUnique.mockResolvedValue(null);
+    mockPrisma.postLike.create.mockResolvedValue({});
     mockPrisma.post.update.mockResolvedValue({ id: 'p1', likeCount: 1 });
     await service.like('p1', 'u1');
-    expect(mockPrisma.postLike.upsert).toHaveBeenCalled();
+    expect(mockPrisma.postLike.create).toHaveBeenCalledWith({ data: { postId: 'p1', userId: 'u1' } });
     expect(mockPrisma.post.update).toHaveBeenCalledWith({
       where: { id: 'p1' },
       data: { likeCount: { increment: 1 } },
     });
   });
 
+  it('like 已点赞时不重复递增 likeCount（幂等）', async () => {
+    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', likeCount: 1 });
+    mockPrisma.postLike.findUnique.mockResolvedValue({ postId: 'p1', userId: 'u1' });
+    const result = await service.like('p1', 'u1');
+    expect(mockPrisma.postLike.create).not.toHaveBeenCalled();
+    expect(mockPrisma.post.update).not.toHaveBeenCalled();
+    expect(result.likeCount).toBe(1);
+  });
+
   it('unlike 应该取消点赞并减计数', async () => {
     mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', likeCount: 1 });
-    mockPrisma.postLike.deleteMany.mockResolvedValue({});
+    mockPrisma.postLike.deleteMany.mockResolvedValue({ count: 1 });
     mockPrisma.post.update.mockResolvedValue({ id: 'p1', likeCount: 0 });
     await service.unlike('p1', 'u1');
-    expect(mockPrisma.postLike.deleteMany).toHaveBeenCalled();
+    expect(mockPrisma.postLike.deleteMany).toHaveBeenCalledWith({ where: { postId: 'p1', userId: 'u1' } });
     expect(mockPrisma.post.update).toHaveBeenCalledWith({
       where: { id: 'p1' },
       data: { likeCount: { increment: -1 } },
     });
+  });
+
+  it('unlike 未点赞时不递减 likeCount（幂等）', async () => {
+    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', likeCount: 0 });
+    mockPrisma.postLike.deleteMany.mockResolvedValue({ count: 0 });
+    const result = await service.unlike('p1', 'u1');
+    expect(mockPrisma.post.update).not.toHaveBeenCalled();
+    expect(result.likeCount).toBe(0);
   });
 
   it('create PLAYERS 权限非玩家应该返回403', async () => {

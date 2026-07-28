@@ -257,16 +257,19 @@ export class PostsService {
     return post;
   }
 
+  /** 点赞：先查是否已存在，仅在首次点赞时递增 likeCount，保证幂等 */
   async like(id: string, userId: string) {
     const post = await this.prisma.post.findUnique({ where: { id, ...notDeleted } });
     if (!post) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
     await this.threadAccess.assertAccessible(post.threadId, userId);
 
-    await this.prisma.postLike.upsert({
+    // 检查是否已点赞，已点赞则直接返回不重复递增
+    const existing = await this.prisma.postLike.findUnique({
       where: { postId_userId: { postId: id, userId } },
-      create: { postId: id, userId },
-      update: {},
     });
+    if (existing) return post;
+
+    await this.prisma.postLike.create({ data: { postId: id, userId } });
 
     return this.prisma.post.update({
       where: { id },
@@ -274,14 +277,17 @@ export class PostsService {
     });
   }
 
+  /** 取消点赞：仅在确实存在点赞记录时递减 likeCount，防止变负 */
   async unlike(id: string, userId: string) {
     const post = await this.prisma.post.findUnique({ where: { id, ...notDeleted } });
     if (!post) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
     await this.threadAccess.assertAccessible(post.threadId, userId);
 
-    await this.prisma.postLike.deleteMany({
+    // 仅在存在点赞记录时删除并递减
+    const result = await this.prisma.postLike.deleteMany({
       where: { postId: id, userId },
     });
+    if (result.count === 0) return post;
 
     return this.prisma.post.update({
       where: { id },
