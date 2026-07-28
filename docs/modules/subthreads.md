@@ -37,6 +37,7 @@
   - COLLABORATORS：仅 OWNER 和 COLLABORATOR 可发帖
   - PLAYERS：仅 playerMarked=true 的成员可发帖
 - 软删除通过 deletedAt 字段实现，列表查询过滤 `deletedAt: null`
+- **默认子贴保护**：主题帖创建时生成的第一个子贴（sortOrder=0，最早 createdAt）不可单独删除，需删除整个主题帖。后续创建的子贴可自由删除
 - sortOrder 控制子贴在主题帖内的显示顺序
 - 修改使用乐观锁（version 字段），并发冲突返回提示
 - 子贴标签使用 SubthreadTagDef 存储定义（name + color），通过 SubthreadTag 关联

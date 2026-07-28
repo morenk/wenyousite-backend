@@ -111,12 +111,26 @@ export class SubthreadsService {
     }).catch(() => { throw new BusinessException(ErrorCode.OPTIMISTIC_LOCK_CONFLICT, '子贴已被修改，请刷新后重试', HttpStatus.CONFLICT); });
   }
 
-  /** 软删除子贴（仅 OWNER/COLLABORATOR） */
+  /** 软删除子贴（仅 OWNER/COLLABORATOR）。默认子贴不可单独删除 */
   async remove(id: string, userId: string) {
     const subthread = await this.prisma.subthread.findUnique({ where: { id } });
     if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
     if (subthread.deletedAt) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
     await this.assertCanManage(subthread.threadId, userId);
+
+    // 默认子贴：主题帖创建时同步生成的第一个子贴，是主题帖主内容区，不可单独删除
+    const firstSubthread = await this.prisma.subthread.findFirst({
+      where: { threadId: subthread.threadId, deletedAt: null },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+    if (firstSubthread?.id === id) {
+      throw new BusinessException(
+        ErrorCode.BAD_REQUEST,
+        '默认子贴不可单独删除，请删除整个主题帖',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
 
     return this.prisma.subthread.update({
       where: { id },
