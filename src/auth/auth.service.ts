@@ -151,16 +151,21 @@ export class AuthService {
 
   /** 验证邮箱 */
   async verifyEmail(token: string) {
-    const record = await this.prisma.emailVerification.findFirst({
-      where: { token, type: 'EMAIL_VERIFY', expiresAt: { gt: new Date() } },
+    // 先查是否存在（不限过期），区分"码错误"和"已过期"
+    const anyRecord = await this.prisma.emailVerification.findFirst({
+      where: { token, type: 'EMAIL_VERIFY' },
     });
-    if (!record) throw new UnauthorizedException('验证链接无效或已过期');
+    if (!anyRecord) throw new UnauthorizedException('验证码错误');
+    if (anyRecord.expiresAt <= new Date()) {
+      await this.prisma.emailVerification.delete({ where: { id: anyRecord.id } });
+      throw new UnauthorizedException('验证码已过期，请重新获取');
+    }
 
     await this.prisma.user.update({
-      where: { id: record.userId },
+      where: { id: anyRecord.userId },
       data: { emailVerified: true },
     });
-    await this.prisma.emailVerification.delete({ where: { id: record.id } });
+    await this.prisma.emailVerification.delete({ where: { id: anyRecord.id } });
     return { message: '邮箱验证成功' };
   }
 
@@ -195,7 +200,18 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) return { message: '如果该邮箱已注册，重置邮件已发送' };
 
-    // 删除该用户旧的密码重置记录
+    // 若有未过期的重置记录，复用同一验证码重发
+    const existing = await this.prisma.emailVerification.findFirst({
+      where: { userId: user.id, type: 'PASSWORD_RESET', expiresAt: { gt: new Date() } },
+    });
+    if (existing) {
+      this.emailService.sendPasswordReset(email, existing.token).catch(err => {
+        this.logger.error(`重置密码邮件发送失败: ${email}`, err);
+      });
+      return { message: '如果该邮箱已注册，重置邮件已发送' };
+    }
+
+    // 删除该用户旧的过期重置记录
     await this.prisma.emailVerification.deleteMany({
       where: { userId: user.id, type: 'PASSWORD_RESET' },
     });
@@ -217,13 +233,18 @@ export class AuthService {
 
   /** 重置密码 */
   async resetPassword(token: string, newPassword: string) {
-    const record = await this.prisma.emailVerification.findFirst({
-      where: { token, type: 'PASSWORD_RESET', expiresAt: { gt: new Date() } },
+    // 先查是否存在（不限过期），区分"码错误"和"已过期"
+    const anyRecord = await this.prisma.emailVerification.findFirst({
+      where: { token, type: 'PASSWORD_RESET' },
     });
-    if (!record) throw new UnauthorizedException('重置链接无效或已过期');
+    if (!anyRecord) throw new UnauthorizedException('验证码错误');
+    if (anyRecord.expiresAt <= new Date()) {
+      await this.prisma.emailVerification.delete({ where: { id: anyRecord.id } });
+      throw new UnauthorizedException('验证码已过期，请重新获取');
+    }
 
     const user = await this.prisma.user.findUnique({
-      where: { id: record.userId },
+      where: { id: anyRecord.userId },
       select: { tokenVersion: true },
     });
     if (!user) throw new UnauthorizedException();
@@ -234,10 +255,10 @@ export class AuthService {
     });
     // 重置密码同时验证邮箱（能收邮件即证明邮箱所有权）
     await this.prisma.user.update({
-      where: { id: record.userId },
+      where: { id: anyRecord.userId },
       data: { password: hashed, emailVerified: true, tokenVersion: user.tokenVersion + 1 },
     });
-    await this.prisma.emailVerification.delete({ where: { id: record.id } });
+    await this.prisma.emailVerification.delete({ where: { id: anyRecord.id } });
     return { message: '密码已重置，请重新登录' };
   }
 
@@ -251,7 +272,18 @@ export class AuthService {
       return { message: '如果该邮箱已注册且未验证，验证邮件已发送' };
     }
 
-    // 删除该用户旧的验证记录
+    // 若有未过期的验证记录，复用同一验证码重发
+    const existing = await this.prisma.emailVerification.findFirst({
+      where: { userId: user.id, type: 'EMAIL_VERIFY', expiresAt: { gt: new Date() } },
+    });
+    if (existing) {
+      this.emailService.sendVerification(user.email, existing.token).catch(err => {
+        this.logger.error(`重发验证邮件失败: ${email}`, err);
+      });
+      return { message: '如果该邮箱已注册且未验证，验证邮件已发送' };
+    }
+
+    // 删除该用户旧的过期验证记录
     await this.prisma.emailVerification.deleteMany({
       where: { userId: user.id, type: 'EMAIL_VERIFY' },
     });
