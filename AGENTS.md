@@ -164,6 +164,11 @@ bash scripts/deploy.sh
 | 完成一个数据库迁移 | Schema 变更 + 迁移文件 + 服务层适配 |
 | 完成一批文档更新 | 某模块 .md 同步更新 |
 
+**必须**遵守：
+- 每次提交的代码改动，必须同步更新对应模块的 `docs/modules/<module>.md` 文档：端点表、业务规则、请求/响应格式、前端指引等章节如有变更，一并在同一个提交中反映
+- 如果改动涉及 API 端点表，同步更新 `docs/api-endpoints.md`
+- 如果涉及数据库 Schema，确保 `docs/data-model.md` 与 `prisma/schema.prisma` 一致（迁移文件已由 Prisma 自动管理）
+
 **禁止**的做法：
 - 攒一堆不相关改动做一次大提交
 - 提交包含未完成或未编译的代码
