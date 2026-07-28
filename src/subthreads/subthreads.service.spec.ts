@@ -146,6 +146,52 @@ describe('SubthreadsService', () => {
     });
   });
 
+  describe('reorder', () => {
+    it('批量重排应成功', async () => {
+      mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
+      mockPrisma.subthread.findMany
+        .mockResolvedValueOnce([{ id: 'a' }, { id: 'b' }, { id: 'c' }]) // 验证存在
+        .mockResolvedValueOnce([                                       // 返回结果
+          { id: 'a', title: 'sA', sortOrder: 0 },
+          { id: 'b', title: 'sB', sortOrder: 1 },
+          { id: 'c', title: 'sC', sortOrder: 2 },
+        ]);
+      mockPrisma.subthread.findFirst.mockResolvedValue({ id: 'a' }); // 默认子贴
+      mockPrisma.$transaction.mockImplementation(async (fn) => {
+        const tx = { subthread: { update: jest.fn() } };
+        return fn(tx);
+      });
+
+      const result = await service.reorder('t1', ['a', 'b', 'c'], 'u1');
+      expect(result).toHaveLength(3);
+      expect(result[0].id).toBe('a');
+    });
+
+    it('空列表应拒绝', async () => {
+      mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
+      await expect(service.reorder('t1', [], 'u1')).rejects.toThrow(BusinessException);
+    });
+
+    it('首项不是默认子贴应拒绝', async () => {
+      mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
+      mockPrisma.subthread.findMany.mockResolvedValue([{ id: 'a' }, { id: 'b' }]);
+      mockPrisma.subthread.findFirst.mockResolvedValue({ id: 'a' }); // 默认是 a，但请求首项是 b
+
+      await expect(
+        service.reorder('t1', ['b', 'a'], 'u1'),
+      ).rejects.toThrow(BusinessException);
+    });
+
+    it('列表含不存在的子贴应拒绝', async () => {
+      mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
+      mockPrisma.subthread.findMany.mockResolvedValue([{ id: 'a' }]); // 只有 a，但请求含 b
+
+      await expect(
+        service.reorder('t1', ['a', 'b'], 'u1'),
+      ).rejects.toThrow(BusinessException);
+    });
+  });
+
   describe('find', () => {
     it('findAll 应过滤已软删除的子贴', async () => {
       mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', visibility: 'PUBLIC', published: true, ownerId: 'u1' });

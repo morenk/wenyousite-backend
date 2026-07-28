@@ -22,6 +22,7 @@
 |--------|------|-------|------|
 | GET | `/threads/:threadId/subthreads` | Public | 子贴列表（按 sortOrder 排序，排除已删除） |
 | POST | `/threads/:threadId/subthreads` | AuthRead | 创建子贴（OWNER/COLLABORATOR，标题必填正文可选，sortOrder 自动递增） |
+| PUT | `/threads/:threadId/subthreads/reorder` | AuthRead | 批量重排子贴（拖拽排序），首项必须为默认子贴 |
 | GET | `/subthreads/:id` | Public | 子贴详情（含所属主题帖信息） |
 | PATCH | `/subthreads/:id` | AuthRead | 修改子贴（OWNER/COLLABORATOR，乐观锁 version。默认子贴 sortOrder 不可改） |
 | DELETE | `/subthreads/:id` | AuthRead | 软删除子贴（OWNER/COLLABORATOR） |
@@ -33,7 +34,8 @@
 
 - 创建子贴：标题必填（MinLength:1），正文可选。提供正文时事务内创建子贴 + 第一楼 Post（floorNumber=1）；不提供正文时仅创建空子贴
 - sortOrder 帖内唯一（@@unique([threadId, sortOrder])），不指定时自动取 MAX+1
-- **默认子贴**：每个主题帖最早创建（按 createdAt）的子贴为默认子贴，its sortOrder 固定为 0 且不可修改，不可单独删除——需删除整个主题帖
+- **默认子贴**：每个主题帖最早创建（按 createdAt）的子贴为默认子贴，its sortOrder 固定为 0 且不可修改，不可单独删除——需删除整个主题帖。拖拽重排时必须保持默认子贴为第一位
+- 拖拽重排：`PUT /threads/:threadId/subthreads/reorder`，传入目标顺序的 ID 数组，两轮事务更新避免 UNIQUE 冲突
 - `postingPolicy` 控制发帖权限：
   - PARTICIPANTS：所有成员均可发帖
   - COLLABORATORS：仅 OWNER 和 COLLABORATOR 可发帖

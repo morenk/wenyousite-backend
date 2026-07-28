@@ -64,11 +64,12 @@
 
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
-| GET | `/threads/:id/subthreads` | Public | 子贴列表（过滤已软删除） |
-| POST | `/threads/:id/subthreads` | Auth | 创建子贴（仅 OWNER/COLLABORATOR），需邮箱已验证，事务创建+首楼 |
+| GET | `/threads/:id/subthreads` | Public | 子贴列表（按 sortOrder 排序，过滤已软删除） |
+| POST | `/threads/:id/subthreads` | Auth | 创建子贴（仅 OWNER/COLLABORATOR），标题必填正文可选，sortOrder 自动递增 |
+| PUT | `/threads/:id/subthreads/reorder` | Auth | 批量重排子贴（拖拽排序），需保持默认子贴为第一位 |
 | GET | `/subthreads/:id` | Public | 子贴详情 |
-| PATCH | `/subthreads/:id` | Auth | 修改子贴（仅 OWNER/COLLABORATOR），需邮箱已验证，乐观锁 |
-| DELETE | `/subthreads/:id` | Auth | 软删除（仅 OWNER/COLLABORATOR），需邮箱已验证 |
+| PATCH | `/subthreads/:id` | Auth | 修改子贴（仅 OWNER/COLLABORATOR），默认子贴不可修改 sortOrder |
+| DELETE | `/subthreads/:id` | Auth | 软删除（仅 OWNER/COLLABORATOR） |
 
 ## 楼层端点 (Posts)
 

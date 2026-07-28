@@ -97,6 +97,56 @@ export class SubthreadsService {
     });
   }
 
+  /** 批量重排子贴：按 ids 数组顺序分配 sortOrder（首发须为默认子贴） */
+  async reorder(threadId: string, ids: string[], userId: string) {
+    await this.assertCanManage(threadId, userId);
+
+    if (!ids || ids.length === 0) {
+      throw new BusinessException(ErrorCode.BAD_REQUEST, '请提供要排序的子贴列表');
+    }
+
+    // 验证所有子贴属于该帖且未删除
+    const subthreads = await this.prisma.subthread.findMany({
+      where: { threadId, id: { in: ids }, deletedAt: null },
+      select: { id: true },
+    });
+    if (subthreads.length !== ids.length) {
+      throw new BusinessException(ErrorCode.BAD_REQUEST, '子贴列表包含不存在或已删除的子贴');
+    }
+
+    // 列表第一项必须是默认子贴
+    const defaultSubthread = await this.prisma.subthread.findFirst({
+      where: { threadId, deletedAt: null },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+    if (defaultSubthread && ids[0] !== defaultSubthread.id) {
+      throw new BusinessException(ErrorCode.BAD_REQUEST, '默认子贴必须排在第一位');
+    }
+
+    // 两轮更新：先设临时负值避免 UNIQUE 冲突，再设最终值
+    await this.prisma.$transaction(async (tx) => {
+      for (let i = 0; i < ids.length; i++) {
+        await tx.subthread.update({
+          where: { id: ids[i] },
+          data: { sortOrder: -(i + 1) },
+        });
+      }
+      for (let i = 0; i < ids.length; i++) {
+        await tx.subthread.update({
+          where: { id: ids[i] },
+          data: { sortOrder: i },
+        });
+      }
+    });
+
+    return this.prisma.subthread.findMany({
+      where: { threadId, deletedAt: null },
+      orderBy: { sortOrder: 'asc' },
+      select: { id: true, title: true, sortOrder: true },
+    });
+  }
+
   /** 修改子贴（仅 OWNER/COLLABORATOR）。默认子贴不可修改 sortOrder */
   async update(id: string, dto: UpdateSubthreadDto & { version?: number }, userId: string) {
     const subthread = await this.prisma.subthread.findUnique({ where: { id } });
