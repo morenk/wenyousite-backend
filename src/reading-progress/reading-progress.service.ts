@@ -72,7 +72,7 @@ export class ReadingProgressService {
       lastReadTime,
       continueFrom: lastPostId
         ? await this.prisma.post.findUnique({
-            where: { id: lastPostId },
+            where: { id: lastPostId, deletedAt: null },
             select: { id: true, floorNumber: true, parentPostId: true },
           })
         : null,

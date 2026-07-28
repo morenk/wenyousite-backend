@@ -114,7 +114,7 @@ export class PostEventsListener {
       if (event.parentPostId && !event.isSubthreadBody) {
         const targetId = event.replyToPostId ?? event.parentPostId;
         const targetPost = await this.prisma.post.findUnique({
-          where: { id: targetId },
+          where: { id: targetId, deletedAt: null },
           select: { authorId: true },
         });
         if (targetPost && targetPost.authorId !== event.userId) {

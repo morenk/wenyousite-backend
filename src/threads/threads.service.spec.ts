@@ -3,6 +3,7 @@ import { ThreadsService } from './threads.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TagsService } from '../tags/tags.service';
 import { NotificationProducer } from '../jobs/notification.producer';
+import { ThreadAccessService } from '../common/services/thread-access.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 
 const mockPrisma = {
@@ -43,6 +44,7 @@ describe('ThreadsService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ThreadsService,
+        ThreadAccessService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: TagsService, useValue: mockTags },
         { provide: NotificationProducer, useValue: mockNotificationProducer },

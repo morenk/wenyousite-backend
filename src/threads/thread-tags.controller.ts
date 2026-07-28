@@ -6,9 +6,9 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { PrismaService } from '../prisma/prisma.service';
 import { TagsService } from '../tags/tags.service';
+import { ThreadAccessService } from '../common/services/thread-access.service';
 import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
-import { ThreadsService } from './threads.service';
 import { AddThreadTagDto } from './dto/add-thread-tag.dto';
 
 /** 主题帖标签关联控制器 */
@@ -18,7 +18,7 @@ export class ThreadTagsController {
   constructor(
     private prisma: PrismaService,
     private tagsService: TagsService,
-    private threadsService: ThreadsService,
+    private threadAccess: ThreadAccessService,
   ) {}
 
   @Get()
@@ -37,7 +37,7 @@ export class ThreadTagsController {
   @ApiOperation({ summary: '为主题帖添加标签（仅 OWNER/COLLABORATOR）' })
   async add(@Param('threadId') threadId: string, @Body() dto: AddThreadTagDto, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
-    await this.threadsService.assertCanManage(threadId, user.id);
+    await this.threadAccess.assertCanManage(threadId, user.id);
 
     const tags = await this.tagsService.findOrCreate([dto.name]);
     const tag = tags[0];
@@ -55,7 +55,7 @@ export class ThreadTagsController {
   @ApiOperation({ summary: '移除主题帖的标签（仅 OWNER/COLLABORATOR）' })
   async remove(@Param('threadId') threadId: string, @Param('tagId') tagId: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
-    await this.threadsService.assertCanManage(threadId, user.id);
+    await this.threadAccess.assertCanManage(threadId, user.id);
 
     await this.prisma.threadTopicTag.deleteMany({
       where: { threadId, tagId },

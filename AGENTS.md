@@ -39,8 +39,10 @@ src/
 │   ├── decorators/public.decorator.ts    # @Public() 跳过 JWT
 │   ├── guards/verified.guard.ts         # 邮箱验证守卫
 │   ├── guards/block.guard.ts            # 拉黑拦截守卫
+│   ├── services/thread-access.service.ts # 主题帖访问权限 + 管理权限校验
 │   ├── filters/all-exceptions.filter.ts # 统一异常格式
 │   ├── interceptors/response.interceptor.ts
+│   ├── prisma-helpers.ts                # 软删除/计数查询共享 helper
 │   └── dto/pagination.dto.ts            # cursor 分页
 ├── prisma/                    # PrismaService (全局提供)
 ├── auth/                      # 注册/登录/刷新/验证/改密码/找回密码
@@ -107,6 +109,8 @@ scripts/
 8. **私密帖**：`visibility=PRIVATE`，不在列表/搜索中显示，仅成员可访问。加入方式仅限邀请链接 (`ThreadInvite`)，踢出仅取消玩家标记。
 9. **订阅推送**：用户可订阅整帖 (THREAD) 或帖内某用户 (USER)。发帖时通过 `PostEventsListener` + `SubscriptionsService.findSubscribers()` 合并订阅者到通知列表。
 10. **图片上传**：客户端通过预签名 URL 直传 S3，完成后调 `upload-done` 确认。服务端写入 Media 表，入队 `image` 队列用 sharp 生成 300×300 缩略图 + 800px 中图 (WebP)。
+11. **软删除可访问性**：Thread/Subthread/Post 均采用软删除 (`deletedAt`)。所有面向用户的查询必须在 WHERE 子句中包含 `deletedAt: null`。`src/common/prisma-helpers.ts` 提供 `notDeleted` 常量及 `countNonDeletedPosts()`、`includeSubthreads()` 等组合 helper 消除重复。
+12. **访问权限复用**：`ThreadAccessService` 统一定义 `assertAccessible()`（软删除/未发布/私密帖访问校验）和 `assertCanManage()`（OWNER/COLLABORATOR 管理权限校验），供 `ThreadsService`、`SubthreadsService`、`ThreadMembersService` 及标签控制器共用。
 
 ## 常用命令
 

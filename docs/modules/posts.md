@@ -18,25 +18,30 @@
 |--------|------|-------|------|
 | GET | `/subthreads/:subthreadId/posts` | Public | 楼层列表（Cursor 分页，仅主楼层 parentPostId=null） |
 | GET | `/posts/:id/replies` | Public | 楼中楼回复列表（Cursor 分页，无限下拉） |
-| POST | `/subthreads/:subthreadId/posts` | AuthRead | 发帖（楼层或楼中楼回复） |
+| POST | `/subthreads/:subthreadId/posts` | Auth | 发帖（楼层或楼中楼回复） |
 | GET | `/posts/:id` | Public | 帖子详情（含导航上下文：帖/子贴/父楼） |
-| PATCH | `/posts/:id` | AuthRead | 编辑帖子（仅作者，乐观锁 version） |
-| DELETE | `/posts/:id` | AuthRead | 软删除帖子（不能删除子贴第一楼） |
-| POST | `/posts/:id/like` | AuthRead | 点赞 |
-| DELETE | `/posts/:id/like` | AuthRead | 取消点赞 |
+| PATCH | `/posts/:id` | Auth | 编辑帖子（仅作者，乐观锁 version） |
+| DELETE | `/posts/:id` | Auth | 软删除帖子（不能删除子贴第一楼） |
+| POST | `/posts/:id/like` | Auth | 点赞 |
+| DELETE | `/posts/:id/like` | Auth | 取消点赞 |
 
 ## 核心业务规则
 
+- 发帖前校验主题帖访问权限（`ThreadAccessService.assertAccessible`）：私密帖非成员被拒绝，未发布帖非 owner 被拒绝
+- 发帖权限校验在自动加入成员之前：被 PostingPolicy 拒绝时不会写入 ThreadMember 记录
 - 楼层编号 floorNumber 在事务内通过 `MAX(floorNumber) + 1` 分配，永不复用
 - 楼中楼回复 floorNumber = null，通过 parentPostId 关联父楼层
 - 楼中楼平级挂载：所有回复共享同一个 parentPostId，无嵌套深度限制；回复目标通过 replyToPostId 追踪
-- 软删除：设置 deletedAt，列表查询过滤已删除帖子
+- parentPostId 必须属于同一子贴且为主楼层（parentPostId=null），否则拒绝
+- replyToPostId 必须属于同一子贴，否则拒绝
+- 软删除：设置 deletedAt，列表查询过滤已删除帖子；编辑/删除操作也校验子贴是否已软删
 - 子贴主体正文不可删除（floorNumber=1 且无 parentPostId），提示"主体正文不可删除。如需修改请编辑帖子；如需移除请删除整个子贴"
-- 发帖时自动将用户加入主题帖（upsert ThreadMember，角色 PARTICIPANT）
+- 权限校验通过后自动将用户加入主题帖（upsert ThreadMember，角色 PARTICIPANT）
 - 发帖权限由子贴的 postingPolicy 控制：
   - COLLABORATORS：仅 OWNER/COLLABORATOR 可发帖
   - PLAYERS：仅 playerMarked=true 的成员可发帖
 - 发帖后通过 EventEmitter 发射 `post.created` 事件，由 PostEventsListener 解耦处理 @提及解析和通知投递
+- 点赞/取消点赞前校验主题帖访问权限（`ThreadAccessService.assertAccessible`）
 - 点赞使用 PostLike upsert 保证幂等（重复点赞不报错，但 likeCount 不会重复增加）
 - likeCount 直接维护在 Post 表上，用于快速排序和展示，不依赖 count 聚合查询
 - 编辑使用乐观锁 version 防止并发编辑冲突

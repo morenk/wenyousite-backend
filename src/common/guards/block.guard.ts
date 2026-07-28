@@ -15,7 +15,7 @@ export class BlockGuard implements CanActivate {
     if (!subthreadId) return true;
 
     const subthread = await this.prisma.subthread.findUnique({
-      where: { id: subthreadId },
+      where: { id: subthreadId, deletedAt: null },
       select: { threadId: true, thread: { select: { ownerId: true } } },
     });
     if (!subthread) return true;

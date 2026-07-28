@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ThreadMembersService } from './thread-members.service';
+import { ThreadAccessService } from '../common/services/thread-access.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 
@@ -26,6 +27,7 @@ describe('ThreadMembersService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ThreadMembersService,
+        ThreadAccessService,
         { provide: PrismaService, useValue: mockPrisma },
       ],
     }).compile();

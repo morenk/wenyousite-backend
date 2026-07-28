@@ -1,16 +1,20 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { ThreadAccessService } from '../common/services/thread-access.service';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound, forbidden } from '../common/exceptions/business.exception';
 
 /** 主题帖成员服务：加入、邀请、踢出、角色修改、玩家标记 */
 @Injectable()
 export class ThreadMembersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private threadAccess: ThreadAccessService,
+  ) {}
 
   /** 获取成员列表 */
   async findAll(threadId: string) {
-    const thread = await this.prisma.thread.findUnique({ where: { id: threadId } });
+    const thread = await this.prisma.thread.findUnique({ where: { id: threadId, deletedAt: null } });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
 
     return this.prisma.threadMember.findMany({
@@ -24,7 +28,7 @@ export class ThreadMembersService {
 
   /** 自由加入（任何人）。未发布帖和私密帖禁止自由加入。 */
   async join(threadId: string, userId: string) {
-    const thread = await this.prisma.thread.findUnique({ where: { id: threadId } });
+    const thread = await this.prisma.thread.findUnique({ where: { id: threadId, deletedAt: null } });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
     if (!thread.published) throw forbidden('该主题帖尚未发布');
     if (thread.visibility === 'PRIVATE') {
@@ -46,9 +50,9 @@ export class ThreadMembersService {
 
   /** 邀请成员（仅 OWNER/COLLABORATOR，需已发布） */
   async invite(threadId: string, targetUserId: string, actorId: string) {
-    await this.assertCanManage(threadId, actorId);
+    await this.threadAccess.assertCanManage(threadId, actorId);
 
-    const thread = await this.prisma.thread.findUnique({ where: { id: threadId } });
+    const thread = await this.prisma.thread.findUnique({ where: { id: threadId, deletedAt: null } });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
     if (!thread.published) throw forbidden('请先发布主题帖后再邀请成员');
 
@@ -73,7 +77,7 @@ export class ThreadMembersService {
    *  - playerMarked: 标记为玩家
    *  不能修改 OWNER 角色 */
   async updateMember(threadId: string, targetUserId: string, dto: { role?: string; playerMarked?: boolean }, actorId: string) {
-    await this.assertCanManage(threadId, actorId);
+    await this.threadAccess.assertCanManage(threadId, actorId);
 
     const member = await this.prisma.threadMember.findUnique({
       where: { threadId_userId: { threadId, userId: targetUserId } },
@@ -92,7 +96,7 @@ export class ThreadMembersService {
 
   /** 踢出成员：取消该用户的玩家标记（公开/私密帖统一逻辑） */
   async removeMember(threadId: string, targetUserId: string, actorId: string) {
-    await this.assertCanManage(threadId, actorId);
+    await this.threadAccess.assertCanManage(threadId, actorId);
 
     const member = await this.prisma.threadMember.findUnique({
       where: { threadId_userId: { threadId, userId: targetUserId } },
@@ -121,16 +125,5 @@ export class ThreadMembersService {
       where: { threadId_userId: { threadId, userId } },
       data: { playerMarked: false },
     });
-  }
-
-  /** 检查管理权限 */
-  private async assertCanManage(threadId: string, userId: string) {
-    const member = await this.prisma.threadMember.findUnique({
-      where: { threadId_userId: { threadId, userId } },
-    });
-    if (!member || (member.role !== 'OWNER' && member.role !== 'COLLABORATOR')) {
-      throw forbidden('无管理权限');
-    }
-    return member;
   }
 }

@@ -63,9 +63,8 @@ describe('PostsService', () => {
 
   it('create 楼中楼回复不应该有 floorNumber', async () => {
     const subthread = { id: 's1', threadId: 't1', postingPolicy: 'PARTICIPANTS', thread: { published: true } };
-    const parent = { id: 'p1' };
     mockPrisma.subthread.findUnique.mockResolvedValue(subthread);
-    mockPrisma.post.findUnique.mockResolvedValue(parent);
+    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', subthreadId: 's1', parentPostId: null });
     mockPrisma.post.create.mockResolvedValue({
       id: 'p2', floorNumber: null, parentPostId: 'p1', content: 'reply',
       author: { username: 'test' },
@@ -102,34 +101,33 @@ describe('PostsService', () => {
   });
 
   it('update 编辑自己的帖子应该成功', async () => {
-    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1' });
+    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', subthread: { deletedAt: null } });
     mockPrisma.post.update.mockResolvedValue({ id: 'p1', content: '编辑后' });
     const result = await service.update('p1', { content: '编辑后' }, 'u1');
     expect(result.content).toBe('编辑后');
   });
 
   it('update 编辑他人的帖子应该返回403', async () => {
-    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'other' });
+    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'other', subthread: { deletedAt: null } });
     await expect(service.update('p1', { content: 'x' }, 'u1')).rejects.toThrow(BusinessException);
   });
 
   it('remove 软删除非第一楼应该成功', async () => {
-    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', floorNumber: 3 });
+    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', floorNumber: 3, parentPostId: 'p0', subthread: { deletedAt: null } });
     mockPrisma.post.update.mockResolvedValue({ id: 'p1', deletedAt: new Date() });
     await service.remove('p1', 'u1');
-    expect(mockPrisma.post.update).toHaveBeenCalledWith({
-      where: { id: 'p1' },
-      data: { deletedAt: expect.any(Date) },
-    });
+    expect(mockPrisma.post.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { deletedAt: expect.any(Date) } }),
+    );
   });
 
   it('remove 第一楼应该返回403', async () => {
-    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', floorNumber: 1, parentPostId: null });
+    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', floorNumber: 1, parentPostId: null, subthread: { deletedAt: null } });
     await expect(service.remove('p1', 'u1')).rejects.toThrow(BusinessException);
   });
 
   it('like 应该创建点赞并加计数', async () => {
-    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', likeCount: 0 });
+    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', likeCount: 0 });
     mockPrisma.postLike.upsert.mockResolvedValue({});
     mockPrisma.post.update.mockResolvedValue({ id: 'p1', likeCount: 1 });
     await service.like('p1', 'u1');
@@ -141,7 +139,7 @@ describe('PostsService', () => {
   });
 
   it('unlike 应该取消点赞并减计数', async () => {
-    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', likeCount: 1 });
+    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', likeCount: 1 });
     mockPrisma.postLike.deleteMany.mockResolvedValue({});
     mockPrisma.post.update.mockResolvedValue({ id: 'p1', likeCount: 0 });
     await service.unlike('p1', 'u1');

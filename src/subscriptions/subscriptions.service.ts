@@ -9,7 +9,7 @@ export class SubscriptionsService {
   /** 创建订阅 */
   async create(userId: string, threadId: string, type: 'THREAD' | 'USER', targetUserId?: string) {
     const thread = await this.prisma.thread.findUnique({
-      where: { id: threadId },
+      where: { id: threadId, deletedAt: null },
       select: { id: true, published: true },
     });
     if (!thread) throw new NotFoundException('主题帖不存在');
@@ -42,7 +42,10 @@ export class SubscriptionsService {
   /** 查看我的订阅列表 */
   async findAll(userId: string) {
     return this.prisma.subscription.findMany({
-      where: { userId },
+      where: {
+        userId,
+        thread: { deletedAt: null },
+      },
       include: {
         thread: { select: { id: true, title: true, category: true } },
       },

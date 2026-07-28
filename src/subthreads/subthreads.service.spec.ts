@@ -26,7 +26,7 @@ const mockPrisma = {
   },
 };
 
-const mockThreadAccess = { assertAccessible: jest.fn() };
+const mockThreadAccess = { assertAccessible: jest.fn(), assertCanManage: jest.fn().mockResolvedValue({ role: 'OWNER' }) };
 const mockEventEmitter = { emit: jest.fn() };
 
 describe('SubthreadsService', () => {
@@ -117,14 +117,13 @@ describe('SubthreadsService', () => {
       mockPrisma.subthread.findFirst.mockResolvedValue({ id: 's0' }); // 默认子贴是 s0，不是 s1
       mockPrisma.subthread.update.mockResolvedValue({ id: 's1', deletedAt: new Date() });
       await service.remove('s1', 'u1');
-      expect(mockPrisma.subthread.update).toHaveBeenCalledWith({
-        where: { id: 's1' },
-        data: { deletedAt: expect.any(Date) },
-      });
+      expect(mockPrisma.subthread.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { deletedAt: null, id: 's1' }, data: { deletedAt: expect.any(Date) } }),
+      );
     });
 
     it('remove 已软删除的子贴应返回404', async () => {
-      mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1', deletedAt: new Date() });
+      mockPrisma.subthread.findUnique.mockResolvedValue(null);
       await expect(service.remove('s1', 'u1')).rejects.toThrow(BusinessException);
     });
 
@@ -144,7 +143,7 @@ describe('SubthreadsService', () => {
 
       await service.remove('s2', 'u1');
       expect(mockPrisma.subthread.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 's2' } }),
+        expect.objectContaining({ where: { deletedAt: null, id: 's2' } }),
       );
     });
   });

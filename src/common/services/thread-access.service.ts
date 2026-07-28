@@ -1,13 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ErrorCode } from '../exceptions/error-codes';
-import { notFound } from '../exceptions/business.exception';
+import { notFound, forbidden } from '../exceptions/business.exception';
 
-/** 主题帖访问权限校验：未发布帖仅 owner 可见、私密帖仅成员可见 */
+/** 主题帖访问权限服务：可访问性校验 + 管理权限校验 */
 @Injectable()
 export class ThreadAccessService {
   constructor(private prisma: PrismaService) {}
 
+  /** 校验主题帖是否可访问（软删除 / 未发布权限 / 私密帖准入） */
   async assertAccessible(threadId: string, userId?: string) {
     const thread = await this.prisma.thread.findUnique({
       where: { id: threadId, deletedAt: null },
@@ -29,5 +30,16 @@ export class ThreadAccessService {
       });
       if (!member) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
     }
+  }
+
+  /** 校验管理权限：OWNER 或 COLLABORATOR，否则 403 */
+  async assertCanManage(threadId: string, userId: string) {
+    const member = await this.prisma.threadMember.findUnique({
+      where: { threadId_userId: { threadId, userId } },
+    });
+    if (!member || (member.role !== 'OWNER' && member.role !== 'COLLABORATOR')) {
+      throw forbidden('无管理权限');
+    }
+    return member;
   }
 }

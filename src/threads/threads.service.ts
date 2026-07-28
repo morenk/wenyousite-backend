@@ -2,12 +2,14 @@ import { Injectable, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TagsService } from '../tags/tags.service';
 import { NotificationProducer } from '../jobs/notification.producer';
+import { ThreadAccessService } from '../common/services/thread-access.service';
 import { CreateThreadDto } from './dto/create-thread.dto';
 import { UpdateThreadDto } from './dto/update-thread.dto';
 import { ThreadQueryDto } from './dto/thread-query.dto';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound, forbidden } from '../common/exceptions/business.exception';
 import { paginate } from '../common/dto/paginated-result';
+import { notDeleted, countNonDeletedPosts, includeSubthreads, authorSelect, countMembersAndPosts } from '../common/prisma-helpers';
 
 /** 主题帖服务：草稿创建、沙盒迭代、发布、CRUD */
 @Injectable()
@@ -16,6 +18,7 @@ export class ThreadsService {
     private prisma: PrismaService,
     private tagsService: TagsService,
     private notificationProducer: NotificationProducer,
+    private threadAccess: ThreadAccessService,
   ) {}
 
   /** 创建主题帖草稿：仅创建 Thread(published=false) + OWNER 成员 */
@@ -47,19 +50,12 @@ export class ThreadsService {
     }
 
     return this.prisma.thread.findUnique({
-      where: { id: thread.id },
+      where: { id: thread.id, ...notDeleted },
       include: {
-        owner: { select: { id: true, username: true, nickname: true, avatar: true } },
-        subthreads: {
-          where: { deletedAt: null },
-          orderBy: { sortOrder: 'asc' },
-          include: {
-            _count: { select: { posts: { where: { deletedAt: null } } } },
-            tags: { include: { tag: true } },
-          },
-        },
+        owner: { select: authorSelect },
+        ...includeSubthreads(),
         topicTags: { include: { tag: true } },
-        _count: { select: { members: true, posts: true } },
+        ...countMembersAndPosts(),
       },
     });
   }
@@ -67,11 +63,11 @@ export class ThreadsService {
   /** 我的草稿列表（未发布帖） */
   async findDrafts(userId: string) {
     return this.prisma.thread.findMany({
-      where: { ownerId: userId, published: false, deletedAt: null },
+      where: { ownerId: userId, published: false, ...notDeleted },
       orderBy: { createdAt: 'desc' },
       include: {
         subthreads: {
-          where: { deletedAt: null },
+          where: notDeleted,
           orderBy: { sortOrder: 'asc' },
           take: 1,
           select: { id: true, title: true },
@@ -84,39 +80,18 @@ export class ThreadsService {
 
   /** 详情：主题帖 + 子贴列表。未发布帖仅 owner 可查看 */
   async findById(id: string, userId?: string) {
+    await this.threadAccess.assertAccessible(id, userId);
+
     const thread = await this.prisma.thread.findUnique({
-      where: { id, deletedAt: null },
+      where: { id, ...notDeleted },
       include: {
-        owner: { select: { id: true, username: true, nickname: true, avatar: true } },
-        subthreads: {
-          where: { deletedAt: null },
-          orderBy: { sortOrder: 'asc' },
-          include: {
-            _count: { select: { posts: { where: { deletedAt: null } } } },
-            tags: { include: { tag: true } },
-          },
-        },
+        owner: { select: authorSelect },
+        ...includeSubthreads(),
         topicTags: { include: { tag: true } },
-        _count: { select: { members: true, posts: true } },
+        ...countMembersAndPosts(),
       },
     });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
-
-    // 未发布帖：仅 owner 可访问
-    if (!thread.published) {
-      if (!userId || thread.ownerId !== userId) {
-        throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
-      }
-    }
-
-    // 私密帖权限：仅成员可访问
-    if (thread.visibility === 'PRIVATE' && thread.published) {
-      if (!userId) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
-      const member = await this.prisma.threadMember.findUnique({
-        where: { threadId_userId: { threadId: id, userId } },
-      });
-      if (!member) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
-    }
 
     // 浏览量 +1（仅已发布帖）
     if (thread.published) {
@@ -131,7 +106,7 @@ export class ThreadsService {
 
   /** 分区列表：仅返回已发布帖 */
   async findAll(query: ThreadQueryDto, userId?: string) {
-    const where: any = { deletedAt: null, published: true };
+    const where: any = { ...notDeleted, published: true };
 
     if (query.filter === 'playing') {
       if (!userId) return paginate([], { cursor: null, hasMore: false });
@@ -163,14 +138,15 @@ export class ThreadsService {
       cursor: query.cursor ? { id: query.cursor } : undefined,
       skip: query.cursor ? 1 : 0,
       include: {
-        owner: { select: { id: true, username: true, nickname: true, avatar: true } },
+        owner: { select: authorSelect },
         subthreads: {
+          where: notDeleted,
           orderBy: { sortOrder: 'asc' },
           take: 1,
           select: { id: true, title: true, lastPostAt: true },
         },
         topicTags: { include: { tag: true } },
-        _count: { select: { members: true, posts: true } },
+        ...countMembersAndPosts(),
       },
     });
 
@@ -185,13 +161,13 @@ export class ThreadsService {
 
   /** 修改主题帖（仅 OWNER/COLLABORATOR）。published=true 触发发布 */
   async update(id: string, dto: UpdateThreadDto & { version?: number }, userId: string) {
-    const member = await this.assertCanManage(id, userId);
+    await this.threadAccess.assertCanManage(id, userId);
     const { version, published, ...data } = dto;
 
     // 发布校验
     if (published === true) {
       const thread = await this.prisma.thread.findUnique({
-        where: { id },
+        where: { id, ...notDeleted },
         select: { published: true, title: true, category: true },
       });
       if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
@@ -209,19 +185,13 @@ export class ThreadsService {
     }
 
     const updated = await this.prisma.thread.update({
-      where: { id, version },
+      where: { id, version, ...notDeleted },
       data: updateData,
       include: {
-        owner: { select: { id: true, username: true, nickname: true, avatar: true } },
-        subthreads: {
-          orderBy: { sortOrder: 'asc' },
-          include: {
-            _count: { select: { posts: { where: { deletedAt: null } } } },
-            tags: { include: { tag: true } },
-          },
-        },
+        owner: { select: authorSelect },
+        ...includeSubthreads(),
         topicTags: { include: { tag: true } },
-        _count: { select: { members: true, posts: true } },
+        ...countMembersAndPosts(),
       },
     }).catch(() => {
       throw new BusinessException(ErrorCode.OPTIMISTIC_LOCK_CONFLICT, '主题帖已被修改，请刷新后重试', HttpStatus.CONFLICT);
@@ -249,7 +219,7 @@ export class ThreadsService {
 
   /** 删除：未发布帖硬删除（级联），已发布帖软删除 */
   async remove(id: string, userId: string) {
-    const thread = await this.prisma.thread.findUnique({ where: { id } });
+    const thread = await this.prisma.thread.findUnique({ where: { id, ...notDeleted } });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
     if (thread.ownerId !== userId) throw forbidden('仅楼主可删除主题帖', ErrorCode.NOT_THREAD_OWNER);
 
@@ -258,7 +228,7 @@ export class ThreadsService {
     }
 
     return this.prisma.thread.update({
-      where: { id },
+      where: { id, ...notDeleted },
       data: { deletedAt: new Date() },
     });
   }
@@ -273,13 +243,8 @@ export class ThreadsService {
     }
 
     const subthread = await this.prisma.subthread.findFirst({
-      where: { threadId, deletedAt: null },
-      include: {
-        posts: {
-          where: { deletedAt: null },
-          take: 1,
-        },
-      },
+      where: { threadId, ...notDeleted },
+      include: { posts: { where: notDeleted, take: 1 } },
       orderBy: { sortOrder: 'asc' },
     });
 
@@ -293,18 +258,12 @@ export class ThreadsService {
 
   /** 检查当前用户是否有管理权限（OWNER 或 COLLABORATOR） */
   async assertCanManage(threadId: string, userId: string) {
-    const member = await this.prisma.threadMember.findUnique({
-      where: { threadId_userId: { threadId, userId } },
-    });
-    if (!member || (member.role !== 'OWNER' && member.role !== 'COLLABORATOR')) {
-      throw forbidden('无管理权限');
-    }
-    return member;
+    return this.threadAccess.assertCanManage(threadId, userId);
   }
 
   /** 生成或刷新私密帖邀请链接（仅 OWNER，已发布 + 私密帖） */
   async createInviteLink(threadId: string, userId: string) {
-    const thread = await this.prisma.thread.findUnique({ where: { id: threadId } });
+    const thread = await this.prisma.thread.findUnique({ where: { id: threadId, ...notDeleted } });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
     if (thread.ownerId !== userId) throw forbidden('仅楼主可管理邀请链接', ErrorCode.NOT_THREAD_OWNER);
     if (!thread.published) throw forbidden('请先发布主题帖');
@@ -321,9 +280,9 @@ export class ThreadsService {
   async joinByInviteLink(token: string, userId: string) {
     const invite = await this.prisma.threadInvite.findUnique({
       where: { token },
-      include: { thread: { select: { id: true, visibility: true, published: true } } },
+      include: { thread: { select: { id: true, visibility: true, published: true, deletedAt: true } } },
     });
-    if (!invite) throw notFound(ErrorCode.INVITE_INVALID, '邀请链接无效或已失效');
+    if (!invite || invite.thread.deletedAt) throw notFound(ErrorCode.INVITE_INVALID, '邀请链接无效或已失效');
     if (!invite.thread.published) throw forbidden('该主题帖尚未发布');
     if (invite.thread.visibility !== 'PRIVATE') throw forbidden('该主题帖为公开帖，可直接加入');
 

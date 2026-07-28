@@ -5,7 +5,8 @@ import { ThreadAccessService } from '../common/services/thread-access.service';
 import { CreateSubthreadDto } from './dto/create-subthread.dto';
 import { UpdateSubthreadDto } from './dto/update-subthread.dto';
 import { ErrorCode } from '../common/exceptions/error-codes';
-import { BusinessException, notFound, forbidden } from '../common/exceptions/business.exception';
+import { BusinessException, notFound } from '../common/exceptions/business.exception';
+import { notDeleted, countNonDeletedPosts } from '../common/prisma-helpers';
 
 /** 子贴服务：CRUD、排序、权限校验 */
 @Injectable()
@@ -21,11 +22,11 @@ export class SubthreadsService {
     await this.threadAccess.assertAccessible(threadId, userId);
 
     return this.prisma.subthread.findMany({
-      where: { threadId, deletedAt: null },
+      where: { threadId, ...notDeleted },
       orderBy: { sortOrder: 'asc' },
       include: {
         tags: { include: { tag: true } },
-        _count: { select: { posts: { where: { deletedAt: null } } } },
+        ...countNonDeletedPosts(),
       },
     });
   }
@@ -33,11 +34,11 @@ export class SubthreadsService {
   /** 获取单个子贴详情 */
   async findById(id: string, userId?: string) {
     const subthread = await this.prisma.subthread.findUnique({
-      where: { id },
+      where: { id, ...notDeleted },
       include: {
         thread: { select: { id: true, title: true, ownerId: true, visibility: true } },
         tags: { include: { tag: true } },
-        _count: { select: { posts: { where: { deletedAt: null } } } },
+        ...countNonDeletedPosts(),
       },
     });
     if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
@@ -60,7 +61,7 @@ export class SubthreadsService {
     } else {
       // 检查是否冲突
       const existing = await this.prisma.subthread.findFirst({
-        where: { threadId, sortOrder, deletedAt: null },
+        where: { threadId, sortOrder, ...notDeleted },
       });
       if (existing) {
         throw new BusinessException(ErrorCode.CONFLICT, `排序序号 ${sortOrder} 已被占用`, HttpStatus.CONFLICT);
@@ -69,7 +70,7 @@ export class SubthreadsService {
 
     // 检查线程是否已发布（用于决定是否发射事件）
     const thread = await this.prisma.thread.findUnique({
-      where: { id: threadId },
+      where: { id: threadId, ...notDeleted },
       select: { published: true, title: true },
     });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
@@ -103,7 +104,7 @@ export class SubthreadsService {
         where: { id: subthread.id },
         include: {
           tags: { include: { tag: true } },
-          _count: { select: { posts: { where: { deletedAt: null } } } },
+          ...countNonDeletedPosts(),
         },
       });
 
@@ -138,7 +139,7 @@ export class SubthreadsService {
 
     // 验证所有子贴属于该帖且未删除
     const subthreads = await this.prisma.subthread.findMany({
-      where: { threadId, id: { in: ids }, deletedAt: null },
+      where: { threadId, id: { in: ids }, ...notDeleted },
       select: { id: true },
     });
     if (subthreads.length !== ids.length) {
@@ -147,7 +148,7 @@ export class SubthreadsService {
 
     // 列表第一项必须是默认子贴
     const defaultSubthread = await this.prisma.subthread.findFirst({
-      where: { threadId, deletedAt: null },
+      where: { threadId, ...notDeleted },
       orderBy: { createdAt: 'asc' },
       select: { id: true },
     });
@@ -172,7 +173,7 @@ export class SubthreadsService {
     });
 
     return this.prisma.subthread.findMany({
-      where: { threadId, deletedAt: null },
+      where: { threadId, ...notDeleted },
       orderBy: { sortOrder: 'asc' },
       select: { id: true, title: true, sortOrder: true },
     });
@@ -180,16 +181,16 @@ export class SubthreadsService {
 
   /** 修改子贴（仅 OWNER/COLLABORATOR）。默认子贴不可修改 sortOrder */
   async update(id: string, dto: UpdateSubthreadDto & { version?: number }, userId: string) {
-    const subthread = await this.prisma.subthread.findUnique({ where: { id } });
+    const subthread = await this.prisma.subthread.findUnique({ where: { id, ...notDeleted } });
     if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
-    await this.assertCanManage(subthread.threadId, userId);
+    await this.threadAccess.assertCanManage(subthread.threadId, userId);
 
     const { version, sortOrder, ...data } = dto;
 
     // 默认子贴不可修改排序
     if (sortOrder !== undefined) {
       const firstSubthread = await this.prisma.subthread.findFirst({
-        where: { threadId: subthread.threadId, deletedAt: null },
+        where: { threadId: subthread.threadId, ...notDeleted },
         orderBy: { createdAt: 'asc' },
         select: { id: true },
       });
@@ -198,7 +199,7 @@ export class SubthreadsService {
       }
       // 检查是否冲突
       const conflict = await this.prisma.subthread.findFirst({
-        where: { threadId: subthread.threadId, sortOrder, deletedAt: null, id: { not: id } },
+        where: { threadId: subthread.threadId, sortOrder, ...notDeleted, id: { not: id } },
       });
       if (conflict) {
         throw new BusinessException(ErrorCode.CONFLICT, `排序序号 ${sortOrder} 已被占用`, HttpStatus.CONFLICT);
@@ -209,25 +210,24 @@ export class SubthreadsService {
     if (sortOrder !== undefined) updateData.sortOrder = sortOrder;
 
     return this.prisma.subthread.update({
-      where: { id, version },
+      where: { id, version, ...notDeleted },
       data: updateData,
       include: {
         tags: { include: { tag: true } },
-        _count: { select: { posts: { where: { deletedAt: null } } } },
+        ...countNonDeletedPosts(),
       },
     }).catch(() => { throw new BusinessException(ErrorCode.OPTIMISTIC_LOCK_CONFLICT, '子贴已被修改，请刷新后重试', HttpStatus.CONFLICT); });
   }
 
   /** 软删除子贴（仅 OWNER/COLLABORATOR）。默认子贴不可单独删除 */
   async remove(id: string, userId: string) {
-    const subthread = await this.prisma.subthread.findUnique({ where: { id } });
+    const subthread = await this.prisma.subthread.findUnique({ where: { id, ...notDeleted } });
     if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
-    if (subthread.deletedAt) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
-    await this.assertCanManage(subthread.threadId, userId);
+    await this.threadAccess.assertCanManage(subthread.threadId, userId);
 
     // 默认子贴：主题帖创建时同步生成的第一个子贴，是主题帖主内容区，不可单独删除
     const firstSubthread = await this.prisma.subthread.findFirst({
-      where: { threadId: subthread.threadId, deletedAt: null },
+      where: { threadId: subthread.threadId, ...notDeleted },
       orderBy: { createdAt: 'asc' },
       select: { id: true },
     });
@@ -240,19 +240,13 @@ export class SubthreadsService {
     }
 
     return this.prisma.subthread.update({
-      where: { id },
+      where: { id, ...notDeleted },
       data: { deletedAt: new Date() },
     });
   }
 
   /** 检查是否有管理权限（公开方法，供标签控制器调用） */
   async assertCanManage(threadId: string, userId: string) {
-    const member = await this.prisma.threadMember.findUnique({
-      where: { threadId_userId: { threadId, userId } },
-    });
-    if (!member || (member.role !== 'OWNER' && member.role !== 'COLLABORATOR')) {
-      throw forbidden('仅楼主和协作者可管理子贴');
-    }
-    return member;
+    return this.threadAccess.assertCanManage(threadId, userId);
   }
 }
