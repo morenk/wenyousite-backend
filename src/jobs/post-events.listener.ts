@@ -84,9 +84,11 @@ export class PostEventsListener {
 
     // 3. 楼中楼回复：通知被回复者 + 楼主协作者 + 订阅者（排除自己，过滤拉黑）
     try {
-      if (event.replyToPostId) {
+      if (event.parentPostId) {
+        // 被回复者：有指定 replyToPostId 取其作者，否则取 parentPostId 作者
+        const targetId = event.replyToPostId ?? event.parentPostId;
         const targetPost = await this.prisma.post.findUnique({
-          where: { id: event.replyToPostId },
+          where: { id: targetId },
           select: { authorId: true },
         });
         if (targetPost && targetPost.authorId !== event.userId) {

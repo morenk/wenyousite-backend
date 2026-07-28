@@ -31,7 +31,7 @@
 - 楼中楼回复 floorNumber = null，通过 parentPostId 关联父楼层
 - 楼中楼平级挂载：所有回复共享同一个 parentPostId，无嵌套深度限制；回复目标通过 replyToPostId 追踪
 - 软删除：设置 deletedAt，列表查询过滤已删除帖子
-- 不能删除子贴第一楼（floorNumber=1 且无 parentPostId），提示使用子贴管理功能
+- 子贴主体正文不可删除（floorNumber=1 且无 parentPostId），提示"主体正文不可删除。如需修改请编辑帖子；如需移除请删除整个子贴"
 - 发帖时自动将用户加入主题帖（upsert ThreadMember，角色 PARTICIPANT）
 - 发帖权限由子贴的 postingPolicy 控制：
   - COLLABORATORS：仅 OWNER/COLLABORATOR 可发帖
@@ -48,4 +48,4 @@
 - **楼中楼平级设计**：所有回复共享 parentPostId，通过 replyToPostId 区分回复目标，避免无限嵌套的 UI 复杂度和查询复杂度
 - **事件解耦 @提及和通知**：发帖服务不直接处理 @提及解析（涉用户匹配逻辑）和通知投递（涉订阅查询逻辑），通过 EventEmitter 发射事件到 PostEventsListener 异步处理，单一职责
 - **likeCount 字段冗余**：在 Post 表冗余 likeCount 避免高频 count 聚合查询，通过事务内 upsert PostLike + increment likeCount 保持一致性；极端情况下数据可能偏差但可接受
-- **第一楼保护**：子贴第一楼（floorNumber=1）是子贴的正文内容，删除它等同于删除子贴；通过检查 floorNumber 和 parentPostId 双重条件阻止误删
+- **主体正文保护**：子贴正文（floorNumber=1 且无 parentPostId）不可删除，删除它等同于删除子贴；通过检查 floorNumber 和 parentPostId 双重条件阻止误删。如需移除正文请删除整个子贴

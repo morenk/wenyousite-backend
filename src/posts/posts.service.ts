@@ -197,10 +197,10 @@ export class PostsService {
     if (!post) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
     if (post.authorId !== userId) throw forbidden('只能删除自己的帖子');
 
-    // 检查是否是子贴第一楼
+    // 检查是否是子贴主体正文
     if (post.floorNumber === 1 && !post.parentPostId) {
       throw forbidden(
-        '这是子贴正文，删除将同时删除整个子贴。请使用子贴管理功能进行删除。',
+        '主体正文不可删除。如需修改请编辑帖子；如需移除请删除整个子贴。',
       );
     }
 

@@ -6,7 +6,7 @@
 
 | 类型 | 枚举值 | 触发事件 | 触发源 | 触发位置 |
 |------|--------|----------|--------|----------|
-| 楼中楼回复 | `reply` | `post.created`（`replyToPostId` 非空） | `PostEventsListener` | `src/jobs/post-events.listener.ts:86` |
+| 楼中楼回复 | `reply` | `post.created`（`parentPostId` 非空） | `PostEventsListener` | `src/jobs/post-events.listener.ts:86` |
 | @提及 | `mention` | `post.created`（正文含 `@username`） | `PostEventsListener` → `MentionsService.parseAndCreate()` | `src/jobs/post-events.listener.ts:41` |
 | 新楼层 | `new_floor` | `post.created`（`parentPostId` 为空） | `PostEventsListener` | `src/jobs/post-events.listener.ts:60` |
 | 新主题帖 | `thread_created` | 主题帖创建事务完成 | `ThreadsService.create()` | `src/threads/threads.service.ts:80` |
@@ -22,13 +22,13 @@
 
 ### 1. reply — 楼中楼回复
 
-**触发条件**：帖子 `replyToPostId` 非空（即存在被回复的目标楼层）
+**触发条件**：帖子 `parentPostId` 非空（即楼中楼回复）
 
 **接收者**：
 
 | 角色 | 获取方式 | 来源 |
 |------|----------|------|
-| 被回复者 | `Post.findUnique({ where: { id: replyToPostId } }).authorId` | 单个用户 ID |
+| 被回复者 | 优先取 `replyToPostId` 的作者，未指定时取 `parentPostId` 的作者 | 单个用户 ID |
 | 楼主 + 协作者 | `ThreadMember.findMany({ role: { in: [OWNER, COLLABORATOR] } })` | 成员表查询 |
 | 订阅者 | `SubscriptionsService.findSubscribers(threadId, authorId)` | 订阅表查询 |
 
