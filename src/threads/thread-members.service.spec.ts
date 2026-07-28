@@ -39,7 +39,7 @@ describe('ThreadMembersService', () => {
   });
 
   it('公开帖应允许自由加入', async () => {
-    mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', visibility: 'PUBLIC' });
+    mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', visibility: 'PUBLIC', published: true });
     mockPrisma.threadMember.findUnique.mockResolvedValue(null);
     mockPrisma.threadMember.create.mockResolvedValue({ id: 'm1' });
     const result = await service.join('t1', 'u1');

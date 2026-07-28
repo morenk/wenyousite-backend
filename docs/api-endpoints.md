@@ -40,24 +40,25 @@
 
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
-| GET | `/threads` | Public | 主题帖列表，支持分区/排序/标签/Cursor。`filter=all`(默认)公开帖，`filter=playing`我参与的帖（需登录） |
-| POST | `/threads` | Auth | 创建主题帖（事务：Thread+Subthread+Post+Member）。Owner 初始 playerMarked=true。通知粉丝，需邮箱已验证 |
-| GET | `/threads/:id` | AuthRead | 详情（含子贴列表），浏览量+1。PRIVATE 帖非成员 404 |
-| PATCH | `/threads/:id` | Auth | 修改（仅 OWNER/COLLABORATOR），需邮箱已验证 |
-| DELETE | `/threads/:id` | Auth | 软删除（仅 OWNER），需邮箱已验证 |
-| POST | `/threads/:id/invite-link` | Auth | 生成/刷新私密帖邀请链接（仅 OWNER），需邮箱已验证 |
-| POST | `/threads/join-by-link/:token` | Auth | 通过邀请链接加入私密帖，需邮箱已验证 |
+| GET | `/threads` | Public | 主题帖列表（仅已发布帖），支持分区/排序/标签/Cursor。`filter=all`(默认)公开帖，`filter=playing`我参与的帖（需登录） |
+| POST | `/threads` | Auth | 创建主题帖草稿（仅创建 Thread + OWNER 成员，published=false）。发布前需通过 PATCH 完善并设置 published=true |
+| GET | `/threads/draft` | AuthRead | 我的草稿箱列表（未发布帖） |
+| GET | `/threads/:id` | AuthRead | 详情（含子贴列表）。未发布帖仅 owner 可查看；已发布帖浏览量+1，PRIVATE 帖非成员 404 |
+| PATCH | `/threads/:id` | Auth | 修改/发布（仅 OWNER/COLLABORATOR）。设置 published=true 即发布，此时校验 title/category/子贴/楼层完整性，发布后通知粉丝 |
+| DELETE | `/threads/:id` | Auth | 删除（仅 OWNER）。未发布帖硬删除（级联），已发布帖软删除 |
+| POST | `/threads/:id/invite-link` | Auth | 生成/刷新私密帖邀请链接（需已发布，仅 OWNER） |
+| POST | `/threads/join-by-link/:token` | Auth | 通过邀请链接加入私密帖（需已发布） |
 
 ## 成员端点 (Thread Members)
 
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
 | GET | `/threads/:id/members` | Public | 成员列表 |
-| POST | `/threads/:id/members/join` | Auth | 自由加入（PRIVATE 帖禁止，返回 403），需邮箱已验证 |
-| POST | `/threads/:id/members` | Auth | 邀请用户加入（仅 OWNER/COLLABORATOR），需邮箱已验证 |
-| PATCH | `/threads/:id/members/:userId` | Auth | 修改成员 role/playerMarked（仅 OWNER/COLLABORATOR），需邮箱已验证 |
+| POST | `/threads/:id/members/join` | Auth | 自由加入（需已发布，PRIVATE 帖禁止，返回 403） |
+| POST | `/threads/:id/members` | Auth | 邀请用户加入（需已发布，仅 OWNER/COLLABORATOR） |
+| PATCH | `/threads/:id/members/:userId` | Auth | 修改成员 role/playerMarked（授予/收回玩家身份，仅 OWNER/COLLABORATOR），需邮箱已验证 |
 | DELETE | `/threads/:id/members/me` | AuthRead | 主动退出，取消自己的玩家标记（OWNER 不可退出），需邮箱已验证 |
-| DELETE | `/threads/:id/members/:userId` | Auth | 踢出成员，取消玩家标记（统一逻辑），需邮箱已验证 |
+| DELETE | `/threads/:id/members/:userId` | Auth | 收回该成员的玩家身份（仅 OWNER/COLLABORATOR），需邮箱已验证 |
 
 ## 子贴端点 (Subthreads)
 

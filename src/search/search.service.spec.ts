@@ -37,6 +37,7 @@ describe('SearchService', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           deletedAt: null,
+          published: true,
           visibility: 'PUBLIC',
         }),
       }),
@@ -45,7 +46,7 @@ describe('SearchService', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           deletedAt: null,
-          thread: { visibility: 'PUBLIC', deletedAt: null },
+          thread: { published: true, visibility: 'PUBLIC', deletedAt: null },
         }),
       }),
     );
@@ -59,6 +60,6 @@ describe('SearchService', () => {
 
     // 验证 post 查询包含私密帖过滤条件
     const call = mockPrisma.post.findMany.mock.calls[0][0];
-    expect(call.where.thread).toEqual({ visibility: 'PUBLIC', deletedAt: null });
+    expect(call.where.thread).toEqual({ published: true, visibility: 'PUBLIC', deletedAt: null });
   });
 });

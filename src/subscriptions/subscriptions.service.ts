@@ -8,8 +8,12 @@ export class SubscriptionsService {
 
   /** 创建订阅 */
   async create(userId: string, threadId: string, type: 'THREAD' | 'USER', targetUserId?: string) {
-    const thread = await this.prisma.thread.findUnique({ where: { id: threadId } });
+    const thread = await this.prisma.thread.findUnique({
+      where: { id: threadId },
+      select: { id: true, published: true },
+    });
     if (!thread) throw new NotFoundException('主题帖不存在');
+    if (!thread.published) throw new NotFoundException('主题帖不存在');
 
     if (type === 'USER') {
       if (!targetUserId) throw new NotFoundException('需要指定要订阅的用户');

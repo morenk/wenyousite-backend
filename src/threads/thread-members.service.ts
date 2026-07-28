@@ -22,10 +22,11 @@ export class ThreadMembersService {
     });
   }
 
-  /** 自由加入（任何人）。私密帖禁止自由加入，仅允许通过邀请链接加入。 */
+  /** 自由加入（任何人）。未发布帖和私密帖禁止自由加入。 */
   async join(threadId: string, userId: string) {
     const thread = await this.prisma.thread.findUnique({ where: { id: threadId } });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
+    if (!thread.published) throw forbidden('该主题帖尚未发布');
     if (thread.visibility === 'PRIVATE') {
       throw forbidden('私密帖子仅可通过邀请链接加入');
     }
@@ -43,9 +44,13 @@ export class ThreadMembersService {
     });
   }
 
-  /** 邀请成员（仅 OWNER/COLLABORATOR） */
+  /** 邀请成员（仅 OWNER/COLLABORATOR，需已发布） */
   async invite(threadId: string, targetUserId: string, actorId: string) {
     await this.assertCanManage(threadId, actorId);
+
+    const thread = await this.prisma.thread.findUnique({ where: { id: threadId } });
+    if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
+    if (!thread.published) throw forbidden('请先发布主题帖后再邀请成员');
 
     const targetUser = await this.prisma.user.findUnique({ where: { id: targetUserId } });
     if (!targetUser) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');

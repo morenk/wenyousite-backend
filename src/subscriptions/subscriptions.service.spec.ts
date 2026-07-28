@@ -29,7 +29,7 @@ describe('SubscriptionsService', () => {
   });
 
   it('创建 THREAD 订阅应该成功', async () => {
-    mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1' });
+    mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', published: true });
     mockPrisma.subscription.findUnique.mockResolvedValue(null);
     mockPrisma.subscription.create.mockResolvedValue({ id: 's1', type: 'THREAD' });
     const result = await service.create('u1', 't1', 'THREAD');
@@ -37,13 +37,13 @@ describe('SubscriptionsService', () => {
   });
 
   it('创建 USER 订阅应该验证用户存在', async () => {
-    mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1' });
+    mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', published: true });
     mockPrisma.user.findUnique.mockResolvedValue(null);
     await expect(service.create('u1', 't1', 'USER', 'bad')).rejects.toThrow(NotFoundException);
   });
 
   it('重复订阅应该返回409', async () => {
-    mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1' });
+    mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', published: true });
     mockPrisma.subscription.findUnique.mockResolvedValue({ id: 'existing' });
     await expect(service.create('u1', 't1', 'THREAD')).rejects.toThrow(ConflictException);
   });

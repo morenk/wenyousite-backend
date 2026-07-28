@@ -18,6 +18,7 @@ export class SearchService {
       this.prisma.thread.findMany({
         where: {
           deletedAt: null,
+          published: true,
           visibility: 'PUBLIC',
           OR: [
             { title: { contains: keyword, mode: 'insensitive' } },
@@ -35,7 +36,7 @@ export class SearchService {
         where: {
           deletedAt: null,
           content: { contains: keyword, mode: 'insensitive' },
-          thread: { visibility: 'PUBLIC', deletedAt: null },
+          thread: { published: true, visibility: 'PUBLIC', deletedAt: null },
         },
         select: {
           id: true, floorNumber: true, content: true, createdAt: true,

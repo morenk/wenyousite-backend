@@ -1,27 +1,20 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsOptional, MinLength, MaxLength, IsIn, IsArray } from 'class-validator';
-import { Transform } from 'class-transformer';
-import { sanitizeContent } from '../../common/transform/sanitize.transform';
 
-/** 创建主题帖 DTO */
+/** 创建主题帖草稿 DTO：全部可选，发布时校验完整 */
 export class CreateThreadDto {
-  @ApiProperty({ example: '奇幻大陆', description: '主题帖标题', minLength: 1, maxLength: 100 })
+  @ApiPropertyOptional({ description: '主题帖标题', minLength: 1, maxLength: 100 })
+  @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(100)
-  title: string;
+  title?: string;
 
-  @ApiProperty({ example: '这是一个关于奇幻大陆的故事...', description: '第一楼正文（任意富文本）' })
-  @IsString()
-  @MinLength(1)
-  @Transform(({ value }) => sanitizeContent(value))
-  @MaxLength(10000)
-  content: string;
-
-  @ApiProperty({ example: 'DEDUCTION', enum: ['DEDUCTION', 'NATION', 'RPG'], description: '分区' })
+  @ApiPropertyOptional({ enum: ['DEDUCTION', 'NATION', 'RPG'], default: 'DEDUCTION', description: '分区' })
+  @IsOptional()
   @IsString()
   @IsIn(['DEDUCTION', 'NATION', 'RPG'])
-  category: string;
+  category?: string;
 
   @ApiPropertyOptional({ example: ['无限流', '穿越'], description: '主题帖标签名称列表' })
   @IsOptional()
@@ -29,7 +22,7 @@ export class CreateThreadDto {
   @IsString({ each: true })
   tagNames?: string[];
 
-  @ApiPropertyOptional({ enum: ['PUBLIC', 'PRIVATE'], default: 'PUBLIC', description: '可见性（PUBLIC=所有人可访问, PRIVATE=仅通过邀请链接加入的成员可访问）' })
+  @ApiPropertyOptional({ enum: ['PUBLIC', 'PRIVATE'], default: 'PUBLIC', description: '可见性' })
   @IsOptional()
   @IsString()
   @IsIn(['PUBLIC', 'PRIVATE'])

@@ -50,9 +50,10 @@ export class BookmarksService {
   async create(userId: string, threadId: string) {
     const thread = await this.prisma.thread.findUnique({
       where: { id: threadId, deletedAt: null },
-      select: { id: true, visibility: true },
+      select: { id: true, visibility: true, published: true },
     });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
+    if (!thread.published) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
 
     // 私密帖：只有成员才能收藏
     if (thread.visibility === 'PRIVATE') {

@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 
-/** 定时清理任务：清理过期验证 token、未验证的僵尸用户、过期/已撤销的 refresh token */
+/** 定时清理任务：清理过期验证 token、未验证的僵尸用户、过期/已撤销的 refresh token、废弃草稿帖 */
 @Injectable()
 export class CleanupTask {
   private readonly logger = new Logger(CleanupTask.name);
@@ -56,6 +56,17 @@ export class CleanupTask {
         }),
       ]);
       this.logger.log(`软删除未验证僵尸用户: ${zombies.length} 条`);
+    }
+
+    // 清理 7 天未发布的废弃草稿帖（级联删除子贴/帖子/成员）
+    const deletedDrafts = await this.prisma.thread.deleteMany({
+      where: {
+        published: false,
+        createdAt: { lt: sevenDaysAgo },
+      },
+    });
+    if (deletedDrafts.count > 0) {
+      this.logger.log(`清理废弃草稿帖: ${deletedDrafts.count} 条`);
     }
   }
 }
