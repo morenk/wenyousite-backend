@@ -19,6 +19,42 @@ enum ThreadStatus {
   FINISHED
 }
 
+enum UserRole {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum MemberRole {
+  OWNER
+  COLLABORATOR
+  PARTICIPANT
+}
+
+enum PostingPolicy {
+  PARTICIPANTS
+  COLLABORATORS
+  PLAYERS
+}
+
+enum ThreadVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum NotificationType {
+  reply
+  mention
+  new_floor
+  thread_created
+  follow
+}
+
+enum SubscriptionType {
+  THREAD
+  USER
+}
+
 model User {
   id               String   @id @default(cuid())
   email            String   @unique
@@ -27,12 +63,13 @@ model User {
   nickname         String?
   avatar           String?
   bio              String?
-  role             String   @default("USER")
+  role             UserRole @default(USER)
   emailVerified    Boolean  @default(false) @map("email_verified")
   showRecentReplies Boolean @default(true) @map("show_recent_replies")
   showPlayerBadges  Boolean @default(true) @map("show_player_badges")
   showBookmarks    Boolean  @default(true) @map("show_bookmarks")
-  deletedAt        DateTime? @map("deleted_at")
+  deletedAt    DateTime? @map("deleted_at")
+  tokenVersion  Int      @default(0) @map("token_version")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
@@ -40,6 +77,7 @@ model User {
   threads      ThreadMember[]
   posts        Post[]
   drafts       Draft[]
+  likedPosts  PostLike[]
   mentions     PostMention[]   @relation("mentionedUser")
   notifications Notification[]
   readProgress UserReadProgress[]
@@ -54,6 +92,7 @@ model User {
   reportedReports Report[]        @relation("Reporter")
   handledReports  Report[]        @relation("Handler")
   auditLogs       AuditLog[]      @relation("AuditAdmin")
+  media           Media[]
 
   @@map("users")
 }
@@ -62,11 +101,14 @@ model EmailVerification {
   id        String   @id @default(cuid())
   userId    String   @map("user_id")
   token     String
+  type      String   @default("EMAIL_VERIFY") @map("type")
   expiresAt DateTime @map("expires_at")
   createdAt DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([token])
+  @@index([userId, type])
   @@map("email_verifications")
 }
 
@@ -88,6 +130,10 @@ model Thread {
   title     String
   category  ThreadCategory @default(DEDUCTION)
   status    ThreadStatus   @default(RECRUITING)
+  visibility ThreadVisibility @default(PUBLIC) @map("visibility")
+  pinned    Boolean        @default(false)
+  pinnedAt  DateTime?
+  viewCount  Int     @default(0) @map("view_count")
   version   Int            @default(1) @map("lock_version")
   ownerId   String         @map("owner_id")
   owner     User     @relation("ThreadOwner", fields: [ownerId], references: [id])
@@ -102,6 +148,7 @@ model Thread {
   topicTags     ThreadTopicTag[]
   subscriptions Subscription[]
   notifications Notification[]
+  invites     ThreadInvite[]
 
   @@map("threads")
 }
@@ -110,7 +157,7 @@ model ThreadMember {
   id           String   @id @default(cuid())
   threadId     String   @map("thread_id")
   userId       String   @map("user_id")
-  role         String   @default("PARTICIPANT")
+  role         MemberRole @default(PARTICIPANT)
   playerMarked Boolean  @default(false) @map("player_marked")
   joinedAt     DateTime @default(now()) @map("joined_at")
 
@@ -126,9 +173,10 @@ model Subthread {
   threadId      String    @map("thread_id")
   title         String
   sortOrder     Int       @default(0) @map("sort_order")
-  postingPolicy String    @default("PARTICIPANTS") @map("posting_policy")
+  postingPolicy PostingPolicy @default(PARTICIPANTS) @map("posting_policy")
   version       Int      @default(1) @map("lock_version")
   lastPostAt    DateTime? @map("last_post_at")
+  deletedAt     DateTime? @map("deleted_at")
   createdAt     DateTime  @default(now()) @map("created_at")
 
   thread Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
@@ -193,7 +241,7 @@ model Subscription {
   userId       String   @map("user_id")
   threadId     String   @map("thread_id")
   targetUserId String?  @map("target_user_id")
-  type         String   @default("THREAD")
+  type         SubscriptionType @default(THREAD)
   createdAt    DateTime @default(now()) @map("created_at")
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -202,6 +250,46 @@ model Subscription {
   @@index([userId, type])
   @@unique([userId, threadId, targetUserId])
   @@map("subscriptions")
+}
+
+model ThreadInvite {
+  id        String   @id @default(cuid())
+  threadId  String   @map("thread_id")
+  token     String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId])
+  @@map("thread_invites")
+}
+
+model Media {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  url       String
+  key       String
+  size      Int?
+  width     Int?
+  height    Int?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("media")
+}
+
+model PostLike {
+  id        String   @id @default(cuid())
+  postId    String   @map("post_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@map("post_likes")
 }
 
 model Post {
@@ -217,6 +305,7 @@ model Post {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
   deletedAt    DateTime? @map("deleted_at")
+  likeCount  Int      @default(0) @map("like_count")
 
   thread      Thread    @relation(fields: [threadId], references: [id], onDelete: Cascade)
   subthread   Subthread @relation(fields: [subthreadId], references: [id], onDelete: Cascade)
@@ -228,6 +317,7 @@ model Post {
   readProgressBy UserReadProgress[]
   mentions    PostMention[]
   notifications Notification[]
+  likes     PostLike[]
 
   @@index([subthreadId, createdAt])
   @@index([threadId, createdAt])
@@ -249,25 +339,23 @@ model PostMention {
 }
 
 model Draft {
-  id          String   @id @default(cuid())
-  userId      String   @map("user_id")
-  threadId    String?  @map("thread_id")
-  subthreadId String   @map("subthread_id")
-  slot        Int      @default(1)
-  content     String
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  slot      Int      @default(1)
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, subthreadId, slot])
+  @@unique([userId, slot])
   @@map("drafts")
 }
 
 model Notification {
   id          String   @id @default(cuid())
   userId      String   @map("user_id")
-  type        String
+  type        NotificationType
   content     String?
   postId      String?  @map("post_id")
   threadId    String?  @map("thread_id")

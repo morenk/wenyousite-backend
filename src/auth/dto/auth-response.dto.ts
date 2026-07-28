@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-/** 用户公开信息（不含密码、邮箱验证状态等敏感字段） */
+/** 用户公开信息（不含密码等敏感字段） */
 class UserProfile {
   @ApiProperty({ description: '用户 ID' })
   id: string;
@@ -19,6 +19,9 @@ class UserProfile {
 
   @ApiProperty({ description: '用户角色（USER / ADMIN）' })
   role: string;
+
+  @ApiProperty({ description: '邮箱是否已验证' })
+  emailVerified: boolean;
 }
 
 /** 认证响应 DTO：双 Token + 用户基本信息 */

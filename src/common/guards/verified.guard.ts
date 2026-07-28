@@ -24,7 +24,7 @@ export class VerifiedGuard implements CanActivate {
     const user = request.user;
     if (!user) return true;
     if (user.emailVerified === false) {
-      throw new ForbiddenException('请先验证邮箱后才能操作');
+      throw new ForbiddenException('请先验证邮箱后再操作。如未收到邮件，可调用 /auth/resend-verification 重新获取');
     }
     return true;
   }

@@ -19,17 +19,20 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     });
   }
 
-  /** 验证通过后，将用户信息挂载到 request.user */
-  async validate(payload: { sub: string }) {
+  /** 验证通过后，将用户信息挂载到 request.user，同时校验 token 版本号 */
+  async validate(payload: { sub: string; tv: number }) {
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, email: true, username: true, nickname: true, avatar: true, role: true, emailVerified: true, deletedAt: true },
+      select: { id: true, email: true, username: true, nickname: true, avatar: true, role: true, emailVerified: true, deletedAt: true, tokenVersion: true },
     });
     if (!user) {
       throw new UnauthorizedException();
     }
     if (user.deletedAt) {
       throw new UnauthorizedException('账号已注销');
+    }
+    if (payload.tv !== user.tokenVersion) {
+      throw new UnauthorizedException('令牌已失效，请重新登录');
     }
     return user;
   }
