@@ -1,5 +1,6 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { ThreadAccessService } from '../common/services/thread-access.service';
 import { CreateSubthreadDto } from './dto/create-subthread.dto';
 import { UpdateSubthreadDto } from './dto/update-subthread.dto';
 import { ErrorCode } from '../common/exceptions/error-codes';
@@ -8,32 +9,14 @@ import { BusinessException, notFound, forbidden } from '../common/exceptions/bus
 /** 子贴服务：CRUD、排序、权限校验 */
 @Injectable()
 export class SubthreadsService {
-  constructor(private prisma: PrismaService) {}
-
-  /** 检查主题帖可见性：私密帖仅成员可访问，否则 404 */
-  private async assertThreadVisible(threadId: string, userId?: string) {
-    const thread = await this.prisma.thread.findUnique({
-      where: { id: threadId, deletedAt: null },
-      select: { visibility: true },
-    });
-    if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
-    if (thread.visibility === 'PRIVATE') {
-      if (!userId) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
-      const member = await this.prisma.threadMember.findUnique({
-        where: { threadId_userId: { threadId, userId } },
-      });
-      if (!member) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
-    }
-  }
+  constructor(
+    private prisma: PrismaService,
+    private threadAccess: ThreadAccessService,
+  ) {}
 
   /** 获取主题帖下的子贴列表 */
   async findAll(threadId: string, userId?: string) {
-    const thread = await this.prisma.thread.findUnique({
-      where: { id: threadId },
-      select: { id: true, visibility: true },
-    });
-    if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
-    await this.assertThreadVisible(threadId, userId);
+    await this.threadAccess.assertAccessible(threadId, userId);
 
     return this.prisma.subthread.findMany({
       where: { threadId, deletedAt: null },
@@ -56,7 +39,7 @@ export class SubthreadsService {
       },
     });
     if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
-    await this.assertThreadVisible(subthread.threadId, userId);
+    await this.threadAccess.assertAccessible(subthread.threadId, userId);
     return subthread;
   }
 

@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PostsService } from './posts.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ThreadAccessService } from '../common/services/thread-access.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 
 const mockPrisma = {
@@ -15,6 +16,7 @@ const mockPrisma = {
 };
 
 const mockEventEmitter = { emit: jest.fn() };
+const mockThreadAccess = { assertAccessible: jest.fn() };
 
 describe('PostsService', () => {
   let service: PostsService;
@@ -25,17 +27,18 @@ describe('PostsService', () => {
         PostsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: EventEmitter2, useValue: mockEventEmitter },
+        { provide: ThreadAccessService, useValue: mockThreadAccess },
       ],
     }).compile();
     service = module.get<PostsService>(PostsService);
     jest.clearAllMocks();
     mockPrisma.user.findUnique.mockResolvedValue({ emailVerified: true });
-    mockPrisma.thread.findUnique.mockResolvedValue({ visibility: 'PUBLIC' });
+    mockPrisma.thread.findUnique.mockResolvedValue({ visibility: 'PUBLIC', published: true, ownerId: 'u1' });
   });
 
   it('create 新楼层应该正确分配 floorNumber', async () => {
     mockPrisma.user.findUnique.mockResolvedValue({ emailVerified: true });
-    const subthread = { id: 's1', threadId: 't1', postingPolicy: 'PARTICIPANTS' };
+    const subthread = { id: 's1', threadId: 't1', postingPolicy: 'PARTICIPANTS', thread: { published: true } };
     mockPrisma.subthread.findUnique.mockResolvedValue(subthread);
     mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
     mockPrisma.post.aggregate.mockResolvedValue({ _max: { floorNumber: 5 } });
@@ -58,7 +61,7 @@ describe('PostsService', () => {
   });
 
   it('create 楼中楼回复不应该有 floorNumber', async () => {
-    const subthread = { id: 's1', threadId: 't1', postingPolicy: 'PARTICIPANTS' };
+    const subthread = { id: 's1', threadId: 't1', postingPolicy: 'PARTICIPANTS', thread: { published: true } };
     const parent = { id: 'p1' };
     mockPrisma.subthread.findUnique.mockResolvedValue(subthread);
     mockPrisma.post.findUnique.mockResolvedValue(parent);

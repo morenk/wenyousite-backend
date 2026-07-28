@@ -35,7 +35,7 @@
 - `postingPolicy` 控制发帖权限：
   - PARTICIPANTS：所有成员均可发帖
   - COLLABORATORS：仅 OWNER 和 COLLABORATOR 可发帖
-  - PLAYERS：仅 playerMarked=true 的成员可发帖
+  - PLAYERS：仅拥有玩家身份（playerMarked=true）的成员可发帖。玩家身份由楼主或协作者通过成员管理端点授予/收回
 - 软删除通过 deletedAt 字段实现，列表查询过滤 `deletedAt: null`
 - **默认子贴保护**：主题帖创建时生成的第一个子贴（sortOrder=0，最早 createdAt）不可单独删除，需删除整个主题帖。后续创建的子贴可自由删除
 - sortOrder 控制子贴在主题帖内的显示顺序

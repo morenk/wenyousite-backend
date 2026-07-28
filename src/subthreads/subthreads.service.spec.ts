@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SubthreadsService } from './subthreads.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ThreadAccessService } from '../common/services/thread-access.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 
 const mockPrisma = {
@@ -23,6 +24,8 @@ const mockPrisma = {
   },
 };
 
+const mockThreadAccess = { assertAccessible: jest.fn() };
+
 describe('SubthreadsService', () => {
   let service: SubthreadsService;
 
@@ -31,15 +34,16 @@ describe('SubthreadsService', () => {
       providers: [
         SubthreadsService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: ThreadAccessService, useValue: mockThreadAccess },
       ],
     }).compile();
     service = module.get<SubthreadsService>(SubthreadsService);
     jest.clearAllMocks();
-    mockPrisma.thread.findUnique.mockResolvedValue({ visibility: 'PUBLIC' });
+    mockPrisma.thread.findUnique.mockResolvedValue({ visibility: 'PUBLIC', published: true, ownerId: 'u1' });
   });
 
   it('findAll 应过滤已软删除的子贴', async () => {
-    mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', visibility: 'PUBLIC' });
+    mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', visibility: 'PUBLIC', published: true, ownerId: 'u1' });
     mockPrisma.subthread.findMany.mockResolvedValue([]);
     await service.findAll('t1');
     expect(mockPrisma.subthread.findMany).toHaveBeenCalledWith(
@@ -64,8 +68,8 @@ describe('SubthreadsService', () => {
   });
 
   it('findById 应返回子贴详情', async () => {
-    mockPrisma.thread.findUnique.mockResolvedValue({ visibility: 'PUBLIC' });
-    mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1', thread: { id: 't1', visibility: 'PUBLIC', ownerId: 'u1' } });
+    mockPrisma.thread.findUnique.mockResolvedValue({ visibility: 'PUBLIC', published: true, ownerId: 'u1' });
+    mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1', thread: { id: 't1', visibility: 'PUBLIC', ownerId: 'u1', published: true } });
     const result = await service.findById('s1');
     expect(result.id).toBe('s1');
   });

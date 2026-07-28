@@ -1,6 +1,7 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
+import { ThreadAccessService } from '../common/services/thread-access.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { ErrorCode } from '../common/exceptions/error-codes';
@@ -13,23 +14,8 @@ export class PostsService {
   constructor(
     private prisma: PrismaService,
     private eventEmitter: EventEmitter2,
+    private threadAccess: ThreadAccessService,
   ) {}
-
-  /** 检查主题帖可见性：私密帖仅成员可访问，否则 404 */
-  private async assertThreadVisible(threadId: string, userId?: string) {
-    const thread = await this.prisma.thread.findUnique({
-      where: { id: threadId, deletedAt: null },
-      select: { visibility: true },
-    });
-    if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
-    if (thread.visibility === 'PRIVATE') {
-      if (!userId) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
-      const member = await this.prisma.threadMember.findUnique({
-        where: { threadId_userId: { threadId, userId } },
-      });
-      if (!member) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
-    }
-  }
 
   /** 获取子贴的楼层列表（Cursor 分页） */
   async findAllBySubthread(subthreadId: string, cursor?: string, limit = 20, userId?: string) {
@@ -38,7 +24,7 @@ export class PostsService {
       select: { id: true, threadId: true },
     });
     if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
-    await this.assertThreadVisible(subthread.threadId, userId);
+    await this.threadAccess.assertAccessible(subthread.threadId, userId);
 
     const take = Math.min(limit, 50);
     const posts = await this.prisma.post.findMany({
@@ -69,7 +55,7 @@ export class PostsService {
       select: { id: true, threadId: true },
     });
     if (!post) throw notFound(ErrorCode.POST_NOT_FOUND, '楼层不存在');
-    await this.assertThreadVisible(post.threadId, userId);
+    await this.threadAccess.assertAccessible(post.threadId, userId);
 
     const take = Math.min(limit, 50);
     const replies = await this.prisma.post.findMany({
@@ -173,17 +159,19 @@ export class PostsService {
       return p;
     });
 
-    // 发帖后通过事件解耦：@提及、通知由 PostEventsListener 处理
-    this.eventEmitter.emit('post.created', {
-      postId: post.id,
-      content: dto.content,
-      userId,
-      threadId: subthread.threadId,
-      subthreadId: subthread.id,
-      subthreadTitle: subthread.title,
-      parentPostId: dto.parentPostId ?? null,
-      replyToPostId: dto.replyToPostId ?? null,
-    });
+    // 发帖后通过事件解耦：@提及、通知由 PostEventsListener 处理（仅已发布帖）
+    if (subthread.thread.published) {
+      this.eventEmitter.emit('post.created', {
+        postId: post.id,
+        content: dto.content,
+        userId,
+        threadId: subthread.threadId,
+        subthreadId: subthread.id,
+        subthreadTitle: subthread.title,
+        parentPostId: dto.parentPostId ?? null,
+        replyToPostId: dto.replyToPostId ?? null,
+      });
+    }
 
     return post;
   }
@@ -229,7 +217,7 @@ export class PostsService {
       select: { id: true, threadId: true },
     });
     if (!postLight) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
-    await this.assertThreadVisible(postLight.threadId, userId);
+    await this.threadAccess.assertAccessible(postLight.threadId, userId);
 
     const post = await this.prisma.post.findUnique({
       where: { id, deletedAt: null },
