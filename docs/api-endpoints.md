@@ -24,7 +24,7 @@
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
 | GET | `/users/me` | AuthRead | 当前登录用户完整信息（含 email、隐私设置） |
-| PATCH | `/users/me` | Auth | 修改当前用户资料，需邮箱已验证 |
+| PATCH | `/users/me` | Auth | 修改当前用户资料（用户名/Bio/隐私设置），5次/分钟，需邮箱已验证 |
 | PATCH | `/users/me/avatar` | Auth | 设置头像（传入 mediaId），需邮箱已验证 |
 | DELETE | `/users/me` | Auth | 注销当前账号（软删除，设置 deletedAt），需邮箱已验证 |
 | GET | `/users/search?q=xxx` | AuthRead | 搜索用户（@提及用），排除已注销 |

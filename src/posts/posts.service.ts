@@ -280,7 +280,7 @@ export class PostsService {
     const post = await this.prisma.post.findUnique({
       where: { id, ...notDeleted },
       include: {
-        author: { select: { id: true, username: true, nickname: true, avatar: true } },
+        author: { select: { id: true, username: true, avatar: true } },
         thread: { select: { id: true, title: true } },
         subthread: { select: { id: true, title: true } },
         parentPost: { select: { id: true, floorNumber: true } },

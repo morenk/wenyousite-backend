@@ -188,7 +188,7 @@ describe('AuthService', () => {
         type: 'REGISTRATION', expiresAt: future, attempts: 0, createdAt: new Date(),
       });
       mockPrisma.user.create.mockResolvedValue({
-        id: 'u1', email: 'a@b.com', username: 'test', nickname: 'test', avatar: null, role: 'USER',
+        id: 'u1', email: 'a@b.com', username: 'test', avatar: null, role: 'USER',
         emailVerified: false,
       });
       mockJwt.signAsync.mockResolvedValue('at-token');
@@ -231,7 +231,7 @@ describe('AuthService', () => {
     it('正确密码应该能登录', async () => {
       const hashed = await argon2.hash('Test1234!');
       mockPrisma.user.findUnique.mockResolvedValue({
-        id: 'u1', email: 'a@b.com', password: hashed, username: 'test', nickname: 'test', avatar: null,
+        id: 'u1', email: 'a@b.com', password: hashed, username: 'test', avatar: null,
         role: 'USER', emailVerified: false, deletedAt: null,
       });
       mockJwt.signAsync.mockResolvedValue('at-token');
@@ -273,7 +273,7 @@ describe('AuthService', () => {
     it('邮箱大小写不敏感', async () => {
       const hashed = await argon2.hash('Test1234!');
       mockPrisma.user.findUnique.mockResolvedValue({
-        id: 'u1', email: 'user@case.com', password: hashed, username: 'test', nickname: 'test', avatar: null,
+        id: 'u1', email: 'user@case.com', password: hashed, username: 'test', avatar: null,
         role: 'USER', emailVerified: false, deletedAt: null,
       });
       mockJwt.signAsync.mockResolvedValue('at-token');
@@ -288,7 +288,7 @@ describe('AuthService', () => {
     it('移动端登录应使用 30 天 TTL', async () => {
       const hashed = await argon2.hash('Test1234!');
       mockPrisma.user.findUnique.mockResolvedValue({
-        id: 'u1', email: 'a@b.com', password: hashed, username: 'test', nickname: 'test', avatar: null,
+        id: 'u1', email: 'a@b.com', password: hashed, username: 'test', avatar: null,
         role: 'USER', emailVerified: false, deletedAt: null,
       });
       mockJwt.signAsync.mockResolvedValue('at-token');
@@ -310,7 +310,7 @@ describe('AuthService', () => {
         deviceInfo: null, expiresAt: new Date(Date.now() + 86400000),
         revokedAt: null, createdAt: new Date(),
         user: {
-          id: 'u1', email: 'a@b.com', username: 'test', nickname: 'test', avatar: null,
+          id: 'u1', email: 'a@b.com', username: 'test', avatar: null,
           role: 'USER', emailVerified: false, deletedAt: null,
         },
       });

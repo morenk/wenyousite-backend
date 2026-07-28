@@ -21,7 +21,7 @@ export class BookmarksService {
       include: {
         thread: {
           include: {
-            owner: { select: { id: true, username: true, nickname: true, avatar: true } },
+            owner: { select: { id: true, username: true, avatar: true } },
             _count: { select: { members: true, posts: true } },
           },
         },

@@ -1,5 +1,6 @@
-import { Controller, Get, Patch, Delete, Body, Param, Query, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Patch, Delete, Body, Param, Query, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { FastifyRequest } from 'fastify';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -23,7 +24,7 @@ export class UsersController {
     if (!q || q.length < 1) return [];
     return this.prisma.user.findMany({
       where: { username: { contains: q, mode: 'insensitive' }, deletedAt: null },
-      select: { id: true, username: true, nickname: true, avatar: true },
+      select: { id: true, username: true, avatar: true },
       take: 10,
       orderBy: { username: 'asc' },
     });
@@ -40,8 +41,9 @@ export class UsersController {
 
   @Patch('me')
   @Auth()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiBearerAuth()
-  @ApiOperation({ summary: '修改当前登录用户资料' })
+  @ApiOperation({ summary: '修改当前登录用户资料（5 次/分钟）' })
   async updateMe(@Req() req: FastifyRequest, @Body() dto: UpdateUserDto) {
     const user = req['user'] as { id: string };
     return this.usersService.update(user.id, dto);

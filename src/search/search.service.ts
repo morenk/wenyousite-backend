@@ -26,7 +26,7 @@ export class SearchService {
         },
         select: {
           id: true, title: true, category: true, createdAt: true,
-          owner: { select: { id: true, username: true, nickname: true, avatar: true } },
+          owner: { select: { id: true, username: true, avatar: true } },
           _count: { select: { members: true, posts: true } },
         },
         take: 50,
@@ -40,7 +40,7 @@ export class SearchService {
         },
         select: {
           id: true, floorNumber: true, content: true, createdAt: true,
-          author: { select: { id: true, username: true, nickname: true } },
+          author: { select: { id: true, username: true } },
           thread: { select: { id: true, title: true } },
           subthread: { select: { id: true, title: true } },
         },

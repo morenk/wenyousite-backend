@@ -13,12 +13,12 @@ export class VerifyAndCompleteDto {
   @MaxLength(6)
   code: string;
 
-  @ApiProperty({ example: 'zhangsan', minLength: 2, maxLength: 24, description: '用户名（字母、数字、下划线、中文）' })
+  @ApiProperty({ example: 'zhangsan', minLength: 2, maxLength: 24, description: '用户名（字母、数字、中文）' })
   @IsString()
   @MinLength(2)
   @MaxLength(24)
-  @Matches(/^[a-zA-Z0-9_\u4e00-\u9fff]+$/, {
-    message: '用户名只能包含字母、数字、下划线和中文',
+  @Matches(/^[a-zA-Z0-9\u4e00-\u9fff]+$/, {
+    message: '用户名只能包含字母、数字和中文',
   })
   username: string;
 

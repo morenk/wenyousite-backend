@@ -20,7 +20,7 @@ export class ThreadMembersService {
     return this.prisma.threadMember.findMany({
       where: { threadId },
       include: {
-        user: { select: { id: true, username: true, nickname: true, avatar: true } },
+        user: { select: { id: true, username: true, avatar: true } },
       },
       orderBy: { joinedAt: 'asc' },
     });
@@ -43,7 +43,7 @@ export class ThreadMembersService {
     return this.prisma.threadMember.create({
       data: { threadId, userId, role: 'PARTICIPANT' },
       include: {
-        user: { select: { id: true, username: true, nickname: true, avatar: true } },
+        user: { select: { id: true, username: true, avatar: true } },
       },
     });
   }
@@ -67,7 +67,7 @@ export class ThreadMembersService {
     return this.prisma.threadMember.create({
       data: { threadId, userId: targetUserId, role: 'PARTICIPANT' },
       include: {
-        user: { select: { id: true, username: true, nickname: true, avatar: true } },
+        user: { select: { id: true, username: true, avatar: true } },
       },
     });
   }
@@ -89,7 +89,7 @@ export class ThreadMembersService {
       where: { threadId_userId: { threadId, userId: targetUserId } },
       data: dto as any,
       include: {
-        user: { select: { id: true, username: true, nickname: true, avatar: true } },
+        user: { select: { id: true, username: true, avatar: true } },
       },
     });
   }
@@ -108,7 +108,7 @@ export class ThreadMembersService {
       where: { threadId_userId: { threadId, userId: targetUserId } },
       data: { playerMarked: false },
       include: {
-        user: { select: { id: true, username: true, nickname: true, avatar: true } },
+        user: { select: { id: true, username: true, avatar: true } },
       },
     });
   }

@@ -22,7 +22,7 @@
 |--------|------|-------|------|
 | GET | `/users/search?q=` | AuthRead | 搜索用户（@提及用），按用户名模糊匹配 |
 | GET | `/users/me` | AuthRead | 获取当前登录用户的完整资料（含邮箱、隐私设置） |
-| PATCH | `/users/me` | Auth | 修改当前用户资料（昵称、头像、Bio、隐私设置等），需邮箱已验证 |
+| PATCH | `/users/me` | Auth | 修改当前用户资料（用户名、Bio、隐私设置），5次/分钟限流，需邮箱已验证 |
 | PATCH | `/users/me/avatar` | Auth | 设置头像（传入 mediaId，校验归属 + 状态 COMPLETED），需邮箱已验证 |
 | DELETE | `/users/me` | Auth | 注销当前账号（软删除，设置 deletedAt），需邮箱已验证 |
 | GET | `/users/:id` | Public | 获取指定用户的公开资料（不含邮箱） |
@@ -39,7 +39,13 @@
 - `findMe` 返回完整字段（email、emailVerified、隐私开关等），仅限本人调用
 - `findById` 排除 email 字段，仅返回公开信息
 - 已注销用户（deletedAt 非 null）的公开资料被屏蔽为 "已注销用户"，isDeactivated = true
-- 更新用户名时检查唯一性，冲突返回 409
+- 更新用户名时检查唯一性（过滤 deletedAt），冲突返回 409；DB 层 P2002 同样转 409 防竞态
+- 用户名规则：2-24 位，字母 + 数字 + 中文，禁止标点符号和特殊字符（注册与修改一致）
+- 用户名/简介自动去除 HTML 标签（sanitizeContent），防 XSS
+- 头像仅可通过 `PATCH /users/me/avatar` 设置（传入 mediaId），不可通过 `PATCH /users/me` 直接修改
+- 隐私开关（showRecentReplies / showPlayerBadges / showBookmarks）可通过 `PATCH /users/me` 修改
+- 空 body 的 PATCH /users/me 不执行数据库写入，直接返回当前信息
+- 资料修改限流 5 次/分钟
 - 关注和拉黑端点、资料修改、账号注销均使用 `@Auth()`（需邮箱验证），仅查询操作使用 `@AuthRead()`
 - 关注时通过 upsert 实现幂等操作（重复关注不报错）
 - 关注自己返回 "不能关注自己" 消息，不执行数据库操作

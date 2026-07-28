@@ -301,7 +301,7 @@ export class ThreadsService {
       data: { threadId: invite.threadId, userId, role: 'PARTICIPANT' },
       include: {
         thread: { select: { id: true, title: true } },
-        user: { select: { id: true, username: true, nickname: true, avatar: true } },
+        user: { select: { id: true, username: true, avatar: true } },
       },
     });
   }

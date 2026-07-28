@@ -3,13 +3,13 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 
 const userSelectPrivate = {
-  id: true, email: true, username: true, nickname: true, avatar: true, bio: true,
+  id: true, email: true, username: true, avatar: true, bio: true,
   role: true, showRecentReplies: true, showPlayerBadges: true, showBookmarks: true,
   emailVerified: true, deletedAt: true, createdAt: true, updatedAt: true,
 };
 
 const userSelectPublic = {
-  id: true, username: true, nickname: true, avatar: true, bio: true, role: true,
+  id: true, username: true, avatar: true, bio: true, role: true,
   showRecentReplies: true, showPlayerBadges: true, showBookmarks: true,
   deletedAt: true, createdAt: true,
 };
@@ -42,12 +42,14 @@ export class UsersService {
     return this.prisma.user.findUnique({ where: { email } });
   }
 
-  /** 根据用户名查找用户（内部使用，包含密码字段） */
+  /** 根据用户名查找未注销用户 */
   async findByUsername(username: string) {
-    return this.prisma.user.findUnique({ where: { username } });
+    return this.prisma.user.findUnique({
+      where: { username, deletedAt: null },
+    });
   }
 
-  /** 更新用户资料：如果修改用户名，检查唯一性 */
+  /** 更新用户资料：校验唯一性、捕获竞态、空 body 短路 */
   async update(id: string, dto: UpdateUserDto) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundException('用户不存在');
@@ -57,11 +59,31 @@ export class UsersService {
       if (existing) throw new ConflictException('用户名已被占用');
     }
 
-    return this.prisma.user.update({
-      where: { id },
-      data: dto,
-      select: userSelectPrivate,
-    });
+    // 空 body 不执行 DB 写
+    if (Object.keys(dto).length === 0) {
+      const currentUser = await this.prisma.user.findUnique({
+        where: { id },
+        select: userSelectPrivate,
+      });
+      return currentUser!;
+    }
+
+    try {
+      return await this.prisma.user.update({
+        where: { id },
+        data: dto,
+        select: userSelectPrivate,
+      });
+    } catch (e: any) {
+      if (e.code === 'P2002') {
+        // findByUsername 与 DB 写之间的竞态
+        const target = e.meta?.target as string[] | undefined;
+        if (target?.includes('username')) {
+          throw new ConflictException('用户名已被占用');
+        }
+      }
+      throw e;
+    }
   }
 
   /** 设置头像：校验 media 归属 + COMPLETED 状态后写入 user.avatar */

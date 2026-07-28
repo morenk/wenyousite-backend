@@ -75,7 +75,7 @@ const setupHelpers = {
             id: `p${maxFloor + 1}`,
             floorNumber: maxFloor + 1,
             content: 'test',
-            author: { id: 'u1', username: 'test', nickname: null, avatar: null },
+            author: { id: 'u1', username: 'test', avatar: null },
           }),
         },
       };
@@ -136,7 +136,7 @@ describe('发帖全流程集成测试', () => {
       prisma.threadMember.create.mockResolvedValue({ id: 'm1', threadId: 't1', userId: 'u1', role: 'OWNER', playerMarked: true });
       prisma.thread.findUnique.mockResolvedValue({
         id: 't1', title: '测试标题', category: 'RPG', published: false,
-        owner: { id: 'u1', username: 'test', nickname: null, avatar: null },
+        owner: { id: 'u1', username: 'test', avatar: null },
         subthreads: [], topicTags: [], _count: { members: 1, posts: 0 },
       });
 
@@ -261,7 +261,7 @@ describe('发帖全流程集成测试', () => {
       prisma.subthread.findFirst.mockResolvedValue({ posts: [{ id: 'p1' }] });
       prisma.thread.update.mockResolvedValue({
         id: 't1', title: '测试', category: 'RPG', published: true, publishedAt: new Date(),
-        owner: { id: 'u1', username: 'test', nickname: null, avatar: null },
+        owner: { id: 'u1', username: 'test', avatar: null },
         subthreads: [], topicTags: [], _count: { members: 1, posts: 1 },
       });
       prisma.userFollow.findMany.mockResolvedValue([{ followerId: 'f1' }, { followerId: 'f2' }]);
@@ -311,7 +311,7 @@ describe('发帖全流程集成测试', () => {
       prisma.subthread.findFirst.mockResolvedValue({ posts: [{ id: 'p1' }] });
       prisma.thread.update.mockResolvedValue({
         id: 't1', title: '新标题', category: 'DEDUCTION', published: true, publishedAt: new Date(),
-        owner: { id: 'u1', username: 'test', nickname: null, avatar: null },
+        owner: { id: 'u1', username: 'test', avatar: null },
         subthreads: [], topicTags: [], _count: { members: 1, posts: 1 },
       });
       prisma.userFollow.findMany.mockResolvedValue([]);

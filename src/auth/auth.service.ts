@@ -16,7 +16,7 @@ import { LoginDto } from './dto/login.dto';
 import { VerifyAndCompleteDto } from './dto/verify-and-complete.dto';
 
 const userSelectPublic = {
-  id: true, email: true, username: true, nickname: true, avatar: true,
+  id: true, email: true, username: true, avatar: true,
   role: true, emailVerified: true,
 } as const;
 
@@ -128,7 +128,7 @@ export class AuthService {
 
     try {
       const user = await this.prisma.user.create({
-        data: { email, username: dto.username, password, nickname: dto.username, emailVerified: false },
+        data: { email, username: dto.username, password, emailVerified: false },
         select: userSelectPublic,
       });
 
@@ -228,7 +228,6 @@ export class AuthService {
         id: user.id,
         email: user.email,
         username: user.username,
-        nickname: user.nickname,
         avatar: user.avatar,
         role: user.role,
         emailVerified: user.emailVerified,

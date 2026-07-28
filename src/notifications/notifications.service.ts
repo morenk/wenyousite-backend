@@ -31,7 +31,7 @@ export class NotificationsService {
       include: {
         post: { select: { id: true, floorNumber: true, parentPostId: true } },
         thread: { select: { id: true, title: true } },
-        fromUser: { select: { id: true, username: true, nickname: true, avatar: true } },
+        fromUser: { select: { id: true, username: true, avatar: true } },
       },
     });
 

@@ -65,7 +65,6 @@
       "id": "clx...",
       "email": "user@example.com",
       "username": "zhangsan",
-      "nickname": "张三",
       "avatar": null,
       "role": "USER",
       "emailVerified": false

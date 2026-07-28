@@ -92,7 +92,7 @@ export class MentionsService {
     return this.prisma.postMention.findMany({
       where: { postId },
       include: {
-        mentionedUser: { select: { id: true, username: true, nickname: true, avatar: true } },
+        mentionedUser: { select: { id: true, username: true, avatar: true } },
       },
     });
   }

@@ -66,7 +66,7 @@ export class UsersFollowController {
     const user = req['user'] as { id: string };
     return this.prisma.userFollow.findMany({
       where: { followerId: user.id },
-      include: { following: { select: { id: true, username: true, nickname: true, avatar: true } } },
+      include: { following: { select: { id: true, username: true, avatar: true } } },
     });
   }
 
@@ -79,7 +79,7 @@ export class UsersFollowController {
     const user = req['user'] as { id: string };
     return this.prisma.userFollow.findMany({
       where: { followingId: user.id },
-      include: { follower: { select: { id: true, username: true, nickname: true, avatar: true } } },
+      include: { follower: { select: { id: true, username: true, avatar: true } } },
     });
   }
 
@@ -123,7 +123,7 @@ export class UsersFollowController {
     const user = req['user'] as { id: string };
     return this.prisma.userBlock.findMany({
       where: { blockerId: user.id },
-      include: { blocked: { select: { id: true, username: true, nickname: true, avatar: true } } },
+      include: { blocked: { select: { id: true, username: true, avatar: true } } },
     });
   }
 }

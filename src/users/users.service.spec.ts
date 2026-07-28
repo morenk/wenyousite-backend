@@ -17,7 +17,7 @@ const mockPrisma = {
   $transaction: jest.fn((ops: any[]) => Promise.all(ops)),
 };
 
-const userFixture = { id: 'u1', username: 'test', nickname: 't', avatar: null, bio: null, role: 'USER', deletedAt: null };
+const userFixture = { id: 'u1', username: 'test', avatar: null, bio: null, role: 'USER', deletedAt: null, showRecentReplies: true, showPlayerBadges: true, showBookmarks: true };
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -46,13 +46,17 @@ describe('UsersService', () => {
     await expect(service.findById('x')).rejects.toThrow(NotFoundException);
   });
 
-  it('update 应该成功更新昵称', async () => {
+  it('update 应该成功更新 bio', async () => {
     mockPrisma.user.findUnique.mockResolvedValue({ ...userFixture });
-    mockPrisma.user.update.mockResolvedValue({
-      ...userFixture, nickname: '新昵称',
-    });
-    const result = await service.update('u1', { nickname: '新昵称' });
-    expect(result.nickname).toBe('新昵称');
+    mockPrisma.user.update.mockResolvedValue({ ...userFixture, bio: '新简介' });
+    const result = await service.update('u1', { bio: '新简介' });
+    expect(result.bio).toBe('新简介');
+  });
+
+  it('update 空 body 不应执行 DB 写', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({ ...userFixture });
+    await service.update('u1', {});
+    expect(mockPrisma.user.update).not.toHaveBeenCalled();
   });
 
   it('修改用户名重复应该返回409', async () => {
@@ -64,10 +68,22 @@ describe('UsersService', () => {
     ).rejects.toThrow(ConflictException);
   });
 
+  it('P2002 用户名唯一冲突应捕获并返回 409', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({ ...userFixture });
+    mockPrisma.user.update.mockRejectedValue({ code: 'P2002', meta: { target: ['username'] } });
+    await expect(service.update('u1', { username: 'newname' })).rejects.toThrow(ConflictException);
+  });
+
   it('update 不存在的用户应该返回404', async () => {
-    mockPrisma.user.findUnique.mockReset();
     mockPrisma.user.findUnique.mockResolvedValue(null);
-    await expect(service.update('x', { nickname: 'y' })).rejects.toThrow(NotFoundException);
+    await expect(service.update('x', { bio: 'y' })).rejects.toThrow(NotFoundException);
+  });
+
+  it('更新隐私开关应成功', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({ ...userFixture });
+    mockPrisma.user.update.mockResolvedValue({ ...userFixture, showRecentReplies: false });
+    const result = await service.update('u1', { showRecentReplies: false });
+    expect(result.showRecentReplies).toBe(false);
   });
 
   it('deactivate 应该成功注销', async () => {

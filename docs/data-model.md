@@ -79,9 +79,8 @@
 |------|------|------|------|
 | id | String | PK, cuid() | — |
 | email | String | unique, 统一小写存储 | 登录邮箱 |
-| username | String | unique | 用户名（唯一，不可重名） |
+| username | String | unique | 用户名（唯一，用于登录和展示，字母+数字+中文） |
 | password | String | — | Argon2 哈希 |
-| nickname | String? | — | 显示昵称 |
 | avatar | String? | — | 头像 URL |
 | bio | String? | — | 个人简介 |
 | role | UserRole | default USER | 权限等级 |

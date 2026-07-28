@@ -187,7 +187,7 @@ describe('ThreadsService', () => {
       });
       mockPrisma.thread.update.mockResolvedValue({
         id: 't1', title: '测试', category: 'RPG', published: true,
-        owner: { id: 'u1', username: 'test', nickname: null, avatar: null },
+        owner: { id: 'u1', username: 'test', avatar: null },
         subthreads: [], topicTags: [], _count: { members: 1, posts: 1 },
       });
       mockPrisma.userFollow.findMany.mockResolvedValue([{ followerId: 'f1' }]);

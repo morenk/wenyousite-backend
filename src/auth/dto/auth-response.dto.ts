@@ -11,9 +11,6 @@ class UserProfile {
   @ApiProperty({ description: '用户名' })
   username: string;
 
-  @ApiProperty({ required: false, description: '昵称' })
-  nickname?: string;
-
   @ApiProperty({ required: false, description: '头像 URL' })
   avatar?: string;
 

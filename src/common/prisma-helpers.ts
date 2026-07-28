@@ -24,7 +24,7 @@ export const includeSubthreads = (select?: Record<string, boolean>) => ({
 
 /** 帖子 include: 作者基本信息 */
 export const authorSelect = {
-  id: true, username: true, nickname: true, avatar: true,
+  id: true, username: true, avatar: true,
 } as const;
 
 /** 计数用户和帖子总数 */
