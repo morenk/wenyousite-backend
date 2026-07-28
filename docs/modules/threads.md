@@ -80,6 +80,94 @@
 - 通过邀请链接加入私密帖：需帖子已发布，成员角色为 PARTICIPANT
 - 邀请链接使用 ThreadInvite 表 upsert，token 为随机 16 位小写字母+数字
 
+## Thread 与 Subthread 的关系
+
+### 数据模型
+
+```
+Thread ──1:N── Subthread ──1:N── Post
+  │                  │
+  └── Post（冗余引用）──┘
+```
+
+- `Thread` 是帖子的元数据容器（title / category / visibility / published）——**不放任何正文内容**
+- `Subthread` 是帖内的子版块（如"设定区""角色卡区""剧情区"），每个子贴有独立的标题、排序 (`sortOrder`) 和发帖权限策略 (`postingPolicy`)
+- `Post` 同时持有 `threadId` 和 `subthreadId`，即每个楼层必须归属某个子贴，不存在游离于所有子贴之外的帖子
+
+### 内容载体
+
+| 实体 | 是否有内容 | 说明 |
+|------|-----------|------|
+| Thread | 无 | 仅元数据。列表卡片展示通过第一个子贴间接获取 |
+| Subthread | 部分有 | 创建时可选附带第一楼正文；也可以是空子贴，后续通过发帖填充 |
+| Post | 有 | 正文唯一载体，`content` 为 Markdown 字符串 |
+
+### 默认子贴
+
+每个 Thread 下最早创建的子贴为**默认子贴**，具有特殊规则：
+
+| 规则 | 说明 |
+|------|------|
+| 排序锁定 | sortOrder 固定为 0，不可通过 PATCH 修改 |
+| 不可删除 | 默认子贴不可单独删除，需删除整个主题帖 |
+| 拖拽首位 | 批量重排时首项必须是默认子贴 |
+| 列表展示 | `GET /threads` 列表卡片取第一个子贴信息展示 |
+
+默认子贴的设计意图是充当帖子的"主内容区"——即便楼主创建了多个子贴用于不同话题，始终有一个固定的首版块用于主要讨论。
+
+### 创建与发布联动
+
+```
+POST /threads          → Thread(published=false) + OWNER 成员
+                         [无子贴、无帖子]
+
+POST subthreads        → Subthread + 可选第一楼 Post（正文为空时仅子贴）
+  GET /subthreads      → 查看已创建的子贴及其帖子数量
+
+POST posts             → 在子贴下新增楼层，自动记入该子贴
+  ↑ 仅 published=true 时触发 post.created 事件
+
+PATCH published=true   → 发布前校验：
+                         ① title 非空
+                         ② category 已选
+                         ③ 至少一个子贴
+                         ④ 该子贴有未删除帖子
+                         → publishedAt 记入当前时间 → 通知所有粉丝
+```
+
+### 级联删除
+
+| 操作 | 效果 |
+|------|------|
+| 删除草稿 Thread → | 级联删除所有 Subthread + Post + ThreadMember + ThreadInvite + ThreadTopicTag |
+| 删除已发布 Thread → | 软删除（设 deletedAt），关联数据保留 |
+| 软删除 Subthread → | 子贴设为 deletedAt，其下 Post 保留但通过 `deletedAt: null` 过滤 |
+| 硬删除 Subthread → | PostgreSQL ON DELETE CASCADE 级联删除其 Post |
+
+### 访问控制传递链
+
+```
+ThreadAccessService.assertAccessible(threadId, userId)
+  ├── Thread 已删除 → 404
+  ├── Thread 未发布 + 非 owner → 404
+  ├── Thread 已发布 + visibility=PRIVATE + 非成员 → 404
+  └── 放行
+       ↓
+  SubthreadsService / PostsService 所有读方法均调用此入口
+       ↓
+  发帖写入时额外检查 postingPolicy（PARTICIPANTS / COLLABORATORS / PLAYERS）
+```
+
+### 列表与详情数据聚合
+
+| 视图 | 子贴信息 | 帖子信息 |
+|------|---------|---------|
+| Thread 列表 (`findAll`) | `take: 1` 首个子贴的 id / title / lastPostAt | 不返回正文（TODO） |
+| Thread 详情 (`findById`) | 全部子贴列表 + `_count.posts` | 不返回正文 |
+| Subthread 列表 (`findAll`) | 按 sortOrder 排列 + `_count.posts` | 不返回正文 |
+| Subthread 详情 (`findById`) | 单个子贴 + `_count.posts` | 不返回正文 |
+| Post 列表 (`findAllBySubthread`) | 已通过 threadAccess 校验 | 楼层列表（Cursor 分页） |
+
 ## 设计决策
 
 - **草稿沙盒**：Thread 本身即为沙盒 —— published=false 时帖子不对外，楼主可在沙盒内任意搭建子贴、撰写楼层。发布时仅翻转 published 标记，数据零迁移
