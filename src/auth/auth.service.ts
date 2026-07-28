@@ -63,14 +63,25 @@ export class AuthService {
     }
 
     const code = this.generateCode();
-    await this.prisma.emailVerification.create({
-      data: {
-        email,
-        token: code,
-        type: 'REGISTRATION',
-        expiresAt: new Date(now.getTime() + this.CODE_TTL),
-      },
-    });
+    try {
+      await this.prisma.emailVerification.create({
+        data: {
+          email,
+          token: code,
+          type: 'REGISTRATION',
+          expiresAt: new Date(now.getTime() + this.CODE_TTL),
+        },
+      });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        // 并发请求已抢先创建记录，视为已有验证码
+        const existing = await this.prisma.emailVerification.findFirst({
+          where: { email, type: 'REGISTRATION' },
+        });
+        return { emailSent: true, codeExpiresIn: this.CODE_TTL / 1000, message: '验证码已发送，请查收邮箱' };
+      }
+      throw e;
+    }
 
     let emailSent = true;
     try {
@@ -172,7 +183,7 @@ export class AuthService {
     }
 
     if (user.deletedAt) {
-      throw new UnauthorizedException('该账号已注销');
+      throw new UnauthorizedException('邮箱或密码错误');
     }
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
@@ -369,7 +380,9 @@ export class AuthService {
   /** 忘记密码 — 发送重置邮件 */
   async forgotPassword(rawEmail: string) {
     const email = rawEmail.toLowerCase().trim();
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const user = await this.prisma.user.findUnique({
+      where: { email, deletedAt: null },
+    });
     if (!user) return { message: '如果该邮箱已注册，重置邮件已发送' };
 
     const existing = await this.prisma.emailVerification.findFirst({
@@ -391,14 +404,21 @@ export class AuthService {
     });
 
     const code = this.generateCode();
-    await this.prisma.emailVerification.create({
-      data: {
-        userId: user.id,
-        token: code,
-        type: 'PASSWORD_RESET',
-        expiresAt: new Date(Date.now() + this.CODE_TTL),
-      },
-    });
+    try {
+      await this.prisma.emailVerification.create({
+        data: {
+          userId: user.id,
+          token: code,
+          type: 'PASSWORD_RESET',
+          expiresAt: new Date(Date.now() + this.CODE_TTL),
+        },
+      });
+    } catch (e) {
+      if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002')) {
+        throw e;
+      }
+      // 并发请求已抢先创建，复用记录视为成功
+    }
 
     let emailSent = true;
     try {
@@ -485,14 +505,21 @@ export class AuthService {
     });
 
     const code = this.generateCode();
-    await this.prisma.emailVerification.create({
-      data: {
-        userId: user.id,
-        token: code,
-        type: 'EMAIL_VERIFY',
-        expiresAt: new Date(Date.now() + this.CODE_TTL),
-      },
-    });
+    try {
+      await this.prisma.emailVerification.create({
+        data: {
+          userId: user.id,
+          token: code,
+          type: 'EMAIL_VERIFY',
+          expiresAt: new Date(Date.now() + this.CODE_TTL),
+        },
+      });
+    } catch (e) {
+      if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002')) {
+        throw e;
+      }
+      // 并发请求已抢先创建，复用记录视为成功
+    }
 
     let emailSent = true;
     try {
