@@ -66,6 +66,8 @@
 - 重置密码时自动将邮箱标记为已验证（emailVerified = true）
 - 验证码使用完毕后立即删除 EmailVerification 记录
 - EmailVerification 通过 `type` 字段区分用途（EMAIL_VERIFY / PASSWORD_RESET），查询时按类型过滤避免误用
+- 重发验证邮件 / 重发重置邮件时，若存在未过期的同类型记录，复用同一验证码重发，用户收到多封邮件码不变
+- 验证码校验错误分场景返回：token 不存在 → `'验证码错误'`，已过期 → `'验证码已过期，请重新获取'`
 - 敏感端点（verify-email/reset-password 5/min，forgot-password/resend-verification 1/min）有独立限流
 - 邮件发送失败通过 Logger.error 记录日志（fire-and-forget 不阻断用户流程）
 
@@ -83,8 +85,10 @@
 
 | 场景 | 行动 |
 |------|------|
-| 注册成功但未收到邮件 | 调用 `POST /auth/resend-verification` 重发 |
+| 注册成功但未收到邮件 | 调用 `POST /auth/resend-verification` 重发（复用同一验证码） |
 | 登录后 `emailVerified: false` | 展示"请验证邮箱"提示，引导到收件箱或重发端点 |
+| 输入验证码返回 "验证码错误" | 提示用户核对数字，区分大小写无影响（纯数字） |
+| 输入验证码返回 "验证码已过期" | 引导调用重发端点获取新码 |
 | 修改密码后 | 所有旧 Token 失效，前端需引导用户重新登录 |
 | 登出 | 调用 `POST /auth/logout` 使服务端 Token 失效，同时清除本地存储 |
 | 收到 401 "令牌已失效，请重新登录" | Token 版本号不匹配（改密码/登出所致），清除本地 Token 并跳转登录页 |
