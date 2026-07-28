@@ -1,10 +1,12 @@
 import {
   Controller, Get, Post, Patch, Delete,
-  Body, Param, Req, UseGuards,
+  Body, Param, Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { ThreadMembersService } from './thread-members.service';
+import { InviteMemberDto } from './dto/invite-member.dto';
+import { UpdateMemberDto } from './dto/update-member.dto';
 import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
 
@@ -37,11 +39,11 @@ export class ThreadMembersController {
   @ApiBody({ schema: { properties: { userId: { type: 'string' } } } })
   async invite(
     @Param('threadId') threadId: string,
-    @Body('userId') targetUserId: string,
+    @Body() dto: InviteMemberDto,
     @Req() req: FastifyRequest,
   ) {
     const user = req['user'] as { id: string };
-    return this.membersService.invite(threadId, targetUserId, user.id);
+    return this.membersService.invite(threadId, dto.userId, user.id);
   }
 
   @Patch(':userId')
@@ -59,7 +61,7 @@ export class ThreadMembersController {
   async updateMember(
     @Param('threadId') threadId: string,
     @Param('userId') targetUserId: string,
-    @Body() dto: { role?: string; playerMarked?: boolean },
+    @Body() dto: UpdateMemberDto,
     @Req() req: FastifyRequest,
   ) {
     const user = req['user'] as { id: string };

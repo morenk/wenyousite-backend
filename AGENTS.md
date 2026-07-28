@@ -1,4 +1,4 @@
-# 温油站后端 — 项目上下文
+# 温油站后端 — AI 辅助编程上下文
 
 ## 项目概述
 
@@ -11,21 +11,21 @@ NestJS + Fastify + PostgreSQL + Prisma + Redis + BullMQ，模块化单体架构�
 |------|------|------|
 | 运行时 | Node.js 24 LTS + TypeScript | — |
 | 框架 | NestJS + Fastify | Fastify 性能优于 Express |
-| 数据库 | PostgreSQL 17 + Prisma ORM | 19 张表，类型安全 |
-| 缓存/队列 | Redis 7 + BullMQ (@nestjs/bullmq) | 通知、图片异步处理 |
+| 数据库 | PostgreSQL 17 + Prisma ORM | 22 张表，8 个枚举，类型安全 |
+| 缓存/队列 | Redis 7 + BullMQ | 通知队列 (notification) + 图片处理队列 (image) |
 | 认证 | Passport JWT + Argon2 | 双 Token (access 15m / refresh 7d) |
 | 校验 | class-validator + class-transformer | DTO 自动校验 |
 | 日志 | nestjs-pino + pino-pretty | 结构化日志，dev 彩色输出 |
 | 错误监控 | @sentry/nestjs + @sentry/node | 有 DSN 时启用 |
 | 限流 | @nestjs/throttler | 全局 + auth 端点加强 |
-| 事件 | @nestjs/event-emitter | 模块间解耦 |
-| 定时 | @nestjs/schedule | 清理过期数据 |
+| 事件 | @nestjs/event-emitter | 发帖后事件解耦 mentions/notifications |
+| 定时 | @nestjs/schedule | 每天凌晨 4 点清理过期 token 和僵尸用户 |
 | 安全 | helmet | HTTP 安全头 |
-| 图片 | @aws-sdk/client-s3 + sharp | 预签名上传 + 压缩缩略图 |
-| 邮件 | nodemailer | 等待 SES 配置 |
+| 图片 | @aws-sdk/client-s3 + sharp | 预签名直传 + 异步缩略图（300x300 + 800px） |
+| 邮件 | nodemailer | 阿里云企业邮箱 SMTP（smtp.mxhichina.com） |
 | 文档 | @nestjs/swagger | /api/docs (仅 dev) |
 | 健康检查 | @nestjs/terminus | /api/v1/health |
-| 测试 | Jest + ts-jest | 11 套件 66 用例 |
+| 测试 | Jest + ts-jest | 13 套件 92 用例 |
 
 ## 项目结构
 
@@ -33,6 +33,7 @@ NestJS + Fastify + PostgreSQL + Prisma + Redis + BullMQ，模块化单体架构�
 src/
 ├── main.ts                    # 入口: Fastify + Pino + Swagger + Sentry + Helmet
 ├── app.module.ts              # 根模块: 全局限流 + EventEmitter + 定时任务 + BullMQ
+├── app.controller.ts          # 根控制器: / 路由
 ├── config/                    # configuration.ts + env.validation.ts
 ├── common/                    # 全局复用
 │   ├── decorators/public.decorator.ts    # @Public() 跳过 JWT
@@ -41,27 +42,30 @@ src/
 │   ├── filters/all-exceptions.filter.ts # 统一异常格式
 │   ├── interceptors/response.interceptor.ts
 │   └── dto/pagination.dto.ts            # cursor 分页
-├── prisma/                    # PrismaService (全局)
-├── auth/                      # 注册/登录/刷新/验证/改密码
-│   ├── decorators/auth.decorator.ts  # @Auth() = JWT+邮箱  @AuthRead() = 仅JWT
+├── prisma/                    # PrismaService (全局提供)
+├── auth/                      # 注册/登录/刷新/验证/改密码/找回密码
+│   ├── decorators/auth.decorator.ts  # @Auth() 和 @AuthRead()
 │   ├── strategies/jwt.strategy.ts
 │   └── guards/jwt-auth.guard.ts
-├── users/                     # 资料 + 关注 + 拉黑 + 搜索
+├── users/                     # 资料 + 关注 + 拉黑
 │   ├── users.controller.ts    # me, search, :id
 │   └── users-follow.controller.ts  # follow, block
-├── threads/                   # 主题帖(事务创建) + 成员 + 玩家 + 标签关联
-├── subthreads/                # 子贴 + 排序 + 子贴标签
+├── threads/                   # 主题帖(事务创建/私密帖/置顶) + 成员(角色/玩家) + 邀请链接 + 标签
+├── subthreads/                # 子贴 + 软删除 + 发帖权限(PARTICIPANTS/COLLABORATORS/PLAYERS)
 ├── tags/                      # 平台级 TopicTag
-├── posts/                     # 楼层(floorNumber 递增) + 楼中楼(平级) + 编辑 + 软删除
+├── posts/                     # 楼层 + 楼中楼(平级) + 编辑 + 软删除 + 点赞
 ├── mentions/                  # @提及解析 + 权限规则
-├── drafts/                    # 5槽位草稿
-├── notifications/             # 站内通知(列表/未读数/已读)
-├── subscriptions/             # 玩家订阅(整帖/某用户)
-├── reading-progress/          # 阅读进度 + 继续阅读计数
-├── reports/                   # 举报提交 + 管理员处理
-├── media/                     # 图片预签名上传
-├── jobs/                      # BullMQ producer + processor
-└── admin/                     # 管理后台 API
+├── drafts/                    # 用户级全局 5 槽位草稿池
+├── notifications/             # 站内通知(列表/未读数/已读) — 含结构化导航字段
+├── subscriptions/             # 订阅(整帖 THREAD / 某用户 USER) + 通知投递
+├── reading-progress/          # 阅读进度 + 新增回复数
+├── reports/                   # 举报（已搁置，待后期重构）
+├── search/                    # 全文搜索 (PostgreSQL ILIKE)
+├── email/                     # SMTP 邮件服务
+├── media/                     # S3 预签名上传 + upload-done 确认 + 异步 sharp 缩略图
+├── jobs/                      # BullMQ: notification 队列 + image 队列 + 事件监听 + 定时清理
+├── admin/                     # 管理后台 API
+└── health/                    # 健康检查端点
 scripts/
 ├── set-admin.ts               # 管理员初始化
 ├── deploy.sh                  # 一键部署
@@ -70,99 +74,39 @@ scripts/
 
 ## 守卫架构
 
-项目用三层装饰器控制访问：
-
 | 装饰器 | 守卫链 | 用途 |
 |--------|--------|------|
-| `@Public()` | 无 | 公开端点 (GET /threads 等) |
-| `@AuthRead()` | JwtAuthGuard | 需登录的读操作 (GET /notifications 等) |
-| `@Auth()` | JwtAuthGuard + VerifiedGuard | 需登录+验证的写操作 (POST /posts 等) |
+| `@Public()` | 无 | 公开端点 (GET /threads 列表) |
+| `@AuthRead()` | JwtAuthGuard | 需登录的读/写操作（当前所有写端点均使用此级别） |
+| `@Auth()` | JwtAuthGuard + VerifiedGuard | 需登录+邮箱验证（仅关注/拉黑端点使用） |
 
-全局守卫 (app.module.ts APP_GUARD):
-- ThrottlerGuard — 限流
-- BlockGuard — 拉黑拦截(被拉黑者无法在对方帖内发帖)
+- 全局守卫 (app.module.ts APP_GUARD): ThrottlerGuard（限流）、BlockGuard（拉黑拦截）
 
-## API 端点 (完整)
+## Prisma 枚举速查
 
-| 方法 | 路径 | 守卫 | 说明 |
-|------|------|------|------|
-| GET | /health | 无 | 健康检查 |
-| POST | /auth/register | 无 | 注册 |
-| POST | /auth/login | 无 | 登录 |
-| POST | /auth/refresh | 无 | 刷新 Token |
-| POST | /auth/verify-email | 无 | 邮箱验证 |
-| POST | /auth/change-password | AuthRead | 改密码 |
-| GET | /users/me | AuthRead | 当前用户 |
-| PATCH | /users/me | Auth | 修改资料 |
-| GET | /users/search | AuthRead | 搜索用户 |
-| GET | /users/:id | Public | 公开信息 |
-| POST | /users/follow/:id | Auth | 关注 |
-| DELETE | /users/follow/:id | Auth | 取消关注 |
-| GET | /users/following | AuthRead | 关注列表 |
-| GET | /users/followers | AuthRead | 粉丝列表 |
-| POST | /users/me/block/:id | Auth | 拉黑 |
-| DELETE | /users/me/block/:id | Auth | 取消拉黑 |
-| GET | /users/me/blocks | AuthRead | 黑名单 |
-| GET | /tags | Public | 搜索标签 |
-| POST | /tags | Auth | 创建标签 |
-| GET | /threads | Public | 分区列表 |
-| POST | /threads | Auth | 创建主题帖 |
-| GET | /threads/:id | Public | 详情 |
-| PATCH | /threads/:id | Auth | 修改 |
-| DELETE | /threads/:id | Auth | 软删除 |
-| GET | /threads/:id/members | Public | 成员列表 |
-| POST | /threads/:id/members/join | Auth | 加入 |
-| POST | /threads/:id/members | Auth | 邀请 |
-| PATCH | /threads/:id/members/:userId | Auth | 角色/玩家 |
-| DELETE | /threads/:id/members/:userId | Auth | 踢出 |
-| GET | /threads/:id/tags | Public | 标签列表 |
-| POST | /threads/:id/tags | Auth | 添加标签 |
-| DELETE | /threads/:id/tags/:tagId | Auth | 移除标签 |
-| GET | /threads/:id/subthreads | Public | 子贴列表 |
-| POST | /threads/:id/subthreads | Auth | 创建子贴 |
-| GET | /subthreads/:id | Public | 子贴详情 |
-| PATCH | /subthreads/:id | Auth | 修改 |
-| DELETE | /subthreads/:id | Auth | 删除 |
-| GET | /subthreads/:id/tags | Public | 子贴标签 |
-| POST | /subthreads/:id/tags | Auth | 添加 |
-| DELETE | /subthreads/:id/tags/:tagId | Auth | 移除 |
-| GET | /subthreads/:id/posts | Public | 楼层列表 |
-| POST | /subthreads/:id/posts | Auth | 发帖 |
-| GET | /posts/:id | Public | 帖子详情 |
-| GET | /posts/:id/replies | Public | 楼中楼 |
-| PATCH | /posts/:id | Auth | 编辑 |
-| DELETE | /posts/:id | Auth | 软删除 |
-| GET | /drafts | AuthRead | 草稿列表 |
-| GET | /drafts/slots | AuthRead | 槽位使用 |
-| POST | /drafts | Auth | 保存草稿 |
-| PATCH | /drafts/:id | Auth | 更新 |
-| DELETE | /drafts/:id | Auth | 删除 |
-| GET | /notifications | AuthRead | 通知列表 |
-| GET | /notifications/unread | AuthRead | 未读数 |
-| PATCH | /notifications/:id/read | AuthRead | 单条已读 |
-| POST | /notifications/read-all | AuthRead | 全部已读 |
-| GET | /subscriptions | AuthRead | 订阅列表 |
-| POST | /subscriptions | Auth | 创建 |
-| DELETE | /subscriptions/:id | Auth | 取消 |
-| GET | /reading-progress | AuthRead | 阅读进度 |
-| GET | /reading-progress/new-replies | AuthRead | 新增回复数 |
-| POST | /reading-progress | AuthRead | 记录进度 |
-| POST | /reports | AuthRead | 提交举报 |
-| GET | /reports | AuthRead | 管理员列表 |
-| PATCH | /reports/:id/handle | AuthRead | 管理员处理 |
-| POST | /media/upload-url | AuthRead | 预签名上传 |
-| GET | /admin | Public | 管理后台入口 |
+| 枚举 | 值 | 用途 |
+|------|----|------|
+| `ThreadCategory` | DEDUCTION, NATION, RPG | 主题帖分区 |
+| `ThreadStatus` | RECRUITING, CLOSED, FINISHED | 主题帖生命周期 |
+| `ThreadVisibility` | PUBLIC, PRIVATE | 私密帖控制 |
+| `UserRole` | USER, ADMIN, SUPER_ADMIN | 用户权限等级 |
+| `MemberRole` | OWNER, COLLABORATOR, PARTICIPANT | 帖内成员角色 |
+| `PostingPolicy` | PARTICIPANTS, COLLABORATORS, PLAYERS | 子贴发帖权限 |
+| `NotificationType` | reply, mention, new_floor, thread_created, follow | 通知类型 |
+| `SubscriptionType` | THREAD, USER | 订阅粒度 |
 
 ## 核心设计决策
 
-- **内容**：服务端不渲染 Markdown，仅存取纯字符串。BBCode 拓展 Markdown 由客户端解析
-- **@提及权限**：1) 已关注→可@  2) 同帖玩家间可@  3) 玩家可@楼主  4) 楼主可@任何人  5) @自己无通知
-- **拉黑**：双向阻止——不能发帖 + 不发通知
-- **楼中楼**：平级挂载，无嵌套深度限制，所有回复共享 parentPostId
-- **楼层编号**：事务内 MAX+1，永不复用
-- **草稿**：每用户每子贴 5 槽位，自动选空闲位，满时覆盖最旧
-- **通知**：站内通知走 BullMQ 异步投递，邮件仅用于注册验证和改密码
-- **邮箱验证**：注册生成 token + dev 环境打印到控制台 + @Auth() 守卫拦截未验证用户写操作
+1. **内容格式**：服务端不渲染 Markdown，仅存取纯字符串。图文混排由客户端在 Markdown 中嵌入 `![](url)` 实现。
+2. **@提及权限**：1) 已关注→可@ / 2) 同帖玩家间可@ / 3) 玩家可@楼主 / 4) 楼主可@任何人 / 5) @自己无通知。
+3. **拉黑**：双向阻止 — 不能发帖 + 不发通知。拉黑者的帖子对被拉黑者不可见。
+4. **楼中楼**：平级挂载，无嵌套深度限制，所有回复共享 `parentPostId`。回复目标通过 `replyToPostId` 追踪。
+5. **楼层编号**：事务内 `MAX+1`，永不复用。楼中楼帖子 `floorNumber = null`。
+6. **草稿**：用户级全局 5 槽位池，不与子贴绑定。满时返回错误，不自动覆盖。编辑器全局浮动，不绑定子贴。
+7. **通知投递**：站内通知走 BullMQ `notification` 队列异步投递。5 类通知类型 (reply / mention / new_floor / thread_created / follow)。邮件仅用于注册验证和密码重置。
+8. **私密帖**：`visibility=PRIVATE`，不在列表/搜索中显示，仅成员可访问。加入方式仅限邀请链接 (`ThreadInvite`)，踢出仅取消玩家标记。
+9. **订阅推送**：用户可订阅整帖 (THREAD) 或帖内某用户 (USER)。发帖时通过 `PostEventsListener` + `SubscriptionsService.findSubscribers()` 合并订阅者到通知列表。
+10. **图片上传**：客户端通过预签名 URL 直传 S3，完成后调 `upload-done` 确认。服务端写入 Media 表，入队 `image` 队列用 sharp 生成 300×300 缩略图 + 800px 中图 (WebP)。
 
 ## 常用命令
 
@@ -170,9 +114,9 @@ scripts/
 |------|------|
 | `docker compose up -d` | 启动 PG + Redis |
 | `pnpm install` | 安装依赖 |
-| `pnpm build` | 编译 `tsc -p tsconfig.json` |
+| `pnpm build` | 编译 |
 | `pnpm start:dev` | 开发服务器 |
-| `pnpm test` | 单元测试 11 套件 66 用例 |
+| `pnpm test` | 单元测试 (13 套件 92 用例) |
 | `pnpm prisma:studio` | 数据库 GUI |
 | `npx tsx scripts/set-admin.ts <email>` | 升级管理员 |
 | `bash scripts/deploy.sh` | 生产部署 |
@@ -181,39 +125,74 @@ scripts/
 ## 部署
 
 ```bash
-# Caddyfile 改为你的域名，.env 填入密钥
 echo "DOMAIN=xxx.com" > .env
 bash scripts/deploy.sh
 ```
-
-## 待完善
-
-- 邮箱验证：当前 token 打印到控制台，SES 配好后改邮件投递
-- `@nestjs/event-emitter` 已安装，Posts 发帖后可用事件解耦 mentions/notifications
-- `@nestjs/schedule` 已安装，可加定期清理过期草稿/未验证用户
-- sharp 已安装，可在媒体队列中实现图片压缩缩略图
-- 用户隐私开关字段已定义但未在 GET user 时应用
-- 找回密码流程
 
 ## 代码规范
 
 ### 中文注释（强制）
 
-所有源码文件必须包含中文注释，粒度要求：
-
 | 元素 | 要求 | 示例 |
 |------|------|------|
 | 每个 `.ts` 文件头部 | 文件用途说明（1 行） | `/** 用户服务：查询、更新、关注、拉黑 */` |
-| 每个 `class` | 类职责说明（1-2 行） | `/** 认证服务：注册、登录、Token 刷新、邮箱验证、改密码 */` |
-| 每个 `public` 方法 | 功能说明（1 行） | `/** 注册新用户：校验唯一性、Argon2 哈希、发验证邮件 */` |
+| 每个 `class` | 类职责说明（1-2 行） | `/** 认证服务：注册、登录、Token 刷新 */` |
+| 每个 `public` 方法 | 功能说明（1 行） | `/** 注册新用户 */` |
 | 关键逻辑段 | 行内注释 | `// 过滤掉被拉黑的用户，不发送通知` |
 | DTO 字段 | `@ApiProperty({ description: '中文描述' })` | — |
-| 模块文件 | 模块用途说明 | `/** 主题帖模块：CRUD、成员管理、标签关联 */` |
+| 模块文件 | 模块用途说明 | `/** 主题帖模块：CRUD、成员管理 */` |
 
 ### 守卫使用规范
 
 ```
-@Public()       — 公开端点，无需认证（GET /threads）
-@AuthRead()     — 需登录，不校验邮箱（GET /notifications）
-@Auth()         — 需登录 + 邮箱验证（POST /posts）
+@Public()       — 公开端点，无需认证
+@AuthRead()     — 需登录（JWT），不校验邮箱
+@Auth()         — 需登录 + 邮箱验证
 ```
+
+## Git 提交规范
+
+### 提交粒度
+
+每次提交对应一个**可独立理解、独立回滚**的逻辑单元：
+
+| 达到以下任一条件即提交 | 示例 |
+|---|---|
+| 完成一个完整功能特性 | 新增重发验证邮件端点 |
+| 完成一个 bug 修复（含原因和验证） | 修复 refresh token 异常消息被吞没 |
+| 完成一个模块的重构 | 认证模块 DTO 参数规范化 |
+| 完成一个数据库迁移 | Schema 变更 + 迁移文件 + 服务层适配 |
+| 完成一批文档更新 | 某模块 .md 同步更新 |
+
+**禁止**的做法：
+- 攒一堆不相关改动做一次大提交
+- 提交包含未完成或未编译的代码
+- 把 Schema 迁移和业务逻辑拆分到不同提交（迁移和适配代码必须在同一个提交里）
+
+### 提交信息格式
+
+```
+<type>: <中文简述>
+
+- 要点 1
+- 要点 2
+```
+
+| Type | 用途 |
+|------|------|
+| `feat` | 新功能、新端点 |
+| `fix` | bug 修复 |
+| `refactor` | 重构（不改变外部行为） |
+| `docs` | 纯文档更新 |
+| `chore` | 依赖、配置、脚本等杂项 |
+
+### 提交前检查
+
+- [ ] `npx tsc --noEmit` 编译通过
+- [ ] `pnpm test` 全部通过
+- [ ] `git diff --cached` 确认包含所有相关文件（迁移 + 代码 + 文档）
+- [ ] 确认没有混入无关文件或 secrets
+
+## 详细文档
+
+完整 API 端点、数据模型、通知投递、图片上传等详见 [`docs/`](./docs/README.md)。

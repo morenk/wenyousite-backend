@@ -7,6 +7,7 @@ import { FastifyRequest } from 'fastify';
 import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
+import { PostQueryDto } from './dto/post-query.dto';
 import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
 
@@ -23,10 +24,9 @@ export class PostsController {
   @ApiQuery({ name: 'limit', required: false, description: '每页条数' })
   async findFloors(
     @Param('subthreadId') subthreadId: string,
-    @Query('cursor') cursor?: string,
-    @Query('limit') limit?: string,
+    @Query() query: PostQueryDto,
   ) {
-    return this.postsService.findAllBySubthread(subthreadId, cursor, limit ? parseInt(limit) : undefined);
+    return this.postsService.findAllBySubthread(subthreadId, query.cursor, query.limit);
   }
 
   @Get('posts/:id/replies')
@@ -36,10 +36,9 @@ export class PostsController {
   @ApiQuery({ name: 'limit', required: false })
   async findReplies(
     @Param('id') id: string,
-    @Query('cursor') cursor?: string,
-    @Query('limit') limit?: string,
+    @Query() query: PostQueryDto,
   ) {
-    return this.postsService.findReplies(id, cursor, limit ? parseInt(limit) : undefined);
+    return this.postsService.findReplies(id, query.cursor, query.limit);
   }
 
   @Post('subthreads/:subthreadId/posts')
@@ -83,5 +82,23 @@ export class PostsController {
     const user = req['user'] as { id: string };
     await this.postsService.remove(id, user.id);
     return { message: '帖子已删除' };
+  }
+
+  @Post('posts/:id/like')
+  @AuthRead()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '点赞帖子' })
+  async like(@Param('id') id: string, @Req() req: FastifyRequest) {
+    const user = req['user'] as { id: string };
+    return this.postsService.like(id, user.id);
+  }
+
+  @Delete('posts/:id/like')
+  @AuthRead()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '取消点赞' })
+  async unlike(@Param('id') id: string, @Req() req: FastifyRequest) {
+    const user = req['user'] as { id: string };
+    return this.postsService.unlike(id, user.id);
   }
 }

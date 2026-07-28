@@ -2,6 +2,7 @@ import { Controller, Get, Post, Delete, Body, Param, Req } from '@nestjs/common'
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { SubscriptionsService } from './subscriptions.service';
+import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 
 /** 订阅控制器：玩家订阅主题帖或特定用户回复 */
@@ -24,7 +25,7 @@ export class SubscriptionsController {
   @Post()
   @Auth()
   @ApiOperation({ summary: '创建订阅' })
-  async create(@Req() req: FastifyRequest, @Body() dto: { threadId: string; type: 'THREAD' | 'USER'; targetUserId?: string }) {
+  async create(@Req() req: FastifyRequest, @Body() dto: CreateSubscriptionDto) {
     const user = req['user'] as { id: string };
     return this.subscriptionsService.create(user.id, dto.threadId, dto.type, dto.targetUserId);
   }

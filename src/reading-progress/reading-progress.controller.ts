@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Query, Req, UseGuards } from '@nestjs/comm
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { ReadingProgressService } from './reading-progress.service';
+import { UpdateReadingProgressDto } from './dto/update-reading-progress.dto';
 import { AuthRead } from '../auth/decorators/auth.decorator';
 
 /** 阅读进度控制器：记录和查询用户的阅读位置 */
@@ -32,7 +33,7 @@ export class ReadingProgressController {
   /** 记录阅读进度（精确到楼层/楼中楼） */
   @Post()
   @ApiOperation({ summary: '记录阅读进度（精确到楼层/楼中楼）' })
-  async update(@Req() req: FastifyRequest, @Body() dto: { subthreadId: string; postId?: string }) {
+  async update(@Req() req: FastifyRequest, @Body() dto: UpdateReadingProgressDto) {
     const user = req['user'] as { id: string };
     return this.readingProgressService.update(user.id, dto.subthreadId, dto.postId);
   }

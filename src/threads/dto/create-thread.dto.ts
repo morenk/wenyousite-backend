@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, MinLength, MaxLength, IsIn, IsArray, IsNumber } from 'class-validator';
+import { IsString, IsOptional, MinLength, MaxLength, IsIn, IsArray } from 'class-validator';
 
 /** 创建主题帖 DTO */
 export class CreateThreadDto {
@@ -25,4 +25,10 @@ export class CreateThreadDto {
   @IsArray()
   @IsString({ each: true })
   tagNames?: string[];
+
+  @ApiPropertyOptional({ enum: ['PUBLIC', 'PRIVATE'], default: 'PUBLIC', description: '可见性（PUBLIC=所有人可访问, PRIVATE=仅通过邀请链接加入的成员可访问）' })
+  @IsOptional()
+  @IsString()
+  @IsIn(['PUBLIC', 'PRIVATE'])
+  visibility?: string;
 }

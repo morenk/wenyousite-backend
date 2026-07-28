@@ -1,8 +1,9 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, IsIn } from 'class-validator';
+import { CursorPaginationDto } from '../../common/dto/pagination.dto';
 
 /** 主题帖列表查询 DTO */
-export class ThreadQueryDto {
+export class ThreadQueryDto extends CursorPaginationDto {
   @ApiPropertyOptional({ enum: ['DEDUCTION', 'NATION', 'RPG'], description: '分区筛选' })
   @IsOptional()
   @IsString()
@@ -19,13 +20,4 @@ export class ThreadQueryDto {
   @IsOptional()
   @IsString()
   tag?: string;
-
-  @ApiPropertyOptional({ description: '游标分页 cursor' })
-  @IsOptional()
-  @IsString()
-  cursor?: string;
-
-  @ApiPropertyOptional({ description: '每页条数', default: 20 })
-  @IsOptional()
-  limit?: number = 20;
 }

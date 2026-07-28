@@ -2,6 +2,8 @@ import { Controller, Get, Post, Patch, Body, Param, Query, Req } from '@nestjs/c
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { ReportsService } from './reports.service';
+import { CreateReportDto } from './dto/create-report.dto';
+import { HandleReportDto } from './dto/handle-report.dto';
 import { AuthRead } from '../auth/decorators/auth.decorator';
 
 /** 举报控制器：举报提交与管理员处理 */
@@ -15,7 +17,7 @@ export class ReportsController {
   @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '提交举报' })
-  async create(@Req() req: FastifyRequest, @Body() dto: { targetType: string; targetId: string; reason: string }) {
+  async create(@Req() req: FastifyRequest, @Body() dto: CreateReportDto) {
     const user = req['user'] as { id: string };
     return this.reportsService.create(user.id, dto.targetType, dto.targetId, dto.reason);
   }
@@ -36,9 +38,9 @@ export class ReportsController {
   @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '处理举报（管理员）' })
-  async handle(@Req() req: FastifyRequest, @Param('id') id: string, @Body('status') status: string) {
+  async handle(@Req() req: FastifyRequest, @Param('id') id: string, @Body() dto: HandleReportDto) {
     const user = req['user'] as { id: string; role: string };
     if (user.role !== 'ADMIN') return { message: '无权限' };
-    return this.reportsService.handle(id, user.id, status);
+    return this.reportsService.handle(id, user.id, dto.status);
   }
 }

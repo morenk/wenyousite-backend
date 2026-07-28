@@ -6,6 +6,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubthreadsService } from './subthreads.service';
+import { AddSubthreadTagDto } from './dto/add-subthread-tag.dto';
 import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
 
@@ -34,7 +35,7 @@ export class SubthreadTagsController {
   @ApiOperation({ summary: '为子贴添加标签（仅 OWNER/COLLABORATOR）' })
   async add(
     @Param('subthreadId') subthreadId: string,
-    @Body() dto: { name: string; color?: string },
+    @Body() dto: AddSubthreadTagDto,
     @Req() req: FastifyRequest,
   ) {
     const user = req['user'] as { id: string };

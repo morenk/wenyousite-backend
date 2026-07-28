@@ -9,6 +9,7 @@ import { TagsService } from '../tags/tags.service';
 import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { ThreadsService } from './threads.service';
+import { AddThreadTagDto } from './dto/add-thread-tag.dto';
 
 /** 主题帖标签关联控制器 */
 @ApiTags('Threads')
@@ -34,11 +35,11 @@ export class ThreadTagsController {
   @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '为主题帖添加标签（仅 OWNER/COLLABORATOR）' })
-  async add(@Param('threadId') threadId: string, @Body('name') name: string, @Req() req: FastifyRequest) {
+  async add(@Param('threadId') threadId: string, @Body() dto: AddThreadTagDto, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     await this.threadsService.assertCanManage(threadId, user.id);
 
-    const tags = await this.tagsService.findOrCreate([name]);
+    const tags = await this.tagsService.findOrCreate([dto.name]);
     const tag = tags[0];
     await this.prisma.threadTopicTag.upsert({
       where: { threadId_tagId: { threadId, tagId: tag.id } },

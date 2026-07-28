@@ -1,14 +1,15 @@
 import {
   Controller, Get, Post, Patch, Delete,
-  Body, Param, Query, Req, UseGuards,
+  Body, Param, Req, UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { DraftsService } from './drafts.service';
 import { CreateDraftDto } from './dto/create-draft.dto';
-import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
+import { UpdateDraftDto } from './dto/update-draft.dto';
+import { AuthRead } from '../auth/decorators/auth.decorator';
 
-/** 草稿控制器：5 槽位自动/手动保存 */
+/** 草稿控制器：用户级 5 槽位全局草稿池 */
 @ApiTags('Drafts')
 @Controller('drafts')
 @AuthRead()
@@ -17,22 +18,21 @@ export class DraftsController {
   constructor(private draftsService: DraftsService) {}
 
   @Get()
-  @ApiOperation({ summary: '草稿列表（可选按子贴筛选）' })
-  @ApiQuery({ name: 'subthreadId', required: false })
-  async findAll(@Req() req: FastifyRequest, @Query('subthreadId') subthreadId?: string) {
+  @ApiOperation({ summary: '当前用户全部草稿' })
+  async findAll(@Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
-    return this.draftsService.findAll(user.id, subthreadId);
+    return this.draftsService.findAll(user.id);
   }
 
   @Get('slots')
-  @ApiOperation({ summary: '草稿位使用情况（每子贴已用槽位数）' })
+  @ApiOperation({ summary: '草稿位使用情况（5 槽已用数）' })
   async slotUsage(@Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     return this.draftsService.slotUsage(user.id);
   }
 
   @Post()
-  @ApiOperation({ summary: '保存草稿（不传 slot 则自动选空闲位）' })
+  @ApiOperation({ summary: '保存草稿（不传 slot 自动选空闲位）' })
   async create(@Body() dto: CreateDraftDto, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     return this.draftsService.create(dto, user.id);
@@ -49,11 +49,11 @@ export class DraftsController {
   @ApiOperation({ summary: '更新草稿内容' })
   async update(
     @Param('id') id: string,
-    @Body('content') content: string,
+    @Body() dto: UpdateDraftDto,
     @Req() req: FastifyRequest,
   ) {
     const user = req['user'] as { id: string };
-    return this.draftsService.update(id, content, user.id);
+    return this.draftsService.update(id, dto.content, user.id);
   }
 
   @Delete(':id')

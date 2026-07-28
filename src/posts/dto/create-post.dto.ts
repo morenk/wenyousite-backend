@@ -1,21 +1,23 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, MinLength, MaxLength } from 'class-validator';
+import { IsString, IsOptional, MinLength, MaxLength, IsUUID } from 'class-validator';
 
-/** 创建楼层/楼中楼 DTO */
+/** 创建帖子 DTO */
 export class CreatePostDto {
-  @ApiProperty({ example: '这是新楼层的内容...', description: '帖子正文（Markdown 富文本）', minLength: 1, maxLength: 10000 })
+  @ApiProperty({ description: '帖子正文', minLength: 1, maxLength: 10000 })
   @IsString()
   @MinLength(1)
   @MaxLength(10000)
   content: string;
 
-  @ApiPropertyOptional({ description: '楼中楼：父楼层 ID（不传则创建为楼层）' })
+  @ApiPropertyOptional({ description: '父帖 ID（楼中楼回复时指定，平级挂载，无嵌套深度限制）' })
   @IsOptional()
   @IsString()
+  @IsUUID()
   parentPostId?: string;
 
-  @ApiPropertyOptional({ description: '回复对象：被回复的帖子 ID' })
+  @ApiPropertyOptional({ description: '回复目标帖 ID（追踪具体回复哪个帖子）' })
   @IsOptional()
   @IsString()
+  @IsUUID()
   replyToPostId?: string;
 }
