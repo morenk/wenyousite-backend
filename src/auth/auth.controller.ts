@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Delete, Body, Param, HttpCode, HttpStatus, Req, Res, UseGuards, UnauthorizedException } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Body, Param, HttpCode, HttpStatus, Req, Res, UnauthorizedException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { Throttle } from '@nestjs/throttler';
@@ -14,7 +14,8 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { LogoutDto } from './dto/logout.dto';
-import { AuthRead } from './decorators/auth.decorator';
+import { ChangeEmailRequestDto, ChangeEmailVerifyDto } from './dto/change-email.dto';
+import { AuthRead, Auth } from './decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
 
 const COOKIE_BASE = {
@@ -135,6 +136,28 @@ export class AuthController {
   @ApiOperation({ summary: '重置密码' })
   async resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.email, dto.token, dto.newPassword);
+  }
+
+  @Post('change-email/request-code')
+  @AuthRead()
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 60000, limit: 1 } })
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '更换邮箱第一步：向新邮箱发送验证码' })
+  async requestChangeEmailCode(@Req() req: FastifyRequest, @Body() dto: ChangeEmailRequestDto) {
+    const user = req['user'] as { id: string };
+    return this.authService.requestChangeEmailCode(user.id, dto.newEmail);
+  }
+
+  @Post('change-email/verify')
+  @Auth()
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '更换邮箱第二步：验证码确认，更新邮箱' })
+  async verifyChangeEmail(@Req() req: FastifyRequest, @Body() dto: ChangeEmailVerifyDto) {
+    const user = req['user'] as { id: string };
+    return this.authService.verifyChangeEmail(user.id, dto.newEmail, dto.code);
   }
 
   @Post('logout')

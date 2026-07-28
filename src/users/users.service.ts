@@ -32,7 +32,13 @@ export class UsersService {
   }
 
   async findById(id: string) {
-    const user = await this.prisma.user.findUnique({ where: { id }, select: userSelectPublic });
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        ...userSelectPublic,
+        _count: { select: { following: true, followers: true } },
+      },
+    });
     if (!user) throw new NotFoundException('用户不存在');
     return maskDeactivated(user);
   }
@@ -121,10 +127,20 @@ export class UsersService {
     if (!user) throw new NotFoundException('用户不存在');
     if (user.deletedAt) throw new NotFoundException('用户不存在');
 
+    // 释放 username 和 email 的唯一性约束，允许他人或原用户日后复用
+    const ts = Math.floor(Date.now() / 1000);
+    const releasedUsername = `${user.username}_deleted_${ts}`.slice(0, 24);
+    const emailParts = user.email.split('@');
+    const releasedEmail = `${emailParts[0]}_deleted_${ts}@${emailParts[1]}`;
+
     await this.prisma.$transaction([
       this.prisma.user.update({
         where: { id },
-        data: { deletedAt: new Date() },
+        data: {
+          deletedAt: new Date(),
+          username: releasedUsername,
+          email: releasedEmail,
+        },
       }),
       this.prisma.refreshToken.updateMany({
         where: { userId: id, revokedAt: null },

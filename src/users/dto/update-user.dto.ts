@@ -14,11 +14,12 @@ export class UpdateUserDto {
   @Transform(sanitizeContent)
   username?: string;
 
-  @ApiPropertyOptional({ maxLength: 255, description: '个人简介' })
+  @ApiPropertyOptional({ minLength: 1, maxLength: 255, description: '个人简介' })
   @IsOptional()
   @IsString()
+  @MinLength(1)
   @MaxLength(255)
-  @Transform(sanitizeContent)
+  @Transform(({ value }) => sanitizeContent(typeof value === 'string' ? value.trim() : value))
   bio?: string;
 
   @ApiPropertyOptional({ description: '隐私：允许他人查看最近回复' })

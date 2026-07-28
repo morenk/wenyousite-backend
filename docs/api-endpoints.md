@@ -12,8 +12,10 @@
 | POST | `/auth/refresh` | 无 | 用 refreshToken 轮转换取新双 Token（含盗用检测） |
 | POST | `/auth/verify-email` | AuthRead | 验证当前登录用户的邮箱（需登录 + 6 位验证码），限流 5/min |
 | POST | `/auth/resend-verification` | 无 | 重发验证邮件（限流 1/min） |
-| POST | `/auth/change-password` | AuthRead | 修改密码（需旧密码），成功后吊销全部 refresh token |
+| POST | `/auth/change-password` | AuthRead | 修改密码（需旧密码），成功后吊销全部 refresh token + 发送通知邮件 |
 | POST | `/auth/forgot-password` | 无 | 发送找回密码邮件（限流 1/min） |
+| POST | `/auth/change-email/request-code` | AuthRead | 更换邮箱第一步：向新邮箱发验证码（限流 1/min） |
+| POST | `/auth/change-email/verify` | Auth | 更换邮箱第二步：验证码确认，更新邮箱（限流 5/min） |
 | POST | `/auth/reset-password` | 无 | 用邮件 + 验证码重置密码（需提供邮箱锚定身份），成功后吊销全部 refresh token（限流 5/min） |
 | POST | `/auth/logout` | AuthRead | 登出，传入 refreshToken 撤销指定设备会话（Cookie 优先） |
 | GET | `/auth/sessions` | AuthRead | 获取当前用户所有活跃会话列表 |

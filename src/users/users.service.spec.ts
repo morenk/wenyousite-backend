@@ -17,7 +17,7 @@ const mockPrisma = {
   $transaction: jest.fn((ops: any[]) => Promise.all(ops)),
 };
 
-const userFixture = { id: 'u1', username: 'test', avatar: null, bio: null, role: 'USER', deletedAt: null, lastUsernameChange: null, showRecentReplies: true, showPlayerBadges: true, showBookmarks: true };
+const userFixture = { id: 'u1', username: 'test', email: 'test@example.com', avatar: null, bio: null, role: 'USER', deletedAt: null, lastUsernameChange: null, showRecentReplies: true, showPlayerBadges: true, showBookmarks: true };
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -125,7 +125,8 @@ describe('UsersService', () => {
   });
 
   it('findById 不应暴露 email', async () => {
-    mockPrisma.user.findUnique.mockResolvedValue({ ...userFixture });
+    const { email, ...noEmail } = { ...userFixture };
+    mockPrisma.user.findUnique.mockResolvedValue(noEmail);
     const result = await service.findById('u1');
     expect(result.email).toBeUndefined();
   });

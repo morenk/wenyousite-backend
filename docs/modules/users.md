@@ -39,6 +39,8 @@
 - `findMe` 返回完整字段（email、emailVerified、隐私开关等），仅限本人调用
 - `findById` 排除 email 字段，仅返回公开信息
 - 已注销用户（deletedAt 非 null）的公开资料被屏蔽为 "已注销用户"，isDeactivated = true
+- 注销时释放 username 和 email 唯一性（追加 `_deleted_{timestamp}` 后缀），允许原用户或他人日后复用
+- `GET /users/:id` 返回 `_count.following` 和 `_count.followers`，供前端展示社交数据
 - 更新用户名时检查唯一性（过滤 deletedAt），冲突返回 409；DB 层 P2002 同样转 409 防竞态
 - 用户名修改需间隔 7 天以上，不足时返回剩余天数提示
 - 用户名规则：2-24 位，字母 + 数字 + 中文，禁止标点符号和特殊字符（注册与修改一致）

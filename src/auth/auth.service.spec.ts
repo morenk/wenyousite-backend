@@ -48,6 +48,8 @@ const mockConfig = {
 const mockEmailService = {
   sendVerification: jest.fn().mockResolvedValue(undefined),
   sendPasswordReset: jest.fn().mockResolvedValue(undefined),
+  sendPasswordChanged: jest.fn().mockResolvedValue(undefined),
+  sendEmailChanged: jest.fn().mockResolvedValue(undefined),
 };
 
 describe('AuthService', () => {

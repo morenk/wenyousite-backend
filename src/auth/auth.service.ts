@@ -341,11 +341,11 @@ export class AuthService {
     return { message: '邮箱验证成功' };
   }
 
-  /** 修改密码：旧密码校验 + 吊销全部会话 */
+  /** 修改密码：旧密码校验 + 吊销全部会话 + 发送通知邮件 */
   async changePassword(userId: string, oldPassword: string, newPassword: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { password: true },
+      select: { password: true, email: true },
     });
     if (!user) throw new UnauthorizedException();
 
@@ -371,6 +371,10 @@ export class AuthService {
         data: { revokedAt: new Date() },
       }),
     ]);
+
+    this.emailService.sendPasswordChanged(user.email).catch((err) => {
+      this.logger.error(`密码修改通知邮件发送失败: ${user.email}`, err);
+    });
 
     return { message: '密码已修改，请重新登录' };
   }
@@ -471,6 +475,100 @@ export class AuthService {
     ]);
 
     return { message: '密码已重置，请重新登录' };
+  }
+
+  /** 更换邮箱第一步：向新邮箱发送 6 位验证码 */
+  async requestChangeEmailCode(userId: string, newEmail: string) {
+    const normalized = newEmail.toLowerCase().trim();
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+    if (!currentUser) throw new UnauthorizedException();
+    if (currentUser.email === normalized) {
+      throw new BadRequestException('新邮箱不能与当前邮箱相同');
+    }
+
+    const existing = await this.prisma.user.findUnique({
+      where: { email: normalized, deletedAt: null },
+    });
+    if (existing) throw new ConflictException('该邮箱已被其他用户使用');
+
+    const now = new Date();
+    const recent = await this.prisma.emailVerification.findFirst({
+      where: { userId, type: 'CHANGE_EMAIL', expiresAt: { gt: now } },
+    });
+    if (recent) {
+      return { message: '验证码已发送，请查收新邮箱' };
+    }
+
+    const code = this.generateCode();
+    try {
+      await this.prisma.emailVerification.create({
+        data: {
+          userId,
+          email: normalized,
+          token: code,
+          type: 'CHANGE_EMAIL',
+          expiresAt: new Date(Date.now() + this.CODE_TTL),
+        },
+      });
+    } catch (e: any) {
+      if (e.code === 'P2002') {
+        return { message: '验证码已发送，请查收新邮箱' };
+      }
+      throw e;
+    }
+
+    try {
+      await this.emailService.sendVerification(normalized, code, 'CHANGE_EMAIL');
+    } catch (err) {
+      this.logger.error(`更换邮箱验证码发送失败: ${normalized}`, err);
+    }
+    return { message: '验证码已发送，请查收新邮箱' };
+  }
+
+  /** 更换邮箱第二步：验证码确认后更新 email */
+  async verifyChangeEmail(userId: string, newEmail: string, inputCode: string) {
+    const normalized = newEmail.toLowerCase().trim();
+    const record = await this.prisma.emailVerification.findFirst({
+      where: { userId, type: 'CHANGE_EMAIL', email: normalized },
+    });
+    if (!record) throw new BadRequestException('请先请求验证码');
+    if (record.expiresAt <= new Date()) {
+      await this.prisma.emailVerification.delete({ where: { id: record.id } });
+      throw new UnauthorizedException('验证码已过期，请重新获取');
+    }
+    if (record.token !== inputCode) {
+      if (record.attempts >= 5) {
+        await this.prisma.emailVerification.delete({ where: { id: record.id } });
+        throw new UnauthorizedException('验证码尝试次数过多，请重新获取');
+      }
+      await this.prisma.emailVerification.update({
+        where: { id: record.id },
+        data: { attempts: { increment: 1 } },
+      });
+      throw new UnauthorizedException('验证码错误');
+    }
+
+    const existing = await this.prisma.user.findUnique({
+      where: { email: normalized, deletedAt: null },
+    });
+    if (existing) throw new ConflictException('该邮箱已被其他用户使用');
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { email: normalized, emailVerified: true },
+      }),
+      this.prisma.emailVerification.delete({ where: { id: record.id } }),
+    ]);
+
+    this.emailService.sendEmailChanged(normalized).catch((err) => {
+      this.logger.error(`邮箱变更通知发送失败: ${normalized}`, err);
+    });
+
+    return { message: '邮箱已成功更换' };
   }
 
   /** 重发验证邮件 */
