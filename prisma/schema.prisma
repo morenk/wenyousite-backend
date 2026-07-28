@@ -120,6 +120,7 @@ model RefreshToken {
   userId     String    @map("user_id")
   tokenHash  String    @map("token_hash")
   family     String
+  platform   String?   @default("web")
   deviceInfo String?   @map("device_info")
   expiresAt  DateTime  @map("expires_at")
   revokedAt  DateTime? @map("revoked_at")

@@ -15,7 +15,9 @@
 | POST | `/auth/change-password` | AuthRead | 修改密码（需旧密码），成功后吊销全部 refresh token |
 | POST | `/auth/forgot-password` | 无 | 发送找回密码邮件（限流 1/min） |
 | POST | `/auth/reset-password` | 无 | 用验证码重置密码，成功后吊销全部 refresh token（限流 5/min） |
-| POST | `/auth/logout` | AuthRead | 登出，传入 refreshToken 撤销指定设备会话 |
+| POST | `/auth/logout` | AuthRead | 登出，传入 refreshToken 撤销指定设备会话（Cookie 优先） |
+| GET | `/auth/sessions` | AuthRead | 获取当前用户所有活跃会话列表 |
+| DELETE | `/auth/sessions/:id` | AuthRead | 撤销指定会话（远程登出设备） |
 
 ## 用户端点 (Users)
 

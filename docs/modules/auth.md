@@ -32,7 +32,9 @@
 | POST | `/auth/change-password` | AuthRead | 全局 (20/min) | 修改密码（需提供旧密码），成功后吊销全部 refresh token |
 | POST | `/auth/forgot-password` | Public | 1/min | 发送密码重置邮件 |
 | POST | `/auth/reset-password` | Public | 5/min | 使用验证码重置密码，成功后吊销全部 refresh token |
-| POST | `/auth/logout` | AuthRead | 全局 (20/min) | 登出，撤销指定设备的 refresh token |
+| POST | `/auth/logout` | AuthRead | 全局 (20/min) | 登出，撤销指定设备的 refresh token（Cookie 优先） |
+| GET | `/auth/sessions` | AuthRead | 全局 (20/min) | 获取当前用户所有活跃会话列表 |
+| DELETE | `/auth/sessions/:id` | AuthRead | 全局 (20/min) | 撤销指定会话（远程登出某设备） |
 
 ## 请求/响应格式
 
@@ -75,11 +77,37 @@
 ### 登出
 
 ```json
-// 请求
+// 请求（Cookie 优先，body 可选）
 { "refreshToken": "<uuid>" }
 
 // 响应
 { "data": { "message": "已登出" } }
+```
+
+### 会话列表
+
+```json
+// GET /auth/sessions
+{
+  "data": [
+    {
+      "id": "clx...",
+      "platform": "web",
+      "deviceInfo": "Chrome 132 / Windows",
+      "isCurrent": true,
+      "createdAt": "2026-07-28T...",
+      "expiresAt": "2026-08-04T..."
+    },
+    {
+      "id": "clx...",
+      "platform": "mobile",
+      "deviceInfo": "iOS App 1.2",
+      "isCurrent": false,
+      "createdAt": "2026-07-25T...",
+      "expiresAt": "2026-08-24T..."
+    }
+  ]
+}
 ```
 
 ## 核心业务规则
@@ -118,11 +146,25 @@
 - 修改密码时检查新旧密码不能相同，否则返回 400
 - 忘记密码采用统一消息模式，防止邮箱枚举攻击
 
+### Cookie 与平台适配
+
+- Web 端使用 httpOnly Cookie 存储 refreshToken，防 XSS 窃取（`HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth`）
+- 同时 JSON 响应体中返回 `refreshToken` 字段，移动端不依赖 Cookie 可直接获取
+- 客户端通过 `X-Client-Platform: web|mobile` 请求头声明平台类型
+- Web 端 refresh token 有效期 7 天，移动端 30 天，登录和轮转时自动按平台计算
+- `/auth/refresh` 和 `/auth/logout` 优先从 Cookie 读取 token，Cookie 缺失时回退到请求体
+
+### 会话管理
+
+- `GET /auth/sessions` 列出当前用户所有活跃会话，含 `isCurrent` 标记、平台类型、设备信息、创建/过期时间
+- `DELETE /auth/sessions/:id` 撤销指定会话，用于远程登出某设备（如在 Web 端看到异常移动端登录可远程踢除）
+- `POST /auth/logout` 撤销当前设备的 refresh token 并清除 Cookie
+
 ### 多设备会话
 
 - 登录时每个设备生成唯一 `family`（UUID），创建 `RefreshToken` 记录
 - refresh token 原文为随机 UUID，数据库中仅存 SHA-256 哈希
-- 调用 `/auth/refresh` 轮转：撤销旧 token → 签发新 token（同 family），返回新的原文字符串
+- 调用 `/auth/refresh` 轮转：撤销旧 token → 签发新 token（同 family、同 platform），返回新的原文字符串
 - **盗用检测**：若已撤销的 token 被重放，吊销该 family 下全部 token（整个设备强制登出）
 - 登出时传入当前 refresh token，仅撤销该条记录（其他设备不受影响）
 - 改密码 / 重置密码：吊销用户全部未撤销的 refresh token（所有设备强制登出）

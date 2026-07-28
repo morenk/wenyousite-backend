@@ -1,6 +1,6 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, Req, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Body, Param, HttpCode, HttpStatus, Req, Res, UseGuards, UnauthorizedException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
-import { FastifyRequest } from 'fastify';
+import { FastifyRequest, FastifyReply } from 'fastify';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RequestCodeDto } from './dto/request-code.dto';
@@ -13,11 +13,18 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
+import { LogoutDto } from './dto/logout.dto';
 import { AuthRead } from './decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
-import { LogoutDto } from './dto/logout.dto';
 
-/** 认证控制器：注册、登录、Token 刷新 */
+const COOKIE_BASE = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax' as const,
+  path: '/api/v1/auth',
+};
+
+/** 认证控制器：注册、登录、Token 刷新、会话管理 */
 @ApiTags('Auth')
 @Controller('auth')
 @Throttle({ default: { ttl: 60000, limit: 20 } })
@@ -38,8 +45,11 @@ export class AuthController {
   @ApiOperation({ summary: '注册第二步：验证邮箱 + 设置用户名密码，一步完成注册' })
   @ApiResponse({ status: 201, type: AuthResponseDto, description: '注册成功返回双 Token 和用户信息' })
   @ApiResponse({ status: 409, description: '用户名已被占用' })
-  async verifyAndComplete(@Body() dto: VerifyAndCompleteDto) {
-    return this.authService.verifyAndComplete(dto);
+  async verifyAndComplete(@Body() dto: VerifyAndCompleteDto, @Res({ passthrough: true }) res: FastifyReply) {
+    const result = await this.authService.verifyAndComplete(dto);
+    const ttl = 7 * 24 * 60 * 60; // 默认 web 端 7 天
+    res.setCookie('refreshToken', result.refreshToken, { ...COOKIE_BASE, maxAge: ttl });
+    return result;
   }
 
   @Post('login')
@@ -48,19 +58,30 @@ export class AuthController {
   @ApiOperation({ summary: '邮箱 + 密码登录' })
   @ApiResponse({ status: 200, type: AuthResponseDto, description: '登录成功返回双 Token 和用户信息' })
   @ApiResponse({ status: 401, description: '邮箱或密码错误' })
-  async login(@Body() dto: LoginDto, @Req() req: FastifyRequest) {
+  async login(@Body() dto: LoginDto, @Req() req: FastifyRequest, @Res({ passthrough: true }) res: FastifyReply) {
     const deviceInfo = req.headers['user-agent']?.slice(0, 512) ?? undefined;
-    return this.authService.login(dto, deviceInfo);
+    const platform = (req.headers['x-client-platform'] as string) || 'web';
+    const result = await this.authService.login(dto, deviceInfo, platform);
+    const ttl = platform === 'mobile' ? 30 * 24 * 60 * 60 : 7 * 24 * 60 * 60;
+    res.setCookie('refreshToken', result.refreshToken, { ...COOKIE_BASE, maxAge: ttl });
+    return result;
   }
 
   @Post('refresh')
   @Public()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: '刷新访问令牌' })
+  @ApiOperation({ summary: '刷新访问令牌（Cookie 优先）' })
   @ApiResponse({ status: 200, type: AuthResponseDto, description: '刷新成功，返回新的双 Token' })
   @ApiResponse({ status: 401, description: '刷新令牌无效' })
-  async refresh(@Body() dto: RefreshDto) {
-    return this.authService.refresh(dto.refreshToken);
+  async refresh(@Body() dto: RefreshDto, @Req() req: FastifyRequest, @Res({ passthrough: true }) res: FastifyReply) {
+    const token = req.cookies?.refreshToken ?? dto.refreshToken;
+    if (!token) throw new UnauthorizedException('缺少刷新令牌');
+    const result = await this.authService.refresh(token);
+    // 沿用请求中的 platform cookie TTL（无法从结果反向推算，取 web 默认值，mobile 端轮转时会刷新为 30 天）
+    const platform = (req.headers['x-client-platform'] as string) || 'web';
+    const ttl = platform === 'mobile' ? 30 * 24 * 60 * 60 : 7 * 24 * 60 * 60;
+    res.setCookie('refreshToken', result.refreshToken, { ...COOKIE_BASE, maxAge: ttl });
+    return result;
   }
 
   @Post('verify-email')
@@ -116,9 +137,34 @@ export class AuthController {
   @AuthRead()
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '登出，撤销指定设备的 refresh token' })
-  async logout(@Req() req: FastifyRequest, @Body() dto: LogoutDto) {
+  @ApiOperation({ summary: '登出，撤销指定设备的 refresh token（Cookie 优先）' })
+  async logout(@Req() req: FastifyRequest, @Body() dto: LogoutDto, @Res({ passthrough: true }) res: FastifyReply) {
     const user = req['user'] as { id: string };
-    return this.authService.logout(user.id, dto.refreshToken);
+    const token = req.cookies?.refreshToken ?? dto.refreshToken;
+    if (token) {
+      await this.authService.logout(user.id, token);
+    }
+    res.clearCookie('refreshToken', COOKIE_BASE);
+    return { message: '已登出' };
+  }
+
+  @Get('sessions')
+  @AuthRead()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '获取当前用户所有活跃会话列表' })
+  async listSessions(@Req() req: FastifyRequest) {
+    const user = req['user'] as { id: string };
+    const token = req.cookies?.refreshToken ?? '';
+    return this.authService.listSessions(user.id, token);
+  }
+
+  @Delete('sessions/:id')
+  @AuthRead()
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '撤销指定会话（远程登出设备）' })
+  async revokeSession(@Req() req: FastifyRequest, @Param('id') id: string) {
+    const user = req['user'] as { id: string };
+    return this.authService.revokeSession(user.id, id);
   }
 }

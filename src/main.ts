@@ -7,6 +7,7 @@ import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify
 import { Logger } from 'nestjs-pino';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
+import fastifyCookie from '@fastify/cookie';
 import * as Sentry from '@sentry/node';
 import { AppModule } from './app.module';
 
@@ -37,6 +38,7 @@ async function bootstrap() {
   );
   app.enableCors();
   await app.register(helmet as any);
+  await app.register(fastifyCookie as any);
 
   // Swagger 文档：仅 dev 环境
   if (process.env.NODE_ENV !== 'production') {

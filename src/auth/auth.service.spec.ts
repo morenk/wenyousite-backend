@@ -25,6 +25,7 @@ const mockPrisma = {
   refreshToken: {
     create: jest.fn(),
     findFirst: jest.fn(),
+    findMany: jest.fn(),
     update: jest.fn(),
     updateMany: jest.fn(),
   },
@@ -283,6 +284,23 @@ describe('AuthService', () => {
         expect.objectContaining({ where: { email: 'user@case.com' } }),
       );
     });
+
+    it('移动端登录应使用 30 天 TTL', async () => {
+      const hashed = await argon2.hash('Test1234!');
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'u1', email: 'a@b.com', password: hashed, username: 'test', nickname: 'test', avatar: null,
+        role: 'USER', emailVerified: false, deletedAt: null,
+      });
+      mockJwt.signAsync.mockResolvedValue('at-token');
+      mockPrisma.refreshToken.create.mockResolvedValue({ id: 'rt1' });
+
+      await service.login({ email: 'a@b.com', password: 'Test1234!' }, undefined, 'mobile');
+      expect(mockPrisma.refreshToken.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ platform: 'mobile' }),
+        }),
+      );
+    });
   });
 
   describe('refresh', () => {
@@ -357,6 +375,47 @@ describe('AuthService', () => {
       expect(mockPrisma.refreshToken.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({ data: { revokedAt: expect.any(Date) } }),
       );
+    });
+  });
+
+  describe('listSessions', () => {
+    it('应该返回用户活跃会话列表', async () => {
+      const crypto = await import('crypto');
+      const currentHash = crypto.createHash('sha256').update('token2').digest('hex');
+
+      mockPrisma.refreshToken.findMany.mockResolvedValue([
+        {
+          id: 's1', platform: 'web', deviceInfo: 'Chrome',
+          createdAt: new Date(), expiresAt: new Date(Date.now() + 86400000),
+          tokenHash: 'other-hash',
+        },
+        {
+          id: 's2', platform: 'mobile', deviceInfo: 'iOS App',
+          createdAt: new Date(), expiresAt: new Date(Date.now() + 2592000000),
+          tokenHash: currentHash,
+        },
+      ]);
+
+      const sessions = await service.listSessions('u1', 'token2');
+      expect(sessions).toHaveLength(2);
+      expect(sessions[0].isCurrent).toBe(false);
+      expect(sessions[1].isCurrent).toBe(true);
+      expect(sessions[1].platform).toBe('mobile');
+    });
+  });
+
+  describe('revokeSession', () => {
+    it('应该撤销指定会话', async () => {
+      mockPrisma.refreshToken.updateMany.mockResolvedValue({ count: 1 });
+      const result = await service.revokeSession('u1', 's1');
+      expect(result.message).toBe('已撤销');
+    });
+
+    it('会话不存在时应该返回400', async () => {
+      mockPrisma.refreshToken.updateMany.mockResolvedValue({ count: 0 });
+      await expect(
+        service.revokeSession('u1', 'nonexistent'),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

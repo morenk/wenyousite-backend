@@ -116,14 +116,16 @@
 | userId | String | FK users (Cascade) | — |
 | tokenHash | String | indexed | refresh token 的 SHA-256 哈希（不存原文） |
 | family | String | — | 设备会话标识（UUID，同设备轮转保持相同） |
+| platform | String? | default web | 平台类型：web（7天）或 mobile（30天） |
 | deviceInfo | String? | — | User-Agent 摘要 |
-| expiresAt | DateTime | — | 过期时间（7 天） |
+| expiresAt | DateTime | — | 过期时间（web 7 天 / mobile 30 天） |
 | revokedAt | DateTime? | — | 撤销时间（登出/改密码/盗用检测触发） |
 | createdAt | DateTime | — | — |
 
 > 每个登录设备一个 `family`，refresh 轮转时签发新 token 并撤销旧 token。  
 > 检测到已撤销 token 被重放时，吊销该 family 下全部 token（防盗用）。  
-> 改密码/重置密码时，吊销用户全部 `revokedAt = null` 的记录。
+> 改密码/重置密码时，吊销用户全部 `revokedAt = null` 的记录。  
+> Web 端通过 httpOnly Cookie 存储 refreshToken；移动端通过响应体获取。
 
 ### user_blocks — 拉黑
 

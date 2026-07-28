@@ -33,6 +33,12 @@ export class AuthService {
   ) {}
 
   private readonly CODE_TTL = 15 * 60 * 1000; // 验证码统一有效期 15 分钟
+  private readonly REFRESH_WEB_TTL = 7 * 24 * 60 * 60 * 1000; // Web 端 7 天
+  private readonly REFRESH_MOBILE_TTL = 30 * 24 * 60 * 60 * 1000; // 移动端 30 天
+
+  private hashToken(token: string): string {
+    return crypto.createHash('sha256').update(token).digest('hex');
+  }
 
   /** 注册第一步：请求邮箱验证码 */
   async requestCode(rawEmail: string) {
@@ -135,26 +141,27 @@ export class AuthService {
   }
 
   /** 创建会话：生成 accessToken + refreshToken，写入 RefreshToken 记录 */
-  private async createSession(userId: string, deviceInfo: string | null) {
+  private async createSession(userId: string, deviceInfo: string | null, platform = 'web') {
     const accessToken = await this.jwtService.signAsync(
       { sub: userId },
       { secret: this.configService.get<string>('jwt.accessSecret')!, expiresIn: '15m' as const },
     );
 
     const rawRefreshToken = crypto.randomUUID();
-    const tokenHash = crypto.createHash('sha256').update(rawRefreshToken).digest('hex');
+    const tokenHash = this.hashToken(rawRefreshToken);
     const family = crypto.randomUUID();
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const ttl = platform === 'mobile' ? this.REFRESH_MOBILE_TTL : this.REFRESH_WEB_TTL;
+    const expiresAt = new Date(Date.now() + ttl);
 
     await this.prisma.refreshToken.create({
-      data: { userId, tokenHash, family, deviceInfo, expiresAt },
+      data: { userId, tokenHash, family, platform, deviceInfo, expiresAt },
     });
 
     return { accessToken, refreshToken: rawRefreshToken };
   }
 
   /** 登录：验证邮箱和密码，创建新会话 */
-  async login(dto: LoginDto, deviceInfo?: string) {
+  async login(dto: LoginDto, deviceInfo?: string, platform = 'web') {
     const email = dto.email.toLowerCase().trim();
     const user = await this.prisma.user.findUnique({
       where: { email },
@@ -176,6 +183,7 @@ export class AuthService {
     const { accessToken, refreshToken } = await this.createSession(
       user.id,
       deviceInfo ?? null,
+      platform,
     );
 
     return {
@@ -195,7 +203,7 @@ export class AuthService {
 
   /** 刷新 Token：refresh token 轮转 + 盗用检测 */
   async refresh(rawRefreshToken: string) {
-    const tokenHash = crypto.createHash('sha256').update(rawRefreshToken).digest('hex');
+    const tokenHash = this.hashToken(rawRefreshToken);
     const record = await this.prisma.refreshToken.findFirst({
       where: { tokenHash },
       include: {
@@ -224,21 +232,24 @@ export class AuthService {
       throw new UnauthorizedException('账号已注销');
     }
 
-    // 轮转：撤销旧 token，签发新 token
+    // 轮转：撤销旧 token，签发新 token（沿用原 platform）
     await this.prisma.refreshToken.update({
       where: { id: record.id },
       data: { revokedAt: new Date() },
     });
 
     const newRawToken = crypto.randomUUID();
-    const newHash = crypto.createHash('sha256').update(newRawToken).digest('hex');
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const newHash = this.hashToken(newRawToken);
+    const platform = (record.platform as string) || 'web';
+    const ttl = platform === 'mobile' ? this.REFRESH_MOBILE_TTL : this.REFRESH_WEB_TTL;
+    const expiresAt = new Date(Date.now() + ttl);
 
     await this.prisma.refreshToken.create({
       data: {
         userId: record.userId,
         tokenHash: newHash,
         family: record.family,
+        platform,
         deviceInfo: record.deviceInfo,
         expiresAt,
       },
@@ -444,11 +455,45 @@ export class AuthService {
 
   /** 登出：撤销指定设备的 refresh token */
   async logout(userId: string, rawRefreshToken: string) {
-    const tokenHash = crypto.createHash('sha256').update(rawRefreshToken).digest('hex');
+    const tokenHash = this.hashToken(rawRefreshToken);
     await this.prisma.refreshToken.updateMany({
       where: { userId, tokenHash, revokedAt: null },
       data: { revokedAt: new Date() },
     });
     return { message: '已登出' };
+  }
+
+  /** 列出当前用户的所有活跃会话 */
+  async listSessions(userId: string, currentRefreshToken: string) {
+    const currentHash = this.hashToken(currentRefreshToken);
+    const sessions = await this.prisma.refreshToken.findMany({
+      where: { userId, revokedAt: null },
+      select: {
+        id: true, platform: true, deviceInfo: true,
+        createdAt: true, expiresAt: true, tokenHash: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return sessions.map(s => ({
+      id: s.id,
+      platform: s.platform || 'web',
+      deviceInfo: s.deviceInfo,
+      isCurrent: s.tokenHash === currentHash,
+      createdAt: s.createdAt,
+      expiresAt: s.expiresAt,
+    }));
+  }
+
+  /** 撤销指定会话（远程登出某设备） */
+  async revokeSession(userId: string, sessionId: string) {
+    const result = await this.prisma.refreshToken.updateMany({
+      where: { id: sessionId, userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    if (result.count === 0) {
+      throw new BadRequestException('会话不存在或已失效');
+    }
+    return { message: '已撤销' };
   }
 }
