@@ -1,11 +1,17 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsString, MinLength, MaxLength, Matches } from 'class-validator';
 
-/** 注册请求 DTO：邮箱、用户名、密码 */
-export class RegisterDto {
-  @ApiProperty({ example: 'user@example.com', description: '邮箱地址' })
+/** 注册第二步：验证邮箱 + 设置用户名密码，一步完成注册 */
+export class VerifyAndCompleteDto {
+  @ApiProperty({ description: '注册邮箱' })
   @IsEmail()
   email: string;
+
+  @ApiProperty({ description: '6 位验证码' })
+  @IsString()
+  @MinLength(6)
+  @MaxLength(6)
+  code: string;
 
   @ApiProperty({ example: 'zhangsan', minLength: 2, maxLength: 24, description: '用户名（字母、数字、下划线、中文）' })
   @IsString()

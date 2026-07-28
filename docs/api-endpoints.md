@@ -6,7 +6,8 @@
 
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
-| POST | `/auth/register` | 无 | 注册新用户，返回双 Token + 用户信息 |
+| POST | `/auth/register/request-code` | 无 | 注册第一步：请求邮箱验证码（限流 1/min） |
+| POST | `/auth/register/verify-and-complete` | 无 | 注册第二步：验证码+用户名+密码，完成注册 |
 | POST | `/auth/login` | 无 | 邮箱+密码登录，返回双 Token + 用户信息 |
 | POST | `/auth/refresh` | 无 | 用 refreshToken 换取新双 Token |
 | POST | `/auth/verify-email` | 无 | 邮箱验证码校验（限流 5/min） |

@@ -10,8 +10,8 @@ import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
-import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { VerifyAndCompleteDto } from './dto/verify-and-complete.dto';
 
 @Injectable()
 /** 认证服务：负责注册、登录、Token 刷新 */
@@ -25,49 +25,100 @@ export class AuthService {
     private emailService: EmailService,
   ) {}
 
-  /** 注册新用户：检查邮箱和用户名唯一性，Argon2 哈希密码，签发双 Token */
-  async register(dto: RegisterDto) {
+  private readonly CODE_TTL = 15 * 60 * 1000;   // 验证码有效期 15 分钟
+  private readonly DRAFT_TTL = 60 * 60 * 1000;  // 注册草稿存活 1 小时
+
+  /** 注册第一步：请求邮箱验证码 */
+  async requestCode(email: string) {
     // 检查邮箱是否已被注册
-    const existingEmail = await this.prisma.user.findUnique({ where: { email: dto.email } });
-    if (existingEmail) {
+    const existingUser = await this.prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
       throw new ConflictException('该邮箱已被注册');
     }
 
-    // 检查用户名是否已被占用
+    const now = new Date();
+    const draft = await this.prisma.registrationDraft.findUnique({ where: { email } });
+
+    // 区间 3：无草稿 或 草稿超过 1 小时 → 新建
+    if (!draft || draft.createdAt.getTime() + this.DRAFT_TTL <= now.getTime()) {
+      if (draft) {
+        await this.prisma.registrationDraft.delete({ where: { id: draft.id } });
+      }
+      const code = this.generateCode();
+      await this.prisma.registrationDraft.create({
+        data: { email, verificationCode: code, codeExpiresAt: new Date(now.getTime() + this.CODE_TTL) },
+      });
+      this.emailService.sendVerification(email, code).catch(err => {
+        this.logger.error(`注册验证邮件发送失败: ${email}`, err);
+      });
+      return { sent: true, codeExpiresIn: this.CODE_TTL / 1000 };
+    }
+
+    const remaining = Math.floor((draft.codeExpiresAt.getTime() - now.getTime()) / 1000);
+
+    // 区间 1：验证码未过期（< 15 分钟）→ 不重发
+    if (remaining > 0) {
+      return { sent: false, codeExpiresIn: remaining, message: '验证码已发送，请查收邮箱' };
+    }
+
+    // 区间 2：验证码已过期但草稿 < 1 小时 → 更新验证码并重发
+    const code = this.generateCode();
+    await this.prisma.registrationDraft.update({
+      where: { id: draft.id },
+      data: { verificationCode: code, codeExpiresAt: new Date(now.getTime() + this.CODE_TTL) },
+    });
+    this.emailService.sendVerification(email, code).catch(err => {
+      this.logger.error(`注册验证邮件发送失败: ${email}`, err);
+    });
+    return { sent: true, codeExpiresIn: this.CODE_TTL / 1000 };
+  }
+
+  /** 注册第二步：验证邮箱验证码 + 设置用户名密码，一步完成注册 */
+  async verifyAndComplete(dto: VerifyAndCompleteDto) {
+    const draft = await this.prisma.registrationDraft.findUnique({ where: { email: dto.email } });
+    if (!draft) {
+      throw new BadRequestException('请先获取邮箱验证码');
+    }
+
+    // 校验验证码
+    if (draft.verificationCode !== dto.code) {
+      throw new UnauthorizedException('验证码错误');
+    }
+    if (draft.codeExpiresAt <= new Date()) {
+      throw new UnauthorizedException('验证码已过期，请重新获取');
+    }
+
+    // 草稿过期保护
+    if (draft.createdAt.getTime() + this.DRAFT_TTL <= Date.now()) {
+      await this.prisma.registrationDraft.delete({ where: { id: draft.id } });
+      throw new BadRequestException('注册会话已过期，请重新获取验证码');
+    }
+
+    // 检查用户名唯一性
     const existingUsername = await this.prisma.user.findUnique({ where: { username: dto.username } });
     if (existingUsername) {
       throw new ConflictException('该用户名已被占用');
     }
 
-    // 使用 Argon2 哈希密码，配置参数从环境变量读取
+    // 创建用户（邮箱已验证）
     const password = await argon2.hash(dto.password, {
       timeCost: this.configService.get<number>('argon2.timeCost')!,
       memoryCost: this.configService.get<number>('argon2.memoryCost')!,
     });
-
-    // 创建用户记录，默认使用用户名作为昵称
     const user = await this.prisma.user.create({
-      data: { email: dto.email, username: dto.username, password, nickname: dto.username },
+      data: { email: dto.email, username: dto.username, password, nickname: dto.username, emailVerified: true },
       select: { id: true, email: true, username: true, nickname: true, avatar: true, role: true, emailVerified: true },
     });
 
+    // 清理注册草稿
+    await this.prisma.registrationDraft.delete({ where: { id: draft.id } });
+
     const tokens = await this.generateTokens(user.id, 0);
-
-    // 生成 6 位数字验证码
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    await this.prisma.emailVerification.create({
-      data: {
-        userId: user.id,
-        token: code,
-        type: 'EMAIL_VERIFY',
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      },
-    });
-    this.emailService.sendVerification(user.email, code).catch(err => {
-      this.logger.error(`注册验证邮件发送失败: ${user.email}`, err);
-    });
-
     return { ...tokens, user };
+  }
+
+  private generateCode(): string {
+    return String(Math.floor(100000 + Math.random() * 900000));
   }
 
   /** 登录：验证邮箱和密码，签发双 Token */

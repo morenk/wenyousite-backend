@@ -20,6 +20,15 @@ export class CleanupTask {
       this.logger.log(`清理过期验证 token: ${deletedTokens.count} 条`);
     }
 
+    // 清理过期注册草稿（超过 1 小时）
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const deletedDrafts = await this.prisma.registrationDraft.deleteMany({
+      where: { createdAt: { lt: oneHourAgo } },
+    });
+    if (deletedDrafts.count > 0) {
+      this.logger.log(`清理过期注册草稿: ${deletedDrafts.count} 条`);
+    }
+
     // 清理 7 天未验证的用户（刚注册就被遗弃的）
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const deletedUsers = await this.prisma.user.deleteMany({

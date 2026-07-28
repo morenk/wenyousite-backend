@@ -3,7 +3,8 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { FastifyRequest } from 'fastify';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
-import { RegisterDto } from './dto/register.dto';
+import { RequestCodeDto } from './dto/request-code.dto';
+import { VerifyAndCompleteDto } from './dto/verify-and-complete.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
@@ -22,13 +23,22 @@ import { Public } from '../common/decorators/public.decorator';
 export class AuthController {
   constructor(private authService: AuthService) {}
 
-  @Post('register')
+  @Post('register/request-code')
   @Public()
-  @ApiOperation({ summary: '注册新账号' })
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 60000, limit: 1 } })
+  @ApiOperation({ summary: '注册第一步：请求邮箱验证码' })
+  async requestCode(@Body() dto: RequestCodeDto) {
+    return this.authService.requestCode(dto.email);
+  }
+
+  @Post('register/verify-and-complete')
+  @Public()
+  @ApiOperation({ summary: '注册第二步：验证邮箱 + 设置用户名密码，一步完成注册' })
   @ApiResponse({ status: 201, type: AuthResponseDto, description: '注册成功返回双 Token 和用户信息' })
-  @ApiResponse({ status: 409, description: '邮箱或用户名已被占用' })
-  async register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  @ApiResponse({ status: 409, description: '用户名已被占用' })
+  async verifyAndComplete(@Body() dto: VerifyAndCompleteDto) {
+    return this.authService.verifyAndComplete(dto);
   }
 
   @Post('login')
