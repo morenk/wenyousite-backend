@@ -150,20 +150,26 @@ model UserBlock {
 }
 
 model Thread {
-  id        String         @id @default(cuid())
-  title     String
-  category  ThreadCategory @default(DEDUCTION)
-  status    ThreadStatus   @default(RECRUITING)
+  id         String  @id @default(cuid())
+  title      String?
+  ownerId    String  @map("owner_id")
+  owner      User    @relation("ThreadOwner", fields: [ownerId], references: [id])
+
+  category   ThreadCategory   @default(DEDUCTION)
+  status     ThreadStatus     @default(RECRUITING)
   visibility ThreadVisibility @default(PUBLIC) @map("visibility")
-  pinned    Boolean        @default(false)
-  pinnedAt  DateTime?
-  viewCount  Int     @default(0) @map("view_count")
-  version   Int            @default(1) @map("lock_version")
-  ownerId   String         @map("owner_id")
-  owner     User     @relation("ThreadOwner", fields: [ownerId], references: [id])
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  deletedAt    DateTime? @map("deleted_at")
+  published  Boolean          @default(false) @map("published")
+  publishedAt DateTime?       @map("published_at")
+
+  pinned     Boolean   @default(false)
+  pinnedAt   DateTime?
+
+  viewCount  Int  @default(0)  @map("view_count")
+  version    Int  @default(1)  @map("lock_version")
+
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  deletedAt  DateTime? @map("deleted_at")
 
   members       ThreadMember[]
   subthreads    Subthread[]

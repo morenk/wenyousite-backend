@@ -157,18 +157,20 @@
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | String | PK | — |
-| title | String | — | 标题 |
+| title | String? | — | 标题（草稿可空，发布时必填） |
+| ownerId | String | FK users | 楼主 |
 | category | ThreadCategory | default DEDUCTION | 分区 |
 | status | ThreadStatus | default RECRUITING | 生命周期状态 |
 | visibility | ThreadVisibility | default PUBLIC | 可见性 |
+| published | Boolean | default false | 是否已发布（发布前为草稿态，不出现在列表/搜索） |
+| publishedAt | DateTime? | — | 发布时刻（发布时写入） |
 | pinned | Boolean | default false | 是否置顶 |
 | pinnedAt | DateTime? | — | 置顶时间 |
 | viewCount | Int | default 0 | 浏览量 |
 | version | Int | default 1 | 乐观锁版本号 |
-| ownerId | String | FK users | 楼主 |
-| deletedAt | DateTime? | — | 软删除时间 |
 | createdAt | DateTime | — | — |
 | updatedAt | DateTime | @updatedAt | — |
+| deletedAt | DateTime? | — | 软删除时间 |
 
 ### thread_invites — 私密帖邀请链接
 
@@ -187,7 +189,7 @@
 | threadId | String | FK threads (Cascade) | — |
 | userId | String | FK users (Cascade) | — |
 | role | MemberRole | default PARTICIPANT | 帖内角色 |
-| playerMarked | Boolean | default false | 是否被标记为玩家 |
+| playerMarked | Boolean | default false | 是否为玩家（决定能否在 postingPolicy=PLAYERS 的子贴中发帖） |
 | joinedAt | DateTime | — | 加入时间 |
 
 `@@unique([threadId, userId])`

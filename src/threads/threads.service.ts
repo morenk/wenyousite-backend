@@ -9,7 +9,7 @@ import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound, forbidden } from '../common/exceptions/business.exception';
 import { paginate } from '../common/dto/paginated-result';
 
-/** 主题帖服务：CRUD、事务创建、分区列表与排序 */
+/** 主题帖服务：草稿创建、沙盒迭代、发布、CRUD */
 @Injectable()
 export class ThreadsService {
   constructor(
@@ -18,88 +18,71 @@ export class ThreadsService {
     private notificationProducer: NotificationProducer,
   ) {}
 
-  /** 创建主题帖：事务内创建 Thread + 第一个 Subthread + 第一楼 Post + OWNER 成员 */
+  /** 创建主题帖草稿：仅创建 Thread(published=false) + OWNER 成员 */
   async create(dto: CreateThreadDto, userId: string) {
-    const result = await this.prisma.$transaction(async (tx) => {
-      const thread = await tx.thread.create({
-        data: {
-          title: dto.title,
-          category: dto.category,
-          ownerId: userId,
-          visibility: dto.visibility ?? 'PUBLIC',
-        } as any,
-      });
-
-      const subthread = await tx.subthread.create({
-        data: {
-          threadId: thread.id,
-          title: dto.title,
-          sortOrder: 0,
-        },
-      });
-
-      await tx.post.create({
-        data: {
-          threadId: thread.id,
-          subthreadId: subthread.id,
-          authorId: userId,
-          floorNumber: 1,
-          content: dto.content,
-        },
-      });
-
-      await tx.threadMember.create({
-        data: {
-          threadId: thread.id,
-          userId: userId,
-          role: 'OWNER',
-          playerMarked: true,
-        },
-      });
-
-      if (dto.tagNames && dto.tagNames.length > 0) {
-        const tags = await this.tagsService.findOrCreate(dto.tagNames);
-        await tx.threadTopicTag.createMany({
-          data: tags.map((tag) => ({ threadId: thread.id, tagId: tag.id })),
-        });
-      }
-
-      return tx.thread.findUnique({
-        where: { id: thread.id },
-        include: {
-          owner: { select: { id: true, username: true, nickname: true, avatar: true } },
-          subthreads: {
-            orderBy: { sortOrder: 'asc' },
-            include: {
-              _count: { select: { posts: true } },
-              tags: { include: { tag: true } },
-            },
-          },
-          topicTags: { include: { tag: true } },
-          _count: { select: { members: true, posts: true } },
-        },
-      });
+    const thread = await this.prisma.thread.create({
+      data: {
+        title: dto.title,
+        category: dto.category ?? 'DEDUCTION',
+        ownerId: userId,
+        visibility: dto.visibility ?? 'PUBLIC',
+        published: false,
+      } as any,
     });
 
-    // 通知粉丝：创建者所有粉丝收到新主题帖通知
-    const followers = await this.prisma.userFollow.findMany({
-      where: { followingId: userId },
-      select: { followerId: true },
+    await this.prisma.threadMember.create({
+      data: {
+        threadId: thread.id,
+        userId: userId,
+        role: 'OWNER',
+        playerMarked: true,
+      },
     });
-    const followerIds = followers.map(f => f.followerId);
-    if (followerIds.length > 0) {
-      this.notificationProducer.notify(
-        'thread_created',
-        followerIds,
-        `你关注的用户创建了新主题帖`,
-        { postId: result!.id, threadId: result!.id, fromUserId: userId },
-      ).catch(() => {});
+
+    if (dto.tagNames && dto.tagNames.length > 0) {
+      const tags = await this.tagsService.findOrCreate(dto.tagNames);
+      await this.prisma.threadTopicTag.createMany({
+        data: tags.map((tag) => ({ threadId: thread.id, tagId: tag.id })),
+      });
     }
 
-    return result;
+    return this.prisma.thread.findUnique({
+      where: { id: thread.id },
+      include: {
+        owner: { select: { id: true, username: true, nickname: true, avatar: true } },
+        subthreads: {
+          where: { deletedAt: null },
+          orderBy: { sortOrder: 'asc' },
+          include: {
+            _count: { select: { posts: true } },
+            tags: { include: { tag: true } },
+          },
+        },
+        topicTags: { include: { tag: true } },
+        _count: { select: { members: true, posts: true } },
+      },
+    });
   }
 
-  /** 详情：主题帖 + 子贴列表。私密帖非成员返回 404 */
+  /** 我的草稿列表（未发布帖） */
+  async findDrafts(userId: string) {
+    return this.prisma.thread.findMany({
+      where: { ownerId: userId, published: false, deletedAt: null },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        subthreads: {
+          where: { deletedAt: null },
+          orderBy: { sortOrder: 'asc' },
+          take: 1,
+          select: { id: true, title: true },
+        },
+        topicTags: { include: { tag: true } },
+        _count: { select: { subthreads: true, posts: true } },
+      },
+    });
+  }
+
+  /** 详情：主题帖 + 子贴列表。未发布帖仅 owner 可查看 */
   async findById(id: string, userId?: string) {
     const thread = await this.prisma.thread.findUnique({
       where: { id, deletedAt: null },
@@ -119,8 +102,15 @@ export class ThreadsService {
     });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
 
+    // 未发布帖：仅 owner 可访问
+    if (!thread.published) {
+      if (!userId || thread.ownerId !== userId) {
+        throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
+      }
+    }
+
     // 私密帖权限：仅成员可访问
-    if (thread.visibility === 'PRIVATE') {
+    if (thread.visibility === 'PRIVATE' && thread.published) {
       if (!userId) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
       const member = await this.prisma.threadMember.findUnique({
         where: { threadId_userId: { threadId: id, userId } },
@@ -128,21 +118,23 @@ export class ThreadsService {
       if (!member) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
     }
 
-    this.prisma.thread.update({
-      where: { id },
-      data: { viewCount: { increment: 1 } },
-    }).catch(() => {});
+    // 浏览量 +1（仅已发布帖）
+    if (thread.published) {
+      this.prisma.thread.update({
+        where: { id },
+        data: { viewCount: { increment: 1 } },
+      }).catch(() => {});
+    }
 
     return thread;
   }
 
-  /** 分区列表：支持推荐/最新/活跃排序 + 标签筛选 + Cursor 分页 */
+  /** 分区列表：仅返回已发布帖 */
   async findAll(query: ThreadQueryDto, userId?: string) {
-    const where: any = { deletedAt: null };
+    const where: any = { deletedAt: null, published: true };
 
     if (query.filter === 'playing') {
       if (!userId) return paginate([], { cursor: null, hasMore: false });
-      // 我参与的帖：playerMarked=true 的所有帖（不限 visibility）
       where.members = {
         some: { userId, playerMarked: true },
       };
@@ -191,26 +183,112 @@ export class ThreadsService {
     });
   }
 
-  /** 修改主题帖（仅 OWNER/COLLABORATOR） */
+  /** 修改主题帖（仅 OWNER/COLLABORATOR）。published=true 触发发布 */
   async update(id: string, dto: UpdateThreadDto & { version?: number }, userId: string) {
-    await this.assertCanManage(id, userId);
-    const { version, ...data } = dto;
-    return this.prisma.thread.update({
+    const member = await this.assertCanManage(id, userId);
+    const { version, published, ...data } = dto;
+
+    // 发布校验
+    if (published === true) {
+      const thread = await this.prisma.thread.findUnique({
+        where: { id },
+        select: { published: true, title: true, category: true },
+      });
+      if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
+      if (thread.published) throw new BusinessException(ErrorCode.BAD_REQUEST, '主题帖已发布');
+
+      const effectiveTitle = (data as any).title ?? thread.title;
+      const effectiveCategory = (data as any).category ?? thread.category;
+      await this.validatePublishReadiness(id, effectiveTitle, effectiveCategory);
+    }
+
+    const updateData: any = { ...data, version: { increment: 1 } };
+    if (published !== undefined) {
+      updateData.published = published;
+      updateData.publishedAt = new Date();
+    }
+
+    const updated = await this.prisma.thread.update({
       where: { id, version },
-      data: { ...data, version: { increment: 1 } } as any,
-    }).catch(() => { throw new BusinessException(ErrorCode.OPTIMISTIC_LOCK_CONFLICT, '主题帖已被修改，请刷新后重试', HttpStatus.CONFLICT); });
+      data: updateData,
+      include: {
+        owner: { select: { id: true, username: true, nickname: true, avatar: true } },
+        subthreads: {
+          orderBy: { sortOrder: 'asc' },
+          include: {
+            _count: { select: { posts: true } },
+            tags: { include: { tag: true } },
+          },
+        },
+        topicTags: { include: { tag: true } },
+        _count: { select: { members: true, posts: true } },
+      },
+    }).catch(() => {
+      throw new BusinessException(ErrorCode.OPTIMISTIC_LOCK_CONFLICT, '主题帖已被修改，请刷新后重试', HttpStatus.CONFLICT);
+    });
+
+    // 发布后通知粉丝
+    if (published === true) {
+      const followers = await this.prisma.userFollow.findMany({
+        where: { followingId: userId },
+        select: { followerId: true },
+      });
+      const followerIds = followers.map(f => f.followerId);
+      if (followerIds.length > 0) {
+        this.notificationProducer.notify(
+          'thread_created',
+          followerIds,
+          `${updated.owner.username}创建了新主题帖`,
+          { threadId: updated.id, fromUserId: userId },
+        ).catch(() => {});
+      }
+    }
+
+    return updated;
   }
 
-  /** 软删除（仅 OWNER） */
+  /** 删除：未发布帖硬删除（级联），已发布帖软删除 */
   async remove(id: string, userId: string) {
     const thread = await this.prisma.thread.findUnique({ where: { id } });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
     if (thread.ownerId !== userId) throw forbidden('仅楼主可删除主题帖', ErrorCode.NOT_THREAD_OWNER);
 
+    if (!thread.published) {
+      return this.prisma.thread.delete({ where: { id } });
+    }
+
     return this.prisma.thread.update({
       where: { id },
       data: { deletedAt: new Date() },
     });
+  }
+
+  /** 校验发布前完整性 */
+  async validatePublishReadiness(threadId: string, title: string, category: string) {
+    if (!title || title.trim().length === 0) {
+      throw new BusinessException(ErrorCode.BAD_REQUEST, '请填写主题帖标题后再发布');
+    }
+    if (!category) {
+      throw new BusinessException(ErrorCode.BAD_REQUEST, '请选择分区后再发布');
+    }
+
+    const subthread = await this.prisma.subthread.findFirst({
+      where: { threadId, deletedAt: null },
+      include: {
+        posts: {
+          where: { deletedAt: null },
+          take: 1,
+        },
+      },
+      orderBy: { sortOrder: 'asc' },
+    });
+
+    if (!subthread) {
+      throw new BusinessException(ErrorCode.BAD_REQUEST, '请至少创建一个子贴后再发布');
+    }
+    if (subthread.posts.length === 0) {
+      throw new BusinessException(ErrorCode.BAD_REQUEST, '请在子贴中至少撰写一个楼层后再发布');
+    }
   }
 
   /** 检查当前用户是否有管理权限（OWNER 或 COLLABORATOR） */
@@ -224,11 +302,12 @@ export class ThreadsService {
     return member;
   }
 
-  /** 生成或刷新私密帖邀请链接（仅 OWNER，且帖子为 PRIVATE） */
+  /** 生成或刷新私密帖邀请链接（仅 OWNER，已发布 + 私密帖） */
   async createInviteLink(threadId: string, userId: string) {
     const thread = await this.prisma.thread.findUnique({ where: { id: threadId } });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
     if (thread.ownerId !== userId) throw forbidden('仅楼主可管理邀请链接', ErrorCode.NOT_THREAD_OWNER);
+    if (!thread.published) throw forbidden('请先发布主题帖');
     if (thread.visibility !== 'PRIVATE') throw forbidden('仅私密帖可生成邀请链接');
 
     return this.prisma.threadInvite.upsert({
@@ -238,13 +317,14 @@ export class ThreadsService {
     });
   }
 
-  /** 通过邀请链接加入私密帖 */
+  /** 通过邀请链接加入私密帖（需已发布） */
   async joinByInviteLink(token: string, userId: string) {
     const invite = await this.prisma.threadInvite.findUnique({
       where: { token },
-      include: { thread: { select: { id: true, visibility: true } } },
+      include: { thread: { select: { id: true, visibility: true, published: true } } },
     });
     if (!invite) throw notFound(ErrorCode.INVITE_INVALID, '邀请链接无效或已失效');
+    if (!invite.thread.published) throw forbidden('该主题帖尚未发布');
     if (invite.thread.visibility !== 'PRIVATE') throw forbidden('该主题帖为公开帖，可直接加入');
 
     const existing = await this.prisma.threadMember.findUnique({
