@@ -192,7 +192,7 @@ export class PostsService {
   }
 
   /** 编辑帖子 */
-  async update(id: string, dto: UpdatePostDto & { version?: number }, userId: string) {
+  async update(id: string, dto: UpdatePostDto, userId: string) {
     const postLight = await this.prisma.post.findUnique({
       where: { id, ...notDeleted },
       select: { id: true, authorId: true, subthread: { select: { deletedAt: true } } },

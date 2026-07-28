@@ -103,13 +103,13 @@ describe('PostsService', () => {
   it('update 编辑自己的帖子应该成功', async () => {
     mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', subthread: { deletedAt: null } });
     mockPrisma.post.update.mockResolvedValue({ id: 'p1', content: '编辑后' });
-    const result = await service.update('p1', { content: '编辑后' }, 'u1');
+    const result = await service.update('p1', { version: 1, content: '编辑后' }, 'u1');
     expect(result.content).toBe('编辑后');
   });
 
   it('update 编辑他人的帖子应该返回403', async () => {
     mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'other', subthread: { deletedAt: null } });
-    await expect(service.update('p1', { content: 'x' }, 'u1')).rejects.toThrow(BusinessException);
+    await expect(service.update('p1', { version: 1, content: 'x' }, 'u1')).rejects.toThrow(BusinessException);
   });
 
   it('remove 软删除非第一楼应该成功', async () => {

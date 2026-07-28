@@ -1,5 +1,5 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsIn, MaxLength, IsNumber } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsString, IsIn, MaxLength, IsInt, Min } from 'class-validator';
 
 /** 更新子贴 DTO */
 export class UpdateSubthreadDto {
@@ -11,7 +11,7 @@ export class UpdateSubthreadDto {
 
   @ApiPropertyOptional({ description: '排序序号' })
   @IsOptional()
-  @IsNumber()
+  @IsInt()
   sortOrder?: number;
 
   @ApiPropertyOptional({ enum: ['PARTICIPANTS', 'COLLABORATORS', 'PLAYERS'] })
@@ -20,8 +20,8 @@ export class UpdateSubthreadDto {
   @IsIn(['PARTICIPANTS', 'COLLABORATORS', 'PLAYERS'])
   postingPolicy?: string;
 
-  @ApiPropertyOptional({ description: '乐观锁版本号' })
-  @IsOptional()
-  @IsNumber()
-  version?: number;
+  @ApiProperty({ description: '乐观锁版本号（必填，前端需先 fetch 获取当前 version）' })
+  @IsInt()
+  @Min(1)
+  version: number;
 }

@@ -198,7 +198,7 @@ export class SubthreadsService {
   }
 
   /** 修改子贴（仅 OWNER/COLLABORATOR）。默认子贴不可修改 sortOrder */
-  async update(id: string, dto: UpdateSubthreadDto & { version?: number }, userId: string) {
+  async update(id: string, dto: { title?: string; sortOrder?: number; postingPolicy?: string; version: number }, userId: string) {
     const subthread = await this.prisma.subthread.findUnique({ where: { id, ...notDeleted } });
     if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
     await this.threadAccess.assertCanManage(subthread.threadId, userId);

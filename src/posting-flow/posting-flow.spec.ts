@@ -152,14 +152,14 @@ describe('发帖全流程集成测试', () => {
       expect(mockNotificationProducer.notify).not.toHaveBeenCalled();
     });
 
-    it('创建草稿：无标题时 title 为 undefined', async () => {
+    it('创建草稿：无标题时 title 默认为未命名草稿', async () => {
       prisma.thread.create.mockResolvedValue({ id: 't1', title: null, category: 'DEDUCTION', visibility: 'PUBLIC', published: false });
       prisma.threadMember.create.mockResolvedValue({ id: 'm1' });
       prisma.thread.findUnique.mockResolvedValue({ id: 't1', owner: {}, subthreads: [], topicTags: [], _count: {} });
 
       await threadsService.create({}, 'u1');
       expect(prisma.thread.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ title: undefined }) }),
+        expect.objectContaining({ data: expect.objectContaining({ title: '未命名草稿' }) }),
       );
     });
 
@@ -266,7 +266,7 @@ describe('发帖全流程集成测试', () => {
       });
       prisma.userFollow.findMany.mockResolvedValue([{ followerId: 'f1' }, { followerId: 'f2' }]);
 
-      const result = await threadsService.update('t1', { published: true }, 'u1');
+      const result = await threadsService.update('t1', { version: 1, published: true }, 'u1');
       expect(result.published).toBe(true);
       expect(mockNotificationProducer.notify).toHaveBeenCalledWith(
         'thread_created', ['f1', 'f2'], expect.any(String), expect.objectContaining({ threadId: 't1', fromUserId: 'u1' }),
@@ -276,33 +276,33 @@ describe('发帖全流程集成测试', () => {
     it('发布失败：无标题', async () => {
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
       prisma.thread.findUnique.mockResolvedValue({ published: false, title: '', category: 'DEDUCTION' });
-      await expect(threadsService.update('t1', { published: true }, 'u1')).rejects.toThrow(BusinessException);
+      await expect(threadsService.update('t1', { version: 1, published: true }, 'u1')).rejects.toThrow(BusinessException);
     });
 
     it('发布失败：无分区', async () => {
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
       prisma.thread.findUnique.mockResolvedValue({ published: false, title: '测试', category: undefined });
-      await expect(threadsService.update('t1', { published: true }, 'u1')).rejects.toThrow(BusinessException);
+      await expect(threadsService.update('t1', { version: 1, published: true }, 'u1')).rejects.toThrow(BusinessException);
     });
 
     it('发布失败：无子贴', async () => {
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
       prisma.thread.findUnique.mockResolvedValue({ published: false, title: '测试', category: 'RPG' });
       prisma.subthread.findFirst.mockResolvedValue(null);
-      await expect(threadsService.update('t1', { published: true }, 'u1')).rejects.toThrow(BusinessException);
+      await expect(threadsService.update('t1', { version: 1, published: true }, 'u1')).rejects.toThrow(BusinessException);
     });
 
     it('发布失败：子贴中无楼层', async () => {
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
       prisma.thread.findUnique.mockResolvedValue({ published: false, title: '测试', category: 'RPG' });
       prisma.subthread.findFirst.mockResolvedValue({ posts: [] });
-      await expect(threadsService.update('t1', { published: true }, 'u1')).rejects.toThrow(BusinessException);
+      await expect(threadsService.update('t1', { version: 1, published: true }, 'u1')).rejects.toThrow(BusinessException);
     });
 
     it('已发布帖不能再次发布', async () => {
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
       prisma.thread.findUnique.mockResolvedValue({ published: true, title: '测试', category: 'RPG' });
-      await expect(threadsService.update('t1', { published: true }, 'u1')).rejects.toThrow(BusinessException);
+      await expect(threadsService.update('t1', { version: 1, published: true }, 'u1')).rejects.toThrow(BusinessException);
     });
 
     it('发布时 title 取自 updateData 而非 thread.title', async () => {
@@ -316,7 +316,7 @@ describe('发帖全流程集成测试', () => {
       });
       prisma.userFollow.findMany.mockResolvedValue([]);
 
-      const result = await threadsService.update('t1', { published: true, title: '新标题' }, 'u1');
+      const result = await threadsService.update('t1', { version: 1, published: true, title: '新标题' }, 'u1');
       expect(result.title).toBe('新标题');
     });
   });
@@ -467,7 +467,7 @@ describe('发帖全流程集成测试', () => {
       prisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1' });
       setupHelpers.mockThreadMember_ownerOrCollab(prisma);
       prisma.subthread.findFirst.mockResolvedValue({ id: 's1' });
-      await expect(subthreadsService.update('s1', { sortOrder: 5 }, 'u1')).rejects.toThrow(BusinessException);
+      await expect(subthreadsService.update('s1', { version: 1, sortOrder: 5 }, 'u1')).rejects.toThrow(BusinessException);
     });
 
     it('删除：已软删子贴返回 404', async () => {
@@ -726,24 +726,24 @@ describe('发帖全流程集成测试', () => {
     it('编辑自己的帖子 → 成功', async () => {
       prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', subthread: { deletedAt: null } });
       prisma.post.update.mockResolvedValue({ id: 'p1', content: '编辑后' });
-      const result = await postsService.update('p1', { content: '编辑后' }, 'u1');
+      const result = await postsService.update('p1', { version: 1, content: '编辑后' }, 'u1');
       expect(result.content).toBe('编辑后');
     });
 
     it('编辑他人的帖子 → 403', async () => {
       prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', subthread: { deletedAt: null } });
-      await expect(postsService.update('p1', { content: 'x' }, 'u2')).rejects.toThrow(BusinessException);
+      await expect(postsService.update('p1', { version: 1, content: 'x' }, 'u2')).rejects.toThrow(BusinessException);
     });
 
     it('编辑已删除帖子 → 404', async () => {
       prisma.post.findUnique.mockResolvedValue(null);
-      await expect(postsService.update('p1', { content: 'x' }, 'u1')).rejects.toThrow(BusinessException);
+      await expect(postsService.update('p1', { version: 1, content: 'x' }, 'u1')).rejects.toThrow(BusinessException);
     });
 
     it('编辑：乐观锁版本号检查', async () => {
       prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', subthread: { deletedAt: null } });
       prisma.post.update.mockRejectedValue(new Error('Prisma error'));
-      await expect(postsService.update('p1', { content: 'x', version: 1 }, 'u1')).rejects.toThrow(BusinessException);
+      await expect(postsService.update('p1', {content: 'x', version: 1 }, 'u1')).rejects.toThrow(BusinessException);
     });
   });
 
@@ -1116,7 +1116,7 @@ prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', subthread: 
     it('编辑主题帖：版本冲突 → 409', async () => {
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
       prisma.thread.update.mockRejectedValue(new Error('Prisma'));
-      await expect(threadsService.update('t1', { title: '新标题', version: 1 }, 'u1')).rejects.toThrow(BusinessException);
+      await expect(threadsService.update('t1', {title: '新标题', version: 1 }, 'u1')).rejects.toThrow(BusinessException);
     });
 
     it('编辑子贴：版本冲突 → 409', async () => {
@@ -1124,13 +1124,13 @@ prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', subthread: 
       setupHelpers.mockThreadMember_ownerOrCollab(prisma);
       prisma.subthread.findFirst.mockResolvedValue({ id: 's0' });
       prisma.subthread.update.mockRejectedValue(new Error('Prisma'));
-      await expect(subthreadsService.update('s1', { title: '新标题', version: 1 }, 'u1')).rejects.toThrow(BusinessException);
+      await expect(subthreadsService.update('s1', {title: '新标题', version: 1 }, 'u1')).rejects.toThrow(BusinessException);
     });
 
     it('编辑帖子：版本冲突 → 409', async () => {
       prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', subthread: { deletedAt: null } });
       prisma.post.update.mockRejectedValue(new Error('Prisma'));
-      await expect(postsService.update('p1', { content: 'x', version: 1 }, 'u1')).rejects.toThrow(BusinessException);
+      await expect(postsService.update('p1', {content: 'x', version: 1 }, 'u1')).rejects.toThrow(BusinessException);
     });
   });
 

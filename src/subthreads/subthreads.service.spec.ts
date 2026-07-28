@@ -108,7 +108,7 @@ describe('SubthreadsService', () => {
       mockPrisma.subthread.findFirst.mockResolvedValue({ id: 's1' });
 
       await expect(
-        service.update('s1', { sortOrder: 5 }, 'u1'),
+        service.update('s1', { version: 1, sortOrder: 5 }, 'u1'),
       ).rejects.toThrow(BusinessException);
     });
   });

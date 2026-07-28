@@ -27,7 +27,7 @@ export class ThreadsService {
   async create(dto: CreateThreadDto, userId: string) {
     const thread = await this.prisma.thread.create({
       data: {
-        title: dto.title,
+        title: dto.title ?? '未命名草稿',
         category: dto.category ?? 'DEDUCTION',
         ownerId: userId,
         visibility: dto.visibility ?? 'PUBLIC',
@@ -162,7 +162,7 @@ export class ThreadsService {
   }
 
   /** 修改主题帖（仅 OWNER/COLLABORATOR）。published=true 触发发布 */
-  async update(id: string, dto: UpdateThreadDto & { version?: number }, userId: string) {
+  async update(id: string, dto: { title?: string; category?: string; status?: string; visibility?: string; published?: boolean; version: number }, userId: string) {
     await this.threadAccess.assertCanManage(id, userId);
     const { version, published, ...data } = dto;
 
@@ -240,7 +240,7 @@ export class ThreadsService {
 
   /** 校验发布前完整性 */
   async validatePublishReadiness(threadId: string, title: string, category: string) {
-    if (!title || title.trim().length === 0) {
+    if (!title || !title.trim() || title === '未命名草稿') {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '请填写主题帖标题后再发布');
     }
     if (!category) {
@@ -250,7 +250,6 @@ export class ThreadsService {
     const subthread = await this.prisma.subthread.findFirst({
       where: { threadId, ...notDeleted },
       include: { posts: { where: notDeleted, take: 1 } },
-      orderBy: { sortOrder: 'asc' },
     });
 
     if (!subthread) {

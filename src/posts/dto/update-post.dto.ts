@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsNumber, MinLength, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsInt, MinLength, MaxLength, Min } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { sanitizeContent } from '../../common/transform/sanitize.transform';
 
@@ -12,8 +12,8 @@ export class UpdatePostDto {
   @MaxLength(10000)
   content: string;
 
-  @ApiPropertyOptional({ description: '乐观锁版本号' })
-  @IsOptional()
-  @IsNumber()
-  version?: number;
+  @ApiProperty({ description: '乐观锁版本号（必填，前端需先 fetch 获取当前 version）' })
+  @IsInt()
+  @Min(1)
+  version: number;
 }

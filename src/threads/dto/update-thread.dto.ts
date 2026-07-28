@@ -1,5 +1,5 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsIn, IsNumber, IsBoolean, MinLength, MaxLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsString, IsIn, IsInt, IsBoolean, MinLength, MaxLength, Min } from 'class-validator';
 
 /** 更新主题帖 DTO：全部可选。published 设为 true 即发布草稿 */
 export class UpdateThreadDto {
@@ -33,8 +33,8 @@ export class UpdateThreadDto {
   @IsBoolean()
   published?: boolean;
 
-  @ApiPropertyOptional({ description: '乐观锁版本号' })
-  @IsOptional()
-  @IsNumber()
-  version?: number;
+  @ApiProperty({ description: '乐观锁版本号（必填，前端需先 fetch 获取当前 version）' })
+  @IsInt()
+  @Min(1)
+  version: number;
 }
