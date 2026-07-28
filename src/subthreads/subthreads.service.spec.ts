@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SubthreadsService } from './subthreads.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../common/services/thread-access.service';
@@ -26,6 +27,7 @@ const mockPrisma = {
 };
 
 const mockThreadAccess = { assertAccessible: jest.fn() };
+const mockEventEmitter = { emit: jest.fn() };
 
 describe('SubthreadsService', () => {
   let service: SubthreadsService;
@@ -36,6 +38,7 @@ describe('SubthreadsService', () => {
         SubthreadsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: ThreadAccessService, useValue: mockThreadAccess },
+        { provide: EventEmitter2, useValue: mockEventEmitter },
       ],
     }).compile();
     service = module.get<SubthreadsService>(SubthreadsService);

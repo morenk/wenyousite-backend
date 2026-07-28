@@ -59,6 +59,7 @@
 | `mention` | 被 @ 提及 |
 | `new_floor` | 有新楼层 |
 | `thread_created` | 关注的用户创建了新主题帖 |
+| `subthread_created` | 主题帖内创建了新子贴 |
 | `follow` | 有人关注了你 |
 
 ### SubscriptionType — 订阅粒度

@@ -47,6 +47,7 @@ describe('PostsService', () => {
     });
     mockPrisma.$transaction.mockImplementation(async (fn) => {
       const tx = {
+        $queryRaw: jest.fn(),
         post: {
           aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 5 } }),
           create: jest.fn().mockResolvedValue({ id: 'p1', floorNumber: 6, content: 'test', author: { username: 'test' } }),
@@ -67,12 +68,14 @@ describe('PostsService', () => {
     mockPrisma.post.findUnique.mockResolvedValue(parent);
     mockPrisma.post.create.mockResolvedValue({
       id: 'p2', floorNumber: null, parentPostId: 'p1', content: 'reply',
+      author: { username: 'test' },
     });
     mockPrisma.$transaction.mockImplementation(async (fn) => {
       const tx = {
+        $queryRaw: jest.fn(),
         post: {
           aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 5 } }),
-          create: jest.fn().mockResolvedValue({ id: 'p2', floorNumber: null, parentPostId: 'p1', content: 'reply' }),
+          create: jest.fn().mockResolvedValue({ id: 'p2', floorNumber: null, parentPostId: 'p1', content: 'reply', author: { username: 'test' } }),
         },
         subthread: { update: jest.fn() },
       };
@@ -166,7 +169,7 @@ describe('PostsService', () => {
   });
 
   it('findReplies 应该返回楼中楼及 likeCount', async () => {
-    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1' });
+    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', subthread: { deletedAt: null } });
     mockPrisma.post.findMany.mockResolvedValue([{ id: 'p2', likeCount: 1, author: {}, replyToPost: null }]);
     const result = await service.findReplies('p1');
     expect(result.items[0].likeCount).toBe(1);
@@ -174,7 +177,7 @@ describe('PostsService', () => {
 
   it('findById 应该返回帖子详情及 likeCount', async () => {
     mockPrisma.post.findUnique
-      .mockResolvedValueOnce({ id: 'p1', threadId: 't1' })
+      .mockResolvedValueOnce({ id: 'p1', threadId: 't1', subthread: { deletedAt: null } })
       .mockResolvedValueOnce({
         id: 'p1', likeCount: 5, author: {}, thread: {}, subthread: {}, parentPost: null, _count: { replies: 0 },
       });

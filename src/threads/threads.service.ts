@@ -54,7 +54,7 @@ export class ThreadsService {
           where: { deletedAt: null },
           orderBy: { sortOrder: 'asc' },
           include: {
-            _count: { select: { posts: true } },
+            _count: { select: { posts: { where: { deletedAt: null } } } },
             tags: { include: { tag: true } },
           },
         },
@@ -92,7 +92,7 @@ export class ThreadsService {
           where: { deletedAt: null },
           orderBy: { sortOrder: 'asc' },
           include: {
-            _count: { select: { posts: true } },
+            _count: { select: { posts: { where: { deletedAt: null } } } },
             tags: { include: { tag: true } },
           },
         },
@@ -216,7 +216,7 @@ export class ThreadsService {
         subthreads: {
           orderBy: { sortOrder: 'asc' },
           include: {
-            _count: { select: { posts: true } },
+            _count: { select: { posts: { where: { deletedAt: null } } } },
             tags: { include: { tag: true } },
           },
         },

@@ -8,7 +8,7 @@ import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound, forbidden } from '../common/exceptions/business.exception';
 import { paginate } from '../common/dto/paginated-result';
 
-/** 楼层服务：发帖（事务楼层编号）、楼中楼、编辑、软删除 */
+/** 楼层服务：发帖（事务楼层编号 + FOR UPDATE）、楼中楼、编辑、软删除 */
 @Injectable()
 export class PostsService {
   constructor(
@@ -17,10 +17,10 @@ export class PostsService {
     private threadAccess: ThreadAccessService,
   ) {}
 
-  /** 获取子贴的楼层列表（Cursor 分页） */
+  /** 获取子贴的楼层列表（Cursor 分页）。已软删子贴返回 404 */
   async findAllBySubthread(subthreadId: string, cursor?: string, limit = 20, userId?: string) {
     const subthread = await this.prisma.subthread.findUnique({
-      where: { id: subthreadId },
+      where: { id: subthreadId, deletedAt: null },
       select: { id: true, threadId: true },
     });
     if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
@@ -35,7 +35,7 @@ export class PostsService {
       skip: cursor ? 1 : 0,
       include: {
         author: { select: { id: true, username: true, nickname: true, avatar: true } },
-        _count: { select: { replies: true } },
+        _count: { select: { replies: { where: { deletedAt: null } } } },
       },
     });
 
@@ -48,13 +48,14 @@ export class PostsService {
     });
   }
 
-  /** 获取楼中楼回复列表（cursor 分页，用于无限下拉） */
+  /** 获取楼中楼回复列表（cursor 分页）。已软删子贴返回 404 */
   async findReplies(postId: string, cursor?: string, limit = 20, userId?: string) {
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
-      select: { id: true, threadId: true },
+      select: { id: true, threadId: true, subthread: { select: { deletedAt: true } } },
     });
     if (!post) throw notFound(ErrorCode.POST_NOT_FOUND, '楼层不存在');
+    if (post.subthread.deletedAt) throw notFound(ErrorCode.POST_NOT_FOUND, '楼层不存在');
     await this.threadAccess.assertAccessible(post.threadId, userId);
 
     const take = Math.min(limit, 50);
@@ -74,7 +75,7 @@ export class PostsService {
     return paginate(replies, { cursor: replies.length > 0 ? replies[replies.length - 1].id : null, hasMore });
   }
 
-  /** 发帖：楼层或楼中楼回复 */
+  /** 发帖：楼层或楼中楼回复。SELECT FOR UPDATE 防止 floorNumber 竞态 */
   async create(subthreadId: string, dto: CreatePostDto, userId: string) {
     const subthread = await this.prisma.subthread.findUnique({
       where: { id: subthreadId },
@@ -124,11 +125,12 @@ export class PostsService {
       }
     }
 
-    // 事务：分配楼层编号 + 创建帖子 + 更新 lastPostAt
+    // 事务：SELECT FOR UPDATE 锁子贴行 → 读 MAX → 创建帖子 → 更新 lastPostAt
     const post = await this.prisma.$transaction(async (tx) => {
       let floorNumber: number | null = null;
 
       if (!dto.parentPostId) {
+        await tx.$queryRaw`SELECT id FROM subthreads WHERE id = ${subthreadId} FOR UPDATE`;
         const maxFloor = await tx.post.aggregate({
           where: { subthreadId, parentPostId: null },
           _max: { floorNumber: true },
@@ -165,6 +167,7 @@ export class PostsService {
         postId: post.id,
         content: dto.content,
         userId,
+        authorUsername: post.author.username,
         threadId: subthread.threadId,
         subthreadId: subthread.id,
         subthreadTitle: subthread.title,
@@ -210,13 +213,14 @@ export class PostsService {
     });
   }
 
-  /** 获取单条帖子 + 导航上下文（用于通知跳转"查看原帖"） */
+  /** 获取单条帖子 + 导航上下文。已软删子贴返回 404 */
   async findById(id: string, userId?: string) {
     const postLight = await this.prisma.post.findUnique({
       where: { id, deletedAt: null },
-      select: { id: true, threadId: true },
+      select: { id: true, threadId: true, subthread: { select: { deletedAt: true } } },
     });
     if (!postLight) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
+    if (postLight.subthread.deletedAt) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
     await this.threadAccess.assertAccessible(postLight.threadId, userId);
 
     const post = await this.prisma.post.findUnique({
@@ -226,7 +230,7 @@ export class PostsService {
         thread: { select: { id: true, title: true } },
         subthread: { select: { id: true, title: true } },
         parentPost: { select: { id: true, floorNumber: true } },
-        _count: { select: { replies: true } },
+        _count: { select: { replies: { where: { deletedAt: null } } } },
       },
     });
     if (!post) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');

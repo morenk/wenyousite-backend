@@ -1,4 +1,5 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../common/services/thread-access.service';
 import { CreateSubthreadDto } from './dto/create-subthread.dto';
@@ -12,6 +13,7 @@ export class SubthreadsService {
   constructor(
     private prisma: PrismaService,
     private threadAccess: ThreadAccessService,
+    private eventEmitter: EventEmitter2,
   ) {}
 
   /** 获取主题帖下的子贴列表 */
@@ -23,7 +25,7 @@ export class SubthreadsService {
       orderBy: { sortOrder: 'asc' },
       include: {
         tags: { include: { tag: true } },
-        _count: { select: { posts: true } },
+        _count: { select: { posts: { where: { deletedAt: null } } } },
       },
     });
   }
@@ -35,7 +37,7 @@ export class SubthreadsService {
       include: {
         thread: { select: { id: true, title: true, ownerId: true, visibility: true } },
         tags: { include: { tag: true } },
-        _count: { select: { posts: true } },
+        _count: { select: { posts: { where: { deletedAt: null } } } },
       },
     });
     if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
@@ -65,7 +67,16 @@ export class SubthreadsService {
       }
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    // 检查线程是否已发布（用于决定是否发射事件）
+    const thread = await this.prisma.thread.findUnique({
+      where: { id: threadId },
+      select: { published: true, title: true },
+    });
+    if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
+
+    const hasContent = !!dto.content?.trim();
+
+    const result = await this.prisma.$transaction(async (tx) => {
       const subthread = await tx.subthread.create({
         data: {
           threadId,
@@ -75,26 +86,46 @@ export class SubthreadsService {
         },
       });
 
-      if (dto.content?.trim()) {
-        await tx.post.create({
+      let bodyPost: any = null;
+      if (hasContent) {
+        bodyPost = await tx.post.create({
           data: {
             threadId,
             subthreadId: subthread.id,
             authorId: userId,
             floorNumber: 1,
-            content: dto.content,
+            content: dto.content!,
           },
         });
       }
 
-      return tx.subthread.findUnique({
+      const full = await tx.subthread.findUnique({
         where: { id: subthread.id },
         include: {
           tags: { include: { tag: true } },
-          _count: { select: { posts: true } },
+          _count: { select: { posts: { where: { deletedAt: null } } } },
         },
       });
+
+      return { subthread: full, bodyPost };
     });
+
+    // 已发布帖创建子贴时发射事件（正文不为空时）
+    if (thread.published && result.bodyPost) {
+      this.eventEmitter.emit('post.created', {
+        postId: result.bodyPost.id,
+        content: dto.content!,
+        userId,
+        threadId,
+        subthreadId: result.subthread!.id,
+        subthreadTitle: dto.title,
+        parentPostId: null,
+        replyToPostId: null,
+        isSubthreadBody: true,
+      });
+    }
+
+    return result.subthread;
   }
 
   /** 批量重排子贴：按 ids 数组顺序分配 sortOrder（首发须为默认子贴） */
@@ -182,7 +213,7 @@ export class SubthreadsService {
       data: updateData,
       include: {
         tags: { include: { tag: true } },
-        _count: { select: { posts: true } },
+        _count: { select: { posts: { where: { deletedAt: null } } } },
       },
     }).catch(() => { throw new BusinessException(ErrorCode.OPTIMISTIC_LOCK_CONFLICT, '子贴已被修改，请刷新后重试', HttpStatus.CONFLICT); });
   }
