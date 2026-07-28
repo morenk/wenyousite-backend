@@ -106,7 +106,7 @@ export class UsersService {
       throw new ForbiddenException('无权使用此图片');
     }
     if (media.status !== 'COMPLETED') {
-      throw new BadRequestException('图片尚未处理完成');
+      throw new BadRequestException(`图片尚未处理完成（当前状态: ${media.status}），请稍后重试或查询 GET /media/${media.id}`);
     }
 
     return this.prisma.user.update({

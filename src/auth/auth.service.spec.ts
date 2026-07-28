@@ -181,7 +181,7 @@ describe('AuthService', () => {
       expect(mockPrisma.emailVerification.delete).toHaveBeenCalledWith({ where: { id: 'ev1' } });
     });
 
-    it('验证通过应该创建用户（emailVerified=false）并返回Token', async () => {
+    it('验证通过应该创建用户（emailVerified=true）并返回Token', async () => {
       const future = new Date(Date.now() + 10 * 60 * 1000);
       mockPrisma.emailVerification.findFirst.mockResolvedValue({
         id: 'ev1', email: 'a@b.com', token: '123456',
@@ -189,7 +189,7 @@ describe('AuthService', () => {
       });
       mockPrisma.user.create.mockResolvedValue({
         id: 'u1', email: 'a@b.com', username: 'test', avatar: null, role: 'USER',
-        emailVerified: false,
+        emailVerified: true,
       });
       mockJwt.signAsync.mockResolvedValue('at-token');
       mockPrisma.refreshToken.create.mockResolvedValue({ id: 'rt1' });
@@ -199,11 +199,12 @@ describe('AuthService', () => {
       expect(result.accessToken).toBe('at-token');
       expect(result.refreshToken).toBeDefined();
       expect(result.user.email).toBe('a@b.com');
-      expect(result.user.emailVerified).toBe(false);
+      expect(result.user.emailVerified).toBe(true);
+      expect(result.message).toBe('注册成功');
       expect(mockPrisma.emailVerification.delete).toHaveBeenCalledWith({ where: { id: 'ev1' } });
       expect(mockPrisma.user.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ emailVerified: false }),
+          data: expect.objectContaining({ emailVerified: true }),
         }),
       );
     });

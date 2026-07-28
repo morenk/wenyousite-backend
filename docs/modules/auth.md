@@ -67,8 +67,9 @@
       "username": "zhangsan",
       "avatar": null,
       "role": "USER",
-      "emailVerified": false
-    }
+      "emailVerified": true
+    },
+    "message": "注册成功"
   }
 }
 ```
@@ -114,19 +115,19 @@
 ### 两步注册流程
 
 - 第一步 `request-code`：输入邮箱 → 统一转小写 → 检查是否已注册（409）→ 生成 6 位验证码 → 存入 `EmailVerification` 表（type=REGISTRATION, userId=null）→ 发送邮件
-- 第二步 `verify-and-complete`：输入验证码 + 用户名 + 密码 → 查 `EmailVerification`（type=REGISTRATION, email=email）→ 校验验证码 → 创建用户（emailVerified=false）→ 删验证记录 → 创建 RefreshToken → 签发双 Token
+- 第二步 `verify-and-complete`：输入验证码 + 用户名 + 密码 → 查 `EmailVerification`（type=REGISTRATION, email=email）→ 校验验证码 → 创建用户（emailVerified=true）→ 删验证记录 → 创建 RefreshToken → 签发双 Token
 - 验证码未过期时不重发邮件，前端直接提示输入已有验证码
 - 验证码已过期时删旧记录，新建并重发
 - 所有邮箱在服务端统一转小写后存储和查询
 - `request-code` 限流 1/min，P2002 并发时复用已有记录
 - `forgotPassword` 仅匹配未注销用户（`deletedAt: null`），已注销走反枚举
 
-### 注册后验证
+### 注册后状态
 
-- 注册完成后 `emailVerified = false`，用户处于**只读态**
-- 只读态：可浏览帖子/用户资料/搜索，不可发帖/跟帖/关注/加入主题帖/修改资料/上传文件
-- 调用 `verify-email`（输入验证码）或通过 `resend-verification` 重发邮件完成验证
-- 验证成功后 `emailVerified = true`，解锁全部写权限
+- 注册完成后 `emailVerified = true`，用户立即可用全部功能
+- 注册验证码（type=REGISTRATION）已证明邮箱所有权，无需二次验证
+- `verify-email` / `resend-verification` 端点保留，用于 `EMAIL_VERIFY` 类型的验证场景（如手动重新验证邮箱）
+- 注册和验证码邮件标题区分：「温油站 — 注册验证码」和「温油站 — 邮箱验证」
 - `reset-password` 成功后自动将邮箱标记为已验证（能收重置邮件即证明邮箱所有权）
 
 ### 验证码规则
@@ -187,7 +188,7 @@
 - **Refresh Token 储值表 + 轮转**：相比 tokenVersion 方案，支持多设备独立管理，每个设备可单独登出；SHA-256 哈希存储保护原始 token 不泄露；轮转时撤销旧 token 确保一次性使用
 - **Token 盗用检测**：若已撤销的 refresh token 被重复使用，说明 token 可能被盗，吊销整个 family 所有 token，必须重新登录
 - **6 位数字验证码**：比 JWT 链接更简单，客户端可直接输入数字码；通过 `type` 字段在 EmailVerification 表中区分注册/验证/重置，防止互串
-- **两步注册 + 邮箱验证**：先验证验证码再设密码，注册时仅获得只读权限；验证邮箱后解锁完整功能。杜绝未验证用户发垃圾帖
+- **两步注册 + 邮箱验证**：第一步发验证码到邮箱，第二步输入验证码 + 设用户名密码完成注册。验证码已证明邮箱所有权，注册时直接设 `emailVerified: true`，无需二次验证。
 - **统一 EmailVerification 表**：废弃 `RegistrationDraft` 表，注册/验证/重置三类验证码共用一张表，code 和 session 概念合一，简化维护
 - **忘记密码反枚举**：无论邮箱是否注册，均返回相同成功消息，防止攻击者探测已注册用户
 - **验证码尝试限制**：`attempts` 字段记录失败次数，超过 5 次自动删除记录，需重新获取
@@ -199,8 +200,8 @@
 | 注册第一步：输入邮箱 | `POST /auth/register/request-code`，响应含 `emailSent` 标志判断是否发送成功 |
 | 收到 `emailSent: false` | 显示"邮件服务暂不可用，请稍后重试" |
 | 收到 `emailSent: true`, `message` 含"已发送" | 显示"验证码已发送，请查收邮箱"，引导输入已有验证码 |
-| 注册第二步：提交验证码+用户名+密码 | `POST /auth/register/verify-and-complete`，登录后 `emailVerified` 为 false |
-| 收到注册成功 | 进入只读态，顶部提示"请验证邮箱以解锁发帖、关注等完整功能" |
+| 注册第二步：提交验证码+用户名+密码 | `POST /auth/register/verify-and-complete`，登录后 `emailVerified` 为 true，可直接使用全部功能 |
+| 收到注册成功 | 已登录，可直接发帖、关注、加入主题帖等 |
 | 输入验证码返回 "验证码错误" | 提示用户核对数字，超过 5 次需重新获取 |
 | 输入验证码返回 "验证码已过期，请重新获取" | 引导重新调用 `request-code` 或 `resend-verification` 获取新码 |
 | 邮箱验证 | `POST /auth/resend-verification` 获取验证码 → `POST /auth/verify-email` 完成验证 |

@@ -9,7 +9,6 @@ export class EmailService {
   private readonly logger = new Logger(EmailService.name);
 
   constructor(private config: ConfigService) {
-    // 创建 SMTP 连接（阿里云企业邮箱：smtp.mxhichina.com:465 SSL）
     this.transporter = nodemailer.createTransport({
       host: this.config.get<string>('ses.host'),
       port: this.config.get<number>('ses.port'),
@@ -22,13 +21,16 @@ export class EmailService {
   }
 
   /** 发送 6 位数字邮箱验证码 */
-  async sendVerification(to: string, code: string) {
+  async sendVerification(to: string, code: string, type: 'REGISTRATION' | 'EMAIL_VERIFY' = 'REGISTRATION') {
+    const isRegistration = type === 'REGISTRATION';
     const from = this.config.get<string>('ses.from');
     await this.transporter.sendMail({
       from,
       to,
-      subject: '温油站 — 邮箱验证码',
-      html: `<h2>你的验证码：<strong style="font-size:32px;letter-spacing:8px">${code}</strong></h2><p>6 位数字，15 分钟内有效。验证完成后即可解锁发帖、关注等完整功能。</p>`,
+      subject: isRegistration ? '温油站 — 注册验证码' : '温油站 — 邮箱验证',
+      html: isRegistration
+        ? `<h2>你的验证码：<strong style="font-size:32px;letter-spacing:8px">${code}</strong></h2><p>6 位数字，15 分钟内有效。用于完成注册。</p>`
+        : `<h2>你的验证码：<strong style="font-size:32px;letter-spacing:8px">${code}</strong></h2><p>6 位数字，15 分钟内有效。</p>`,
     });
   }
 

@@ -128,14 +128,14 @@ export class AuthService {
 
     try {
       const user = await this.prisma.user.create({
-        data: { email, username: dto.username, password, emailVerified: false },
+        data: { email, username: dto.username, password, emailVerified: true },
         select: userSelectPublic,
       });
 
       await this.prisma.emailVerification.delete({ where: { id: record.id } });
 
       const { accessToken, refreshToken } = await this.createSession(user.id, deviceInfo ?? null, platform);
-      return { accessToken, refreshToken, user };
+      return { accessToken, refreshToken, user, message: '注册成功' };
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
         const target = (e.meta as Record<string, unknown> | null)?.target as string[] | undefined;
@@ -492,7 +492,7 @@ export class AuthService {
     if (existing) {
       let emailSent = true;
       try {
-        await this.emailService.sendVerification(user.email, existing.token);
+        await this.emailService.sendVerification(user.email, existing.token, 'EMAIL_VERIFY');
       } catch (err) {
         this.logger.error(`重发验证邮件失败: ${email}`, err);
         emailSent = false;
@@ -523,7 +523,7 @@ export class AuthService {
 
     let emailSent = true;
     try {
-      await this.emailService.sendVerification(user.email, code);
+      await this.emailService.sendVerification(user.email, code, 'EMAIL_VERIFY');
     } catch (err) {
       this.logger.error(`重发验证邮件失败: ${email}`, err);
       emailSent = false;
