@@ -35,6 +35,7 @@ export class SearchService {
         where: {
           deletedAt: null,
           content: { contains: keyword, mode: 'insensitive' },
+          thread: { visibility: 'PUBLIC', deletedAt: null },
         },
         select: {
           id: true, floorNumber: true, content: true, createdAt: true,

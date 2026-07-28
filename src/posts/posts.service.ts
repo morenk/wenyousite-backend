@@ -190,7 +190,7 @@ export class PostsService {
 
   /** 编辑帖子 */
   async update(id: string, dto: UpdatePostDto & { version?: number }, userId: string) {
-    const post = await this.prisma.post.findUnique({ where: { id } });
+    const post = await this.prisma.post.findUnique({ where: { id, deletedAt: null } });
     if (!post) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
     if (post.authorId !== userId) throw forbidden('只能编辑自己的帖子');
 
@@ -205,7 +205,7 @@ export class PostsService {
 
   /** 软删除帖子 */
   async remove(id: string, userId: string) {
-    const post = await this.prisma.post.findUnique({ where: { id } });
+    const post = await this.prisma.post.findUnique({ where: { id, deletedAt: null } });
     if (!post) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
     if (post.authorId !== userId) throw forbidden('只能删除自己的帖子');
 
@@ -225,14 +225,14 @@ export class PostsService {
   /** 获取单条帖子 + 导航上下文（用于通知跳转"查看原帖"） */
   async findById(id: string, userId?: string) {
     const postLight = await this.prisma.post.findUnique({
-      where: { id },
+      where: { id, deletedAt: null },
       select: { id: true, threadId: true },
     });
     if (!postLight) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
     await this.assertThreadVisible(postLight.threadId, userId);
 
     const post = await this.prisma.post.findUnique({
-      where: { id },
+      where: { id, deletedAt: null },
       include: {
         author: { select: { id: true, username: true, nickname: true, avatar: true } },
         thread: { select: { id: true, title: true } },
@@ -246,7 +246,7 @@ export class PostsService {
   }
 
   async like(id: string, userId: string) {
-    const post = await this.prisma.post.findUnique({ where: { id } });
+    const post = await this.prisma.post.findUnique({ where: { id, deletedAt: null } });
     if (!post) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
 
     await this.prisma.postLike.upsert({
@@ -262,7 +262,7 @@ export class PostsService {
   }
 
   async unlike(id: string, userId: string) {
-    const post = await this.prisma.post.findUnique({ where: { id } });
+    const post = await this.prisma.post.findUnique({ where: { id, deletedAt: null } });
     if (!post) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
 
     await this.prisma.postLike.deleteMany({
