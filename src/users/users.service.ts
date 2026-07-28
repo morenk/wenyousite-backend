@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 
@@ -60,6 +60,26 @@ export class UsersService {
     return this.prisma.user.update({
       where: { id },
       data: dto,
+      select: userSelectPrivate,
+    });
+  }
+
+  /** 设置头像：校验 media 归属 + COMPLETED 状态后写入 user.avatar */
+  async setAvatar(userId: string, mediaId: string) {
+    const media = await this.prisma.media.findUnique({ where: { id: mediaId } });
+    if (!media) {
+      throw new NotFoundException('媒体记录不存在');
+    }
+    if (media.userId !== userId) {
+      throw new ForbiddenException('无权使用此图片');
+    }
+    if (media.status !== 'COMPLETED') {
+      throw new BadRequestException('图片尚未处理完成');
+    }
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { avatar: media.url },
       select: userSelectPrivate,
     });
   }

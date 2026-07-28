@@ -23,6 +23,7 @@
 | GET | `/users/search?q=` | AuthRead | 搜索用户（@提及用），按用户名模糊匹配 |
 | GET | `/users/me` | AuthRead | 获取当前登录用户的完整资料（含邮箱、隐私设置） |
 | PATCH | `/users/me` | Auth | 修改当前用户资料（昵称、头像、Bio、隐私设置等），需邮箱已验证 |
+| PATCH | `/users/me/avatar` | Auth | 设置头像（传入 mediaId，校验归属 + 状态 COMPLETED），需邮箱已验证 |
 | DELETE | `/users/me` | Auth | 注销当前账号（软删除，设置 deletedAt），需邮箱已验证 |
 | GET | `/users/:id` | Public | 获取指定用户的公开资料（不含邮箱） |
 | POST | `/users/follow/:id` | Auth | 关注指定用户 |

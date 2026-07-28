@@ -25,6 +25,7 @@
 |------|------|------|------|
 | GET | `/users/me` | AuthRead | 当前登录用户完整信息（含 email、隐私设置） |
 | PATCH | `/users/me` | Auth | 修改当前用户资料，需邮箱已验证 |
+| PATCH | `/users/me/avatar` | Auth | 设置头像（传入 mediaId），需邮箱已验证 |
 | DELETE | `/users/me` | Auth | 注销当前账号（软删除，设置 deletedAt），需邮箱已验证 |
 | GET | `/users/search?q=xxx` | AuthRead | 搜索用户（@提及用），排除已注销 |
 | GET | `/users/:id` | Public | 用户公开资料（不含 email） |
@@ -116,8 +117,9 @@
 
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
-| POST | `/media/upload-url` | Auth | 获取预签名上传 URL（有效期 10 分钟），需邮箱已验证 |
-| POST | `/media/upload-done` | Auth | 确认上传完成，写入 DB，入队图片处理，需邮箱已验证 |
+| POST | `/media/upload-url` | Auth | 获取预签名上传 URL + mediaId（预建 UPLOADING 记录），需邮箱已验证 |
+| POST | `/media/upload-done` | Auth | 确认上传完成（传 mediaId），校验归属 + S3 对象，入队处理，需邮箱已验证 |
+| GET | `/media/:id` | Auth | 查询图片处理状态（UPLOADING / PROCESSING / COMPLETED / FAILED），需邮箱已验证 |
 
 ## 收藏端点 (Bookmarks)
 

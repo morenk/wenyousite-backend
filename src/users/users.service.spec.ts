@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsersService } from './users.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { NotFoundException, ConflictException } from '@nestjs/common';
+import { NotFoundException, ConflictException, ForbiddenException, BadRequestException } from '@nestjs/common';
 
 const mockPrisma = {
   user: {
@@ -10,6 +10,9 @@ const mockPrisma = {
   },
   refreshToken: {
     updateMany: jest.fn(),
+  },
+  media: {
+    findUnique: jest.fn(),
   },
   $transaction: jest.fn((ops: any[]) => Promise.all(ops)),
 };
@@ -89,5 +92,33 @@ describe('UsersService', () => {
     mockPrisma.user.findUnique.mockResolvedValue({ ...userFixture });
     const result = await service.findById('u1');
     expect(result.email).toBeUndefined();
+  });
+
+  it('setAvatar 应校验 media 归属和 COMPLETED 状态后写入', async () => {
+    mockPrisma.media.findUnique.mockResolvedValue({
+      id: 'm1', userId: 'u1', url: 'https://example.com/avatar.jpg', status: 'COMPLETED',
+    });
+    mockPrisma.user.update.mockResolvedValue({ ...userFixture, avatar: 'https://example.com/avatar.jpg' });
+    const result = await service.setAvatar('u1', 'm1');
+    expect(result.avatar).toBe('https://example.com/avatar.jpg');
+  });
+
+  it('setAvatar media 不存在应 404', async () => {
+    mockPrisma.media.findUnique.mockResolvedValue(null);
+    await expect(service.setAvatar('u1', 'nonexistent')).rejects.toThrow(NotFoundException);
+  });
+
+  it('setAvatar 拒绝他人 media', async () => {
+    mockPrisma.media.findUnique.mockResolvedValue({
+      id: 'm1', userId: 'otherUser', url: '...', status: 'COMPLETED',
+    });
+    await expect(service.setAvatar('u1', 'm1')).rejects.toThrow(ForbiddenException);
+  });
+
+  it('setAvatar 拒绝未处理完成的 media', async () => {
+    mockPrisma.media.findUnique.mockResolvedValue({
+      id: 'm1', userId: 'u1', url: '...', status: 'PROCESSING',
+    });
+    await expect(service.setAvatar('u1', 'm1')).rejects.toThrow(BadRequestException);
   });
 });

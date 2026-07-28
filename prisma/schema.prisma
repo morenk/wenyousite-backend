@@ -57,6 +57,13 @@ enum SubscriptionType {
   USER
 }
 
+enum MediaStatus {
+  UPLOADING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
 model User {
   id               String   @id @default(cuid())
   email            String   @unique
@@ -314,14 +321,15 @@ model UserBookmark {
 }
 
 model Media {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
+  id        String      @id @default(cuid())
+  userId    String      @map("user_id")
   url       String
-  key       String
+  key       String      @unique
   size      Int?
   width     Int?
   height    Int?
-  createdAt DateTime @default(now()) @map("created_at")
+  status    MediaStatus @default(UPLOADING)
+  createdAt DateTime    @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 import { FastifyRequest } from 'fastify';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { SetAvatarDto } from './dto/set-avatar.dto';
 import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { PrismaService } from '../prisma/prisma.service';
@@ -44,6 +45,15 @@ export class UsersController {
   async updateMe(@Req() req: FastifyRequest, @Body() dto: UpdateUserDto) {
     const user = req['user'] as { id: string };
     return this.usersService.update(user.id, dto);
+  }
+
+  @Patch('me/avatar')
+  @Auth()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '设置头像（传入 mediaId，校验归属和 COMPLETED 状态）' })
+  async setAvatar(@Req() req: FastifyRequest, @Body() dto: SetAvatarDto) {
+    const user = req['user'] as { id: string };
+    return this.usersService.setAvatar(user.id, dto.mediaId);
   }
 
   @Delete('me')

@@ -1,0 +1,2 @@
+-- Rename PENDING to UPLOADING in MediaStatus enum
+ALTER TYPE "MediaStatus" RENAME VALUE 'PENDING' TO 'UPLOADING';

@@ -27,10 +27,10 @@ export class CreateUploadUrlDto {
   size: number;
 }
 
-/** 上传完成后确认的请求参数 */
+/** 上传完成后确认的请求参数，使用 upload-url 返回的 mediaId */
 export class ConfirmUploadDto {
-  @ApiProperty({ example: 'uploads/2026/07/28/user123/1620000000-abc123.jpg', description: 'getUploadUrl 返回的 objectKey' })
+  @ApiProperty({ example: 'clx...', description: 'getUploadUrl 返回的 mediaId' })
   @IsString()
   @MinLength(1)
-  objectKey: string;
+  mediaId: string;
 }

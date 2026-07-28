@@ -339,10 +339,11 @@
 | id | String | PK | — |
 | userId | String | FK users (Cascade) | 上传者 |
 | url | String | — | 公网访问 URL |
-| key | String | — | S3 object key |
+| key | String | unique | S3 object key，唯一约束防重复 |
 | size | Int? | — | 文件大小（bytes） |
 | width | Int? | — | 图片宽度（sharp 处理后填入） |
 | height | Int? | — | 图片高度 |
+| status | MediaStatus | default UPLOADING | 处理状态：UPLOADING / PROCESSING / COMPLETED / FAILED |
 | createdAt | DateTime | — | — |
 
 ### reports — 举报
