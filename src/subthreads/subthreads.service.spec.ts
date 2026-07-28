@@ -29,6 +29,20 @@ const mockPrisma = {
 const mockThreadAccess = { assertAccessible: jest.fn(), assertCanManage: jest.fn().mockResolvedValue({ role: 'OWNER' }) };
 const mockEventEmitter = { emit: jest.fn() };
 
+/** 创建事务 mock 的辅助函数 */
+const createTxMock = (overrides: Record<string, any> = {}) => ({
+  $queryRaw: jest.fn(),
+  $queryRawUnsafe: jest.fn(),
+  post: { create: jest.fn() },
+  subthread: {
+    aggregate: jest.fn().mockResolvedValue({ _max: { sortOrder: 0 } }),
+    findFirst: jest.fn().mockResolvedValue(null),
+    create: jest.fn().mockResolvedValue({ id: 's1', threadId: 't1', sortOrder: 1 }),
+    findUnique: jest.fn().mockResolvedValue({ id: 's1', threadId: 't1', tags: [], _count: { posts: 1 } }),
+    ...overrides,
+  },
+});
+
 describe('SubthreadsService', () => {
   let service: SubthreadsService;
 
@@ -49,19 +63,8 @@ describe('SubthreadsService', () => {
   describe('create', () => {
     it('创建子贴并自动分配 sortOrder', async () => {
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      mockPrisma.subthread.aggregate.mockResolvedValue({ _max: { sortOrder: 0 } });
-      mockPrisma.subthread.create.mockResolvedValue({ id: 's1', threadId: 't1', sortOrder: 1 });
-      mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1' });
-      mockPrisma.$transaction.mockImplementation(async (fn) => {
-        const tx = {
-          subthread: {
-            create: jest.fn().mockResolvedValue({ id: 's1', threadId: 't1', sortOrder: 1 }),
-            findUnique: jest.fn().mockResolvedValue({ id: 's1', threadId: 't1' }),
-          },
-          post: { create: jest.fn() },
-        };
-        return fn(tx);
-      });
+      mockPrisma.thread.findUnique.mockResolvedValue({ published: true, title: '主题A' });
+      mockPrisma.$transaction.mockImplementation(async (fn) => fn(createTxMock()));
 
       const result = await service.create('t1', { title: '设定区', content: '正文' }, 'u1');
       expect(result).toBeDefined();
@@ -70,27 +73,27 @@ describe('SubthreadsService', () => {
 
     it('正文为空时仅创建子贴不创建楼层', async () => {
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      mockPrisma.subthread.aggregate.mockResolvedValue({ _max: { sortOrder: 1 } });
-      mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's2', threadId: 't1' });
-      mockPrisma.$transaction.mockImplementation(async (fn) => {
-        const tx = {
-          subthread: {
-            create: jest.fn().mockResolvedValue({ id: 's2', threadId: 't1', sortOrder: 2 }),
-            findUnique: jest.fn().mockResolvedValue({ id: 's2', threadId: 't1', _count: { posts: 0 } }),
-          },
-          post: { create: jest.fn() },
-        };
-        return fn(tx);
-      });
+      mockPrisma.thread.findUnique.mockResolvedValue({ published: true, title: '主题A' });
+      mockPrisma.$transaction.mockImplementation(async (fn) => fn(createTxMock({
+        aggregate: jest.fn().mockResolvedValue({ _max: { sortOrder: 1 } }),
+        create: jest.fn().mockResolvedValue({ id: 's2', threadId: 't1', sortOrder: 2 }),
+        findUnique: jest.fn().mockResolvedValue({ id: 's2', threadId: 't1', tags: [], _count: { posts: 0 } }),
+      })));
 
-      await service.create('t1', { title: '空白区' }, 'u1');
-      // 不应创建帖子
-      expect(mockPrisma.$transaction).toHaveBeenCalled();
+      const result = await service.create('t1', { title: '空白区' }, 'u1');
+      expect(result).toBeDefined();
+      expect(result!.id).toBe('s2');
     });
 
     it('指定 sortOrder 冲突应返回409', async () => {
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      mockPrisma.subthread.findFirst.mockResolvedValue({ id: 'existing', sortOrder: 2 });
+      mockPrisma.thread.findUnique.mockResolvedValue({ published: true, title: '主题A' });
+      mockPrisma.$transaction.mockImplementation(async (fn) => {
+        const tx = createTxMock({
+          findFirst: jest.fn().mockResolvedValue({ id: 'existing', sortOrder: 2 }),
+        });
+        return fn(tx);
+      });
 
       await expect(
         service.create('t1', { title: '设定区', sortOrder: 2, content: '正文' }, 'u1'),

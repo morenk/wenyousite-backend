@@ -37,7 +37,7 @@ const createMockPrisma = () => ({
 const basicTx = () => ({
   $queryRaw: jest.fn(),
   post: { aggregate: jest.fn(), create: jest.fn() },
-  subthread: { update: jest.fn(), create: jest.fn(), findUnique: jest.fn() },
+  subthread: { update: jest.fn(), create: jest.fn(), findUnique: jest.fn(), aggregate: jest.fn(), findFirst: jest.fn() },
 });
 
 const mockEventEmitter = { emit: jest.fn() };
@@ -325,11 +325,14 @@ describe('发帖全流程集成测试', () => {
   describe('子贴 (Subthread)', () => {
     it('创建子贴：含正文 → 创建子贴 + 第一楼 (floorNumber=1) + 发射事件', async () => {
       setupHelpers.mockThreadMember_ownerOrCollab(prisma);
-      prisma.subthread.aggregate.mockResolvedValue({ _max: { sortOrder: -1 } });
       prisma.thread.findUnique.mockResolvedValue({ published: true, title: '主题A' });
       prisma.$transaction.mockImplementation(async (fn: any) => {
         const tx = {
+          ...basicTx(),
           subthread: {
+            ...basicTx().subthread,
+            aggregate: jest.fn().mockResolvedValue({ _max: { sortOrder: -1 } }),
+            findFirst: jest.fn().mockResolvedValue(null),
             create: jest.fn().mockResolvedValue({ id: 's1', threadId: 't1', sortOrder: 0 }),
             findUnique: jest.fn().mockResolvedValue({ id: 's1', threadId: 't1', tags: [], _count: { posts: 1 } }),
           },
@@ -345,11 +348,14 @@ describe('发帖全流程集成测试', () => {
 
     it('创建子贴：不含正文 → 仅创建子贴，不创建楼层，不发射事件', async () => {
       setupHelpers.mockThreadMember_ownerOrCollab(prisma);
-      prisma.subthread.aggregate.mockResolvedValue({ _max: { sortOrder: 1 } });
       prisma.thread.findUnique.mockResolvedValue({ published: true, title: '主题A' });
       prisma.$transaction.mockImplementation(async (fn: any) => {
         const tx = {
+          ...basicTx(),
           subthread: {
+            ...basicTx().subthread,
+            aggregate: jest.fn().mockResolvedValue({ _max: { sortOrder: 1 } }),
+            findFirst: jest.fn().mockResolvedValue(null),
             create: jest.fn().mockResolvedValue({ id: 's2', threadId: 't1', sortOrder: 2 }),
             findUnique: jest.fn().mockResolvedValue({ id: 's2', threadId: 't1', tags: [], _count: { posts: 0 } }),
           },
@@ -364,11 +370,14 @@ describe('发帖全流程集成测试', () => {
 
     it('创建子贴：未发布帖创建含正文子贴 → 不发射事件', async () => {
       setupHelpers.mockThreadMember_ownerOrCollab(prisma);
-      prisma.subthread.aggregate.mockResolvedValue({ _max: { sortOrder: 0 } });
       prisma.thread.findUnique.mockResolvedValue({ published: false, title: '草稿帖' });
       prisma.$transaction.mockImplementation(async (fn: any) => {
         const tx = {
+          ...basicTx(),
           subthread: {
+            ...basicTx().subthread,
+            aggregate: jest.fn().mockResolvedValue({ _max: { sortOrder: 0 } }),
+            findFirst: jest.fn().mockResolvedValue(null),
             create: jest.fn().mockResolvedValue({ id: 's1', threadId: 't1', sortOrder: 1 }),
             findUnique: jest.fn().mockResolvedValue({ id: 's1', threadId: 't1', tags: [], _count: { posts: 1 } }),
           },
@@ -383,7 +392,21 @@ describe('发帖全流程集成测试', () => {
 
     it('创建子贴：指定 sortOrder 冲突 → 409', async () => {
       setupHelpers.mockThreadMember_ownerOrCollab(prisma);
-      prisma.subthread.findFirst.mockResolvedValue({ id: 'existing', sortOrder: 2 });
+      prisma.thread.findUnique.mockResolvedValue({ published: true, title: '主题A' });
+      prisma.$transaction.mockImplementation(async (fn: any) => {
+        const tx = {
+          ...basicTx(),
+          subthread: {
+            ...basicTx().subthread,
+            aggregate: jest.fn(),
+            findFirst: jest.fn().mockResolvedValue({ id: 'existing', sortOrder: 2 }),
+            create: jest.fn(),
+            findUnique: jest.fn(),
+          },
+        };
+        try { return await fn(tx); } catch (e) { throw e; }
+      });
+
       await expect(
         subthreadsService.create('t1', { title: '设定区', sortOrder: 2, content: '正文' }, 'u1'),
       ).rejects.toThrow(BusinessException);

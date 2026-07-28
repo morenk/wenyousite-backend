@@ -46,27 +46,9 @@ export class SubthreadsService {
     return subthread;
   }
 
-  /** 创建子贴（仅 OWNER/COLLABORATOR）。sortOrder 不指定则取 MAX+1，正文可选 */
+  /** 创建子贴（仅 OWNER/COLLABORATOR）。sortOrder 计算和冲突检查在事务内 FOR UPDATE 锁后执行 */
   async create(threadId: string, dto: CreateSubthreadDto, userId: string) {
-    await this.assertCanManage(threadId, userId);
-
-    // 计算 sortOrder
-    let sortOrder = dto.sortOrder;
-    if (sortOrder === undefined) {
-      const max = await this.prisma.subthread.aggregate({
-        where: { threadId },
-        _max: { sortOrder: true },
-      });
-      sortOrder = (max._max.sortOrder ?? -1) + 1;
-    } else {
-      // 检查是否冲突
-      const existing = await this.prisma.subthread.findFirst({
-        where: { threadId, sortOrder, ...notDeleted },
-      });
-      if (existing) {
-        throw new BusinessException(ErrorCode.CONFLICT, `排序序号 ${sortOrder} 已被占用`, HttpStatus.CONFLICT);
-      }
-    }
+    await this.threadAccess.assertCanManage(threadId, userId);
 
     // 检查线程是否已发布（用于决定是否发射事件）
     const thread = await this.prisma.thread.findUnique({
@@ -76,15 +58,47 @@ export class SubthreadsService {
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
 
     const hasContent = !!dto.content?.trim();
+    const postingPolicy = dto.postingPolicy ?? 'PARTICIPANTS' as any;
+
+    // 子贴附带正文时校验发帖权限（与 PostsService.create 规则一致）
+    if (hasContent) {
+      const member = await this.prisma.threadMember.findUnique({
+        where: { threadId_userId: { threadId, userId } },
+      });
+      if (postingPolicy === 'COLLABORATORS') {
+        if (!member || (member.role !== 'OWNER' && member.role !== 'COLLABORATOR')) {
+          throw new BusinessException(ErrorCode.FORBIDDEN, '该子贴仅限协作者发帖', HttpStatus.FORBIDDEN);
+        }
+      } else if (postingPolicy === 'PLAYERS') {
+        if (!member || !member.playerMarked) {
+          throw new BusinessException(ErrorCode.FORBIDDEN, '该子贴仅限玩家发帖', HttpStatus.FORBIDDEN);
+        }
+      }
+    }
 
     const result = await this.prisma.$transaction(async (tx) => {
+      // 锁主题帖行，防止并发创建子贴时 sortOrder 竞态
+      await tx.$queryRaw`SELECT id FROM threads WHERE id = ${threadId} FOR UPDATE`;
+
+      // 事务内计算 sortOrder
+      let sortOrder = dto.sortOrder;
+      if (sortOrder === undefined) {
+        const max = await tx.subthread.aggregate({
+          where: { threadId, ...notDeleted },
+          _max: { sortOrder: true },
+        });
+        sortOrder = (max._max.sortOrder ?? -1) + 1;
+      } else {
+        const existing = await tx.subthread.findFirst({
+          where: { threadId, sortOrder, ...notDeleted },
+        });
+        if (existing) {
+          throw new BusinessException(ErrorCode.CONFLICT, `排序序号 ${sortOrder} 已被占用`, HttpStatus.CONFLICT);
+        }
+      }
+
       const subthread = await tx.subthread.create({
-        data: {
-          threadId,
-          title: dto.title,
-          sortOrder,
-          postingPolicy: dto.postingPolicy ?? 'PARTICIPANTS' as any,
-        },
+        data: { threadId, title: dto.title, sortOrder, postingPolicy },
       });
 
       let bodyPost: any = null;
@@ -109,6 +123,10 @@ export class SubthreadsService {
       });
 
       return { subthread: full, bodyPost };
+    }).catch((err) => {
+      if (err instanceof BusinessException) throw err;
+      // Prisma UNIQUE 约束冲突（并发创建撞 sortOrder）
+      throw new BusinessException(ErrorCode.CONFLICT, '排序序号冲突，请刷新后重试', HttpStatus.CONFLICT);
     });
 
     // 已发布帖创建子贴时发射事件（正文不为空时）
