@@ -1,8 +1,11 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, HttpStatus } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
+import { ErrorCode } from '../common/exceptions/error-codes';
+import { BusinessException, notFound, forbidden } from '../common/exceptions/business.exception';
+import { paginate } from '../common/dto/paginated-result';
 
 /** 楼层服务：发帖（事务楼层编号）、楼中楼、编辑、软删除 */
 @Injectable()
@@ -12,10 +15,30 @@ export class PostsService {
     private eventEmitter: EventEmitter2,
   ) {}
 
+  /** 检查主题帖可见性：私密帖仅成员可访问，否则 404 */
+  private async assertThreadVisible(threadId: string, userId?: string) {
+    const thread = await this.prisma.thread.findUnique({
+      where: { id: threadId, deletedAt: null },
+      select: { visibility: true },
+    });
+    if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
+    if (thread.visibility === 'PRIVATE') {
+      if (!userId) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
+      const member = await this.prisma.threadMember.findUnique({
+        where: { threadId_userId: { threadId, userId } },
+      });
+      if (!member) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
+    }
+  }
+
   /** 获取子贴的楼层列表（Cursor 分页） */
-  async findAllBySubthread(subthreadId: string, cursor?: string, limit = 20) {
-    const subthread = await this.prisma.subthread.findUnique({ where: { id: subthreadId } });
-    if (!subthread) throw new NotFoundException('子贴不存在');
+  async findAllBySubthread(subthreadId: string, cursor?: string, limit = 20, userId?: string) {
+    const subthread = await this.prisma.subthread.findUnique({
+      where: { id: subthreadId },
+      select: { id: true, threadId: true },
+    });
+    if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
+    await this.assertThreadVisible(subthread.threadId, userId);
 
     const take = Math.min(limit, 50);
     const posts = await this.prisma.post.findMany({
@@ -33,19 +56,20 @@ export class PostsService {
     const hasMore = posts.length > take;
     if (hasMore) posts.pop();
 
-    return {
-      items: posts,
-      pagination: {
-        cursor: posts.length > 0 ? posts[posts.length - 1].id : null,
-        hasMore,
-      },
-    };
+    return paginate(posts, {
+      cursor: posts.length > 0 ? posts[posts.length - 1].id : null,
+      hasMore,
+    });
   }
 
   /** 获取楼中楼回复列表（cursor 分页，用于无限下拉） */
-  async findReplies(postId: string, cursor?: string, limit = 20) {
-    const post = await this.prisma.post.findUnique({ where: { id: postId } });
-    if (!post) throw new NotFoundException('楼层不存在');
+  async findReplies(postId: string, cursor?: string, limit = 20, userId?: string) {
+    const post = await this.prisma.post.findUnique({
+      where: { id: postId },
+      select: { id: true, threadId: true },
+    });
+    if (!post) throw notFound(ErrorCode.POST_NOT_FOUND, '楼层不存在');
+    await this.assertThreadVisible(post.threadId, userId);
 
     const take = Math.min(limit, 50);
     const replies = await this.prisma.post.findMany({
@@ -61,7 +85,7 @@ export class PostsService {
     });
     const hasMore = replies.length > take;
     if (hasMore) replies.pop();
-    return { items: replies, pagination: { cursor: replies.length > 0 ? replies[replies.length - 1].id : null, hasMore } };
+    return paginate(replies, { cursor: replies.length > 0 ? replies[replies.length - 1].id : null, hasMore });
   }
 
   /** 发帖：楼层或楼中楼回复 */
@@ -70,7 +94,7 @@ export class PostsService {
       where: { id: subthreadId },
       include: { thread: true },
     });
-    if (!subthread) throw new NotFoundException('子贴不存在');
+    if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
 
     // 自动加入主题帖
     await this.prisma.threadMember.upsert({
@@ -85,27 +109,33 @@ export class PostsService {
         where: { threadId_userId: { threadId: subthread.threadId, userId } },
       });
       if (!member || (member.role !== 'OWNER' && member.role !== 'COLLABORATOR')) {
-        throw new ForbiddenException('该子贴仅限协作者发帖');
+        throw forbidden('该子贴仅限协作者发帖', ErrorCode.NOT_COLLABORATOR);
       }
     } else if (subthread.postingPolicy === 'PLAYERS') {
       const member = await this.prisma.threadMember.findUnique({
         where: { threadId_userId: { threadId: subthread.threadId, userId } },
       });
       if (!member || !member.playerMarked) {
-        throw new ForbiddenException('该子贴仅限玩家发帖');
+        throw forbidden('该子贴仅限玩家发帖', ErrorCode.NOT_PLAYER);
       }
     }
 
     // 验证 parentPost 存在
     if (dto.parentPostId) {
       const parent = await this.prisma.post.findUnique({ where: { id: dto.parentPostId } });
-      if (!parent) throw new NotFoundException('父楼层不存在');
+      if (!parent) throw notFound(ErrorCode.POST_NOT_FOUND, '父楼层不存在');
     }
 
-    // 验证 replyToPost 存在
+    // 验证 replyToPost 存在且属于同一子贴
     if (dto.replyToPostId) {
-      const target = await this.prisma.post.findUnique({ where: { id: dto.replyToPostId } });
-      if (!target) throw new NotFoundException('被回复的帖子不存在');
+      const target = await this.prisma.post.findUnique({
+        where: { id: dto.replyToPostId },
+        select: { id: true, subthreadId: true },
+      });
+      if (!target) throw notFound(ErrorCode.POST_NOT_FOUND, '被回复的帖子不存在');
+      if (target.subthreadId !== subthreadId) {
+        throw new BusinessException(ErrorCode.BAD_REQUEST, '不能跨子贴回复');
+      }
     }
 
     // 事务：分配楼层编号 + 创建帖子 + 更新 lastPostAt
@@ -161,8 +191,8 @@ export class PostsService {
   /** 编辑帖子 */
   async update(id: string, dto: UpdatePostDto & { version?: number }, userId: string) {
     const post = await this.prisma.post.findUnique({ where: { id } });
-    if (!post) throw new NotFoundException('帖子不存在');
-    if (post.authorId !== userId) throw new ForbiddenException('只能编辑自己的帖子');
+    if (!post) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
+    if (post.authorId !== userId) throw forbidden('只能编辑自己的帖子');
 
     return this.prisma.post.update({
       where: { id, version: dto.version },
@@ -170,18 +200,18 @@ export class PostsService {
       include: {
         author: { select: { id: true, username: true, nickname: true, avatar: true } },
       },
-    }).catch(() => { throw new NotFoundException('帖子已被编辑，请刷新后重试'); });
+    }).catch(() => { throw new BusinessException(ErrorCode.OPTIMISTIC_LOCK_CONFLICT, '帖子已被编辑，请刷新后重试', HttpStatus.CONFLICT); });
   }
 
   /** 软删除帖子 */
   async remove(id: string, userId: string) {
     const post = await this.prisma.post.findUnique({ where: { id } });
-    if (!post) throw new NotFoundException('帖子不存在');
-    if (post.authorId !== userId) throw new ForbiddenException('只能删除自己的帖子');
+    if (!post) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
+    if (post.authorId !== userId) throw forbidden('只能删除自己的帖子');
 
     // 检查是否是子贴第一楼
     if (post.floorNumber === 1 && !post.parentPostId) {
-      throw new ForbiddenException(
+      throw forbidden(
         '这是子贴正文，删除将同时删除整个子贴。请使用子贴管理功能进行删除。',
       );
     }
@@ -193,7 +223,14 @@ export class PostsService {
   }
 
   /** 获取单条帖子 + 导航上下文（用于通知跳转"查看原帖"） */
-  async findById(id: string) {
+  async findById(id: string, userId?: string) {
+    const postLight = await this.prisma.post.findUnique({
+      where: { id },
+      select: { id: true, threadId: true },
+    });
+    if (!postLight) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
+    await this.assertThreadVisible(postLight.threadId, userId);
+
     const post = await this.prisma.post.findUnique({
       where: { id },
       include: {
@@ -204,13 +241,13 @@ export class PostsService {
         _count: { select: { replies: true } },
       },
     });
-    if (!post) throw new NotFoundException('帖子不存在');
+    if (!post) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
     return post;
   }
 
   async like(id: string, userId: string) {
     const post = await this.prisma.post.findUnique({ where: { id } });
-    if (!post) throw new NotFoundException('帖子不存在');
+    if (!post) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
 
     await this.prisma.postLike.upsert({
       where: { postId_userId: { postId: id, userId } },
@@ -226,7 +263,7 @@ export class PostsService {
 
   async unlike(id: string, userId: string) {
     const post = await this.prisma.post.findUnique({ where: { id } });
-    if (!post) throw new NotFoundException('帖子不存在');
+    if (!post) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
 
     await this.prisma.postLike.deleteMany({
       where: { postId: id, userId },

@@ -29,6 +29,7 @@ async function bootstrap() {
 
   app.useLogger(app.get(Logger));
   app.setGlobalPrefix('api/v1');
+
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,

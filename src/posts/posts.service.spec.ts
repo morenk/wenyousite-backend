@@ -2,11 +2,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PostsService } from './posts.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { NotFoundException, ForbiddenException } from '@nestjs/common';
+import { BusinessException } from '../common/exceptions/business.exception';
 
 const mockPrisma = {
   $transaction: jest.fn(),
   user: { findUnique: jest.fn() },
+  thread: { findUnique: jest.fn() },
   subthread: { findUnique: jest.fn() },
   threadMember: { findUnique: jest.fn(), upsert: jest.fn() },
   post: { findUnique: jest.fn(), aggregate: jest.fn(), create: jest.fn(), findMany: jest.fn(), update: jest.fn() },
@@ -29,6 +30,7 @@ describe('PostsService', () => {
     service = module.get<PostsService>(PostsService);
     jest.clearAllMocks();
     mockPrisma.user.findUnique.mockResolvedValue({ emailVerified: true });
+    mockPrisma.thread.findUnique.mockResolvedValue({ visibility: 'PUBLIC' });
   });
 
   it('create 新楼层应该正确分配 floorNumber', async () => {
@@ -84,13 +86,13 @@ describe('PostsService', () => {
       id: 's1', threadId: 't1', postingPolicy: 'COLLABORATORS',
     });
     mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
-    await expect(service.create('s1', { content: 'test' }, 'u1')).rejects.toThrow(ForbiddenException);
+    await expect(service.create('s1', { content: 'test' }, 'u1')).rejects.toThrow(BusinessException);
   });
 
   it('create 不存在的父楼层应该返回404', async () => {
     mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1', postingPolicy: 'PARTICIPANTS' });
     mockPrisma.post.findUnique.mockResolvedValue(null);
-    await expect(service.create('s1', { content: 'test', parentPostId: 'x' }, 'u1')).rejects.toThrow(NotFoundException);
+    await expect(service.create('s1', { content: 'test', parentPostId: 'x' }, 'u1')).rejects.toThrow(BusinessException);
   });
 
   it('update 编辑自己的帖子应该成功', async () => {
@@ -102,7 +104,7 @@ describe('PostsService', () => {
 
   it('update 编辑他人的帖子应该返回403', async () => {
     mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'other' });
-    await expect(service.update('p1', { content: 'x' }, 'u1')).rejects.toThrow(ForbiddenException);
+    await expect(service.update('p1', { content: 'x' }, 'u1')).rejects.toThrow(BusinessException);
   });
 
   it('remove 软删除非第一楼应该成功', async () => {
@@ -117,7 +119,7 @@ describe('PostsService', () => {
 
   it('remove 第一楼应该返回403', async () => {
     mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', floorNumber: 1, parentPostId: null });
-    await expect(service.remove('p1', 'u1')).rejects.toThrow(ForbiddenException);
+    await expect(service.remove('p1', 'u1')).rejects.toThrow(BusinessException);
   });
 
   it('like 应该创建点赞并加计数', async () => {
@@ -150,27 +152,29 @@ describe('PostsService', () => {
     });
     mockPrisma.threadMember.upsert.mockResolvedValue({});
     mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT', playerMarked: false });
-    await expect(service.create('s1', { content: 'test' }, 'u1')).rejects.toThrow(ForbiddenException);
+    await expect(service.create('s1', { content: 'test' }, 'u1')).rejects.toThrow(BusinessException);
   });
 
   it('findAllBySubthread 应该返回楼层及 likeCount', async () => {
-    mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1' });
+    mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1' });
     mockPrisma.post.findMany.mockResolvedValue([{ id: 'p1', likeCount: 3, author: {} }]);
     const result = await service.findAllBySubthread('s1');
     expect(result.items[0].likeCount).toBe(3);
   });
 
   it('findReplies 应该返回楼中楼及 likeCount', async () => {
-    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1' });
+    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1' });
     mockPrisma.post.findMany.mockResolvedValue([{ id: 'p2', likeCount: 1, author: {}, replyToPost: null }]);
     const result = await service.findReplies('p1');
     expect(result.items[0].likeCount).toBe(1);
   });
 
   it('findById 应该返回帖子详情及 likeCount', async () => {
-    mockPrisma.post.findUnique.mockResolvedValue({
-      id: 'p1', likeCount: 5, author: {}, thread: {}, subthread: {}, parentPost: null, _count: { replies: 0 },
-    });
+    mockPrisma.post.findUnique
+      .mockResolvedValueOnce({ id: 'p1', threadId: 't1' })
+      .mockResolvedValueOnce({
+        id: 'p1', likeCount: 5, author: {}, thread: {}, subthread: {}, parentPost: null, _count: { replies: 0 },
+      });
     const result = await service.findById('p1');
     expect(result.likeCount).toBe(5);
   });

@@ -68,10 +68,23 @@ export class ThreadMembersController {
     return this.membersService.updateMember(threadId, targetUserId, dto, user.id);
   }
 
+  @Delete('me')
+  @AuthRead()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '主动退出主题帖（取消自己的玩家标记）' })
+  async exitMember(
+    @Param('threadId') threadId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const user = req['user'] as { id: string };
+    await this.membersService.exitMember(threadId, user.id);
+    return { message: '已退出主题帖' };
+  }
+
   @Delete(':userId')
   @Auth()
   @ApiBearerAuth()
-  @ApiOperation({ summary: '踢出成员（仅 OWNER/COLLABORATOR）' })
+  @ApiOperation({ summary: '踢出成员 / 取消玩家标记（仅 OWNER/COLLABORATOR）' })
   async removeMember(
     @Param('threadId') threadId: string,
     @Param('userId') targetUserId: string,

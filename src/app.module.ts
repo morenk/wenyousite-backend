@@ -26,6 +26,7 @@ import { SearchModule } from './search/search.module';
 import { EmailModule } from './email/email.module';
 import { MediaModule } from './media/media.module';
 import { JobsModule } from './jobs/jobs.module';
+import { BookmarksModule } from './bookmarks/bookmarks.module';
 import { CommonModule } from './common/common.module';
 import configuration from './config/configuration';
 import { validate } from './config/env.validation';
@@ -86,6 +87,7 @@ import { validate } from './config/env.validation';
     EmailModule,
     MediaModule,
     JobsModule,
+    BookmarksModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

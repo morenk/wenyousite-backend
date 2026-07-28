@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SubthreadsService } from './subthreads.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { NotFoundException, ForbiddenException } from '@nestjs/common';
+import { BusinessException } from '../common/exceptions/business.exception';
 
 const mockPrisma = {
   $transaction: jest.fn(),
@@ -34,10 +34,11 @@ describe('SubthreadsService', () => {
     }).compile();
     service = module.get<SubthreadsService>(SubthreadsService);
     jest.clearAllMocks();
+    mockPrisma.thread.findUnique.mockResolvedValue({ visibility: 'PUBLIC' });
   });
 
   it('findAll 应过滤已软删除的子贴', async () => {
-    mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1' });
+    mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', visibility: 'PUBLIC' });
     mockPrisma.subthread.findMany.mockResolvedValue([]);
     await service.findAll('t1');
     expect(mockPrisma.subthread.findMany).toHaveBeenCalledWith(
@@ -58,17 +59,18 @@ describe('SubthreadsService', () => {
 
   it('remove 已软删除的子贴应返回404', async () => {
     mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1', deletedAt: new Date() });
-    await expect(service.remove('s1', 'u1')).rejects.toThrow(NotFoundException);
+    await expect(service.remove('s1', 'u1')).rejects.toThrow(BusinessException);
   });
 
   it('findById 应返回子贴详情', async () => {
-    mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', thread: { id: 't1' } });
+    mockPrisma.thread.findUnique.mockResolvedValue({ visibility: 'PUBLIC' });
+    mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1', thread: { id: 't1', visibility: 'PUBLIC', ownerId: 'u1' } });
     const result = await service.findById('s1');
     expect(result.id).toBe('s1');
   });
 
   it('findById 不存在应返回404', async () => {
     mockPrisma.subthread.findUnique.mockResolvedValue(null);
-    await expect(service.findById('x')).rejects.toThrow(NotFoundException);
+    await expect(service.findById('x')).rejects.toThrow(BusinessException);
   });
 });

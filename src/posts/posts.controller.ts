@@ -25,8 +25,10 @@ export class PostsController {
   async findFloors(
     @Param('subthreadId') subthreadId: string,
     @Query() query: PostQueryDto,
+    @Req() req: FastifyRequest,
   ) {
-    return this.postsService.findAllBySubthread(subthreadId, query.cursor, query.limit);
+    const user = (req as any).user as { id: string } | undefined;
+    return this.postsService.findAllBySubthread(subthreadId, query.cursor, query.limit, user?.id);
   }
 
   @Get('posts/:id/replies')
@@ -37,8 +39,10 @@ export class PostsController {
   async findReplies(
     @Param('id') id: string,
     @Query() query: PostQueryDto,
+    @Req() req: FastifyRequest,
   ) {
-    return this.postsService.findReplies(id, query.cursor, query.limit);
+    const user = (req as any).user as { id: string } | undefined;
+    return this.postsService.findReplies(id, query.cursor, query.limit, user?.id);
   }
 
   @Post('subthreads/:subthreadId/posts')
@@ -57,8 +61,9 @@ export class PostsController {
   @Get('posts/:id')
   @Public()
   @ApiOperation({ summary: '获取帖子详情' })
-  async findById(@Param('id') id: string) {
-    return this.postsService.findById(id);
+  async findById(@Param('id') id: string, @Req() req: FastifyRequest) {
+    const user = (req as any).user as { id: string } | undefined;
+    return this.postsService.findById(id, user?.id);
   }
 
   @Patch('posts/:id')

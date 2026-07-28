@@ -19,9 +19,10 @@ export class ThreadsController {
 
   @Get()
   @Public()
-  @ApiOperation({ summary: '主题帖列表，支持分区筛选、排序、标签筛选、Cursor 分页' })
-  async findAll(@Query() query: ThreadQueryDto) {
-    return this.threadsService.findAll(query);
+  @ApiOperation({ summary: '主题帖列表。filter=all(默认)=全部分开帖, filter=playing=我参与的帖（需登录）' })
+  async findAll(@Query() query: ThreadQueryDto, @Req() req: FastifyRequest) {
+    const user = (req as any).user as { id: string } | undefined;
+    return this.threadsService.findAll(query, user?.id);
   }
 
   @Post()

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { paginate } from '../common/dto/paginated-result';
 
 /** 站内通知服务：CRUD、未读数 */
 @Injectable()
@@ -25,10 +26,10 @@ export class NotificationsService {
     const hasMore = notifs.length > take;
     if (hasMore) notifs.pop();
 
-    return {
-      items: notifs,
-      pagination: { cursor: notifs.length > 0 ? notifs[notifs.length - 1].id : null, hasMore },
-    };
+    return paginate(notifs, {
+      cursor: notifs.length > 0 ? notifs[notifs.length - 1].id : null,
+      hasMore,
+    });
   }
 
   /** 创建通知 */

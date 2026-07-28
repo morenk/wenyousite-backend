@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ThreadMembersService } from './thread-members.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
+import { BusinessException } from '../common/exceptions/business.exception';
 
 const mockPrisma = {
   thread: {
@@ -35,7 +35,7 @@ describe('ThreadMembersService', () => {
 
   it('私密帖应禁止自由加入', async () => {
     mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', visibility: 'PRIVATE' });
-    await expect(service.join('t1', 'u1')).rejects.toThrow(ForbiddenException);
+    await expect(service.join('t1', 'u1')).rejects.toThrow(BusinessException);
   });
 
   it('公开帖应允许自由加入', async () => {
@@ -58,13 +58,14 @@ describe('ThreadMembersService', () => {
     );
   });
 
-  it('公开帖踢出应完全删除成员', async () => {
+  it('踢出应取消玩家标记', async () => {
     mockPrisma.threadMember.findUnique
       .mockResolvedValueOnce({ role: 'OWNER' }) // assertCanManage
-      .mockResolvedValueOnce({ role: 'PARTICIPANT' }); // removeMember
-    mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', visibility: 'PUBLIC' });
-    mockPrisma.threadMember.delete.mockResolvedValue({});
+      .mockResolvedValueOnce({ role: 'PARTICIPANT', playerMarked: true }); // removeMember
+    mockPrisma.threadMember.update.mockResolvedValue({ id: 'm1', playerMarked: false });
     await service.removeMember('t1', 'u2', 'u1');
-    expect(mockPrisma.threadMember.delete).toHaveBeenCalled();
+    expect(mockPrisma.threadMember.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { playerMarked: false } }),
+    );
   });
 });

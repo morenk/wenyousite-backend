@@ -91,6 +91,7 @@ model User {
   subscriptions   Subscription[]
   sentNotifications Notification[] @relation("NotificationFromUser")
   reportedReports Report[]        @relation("Reporter")
+  bookmarks    UserBookmark[]
   handledReports  Report[]        @relation("Handler")
   auditLogs       AuditLog[]      @relation("AuditAdmin")
   media           Media[]
@@ -172,6 +173,7 @@ model Thread {
   subscriptions Subscription[]
   notifications Notification[]
   invites     ThreadInvite[]
+  bookmarks    UserBookmark[]
 
   @@map("threads")
 }
@@ -285,6 +287,19 @@ model ThreadInvite {
 
   @@unique([threadId])
   @@map("thread_invites")
+}
+
+model UserBookmark {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  threadId  String   @map("thread_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, threadId])
+  @@map("user_bookmarks")
 }
 
 model Media {

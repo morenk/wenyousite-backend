@@ -1,5 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsOptional, MinLength, MaxLength, IsIn, IsArray } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { sanitizeContent } from '../../common/transform/sanitize.transform';
 
 /** 创建主题帖 DTO */
 export class CreateThreadDto {
@@ -12,6 +14,7 @@ export class CreateThreadDto {
   @ApiProperty({ example: '这是一个关于奇幻大陆的故事...', description: '第一楼正文（任意富文本）' })
   @IsString()
   @MinLength(1)
+  @Transform(({ value }) => sanitizeContent(value))
   @MaxLength(10000)
   content: string;
 

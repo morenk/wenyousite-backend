@@ -40,8 +40,8 @@
 
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
-| GET | `/threads` | Public | 主题帖列表，支持分区筛选/排序/标签/Cursor 分页。只显示 PUBLIC 帖 |
-| POST | `/threads` | Auth | 创建主题帖（事务：Thread+Subthread+Post+Member）。通知粉丝，需邮箱已验证 |
+| GET | `/threads` | Public | 主题帖列表，支持分区/排序/标签/Cursor。`filter=all`(默认)公开帖，`filter=playing`我参与的帖（需登录） |
+| POST | `/threads` | Auth | 创建主题帖（事务：Thread+Subthread+Post+Member）。Owner 初始 playerMarked=true。通知粉丝，需邮箱已验证 |
 | GET | `/threads/:id` | AuthRead | 详情（含子贴列表），浏览量+1。PRIVATE 帖非成员 404 |
 | PATCH | `/threads/:id` | Auth | 修改（仅 OWNER/COLLABORATOR），需邮箱已验证 |
 | DELETE | `/threads/:id` | Auth | 软删除（仅 OWNER），需邮箱已验证 |
@@ -55,8 +55,9 @@
 | GET | `/threads/:id/members` | Public | 成员列表 |
 | POST | `/threads/:id/members/join` | Auth | 自由加入（PRIVATE 帖禁止，返回 403），需邮箱已验证 |
 | POST | `/threads/:id/members` | Auth | 邀请用户加入（仅 OWNER/COLLABORATOR），需邮箱已验证 |
-| PATCH | `/threads/:id/members/:userId` | Auth | 修改成员角色/玩家标记（仅 OWNER/COLLABORATOR），需邮箱已验证 |
-| DELETE | `/threads/:id/members/:userId` | Auth | 踢出成员。PRIVATE 帖仅取消 playerMarked，需邮箱已验证 |
+| PATCH | `/threads/:id/members/:userId` | Auth | 修改成员 role/playerMarked（仅 OWNER/COLLABORATOR），需邮箱已验证 |
+| DELETE | `/threads/:id/members/me` | AuthRead | 主动退出，取消自己的玩家标记（OWNER 不可退出），需邮箱已验证 |
+| DELETE | `/threads/:id/members/:userId` | Auth | 踢出成员，取消玩家标记（统一逻辑），需邮箱已验证 |
 
 ## 子贴端点 (Subthreads)
 
@@ -115,6 +116,14 @@
 |------|------|------|------|
 | POST | `/media/upload-url` | Auth | 获取预签名上传 URL（有效期 10 分钟），需邮箱已验证 |
 | POST | `/media/upload-done` | Auth | 确认上传完成，写入 DB，入队图片处理，需邮箱已验证 |
+
+## 收藏端点 (Bookmarks)
+
+| 方法 | 路径 | 守卫 | 说明 |
+|------|------|------|------|
+| GET | `/bookmarks` | AuthRead | 我的收藏列表（Cursor 分页），仅返回我仍可访问的帖 |
+| POST | `/bookmarks` | AuthRead | 收藏主题帖。PRIVATE 帖仅成员可收藏 |
+| DELETE | `/bookmarks/:id` | AuthRead | 取消收藏 |
 
 ## 其他端点
 

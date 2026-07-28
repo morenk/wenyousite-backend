@@ -7,8 +7,17 @@ import {
   Logger,
 } from '@nestjs/common';
 import { FastifyReply, FastifyRequest } from 'fastify';
+import { BusinessException } from '../exceptions/business.exception';
+import { httpStatusToCode } from '../exceptions/error-codes';
 
-/** 全局异常过滤器：捕获所有异常，返回统一错误格式 */
+/** 统一错误响应体 */
+interface ErrorResponse {
+  code: number;
+  message: string;
+  data: null;
+}
+
+/** 全局异常过滤器：统一 { code, message, data: null } 格式，支持 BusinessException 错误码 */
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
@@ -18,29 +27,44 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const response = ctx.getResponse<FastifyReply>();
     const request = ctx.getRequest<FastifyRequest>();
 
-    // 区分 HTTP 异常与未知异常的状态码
-    const status =
-      exception instanceof HttpException
-        ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+    let httpStatus: number;
+    let code: number;
+    let message: string;
 
-    const message =
-      exception instanceof HttpException
-        ? exception.message
-        : 'Internal server error';
+    if (exception instanceof BusinessException) {
+      httpStatus = exception.getStatus();
+      code = exception.errorCode;
+      message = exception.message;
+    } else if (exception instanceof HttpException) {
+      httpStatus = exception.getStatus();
+      code = httpStatusToCode(httpStatus);
+      const res = exception.getResponse();
 
-    // 记录错误日志，保留堆栈信息便于调试
+      if (typeof res === 'string') {
+        message = res;
+      } else if (typeof res === 'object' && res !== null) {
+        const resObj = res as Record<string, unknown>;
+        if (Array.isArray(resObj.message)) {
+          // ValidationPipe 的 message 是数组，合并为一条消息
+          message = resObj.message.join('; ');
+        } else {
+          message = String(resObj.message ?? exception.message);
+        }
+      } else {
+        message = exception.message;
+      }
+    } else {
+      httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
+      code = 50000;
+      message = '服务器内部错误';
+    }
+
     this.logger.error(
-      `${request.method} ${request.url} ${status} - ${message}`,
+      `${request.method} ${request.url} ${httpStatus} [${code}] - ${message}`,
       exception instanceof Error ? exception.stack : undefined,
     );
 
-    // 统一响应格式：{ statusCode, message, timestamp, path }
-    response.status(status).send({
-      statusCode: status,
-      message,
-      timestamp: new Date().toISOString(),
-      path: request.url,
-    });
+    const body: ErrorResponse = { code, message, data: null };
+    response.status(httpStatus).send(body);
   }
 }

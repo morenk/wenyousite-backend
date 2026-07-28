@@ -25,27 +25,29 @@
 
 | Method | Path | Guard | 描述 |
 |--------|------|-------|------|
-| GET | `/threads` | Public | 主题帖列表（分区/排序/标签筛选/Cursor 分页） |
-| POST | `/threads` | AuthRead | 创建主题帖（事务：Thread + 首个子贴 + 第一楼 + OWNER 成员） |
+| GET | `/threads` | Public | 主题帖列表（分区/排序/标签/Cursor）。`filter=all`(默认)公开帖，`filter=playing`我参与的帖 |
+| POST | `/threads` | AuthRead | 创建主题帖（事务：Thread + 首个子贴 + 第一楼 + OWNER 成员，owner.playerMarked=true） |
 | GET | `/threads/:id` | AuthRead | 主题帖详情（含子贴列表和标签） |
 | PATCH | `/threads/:id` | AuthRead | 修改主题帖（OWNER/COLLABORATOR，乐观锁 version） |
 | DELETE | `/threads/:id` | AuthRead | 软删除（仅 OWNER） |
 | POST | `/threads/:id/invite-link` | AuthRead | 生成/刷新私密帖邀请链接（仅 OWNER） |
-| POST | `/threads/join-by-link/:token` | AuthRead | 通过邀请链接加入私密帖 |
+| POST | `/threads/join-by-link/:token` | AuthRead | 通过邀请链接加入私密帖（成为成员，playerMarked=false） |
 | GET | `/threads/:threadId/members` | Public | 成员列表 |
 | POST | `/threads/:threadId/members/join` | AuthRead | 自由加入（公开帖） |
 | POST | `/threads/:threadId/members` | AuthRead | 邀请用户加入（OWNER/COLLABORATOR） |
 | PATCH | `/threads/:threadId/members/:userId` | AuthRead | 修改成员角色/玩家标记 |
-| DELETE | `/threads/:threadId/members/:userId` | AuthRead | 踢出成员 |
+| DELETE | `/threads/:threadId/members/me` | AuthRead | 主动退出（取消自己的 playerMarked），OWNER 不可退出 |
+| DELETE | `/threads/:threadId/members/:userId` | AuthRead | 取消该用户的玩家标记（统一逻辑，不再区分公开/私密） |
 | GET | `/threads/:threadId/tags` | Public | 主题帖标签列表 |
 | POST | `/threads/:threadId/tags` | AuthRead | 添加标签（OWNER/COLLABORATOR） |
 | DELETE | `/threads/:threadId/tags/:tagId` | AuthRead | 移除标签 |
 
 ## 核心业务规则
 
-- 创建主题帖在事务内完成：创建 Thread → 创建首个 Subthread → 创建第一楼 Post（floorNumber=1）→ 创建 OWNER 成员 → 关联标签
+- 创建主题帖在事务内完成：创建 Thread → 创建首个 Subthread → 创建第一楼 Post（floorNumber=1）→ 创建 OWNER 成员（playerMarked=true）
 - 创建后异步通知所有粉丝（thread_created 类型），fire-and-forget
-- 列表接口 `findAll` 仅返回 visibility=PUBLIC 且 deletedAt=null 的主题帖
+- 列表接口 `findAll`：`filter=all`(默认)仅返回 PUBLIC 帖；`filter=playing`返回 playerMarked=true 的帖（含私密帖），需登录
+- Owner 在"我参与的"列表中始终可见（创建时 playerMarked=true）
 - 排序规则：置顶帖优先（pinned DESC），其次按 createdAt 或 updatedAt（sort=active）
 - Cursor 分页：limit 默认 20 最大 50，返回 cursor + hasMore
 - 详情接口 `findById` 增加 viewCount（异步 fire-and-forget），私密帖非成员返回 404
@@ -53,8 +55,9 @@
 - 删除为软删除（设置 deletedAt），仅 OWNER 可操作
 - 成员管理权限：OWNER/COLLABORATOR 可管理（邀请、角色修改、踢出），不能修改/踢出 OWNER
 - 私密帖禁止自由加入（POST join），仅可通过邀请链接加入
-- 私密帖踢出仅取消 playerMarked 标记，不删除成员记录
-- 邀请链接使用 ThreadInvite 表 upsert（每个私密帖一个有效 token，重新生成时覆盖旧 token）
+- 踢出成员统一逻辑：取消 playerMarked 标记（不再区分公开/私密帖、不再删除成员记录）
+- 成员可主动退出（DELETE me）：取消自己的 playerMarked，OWNER 不可退出
+- 邀请链接使用 ThreadInvite 表 upsert
 - token 为随机 16 位小写字母+数字字符串
 
 ## 设计决策

@@ -19,8 +19,9 @@ export class SubthreadsController {
   @Get('threads/:threadId/subthreads')
   @Public()
   @ApiOperation({ summary: '获取主题帖下的子贴列表' })
-  async findAll(@Param('threadId') threadId: string) {
-    return this.subthreadsService.findAll(threadId);
+  async findAll(@Param('threadId') threadId: string, @Req() req: FastifyRequest) {
+    const user = (req as any).user as { id: string } | undefined;
+    return this.subthreadsService.findAll(threadId, user?.id);
   }
 
   @Post('threads/:threadId/subthreads')
@@ -39,8 +40,9 @@ export class SubthreadsController {
   @Get('subthreads/:id')
   @Public()
   @ApiOperation({ summary: '获取子贴详情' })
-  async findById(@Param('id') id: string) {
-    return this.subthreadsService.findById(id);
+  async findById(@Param('id') id: string, @Req() req: FastifyRequest) {
+    const user = (req as any).user as { id: string } | undefined;
+    return this.subthreadsService.findById(id, user?.id);
   }
 
   @Patch('subthreads/:id')

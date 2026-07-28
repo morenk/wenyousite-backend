@@ -233,48 +233,109 @@ export class XxxQueryDto extends CursorPaginationDto {
 
 ## 5. 响应格式
 
-### 5.1 成功响应
+成功与失败响应统一为 `{ code, message, data, meta? }` 结构，通过 `TransformInterceptor`（成功）和 `AllExceptionsFilter`（异常）在全局层自动包装。Flutter 端可用同一拦截器解析。
 
-`TransformInterceptor` 自动将所有成功响应包装为：
+### 5.1 成功响应
 
 ```json
 {
+  "code": 0,
+  "message": "ok",
   "data": { ... }
 }
 ```
 
-### 5.2 校验错误响应
-
-`ValidationPipe` 自动生成：
+**分页成功**（服务返回 `PaginatedResult` 实例时，`items` 提取到 `data`，`pagination` 提取到 `meta`）：
 
 ```json
 {
-  "statusCode": 400,
-  "message": ["password must be longer than or equal to 8 characters"],
-  "error": "Bad Request",
-  "timestamp": "2025-01-01T00:00:00.000Z",
-  "path": "/api/v1/auth/register"
+  "code": 0,
+  "message": "ok",
+  "data": [ ... ],
+  "meta": {
+    "cursor": "clx...",
+    "hasMore": true
+  }
 }
 ```
 
-前端可根据 `message` 数组（各字段错误列表）定位具体问题字段。
+### 5.2 业务异常（BusinessException）
 
-### 5.3 其他异常
-
-`AllExceptionsFilter` 统一格式：
+服务抛出 `BusinessException` 时，携带可机器识别的错误码：
 
 ```json
 {
-  "statusCode": 404,
-  "message": "Thread not found",
-  "timestamp": "2025-01-01T00:00:00.000Z",
-  "path": "/api/v1/threads/xxx"
+  "code": 40402,
+  "message": "主题帖不存在",
+  "data": null
 }
+```
+
+### 5.3 校验错误响应
+
+`ValidationPipe` 自动生成时，`message` 合并为分号分隔字符串：
+
+```json
+{
+  "code": 40000,
+  "message": "title must be shorter than or equal to 100 characters; content must be shorter than or equal to 10000 characters",
+  "data": null
+}
+```
+
+### 5.4 其他异常
+
+非 `BusinessException` 的 HTTP 异常根据状态码推导默认 `code`（401→40100, 403→40300, 404→40400, 409→40900, 500→50000）。
+
+---
+
+## 6. 错误码体系
+
+### 6.1 ErrorCode 枚举
+
+所有错误码定义在 `src/common/exceptions/error-codes.ts`，按 HTTP 语义分段：
+
+| 段 | 范围 | 含义 |
+|----|------|------|
+| 0 | 0 | 成功 |
+| 400xx | 40000-40099 | 参数校验 / 业务逻辑错误 |
+| 401xx | 40100-40199 | 认证错误（Token、验证码、密码） |
+| 403xx | 40300-40399 | 权限不足 |
+| 404xx | 40400-40499 | 资源不存在 |
+| 409xx | 40900-40999 | 冲突（重复、已存在） |
+| 429xx | 42900 | 限流 |
+| 500xx | 50000 | 服务端内部错误 |
+
+### 6.2 使用方式
+
+```ts
+import { ErrorCode } from '../common/exceptions/error-codes';
+import { BusinessException, notFound, forbidden } from '../common/exceptions/business.exception';
+
+// 完整构造
+throw new BusinessException(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在', HttpStatus.NOT_FOUND);
+
+// 快捷工厂
+throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
+throw forbidden('仅楼主可删除主题帖', ErrorCode.NOT_THREAD_OWNER);
+```
+
+### 6.3 分页返回
+
+服务层返回 `PaginatedResult` 实例，由拦截器自动拆分为 `data` + `meta`：
+
+```ts
+import { paginate } from '../common/dto/paginated-result';
+
+// 服务中
+return paginate(items, { cursor: items[last].id, hasMore });
+
+// 最终响应：{ code: 0, message: "ok", data: items, meta: { cursor, hasMore } }
 ```
 
 ---
 
-## 6. 新增端点 Checklist
+## 7. 新增端点 Checklist
 
 开发新端点时逐项确认：
 
@@ -286,12 +347,14 @@ export class XxxQueryDto extends CursorPaginationDto {
 - [ ] 字符串有 `@MinLength` / `@MaxLength`
 - [ ] 枚举有 `@IsIn([...])`
 - [ ] 数字有 `@IsNumber()`，query string 有 `@Type(() => Number)`
-- [ ] 需要分页的列表继承 `CursorPaginationDto`
+- [ ] 需要分页的列表继承 `CursorPaginationDto`，服务层返回 `paginate(items, meta)`
+- [ ] 业务异常使用 `BusinessException` 或快捷工厂 `notFound()` / `forbidden()`，携带具体 `ErrorCode`
+- [ ] 路径参数（UUID）使用 `ParseUUIDPipe` 校验
 - [ ] DTO 文件头部有 JSDoc 用途说明
 
 ---
 
-## 7. used 校验装饰器速查
+## 8. 校验装饰器速查
 
 | 装饰器 | 用途 | 使用频率 |
 |--------|------|----------|

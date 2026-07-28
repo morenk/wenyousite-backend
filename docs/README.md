@@ -31,6 +31,7 @@
 | [media](./modules/media.md) | 媒体 | 预签名 URL、upload-done、sharp 图片处理 |
 | [tags](./modules/tags.md) | 标签 | TopicTag + SubthreadTagDef 双标签系统 |
 | [search](./modules/search.md) | 搜索 | PostgreSQL ILIKE 全文搜索 |
+| [bookmarks](./modules/bookmarks.md) | 收藏 | 用户收藏主题帖，公开/私密帖 |
 | [reading-progress](./modules/reading-progress.md) | 阅读进度 | 记录进度、新增回复数 |
 | [reports](./modules/reports.md) | 举报 | 已搁置，待后期重构 |
 | [admin](./modules/admin.md) | 管理后台 | 管理后台 API |

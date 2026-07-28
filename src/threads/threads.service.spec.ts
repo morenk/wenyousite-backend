@@ -3,7 +3,7 @@ import { ThreadsService } from './threads.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TagsService } from '../tags/tags.service';
 import { NotificationProducer } from '../jobs/notification.producer';
-import { NotFoundException, ForbiddenException } from '@nestjs/common';
+import { BusinessException } from '../common/exceptions/business.exception';
 
 const mockPrisma = {
   $transaction: jest.fn(),
@@ -104,7 +104,7 @@ describe('ThreadsService', () => {
 
   it('findById 不存在应该返回404', async () => {
     mockPrisma.thread.findUnique.mockResolvedValue(null);
-    await expect(service.findById('x')).rejects.toThrow(NotFoundException);
+    await expect(service.findById('x')).rejects.toThrow(BusinessException);
   });
 
   it('update 应该验证管理权限', async () => {
@@ -119,12 +119,12 @@ describe('ThreadsService', () => {
   it('update 无权限应该返回403', async () => {
     mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', ownerId: 'u1' });
     mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
-    await expect(service.update('t1', { title: 'x' }, 'u2')).rejects.toThrow(ForbiddenException);
+    await expect(service.update('t1', { title: 'x' }, 'u2')).rejects.toThrow(BusinessException);
   });
 
   it('remove 仅楼主可删除', async () => {
     mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', ownerId: 'u1' });
-    await expect(service.remove('t1', 'u2')).rejects.toThrow(ForbiddenException);
+    await expect(service.remove('t1', 'u2')).rejects.toThrow(BusinessException);
   });
 
   it('assertCanManage OWNER 应该通过', async () => {
@@ -139,7 +139,7 @@ describe('ThreadsService', () => {
 
   it('assertCanManage PARTICIPANT 应该返回403', async () => {
     mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
-    await expect(service.assertCanManage('t1', 'u1')).rejects.toThrow(ForbiddenException);
+    await expect(service.assertCanManage('t1', 'u1')).rejects.toThrow(BusinessException);
   });
 
   it('findAll 应该优先排列置顶帖', async () => {
@@ -166,7 +166,7 @@ describe('ThreadsService', () => {
     mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', visibility: 'PRIVATE' });
     mockPrisma.threadMember.findUnique.mockResolvedValue(null);
     mockPrisma.thread.update.mockResolvedValue({});
-    await expect(service.findById('t1', 'u2')).rejects.toThrow(NotFoundException);
+    await expect(service.findById('t1', 'u2')).rejects.toThrow(BusinessException);
   });
 
   it('findById 私密帖成员应正常返回', async () => {
@@ -181,12 +181,12 @@ describe('ThreadsService', () => {
   it('findById 私密帖未登录应返回404', async () => {
     mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', visibility: 'PRIVATE' });
     mockPrisma.thread.update.mockResolvedValue({});
-    await expect(service.findById('t1')).rejects.toThrow(NotFoundException);
+    await expect(service.findById('t1')).rejects.toThrow(BusinessException);
   });
 
   it('createInviteLink 公开帖应返回403', async () => {
     mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', ownerId: 'u1', visibility: 'PUBLIC' });
-    await expect(service.createInviteLink('t1', 'u1')).rejects.toThrow(ForbiddenException);
+    await expect(service.createInviteLink('t1', 'u1')).rejects.toThrow(BusinessException);
   });
 
   it('createInviteLink 应生成令牌', async () => {
