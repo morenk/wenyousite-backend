@@ -77,14 +77,14 @@
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | String | PK, cuid() | — |
-| email | String | unique | 登录邮箱 |
+| email | String | unique, 统一小写存储 | 登录邮箱 |
 | username | String | unique | 用户名（唯一，不可重名） |
 | password | String | — | Argon2 哈希 |
 | nickname | String? | — | 显示昵称 |
 | avatar | String? | — | 头像 URL |
 | bio | String? | — | 个人简介 |
 | role | UserRole | default USER | 权限等级 |
-| emailVerified | Boolean | default false | 邮箱是否已验证 |
+| emailVerified | Boolean | default false | 邮箱是否已验证（已验证后才可发帖/关注/加入） |
 | showRecentReplies | Boolean | default true | 隐私：允许他人查看最近回复 |
 | showPlayerBadges | Boolean | default true | 隐私：允许显示玩家标记 |
 | showBookmarks | Boolean | default true | 隐私：允许显示收藏/订阅 |
@@ -92,15 +92,38 @@
 | createdAt | DateTime | default now() | — |
 | updatedAt | DateTime | @updatedAt | — |
 
-### email_verifications — 邮箱验证码
+### email_verifications — 邮箱验证码（统一注册/验证/重置）
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| id | String | PK | — |
+| userId | String? | FK users (Cascade)，注册阶段为 null | 关联用户 |
+| email | String? | — | 注册阶段使用（userId 为空时） |
+| token | String | indexed | 6 位数字验证码 |
+| type | String | default REGISTRATION | 类型：REGISTRATION / EMAIL_VERIFY / PASSWORD_RESET |
+| attempts | Int | default 0 | 失败尝试次数（>=5 删除记录） |
+| expiresAt | DateTime | — | 过期时间（统一 15 分钟） |
+| createdAt | DateTime | — | — |
+
+> 索引：`@@index([token])`, `@@index([userId, type])`, `@@index([email, type])`  
+> 已废弃 `registration_drafts` 表，统一使用本表承载注册/验证/重置三类用途。
+
+### refresh_tokens — 多设备会话
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | String | PK | — |
 | userId | String | FK users (Cascade) | — |
-| token | String | indexed | 6 位数字验证码 |
-| expiresAt | DateTime | — | 过期时间 |
+| tokenHash | String | indexed | refresh token 的 SHA-256 哈希（不存原文） |
+| family | String | — | 设备会话标识（UUID，同设备轮转保持相同） |
+| deviceInfo | String? | — | User-Agent 摘要 |
+| expiresAt | DateTime | — | 过期时间（7 天） |
+| revokedAt | DateTime? | — | 撤销时间（登出/改密码/盗用检测触发） |
 | createdAt | DateTime | — | — |
+
+> 每个登录设备一个 `family`，refresh 轮转时签发新 token 并撤销旧 token。  
+> 检测到已撤销 token 被重放时，吊销该 family 下全部 token（防盗用）。  
+> 改密码/重置密码时，吊销用户全部 `revokedAt = null` 的记录。
 
 ### user_blocks — 拉黑
 

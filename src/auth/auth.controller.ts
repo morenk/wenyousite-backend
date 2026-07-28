@@ -15,6 +15,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { AuthRead } from './decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
+import { LogoutDto } from './dto/logout.dto';
 
 /** 认证控制器：注册、登录、Token 刷新 */
 @ApiTags('Auth')
@@ -47,8 +48,9 @@ export class AuthController {
   @ApiOperation({ summary: '邮箱 + 密码登录' })
   @ApiResponse({ status: 200, type: AuthResponseDto, description: '登录成功返回双 Token 和用户信息' })
   @ApiResponse({ status: 401, description: '邮箱或密码错误' })
-  async login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  async login(@Body() dto: LoginDto, @Req() req: FastifyRequest) {
+    const deviceInfo = req.headers['user-agent']?.slice(0, 512) ?? undefined;
+    return this.authService.login(dto, deviceInfo);
   }
 
   @Post('refresh')
@@ -114,9 +116,9 @@ export class AuthController {
   @AuthRead()
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '登出，使所有已签发 token 立即失效' })
-  async logout(@Req() req: FastifyRequest) {
+  @ApiOperation({ summary: '登出，撤销指定设备的 refresh token' })
+  async logout(@Req() req: FastifyRequest, @Body() dto: LogoutDto) {
     const user = req['user'] as { id: string };
-    return this.authService.logout(user.id);
+    return this.authService.logout(user.id, dto.refreshToken);
   }
 }

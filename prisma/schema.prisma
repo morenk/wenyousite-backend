@@ -69,7 +69,6 @@ model User {
   showPlayerBadges  Boolean @default(true) @map("show_player_badges")
   showBookmarks    Boolean  @default(true) @map("show_bookmarks")
   deletedAt    DateTime? @map("deleted_at")
-  tokenVersion  Int      @default(0) @map("token_version")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
@@ -93,34 +92,44 @@ model User {
   handledReports  Report[]        @relation("Handler")
   auditLogs       AuditLog[]      @relation("AuditAdmin")
   media           Media[]
+  refreshTokens   RefreshToken[]
 
   @@map("users")
 }
 
 model EmailVerification {
   id        String   @id @default(cuid())
-  userId    String   @map("user_id")
+  userId    String?  @map("user_id")
+  email     String?
   token     String
-  type      String   @default("EMAIL_VERIFY") @map("type")
+  type      String   @default("REGISTRATION")
+  attempts  Int      @default(0)
   expiresAt DateTime @map("expires_at")
   createdAt DateTime @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([token])
   @@index([userId, type])
+  @@index([email, type])
   @@map("email_verifications")
 }
 
-model RegistrationDraft {
-  id               String   @id @default(cuid())
-  email            String   @unique
-  verificationCode String   @map("verification_code")
-  codeExpiresAt    DateTime @map("code_expires_at")
-  createdAt        DateTime @default(now()) @map("created_at")
+model RefreshToken {
+  id         String    @id @default(cuid())
+  userId     String    @map("user_id")
+  tokenHash  String    @map("token_hash")
+  family     String
+  deviceInfo String?   @map("device_info")
+  expiresAt  DateTime  @map("expires_at")
+  revokedAt  DateTime? @map("revoked_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
 
-  @@index([email])
-  @@map("registration_drafts")
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
 }
 
 model UserBlock {

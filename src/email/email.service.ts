@@ -28,7 +28,7 @@ export class EmailService {
       from,
       to,
       subject: '温油站 — 邮箱验证码',
-      html: `<h2>你的验证码：<strong style="font-size:32px;letter-spacing:8px">${code}</strong></h2><p>6 位数字，24 小时内有效。</p>`,
+      html: `<h2>你的验证码：<strong style="font-size:32px;letter-spacing:8px">${code}</strong></h2><p>6 位数字，15 分钟内有效。验证完成后即可解锁发帖、关注等完整功能。</p>`,
     });
   }
 
@@ -39,7 +39,7 @@ export class EmailService {
       from,
       to,
       subject: '温油站 — 重置密码验证码',
-      html: `<h2>你的验证码：<strong style="font-size:32px;letter-spacing:8px">${code}</strong></h2><p>6 位数字，1 小时内有效。</p>`,
+      html: `<h2>你的验证码：<strong style="font-size:32px;letter-spacing:8px">${code}</strong></h2><p>6 位数字，15 分钟内有效。</p>`,
     });
   }
 }

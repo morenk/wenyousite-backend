@@ -5,6 +5,7 @@ import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import * as argon2 from 'argon2';
 
 const mockPrisma = {
@@ -12,22 +13,25 @@ const mockPrisma = {
     findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
   },
   emailVerification: {
     create: jest.fn(),
     findFirst: jest.fn(),
+    update: jest.fn(),
     delete: jest.fn(),
     deleteMany: jest.fn(),
   },
-  registrationDraft: {
-    findUnique: jest.fn(),
+  refreshToken: {
     create: jest.fn(),
+    findFirst: jest.fn(),
     update: jest.fn(),
-    delete: jest.fn(),
+    updateMany: jest.fn(),
   },
+  $transaction: jest.fn((ops: any[]) => Promise.all(ops)),
 };
 
-const mockJwt = { signAsync: jest.fn(), verify: jest.fn() };
+const mockJwt = { signAsync: jest.fn() };
 const mockConfig = {
   get: jest.fn((key: string) => {
     const map: Record<string, any> = {
@@ -40,6 +44,11 @@ const mockConfig = {
   }),
 };
 
+const mockEmailService = {
+  sendVerification: jest.fn().mockResolvedValue(undefined),
+  sendPasswordReset: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('AuthService', () => {
   let service: AuthService;
 
@@ -50,7 +59,7 @@ describe('AuthService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: JwtService, useValue: mockJwt },
         { provide: ConfigService, useValue: mockConfig },
-        { provide: EmailService, useValue: { sendVerification: jest.fn().mockResolvedValue(undefined), sendPasswordReset: jest.fn().mockResolvedValue(undefined) } },
+        { provide: EmailService, useValue: mockEmailService },
       ],
     }).compile();
     service = module.get<AuthService>(AuthService);
@@ -65,127 +74,154 @@ describe('AuthService', () => {
       ).rejects.toThrow(ConflictException);
     });
 
-    it('无草稿时应该创建新草稿并发送验证码', async () => {
+    it('无验证记录时应该创建新记录并发送验证码', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
-      mockPrisma.registrationDraft.findUnique.mockResolvedValue(null);
+      mockPrisma.emailVerification.findFirst.mockResolvedValue(null);
 
       const result = await service.requestCode('a@b.com');
 
-      expect(mockPrisma.registrationDraft.create).toHaveBeenCalled();
-      expect(result.sent).toBe(true);
-      expect(result.codeExpiresIn).toBeGreaterThan(0);
+      expect(mockPrisma.emailVerification.create).toHaveBeenCalled();
+      expect(result.emailSent).toBe(true);
+      expect(result.codeExpiresIn).toBe(900);
     });
 
-    it('验证码未过期时不应重发', async () => {
+    it('验证码未过期时不重发', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
       const future = new Date(Date.now() + 10 * 60 * 1000);
-      mockPrisma.registrationDraft.findUnique.mockResolvedValue({
-        id: 'd1', email: 'a@b.com', verificationCode: '123456',
-        codeExpiresAt: future, createdAt: new Date(),
+      mockPrisma.emailVerification.findFirst.mockResolvedValue({
+        id: 'ev1', email: 'a@b.com', token: '123456',
+        type: 'REGISTRATION', expiresAt: future, attempts: 0, createdAt: new Date(),
       });
 
       const result = await service.requestCode('a@b.com');
 
-      expect(result.sent).toBe(false);
-      expect(mockPrisma.registrationDraft.create).not.toHaveBeenCalled();
+      expect(result.emailSent).toBe(true);
+      expect(result.message).toContain('验证码已发送');
+      expect(mockPrisma.emailVerification.create).not.toHaveBeenCalled();
     });
 
-    it('验证码已过期但草稿未超时应该更新验证码并重发', async () => {
+    it('验证码已过期时应该删除旧记录并新建', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
       const past = new Date(Date.now() - 5 * 60 * 1000);
-      mockPrisma.registrationDraft.findUnique.mockResolvedValue({
-        id: 'd1', email: 'a@b.com', verificationCode: '654321',
-        codeExpiresAt: past, createdAt: new Date(Date.now() - 20 * 60 * 1000),
+      mockPrisma.emailVerification.findFirst.mockResolvedValue({
+        id: 'ev1', email: 'a@b.com', token: '654321',
+        type: 'REGISTRATION', expiresAt: past, attempts: 0, createdAt: past,
       });
 
       const result = await service.requestCode('a@b.com');
 
-      expect(mockPrisma.registrationDraft.update).toHaveBeenCalled();
-      expect(result.sent).toBe(true);
+      expect(mockPrisma.emailVerification.delete).toHaveBeenCalledWith({ where: { id: 'ev1' } });
+      expect(mockPrisma.emailVerification.create).toHaveBeenCalled();
+      expect(result.emailSent).toBe(true);
     });
 
-    it('草稿超过1小时应该删除旧草稿并新建', async () => {
+    it('邮箱大小写不敏感', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
-      const oldDate = new Date(Date.now() - 2 * 60 * 60 * 1000);
-      mockPrisma.registrationDraft.findUnique.mockResolvedValue({
-        id: 'd1', email: 'a@b.com', verificationCode: '111111',
-        codeExpiresAt: oldDate, createdAt: oldDate,
-      });
+      mockPrisma.emailVerification.findFirst.mockResolvedValue(null);
 
-      await service.requestCode('a@b.com');
+      await service.requestCode('UPPER@Case.COM');
 
-      expect(mockPrisma.registrationDraft.delete).toHaveBeenCalledWith({ where: { id: 'd1' } });
-      expect(mockPrisma.registrationDraft.create).toHaveBeenCalled();
+      expect(mockPrisma.emailVerification.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ email: 'upper@case.com' }),
+        }),
+      );
     });
   });
 
   describe('verifyAndComplete', () => {
-    it('无草稿时应该返回400', async () => {
-      mockPrisma.registrationDraft.findUnique.mockResolvedValue(null);
+    const validDto = { email: 'a@b.com', code: '123456', username: 'test', password: 'Test1234!' };
+
+    it('无验证记录时应该返回400', async () => {
+      mockPrisma.emailVerification.findFirst.mockResolvedValue(null);
       await expect(
-        service.verifyAndComplete({ email: 'a@b.com', code: '123456', username: 'test', password: 'Test1234!' }),
+        service.verifyAndComplete(validDto),
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('验证码错误时应该返回401', async () => {
+    it('验证码错误时应该返回401并增加尝试计数', async () => {
       const future = new Date(Date.now() + 10 * 60 * 1000);
-      mockPrisma.registrationDraft.findUnique.mockResolvedValue({
-        id: 'd1', email: 'a@b.com', verificationCode: '999999',
-        codeExpiresAt: future, createdAt: new Date(),
+      mockPrisma.emailVerification.findFirst.mockResolvedValue({
+        id: 'ev1', email: 'a@b.com', token: '999999',
+        type: 'REGISTRATION', expiresAt: future, attempts: 0, createdAt: new Date(),
       });
 
       await expect(
-        service.verifyAndComplete({ email: 'a@b.com', code: '123456', username: 'test', password: 'Test1234!' }),
+        service.verifyAndComplete(validDto),
       ).rejects.toThrow(UnauthorizedException);
+      expect(mockPrisma.emailVerification.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { attempts: { increment: 1 } } }),
+      );
     });
 
-    it('验证码过期时应该返回401', async () => {
+    it('尝试次数过多时应该删除记录', async () => {
+      const future = new Date(Date.now() + 10 * 60 * 1000);
+      mockPrisma.emailVerification.findFirst.mockResolvedValue({
+        id: 'ev1', email: 'a@b.com', token: '999999',
+        type: 'REGISTRATION', expiresAt: future, attempts: 5, createdAt: new Date(),
+      });
+
+      await expect(
+        service.verifyAndComplete(validDto),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(mockPrisma.emailVerification.delete).toHaveBeenCalledWith({ where: { id: 'ev1' } });
+    });
+
+    it('验证码过期时应该返回401并删除记录', async () => {
       const past = new Date(Date.now() - 5 * 60 * 1000);
-      mockPrisma.registrationDraft.findUnique.mockResolvedValue({
-        id: 'd1', email: 'a@b.com', verificationCode: '123456',
-        codeExpiresAt: past, createdAt: new Date(Date.now() - 20 * 60 * 1000),
+      mockPrisma.emailVerification.findFirst.mockResolvedValue({
+        id: 'ev1', email: 'a@b.com', token: '123456',
+        type: 'REGISTRATION', expiresAt: past, attempts: 0, createdAt: new Date(),
       });
 
       await expect(
-        service.verifyAndComplete({ email: 'a@b.com', code: '123456', username: 'test', password: 'Test1234!' }),
+        service.verifyAndComplete(validDto),
       ).rejects.toThrow(UnauthorizedException);
+      expect(mockPrisma.emailVerification.delete).toHaveBeenCalledWith({ where: { id: 'ev1' } });
     });
 
-    it('验证通过应该创建用户并返回Token', async () => {
+    it('验证通过应该创建用户（emailVerified=false）并返回Token', async () => {
       const future = new Date(Date.now() + 10 * 60 * 1000);
-      mockPrisma.registrationDraft.findUnique.mockResolvedValue({
-        id: 'd1', email: 'a@b.com', verificationCode: '123456',
-        codeExpiresAt: future, createdAt: new Date(),
+      mockPrisma.emailVerification.findFirst.mockResolvedValue({
+        id: 'ev1', email: 'a@b.com', token: '123456',
+        type: 'REGISTRATION', expiresAt: future, attempts: 0, createdAt: new Date(),
       });
-      mockPrisma.user.findUnique.mockResolvedValue(null);
       mockPrisma.user.create.mockResolvedValue({
         id: 'u1', email: 'a@b.com', username: 'test', nickname: 'test', avatar: null, role: 'USER',
-        emailVerified: true,
+        emailVerified: false,
       });
-      mockJwt.signAsync
-        .mockResolvedValueOnce('at-token')
-        .mockResolvedValueOnce('rt-token');
+      mockJwt.signAsync.mockResolvedValue('at-token');
+      mockPrisma.refreshToken.create.mockResolvedValue({ id: 'rt1' });
 
-      const result = await service.verifyAndComplete({
-        email: 'a@b.com', code: '123456', username: 'test', password: 'Test1234!',
-      });
+      const result = await service.verifyAndComplete(validDto);
 
       expect(result.accessToken).toBe('at-token');
+      expect(result.refreshToken).toBeDefined();
       expect(result.user.email).toBe('a@b.com');
-      expect(result.user.emailVerified).toBe(true);
-      expect(mockPrisma.registrationDraft.delete).toHaveBeenCalledWith({ where: { id: 'd1' } });
+      expect(result.user.emailVerified).toBe(false);
+      expect(mockPrisma.emailVerification.delete).toHaveBeenCalledWith({ where: { id: 'ev1' } });
+      expect(mockPrisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ emailVerified: false }),
+        }),
+      );
     });
 
-    it('用户名已被占用时应该返回409', async () => {
+    it('用户名占用时应该返回409 (TOCTOU)', async () => {
       const future = new Date(Date.now() + 10 * 60 * 1000);
-      mockPrisma.registrationDraft.findUnique.mockResolvedValue({
-        id: 'd1', email: 'a@b.com', verificationCode: '123456',
-        codeExpiresAt: future, createdAt: new Date(),
+      mockPrisma.emailVerification.findFirst.mockResolvedValue({
+        id: 'ev1', email: 'a@b.com', token: '123456',
+        type: 'REGISTRATION', expiresAt: future, attempts: 0, createdAt: new Date(),
       });
-      mockPrisma.user.findUnique.mockResolvedValue({ id: 'x' });
+      const p2002 = new Prisma.PrismaClientKnownRequestError('Unique constraint', {
+        code: 'P2002',
+        meta: { target: ['username'] },
+        clientVersion: '6.x',
+      });
+      mockPrisma.user.create.mockRejectedValue(p2002);
 
       await expect(
-        service.verifyAndComplete({ email: 'a@b.com', code: '123456', username: 'test', password: 'Test1234!' }),
+        service.verifyAndComplete(validDto),
       ).rejects.toThrow(ConflictException);
     });
   });
@@ -194,16 +230,16 @@ describe('AuthService', () => {
     it('正确密码应该能登录', async () => {
       const hashed = await argon2.hash('Test1234!');
       mockPrisma.user.findUnique.mockResolvedValue({
-        id: 'u1', email: 'a@b.com', password: hashed, username: 'test', nickname: 'test', avatar: null, role: 'USER',
-        emailVerified: true, tokenVersion: 0, deletedAt: null,
+        id: 'u1', email: 'a@b.com', password: hashed, username: 'test', nickname: 'test', avatar: null,
+        role: 'USER', emailVerified: false, deletedAt: null,
       });
-      mockJwt.signAsync
-        .mockResolvedValueOnce('at-token')
-        .mockResolvedValueOnce('rt-token');
+      mockJwt.signAsync.mockResolvedValue('at-token');
+      mockPrisma.refreshToken.create.mockResolvedValue({ id: 'rt1' });
 
       const result = await service.login({ email: 'a@b.com', password: 'Test1234!' });
       expect(result.accessToken).toBe('at-token');
       expect(result.user.email).toBe('a@b.com');
+      expect(mockPrisma.refreshToken.create).toHaveBeenCalled();
     });
 
     it('密码错误应该返回401', async () => {
@@ -232,26 +268,95 @@ describe('AuthService', () => {
         service.login({ email: 'a@b.com', password: 'Test1234!' }),
       ).rejects.toThrow(UnauthorizedException);
     });
+
+    it('邮箱大小写不敏感', async () => {
+      const hashed = await argon2.hash('Test1234!');
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'u1', email: 'user@case.com', password: hashed, username: 'test', nickname: 'test', avatar: null,
+        role: 'USER', emailVerified: false, deletedAt: null,
+      });
+      mockJwt.signAsync.mockResolvedValue('at-token');
+      mockPrisma.refreshToken.create.mockResolvedValue({ id: 'rt1' });
+
+      await service.login({ email: 'USER@CASE.COM', password: 'Test1234!' });
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { email: 'user@case.com' } }),
+      );
+    });
   });
 
   describe('refresh', () => {
-    it('refresh token 有效时应该返回新Token', async () => {
-      mockJwt.verify.mockReturnValue({ sub: 'u1', tv: 0 });
-      mockPrisma.user.findUnique.mockResolvedValue({
-        id: 'u1', email: 'a@b.com', username: 'test', nickname: 'test', avatar: null, role: 'USER',
-        emailVerified: true, tokenVersion: 0, deletedAt: null,
+    it('refresh token 有效时应该返回新Token（轮转）', async () => {
+      mockPrisma.refreshToken.findFirst.mockResolvedValue({
+        id: 'rt1', userId: 'u1', tokenHash: expect.any(String), family: 'f1',
+        deviceInfo: null, expiresAt: new Date(Date.now() + 86400000),
+        revokedAt: null, createdAt: new Date(),
+        user: {
+          id: 'u1', email: 'a@b.com', username: 'test', nickname: 'test', avatar: null,
+          role: 'USER', emailVerified: false, deletedAt: null,
+        },
       });
-      mockJwt.signAsync
-        .mockResolvedValueOnce('new-at')
-        .mockResolvedValueOnce('new-rt');
+      mockJwt.signAsync.mockResolvedValue('new-at');
+      mockPrisma.refreshToken.create.mockResolvedValue({ id: 'rt2' });
+      mockPrisma.refreshToken.update.mockResolvedValue({ id: 'rt1' });
 
       const result = await service.refresh('valid-rt');
       expect(result.accessToken).toBe('new-at');
+      expect(result.refreshToken).toBeDefined();
+      // 旧 token 应被撤销
+      expect(mockPrisma.refreshToken.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { revokedAt: expect.any(Date) } }),
+      );
     });
 
     it('refresh token 无效时应该返回401', async () => {
-      mockJwt.verify.mockImplementation(() => { throw new Error('invalid'); });
+      mockPrisma.refreshToken.findFirst.mockResolvedValue(null);
       await expect(service.refresh('bad-rt')).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('refresh token 已撤销时应吊销整个 family', async () => {
+      mockPrisma.refreshToken.findFirst.mockResolvedValue({
+        id: 'rt1', userId: 'u1', tokenHash: expect.any(String), family: 'f1',
+        deviceInfo: null, expiresAt: new Date(Date.now() + 86400000),
+        revokedAt: new Date(), createdAt: new Date(),
+        user: { deletedAt: null },
+      });
+
+      await expect(service.refresh('stolen-rt')).rejects.toThrow(UnauthorizedException);
+      expect(mockPrisma.refreshToken.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { family: 'f1' } }),
+      );
+    });
+  });
+
+  describe('logout', () => {
+    it('应该撤销指定 refresh token', async () => {
+      mockPrisma.refreshToken.updateMany.mockResolvedValue({ count: 1 });
+      const result = await service.logout('u1', 'some-refresh-token');
+      expect(result.message).toBe('已登出');
+      expect(mockPrisma.refreshToken.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { userId: 'u1', revokedAt: null, tokenHash: expect.any(String) },
+          data: { revokedAt: expect.any(Date) },
+        }),
+      );
+    });
+  });
+
+  describe('changePassword', () => {
+    it('修改密码后应吊销全部 refresh token', async () => {
+      const hashed = await argon2.hash('OldPass1');
+      mockPrisma.user.findUnique.mockResolvedValue({ password: hashed });
+      mockPrisma.$transaction.mockImplementation(async (ops: any[]) => {
+        for (const op of ops) await op;
+        return ops;
+      });
+
+      const result = await service.changePassword('u1', 'OldPass1', 'NewPass1');
+      expect(result.message).toBe('密码已修改，请重新登录');
+      expect(mockPrisma.refreshToken.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { revokedAt: expect.any(Date) } }),
+      );
     });
   });
 });
