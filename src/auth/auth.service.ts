@@ -187,8 +187,7 @@ export class AuthService {
     }
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
-      const remaining = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000);
-      throw new UnauthorizedException(`账号已锁定，请 ${remaining} 分钟后重试`);
+      throw new UnauthorizedException('登录过于频繁，请稍后重试');
     }
 
     const valid = await argon2.verify(user.password, dto.password);
@@ -199,7 +198,7 @@ export class AuthService {
           where: { id: user.id },
           data: { failedLoginAttempts: attempts, lockedUntil: new Date(Date.now() + 15 * 60 * 1000) },
         });
-        throw new UnauthorizedException('账号已锁定，请 15 分钟后重试');
+        throw new UnauthorizedException('登录过于频繁，请稍后重试');
       }
       await this.prisma.user.update({
         where: { id: user.id },
@@ -265,7 +264,7 @@ export class AuthService {
     }
 
     if (record.user.deletedAt) {
-      throw new UnauthorizedException('账号已注销');
+      throw new UnauthorizedException('刷新令牌无效');
     }
 
     // 原子撤销：用 updateMany({ id, revokedAt: null }) 防并发竞争
@@ -478,7 +477,9 @@ export class AuthService {
   /** 重发验证邮件 */
   async resendVerification(rawEmail: string) {
     const email = rawEmail.toLowerCase().trim();
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const user = await this.prisma.user.findUnique({
+      where: { email, deletedAt: null },
+    });
     if (!user) {
       return { emailSent: true, message: '如果该邮箱已注册且未验证，验证邮件已发送' };
     }
