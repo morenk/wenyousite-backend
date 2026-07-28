@@ -25,7 +25,7 @@ NestJS + Fastify + PostgreSQL + Prisma + Redis + BullMQ，模块化单体架构�
 | 邮件 | nodemailer | 阿里云企业邮箱 SMTP（smtp.mxhichina.com） |
 | 文档 | @nestjs/swagger | /api/docs (仅 dev) |
 | 健康检查 | @nestjs/terminus | /api/v1/health |
-| 测试 | Jest + ts-jest | 13 套件 92 用例 |
+| 测试 | Jest + ts-jest | 16 套件 255 用例 |
 
 ## 项目结构
 
@@ -105,7 +105,7 @@ scripts/
 4. **楼中楼**：平级挂载，无嵌套深度限制，所有回复共享 `parentPostId`。回复目标通过 `replyToPostId` 追踪。
 5. **楼层编号**：事务内 `MAX+1`，永不复用。楼中楼帖子 `floorNumber = null`。
 6. **草稿**：用户级全局 5 槽位池，不与子贴绑定。满时返回错误，不自动覆盖。编辑器全局浮动，不绑定子贴。
-7. **通知投递**：站内通知走 BullMQ `notification` 队列异步投递。5 类通知类型 (reply / mention / new_floor / thread_created / follow)。邮件仅用于注册验证和密码重置。
+7. **通知投递**：站内通知走 BullMQ `notification` 队列异步投递。6 类通知类型 (reply / mention / new_floor / subthread_created / thread_created / follow)。邮件仅用于注册验证和密码重置。
 8. **私密帖**：`visibility=PRIVATE`，不在列表/搜索中显示，仅成员可访问。加入方式仅限邀请链接 (`ThreadInvite`)，踢出仅取消玩家标记。
 9. **订阅推送**：用户可订阅整帖 (THREAD) 或帖内某用户 (USER)。发帖时通过 `PostEventsListener` + `SubscriptionsService.findSubscribers()` 合并订阅者到通知列表。
 10. **图片上传**：客户端通过预签名 URL 直传 S3，完成后调 `upload-done` 确认。服务端写入 Media 表，入队 `image` 队列用 sharp 生成 300×300 缩略图 + 800px 中图 (WebP)。
@@ -120,7 +120,7 @@ scripts/
 | `pnpm install` | 安装依赖 |
 | `pnpm build` | 编译 |
 | `pnpm start:dev` | 开发服务器 |
-| `pnpm test` | 单元测试 (13 套件 92 用例) |
+| `pnpm test` | 单元测试 (16 套件 255 用例) |
 | `pnpm prisma:studio` | 数据库 GUI |
 | `npx tsx scripts/set-admin.ts <email>` | 升级管理员 |
 | `bash scripts/deploy.sh` | 生产部署 |
