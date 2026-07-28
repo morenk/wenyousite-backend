@@ -17,7 +17,7 @@ const mockPrisma = {
   $transaction: jest.fn((ops: any[]) => Promise.all(ops)),
 };
 
-const userFixture = { id: 'u1', username: 'test', avatar: null, bio: null, role: 'USER', deletedAt: null, showRecentReplies: true, showPlayerBadges: true, showBookmarks: true };
+const userFixture = { id: 'u1', username: 'test', avatar: null, bio: null, role: 'USER', deletedAt: null, lastUsernameChange: null, showRecentReplies: true, showPlayerBadges: true, showBookmarks: true };
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -68,8 +68,28 @@ describe('UsersService', () => {
     ).rejects.toThrow(ConflictException);
   });
 
+  it('用户名修改间隔不足 7 天应拒绝', async () => {
+    const recentChange = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    mockPrisma.user.findUnique.mockResolvedValue({ ...userFixture, username: 'oldname', lastUsernameChange: recentChange });
+    await expect(
+      service.update('u1', { username: 'newname' }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('用户名修改超 7 天应成功并更新 lastUsernameChange', async () => {
+    const oldChange = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce({ ...userFixture, username: 'oldname', lastUsernameChange: oldChange }) // find by id
+      .mockResolvedValueOnce(null); // find by new username (no conflict)
+    mockPrisma.user.update.mockResolvedValue({ ...userFixture, username: 'newname', lastUsernameChange: new Date() });
+    const result = await service.update('u1', { username: 'newname' });
+    expect(result.username).toBe('newname');
+  });
+
   it('P2002 用户名唯一冲突应捕获并返回 409', async () => {
-    mockPrisma.user.findUnique.mockResolvedValue({ ...userFixture });
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce({ ...userFixture }) // find by id
+      .mockResolvedValueOnce(null); // find by new username (no conflict)
     mockPrisma.user.update.mockRejectedValue({ code: 'P2002', meta: { target: ['username'] } });
     await expect(service.update('u1', { username: 'newname' })).rejects.toThrow(ConflictException);
   });

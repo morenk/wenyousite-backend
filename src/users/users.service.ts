@@ -49,12 +49,19 @@ export class UsersService {
     });
   }
 
-  /** 更新用户资料：校验唯一性、捕获竞态、空 body 短路 */
+  /** 更新用户资料：校验唯一性、冷却期、捕获竞态、空 body 短路 */
   async update(id: string, dto: UpdateUserDto) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundException('用户不存在');
 
     if (dto.username && dto.username !== user.username) {
+      if (user.lastUsernameChange) {
+        const cooldownEnd = new Date(user.lastUsernameChange.getTime() + 7 * 24 * 60 * 60 * 1000);
+        if (new Date() < cooldownEnd) {
+          const remaining = Math.ceil((cooldownEnd.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+          throw new BadRequestException(`用户名修改后需间隔 7 天，剩余 ${remaining} 天`);
+        }
+      }
       const existing = await this.findByUsername(dto.username);
       if (existing) throw new ConflictException('用户名已被占用');
     }
@@ -71,7 +78,10 @@ export class UsersService {
     try {
       return await this.prisma.user.update({
         where: { id },
-        data: dto,
+        data: {
+          ...dto,
+          ...(dto.username && dto.username !== user.username ? { lastUsernameChange: new Date() } : {}),
+        },
         select: userSelectPrivate,
       });
     } catch (e: any) {

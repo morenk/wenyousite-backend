@@ -40,6 +40,7 @@
 - `findById` 排除 email 字段，仅返回公开信息
 - 已注销用户（deletedAt 非 null）的公开资料被屏蔽为 "已注销用户"，isDeactivated = true
 - 更新用户名时检查唯一性（过滤 deletedAt），冲突返回 409；DB 层 P2002 同样转 409 防竞态
+- 用户名修改需间隔 7 天以上，不足时返回剩余天数提示
 - 用户名规则：2-24 位，字母 + 数字 + 中文，禁止标点符号和特殊字符（注册与修改一致）
 - 用户名/简介自动去除 HTML 标签（sanitizeContent），防 XSS
 - 头像仅可通过 `PATCH /users/me/avatar` 设置（传入 mediaId），不可通过 `PATCH /users/me` 直接修改

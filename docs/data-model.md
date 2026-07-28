@@ -91,6 +91,7 @@
 | deletedAt | DateTime? | — | 软删除（注销时间） |
 | failedLoginAttempts | Int | default 0 | 连续登录失败次数（>=5 锁定） |
 | lockedUntil | DateTime? | — | 锁定解除时间（15 分钟） |
+| lastUsernameChange | DateTime? | — | 上次用户名修改时间（7 天冷却） |
 | createdAt | DateTime | default now() | — |
 | updatedAt | DateTime | @updatedAt | — |
 
