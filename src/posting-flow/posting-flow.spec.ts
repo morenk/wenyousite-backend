@@ -37,7 +37,7 @@ const createMockPrisma = () => ({
 const basicTx = () => ({
   $queryRaw: jest.fn(),
   post: { aggregate: jest.fn(), create: jest.fn() },
-  subthread: { update: jest.fn(), create: jest.fn(), findUnique: jest.fn(), aggregate: jest.fn(), findFirst: jest.fn() },
+  subthread: { update: jest.fn().mockResolvedValue({}), create: jest.fn(), findUnique: jest.fn(), aggregate: jest.fn(), findFirst: jest.fn() },
 });
 
 const mockEventEmitter = { emit: jest.fn() };

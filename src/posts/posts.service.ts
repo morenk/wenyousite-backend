@@ -214,14 +214,17 @@ export class PostsService {
   async remove(id: string, userId: string) {
     const postLight = await this.prisma.post.findUnique({
       where: { id, ...notDeleted },
-      select: { id: true, authorId: true, floorNumber: true, parentPostId: true, subthread: { select: { deletedAt: true } } },
+      select: { id: true, authorId: true, floorNumber: true, parentPostId: true, subthread: { select: { deletedAt: true, bodyPostId: true } } },
     });
     if (!postLight) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
     if (postLight.subthread.deletedAt) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
     if (postLight.authorId !== userId) throw forbidden('只能删除自己的帖子');
 
     // 检查是否是子贴主体正文
-    if (postLight.floorNumber === 1 && !postLight.parentPostId) {
+    const isBodyPost = postLight.subthread.bodyPostId
+      ? postLight.id === postLight.subthread.bodyPostId
+      : postLight.floorNumber === 1 && !postLight.parentPostId;
+    if (isBodyPost) {
       throw forbidden(
         '主体正文不可删除。如需修改请编辑帖子；如需移除请删除整个子贴。',
       );

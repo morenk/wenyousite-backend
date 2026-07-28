@@ -208,12 +208,14 @@ model Subthread {
   postingPolicy PostingPolicy @default(PARTICIPANTS) @map("posting_policy")
   version       Int      @default(1) @map("lock_version")
   lastPostAt    DateTime? @map("last_post_at")
+  bodyPostId    String?   @unique @map("body_post_id")
   deletedAt     DateTime? @map("deleted_at")
   createdAt     DateTime  @default(now()) @map("created_at")
 
-  thread Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  tags   SubthreadTag[]
-  posts  Post[]
+  thread   Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  bodyPost Post?    @relation("SubthreadBody", fields: [bodyPostId], references: [id], onDelete: SetNull)
+  tags     SubthreadTag[]
+  posts    Post[]
   readProgress UserReadProgress[]
 
   @@unique([threadId, sortOrder])
@@ -360,6 +362,7 @@ model Post {
   replyToPost Post?     @relation("ReplyTo", fields: [replyToPostId], references: [id])
   replies     Post[]    @relation("PostReplies")
   repliedBy   Post[]    @relation("ReplyTo")
+  subthreadBodyFor Subthread? @relation("SubthreadBody")
   readProgressBy UserReadProgress[]
   mentions    PostMention[]
   notifications Notification[]

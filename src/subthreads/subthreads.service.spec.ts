@@ -33,12 +33,13 @@ const mockEventEmitter = { emit: jest.fn() };
 const createTxMock = (overrides: Record<string, any> = {}) => ({
   $queryRaw: jest.fn(),
   $queryRawUnsafe: jest.fn(),
-  post: { create: jest.fn() },
+  post: { create: jest.fn().mockResolvedValue({ id: 'p1', floorNumber: 1, content: 'test' }) },
   subthread: {
     aggregate: jest.fn().mockResolvedValue({ _max: { sortOrder: 0 } }),
     findFirst: jest.fn().mockResolvedValue(null),
     create: jest.fn().mockResolvedValue({ id: 's1', threadId: 't1', sortOrder: 1 }),
     findUnique: jest.fn().mockResolvedValue({ id: 's1', threadId: 't1', tags: [], _count: { posts: 1 } }),
+    update: jest.fn().mockResolvedValue({}),
     ...overrides,
   },
 });

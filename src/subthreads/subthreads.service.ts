@@ -112,6 +112,10 @@ export class SubthreadsService {
             content: dto.content!,
           },
         });
+        await tx.subthread.update({
+          where: { id: subthread.id },
+          data: { bodyPostId: bodyPost.id },
+        });
       }
 
       const full = await tx.subthread.findUnique({
