@@ -2,16 +2,17 @@
 
 ## 通知类型与触发事件
 
-系统定义 6 类通知（Prisma 枚举 `NotificationType`），各自有独立的触发源和事件。
+系统定义 7 类通知（Prisma 枚举 `NotificationType`），各自有独立的触发源和事件。
 
 | 类型 | 枚举值 | 触发事件 | 触发源 | 触发位置 |
 |------|--------|----------|--------|----------|
 | 楼中楼回复 | `reply` | `post.created`（`parentPostId` 非空 + `!isSubthreadBody`） | `PostEventsListener` | `src/jobs/post-events.listener.ts:86` |
-| @提及 | `mention` | `post.created`（正文含 `@username`） | `PostEventsListener` → `MentionsService.parseAndCreate()` | `src/jobs/post-events.listener.ts:41` |
+| @提及 | `mention` | `post.created`（正文含 `@username`）or 编辑新增 @ | `PostEventsListener` → `MentionsService.parseAndCreate()` or `PostsService.update()` | `src/jobs/post-events.listener.ts:41`、`src/posts/posts.service.ts:219` |
 | 新楼层 | `new_floor` | `post.created`（`parentPostId` 为空 + `!isSubthreadBody`） | `PostEventsListener` | `src/jobs/post-events.listener.ts:60` |
 | 新子贴 | `subthread_created` | `post.created`（`isSubthreadBody = true`） | `PostEventsListener` | `src/jobs/post-events.listener.ts:74` |
 | 新主题帖 | `thread_created` | 主题帖 PATCH published=true | `ThreadsService.update()` | `src/threads/threads.service.ts:228` |
-| 被关注 | `follow` | 关注关系写入数据库 | `UsersFollowController.follow()` | `src/users/users-follow.controller.ts:33` |
+| 被关注 | `follow` | 首次关注关系写入 | `UsersFollowController.follow()` | `src/users/users-follow.controller.ts:33` |
+| 被点赞 | `like` | 首次点赞 | `PostsService.like()` | `src/posts/posts.service.ts:265` |
 
 **事件驱动模型**：
 
@@ -45,11 +46,11 @@
 
 **接收者**：`MentionsService.parseAndCreate()` 返回的经过权限校验的用户列表
 
-**@提及权限规则**：
-1. 已关注 → 可 @
-2. 同帖玩家间可 @
-3. 玩家可 @ 楼主
-4. 楼主可 @ 任何人
+**@提及权限规则**（`src/mentions/mentions.service.ts:filterByRules`）：
+1. 楼主可 @ 任何人（`isOwner → return true`）
+2. 已关注 → 可 @（`followingIds.has(u.id) → return true`）
+3. 帖内有身份 → 可 @ 该帖**发言过的人**（查询 `Post` 表 distinct authorId，单批上限 100 候选）
+4. 帖内无身份且无关注 → 全部拒绝
 5. @ 自己 → 不创建提及记录，不发送通知
 
 **过滤**：被 @ 的用户如果拉黑了发帖人（即出现在 `blockedAuthorIds` 中），则从通知接收者中移除。
@@ -105,12 +106,22 @@ const followers = await this.prisma.userFollow.findMany({
 
 ### 6. follow — 被关注
 
-**触发条件**：关注关系写入数据库（upsert）
+**触发条件**：首次关注关系写入（先查后建，已关注则跳过）
 
 **接收者**：被关注者（单个用户）
 
 - 不通知自己关注自己（前置判断 `if user.id === targetId return`）
 - 使用 `.catch(() => {})` 吞掉队列异常
+
+### 7. like — 被点赞
+
+**触发条件**：首次点赞（`PostsService.like()`，已点赞则跳过）
+
+**接收者**：被点赞帖子的作者（单个用户）
+
+- 不通知自己赞自己（判断 `post.authorId !== userId`）
+- 使用 `.catch(() => {})` 吞掉队列异常
+- 通知内容包含帖子正文智能截断预览
 
 ---
 
@@ -217,12 +228,24 @@ WHERE threadId = {threadId}
 
 | 类型 | content 格式 |
 |------|-------------|
-| `new_floor` | `{username} 发布了新楼层：{正文前100字}` |
-| `reply` | `{username} 回复了：{正文前100字}` |
-| `mention` | `{username} 在「{subthreadTitle}」提到了你：{正文前100字}` |
-| `subthread_created` | `{username} 创建了新子贴「{subthreadTitle}」：{正文前100字}` |
+| `new_floor` | `{username} 发布了新楼层：{正文智能截断}` |
+| `reply` | `{username} 回复了：{正文智能截断}` |
+| `mention` | `{username} 在「{subthreadTitle}」提到了你：{正文智能截断}` |
+| `subthread_created` | `{username} 创建了新子贴「{subthreadTitle}」：{正文智能截断}` |
 | `thread_created` | `{username}创建了新主题帖`（无正文预览） |
 | `follow` | `{username}关注了你` |
+| `like` | `{username} 赞了你的帖子：{正文智能截断}` |
+
+**正文智能截断**：使用 `remove-markdown` 转纯文本后，优先在句号/换行/问号/感叹号处截断，最少 50 字，最多 100 字。
+
+**payload 结构化字段**（JSON，可选）：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `actorName` | string | 操作者用户名 |
+| `action` | string | 动作类型（mention / reply / new_floor / subthread_created / like） |
+| `preview` | string | 正文智能截断纯文本 |
+| `subthreadTitle` | string? | 子贴标题（mention / subthread_created 时存在） |
 
 ---
 

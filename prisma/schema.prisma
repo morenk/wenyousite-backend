@@ -46,9 +46,10 @@ enum NotificationType {
   reply
   mention
   new_floor
-  thread_created
   subthread_created
+  thread_created
   follow
+  like
 }
 
 enum SubscriptionType {
@@ -406,6 +407,7 @@ model Notification {
   userId      String   @map("user_id")
   type        NotificationType
   content     String?
+  payload     Json?
   postId      String?  @map("post_id")
   threadId    String?  @map("thread_id")
   fromUserId  String?  @map("from_user_id")

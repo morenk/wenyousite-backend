@@ -2,12 +2,15 @@ import { Injectable, HttpStatus } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../common/services/thread-access.service';
+import { NotificationProducer } from '../jobs/notification.producer';
+import { MentionsService } from '../mentions/mentions.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound, forbidden } from '../common/exceptions/business.exception';
 import { paginate } from '../common/dto/paginated-result';
 import { notDeleted, authorSelect, countNonDeletedReplies } from '../common/prisma-helpers';
+import { truncateMarkdown } from '../common/markdown-truncate';
 
 /** 楼层服务：发帖（事务楼层编号 + FOR UPDATE）、楼中楼、编辑、软删除 */
 @Injectable()
@@ -16,6 +19,8 @@ export class PostsService {
     private prisma: PrismaService,
     private eventEmitter: EventEmitter2,
     private threadAccess: ThreadAccessService,
+    private notificationProducer: NotificationProducer,
+    private mentionsService: MentionsService,
   ) {}
 
   /** 获取子贴的楼层列表（Cursor 分页）。已软删子贴返回 404 */
@@ -195,19 +200,45 @@ export class PostsService {
   async update(id: string, dto: UpdatePostDto, userId: string) {
     const postLight = await this.prisma.post.findUnique({
       where: { id, ...notDeleted },
-      select: { id: true, authorId: true, subthread: { select: { deletedAt: true } } },
+      select: { id: true, authorId: true, threadId: true, content: true, subthread: { select: { deletedAt: true } } },
     });
     if (!postLight) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
     if (postLight.subthread.deletedAt) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
     if (postLight.authorId !== userId) throw forbidden('只能编辑自己的帖子');
 
-    return this.prisma.post.update({
+    const oldContent = postLight.content;
+
+    const updated = await this.prisma.post.update({
       where: { id, version: dto.version, ...notDeleted },
       data: { content: dto.content, version: { increment: 1 } },
-      include: {
-        author: { select: authorSelect },
-      },
+      include: { author: { select: authorSelect } },
     }).catch(() => { throw new BusinessException(ErrorCode.OPTIMISTIC_LOCK_CONFLICT, '帖子已被编辑，请刷新后重试', HttpStatus.CONFLICT); });
+
+    // 编辑新增 @提及通知：对比新旧正文，仅对新增的 @用户名创建提及和通知
+    if (dto.content !== oldContent) {
+      const oldNames = new Set(this.mentionsService.extractUsernames(oldContent));
+      const newNames = this.mentionsService.extractUsernames(dto.content).filter(n => !oldNames.has(n));
+      if (newNames.length > 0 && postLight.threadId) {
+        // 构造仅含新增 @用户名 的正文片段以复用 parseAndCreate 逻辑
+        const fakeContent = newNames.map(n => `@${n}`).join(' ');
+        this.mentionsService.parseAndCreate(updated.id, fakeContent, userId, postLight.threadId)
+          .then((mentioned) => {
+            if (mentioned.length > 0) {
+              const preview = truncateMarkdown(dto.content);
+              this.notificationProducer.notify(
+                'mention',
+                mentioned.map(u => u.userId),
+                `${updated.author.username} 在编辑后的帖子里提到了你：${preview}`,
+                { postId: updated.id, threadId: postLight.threadId, fromUserId: userId,
+                  payload: { actorName: updated.author.username, action: 'mention', preview } },
+              ).catch(() => {});
+            }
+          })
+          .catch(() => {});
+      }
+    }
+
+    return updated;
   }
 
   /** 软删除帖子 */
@@ -262,7 +293,10 @@ export class PostsService {
 
   /** 点赞：先查是否已存在，仅在首次点赞时递增 likeCount，保证幂等 */
   async like(id: string, userId: string) {
-    const post = await this.prisma.post.findUnique({ where: { id, ...notDeleted } });
+    const post = await this.prisma.post.findUnique({
+      where: { id, ...notDeleted },
+      select: { id: true, threadId: true, authorId: true, content: true, likeCount: true },
+    });
     if (!post) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
     await this.threadAccess.assertAccessible(post.threadId, userId);
 
@@ -274,10 +308,24 @@ export class PostsService {
 
     await this.prisma.postLike.create({ data: { postId: id, userId } });
 
-    return this.prisma.post.update({
+    const updated = await this.prisma.post.update({
       where: { id },
       data: { likeCount: { increment: 1 } },
     });
+
+    // 点赞通知（不通知自己赞自己）
+    if (post.authorId !== userId) {
+      const preview = truncateMarkdown(post.content);
+      this.notificationProducer.notify(
+        'like',
+        [post.authorId],
+        `${userId} 赞了你的帖子：${preview}`,
+        { postId: id, threadId: post.threadId, fromUserId: userId,
+          payload: { actorId: userId, action: 'like', preview } },
+      ).catch(() => {});
+    }
+
+    return updated;
   }
 
   /** 取消点赞：仅在确实存在点赞记录时递减 likeCount，防止变负 */

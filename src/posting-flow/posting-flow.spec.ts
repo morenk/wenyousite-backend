@@ -724,8 +724,8 @@ describe('发帖全流程集成测试', () => {
   // ======================== 第七部分：帖子编辑 ========================
   describe('帖子编辑 (Post Edit)', () => {
     it('编辑自己的帖子 → 成功', async () => {
-      prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', subthread: { deletedAt: null } });
-      prisma.post.update.mockResolvedValue({ id: 'p1', content: '编辑后' });
+      prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', threadId: 't1', content: '旧内容', subthread: { deletedAt: null } });
+      prisma.post.update.mockResolvedValue({ id: 'p1', content: '编辑后', author: { username: 'test' } });
       const result = await postsService.update('p1', { version: 1, content: '编辑后' }, 'u1');
       expect(result.content).toBe('编辑后');
     });
@@ -741,7 +741,7 @@ describe('发帖全流程集成测试', () => {
     });
 
     it('编辑：乐观锁版本号检查', async () => {
-      prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', subthread: { deletedAt: null } });
+      prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', threadId: 't1', content: '旧', subthread: { deletedAt: null } });
       prisma.post.update.mockRejectedValue(new Error('Prisma error'));
       await expect(postsService.update('p1', {content: 'x', version: 1 }, 'u1')).rejects.toThrow(BusinessException);
     });
@@ -783,8 +783,8 @@ prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', subthread: 
 
   // ======================== 第九部分：点赞 ========================
   describe('点赞 (Like)', () => {
-    it('点赞：首次点赞 create + likeCount +1', async () => {
-      prisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', likeCount: 0 });
+    it('点赞：首次点赞 create + likeCount +1 + 通知作者', async () => {
+      prisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', authorId: 'u2', content: '测试内容', likeCount: 0 });
       prisma.postLike.findUnique.mockResolvedValue(null);
       prisma.postLike.create.mockResolvedValue({});
       prisma.post.update.mockResolvedValue({ id: 'p1', likeCount: 1 });
@@ -793,10 +793,22 @@ prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', subthread: 
       expect(prisma.post.update).toHaveBeenCalledWith({
         where: { id: 'p1' }, data: { likeCount: { increment: 1 } },
       });
+      expect(mockNotificationProducer.notify).toHaveBeenCalledWith(
+        'like', ['u2'], expect.stringContaining('赞了你的帖子'), expect.objectContaining({ postId: 'p1' }),
+      );
+    });
+
+    it('点赞：赞自己的帖子不发通知', async () => {
+      prisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', authorId: 'u1', content: '测试', likeCount: 0 });
+      prisma.postLike.findUnique.mockResolvedValue(null);
+      prisma.postLike.create.mockResolvedValue({});
+      prisma.post.update.mockResolvedValue({ id: 'p1', likeCount: 1 });
+      await postsService.like('p1', 'u1');
+      expect(mockNotificationProducer.notify).not.toHaveBeenCalled();
     });
 
     it('点赞：重复调用应幂等（不递增 likeCount）', async () => {
-      prisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', likeCount: 1 });
+      prisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', authorId: 'u1', content: 'test', likeCount: 1 });
       prisma.postLike.findUnique.mockResolvedValue({ postId: 'p1', userId: 'u1' });
       const result = await postsService.like('p1', 'u1');
       expect(prisma.postLike.create).not.toHaveBeenCalled();
@@ -1128,7 +1140,7 @@ prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', subthread: 
     });
 
     it('编辑帖子：版本冲突 → 409', async () => {
-      prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', subthread: { deletedAt: null } });
+      prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', threadId: 't1', content: '旧', subthread: { deletedAt: null } });
       prisma.post.update.mockRejectedValue(new Error('Prisma'));
       await expect(postsService.update('p1', {content: 'x', version: 1 }, 'u1')).rejects.toThrow(BusinessException);
     });

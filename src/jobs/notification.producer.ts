@@ -12,12 +12,12 @@ export class NotificationProducer {
     type: string,
     recipients: string[],
     content: string,
-    opts?: { postId?: string; threadId?: string; fromUserId?: string },
+    opts?: { postId?: string; threadId?: string; fromUserId?: string; payload?: Record<string, any> },
   ) {
     if (recipients.length === 0) return;
     await this.notificationQueue.add(
       type,
-      { type, recipients, content, ...opts },
+      { type, recipients, content, payload: opts?.payload ?? null, ...opts },
       { removeOnComplete: { age: 3600 * 24 }, removeOnFail: { age: 3600 * 24 * 7 } },
     );
   }

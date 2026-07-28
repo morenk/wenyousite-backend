@@ -2,27 +2,28 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { paginate } from '../common/dto/paginated-result';
 
-/** 站内通知服务：CRUD、未读数 */
+/** 站内通知服务：CRUD、未读数、硬删除、标记未读 */
 @Injectable()
 export class NotificationsService {
   constructor(private prisma: PrismaService) {}
 
-  /** 获取用户通知列表（过滤已软删帖/子贴，含关联的帖子/主题/发信人信息） */
-  async findAll(userId: string, cursor?: string, limit = 20) {
+  /** 获取用户通知列表（支持按类型过滤，自动排除已软删帖/子贴） */
+  async findAll(userId: string, cursor?: string, limit = 20, types?: string[]) {
     const take = Math.min(limit, 50);
+    const where: any = {
+      userId,
+      // 过滤已被软删的主题帖和帖子的通知
+      OR: [
+        { AND: [{ threadId: null }, { postId: null }] },
+        { threadId: { not: null }, thread: { deletedAt: null } },
+        { postId: { not: null }, post: { deletedAt: null } },
+      ],
+    };
+    if (types && types.length > 0) {
+      where.type = { in: types as any[] };
+    }
     const notifs = await this.prisma.notification.findMany({
-      where: {
-        userId,
-        // 过滤已被软删的主题帖和帖子的通知
-        OR: [
-          // 无关联帖子的通知（如 关注 / 帖创建）
-          { AND: [{ threadId: null }, { postId: null }] },
-          // 关联的线程未被软删
-          { threadId: { not: null }, thread: { deletedAt: null } },
-          // 关联的帖子未被软删
-          { postId: { not: null }, post: { deletedAt: null } },
-        ],
-      },
+      where,
       orderBy: { createdAt: 'desc' },
       take: take + 1,
       cursor: cursor ? { id: cursor } : undefined,
@@ -72,11 +73,26 @@ export class NotificationsService {
     });
   }
 
+  /** 设置阅读状态（支持标记未读） */
+  async setReadStatus(id: string, userId: string, isRead: boolean) {
+    return this.prisma.notification.updateMany({
+      where: { id, userId },
+      data: { isRead },
+    });
+  }
+
   /** 全部已读 */
   async markAllAsRead(userId: string) {
     return this.prisma.notification.updateMany({
       where: { userId, isRead: false },
       data: { isRead: true },
+    });
+  }
+
+  /** 硬删除单条通知 */
+  async remove(id: string, userId: string) {
+    return this.prisma.notification.deleteMany({
+      where: { id, userId },
     });
   }
 }

@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 
-/** 定时清理任务：清理过期验证 token、未验证的僵尸用户、过期/已撤销的 refresh token、废弃草稿帖 */
+/** 定时清理任务：清理过期验证 token、未验证的僵尸用户、过期/已撤销的 refresh token、废弃草稿帖、已读旧通知 */
 @Injectable()
 export class CleanupTask {
   private readonly logger = new Logger(CleanupTask.name);
@@ -67,6 +67,18 @@ export class CleanupTask {
     });
     if (deletedDrafts.count > 0) {
       this.logger.log(`清理废弃草稿帖: ${deletedDrafts.count} 条`);
+    }
+
+    // 清理 90 天前的已读通知
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    const deletedNotifs = await this.prisma.notification.deleteMany({
+      where: {
+        isRead: true,
+        createdAt: { lt: ninetyDaysAgo },
+      },
+    });
+    if (deletedNotifs.count > 0) {
+      this.logger.log(`清理过期已读通知: ${deletedNotifs.count} 条`);
     }
   }
 }

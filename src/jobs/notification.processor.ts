@@ -13,7 +13,7 @@ export class NotificationProcessor extends WorkerHost {
   }
 
   async process(job: Job): Promise<void> {
-    const { type, recipients, content, postId, threadId, fromUserId } = job.data;
+    const { type, recipients, content, postId, threadId, fromUserId, payload } = job.data;
 
     switch (type) {
       case 'reply':
@@ -22,7 +22,8 @@ export class NotificationProcessor extends WorkerHost {
       case 'subthread_created':
       case 'thread_created':
       case 'follow':
-        await this.createNotifications(recipients, type, content, postId, threadId, fromUserId);
+      case 'like':
+        await this.createNotifications(recipients, type, content, postId, threadId, fromUserId, payload);
         break;
       default:
         this.logger.warn(`Unknown notification type: ${type}`);
@@ -36,10 +37,11 @@ export class NotificationProcessor extends WorkerHost {
     postId?: string,
     threadId?: string,
     fromUserId?: string,
+    payload?: any,
   ) {
     if (userIds.length === 0) return;
 
-    const data = userIds.map((userId) => ({ userId, type: type as any, content, postId, threadId, fromUserId }));
+    const data = userIds.map((userId) => ({ userId, type: type as any, content, postId, threadId, fromUserId, payload }));
 
     // 防止 BullMQ retry 时重复插入：若任意一条已存在则整批跳过
     const existing = await this.prisma.notification.findFirst({

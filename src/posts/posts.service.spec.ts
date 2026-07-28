@@ -3,6 +3,8 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PostsService } from './posts.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../common/services/thread-access.service';
+import { NotificationProducer } from '../jobs/notification.producer';
+import { MentionsService } from '../mentions/mentions.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 
 const mockPrisma = {
@@ -17,6 +19,8 @@ const mockPrisma = {
 
 const mockEventEmitter = { emit: jest.fn() };
 const mockThreadAccess = { assertAccessible: jest.fn() };
+const mockNotificationProducer = { notify: jest.fn().mockResolvedValue(undefined) };
+const mockMentions = { extractUsernames: jest.fn().mockReturnValue([]), parseAndCreate: jest.fn().mockResolvedValue([]) };
 
 describe('PostsService', () => {
   let service: PostsService;
@@ -28,6 +32,8 @@ describe('PostsService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: ThreadAccessService, useValue: mockThreadAccess },
+        { provide: NotificationProducer, useValue: mockNotificationProducer },
+        { provide: MentionsService, useValue: mockMentions },
       ],
     }).compile();
     service = module.get<PostsService>(PostsService);
@@ -101,8 +107,8 @@ describe('PostsService', () => {
   });
 
   it('update 编辑自己的帖子应该成功', async () => {
-    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', subthread: { deletedAt: null } });
-    mockPrisma.post.update.mockResolvedValue({ id: 'p1', content: '编辑后' });
+    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', threadId: 't1', content: '旧内容', subthread: { deletedAt: null } });
+    mockPrisma.post.update.mockResolvedValue({ id: 'p1', content: '编辑后', author: { username: 'test' } });
     const result = await service.update('p1', { version: 1, content: '编辑后' }, 'u1');
     expect(result.content).toBe('编辑后');
   });
@@ -126,8 +132,8 @@ describe('PostsService', () => {
     await expect(service.remove('p1', 'u1')).rejects.toThrow(BusinessException);
   });
 
-  it('like 应该创建点赞并加计数', async () => {
-    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', likeCount: 0 });
+  it('like 应该创建点赞并加计数 + 通知作者', async () => {
+    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', authorId: 'u2', content: '测试', likeCount: 0 });
     mockPrisma.postLike.findUnique.mockResolvedValue(null);
     mockPrisma.postLike.create.mockResolvedValue({});
     mockPrisma.post.update.mockResolvedValue({ id: 'p1', likeCount: 1 });
@@ -137,10 +143,22 @@ describe('PostsService', () => {
       where: { id: 'p1' },
       data: { likeCount: { increment: 1 } },
     });
+    expect(mockNotificationProducer.notify).toHaveBeenCalledWith(
+      'like', ['u2'], expect.stringContaining('u1 赞了你的帖子'), expect.objectContaining({ postId: 'p1' }),
+    );
+  });
+
+  it('like 赞自己的帖子时不发通知', async () => {
+    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', authorId: 'u1', content: '测试', likeCount: 0 });
+    mockPrisma.postLike.findUnique.mockResolvedValue(null);
+    mockPrisma.postLike.create.mockResolvedValue({});
+    mockPrisma.post.update.mockResolvedValue({ id: 'p1', likeCount: 1 });
+    await service.like('p1', 'u1');
+    expect(mockNotificationProducer.notify).not.toHaveBeenCalled();
   });
 
   it('like 已点赞时不重复递增 likeCount（幂等）', async () => {
-    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', likeCount: 1 });
+    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', authorId: 'u1', content: '测试', likeCount: 1 });
     mockPrisma.postLike.findUnique.mockResolvedValue({ postId: 'p1', userId: 'u1' });
     const result = await service.like('p1', 'u1');
     expect(mockPrisma.postLike.create).not.toHaveBeenCalled();

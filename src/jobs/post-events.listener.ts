@@ -4,6 +4,7 @@ import { MentionsService } from '../mentions/mentions.service';
 import { NotificationProducer } from './notification.producer';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { truncateMarkdown } from '../common/markdown-truncate';
 
 /** 发帖事件监听器：PostCreated → @提及解析 + 通知队列投递 */
 @Injectable()
@@ -39,7 +40,7 @@ export class PostEventsListener {
     const authorBlockedIds = new Set(blocksOfAuthor.map(b => b.blockedId));
 
     const username = event.authorUsername ?? '有人';
-    const preview = truncate(event.content);
+    const preview = truncateMarkdown(event.content);
 
     // 1. @提及：解析正文中的 @用户名，验证权限规则，过滤拉黑，入队通知
     try {
@@ -53,7 +54,8 @@ export class PostEventsListener {
             'mention',
             filtered.map(u => u.userId),
             `${username} 在「${event.subthreadTitle}」提到了你：${preview}`,
-            { postId: event.postId, threadId: event.threadId, fromUserId: event.userId },
+            { postId: event.postId, threadId: event.threadId, fromUserId: event.userId,
+              payload: { actorName: username, action: 'mention', preview, subthreadTitle: event.subthreadTitle } },
           );
         }
       }
@@ -78,7 +80,8 @@ export class PostEventsListener {
             'subthread_created',
             recipients,
             `${username} 创建了新子贴「${event.subthreadTitle}」：${preview}`,
-            { postId: event.postId, threadId: event.threadId, fromUserId: event.userId },
+            { postId: event.postId, threadId: event.threadId, fromUserId: event.userId,
+              payload: { actorName: username, action: 'subthread_created', preview, subthreadTitle: event.subthreadTitle } },
           );
         }
       } catch (e) { this.logger.error('subthread created notification failed', e); }
@@ -103,7 +106,8 @@ export class PostEventsListener {
             'new_floor',
             recipients,
             `${username} 发布了新楼层：${preview}`,
-            { postId: event.postId, threadId: event.threadId, fromUserId: event.userId },
+            { postId: event.postId, threadId: event.threadId, fromUserId: event.userId,
+              payload: { actorName: username, action: 'new_floor', preview } },
           );
         }
       }
@@ -135,19 +139,14 @@ export class PostEventsListener {
               'reply',
               recipients,
               `${username} 回复了：${preview}`,
-              { postId: event.postId, threadId: event.threadId, fromUserId: event.userId },
+              { postId: event.postId, threadId: event.threadId, fromUserId: event.userId,
+                payload: { actorName: username, action: 'reply', preview } },
             );
           }
         }
       }
     } catch (e) { this.logger.error('reply notification failed', e); }
   }
-}
-
-/** 截取通知正文预览（前100字） */
-function truncate(content: string): string {
-  if (!content || content.length <= 100) return content || '';
-  return content.slice(0, 100) + '...';
 }
 
 export interface PostCreatedEvent {
