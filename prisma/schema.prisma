@@ -47,6 +47,7 @@ enum NotificationType {
   mention
   new_floor
   thread_created
+  subthread_created
   follow
 }
 
