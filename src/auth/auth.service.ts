@@ -257,11 +257,20 @@ export class AuthService {
       throw new UnauthorizedException('账号已注销');
     }
 
-    // 轮转：撤销旧 token，签发新 token（沿用原 platform）
-    await this.prisma.refreshToken.update({
-      where: { id: record.id },
+    // 原子撤销：用 updateMany({ id, revokedAt: null }) 防并发竞争
+    const revokeResult = await this.prisma.refreshToken.updateMany({
+      where: { id: record.id, revokedAt: null },
       data: { revokedAt: new Date() },
     });
+
+    if (revokeResult.count === 0) {
+      // 并发请求已抢先撤销 → 盗用检测
+      await this.prisma.refreshToken.updateMany({
+        where: { family: record.family },
+        data: { revokedAt: new Date() },
+      });
+      throw new UnauthorizedException('令牌已失效，请重新登录');
+    }
 
     const newRawToken = crypto.randomUUID();
     const newHash = this.hashToken(newRawToken);

@@ -112,8 +112,8 @@ model EmailVerification {
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([token])
-  @@index([userId, type])
   @@unique([email, type])
+  @@unique([userId, type])
   @@map("email_verifications")
 }
 

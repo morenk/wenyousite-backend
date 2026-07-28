@@ -316,14 +316,17 @@ describe('AuthService', () => {
       });
       mockJwt.signAsync.mockResolvedValue('new-at');
       mockPrisma.refreshToken.create.mockResolvedValue({ id: 'rt2' });
-      mockPrisma.refreshToken.update.mockResolvedValue({ id: 'rt1' });
+      mockPrisma.refreshToken.updateMany.mockResolvedValue({ count: 1 });
 
       const result = await service.refresh('valid-rt');
       expect(result.accessToken).toBe('new-at');
       expect(result.refreshToken).toBeDefined();
-      // 旧 token 应被撤销
-      expect(mockPrisma.refreshToken.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: { revokedAt: expect.any(Date) } }),
+      // 旧 token 应被原子撤销（with revokedAt: null 条件）
+      expect(mockPrisma.refreshToken.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'rt1', revokedAt: null },
+          data: { revokedAt: expect.any(Date) },
+        }),
       );
     });
 

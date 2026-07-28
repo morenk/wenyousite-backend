@@ -33,18 +33,29 @@ export class CleanupTask {
       this.logger.log(`清理过期/已撤销 refresh token: ${deletedRefresh.count} 条`);
     }
 
-    // 清理 7 天未验证的僵尸用户（软删除）
+    // 清理 7 天未验证的僵尸用户（软删除 + 撤销 refresh token）
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const deletedUsers = await this.prisma.user.updateMany({
+    const zombies = await this.prisma.user.findMany({
       where: {
         emailVerified: false,
         deletedAt: null,
         createdAt: { lt: sevenDaysAgo },
       },
-      data: { deletedAt: new Date() },
+      select: { id: true },
     });
-    if (deletedUsers.count > 0) {
-      this.logger.log(`软删除未验证僵尸用户: ${deletedUsers.count} 条`);
+    if (zombies.length > 0) {
+      const ids = zombies.map(z => z.id);
+      await this.prisma.$transaction([
+        this.prisma.user.updateMany({
+          where: { id: { in: ids } },
+          data: { deletedAt: new Date() },
+        }),
+        this.prisma.refreshToken.updateMany({
+          where: { userId: { in: ids }, revokedAt: null },
+          data: { revokedAt: new Date() },
+        }),
+      ]);
+      this.logger.log(`软删除未验证僵尸用户: ${zombies.length} 条`);
     }
   }
 }
