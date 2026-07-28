@@ -43,29 +43,49 @@ export class SubthreadsService {
     return subthread;
   }
 
-  /** 创建子贴（仅 OWNER/COLLABORATOR），事务内创建子贴 + 第一楼 */
+  /** 创建子贴（仅 OWNER/COLLABORATOR）。sortOrder 不指定则取 MAX+1，正文可选 */
   async create(threadId: string, dto: CreateSubthreadDto, userId: string) {
     await this.assertCanManage(threadId, userId);
+
+    // 计算 sortOrder
+    let sortOrder = dto.sortOrder;
+    if (sortOrder === undefined) {
+      const max = await this.prisma.subthread.aggregate({
+        where: { threadId },
+        _max: { sortOrder: true },
+      });
+      sortOrder = (max._max.sortOrder ?? -1) + 1;
+    } else {
+      // 检查是否冲突
+      const existing = await this.prisma.subthread.findFirst({
+        where: { threadId, sortOrder, deletedAt: null },
+      });
+      if (existing) {
+        throw new BusinessException(ErrorCode.CONFLICT, `排序序号 ${sortOrder} 已被占用`, HttpStatus.CONFLICT);
+      }
+    }
 
     return this.prisma.$transaction(async (tx) => {
       const subthread = await tx.subthread.create({
         data: {
           threadId,
           title: dto.title,
-          sortOrder: dto.sortOrder ?? 0,
+          sortOrder,
           postingPolicy: dto.postingPolicy ?? 'PARTICIPANTS' as any,
         },
       });
 
-      await tx.post.create({
-        data: {
-          threadId,
-          subthreadId: subthread.id,
-          authorId: userId,
-          floorNumber: 1,
-          content: dto.content,
-        },
-      });
+      if (dto.content?.trim()) {
+        await tx.post.create({
+          data: {
+            threadId,
+            subthreadId: subthread.id,
+            authorId: userId,
+            floorNumber: 1,
+            content: dto.content,
+          },
+        });
+      }
 
       return tx.subthread.findUnique({
         where: { id: subthread.id },
@@ -77,16 +97,39 @@ export class SubthreadsService {
     });
   }
 
-  /** 修改子贴（仅 OWNER/COLLABORATOR） */
+  /** 修改子贴（仅 OWNER/COLLABORATOR）。默认子贴不可修改 sortOrder */
   async update(id: string, dto: UpdateSubthreadDto & { version?: number }, userId: string) {
     const subthread = await this.prisma.subthread.findUnique({ where: { id } });
     if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
     await this.assertCanManage(subthread.threadId, userId);
 
-    const { version, ...data } = dto;
+    const { version, sortOrder, ...data } = dto;
+
+    // 默认子贴不可修改排序
+    if (sortOrder !== undefined) {
+      const firstSubthread = await this.prisma.subthread.findFirst({
+        where: { threadId: subthread.threadId, deletedAt: null },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true },
+      });
+      if (firstSubthread?.id === id) {
+        throw new BusinessException(ErrorCode.BAD_REQUEST, '默认子贴不可修改排序', HttpStatus.BAD_REQUEST);
+      }
+      // 检查是否冲突
+      const conflict = await this.prisma.subthread.findFirst({
+        where: { threadId: subthread.threadId, sortOrder, deletedAt: null, id: { not: id } },
+      });
+      if (conflict) {
+        throw new BusinessException(ErrorCode.CONFLICT, `排序序号 ${sortOrder} 已被占用`, HttpStatus.CONFLICT);
+      }
+    }
+
+    const updateData: any = { ...data, version: { increment: 1 } };
+    if (sortOrder !== undefined) updateData.sortOrder = sortOrder;
+
     return this.prisma.subthread.update({
       where: { id, version },
-      data: { ...data, version: { increment: 1 } } as any,
+      data: updateData,
       include: {
         tags: { include: { tag: true } },
         _count: { select: { posts: true } },

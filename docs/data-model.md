@@ -201,7 +201,7 @@
 | id | String | PK | — |
 | threadId | String | FK threads (Cascade) | 所属主题帖 |
 | title | String | — | 子贴标题 |
-| sortOrder | Int | default 0 | 排序序号 |
+| sortOrder | Int | default 0, unique per thread | 排序序号（帖内唯一，默认子贴固定为 0） |
 | postingPolicy | PostingPolicy | default PARTICIPANTS | 发帖权限策略 |
 | version | Int | default 1 | 乐观锁 |
 | lastPostAt | DateTime? | — | 最后发帖时间 |

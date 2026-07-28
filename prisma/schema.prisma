@@ -215,6 +215,7 @@ model Subthread {
   posts  Post[]
   readProgress UserReadProgress[]
 
+  @@unique([threadId, sortOrder])
   @@map("subthreads")
 }
 

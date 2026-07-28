@@ -13,6 +13,7 @@ const mockPrisma = {
     findMany: jest.fn(),
     findUnique: jest.fn(),
     findFirst: jest.fn(),
+    aggregate: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
   },
@@ -38,66 +39,133 @@ describe('SubthreadsService', () => {
       ],
     }).compile();
     service = module.get<SubthreadsService>(SubthreadsService);
-    jest.clearAllMocks();
+    jest.resetAllMocks();
     mockPrisma.thread.findUnique.mockResolvedValue({ visibility: 'PUBLIC', published: true, ownerId: 'u1' });
   });
 
-  it('findAll 应过滤已软删除的子贴', async () => {
-    mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', visibility: 'PUBLIC', published: true, ownerId: 'u1' });
-    mockPrisma.subthread.findMany.mockResolvedValue([]);
-    await service.findAll('t1');
-    expect(mockPrisma.subthread.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { threadId: 't1', deletedAt: null } }),
-    );
-  });
+  describe('create', () => {
+    it('创建子贴并自动分配 sortOrder', async () => {
+      mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
+      mockPrisma.subthread.aggregate.mockResolvedValue({ _max: { sortOrder: 0 } });
+      mockPrisma.subthread.create.mockResolvedValue({ id: 's1', threadId: 't1', sortOrder: 1 });
+      mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1' });
+      mockPrisma.$transaction.mockImplementation(async (fn) => {
+        const tx = {
+          subthread: {
+            create: jest.fn().mockResolvedValue({ id: 's1', threadId: 't1', sortOrder: 1 }),
+            findUnique: jest.fn().mockResolvedValue({ id: 's1', threadId: 't1' }),
+          },
+          post: { create: jest.fn() },
+        };
+        return fn(tx);
+      });
 
-  it('remove 应设置 deletedAt 而非硬删除', async () => {
-    mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1', deletedAt: null });
-    mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-    mockPrisma.subthread.update.mockResolvedValue({ id: 's1', deletedAt: new Date() });
-    await service.remove('s1', 'u1');
-    expect(mockPrisma.subthread.update).toHaveBeenCalledWith({
-      where: { id: 's1' },
-      data: { deletedAt: expect.any(Date) },
+      const result = await service.create('t1', { title: '设定区', content: '正文' }, 'u1');
+      expect(result).toBeDefined();
+      expect(result!.id).toBe('s1');
+    });
+
+    it('正文为空时仅创建子贴不创建楼层', async () => {
+      mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
+      mockPrisma.subthread.aggregate.mockResolvedValue({ _max: { sortOrder: 1 } });
+      mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's2', threadId: 't1' });
+      mockPrisma.$transaction.mockImplementation(async (fn) => {
+        const tx = {
+          subthread: {
+            create: jest.fn().mockResolvedValue({ id: 's2', threadId: 't1', sortOrder: 2 }),
+            findUnique: jest.fn().mockResolvedValue({ id: 's2', threadId: 't1', _count: { posts: 0 } }),
+          },
+          post: { create: jest.fn() },
+        };
+        return fn(tx);
+      });
+
+      await service.create('t1', { title: '空白区' }, 'u1');
+      // 不应创建帖子
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
+    });
+
+    it('指定 sortOrder 冲突应返回409', async () => {
+      mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
+      mockPrisma.subthread.findFirst.mockResolvedValue({ id: 'existing', sortOrder: 2 });
+
+      await expect(
+        service.create('t1', { title: '设定区', sortOrder: 2, content: '正文' }, 'u1'),
+      ).rejects.toThrow(BusinessException);
     });
   });
 
-  it('remove 已软删除的子贴应返回404', async () => {
-    mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1', deletedAt: new Date() });
-    await expect(service.remove('s1', 'u1')).rejects.toThrow(BusinessException);
+  describe('update', () => {
+    it('默认子贴不可修改 sortOrder', async () => {
+      mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1' });
+      mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
+      mockPrisma.subthread.findFirst.mockResolvedValue({ id: 's1' });
+
+      await expect(
+        service.update('s1', { sortOrder: 5 }, 'u1'),
+      ).rejects.toThrow(BusinessException);
+    });
   });
 
-  it('findById 应返回子贴详情', async () => {
-    mockPrisma.thread.findUnique.mockResolvedValue({ visibility: 'PUBLIC', published: true, ownerId: 'u1' });
-    mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1', thread: { id: 't1', visibility: 'PUBLIC', ownerId: 'u1', published: true } });
-    const result = await service.findById('s1');
-    expect(result.id).toBe('s1');
+  describe('remove', () => {
+    it('remove 应设置 deletedAt 而非硬删除', async () => {
+      mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1', deletedAt: null });
+      mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
+      mockPrisma.subthread.findFirst.mockResolvedValue({ id: 's0' }); // 默认子贴是 s0，不是 s1
+      mockPrisma.subthread.update.mockResolvedValue({ id: 's1', deletedAt: new Date() });
+      await service.remove('s1', 'u1');
+      expect(mockPrisma.subthread.update).toHaveBeenCalledWith({
+        where: { id: 's1' },
+        data: { deletedAt: expect.any(Date) },
+      });
+    });
+
+    it('remove 已软删除的子贴应返回404', async () => {
+      mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1', deletedAt: new Date() });
+      await expect(service.remove('s1', 'u1')).rejects.toThrow(BusinessException);
+    });
+
+    it('默认子贴不可删除', async () => {
+      mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1', deletedAt: null });
+      mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
+      mockPrisma.subthread.findFirst.mockResolvedValue({ id: 's1' });
+
+      await expect(service.remove('s1', 'u1')).rejects.toThrow(BusinessException);
+    });
+
+    it('非默认子贴可正常删除', async () => {
+      mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's2', threadId: 't1', deletedAt: null });
+      mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
+      mockPrisma.subthread.findFirst.mockResolvedValue({ id: 's1' });
+      mockPrisma.subthread.update.mockResolvedValue({ id: 's2', deletedAt: new Date() });
+
+      await service.remove('s2', 'u1');
+      expect(mockPrisma.subthread.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 's2' } }),
+      );
+    });
   });
 
-  it('findById 不存在应返回404', async () => {
-    mockPrisma.subthread.findUnique.mockResolvedValue(null);
-    await expect(service.findById('x')).rejects.toThrow(BusinessException);
-  });
+  describe('find', () => {
+    it('findAll 应过滤已软删除的子贴', async () => {
+      mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', visibility: 'PUBLIC', published: true, ownerId: 'u1' });
+      mockPrisma.subthread.findMany.mockResolvedValue([]);
+      await service.findAll('t1');
+      expect(mockPrisma.subthread.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { threadId: 't1', deletedAt: null } }),
+      );
+    });
 
-  it('默认子贴不可删除', async () => {
-    mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1', deletedAt: null });
-    mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-    // 该帖最早的子贴就是当前子贴 → 应拒绝
-    mockPrisma.subthread.findFirst.mockResolvedValue({ id: 's1' });
+    it('findById 应返回子贴详情', async () => {
+      mockPrisma.thread.findUnique.mockResolvedValue({ visibility: 'PUBLIC', published: true, ownerId: 'u1' });
+      mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1', thread: { id: 't1', visibility: 'PUBLIC', ownerId: 'u1', published: true } });
+      const result = await service.findById('s1');
+      expect(result.id).toBe('s1');
+    });
 
-    await expect(service.remove('s1', 'u1')).rejects.toThrow(BusinessException);
-  });
-
-  it('非默认子贴可正常删除', async () => {
-    mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's2', threadId: 't1', deletedAt: null });
-    mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-    // 该帖最早的子贴是 s1，不是 s2 → 应放行
-    mockPrisma.subthread.findFirst.mockResolvedValue({ id: 's1' });
-    mockPrisma.subthread.update.mockResolvedValue({ id: 's2', deletedAt: new Date() });
-
-    await service.remove('s2', 'u1');
-    expect(mockPrisma.subthread.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 's2' } }),
-    );
+    it('findById 不存在应返回404', async () => {
+      mockPrisma.subthread.findUnique.mockResolvedValue(null);
+      await expect(service.findById('x')).rejects.toThrow(BusinessException);
+    });
   });
 });

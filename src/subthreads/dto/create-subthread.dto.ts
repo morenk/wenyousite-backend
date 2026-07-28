@@ -11,12 +11,12 @@ export class CreateSubthreadDto {
   @MaxLength(100)
   title: string;
 
-  @ApiProperty({ example: '这里是世界观设定...', description: '第一楼正文（子贴正文）', minLength: 1, maxLength: 10000 })
+  @ApiPropertyOptional({ example: '这里是世界观设定...', description: '第一楼正文（可选，留空仅创建空子贴）', maxLength: 10000 })
+  @IsOptional()
   @IsString()
-  @MinLength(1)
   @Transform(({ value }) => sanitizeContent(value))
   @MaxLength(10000)
-  content: string;
+  content?: string;
 
   @ApiPropertyOptional({ example: 1, description: '排序序号，越小越靠前' })
   @IsOptional()
