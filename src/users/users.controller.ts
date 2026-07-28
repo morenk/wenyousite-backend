@@ -38,7 +38,7 @@ export class UsersController {
   }
 
   @Patch('me')
-  @AuthRead()
+  @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '修改当前登录用户资料' })
   async updateMe(@Req() req: FastifyRequest, @Body() dto: UpdateUserDto) {
@@ -47,7 +47,7 @@ export class UsersController {
   }
 
   @Delete('me')
-  @AuthRead()
+  @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '注销当前账号' })
   async deleteMe(@Req() req: FastifyRequest) {

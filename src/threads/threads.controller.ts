@@ -25,9 +25,9 @@ export class ThreadsController {
   }
 
   @Post()
-  @AuthRead()
+  @Auth()
   @ApiBearerAuth()
-  @ApiOperation({ summary: '创建主题帖（自动生成第一个子贴和第一楼）' })
+  @ApiOperation({ summary: '创建主题帖（自动生成第一个子贴和第一楼，需邮箱已验证）' })
   async create(@Body() dto: CreateThreadDto, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     return this.threadsService.create(dto, user.id);
@@ -43,7 +43,7 @@ export class ThreadsController {
   }
 
   @Patch(':id')
-  @AuthRead()
+  @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '修改主题帖（仅 OWNER/COLLABORATOR）' })
   async update(
@@ -56,7 +56,7 @@ export class ThreadsController {
   }
 
   @Delete(':id')
-  @AuthRead()
+  @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '软删除主题帖（仅 OWNER）' })
   async remove(@Param('id') id: string, @Req() req: FastifyRequest) {
@@ -66,7 +66,7 @@ export class ThreadsController {
   }
 
   @Post(':id/invite-link')
-  @AuthRead()
+  @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '生成或刷新私密帖邀请链接（仅 OWNER）' })
   async createInviteLink(@Param('id') id: string, @Req() req: FastifyRequest) {
@@ -75,7 +75,7 @@ export class ThreadsController {
   }
 
   @Post('join-by-link/:token')
-  @AuthRead()
+  @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '通过邀请链接加入私密帖' })
   async joinByInviteLink(@Param('token') token: string, @Req() req: FastifyRequest) {

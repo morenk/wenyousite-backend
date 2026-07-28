@@ -7,17 +7,17 @@ import { FastifyRequest } from 'fastify';
 import { DraftsService } from './drafts.service';
 import { CreateDraftDto } from './dto/create-draft.dto';
 import { UpdateDraftDto } from './dto/update-draft.dto';
-import { AuthRead } from '../auth/decorators/auth.decorator';
+import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 
 /** 草稿控制器：用户级 5 槽位全局草稿池 */
 @ApiTags('Drafts')
 @Controller('drafts')
-@AuthRead()
 @ApiBearerAuth()
 export class DraftsController {
   constructor(private draftsService: DraftsService) {}
 
   @Get()
+  @AuthRead()
   @ApiOperation({ summary: '当前用户全部草稿' })
   async findAll(@Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
@@ -25,6 +25,7 @@ export class DraftsController {
   }
 
   @Get('slots')
+  @AuthRead()
   @ApiOperation({ summary: '草稿位使用情况（5 槽已用数）' })
   async slotUsage(@Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
@@ -32,6 +33,7 @@ export class DraftsController {
   }
 
   @Post()
+  @Auth()
   @ApiOperation({ summary: '保存草稿（不传 slot 自动选空闲位）' })
   async create(@Body() dto: CreateDraftDto, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
@@ -39,6 +41,7 @@ export class DraftsController {
   }
 
   @Get(':id')
+  @AuthRead()
   @ApiOperation({ summary: '获取单条草稿' })
   async findById(@Param('id') id: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
@@ -46,6 +49,7 @@ export class DraftsController {
   }
 
   @Patch(':id')
+  @Auth()
   @ApiOperation({ summary: '更新草稿内容' })
   async update(
     @Param('id') id: string,
@@ -57,6 +61,7 @@ export class DraftsController {
   }
 
   @Delete(':id')
+  @Auth()
   @ApiOperation({ summary: '删除草稿' })
   async remove(@Param('id') id: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };

@@ -1,14 +1,14 @@
-import { Controller, Post, Body, Req, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { MediaService } from './media.service';
 import { CreateUploadUrlDto, ConfirmUploadDto } from './dto/upload.dto';
-import { AuthRead } from '../auth/decorators/auth.decorator';
+import { Auth } from '../auth/decorators/auth.decorator';
 
 /** 媒体上传控制器：预签名 URL 生成 + 上传完成确认 + 异步图片处理 */
 @ApiTags('Media')
 @Controller('media')
-@UseGuards(AuthRead())
+@Auth()
 @ApiBearerAuth()
 export class MediaController {
   constructor(private mediaService: MediaService) {}

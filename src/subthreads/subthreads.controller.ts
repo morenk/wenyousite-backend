@@ -24,7 +24,7 @@ export class SubthreadsController {
   }
 
   @Post('threads/:threadId/subthreads')
-  @AuthRead()
+  @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '创建子贴（仅 OWNER/COLLABORATOR）' })
   async create(
@@ -44,7 +44,7 @@ export class SubthreadsController {
   }
 
   @Patch('subthreads/:id')
-  @AuthRead()
+  @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '修改子贴（仅 OWNER/COLLABORATOR）' })
   async update(
@@ -57,7 +57,7 @@ export class SubthreadsController {
   }
 
   @Delete('subthreads/:id')
-  @AuthRead()
+  @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除子贴（仅 OWNER/COLLABORATOR）' })
   async remove(@Param('id') id: string, @Req() req: FastifyRequest) {

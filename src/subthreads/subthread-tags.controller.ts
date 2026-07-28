@@ -30,7 +30,7 @@ export class SubthreadTagsController {
   }
 
   @Post()
-  @AuthRead()
+  @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '为子贴添加标签（仅 OWNER/COLLABORATOR）' })
   async add(
@@ -63,7 +63,7 @@ export class SubthreadTagsController {
   }
 
   @Delete(':tagId')
-  @AuthRead()
+  @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '移除子贴的标签（仅 OWNER/COLLABORATOR）' })
   async remove(

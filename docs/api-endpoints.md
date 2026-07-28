@@ -24,8 +24,8 @@
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
 | GET | `/users/me` | AuthRead | 当前登录用户完整信息（含 email、隐私设置） |
-| PATCH | `/users/me` | AuthRead | 修改当前用户资料 |
-| DELETE | `/users/me` | AuthRead | 注销当前账号（软删除，设置 deletedAt） |
+| PATCH | `/users/me` | Auth | 修改当前用户资料，需邮箱已验证 |
+| DELETE | `/users/me` | Auth | 注销当前账号（软删除，设置 deletedAt），需邮箱已验证 |
 | GET | `/users/search?q=xxx` | AuthRead | 搜索用户（@提及用），排除已注销 |
 | GET | `/users/:id` | Public | 用户公开资料（不含 email） |
 | POST | `/users/follow/:id` | Auth | 关注用户，发送 follow 通知 |
@@ -41,45 +41,45 @@
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
 | GET | `/threads` | Public | 主题帖列表，支持分区筛选/排序/标签/Cursor 分页。只显示 PUBLIC 帖 |
-| POST | `/threads` | AuthRead | 创建主题帖（事务：Thread+Subthread+Post+Member）。通知粉丝 |
+| POST | `/threads` | Auth | 创建主题帖（事务：Thread+Subthread+Post+Member）。通知粉丝，需邮箱已验证 |
 | GET | `/threads/:id` | AuthRead | 详情（含子贴列表），浏览量+1。PRIVATE 帖非成员 404 |
-| PATCH | `/threads/:id` | AuthRead | 修改（仅 OWNER/COLLABORATOR），乐观锁 |
-| DELETE | `/threads/:id` | AuthRead | 软删除（仅 OWNER） |
-| POST | `/threads/:id/invite-link` | AuthRead | 生成/刷新私密帖邀请链接（仅 OWNER） |
-| POST | `/threads/join-by-link/:token` | AuthRead | 通过邀请链接加入私密帖 |
+| PATCH | `/threads/:id` | Auth | 修改（仅 OWNER/COLLABORATOR），需邮箱已验证 |
+| DELETE | `/threads/:id` | Auth | 软删除（仅 OWNER），需邮箱已验证 |
+| POST | `/threads/:id/invite-link` | Auth | 生成/刷新私密帖邀请链接（仅 OWNER），需邮箱已验证 |
+| POST | `/threads/join-by-link/:token` | Auth | 通过邀请链接加入私密帖，需邮箱已验证 |
 
 ## 成员端点 (Thread Members)
 
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
 | GET | `/threads/:id/members` | Public | 成员列表 |
-| POST | `/threads/:id/members/join` | AuthRead | 自由加入（PRIVATE 帖禁止，返回 403） |
-| POST | `/threads/:id/members` | AuthRead | 邀请用户加入（仅 OWNER/COLLABORATOR） |
-| PATCH | `/threads/:id/members/:userId` | AuthRead | 修改成员角色/玩家标记（仅 OWNER/COLLABORATOR） |
-| DELETE | `/threads/:id/members/:userId` | AuthRead | 踢出成员。PRIVATE 帖仅取消 playerMarked |
+| POST | `/threads/:id/members/join` | Auth | 自由加入（PRIVATE 帖禁止，返回 403），需邮箱已验证 |
+| POST | `/threads/:id/members` | Auth | 邀请用户加入（仅 OWNER/COLLABORATOR），需邮箱已验证 |
+| PATCH | `/threads/:id/members/:userId` | Auth | 修改成员角色/玩家标记（仅 OWNER/COLLABORATOR），需邮箱已验证 |
+| DELETE | `/threads/:id/members/:userId` | Auth | 踢出成员。PRIVATE 帖仅取消 playerMarked，需邮箱已验证 |
 
 ## 子贴端点 (Subthreads)
 
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
 | GET | `/threads/:id/subthreads` | Public | 子贴列表（过滤已软删除） |
-| POST | `/threads/:id/subthreads` | AuthRead | 创建子贴（仅 OWNER/COLLABORATOR），事务创建+首楼 |
+| POST | `/threads/:id/subthreads` | Auth | 创建子贴（仅 OWNER/COLLABORATOR），需邮箱已验证，事务创建+首楼 |
 | GET | `/subthreads/:id` | Public | 子贴详情 |
-| PATCH | `/subthreads/:id` | AuthRead | 修改子贴（仅 OWNER/COLLABORATOR），乐观锁 |
-| DELETE | `/subthreads/:id` | AuthRead | 软删除（仅 OWNER/COLLABORATOR） |
+| PATCH | `/subthreads/:id` | Auth | 修改子贴（仅 OWNER/COLLABORATOR），需邮箱已验证，乐观锁 |
+| DELETE | `/subthreads/:id` | Auth | 软删除（仅 OWNER/COLLABORATOR），需邮箱已验证 |
 
 ## 楼层端点 (Posts)
 
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
 | GET | `/subthreads/:id/posts` | Public | 楼层列表（Cursor 分页），只返回 parentPostId=null 的楼层 |
-| POST | `/subthreads/:id/posts` | AuthRead | 发帖（楼层/楼中楼），事务分配 floorNumber |
+| POST | `/subthreads/:id/posts` | Auth | 发帖（楼层/楼中楼），需邮箱已验证，事务分配 floorNumber |
 | GET | `/posts/:id` | Public | 帖子详情，含 likeCount |
 | GET | `/posts/:id/replies` | Public | 楼中楼回复列表（Cursor 分页） |
-| PATCH | `/posts/:id` | AuthRead | 编辑（仅作者自己），乐观锁 |
-| DELETE | `/posts/:id` | AuthRead | 软删除（仅作者，第一楼除外） |
-| POST | `/posts/:id/like` | AuthRead | 点赞（upsert） |
-| DELETE | `/posts/:id/like` | AuthRead | 取消点赞 |
+| PATCH | `/posts/:id` | Auth | 编辑（仅作者自己），需邮箱已验证，乐观锁 |
+| DELETE | `/posts/:id` | Auth | 软删除（仅作者，第一楼除外），需邮箱已验证 |
+| POST | `/posts/:id/like` | Auth | 点赞（upsert），需邮箱已验证 |
+| DELETE | `/posts/:id/like` | Auth | 取消点赞，需邮箱已验证 |
 
 ## 草稿端点 (Drafts)
 
@@ -87,9 +87,9 @@
 |------|------|------|------|
 | GET | `/drafts` | AuthRead | 当前用户草稿列表 |
 | GET | `/drafts/:id` | AuthRead | 获取单条草稿 |
-| POST | `/drafts` | AuthRead | 保存草稿（不传 slot 自动选 1-5 空闲位，满时 400） |
-| PATCH | `/drafts/:id` | AuthRead | 更新草稿内容 |
-| DELETE | `/drafts/:id` | AuthRead | 删除草稿 |
+| POST | `/drafts` | Auth | 保存草稿（不传 slot 自动选 1-5 空闲位，满时 400），需邮箱已验证 |
+| PATCH | `/drafts/:id` | Auth | 更新草稿内容，需邮箱已验证 |
+| DELETE | `/drafts/:id` | Auth | 删除草稿，需邮箱已验证 |
 | GET | `/drafts/slots` | AuthRead | 槽位使用情况（usedSlots / maxSlots） |
 
 ## 通知端点 (Notifications)
@@ -113,8 +113,8 @@
 
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
-| POST | `/media/upload-url` | AuthRead | 获取预签名上传 URL（有效期 10 分钟） |
-| POST | `/media/upload-done` | AuthRead | 确认上传完成，写入 DB，入队图片处理 |
+| POST | `/media/upload-url` | Auth | 获取预签名上传 URL（有效期 10 分钟），需邮箱已验证 |
+| POST | `/media/upload-done` | Auth | 确认上传完成，写入 DB，入队图片处理，需邮箱已验证 |
 
 ## 其他端点
 
@@ -122,12 +122,12 @@
 |------|------|------|------|
 | GET | `/search?q=xxx` | Public | 全文搜索（POST 正文 + Thread 标题，ILIKE） |
 | GET | `/tags` | Public | 搜索标签 |
-| POST | `/tags` | AuthRead | 创建标签 |
+| POST | `/tags` | Auth | 创建标签，需邮箱已验证 |
 | GET | `/reading-progress` | AuthRead | 所有子贴阅读进度 |
 | GET | `/reading-progress/new-replies` | AuthRead | 某子贴新增回复数 |
 | POST | `/reading-progress` | AuthRead | 记录/更新阅读进度 |
-| POST | `/reports` | AuthRead | 提交举报（已搁置） |
+| POST | `/reports` | Auth | 提交举报（已搁置），需邮箱已验证 |
 | GET | `/reports` | AuthRead | 举报列表（管理员，已搁置） |
-| PATCH | `/reports/:id/handle` | AuthRead | 处理举报（管理员，已搁置） |
+| PATCH | `/reports/:id/handle` | Auth | 处理举报（管理员，已搁置），需邮箱已验证 |
 | GET | `/admin` | Public | 管理后台入口 |
 | GET | `/health` | 无 | 健康检查 |

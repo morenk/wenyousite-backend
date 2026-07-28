@@ -32,7 +32,7 @@ export class ThreadTagsController {
   }
 
   @Post()
-  @AuthRead()
+  @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '为主题帖添加标签（仅 OWNER/COLLABORATOR）' })
   async add(@Param('threadId') threadId: string, @Body() dto: AddThreadTagDto, @Req() req: FastifyRequest) {
@@ -50,7 +50,7 @@ export class ThreadTagsController {
   }
 
   @Delete(':tagId')
-  @AuthRead()
+  @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '移除主题帖的标签（仅 OWNER/COLLABORATOR）' })
   async remove(@Param('threadId') threadId: string, @Param('tagId') tagId: string, @Req() req: FastifyRequest) {

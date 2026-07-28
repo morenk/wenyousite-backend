@@ -22,8 +22,8 @@
 |--------|------|-------|------|
 | GET | `/users/search?q=` | AuthRead | 搜索用户（@提及用），按用户名模糊匹配 |
 | GET | `/users/me` | AuthRead | 获取当前登录用户的完整资料（含邮箱、隐私设置） |
-| PATCH | `/users/me` | AuthRead | 修改当前用户资料（昵称、头像、Bio、隐私设置等） |
-| DELETE | `/users/me` | AuthRead | 注销当前账号（软删除，设置 deletedAt） |
+| PATCH | `/users/me` | Auth | 修改当前用户资料（昵称、头像、Bio、隐私设置等），需邮箱已验证 |
+| DELETE | `/users/me` | Auth | 注销当前账号（软删除，设置 deletedAt），需邮箱已验证 |
 | GET | `/users/:id` | Public | 获取指定用户的公开资料（不含邮箱） |
 | POST | `/users/follow/:id` | Auth | 关注指定用户 |
 | DELETE | `/users/follow/:id` | Auth | 取消关注 |
@@ -39,7 +39,7 @@
 - `findById` 排除 email 字段，仅返回公开信息
 - 已注销用户（deletedAt 非 null）的公开资料被屏蔽为 "已注销用户"，isDeactivated = true
 - 更新用户名时检查唯一性，冲突返回 409
-- 关注和拉黑端点使用 `@Auth()`（需邮箱验证），其他资料操作使用 `@AuthRead()`
+- 关注和拉黑端点、资料修改、账号注销均使用 `@Auth()`（需邮箱验证），仅查询操作使用 `@AuthRead()`
 - 关注时通过 upsert 实现幂等操作（重复关注不报错）
 - 关注自己返回 "不能关注自己" 消息，不执行数据库操作
 - 关注成功后异步发送 follow 类型通知给被关注者（fire-and-forget）
@@ -50,6 +50,6 @@
 
 - **双查询方法（findMe / findById）**：分离本人信息和公开信息，避免敏感字段泄露；findById 为 Public 端点，可供其他模块内部调用
 - **已注销用户屏蔽**：保留记录不物理删除（外键关联完整性），但在公开接口中替换为兜底显示名
-- **关注使用 @Auth() 而非 @AuthRead()**：关注行为涉及通知推送，要求邮箱已验证以减少垃圾关注
+- **关注/拉黑/资料修改/注销使用 @Auth()**：这些写操作涉及通知推送和信息公开，要求邮箱已验证以减少滥用
 - **UserFollow 联合唯一键**：upsert 保证同一关注关系唯一，避免重复关注记录
 - **通知推送异步 fire-and-forget**：通知发送失败不影响关注操作的成功返回

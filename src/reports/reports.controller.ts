@@ -4,7 +4,7 @@ import { FastifyRequest } from 'fastify';
 import { ReportsService } from './reports.service';
 import { CreateReportDto } from './dto/create-report.dto';
 import { HandleReportDto } from './dto/handle-report.dto';
-import { AuthRead } from '../auth/decorators/auth.decorator';
+import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 
 /** 举报控制器：举报提交与管理员处理 */
 @ApiTags('Reports')
@@ -14,7 +14,7 @@ export class ReportsController {
 
   /** 用户提交举报 */
   @Post()
-  @AuthRead()
+  @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '提交举报' })
   async create(@Req() req: FastifyRequest, @Body() dto: CreateReportDto) {
@@ -35,7 +35,7 @@ export class ReportsController {
 
   /** 管理员处理举报（标记已处理/驳回） */
   @Patch(':id/handle')
-  @AuthRead()
+  @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '处理举报（管理员）' })
   async handle(@Req() req: FastifyRequest, @Param('id') id: string, @Body() dto: HandleReportDto) {

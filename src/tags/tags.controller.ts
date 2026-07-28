@@ -21,7 +21,7 @@ export class TagsController {
   }
 
   @Post()
-  @AuthRead()
+  @Auth()
   @ApiOperation({ summary: '创建主题帖标签' })
   async create(@Body() dto: CreateTagDto) {
     return this.tagsService.create(dto);

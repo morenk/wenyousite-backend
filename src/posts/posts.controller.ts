@@ -42,7 +42,7 @@ export class PostsController {
   }
 
   @Post('subthreads/:subthreadId/posts')
-  @AuthRead()
+  @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '发帖（创建新楼层或楼中楼回复）' })
   async create(
@@ -62,7 +62,7 @@ export class PostsController {
   }
 
   @Patch('posts/:id')
-  @AuthRead()
+  @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '编辑帖子' })
   async update(
@@ -75,7 +75,7 @@ export class PostsController {
   }
 
   @Delete('posts/:id')
-  @AuthRead()
+  @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '软删除帖子（不能删除子贴第一楼）' })
   async remove(@Param('id') id: string, @Req() req: FastifyRequest) {
@@ -85,7 +85,7 @@ export class PostsController {
   }
 
   @Post('posts/:id/like')
-  @AuthRead()
+  @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '点赞帖子' })
   async like(@Param('id') id: string, @Req() req: FastifyRequest) {
@@ -94,7 +94,7 @@ export class PostsController {
   }
 
   @Delete('posts/:id/like')
-  @AuthRead()
+  @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '取消点赞' })
   async unlike(@Param('id') id: string, @Req() req: FastifyRequest) {
