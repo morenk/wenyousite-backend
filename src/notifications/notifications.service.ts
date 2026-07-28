@@ -34,14 +34,14 @@ export class NotificationsService {
   /** 创建通知 */
   async create(userId: string, type: string, content: string, opts?: { postId?: string; threadId?: string; fromUserId?: string }) {
     return this.prisma.notification.create({
-      data: { userId, type, content, ...opts },
+      data: { userId, type: type as any, content, ...opts },
     });
   }
 
   async createMany(notifications: { userId: string; type: string; content: string; postId?: string; threadId?: string; fromUserId?: string }[]) {
     if (notifications.length === 0) return;
     await this.prisma.notification.createMany({
-      data: notifications,
+      data: notifications.map(n => ({ ...n, type: n.type as any })),
     });
   }
 

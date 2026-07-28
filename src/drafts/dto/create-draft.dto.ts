@@ -9,10 +9,6 @@ export class CreateDraftDto {
   @MaxLength(10000)
   content: string;
 
-  @ApiProperty({ description: '所属子贴 ID' })
-  @IsString()
-  subthreadId: string;
-
   @ApiPropertyOptional({ example: 1, description: '草稿位（1-5），不传则自动选择空闲位' })
   @IsOptional()
   @IsIn([1, 2, 3, 4, 5])

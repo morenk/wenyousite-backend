@@ -44,6 +44,26 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   JWT_REFRESH_EXPIRES_IN: string = '7d';
+
+  @IsString()
+  @IsOptional()
+  COS_ENDPOINT: string = 'https://cn-nb1.rains3.com';
+
+  @IsString()
+  @IsOptional()
+  COS_REGION: string = 'auto';
+
+  @IsString()
+  @IsOptional()
+  COS_BUCKET: string = 'wenyou';
+
+  @IsString()
+  @IsOptional()
+  COS_ACCESS_KEY_ID: string = '';
+
+  @IsString()
+  @IsOptional()
+  COS_SECRET_ACCESS_KEY: string = '';
 }
 
 /** 校验函数：在 ConfigModule.forRoot 中调用，启动时验证环境变量完整性 */

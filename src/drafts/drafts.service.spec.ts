@@ -1,18 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DraftsService } from './drafts.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { NotFoundException } from '@nestjs/common';
+import { NotFoundException, BadRequestException } from '@nestjs/common';
 
 const mockPrisma = {
-  subthread: { findUnique: jest.fn() },
   draft: {
     findMany: jest.fn(),
     findUnique: jest.fn(),
-    findFirst: jest.fn(),
-    delete: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
-    groupBy: jest.fn(),
+    delete: jest.fn(),
   },
 };
 
@@ -31,33 +28,24 @@ describe('DraftsService', () => {
   });
 
   it('自动保存应该选择空闲 slot', async () => {
-    mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1' });
     mockPrisma.draft.findMany.mockResolvedValue([{ slot: 1 }, { slot: 3 }]);
     mockPrisma.draft.create.mockResolvedValue({ id: 'd1', slot: 2 });
-    const result = await service.create({ content: 'test', subthreadId: 's1' }, 'u1');
+    const result = await service.create({ content: 'test' }, 'u1');
     expect(result.slot).toBe(2);
   });
 
   it('指定 slot 应该覆盖旧草稿', async () => {
-    mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1' });
-    mockPrisma.draft.findUnique.mockResolvedValue({ id: 'old' });
-    mockPrisma.draft.delete.mockResolvedValue({});
-    mockPrisma.draft.create.mockResolvedValue({ id: 'd1', slot: 3 });
-    const result = await service.create({ content: 'test', subthreadId: 's1', slot: 3 }, 'u1');
-    expect(result.slot).toBe(3);
+    mockPrisma.draft.findUnique.mockResolvedValue({ id: 'old', slot: 3, userId: 'u1' });
+    mockPrisma.draft.update.mockResolvedValue({ id: 'old', slot: 3, content: 'updated' });
+    const result = await service.create({ content: 'updated', slot: 3 }, 'u1');
+    expect(result.content).toBe('updated');
   });
 
-  it('5槽位全满应该覆盖最旧的', async () => {
-    mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1' });
+  it('5 槽满应返回错误', async () => {
     mockPrisma.draft.findMany.mockResolvedValue([
       { slot: 1 }, { slot: 2 }, { slot: 3 }, { slot: 4 }, { slot: 5 },
     ]);
-    mockPrisma.draft.findFirst.mockResolvedValue({ id: 'oldest', slot: 1 });
-    mockPrisma.draft.delete.mockReset().mockResolvedValue({});
-    mockPrisma.draft.create.mockResolvedValue({ id: 'd1', slot: 1 });
-    const result = await service.create({ content: 'test', subthreadId: 's1' }, 'u1');
-    expect(result.slot).toBe(1);
-    expect(mockPrisma.draft.delete).toHaveBeenCalledWith({ where: { id: 'oldest' } });
+    await expect(service.create({ content: 'test' }, 'u1')).rejects.toThrow(BadRequestException);
   });
 
   it('findById 应该返回草稿', async () => {
@@ -85,13 +73,11 @@ describe('DraftsService', () => {
     expect(mockPrisma.draft.delete).toHaveBeenCalledWith({ where: { id: 'd1' } });
   });
 
-  it('slotUsage 应该返回各子贴槽位使用数', async () => {
-    mockPrisma.draft.groupBy.mockResolvedValue([
-      { subthreadId: 's1', _count: { slot: 3 } },
-      { subthreadId: 's2', _count: { slot: 1 } },
-    ]);
+  it('slotUsage 应该返回槽位使用数', async () => {
+    mockPrisma.draft.findMany.mockResolvedValue([{ slot: 1 }, { slot: 3 }, { slot: 5 }]);
     const result = await service.slotUsage('u1');
-    expect(result).toHaveLength(2);
-    expect(result[0].usedSlots).toBe(3);
+    expect(result.usedSlots).toBe(3);
+    expect(result.maxSlots).toBe(5);
+    expect(result.slots).toEqual([1, 3, 5]);
   });
 });

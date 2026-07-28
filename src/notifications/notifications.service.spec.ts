@@ -26,10 +26,12 @@ describe('NotificationsService', () => {
     jest.clearAllMocks();
   });
 
-  it('create 应该创建通知', async () => {
+  it('create 应该传递结构化导航字段', async () => {
     mockPrisma.notification.create.mockResolvedValue({ id: 'n1', userId: 'u1' });
-    const result = await service.create('u1', 'reply', '内容', { postId: 'p1', threadId: 't1', fromUserId: 'u2' });
-    expect(result.id).toBe('n1');
+    await service.create('u1', 'reply', '内容', { postId: 'p1', threadId: 't1', fromUserId: 'u2' });
+    expect(mockPrisma.notification.create).toHaveBeenCalledWith({
+      data: { userId: 'u1', type: 'reply', content: '内容', postId: 'p1', threadId: 't1', fromUserId: 'u2' },
+    });
   });
 
   it('createMany 应该批量创建', async () => {

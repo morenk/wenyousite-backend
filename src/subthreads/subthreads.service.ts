@@ -14,7 +14,7 @@ export class SubthreadsService {
     if (!thread) throw new NotFoundException('主题帖不存在');
 
     return this.prisma.subthread.findMany({
-      where: { threadId },
+      where: { threadId, deletedAt: null },
       orderBy: { sortOrder: 'asc' },
       include: {
         tags: { include: { tag: true } },
@@ -47,7 +47,7 @@ export class SubthreadsService {
           threadId,
           title: dto.title,
           sortOrder: dto.sortOrder ?? 0,
-          postingPolicy: dto.postingPolicy ?? 'PARTICIPANTS',
+          postingPolicy: dto.postingPolicy ?? 'PARTICIPANTS' as any,
         },
       });
 
@@ -80,7 +80,7 @@ export class SubthreadsService {
     const { version, ...data } = dto;
     return this.prisma.subthread.update({
       where: { id, version },
-      data: { ...data, version: { increment: 1 } },
+      data: { ...data, version: { increment: 1 } } as any,
       include: {
         tags: { include: { tag: true } },
         _count: { select: { posts: true } },
@@ -88,13 +88,17 @@ export class SubthreadsService {
     }).catch(() => { throw new NotFoundException('子贴已被修改，请刷新后重试'); });
   }
 
-  /** 删除子贴（仅 OWNER/COLLABORATOR） */
+  /** 软删除子贴（仅 OWNER/COLLABORATOR） */
   async remove(id: string, userId: string) {
     const subthread = await this.prisma.subthread.findUnique({ where: { id } });
     if (!subthread) throw new NotFoundException('子贴不存在');
+    if (subthread.deletedAt) throw new NotFoundException('子贴不存在');
     await this.assertCanManage(subthread.threadId, userId);
 
-    return this.prisma.subthread.delete({ where: { id } });
+    return this.prisma.subthread.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
   }
 
   /** 检查是否有管理权限（公开方法，供标签控制器调用） */

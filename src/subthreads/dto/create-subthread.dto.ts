@@ -20,14 +20,9 @@ export class CreateSubthreadDto {
   @IsNumber()
   sortOrder?: number;
 
-  @ApiPropertyOptional({ enum: ['PUBLIC', 'MEMBERS'], default: 'PUBLIC', description: '可见性' })
+  @ApiPropertyOptional({ enum: ['PARTICIPANTS', 'COLLABORATORS', 'PLAYERS'], default: 'PARTICIPANTS', description: 'PARTICIPANTS=所有成员, COLLABORATORS=仅协作者, PLAYERS=仅玩家' })
   @IsOptional()
   @IsString()
-  @IsIn(['PUBLIC', 'MEMBERS'])
-
-  @ApiPropertyOptional({ enum: ['COLLABORATORS', 'PARTICIPANTS'], default: 'PARTICIPANTS', description: '发帖权限（PARTICIPANTS=所有成员, COLLABORATORS=仅协作者）' })
-  @IsOptional()
-  @IsString()
-  @IsIn(['COLLABORATORS', 'PARTICIPANTS'])
+  @IsIn(['PARTICIPANTS', 'COLLABORATORS', 'PLAYERS'])
   postingPolicy?: string;
 }

@@ -1,0 +1,36 @@
+import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsNumber, MinLength, MaxLength, Min, Max, IsIn } from 'class-validator';
+
+/** 允许上传的图片 MIME 类型 */
+const ALLOWED_MIME = [
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+  'image/avif', 'image/svg+xml',
+] as const;
+
+/** 获取预签名上传 URL 的请求参数 */
+export class CreateUploadUrlDto {
+  @ApiProperty({ example: 'photo.jpg', description: '原始文件名' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(255)
+  filename: string;
+
+  @ApiProperty({ example: 'image/jpeg', enum: ALLOWED_MIME, description: '文件 MIME 类型' })
+  @IsString()
+  @IsIn(ALLOWED_MIME as unknown as string[])
+  contentType: string;
+
+  @ApiProperty({ example: 204800, description: '文件大小（字节），上限 10MB' })
+  @IsNumber()
+  @Min(1)
+  @Max(10 * 1024 * 1024)
+  size: number;
+}
+
+/** 上传完成后确认的请求参数 */
+export class ConfirmUploadDto {
+  @ApiProperty({ example: 'uploads/2026/07/28/user123/1620000000-abc123.jpg', description: 'getUploadUrl 返回的 objectKey' })
+  @IsString()
+  @MinLength(1)
+  objectKey: string;
+}

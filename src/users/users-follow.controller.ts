@@ -2,29 +2,40 @@ import { Controller, Post, Delete, Get, Param, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationProducer } from '../jobs/notification.producer';
 import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 
 /** 关注与拉黑控制器 */
 @ApiTags('Users')
 @Controller('users')
 export class UsersFollowController {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notificationProducer: NotificationProducer,
+  ) {}
 
   // ====== 关注 ======
 
-  /** 关注指定用户 */
+  /** 关注指定用户，发送关注通知给被关注者 */
   @Post('follow/:id')
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '关注用户' })
   async follow(@Param('id') targetId: string, @Req() req: FastifyRequest) {
-    const user = req['user'] as { id: string };
+    const user = req['user'] as { id: string; username: string };
     if (user.id === targetId) return { message: '不能关注自己' };
     await this.prisma.userFollow.upsert({
       where: { followerId_followingId: { followerId: user.id, followingId: targetId } },
       create: { followerId: user.id, followingId: targetId },
       update: {},
     });
+    // 发通知给被关注者
+    this.notificationProducer.notify(
+      'follow',
+      [targetId],
+      `${user.username ?? '有人'} 关注了你`,
+      { fromUserId: user.id },
+    ).catch(() => {});
     return { message: '已关注' };
   }
 

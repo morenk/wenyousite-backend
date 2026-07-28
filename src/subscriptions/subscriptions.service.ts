@@ -23,7 +23,7 @@ export class SubscriptionsService {
     if (existing) throw new ConflictException('已订阅');
 
     return this.prisma.subscription.create({
-      data: { userId, threadId, type, targetUserId },
+      data: { userId, threadId, type: type as any, targetUserId },
       include: { thread: { select: { id: true, title: true } } },
     });
   }

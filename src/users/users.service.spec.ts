@@ -74,4 +74,16 @@ describe('UsersService', () => {
     mockPrisma.user.findUnique.mockResolvedValue({ ...userFixture, deletedAt: new Date() });
     await expect(service.deactivate('u1')).rejects.toThrow(NotFoundException);
   });
+
+  it('findMe 应该返回 email 及完整资料', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({ ...userFixture, email: 'a@b.com' });
+    const result = await service.findMe('u1');
+    expect(result.email).toBe('a@b.com');
+  });
+
+  it('findById 不应暴露 email', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({ ...userFixture });
+    const result = await service.findById('u1');
+    expect(result.email).toBeUndefined();
+  });
 });

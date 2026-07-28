@@ -20,10 +20,13 @@ export class ThreadMembersService {
     });
   }
 
-  /** 自由加入（任何人） */
+  /** 自由加入（任何人）。私密帖禁止自由加入，仅允许通过邀请链接加入。 */
   async join(threadId: string, userId: string) {
     const thread = await this.prisma.thread.findUnique({ where: { id: threadId } });
     if (!thread) throw new NotFoundException('主题帖不存在');
+    if (thread.visibility === 'PRIVATE') {
+      throw new ForbiddenException('私密帖子仅可通过邀请链接加入');
+    }
 
     const existing = await this.prisma.threadMember.findUnique({
       where: { threadId_userId: { threadId, userId } },
@@ -73,14 +76,14 @@ export class ThreadMembersService {
 
     return this.prisma.threadMember.update({
       where: { threadId_userId: { threadId, userId: targetUserId } },
-      data: dto,
+      data: dto as any,
       include: {
         user: { select: { id: true, username: true, nickname: true, avatar: true } },
       },
     });
   }
 
-  /** 踢出成员（仅 OWNER/COLLABORATOR） */
+  /** 踢出成员（仅 OWNER/COLLABORATOR）。私密帖中踢出仅取消玩家标记，不删除成员。 */
   async removeMember(threadId: string, targetUserId: string, actorId: string) {
     await this.assertCanManage(threadId, actorId);
 
@@ -89,6 +92,19 @@ export class ThreadMembersService {
     });
     if (!member) throw new NotFoundException('该用户不是此主题帖成员');
     if (member.role === 'OWNER') throw new ForbiddenException('不能踢出楼主');
+
+    const thread = await this.prisma.thread.findUnique({ where: { id: threadId } });
+
+    // 私密帖：踢出仅取消玩家标记，成员身份保留（通过邀请链接加入的成员不可完全移除）
+    if (thread?.visibility === 'PRIVATE') {
+      return this.prisma.threadMember.update({
+        where: { threadId_userId: { threadId, userId: targetUserId } },
+        data: { playerMarked: false },
+        include: {
+          user: { select: { id: true, username: true, nickname: true, avatar: true } },
+        },
+      });
+    }
 
     return this.prisma.threadMember.delete({
       where: { threadId_userId: { threadId, userId: targetUserId } },

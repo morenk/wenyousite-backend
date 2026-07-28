@@ -2,10 +2,16 @@ import { Injectable, NotFoundException, ConflictException } from '@nestjs/common
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 
-const userSelect = {
+const userSelectPrivate = {
   id: true, email: true, username: true, nickname: true, avatar: true, bio: true,
   role: true, showRecentReplies: true, showPlayerBadges: true, showBookmarks: true,
   emailVerified: true, deletedAt: true, createdAt: true, updatedAt: true,
+};
+
+const userSelectPublic = {
+  id: true, username: true, nickname: true, avatar: true, bio: true, role: true,
+  showRecentReplies: true, showPlayerBadges: true, showBookmarks: true,
+  deletedAt: true, createdAt: true,
 };
 
 const maskDeactivated = (user: Record<string, any>) => {
@@ -19,8 +25,14 @@ export class UsersService {
   constructor(private prisma: PrismaService) {}
 
   /** 根据用户 ID 查找用户 */
+  async findMe(id: string) {
+    const user = await this.prisma.user.findUnique({ where: { id }, select: userSelectPrivate });
+    if (!user) throw new NotFoundException('用户不存在');
+    return user;
+  }
+
   async findById(id: string) {
-    const user = await this.prisma.user.findUnique({ where: { id }, select: userSelect });
+    const user = await this.prisma.user.findUnique({ where: { id }, select: userSelectPublic });
     if (!user) throw new NotFoundException('用户不存在');
     return maskDeactivated(user);
   }
@@ -48,7 +60,7 @@ export class UsersService {
     return this.prisma.user.update({
       where: { id },
       data: dto,
-      select: userSelect,
+      select: userSelectPrivate,
     });
   }
 

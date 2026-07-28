@@ -34,10 +34,12 @@ export class ThreadsController {
   }
 
   @Get(':id')
-  @Public()
+  @AuthRead()
+  @ApiBearerAuth()
   @ApiOperation({ summary: '主题帖详情，包含子贴列表和标签' })
-  async findById(@Param('id') id: string) {
-    return this.threadsService.findById(id);
+  async findById(@Param('id') id: string, @Req() req: FastifyRequest) {
+    const user = req['user'] as { id: string } | undefined;
+    return this.threadsService.findById(id, user?.id);
   }
 
   @Patch(':id')
@@ -61,5 +63,23 @@ export class ThreadsController {
     const user = req['user'] as { id: string };
     await this.threadsService.remove(id, user.id);
     return { message: '主题帖已删除' };
+  }
+
+  @Post(':id/invite-link')
+  @AuthRead()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '生成或刷新私密帖邀请链接（仅 OWNER）' })
+  async createInviteLink(@Param('id') id: string, @Req() req: FastifyRequest) {
+    const user = req['user'] as { id: string };
+    return this.threadsService.createInviteLink(id, user.id);
+  }
+
+  @Post('join-by-link/:token')
+  @AuthRead()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '通过邀请链接加入私密帖' })
+  async joinByInviteLink(@Param('token') token: string, @Req() req: FastifyRequest) {
+    const user = req['user'] as { id: string };
+    return this.threadsService.joinByInviteLink(token, user.id);
   }
 }

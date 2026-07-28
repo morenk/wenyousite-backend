@@ -34,7 +34,7 @@ export class UsersController {
   @ApiOperation({ summary: '获取当前登录用户资料' })
   async getMe(@Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
-    return this.usersService.findById(user.id);
+    return this.usersService.findMe(user.id);
   }
 
   @Patch('me')

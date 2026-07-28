@@ -14,10 +14,10 @@ export class UpdateSubthreadDto {
   @IsNumber()
   sortOrder?: number;
 
-  @ApiPropertyOptional({ enum: ['COLLABORATORS', 'PARTICIPANTS'] })
+  @ApiPropertyOptional({ enum: ['PARTICIPANTS', 'COLLABORATORS', 'PLAYERS'] })
   @IsOptional()
   @IsString()
-  @IsIn(['COLLABORATORS', 'PARTICIPANTS'])
+  @IsIn(['PARTICIPANTS', 'COLLABORATORS', 'PLAYERS'])
   postingPolicy?: string;
 
   @ApiPropertyOptional({ description: '乐观锁版本号' })

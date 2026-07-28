@@ -87,6 +87,13 @@ export class PostsService {
       if (!member || (member.role !== 'OWNER' && member.role !== 'COLLABORATOR')) {
         throw new ForbiddenException('该子贴仅限协作者发帖');
       }
+    } else if (subthread.postingPolicy === 'PLAYERS') {
+      const member = await this.prisma.threadMember.findUnique({
+        where: { threadId_userId: { threadId: subthread.threadId, userId } },
+      });
+      if (!member || !member.playerMarked) {
+        throw new ForbiddenException('该子贴仅限玩家发帖');
+      }
     }
 
     // 验证 parentPost 存在
@@ -199,5 +206,35 @@ export class PostsService {
     });
     if (!post) throw new NotFoundException('帖子不存在');
     return post;
+  }
+
+  async like(id: string, userId: string) {
+    const post = await this.prisma.post.findUnique({ where: { id } });
+    if (!post) throw new NotFoundException('帖子不存在');
+
+    await this.prisma.postLike.upsert({
+      where: { postId_userId: { postId: id, userId } },
+      create: { postId: id, userId },
+      update: {},
+    });
+
+    return this.prisma.post.update({
+      where: { id },
+      data: { likeCount: { increment: 1 } },
+    });
+  }
+
+  async unlike(id: string, userId: string) {
+    const post = await this.prisma.post.findUnique({ where: { id } });
+    if (!post) throw new NotFoundException('帖子不存在');
+
+    await this.prisma.postLike.deleteMany({
+      where: { postId: id, userId },
+    });
+
+    return this.prisma.post.update({
+      where: { id },
+      data: { likeCount: { increment: -1 } },
+    });
   }
 }

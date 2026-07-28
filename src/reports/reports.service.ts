@@ -1,7 +1,10 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
-/** 举报服务：提交、查询、处理 */
+/**
+ * 举报服务：提交、查询、处理
+ * @deprecated 此模块暂搁置，举报功能后期重构开发
+ */
 @Injectable()
 export class ReportsService {
   constructor(private prisma: PrismaService) {}

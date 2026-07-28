@@ -19,7 +19,8 @@ export class NotificationProcessor extends WorkerHost {
       case 'reply':
       case 'mention':
       case 'new_floor':
-      case 'new_subthread':
+      case 'thread_created':
+      case 'follow':
         await this.createNotifications(recipients, type, content, postId, threadId, fromUserId);
         break;
       default:
@@ -37,7 +38,7 @@ export class NotificationProcessor extends WorkerHost {
   ) {
     if (userIds.length === 0) return;
 
-    const data = userIds.map((userId) => ({ userId, type, content, postId, threadId, fromUserId }));
+    const data = userIds.map((userId) => ({ userId, type: type as any, content, postId, threadId, fromUserId }));
     await this.prisma.notification.createMany({ data });
     this.logger.log(`Created ${userIds.length} notifications of type '${type}'`);
   }
