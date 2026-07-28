@@ -1,4 +1,5 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { TagsService } from '../tags/tags.service';
 import { NotificationProducer } from '../jobs/notification.producer';
@@ -19,6 +20,7 @@ export class ThreadsService {
     private tagsService: TagsService,
     private notificationProducer: NotificationProducer,
     private threadAccess: ThreadAccessService,
+    private eventEmitter: EventEmitter2,
   ) {}
 
   /** 创建主题帖草稿：仅创建 Thread(published=false) + OWNER 成员 */
@@ -212,6 +214,9 @@ export class ThreadsService {
           { threadId: updated.id, fromUserId: userId },
         ).catch(() => {});
       }
+
+      // 补发草稿期间帖子的 @提及解析和新楼层/子贴通知
+      this.replayDraftPostEvents(updated.id).catch(() => {});
     }
 
     return updated;
@@ -298,6 +303,44 @@ export class ThreadsService {
         user: { select: { id: true, username: true, nickname: true, avatar: true } },
       },
     });
+  }
+
+  /** 发布后补发：遍历草稿内全部帖子，逐一发射 post.created 事件以补解析 @提及和通知 */
+  private async replayDraftPostEvents(threadId: string) {
+    const posts = await this.prisma.post.findMany({
+      where: {
+        threadId,
+        ...notDeleted,
+        subthread: { deletedAt: null },
+      },
+      select: {
+        id: true,
+        content: true,
+        authorId: true,
+        author: { select: { username: true } },
+        subthreadId: true,
+        subthread: { select: { title: true } },
+        parentPostId: true,
+        replyToPostId: true,
+        floorNumber: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    for (const post of posts) {
+      this.eventEmitter.emit('post.created', {
+        postId: post.id,
+        content: post.content,
+        userId: post.authorId,
+        authorUsername: post.author.username,
+        threadId,
+        subthreadId: post.subthreadId,
+        subthreadTitle: post.subthread.title,
+        parentPostId: post.parentPostId ?? null,
+        replyToPostId: post.replyToPostId ?? null,
+        isSubthreadBody: post.parentPostId === null && post.floorNumber === 1,
+      });
+    }
   }
 
   /** 生成随机邀请 token */

@@ -72,7 +72,7 @@ export class PostEventsListener {
         });
         const managerIds = managers.map(m => m.userId);
         const recipients = [...new Set([...managerIds, ...subscriberIds])]
-          .filter(id => !authorBlockedIds.has(id));
+          .filter(id => !authorBlockedIds.has(id) && !blockedAuthorIds.has(id));
         if (recipients.length > 0) {
           await this.notificationProducer.notify(
             'subthread_created',
@@ -97,7 +97,7 @@ export class PostEventsListener {
         });
         const managerIds = managers.map(m => m.userId);
         const recipients = [...new Set([...managerIds, ...subscriberIds])]
-          .filter(id => !authorBlockedIds.has(id));
+          .filter(id => !authorBlockedIds.has(id) && !blockedAuthorIds.has(id));
         if (recipients.length > 0) {
           await this.notificationProducer.notify(
             'new_floor',

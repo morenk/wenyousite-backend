@@ -41,36 +41,41 @@ export class MentionsService {
     return candidates.map((u) => ({ userId: u.id, username: u.username }));
   }
 
-  /** 在主题帖上下文中，按关注/玩家/楼主规则过滤可@用户 */
+  /** 在主题帖上下文，按关注/帖内发言者/楼主规则过滤可 @ 用户 */
   private async filterByRules(
     candidates: { id: string; username: string }[],
     userId: string,
     threadId: string,
   ) {
-    // 查当前用户在帖内的成员信息
     const actor = await this.prisma.threadMember.findUnique({
       where: { threadId_userId: { threadId, userId } },
     });
     const isOwner = actor?.role === 'OWNER';
-    const isPlayer = actor?.playerMarked === true;
 
-    // 查关注关系
     const following = await this.prisma.userFollow.findMany({
       where: { followerId: userId, followingId: { in: candidates.map((u) => u.id) } },
       select: { followingId: true },
     });
     const followingIds = new Set(following.map((f) => f.followingId));
 
-    // 如果没有帖内身份也没有关注任何人，全过滤
     if (!actor && followingIds.size === 0) return [];
 
+    // 帖内非楼主角色：仅可 @ 该帖内发言过的人（分批查询，单批最多 100 个）
+    const candidateIds = candidates.map((u) => u.id);
+    let posterIds: Set<string> | null = null;
+    if (actor && !isOwner) {
+      const posters = await this.prisma.post.findMany({
+        where: { threadId, deletedAt: null, authorId: { in: candidateIds.slice(0, 100) } },
+        select: { authorId: true },
+        distinct: ['authorId'],
+      });
+      posterIds = new Set(posters.map((p) => p.authorId));
+    }
+
     return candidates.filter((u) => {
-      // 楼主可@任意成员
       if (isOwner) return true;
-      // 已关注，可@
       if (followingIds.has(u.id)) return true;
-      // 帖内有角色，查对方是否是同帖玩家
-      if (actor) return true;
+      if (posterIds && posterIds.has(u.id)) return true;
       return false;
     });
   }
