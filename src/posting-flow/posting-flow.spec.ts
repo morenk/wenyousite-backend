@@ -22,7 +22,7 @@ const createMockPrisma = () => ({
   $queryRaw: jest.fn(),
   user: { findUnique: jest.fn(), findMany: jest.fn() },
   thread: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(), findMany: jest.fn() },
-  threadMember: { findUnique: jest.fn(), findMany: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(), upsert: jest.fn() },
+  threadMember: { findUnique: jest.fn(), findMany: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(), upsert: jest.fn(), count: jest.fn() },
   threadInvite: { upsert: jest.fn(), findUnique: jest.fn() },
   threadTopicTag: { createMany: jest.fn() },
   subthread: { findMany: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn(), aggregate: jest.fn(), create: jest.fn(), update: jest.fn() },
@@ -994,6 +994,30 @@ prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', subthread: 
     it('未发布帖：禁止生成', async () => {
       prisma.thread.findUnique.mockResolvedValue({ id: 't1', ownerId: 'u1', published: false, visibility: 'PRIVATE' });
       await expect(threadsService.createInviteLink('t1', 'u1')).rejects.toThrow(BusinessException);
+    });
+
+    it('预览邀请链接：正常返回帖子概要', async () => {
+      prisma.threadInvite.findUnique.mockResolvedValue({
+        threadId: 't1',
+        thread: { id: 't1', title: '奇幻大陆', category: 'RPG', status: 'RECRUITING', visibility: 'PRIVATE', published: true, deletedAt: null, createdAt: new Date(), owner: { id: 'u1', username: '张三', avatar: null } },
+      });
+      prisma.threadMember.count.mockResolvedValue(3);
+      const result = await threadsService.previewInviteLink('token123');
+      expect(result.thread.title).toBe('奇幻大陆');
+      expect(result.thread.memberCount).toBe(3);
+    });
+
+    it('预览邀请链接：无效 token → 404', async () => {
+      prisma.threadInvite.findUnique.mockResolvedValue(null);
+      await expect(threadsService.previewInviteLink('bad')).rejects.toThrow(BusinessException);
+    });
+
+    it('预览邀请链接：公开帖拒绝', async () => {
+      prisma.threadInvite.findUnique.mockResolvedValue({
+        threadId: 't1',
+        thread: { id: 't1', title: 'test', category: 'RPG', status: 'RECRUITING', visibility: 'PUBLIC', published: true, deletedAt: null, createdAt: new Date(), owner: { id: 'u1', username: 'a', avatar: null } },
+      });
+      await expect(threadsService.previewInviteLink('token123')).rejects.toThrow(BusinessException);
     });
 
     it('通过邀请链接加入：成功', async () => {

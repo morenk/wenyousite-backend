@@ -103,6 +103,17 @@ export class ThreadsController {
     return this.threadsService.createInviteLink(id, user.id);
   }
 
+  @Get('join-by-link/:token')
+  @AuthRead()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '预览邀请链接对应的私密帖信息（需已发布 + 私密帖，不创建成员记录）' })
+  @ApiOkResponse({ description: '帖子概要（title / category / owner / memberCount）' })
+  @ApiUnauthorizedResponse({ description: '未登录' })
+  @ApiNotFoundResponse({ description: '邀请链接无效或已失效' })
+  async previewInviteLink(@Param('token') token: string) {
+    return this.threadsService.previewInviteLink(token);
+  }
+
   @Post('join-by-link/:token')
   @Auth()
   @ApiBearerAuth()

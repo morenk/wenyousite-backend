@@ -21,6 +21,7 @@ const mockPrisma = {
   threadMember: {
     findUnique: jest.fn(),
     create: jest.fn(),
+    count: jest.fn(),
   },
   subthread: {
     findFirst: jest.fn(),
@@ -284,6 +285,52 @@ describe('ThreadsService', () => {
       mockPrisma.threadInvite.upsert.mockResolvedValue({ id: 'inv1', threadId: 't1', token: 'abc123' });
       const result = await service.createInviteLink('t1', 'u1');
       expect(result.token).toBeDefined();
+    });
+  });
+
+  describe('previewInviteLink', () => {
+    it('无效 token 返回 404', async () => {
+      mockPrisma.threadInvite.findUnique.mockResolvedValue(null);
+      await expect(service.previewInviteLink('invalid')).rejects.toThrow(BusinessException);
+    });
+
+    it('未发布帖禁止预览', async () => {
+      mockPrisma.threadInvite.findUnique.mockResolvedValue({
+        threadId: 't1',
+        thread: { id: 't1', title: 'test', category: 'RPG', status: 'RECRUITING', visibility: 'PRIVATE', published: false, deletedAt: null, createdAt: new Date(), owner: { id: 'u1', username: 'a', avatar: null } },
+      });
+      await expect(service.previewInviteLink('token123')).rejects.toThrow(BusinessException);
+    });
+
+    it('公开帖禁止通过邀请预览', async () => {
+      mockPrisma.threadInvite.findUnique.mockResolvedValue({
+        threadId: 't1',
+        thread: { id: 't1', title: 'test', category: 'RPG', status: 'RECRUITING', visibility: 'PUBLIC', published: true, deletedAt: null, createdAt: new Date(), owner: { id: 'u1', username: 'a', avatar: null } },
+      });
+      await expect(service.previewInviteLink('token123')).rejects.toThrow(BusinessException);
+    });
+
+    it('软删除帖禁止预览', async () => {
+      mockPrisma.threadInvite.findUnique.mockResolvedValue({
+        threadId: 't1',
+        thread: { id: 't1', title: 'test', category: 'RPG', status: 'RECRUITING', visibility: 'PRIVATE', published: true, deletedAt: new Date(), createdAt: new Date(), owner: { id: 'u1', username: 'a', avatar: null } },
+      });
+      await expect(service.previewInviteLink('token123')).rejects.toThrow(BusinessException);
+    });
+
+    it('正常预览私密帖', async () => {
+      mockPrisma.threadInvite.findUnique.mockResolvedValue({
+        threadId: 't1',
+        thread: { id: 't1', title: '奇幻大陆', category: 'RPG', status: 'RECRUITING', visibility: 'PRIVATE', published: true, deletedAt: null, createdAt: new Date(), owner: { id: 'u1', username: '张三', avatar: null } },
+      });
+      mockPrisma.threadMember.count.mockResolvedValue(5);
+      const result = await service.previewInviteLink('token123');
+      expect(result.thread.id).toBe('t1');
+      expect(result.thread.title).toBe('奇幻大陆');
+      expect(result.thread.category).toBe('RPG');
+      expect(result.thread.status).toBe('RECRUITING');
+      expect(result.thread.owner.username).toBe('张三');
+      expect(result.thread.memberCount).toBe(5);
     });
   });
 

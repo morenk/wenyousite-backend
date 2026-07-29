@@ -53,6 +53,7 @@
 | PATCH | `/threads/:id` | Auth | 修改/发布（仅 OWNER/COLLABORATOR）。设置 published=true 即发布，此时校验 title/category/子贴/楼层完整性，发布后通知粉丝 |
 | DELETE | `/threads/:id` | Auth | 删除（仅 OWNER）。未发布帖硬删除（级联），已发布帖软删除 |
 | POST | `/threads/:id/invite-link` | Auth | 生成/刷新私密帖邀请链接（需已发布，仅 OWNER） |
+| GET | `/threads/join-by-link/:token` | AuthRead | 预览邀请链接对应的私密帖概要（title / category / owner / memberCount，不创建成员） |
 | POST | `/threads/join-by-link/:token` | Auth | 通过邀请链接加入私密帖（需已发布） |
 
 ## 成员端点 (Thread Members)

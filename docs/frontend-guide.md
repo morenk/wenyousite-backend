@@ -261,8 +261,11 @@ DELETE /posts/:id/like     取消点赞
 
 ```
 POST   /threads/:id/invite-link   生成邀请链接 → 返回 { threadId, token }
+GET    /threads/join-by-link/:token   预览邀请链接 → 返回 { thread: { id, title, category, status, owner, memberCount, createdAt } }
 POST   /threads/join-by-link/:token   通过 16 位 token 加入私密帖
 ```
+
+前端收到邀请链接后，先调 `GET` 预览帖名、分类、已有成员数，展示确认页面；用户确认后再调 `POST` 正式加入。
 
 私密帖 `visibility=PRIVATE` 不在公开列表/搜索中出现。非成员访问详情返回 404。
 

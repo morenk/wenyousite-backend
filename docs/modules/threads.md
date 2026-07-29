@@ -34,6 +34,7 @@
 | PATCH | `/threads/:id` | Auth | 修改/发布（OWNER/COLLABORATOR，乐观锁）。设置 published=true 即发布，校验完整性后通知粉丝 |
 | DELETE | `/threads/:id` | Auth | 删除（仅 OWNER）。草稿帖硬删除（级联），已发布帖软删除 |
 | POST | `/threads/:id/invite-link` | Auth | 生成/刷新私密帖邀请链接（需已发布，仅 OWNER） |
+| GET | `/threads/join-by-link/:token` | AuthRead | 预览邀请链接对应的私密帖概要（不创建成员） |
 | POST | `/threads/join-by-link/:token` | Auth | 通过邀请链接加入私密帖（需已发布） |
 | GET | `/threads/:threadId/members` | Public | 参与人列表 |
 | POST | `/threads/:threadId/members/join` | Auth | 自由加入（需已发布，PRIVATE 帖禁止） |
@@ -79,7 +80,8 @@
 ### 邀请链接
 
 - 仅已发布的私密帖可生成邀请链接（未发布或公开帖均禁止）
-- 通过邀请链接加入私密帖：需帖子已发布，角色为 PARTICIPANT（参与人）
+- `GET /threads/join-by-link/:token`：预览端点（`@AuthRead()`），返回帖子概要（title / category / owner / memberCount），不创建成员记录，供前端实现预览页
+- `POST /threads/join-by-link/:token`：正式加入（`@Auth()`），角色为 PARTICIPANT（参与人）
 - 邀请链接使用 ThreadInvite 表 upsert，token 为随机 16 位小写字母+数字
 
 ## Thread 与 Subthread 的关系

@@ -460,6 +460,31 @@ export class ThreadsService {
     });
   }
 
+  /** 预览邀请链接对应的私密帖信息（不创建成员） */
+  async previewInviteLink(token: string) {
+    const invite = await this.prisma.threadInvite.findUnique({
+      where: { token },
+      include: { thread: { select: { id: true, title: true, category: true, status: true, visibility: true, published: true, deletedAt: true, createdAt: true, owner: { select: authorSelect } } } },
+    });
+    if (!invite || invite.thread.deletedAt) throw notFound(ErrorCode.INVITE_INVALID, '邀请链接无效或已失效');
+    if (!invite.thread.published) throw forbidden('该主题帖尚未发布');
+    if (invite.thread.visibility !== 'PRIVATE') throw forbidden('该主题帖为公开帖，可直接加入');
+
+    const memberCount = await this.prisma.threadMember.count({ where: { threadId: invite.threadId } });
+
+    return {
+      thread: {
+        id: invite.thread.id,
+        title: invite.thread.title,
+        category: invite.thread.category,
+        status: invite.thread.status,
+        owner: invite.thread.owner,
+        memberCount,
+        createdAt: invite.thread.createdAt,
+      },
+    };
+  }
+
   /** 通过邀请链接加入私密帖（需已发布） */
   async joinByInviteLink(token: string, userId: string) {
     const invite = await this.prisma.threadInvite.findUnique({
