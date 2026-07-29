@@ -18,11 +18,11 @@ export class NotificationProcessor extends WorkerHost {
     switch (type) {
       case 'reply':
       case 'mention':
-      case 'new_floor':
-      case 'subthread_created':
+      case 'new_post':
       case 'thread_created':
       case 'follow':
       case 'like':
+      case 'system':
         await this.createNotifications(recipients, type, content, postId, threadId, fromUserId, payload);
         break;
       default:
@@ -44,8 +44,13 @@ export class NotificationProcessor extends WorkerHost {
     const data = userIds.map((userId) => ({ userId, type: type as any, content, postId, threadId, fromUserId, payload }));
 
     // 防止 BullMQ retry 时重复插入：若任意一条已存在则整批跳过
+    // 系统通知的 fromUserId 为 null，dedup 查询需正确处理
+    const dedupWhere: any = { userId: { in: userIds }, type: type as any, postId, threadId };
+    if (fromUserId !== undefined) {
+      dedupWhere.fromUserId = fromUserId;
+    }
     const existing = await this.prisma.notification.findFirst({
-      where: { userId: { in: userIds }, type: type as any, postId, threadId, fromUserId },
+      where: dedupWhere,
     });
     if (existing) {
       this.logger.warn(`Duplicate notifications of type '${type}' skipped (retry guard)`);

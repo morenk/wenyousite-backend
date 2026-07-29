@@ -9,6 +9,7 @@ const mockPrisma = {
     createMany: jest.fn(),
     count: jest.fn(),
     updateMany: jest.fn(),
+    deleteMany: jest.fn(),
   },
 };
 
@@ -34,6 +35,14 @@ describe('NotificationsService', () => {
     });
   });
 
+  it('create 应该支持系统通知（fromUserId 为空）', async () => {
+    mockPrisma.notification.create.mockResolvedValue({ id: 'n2', userId: 'u1' });
+    await service.create('u1', 'system', '系统通知内容');
+    expect(mockPrisma.notification.create).toHaveBeenCalledWith({
+      data: { userId: 'u1', type: 'system', content: '系统通知内容' },
+    });
+  });
+
   it('createMany 应该批量创建', async () => {
     mockPrisma.notification.createMany.mockResolvedValue({});
     await service.createMany([
@@ -41,6 +50,11 @@ describe('NotificationsService', () => {
       { userId: 'u2', type: 'reply', content: 'a', postId: 'p1', threadId: 't1', fromUserId: 'u3' },
     ]);
     expect(mockPrisma.notification.createMany).toHaveBeenCalled();
+  });
+
+  it('createMany 应该支持空数组不报错', async () => {
+    await service.createMany([]);
+    expect(mockPrisma.notification.createMany).not.toHaveBeenCalled();
   });
 
   it('unreadCount 应该返回未读数', async () => {
@@ -54,6 +68,23 @@ describe('NotificationsService', () => {
     expect(mockPrisma.notification.updateMany).toHaveBeenCalledWith({
       where: { userId: 'u1', isRead: false },
       data: { isRead: true },
+    });
+  });
+
+  it('setReadStatus 应该支持标记未读', async () => {
+    mockPrisma.notification.updateMany.mockResolvedValue({ count: 1 });
+    await service.setReadStatus('n1', 'u1', false);
+    expect(mockPrisma.notification.updateMany).toHaveBeenCalledWith({
+      where: { id: 'n1', userId: 'u1' },
+      data: { isRead: false },
+    });
+  });
+
+  it('remove 应该硬删除单条通知', async () => {
+    mockPrisma.notification.deleteMany.mockResolvedValue({ count: 1 });
+    await service.remove('n1', 'u1');
+    expect(mockPrisma.notification.deleteMany).toHaveBeenCalledWith({
+      where: { id: 'n1', userId: 'u1' },
     });
   });
 });

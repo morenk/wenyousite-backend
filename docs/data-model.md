@@ -57,10 +57,11 @@
 |----|----------|
 | `reply` | 有人楼中楼回复 |
 | `mention` | 被 @ 提及 |
-| `new_floor` | 有新楼层 |
+| `new_post` | 帖内有新内容（子贴正文或新楼层） |
 | `thread_created` | 关注的用户创建了新主题帖 |
-| `subthread_created` | 主题帖内创建了新子贴 |
 | `follow` | 有人关注了你 |
+| `like` | 有人赞了你的帖子 |
+| `system` | 系统通知（管理员发送，fromUserId 为空） |
 
 ### SubscriptionType — 订阅粒度
 
@@ -274,7 +275,7 @@
 | content | String? | — | 可读文本（如"xxx 关注了你"） |
 | postId | String? | FK posts (SetNull) | 关联帖子 |
 | threadId | String? | FK threads (SetNull) | 关联主题帖 |
-| fromUserId | String? | FK users (SetNull) | 触发者 |
+| fromUserId | String? | FK users (SetNull) | 触发者（系统通知为空） |
 | isRead | Boolean | default false | 是否已读 |
 | createdAt | DateTime | — | — |
 

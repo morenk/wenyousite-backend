@@ -105,18 +105,19 @@
 
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
-| GET | `/notifications` | AuthRead | 通知列表，含关联 post/thread/fromUser |
+| GET | `/notifications?cursor=&type=` | AuthRead | 通知列表（Cursor 分页，支持 type 过滤），含关联 post/thread/fromUser |
 | GET | `/notifications/unread` | AuthRead | 未读通知数 |
-| PATCH | `/notifications/:id/read` | AuthRead | 标记单条已读 |
-| POST | `/notifications/read-all` | AuthRead | 全部已读 |
+| PATCH | `/notifications/:id` | AuthRead | 标记单条通知阅读状态（Body: { isRead: boolean }） |
+| DELETE | `/notifications/:id` | AuthRead | 硬删除单条通知 |
+| POST | `/notifications/read-all` | AuthRead | 一键全部已读 |
 
 ## 订阅端点 (Subscriptions)
 
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
 | GET | `/subscriptions` | AuthRead | 我的订阅列表 |
-| POST | `/subscriptions` | AuthRead | 创建订阅 (type=THREAD/USER, USER 需 targetUserId) |
-| DELETE | `/subscriptions/:id` | AuthRead | 取消订阅 |
+| POST | `/subscriptions` | Auth | 创建订阅 (type=THREAD/USER, USER 需 targetUserId)，需邮箱已验证 |
+| DELETE | `/subscriptions/:id` | Auth | 取消订阅，需邮箱已验证 |
 
 ## 媒体端点 (Media)
 
@@ -148,4 +149,5 @@
 | GET | `/reports` | AuthRead | 举报列表（管理员，已搁置） |
 | PATCH | `/reports/:id/handle` | Auth | 处理举报（管理员，已搁置），需邮箱已验证 |
 | GET | `/admin` | Public | 管理后台入口 |
+| POST | `/admin/notifications/system` | JWT + Verified + Admin | 发送系统通知（管理员），参数：content + 可选 recipientIds/threadId/payload，recipientIds 为空则全站广播 |
 | GET | `/health` | 无 | 健康检查 |

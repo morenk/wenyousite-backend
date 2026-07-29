@@ -21,8 +21,20 @@ export class NotificationsController {
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async findAll(@Req() req: FastifyRequest, @Query('cursor') cursor?: string, @Query('type') type?: string) {
     const user = req['user'] as { id: string };
-    const types = type ? type.split(',').map(t => t.trim()).filter(Boolean) : undefined;
+    const types = type ? this.normalizeTypes(type) : undefined;
     return this.notificationsService.findAll(user.id, cursor, 20, types);
+  }
+
+  /** 将旧通知类型映射为新类型，保证前端平滑过渡 */
+  private normalizeTypes(raw: string): string[] {
+    const mapping: Record<string, string> = {
+      new_floor: 'new_post',
+      subthread_created: 'new_post',
+    };
+    return raw.split(',')
+      .map(t => t.trim())
+      .filter(Boolean)
+      .map(t => mapping[t] || t);
   }
 
   /** 未读通知数量 */

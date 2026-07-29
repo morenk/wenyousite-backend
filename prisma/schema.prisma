@@ -47,9 +47,11 @@ enum NotificationType {
   mention
   new_floor
   subthread_created
+  new_post
   thread_created
   follow
   like
+  system
 }
 
 enum SubscriptionType {

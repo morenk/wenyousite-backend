@@ -2,21 +2,23 @@
 
 ## 通知类型与触发事件
 
-系统定义 7 类通知（Prisma 枚举 `NotificationType`），各自有独立的触发源和事件。
+系统定义 8 类通知（Prisma 枚举 `NotificationType`），各自有独立的触发源和事件。
 
 | 类型 | 枚举值 | 触发事件 | 触发源 | 触发位置 |
 |------|--------|----------|--------|----------|
-| 楼中楼回复 | `reply` | `post.created`（`parentPostId` 非空 + `!isSubthreadBody`） | `PostEventsListener` | `src/jobs/post-events.listener.ts:86` |
-| @提及 | `mention` | `post.created`（正文含 `@username`）or 编辑新增 @ | `PostEventsListener` → `MentionsService.parseAndCreate()` or `PostsService.update()` | `src/jobs/post-events.listener.ts:41`、`src/posts/posts.service.ts:219` |
-| 新楼层 | `new_floor` | `post.created`（`parentPostId` 为空 + `!isSubthreadBody`） | `PostEventsListener` | `src/jobs/post-events.listener.ts:60` |
-| 新子贴 | `subthread_created` | `post.created`（`isSubthreadBody = true`） | `PostEventsListener` | `src/jobs/post-events.listener.ts:74` |
-| 新主题帖 | `thread_created` | 主题帖 PATCH published=true | `ThreadsService.update()` | `src/threads/threads.service.ts:228` |
-| 被关注 | `follow` | 首次关注关系写入 | `UsersFollowController.follow()` | `src/users/users-follow.controller.ts:33` |
-| 被点赞 | `like` | 首次点赞 | `PostsService.like()` | `src/posts/posts.service.ts:265` |
+| 楼中楼回复 | `reply` | `post.created`（`parentPostId` 非空 + `!isSubthreadBody`） | `PostEventsListener` | `src/jobs/post-events.listener.ts` |
+| @提及 | `mention` | `post.created`（正文含 `@username`）or 编辑新增 @ | `PostEventsListener` → `MentionsService.parseAndCreate()` or `PostsService.update()` | `src/jobs/post-events.listener.ts`、`src/posts/posts.service.ts` |
+| 新帖通知 | `new_post` | `post.created`（`!parentPostId` 或 `isSubthreadBody`） | `PostEventsListener` | `src/jobs/post-events.listener.ts` |
+| 新主题帖 | `thread_created` | 主题帖 PATCH published=true | `ThreadsService.update()` | `src/threads/threads.service.ts` |
+| 被关注 | `follow` | 首次关注关系写入 | `UsersFollowController.follow()` | `src/users/users-follow.controller.ts` |
+| 被点赞 | `like` | 首次点赞 | `PostsService.like()` | `src/posts/posts.service.ts` |
+| 系统通知 | `system` | 管理员 POST /admin/notifications/system | `AdminService.sendSystemNotification()` | `src/admin/admin.service.ts` |
+
+> `new_post` 合并了原 `new_floor`（新楼层）和 `subthread_created`（新子贴）两种类型，通过 payload 中的 `subthreadTitle` 字段区分是否为子贴。
 
 **事件驱动模型**：
 
-`post.created` 事件由 PostsService / SubthreadsService 在帖子写入后通过 `@nestjs/event-emitter` 发出，`PostEventsListener` 使用 `@OnEvent('post.created')` 监听。同一个事件可能同时触发 `mention`、`new_floor`/`subthread_created`、`reply` 多种通知。
+`post.created` 事件由 PostsService / SubthreadsService 在帖子写入后通过 `@nestjs/event-emitter` 发出，`PostEventsListener` 使用 `@OnEvent('post.created')` 监听。同一个事件可能同时触发 `mention`、`new_post`、`reply` 多种通知。
 
 ---
 
@@ -53,27 +55,13 @@
 4. 帖内无身份且无关注 → 全部拒绝
 5. @ 自己 → 不创建提及记录，不发送通知
 
-**过滤**：被 @ 的用户如果拉黑了发帖人（即出现在 `blockedAuthorIds` 中），则从通知接收者中移除。
+**过滤**：双向拉黑过滤 — 被 @ 的用户如果拉黑了发帖人（`blockedAuthorIds`）或被发帖人拉黑（`authorBlockedIds`），均从通知接收者中移除。
 
-### 3. new_floor — 新楼层
+### 3. new_post — 新帖通知（子贴正文 / 新楼层）
 
-**触发条件**：帖子 `parentPostId` 为空（即顶楼发布，非楼中楼）
+**触发条件**：帖子 `parentPostId` 为空（顶楼）或 `isSubthreadBody = true`（子贴创建时附带正文）
 
-**接收者**：
-
-| 角色 | 获取方式 |
-|------|----------|
-| 楼主 + 协作者 | `ThreadMember.findMany({ role: { in: [OWNER, COLLABORATOR] }, userId: { not: event.userId } })` |
-| 订阅者 | `SubscriptionsService.findSubscribers()` |
-
-**去重与过滤**：
-1. 成员查询已排除发帖者自己
-2. 合并到 `Set` → 去重
-3. 过滤发帖者拉黑的用户（`authorBlockedIds`）
-
-### 4. subthread_created — 新子贴
-
-**触发条件**：`post.created` 事件的 `isSubthreadBody = true`（子贴创建时附带正文）
+> 合并了原 `new_floor` 和 `subthread_created` 两种类型，通过 payload 中的 `subthreadTitle` 字段区分子贴。
 
 **接收者**：
 
@@ -85,9 +73,9 @@
 **去重与过滤**：
 1. 成员查询已排除发帖者自己
 2. 合并到 `Set` → 去重
-3. 过滤发帖者拉黑的用户（`authorBlockedIds`）
+3. 双向过滤拉黑（`authorBlockedIds` + `blockedAuthorIds`）
 
-### 5. thread_created — 新主题帖
+### 4. thread_created — 新主题帖
 
 **触发条件**：`PATCH /threads/:id { published: true }` 发布草稿时
 
@@ -104,7 +92,7 @@ const followers = await this.prisma.userFollow.findMany({
 - 不检查拉黑关系（用户无法阻止被关注者发帖的通知）
 - 使用 `.catch(() => {})` 吞掉队列异常，不影响主流程
 
-### 6. follow — 被关注
+### 5. follow — 被关注
 
 **触发条件**：首次关注关系写入（先查后建，已关注则跳过）
 
@@ -113,7 +101,7 @@ const followers = await this.prisma.userFollow.findMany({
 - 不通知自己关注自己（前置判断 `if user.id === targetId return`）
 - 使用 `.catch(() => {})` 吞掉队列异常
 
-### 7. like — 被点赞
+### 6. like — 被点赞
 
 **触发条件**：首次点赞（`PostsService.like()`，已点赞则跳过）
 
@@ -122,6 +110,23 @@ const followers = await this.prisma.userFollow.findMany({
 - 不通知自己赞自己（判断 `post.authorId !== userId`）
 - 使用 `.catch(() => {})` 吞掉队列异常
 - 通知内容包含帖子正文智能截断预览
+
+### 7. system — 系统通知
+
+**触发条件**：管理员调用 `POST /admin/notifications/system`
+
+**接收者**：
+- 指定用户：传入 `recipientIds`，自动过滤已注销用户
+- 全站广播：`recipientIds` 为空时，遍历所有 `deletedAt = null` 的用户，500 条/批分批入队
+
+**数据结构**：
+- `fromUserId` 为 null（前端据此区分系统通知，展示系统图标/样式）
+- `content` 为管理员指定的通知文本
+- `payload` 为可选结构化数据（如跳转链接、操作按钮配置）
+- `threadId` 为可选的跳转目标
+
+- 不检查拉黑关系
+- 使用 BullMQ 异步投递，与其他通知共用 `notification` 队列
 
 ---
 
@@ -142,9 +147,11 @@ const authorBlockedIds = new Set(blocksOfAuthor.map(b => b.blockedId));
 
 | 过滤层 | Set 名称 | 含义 | 适用场景 |
 |--------|----------|------|----------|
-| 拉黑发帖人 | `blockedAuthorIds` | 拉黑了发帖人的用户 ID 集合 | mention：如果被 @ 者拉黑了发帖人则移除 |
-| 被发帖人拉黑 | `authorBlockedIds` | 被发帖人拉黑的用户 ID 集合 | reply / new_floor：发帖人拉黑的用户不收到通知 |
-| 去重 | `new Set([...ids])` | JavaScript Set 自动去重 | reply / new_floor：合并多来源接收者时消除重复 |
+| 拉黑发帖人 | `blockedAuthorIds` | 拉黑了发帖人的用户 ID 集合 | mention / reply / new_post：被引用者若拉黑了发帖人则排除 |
+| 被发帖人拉黑 | `authorBlockedIds` | 被发帖人拉黑的用户 ID 集合 | mention / reply / new_post：发帖人拉黑的用户不收到通知 |
+| 去重 | `new Set([...ids])` | JavaScript Set 自动去重 | reply / new_post：合并多来源接收者时消除重复 |
+
+> **注意**：mention 通知现已同时应用 `blockedAuthorIds` 和 `authorBlockedIds` 双向拉黑过滤，与 reply / new_post 保持一致。
 
 > **注意**：`blockedAuthorIds` 和 `authorBlockedIds` 是互补的拉黑关系。前者表示"谁拉黑了发帖人"，后者表示"发帖人拉黑了谁"。两者在不同场景下各自独立适用。
 
@@ -182,7 +189,7 @@ WHERE threadId = {threadId}
   )
 ```
 
-返回的订阅者列表被合并到 `reply` 和 `new_floor` 通知的接收者集合中。
+返回的订阅者列表被合并到 `reply` 和 `new_post` 通知的接收者集合中。
 
 ---
 
@@ -228,13 +235,13 @@ WHERE threadId = {threadId}
 
 | 类型 | content 格式 |
 |------|-------------|
-| `new_floor` | `{username} 发布了新楼层：{正文智能截断}` |
+| `new_post` | `{username} 发布了新楼层：{正文智能截断}` 或 `{username} 创建了新子贴「{title}」：{正文智能截断}`（有 subthreadTitle 时） |
 | `reply` | `{username} 回复了：{正文智能截断}` |
 | `mention` | `{username} 在「{subthreadTitle}」提到了你：{正文智能截断}` |
-| `subthread_created` | `{username} 创建了新子贴「{subthreadTitle}」：{正文智能截断}` |
 | `thread_created` | `{username}创建了新主题帖`（无正文预览） |
 | `follow` | `{username}关注了你` |
 | `like` | `{username} 赞了你的帖子：{正文智能截断}` |
+| `system` | 管理员指定的纯文本内容 |
 
 **正文智能截断**：使用 `remove-markdown` 转纯文本后，优先在句号/换行/问号/感叹号处截断，最少 50 字，最多 100 字。
 
@@ -242,10 +249,10 @@ WHERE threadId = {threadId}
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `actorName` | string | 操作者用户名 |
-| `action` | string | 动作类型（mention / reply / new_floor / subthread_created / like） |
-| `preview` | string | 正文智能截断纯文本 |
-| `subthreadTitle` | string? | 子贴标题（mention / subthread_created 时存在） |
+| `actorName` | string | 操作者用户名（系统通知为空） |
+| `action` | string | 动作类型（mention / reply / new_post / like） |
+| `preview` | string | 正文智能截断纯文本（可选） |
+| `subthreadTitle` | string? | 子贴标题（mention / new_post 时存在） |
 
 ---
 
@@ -255,10 +262,10 @@ WHERE threadId = {threadId}
 
 | 影响项 | 说明 | 实现位置 |
 |--------|------|----------|
-| 不通知拉黑者 | `mention` 类型中，若被 @ 者拉黑了发帖人，排除该被 @ 者 | `src/jobs/post-events.listener.ts:47` |
-| 不通知被拉黑者 | `reply` / `new_floor` 类型中，发帖人拉黑的用户从接收者集合中移除 | `src/jobs/post-events.listener.ts:72,104` |
+| 不通知拉黑者 | mention / reply / new_post 中，被引用者若拉黑了发帖人，排除该用户 | `src/jobs/post-events.listener.ts` |
+| 不通知被拉黑者 | mention / reply / new_post 中，发帖人拉黑的用户从接收者集合中移除 | `src/jobs/post-events.listener.ts` |
 | 不发帖 | 拉黑者的帖子对被拉黑者不可见（由 BlockGuard 全局拦截） | `src/common/guards/block.guard.ts` |
-| 不影响关注通知 | `thread_created` / `follow` 不检查拉黑关系 | — |
+| 不影响关注通知 | thread_created / follow / system 不检查拉黑关系 | — |
 
 > **注意**：拉黑检查在 `queue.add()` 之前完成，而非在 Processor 中再次检查。这意味着接收者列表在入队时已经确定且干净。
 

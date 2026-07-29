@@ -45,7 +45,7 @@ export class PostEventsListener {
     private redis: RedisService,
   ) {}
 
-  /** 监听 post.created 事件，处理：@提及、新楼层通知、楼中楼回复通知、新子贴通知 + Redis 计数器更新 */
+  /** 监听 post.created 事件，处理：@提及、新帖通知、楼中楼回复通知 + Redis 计数器更新 */
   @OnEvent('post.created')
   async handlePostCreated(event: PostCreatedEvent) {
     // Redis: 更新回复计数器 + 帖子活跃度 ZSET + 智能排序分
@@ -57,8 +57,8 @@ export class PostEventsListener {
     this.redis.zadd(ZSET_BY_ACTIVITY, now, event.threadId).catch(() => {});
     updateSmartScore(this.redis, event.threadId).catch(() => {});
 
-    // 预加载拉黑关系和订阅者（多类通知共用，一次 DB 查询）
-    const [subscribers, blockedByAuthor, blocksOfAuthor] = await Promise.all([
+    // 预加载拉黑关系、订阅者、管理者（多类通知共用，一次 DB 查询）
+    const [subscribers, blockedByAuthor, blocksOfAuthor, managers] = await Promise.all([
       this.subscriptionsService.findSubscribers(
         event.threadId, event.userId, event.userId,
       ),
@@ -70,21 +70,32 @@ export class PostEventsListener {
         where: { blockerId: event.userId },
         select: { blockedId: true },
       }),
+      this.prisma.threadMember.findMany({
+        where: {
+          threadId: event.threadId,
+          role: { in: ['OWNER', 'COLLABORATOR'] },
+          userId: { not: event.userId },
+        },
+        select: { userId: true },
+      }),
     ]);
     const subscriberIds = subscribers.map(s => s.userId);
     const blockedAuthorIds = new Set(blockedByAuthor.map(b => b.blockerId));
     const authorBlockedIds = new Set(blocksOfAuthor.map(b => b.blockedId));
+    const managerIds = managers.map(m => m.userId);
 
     const username = event.authorUsername ?? '有人';
     const preview = truncateMarkdown(event.content);
 
-    // 1. @提及：解析正文中的 @用户名，验证权限规则，过滤拉黑，入队通知
+    // 1. @提及：解析正文中的 @用户名，验证权限规则，双向过滤拉黑，入队通知
     try {
       const mentionedUsers = await this.mentionsService.parseAndCreate(
         event.postId, event.content, event.userId, event.threadId,
       );
       if (mentionedUsers.length > 0) {
-        const filtered = mentionedUsers.filter(u => !blockedAuthorIds.has(u.userId));
+        const filtered = mentionedUsers.filter(
+          u => !blockedAuthorIds.has(u.userId) && !authorBlockedIds.has(u.userId),
+        );
         if (filtered.length > 0) {
           await this.notificationProducer.notify(
             'mention',
@@ -97,59 +108,28 @@ export class PostEventsListener {
       }
     } catch (e) { this.logger.error('mention processing failed', e); }
 
-    // 2. 新子贴正文：通知订阅者 + 楼主 + 协作者（排除自己，过滤拉黑）
-    if (event.isSubthreadBody) {
+    // 2. 新帖通知（子贴正文 / 新楼层）：通知楼主 + 协作者 + 订阅者（排除自己，过滤拉黑）
+    if (!event.parentPostId || event.isSubthreadBody) {
       try {
-        const managers = await this.prisma.threadMember.findMany({
-          where: {
-            threadId: event.threadId,
-            role: { in: ['OWNER', 'COLLABORATOR'] },
-            userId: { not: event.userId },
-          },
-          select: { userId: true },
-        });
-        const managerIds = managers.map(m => m.userId);
         const recipients = [...new Set([...managerIds, ...subscriberIds])]
           .filter(id => !authorBlockedIds.has(id) && !blockedAuthorIds.has(id));
         if (recipients.length > 0) {
+          const isSubthread = event.isSubthreadBody === true;
+          const content = isSubthread
+            ? `${username} 创建了新子贴「${event.subthreadTitle}」：${preview}`
+            : `${username} 发布了新楼层：${preview}`;
           await this.notificationProducer.notify(
-            'subthread_created',
+            'new_post',
             recipients,
-            `${username} 创建了新子贴「${event.subthreadTitle}」：${preview}`,
+            content,
             { postId: event.postId, threadId: event.threadId, fromUserId: event.userId,
-              payload: { actorName: username, action: 'subthread_created', preview, subthreadTitle: event.subthreadTitle } },
+              payload: { actorName: username, action: 'new_post', preview, ...(isSubthread ? { subthreadTitle: event.subthreadTitle } : {}) } },
           );
         }
-      } catch (e) { this.logger.error('subthread created notification failed', e); }
+      } catch (e) { this.logger.error('new_post notification failed', e); }
     }
 
-    // 3. 新楼层：通知楼主协作者 + 订阅者（排除自己，过滤拉黑）
-    try {
-      if (!event.parentPostId && !event.isSubthreadBody) {
-        const managers = await this.prisma.threadMember.findMany({
-          where: {
-            threadId: event.threadId,
-            role: { in: ['OWNER', 'COLLABORATOR'] },
-            userId: { not: event.userId },
-          },
-          select: { userId: true },
-        });
-        const managerIds = managers.map(m => m.userId);
-        const recipients = [...new Set([...managerIds, ...subscriberIds])]
-          .filter(id => !authorBlockedIds.has(id) && !blockedAuthorIds.has(id));
-        if (recipients.length > 0) {
-          await this.notificationProducer.notify(
-            'new_floor',
-            recipients,
-            `${username} 发布了新楼层：${preview}`,
-            { postId: event.postId, threadId: event.threadId, fromUserId: event.userId,
-              payload: { actorName: username, action: 'new_floor', preview } },
-          );
-        }
-      }
-    } catch (e) { this.logger.error('new floor notification failed', e); }
-
-    // 4. 楼中楼回复：通知被回复者 + 楼主协作者 + 订阅者（排除自己，过滤拉黑）
+    // 3. 楼中楼回复：通知被回复者 + 楼主协作者 + 订阅者（排除自己，过滤拉黑）
     try {
       if (event.parentPostId && !event.isSubthreadBody) {
         const targetId = event.replyToPostId ?? event.parentPostId;
@@ -158,15 +138,6 @@ export class PostEventsListener {
           select: { authorId: true },
         });
         if (targetPost && targetPost.authorId !== event.userId) {
-          const managers = await this.prisma.threadMember.findMany({
-            where: {
-              threadId: event.threadId,
-              role: { in: ['OWNER', 'COLLABORATOR'] },
-              userId: { not: event.userId },
-            },
-            select: { userId: true },
-          });
-          const managerIds = managers.map(m => m.userId);
           const replyTargetId = targetPost.authorId;
           const recipients = [...new Set([replyTargetId, ...managerIds, ...subscriberIds])]
             .filter(id => !authorBlockedIds.has(id) && !blockedAuthorIds.has(id));

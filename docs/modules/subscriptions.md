@@ -32,7 +32,7 @@
 - 同一用户对同一主题帖的同一 targetUserId 唯一（通过 `@@unique([userId, threadId, targetUserId])` 约束）
 - `findSubscribers(threadId, excludeUserId?, authorId?)` 是供 `PostEventsListener` 调用的核心接口，用于合并订阅者进入通知接收人列表
 - 当提供 `authorId` 时，查询 WHERE 条件为 OR：`type='THREAD'` 或 `type='USER' AND targetUserId=authorId`，即合并"订阅整帖"与"订阅了发帖者"的用户
-- 订阅通知仅在 `new_floor` 和 `reply` 两类通知中使用，@提及通知不走订阅逻辑
+- 订阅通知在 `new_post` 和 `reply` 两类通知中使用，@提及通知不走订阅逻辑
 
 ## 设计决策
 
