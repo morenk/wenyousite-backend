@@ -124,12 +124,12 @@ export class ThreadsService {
     return thread;
   }
 
-  /** 分区列表：仅返回已发布帖。首页缓存 5 秒防击穿。smart 排序使用 Redis ZSET */
+  /** 分区列表：仅返回已发布帖。首页缓存 5 秒防击穿。recommended 排序使用 Redis ZSET */
   async findAll(query: ThreadQueryDto, userId?: string) {
-    const sort = query.sort ?? 'created';
+    const sort = query.sort ?? 'recommended';
 
-    // smart 排序：ZSET 偏移分页（与 ID-cursor 分页不同，cursor 为偏移量）
-    if (sort === 'smart') {
+    // recommended 排序：ZSET 偏移分页
+    if (sort === 'recommended') {
       return this.findAllSmart(query, userId);
     }
 

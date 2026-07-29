@@ -16,7 +16,7 @@ export class ThreadQueryDto extends CursorPaginationDto {
   @IsIn(['DEDUCTION', 'NATION', 'RPG'])
   category?: string;
 
-  @ApiPropertyOptional({ enum: ['recommended', 'newest', 'active'], default: 'recommended', description: '排序方式' })
+  @ApiPropertyOptional({ enum: ['recommended', 'newest', 'active'], default: 'recommended', description: 'recommended=智能排序, newest=最新创建, active=最新回复' })
   @IsOptional()
   @IsString()
   @IsIn(['recommended', 'newest', 'active'])
