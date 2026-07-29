@@ -1,12 +1,9 @@
-# 将 example.com 替换为你的域名
-example.com {
-  reverse_proxy api:3000
+wenyou.site {
+  reverse_proxy 127.0.0.1:3000
 
-  # 安全头
-  header Strict-Transport-Security "max-age=31536000"
   header X-Content-Type-Options "nosniff"
+  header X-Frame-Options "DENY"
 
-  # 文件上传限制 10MB
   request_body {
     max_size 10MB
   }
