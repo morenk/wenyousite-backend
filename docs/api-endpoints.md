@@ -149,5 +149,8 @@
 | GET | `/reports` | AuthRead | 举报列表（管理员，已搁置） |
 | PATCH | `/reports/:id/handle` | Auth | 处理举报（管理员，已搁置），需邮箱已验证 |
 | GET | `/admin` | Public | 管理后台入口 |
-| POST | `/admin/notifications/system` | JWT + Verified + Admin | 发送系统通知（管理员），参数：content + 可选 recipientIds/threadId/payload，recipientIds 为空则全站广播 |
+| POST | `/admin/notifications/system` | JWT + Verified + Admin | 发送系统通知。Body: content(必填) + 可选 payload/recipientIds/conditions/threadId |
+| POST | `/admin/notifications/system/preview` | JWT + Verified + Admin | 预览接收者人数（不发），复用发送 DTO |
+| GET | `/admin/notifications/system/history` | JWT + Verified + Admin | 系统通知发送历史（cursor 分页） |
+| GET | `/admin/users/search?q=` | JWT + Verified + Admin | 用户搜索（用户名或邮箱），供管理员选择接收者 |
 | GET | `/health` | 无 | 健康检查 |

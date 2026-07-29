@@ -115,9 +115,17 @@ const followers = await this.prisma.userFollow.findMany({
 
 **触发条件**：管理员调用 `POST /admin/notifications/system`
 
-**接收者**：
-- 指定用户：传入 `recipientIds`，自动过滤已注销用户
-- 全站广播：`recipientIds` 为空时，遍历所有 `deletedAt = null` 的用户，500 条/批分批入队
+**接收者**（三种分发模式，优先级从高到低）：
+1. 手动指定：传入 `recipientIds`，自动过滤已注销用户
+2. 条件筛选：传入 `conditions` 对象（role / emailVerified / createdAfter / createdBefore），AND 逻辑组合
+3. 全站广播：不传筛选参数，遍历所有 `deletedAt = null` 的用户，500 条/批分批入队
+
+**配套端点**：
+- `POST /admin/notifications/system/preview` — 发送前预览人数
+- `GET /admin/notifications/system/history` — 已发系统通知历史
+- `GET /admin/users/search?q=` — 用户搜索（供手动选择）
+
+**审计**：每次发送后写入 `audit_logs` 表（action=SYSTEM_NOTIFICATION，含 adminId、ip、内容摘要、人数、条件）
 
 **数据结构**：
 - `fromUserId` 为 null（前端据此区分系统通知，展示系统图标/样式）
