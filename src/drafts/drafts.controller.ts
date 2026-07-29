@@ -2,7 +2,7 @@ import {
   Controller, Get, Post, Patch, Delete,
   Body, Param, Req, UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse, ApiCreatedResponse, ApiUnauthorizedResponse, ApiNotFoundResponse } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { DraftsService } from './drafts.service';
 import { CreateDraftDto } from './dto/create-draft.dto';
@@ -19,6 +19,8 @@ export class DraftsController {
   @Get()
   @AuthRead()
   @ApiOperation({ summary: '当前用户全部草稿' })
+  @ApiOkResponse({ description: '当前用户全部草稿' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async findAll(@Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     return this.draftsService.findAll(user.id);
@@ -27,6 +29,8 @@ export class DraftsController {
   @Get('slots')
   @AuthRead()
   @ApiOperation({ summary: '草稿位使用情况（5 槽已用数）' })
+  @ApiOkResponse({ description: '草稿位使用情况（5 槽已用数）' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async slotUsage(@Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     return this.draftsService.slotUsage(user.id);
@@ -35,6 +39,8 @@ export class DraftsController {
   @Post()
   @Auth()
   @ApiOperation({ summary: '保存草稿（不传 slot 自动选空闲位）' })
+  @ApiCreatedResponse({ description: '创建的草稿' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async create(@Body() dto: CreateDraftDto, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     return this.draftsService.create(dto, user.id);
@@ -43,6 +49,9 @@ export class DraftsController {
   @Get(':id')
   @AuthRead()
   @ApiOperation({ summary: '获取单条草稿' })
+  @ApiOkResponse({ description: '草稿详情' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
+  @ApiNotFoundResponse({ description: '草稿不存在' })
   async findById(@Param('id') id: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     return this.draftsService.findById(id, user.id);
@@ -51,6 +60,9 @@ export class DraftsController {
   @Patch(':id')
   @Auth()
   @ApiOperation({ summary: '更新草稿内容' })
+  @ApiOkResponse({ description: '更新后的草稿' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
+  @ApiNotFoundResponse({ description: '草稿不存在' })
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateDraftDto,
@@ -63,6 +75,9 @@ export class DraftsController {
   @Delete(':id')
   @Auth()
   @ApiOperation({ summary: '删除草稿' })
+  @ApiOkResponse({ description: '草稿已删除' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
+  @ApiNotFoundResponse({ description: '草稿不存在' })
   async remove(@Param('id') id: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     await this.draftsService.remove(id, user.id);

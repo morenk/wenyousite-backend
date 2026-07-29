@@ -1,5 +1,5 @@
 import { Controller, Post, Get, Delete, Body, Param, HttpCode, HttpStatus, Req, Res, UnauthorizedException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiOkResponse, ApiUnauthorizedResponse, ApiNotFoundResponse, ApiConflictResponse, ApiBadRequestResponse } from '@nestjs/swagger';
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
@@ -36,15 +36,18 @@ export class AuthController {
   @Public()
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: 60000, limit: 1 } })
-  @ApiOperation({ summary: '注册第一步：请求邮箱验证码' })
+  @ApiOperation({ summary: '注册第一步：请求邮箱验证码（限流 1次/分钟）' })
+  @ApiOkResponse({ description: '验证码已发送 { emailSent, codeExpiresIn: 900 }' })
+  @ApiResponse({ status: 429, description: '请求频繁，请稍后重试（1 分钟 1 次）' })
   async requestCode(@Body() dto: RequestCodeDto) {
     return this.authService.requestCode(dto.email);
   }
 
   @Post('register/verify-and-complete')
   @Public()
-  @ApiOperation({ summary: '注册第二步：验证邮箱 + 设置用户名密码，一步完成注册' })
-  @ApiResponse({ status: 201, type: AuthResponseDto, description: '注册成功返回双 Token 和用户信息' })
+  @ApiOperation({ summary: '注册第二步：验证邮箱 + 设置用户名密码。完成后 emailVerified=true 立即可用' })
+  @ApiResponse({ status: 200, type: AuthResponseDto, description: '注册成功返回双 Token（同时 set-Cookie refreshToken）和 user 信息' })
+  @ApiResponse({ status: 400, description: '验证码错误或过期' })
   @ApiResponse({ status: 409, description: '用户名已被占用' })
   async verifyAndComplete(@Body() dto: VerifyAndCompleteDto, @Req() req: FastifyRequest, @Res({ passthrough: true }) res: FastifyReply) {
     const deviceInfo = req.headers['user-agent']?.slice(0, 512) ?? undefined;
@@ -58,9 +61,10 @@ export class AuthController {
   @Post('login')
   @Public()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: '邮箱 + 密码登录' })
-  @ApiResponse({ status: 200, type: AuthResponseDto, description: '登录成功返回双 Token 和用户信息' })
-  @ApiResponse({ status: 401, description: '邮箱或密码错误' })
+  @ApiOperation({ summary: '邮箱 + 密码登录。5 次失败锁定 15 分钟' })
+  @ApiResponse({ status: 200, type: AuthResponseDto, description: '登录成功返回双 Token（同时 set-Cookie refreshToken）和 user 信息' })
+  @ApiResponse({ status: 401, description: '邮箱或密码错误 或 账号被锁定' })
+  @ApiResponse({ status: 404, description: '邮箱未注册' })
   async login(@Body() dto: LoginDto, @Req() req: FastifyRequest, @Res({ passthrough: true }) res: FastifyReply) {
     const deviceInfo = req.headers['user-agent']?.slice(0, 512) ?? undefined;
     const platform = (req.headers['x-client-platform'] as string) || 'web';
@@ -73,9 +77,9 @@ export class AuthController {
   @Post('refresh')
   @Public()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: '刷新访问令牌（Cookie 优先）' })
-  @ApiResponse({ status: 200, type: AuthResponseDto, description: '刷新成功，返回新的双 Token' })
-  @ApiResponse({ status: 401, description: '刷新令牌无效' })
+  @ApiOperation({ summary: '用 refreshToken 轮转换取新双 Token（Cookie 优先，含盗用检测）' })
+  @ApiResponse({ status: 200, type: AuthResponseDto, description: '刷新成功，旧 token 注销，签发新双 Token（set-Cookie 新 refreshToken）' })
+  @ApiResponse({ status: 401, description: 'refreshToken 无效/过期/已被盗用（盗用时全设备强制登出）' })
   async refresh(@Body() dto: RefreshDto, @Req() req: FastifyRequest, @Res({ passthrough: true }) res: FastifyReply) {
     const token = req.cookies?.refreshToken ?? dto.refreshToken;
     if (!token) throw new UnauthorizedException('缺少刷新令牌');
@@ -92,7 +96,10 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @ApiBearerAuth()
-  @ApiOperation({ summary: '验证当前登录用户的邮箱' })
+  @ApiOperation({ summary: '验证当前登录用户的邮箱（6 位验证码，限流 5次/分钟）' })
+  @ApiOkResponse({ description: '验证成功 { message }' })
+  @ApiUnauthorizedResponse({ description: '未登录' })
+  @ApiBadRequestResponse({ description: '验证码错误' })
   async verifyEmail(@Req() req: FastifyRequest, @Body() dto: VerifyEmailDto) {
     const user = req['user'] as { id: string };
     return this.authService.verifyEmail(user.id, dto.token);
@@ -102,7 +109,8 @@ export class AuthController {
   @Public()
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: 60000, limit: 1 } })
-  @ApiOperation({ summary: '重发验证邮件' })
+  @ApiOperation({ summary: '重发验证邮件（限流 1次/分钟）' })
+  @ApiOkResponse({ description: '验证邮件已重新发送 { message }' })
   async resendVerification(@Body() dto: ResendVerificationDto) {
     return this.authService.resendVerification(dto.email);
   }
@@ -111,7 +119,9 @@ export class AuthController {
   @AuthRead()
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '修改密码' })
+  @ApiOperation({ summary: '修改密码（需旧密码），成功后吊销全部 refresh token 强制所有设备重新登录' })
+  @ApiOkResponse({ description: '密码修改成功 { message }' })
+  @ApiUnauthorizedResponse({ description: '未登录或旧密码错误' })
   async changePassword(
     @Req() req: FastifyRequest,
     @Body() dto: ChangePasswordDto,
@@ -124,7 +134,9 @@ export class AuthController {
   @Public()
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: 60000, limit: 1 } })
-  @ApiOperation({ summary: '忘记密码 — 发送重置邮件' })
+  @ApiOperation({ summary: '忘记密码 — 发送重置邮件（限流 1次/分钟）' })
+  @ApiOkResponse({ description: '密码重置邮件已发送 { message }' })
+  @ApiNotFoundResponse({ description: '邮箱未注册' })
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgotPassword(dto.email);
   }
@@ -133,7 +145,9 @@ export class AuthController {
   @Public()
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: 60000, limit: 5 } })
-  @ApiOperation({ summary: '重置密码' })
+  @ApiOperation({ summary: '用邮箱 + 验证码重置密码，成功后吊销全部 refresh token' })
+  @ApiOkResponse({ description: '密码重置成功 { message }' })
+  @ApiBadRequestResponse({ description: '验证码错误 或 密码格式不符合要求' })
   async resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.email, dto.token, dto.newPassword);
   }
@@ -143,7 +157,10 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: 60000, limit: 1 } })
   @ApiBearerAuth()
-  @ApiOperation({ summary: '更换邮箱第一步：向新邮箱发送验证码' })
+  @ApiOperation({ summary: '更换邮箱第一步：向新邮箱发送验证码（限流 1次/分钟）' })
+  @ApiOkResponse({ description: '验证码已发送 { message }' })
+  @ApiUnauthorizedResponse({ description: '未登录' })
+  @ApiConflictResponse({ description: '新邮箱已被占用' })
   async requestChangeEmailCode(@Req() req: FastifyRequest, @Body() dto: ChangeEmailRequestDto) {
     const user = req['user'] as { id: string };
     return this.authService.requestChangeEmailCode(user.id, dto.newEmail);
@@ -154,7 +171,10 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @ApiBearerAuth()
-  @ApiOperation({ summary: '更换邮箱第二步：验证码确认，更新邮箱' })
+  @ApiOperation({ summary: '更换邮箱第二步：验证码确认并更新邮箱' })
+  @ApiOkResponse({ description: '邮箱更换成功 { message }' })
+  @ApiUnauthorizedResponse({ description: '未登录或邮箱未验证' })
+  @ApiBadRequestResponse({ description: '验证码错误或过期' })
   async verifyChangeEmail(@Req() req: FastifyRequest, @Body() dto: ChangeEmailVerifyDto) {
     const user = req['user'] as { id: string };
     return this.authService.verifyChangeEmail(user.id, dto.newEmail, dto.code);
@@ -164,7 +184,8 @@ export class AuthController {
   @AuthRead()
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '登出，撤销指定设备的 refresh token（Cookie 优先）' })
+  @ApiOperation({ summary: '登出：撤销指定设备的 refresh token（Cookie 优先），同时清除客户端 Cookie' })
+  @ApiOkResponse({ description: '登出成功 { message: "已登出" }，refreshToken 被撤销，Cookie 被清除' })
   async logout(@Req() req: FastifyRequest, @Body() dto: LogoutDto, @Res({ passthrough: true }) res: FastifyReply) {
     const user = req['user'] as { id: string };
     const token = req.cookies?.refreshToken ?? dto.refreshToken;

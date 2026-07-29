@@ -5,7 +5,7 @@ import { sanitizeContent } from '../../common/transform/sanitize.transform';
 
 /** 保存草稿 DTO */
 export class CreateDraftDto {
-  @ApiProperty({ description: '草稿内容', maxLength: 10000 })
+  @ApiProperty({ example: '这是一段草稿内容...', description: '草稿正文（Markdown 格式，与楼层一致）', minLength: 1, maxLength: 10000 })
   @IsString()
   @MinLength(1)
   @Transform(({ value }) => sanitizeContent(value))

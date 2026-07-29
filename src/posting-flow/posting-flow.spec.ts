@@ -47,7 +47,7 @@ const mockEventEmitter = { emit: jest.fn() };
 const mockReadingProgressService = { update: jest.fn().mockResolvedValue(undefined) };
 const mockTags = { findOrCreate: jest.fn() };
 const mockNotificationProducer = { notify: jest.fn().mockResolvedValue(undefined) };
-const mockRedis = { hincrby: jest.fn().mockResolvedValue(1), hgetall: jest.fn().mockResolvedValue({}), hset: jest.fn().mockResolvedValue(1), hdelAll: jest.fn().mockResolvedValue(1), zadd: jest.fn().mockResolvedValue(1), zrem: jest.fn().mockResolvedValue(1) };
+const mockRedis = { hincrby: jest.fn().mockResolvedValue(1), hgetall: jest.fn().mockResolvedValue({}), hset: jest.fn().mockResolvedValue(1), hdelAll: jest.fn().mockResolvedValue(1), zadd: jest.fn().mockResolvedValue(1), zrem: jest.fn().mockResolvedValue(1), zrevrange: jest.fn().mockResolvedValue([]) };
 const mockCache = { buildKey: jest.fn((...parts: string[]) => parts.join(':')), get: jest.fn().mockResolvedValue(undefined), set: jest.fn().mockResolvedValue(undefined), del: jest.fn().mockResolvedValue(undefined), delByPattern: jest.fn().mockResolvedValue(undefined) };
 
 // ============ 辅助工厂 ============
@@ -195,7 +195,7 @@ describe('发帖全流程集成测试', () => {
 
     it('公开列表：仅展示已发布 + 公开帖', async () => {
       prisma.thread.findMany.mockResolvedValue([]);
-      await threadsService.findAll({});
+      await threadsService.findAll({ sort: 'newest' } as any);
       expect(prisma.thread.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: expect.objectContaining({ published: true, visibility: 'PUBLIC' }) }),
       );
@@ -203,7 +203,7 @@ describe('发帖全流程集成测试', () => {
 
     it('公开列表：filter=playing 仅返回 playing 帖', async () => {
       prisma.thread.findMany.mockResolvedValue([]);
-      await threadsService.findAll({ filter: 'playing' as any }, 'u1');
+      await threadsService.findAll({ sort: 'newest', filter: 'playing' } as any, 'u1');
       expect(prisma.thread.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({

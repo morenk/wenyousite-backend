@@ -22,7 +22,7 @@ export class ThreadQueryDto extends CursorPaginationDto {
   @IsIn(['recommended', 'newest', 'active'])
   sort?: string = 'recommended';
 
-  @ApiPropertyOptional({ description: '标签筛选' })
+  @ApiPropertyOptional({ example: '无限流', description: '按标签名模糊筛选主题帖' })
   @IsOptional()
   @IsString()
   tag?: string;

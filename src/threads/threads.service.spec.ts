@@ -43,7 +43,7 @@ const mockPrisma = {
 const mockTags = { findOrCreate: jest.fn() };
 const mockNotificationProducer = { notify: jest.fn().mockResolvedValue(undefined) };
 const mockEventEmitter = { emit: jest.fn() };
-const mockRedis = { hincrby: jest.fn().mockResolvedValue(1), hset: jest.fn().mockResolvedValue(1), hdelAll: jest.fn().mockResolvedValue(1), zadd: jest.fn().mockResolvedValue(1), zrem: jest.fn().mockResolvedValue(1) };
+const mockRedis = { hincrby: jest.fn().mockResolvedValue(1), hset: jest.fn().mockResolvedValue(1), hdelAll: jest.fn().mockResolvedValue(1), zadd: jest.fn().mockResolvedValue(1), zrem: jest.fn().mockResolvedValue(1), zrevrange: jest.fn().mockResolvedValue([]) };
 const mockCache = { buildKey: jest.fn((...parts: string[]) => parts.join(':')), get: jest.fn().mockResolvedValue(undefined), set: jest.fn().mockResolvedValue(undefined), del: jest.fn().mockResolvedValue(undefined), delByPattern: jest.fn().mockResolvedValue(undefined) };
 
 describe('ThreadsService', () => {
@@ -105,7 +105,7 @@ describe('ThreadsService', () => {
   describe('findAll', () => {
     it('只展示已发布帖', async () => {
       mockPrisma.thread.findMany.mockResolvedValue([]);
-      await service.findAll({});
+      await service.findAll({ sort: 'newest' } as any);
       expect(mockPrisma.thread.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: expect.objectContaining({ published: true }) }),
       );
@@ -113,7 +113,7 @@ describe('ThreadsService', () => {
 
     it('优先排列置顶帖', async () => {
       mockPrisma.thread.findMany.mockResolvedValue([]);
-      await service.findAll({});
+      await service.findAll({ sort: 'newest' } as any);
       expect(mockPrisma.thread.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }] }),
       );

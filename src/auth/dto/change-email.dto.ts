@@ -14,7 +14,7 @@ export class ChangeEmailVerifyDto {
   @IsEmail()
   newEmail: string;
 
-  @ApiProperty({ description: '6 位验证码' })
+  @ApiProperty({ example: '123456', minLength: 6, maxLength: 6, description: '6 位邮箱验证码' })
   @IsString()
   @MinLength(6)
   @MaxLength(6)

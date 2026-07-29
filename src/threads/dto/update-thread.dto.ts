@@ -22,18 +22,18 @@ export class UpdateThreadDto {
   @IsIn(['RECRUITING', 'CLOSED', 'FINISHED'])
   status?: string;
 
-  @ApiPropertyOptional({ enum: ['PUBLIC', 'PRIVATE'], description: '可见性' })
+  @ApiPropertyOptional({ example: 'PUBLIC', enum: ['PUBLIC', 'PRIVATE'], description: '可见性（PUBLIC=公开, PRIVATE=仅成员）' })
   @IsOptional()
   @IsString()
   @IsIn(['PUBLIC', 'PRIVATE'])
   visibility?: string;
 
-  @ApiPropertyOptional({ description: '设为 true 发布草稿。发布时校验 title/category 及其首个子贴正文是否齐全' })
+  @ApiPropertyOptional({ example: true, description: '设为 true 发布草稿。发布时校验 title/category 是否填写、是否至少有一个子贴含楼层。发布后通知粉丝' })
   @IsOptional()
   @IsBoolean()
   published?: boolean;
 
-  @ApiProperty({ description: '乐观锁版本号（必填，前端需先 fetch 获取当前 version）' })
+  @ApiProperty({ example: 1, minimum: 1, description: '乐观锁版本号（必填，前端先 fetch 获取当前 version，过期返回 409）' })
   @IsInt()
   @Min(1)
   version: number;

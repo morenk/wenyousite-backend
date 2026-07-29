@@ -1,5 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiOkResponse } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import {
   HealthCheckService,
@@ -22,6 +22,7 @@ export class HealthController {
   @Get()
   @HealthCheck()
   @ApiOperation({ summary: '健康检查，返回各依赖服务状态' })
+  @ApiOkResponse({ description: '{ status: "ok", info: { database: { status: "up" } } }' })
   check() {
     return this.health.check([
       // 检查 PostgreSQL 数据库连接是否正常

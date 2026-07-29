@@ -1,5 +1,5 @@
 import { Controller, Post, Delete, Get, Param, Req } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse, ApiUnauthorizedResponse, ApiForbiddenResponse, ApiNotFoundResponse } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationProducer } from '../jobs/notification.producer';
@@ -21,6 +21,9 @@ export class UsersFollowController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '关注用户' })
+  @ApiOkResponse({ description: '关注结果（成功 / 已关注 / 不能关注自己）' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
+  @ApiNotFoundResponse({ description: '目标用户不存在' })
   async follow(@Param('id') targetId: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string; username: string };
     if (user.id === targetId) return { message: '不能关注自己' };
@@ -49,6 +52,9 @@ export class UsersFollowController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '取消关注' })
+  @ApiOkResponse({ description: '已取消关注' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
+  @ApiNotFoundResponse({ description: '目标用户不存在' })
   async unfollow(@Param('id') targetId: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     await this.prisma.userFollow.deleteMany({
@@ -62,6 +68,8 @@ export class UsersFollowController {
   @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '我的关注列表' })
+  @ApiOkResponse({ description: '我的关注用户列表（含 id/username/avatar）' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async following(@Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     return this.prisma.userFollow.findMany({
@@ -75,6 +83,8 @@ export class UsersFollowController {
   @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '我的粉丝列表' })
+  @ApiOkResponse({ description: '我的粉丝列表（含 id/username/avatar）' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async followers(@Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     return this.prisma.userFollow.findMany({
@@ -90,6 +100,9 @@ export class UsersFollowController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '拉黑用户' })
+  @ApiOkResponse({ description: '拉黑结果（成功 / 不能拉黑自己）' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
+  @ApiNotFoundResponse({ description: '目标用户不存在' })
   async block(@Param('id') targetId: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     if (user.id === targetId) return { message: '不能拉黑自己' };
@@ -106,6 +119,8 @@ export class UsersFollowController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '取消拉黑' })
+  @ApiOkResponse({ description: '已取消拉黑' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async unblock(@Param('id') targetId: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     await this.prisma.userBlock.deleteMany({
@@ -119,6 +134,8 @@ export class UsersFollowController {
   @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '我的黑名单' })
+  @ApiOkResponse({ description: '我的黑名单列表（含 id/username/avatar）' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async blocks(@Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     return this.prisma.userBlock.findMany({

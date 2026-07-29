@@ -3,7 +3,7 @@ import { IsString, IsOptional, MinLength, MaxLength, IsIn, IsArray } from 'class
 
 /** 创建主题帖草稿 DTO：全部可选，发布时校验完整 */
 export class CreateThreadDto {
-  @ApiPropertyOptional({ description: '主题帖标题', minLength: 1, maxLength: 100 })
+  @ApiPropertyOptional({ example: '我的第一个主题帖', description: '主题帖标题（可为空，发布时校验）', minLength: 1, maxLength: 100 })
   @IsOptional()
   @IsString()
   @MinLength(1)

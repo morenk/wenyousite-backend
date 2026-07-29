@@ -1,5 +1,5 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiQuery, ApiOkResponse } from '@nestjs/swagger';
 import { SearchService } from './search.service';
 import { Public } from '../common/decorators/public.decorator';
 
@@ -14,6 +14,7 @@ export class SearchController {
   @Public()
   @ApiOperation({ summary: '全文搜索（主题帖标题 + 楼层内容）' })
   @ApiQuery({ name: 'q', description: '搜索关键词' })
+  @ApiOkResponse({ description: '搜索结果 { threads: [...], posts: [...] }，各最多 50 条' })
   async search(@Query('q') q: string) {
     return this.searchService.search(q);
   }

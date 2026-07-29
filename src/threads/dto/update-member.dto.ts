@@ -9,7 +9,7 @@ export class UpdateMemberDto {
   @IsIn(['COLLABORATOR', 'PARTICIPANT'])
   role?: string;
 
-  @ApiPropertyOptional({ description: '是否标记为玩家' })
+  @ApiPropertyOptional({ example: true, description: '是否标记为玩家（决定能否在 postingPolicy=PLAYERS 的子贴中发帖）' })
   @IsOptional()
   @IsBoolean()
   playerMarked?: boolean;

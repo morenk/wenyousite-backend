@@ -3,7 +3,7 @@ import { IsEmail } from 'class-validator';
 
 /** 重发验证邮件 DTO */
 export class ResendVerificationDto {
-  @ApiProperty({ description: '注册邮箱' })
+  @ApiProperty({ example: 'user@example.com', description: '需要重发验证邮件的邮箱' })
   @IsEmail()
   email: string;
 }

@@ -3,11 +3,11 @@ import { IsEmail, IsString, MinLength, MaxLength, Matches } from 'class-validato
 
 /** 注册第二步：验证邮箱 + 设置用户名密码，一步完成注册 */
 export class VerifyAndCompleteDto {
-  @ApiProperty({ description: '注册邮箱' })
+  @ApiProperty({ example: 'user@example.com', description: '注册邮箱（需与上一步一致）' })
   @IsEmail()
   email: string;
 
-  @ApiProperty({ description: '6 位验证码' })
+  @ApiProperty({ example: '209794', minLength: 6, maxLength: 6, description: '6 位数字验证码' })
   @IsString()
   @MinLength(6)
   @MaxLength(6)

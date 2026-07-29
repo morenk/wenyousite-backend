@@ -1,5 +1,5 @@
 import { Controller, Get, Patch, Delete, Body, Param, Query, Req, NotFoundException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery, ApiOkResponse, ApiUnauthorizedResponse, ApiForbiddenResponse, ApiNotFoundResponse, ApiConflictResponse } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { FastifyRequest } from 'fastify';
 import { UsersService } from './users.service';
@@ -27,6 +27,8 @@ export class UsersController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '搜索用户（@提及用）' })
   @ApiQuery({ name: 'q', description: '用户名搜索关键词' })
+  @ApiOkResponse({ description: '匹配的用户列表（最多 10 条），含 id/username/avatar' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async search(@Query('q') q: string) {
     if (!q || q.length < 1) return [];
     return this.prisma.user.findMany({
@@ -41,6 +43,8 @@ export class UsersController {
   @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '获取当前登录用户资料' })
+  @ApiOkResponse({ description: '含 email / 隐私设置 / _count.following / _count.followers' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async getMe(@Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     return this.usersService.findMe(user.id);
@@ -51,6 +55,9 @@ export class UsersController {
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiBearerAuth()
   @ApiOperation({ summary: '修改当前登录用户资料（5 次/分钟）' })
+  @ApiOkResponse({ description: '更新后的用户资料' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
+  @ApiConflictResponse({ description: '用户名已被占用' })
   async updateMe(@Req() req: FastifyRequest, @Body() dto: UpdateUserDto) {
     const user = req['user'] as { id: string };
     return this.usersService.update(user.id, dto);
@@ -60,6 +67,9 @@ export class UsersController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '设置头像（传入 mediaId，校验归属和 COMPLETED 状态）' })
+  @ApiOkResponse({ description: '更新后的用户资料（含新头像）' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
+  @ApiNotFoundResponse({ description: 'mediaId 不存在或未完成处理' })
   async setAvatar(@Req() req: FastifyRequest, @Body() dto: SetAvatarDto) {
     const user = req['user'] as { id: string };
     return this.usersService.setAvatar(user.id, dto.mediaId);
@@ -69,6 +79,8 @@ export class UsersController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '注销当前账号' })
+  @ApiOkResponse({ description: '账号已注销' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async deleteMe(@Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     return this.usersService.deactivate(user.id);
@@ -77,6 +89,8 @@ export class UsersController {
   @Get(':id/bookmarks')
   @OptionalAuth()
   @ApiOperation({ summary: '查看用户的收藏列表（受 showBookmarks 隐私开关控制）' })
+  @ApiOkResponse({ description: '用户的收藏列表（cursor 分页，含帖子摘要）' })
+  @ApiNotFoundResponse({ description: '用户不存在或未公开收藏' })
   async getUserBookmarks(
     @Param('id') id: string,
     @Query('cursor') cursor: string | undefined,
@@ -90,6 +104,8 @@ export class UsersController {
   @Get(':id/played-threads')
   @OptionalAuth()
   @ApiOperation({ summary: '查看用户参与的帖子（被标记为玩家，受 showPlayerBadges 隐私开关控制）' })
+  @ApiOkResponse({ description: '用户参与的帖子列表（cursor 分页）' })
+  @ApiNotFoundResponse({ description: '用户不存在或未公开参与的帖子' })
   async getUserPlayedThreads(
     @Param('id') id: string,
     @Query('cursor') cursor: string | undefined,
@@ -113,6 +129,8 @@ export class UsersController {
   @Get(':id/recent-replies')
   @OptionalAuth()
   @ApiOperation({ summary: '查看用户最近 10 条回复（受 showRecentReplies 隐私开关控制）' })
+  @ApiOkResponse({ description: '用户最近 10 条回复（含预览截断、所属帖子/子贴信息）' })
+  @ApiNotFoundResponse({ description: '用户不存在或未公开最近动态' })
   async getUserRecentReplies(@Param('id') id: string, @Req() req: FastifyRequest) {
     const viewer = req['user'] as { id: string } | undefined;
 
@@ -161,6 +179,8 @@ export class UsersController {
   @Get(':id')
   @OptionalAuth()
   @ApiOperation({ summary: '获取指定用户的公开资料。登录后额外返回关注/拉黑关系' })
+  @ApiOkResponse({ description: '公开资料。登录后附加 isFollowing/isFollowedBy/isBlocked/isBlockedBy' })
+  @ApiNotFoundResponse({ description: '用户不存在' })
   async getUser(@Param('id') id: string, @Req() req: FastifyRequest) {
     const viewer = req['user'] as { id: string } | undefined;
     return this.usersService.findById(id, viewer?.id);

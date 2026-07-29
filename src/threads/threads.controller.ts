@@ -2,7 +2,7 @@ import {
   Controller, Get, Post, Patch, Delete,
   Body, Param, Query, Req, UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse, ApiCreatedResponse, ApiUnauthorizedResponse, ApiForbiddenResponse, ApiNotFoundResponse, ApiConflictResponse } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { ThreadsService } from './threads.service';
 import { CreateThreadDto } from './dto/create-thread.dto';
@@ -20,7 +20,9 @@ export class ThreadsController {
   @Get('draft')
   @AuthRead()
   @ApiBearerAuth()
-  @ApiOperation({ summary: '我的草稿箱列表（未发布帖）' })
+  @ApiOperation({ summary: '我的草稿箱列表（未发布帖，仅自己可见）' })
+  @ApiOkResponse({ description: '草稿列表，每个含子贴标题和标签' })
+  @ApiUnauthorizedResponse({ description: '未登录' })
   async findDrafts(@Req() req: FastifyRequest) {
     const user = (req as any).user as { id: string };
     return this.threadsService.findDrafts(user.id);
@@ -28,7 +30,8 @@ export class ThreadsController {
 
   @Get()
   @Public()
-  @ApiOperation({ summary: '主题帖列表（仅已发布帖）。filter=all(默认)=全部分开帖, filter=playing=我参与的帖（需登录）' })
+  @ApiOperation({ summary: '主题帖列表（仅已发布帖），支持 sort=recommended|newest|active' })
+  @ApiOkResponse({ description: '分页列表，meta 含 cursor/hasMore。每个帖含 owner/subthreads/bodyPost.content(正文预览)/topicTags/_count' })
   async findAll(@Query() query: ThreadQueryDto, @Req() req: FastifyRequest) {
     const user = (req as any).user as { id: string } | undefined;
     return this.threadsService.findAll(query, user?.id);
@@ -37,7 +40,9 @@ export class ThreadsController {
   @Post()
   @Auth()
   @ApiBearerAuth()
-  @ApiOperation({ summary: '创建主题帖草稿。在沙盒内逐步完善后通过 PATCH 发布' })
+  @ApiOperation({ summary: '创建主题帖草稿（published=false）。在沙盒内逐步添加子贴/楼层后通过 PATCH 发布' })
+  @ApiCreatedResponse({ description: '草稿创建成功，返回完整 Thread 对象（含 owner/subthreads/tags/_count）' })
+  @ApiUnauthorizedResponse({ description: '未登录或邮箱未验证' })
   async create(@Body() dto: CreateThreadDto, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     return this.threadsService.create(dto, user.id);
@@ -46,7 +51,9 @@ export class ThreadsController {
   @Get(':id')
   @AuthRead()
   @ApiBearerAuth()
-  @ApiOperation({ summary: '主题帖详情（含子贴列表）。未发布帖仅楼主可查看' })
+  @ApiOperation({ summary: '主题帖详情（含 全部子贴列表 + 楼层数 + 参与人数）' })
+  @ApiOkResponse({ description: 'Thread 完整对象（owner / subthreads[]._count.posts / topicTags / _count）。viewCount 异步 +1' })
+  @ApiNotFoundResponse({ description: '主题帖不存在或已删除（PRIVATE 帖非成员也返回 404）' })
   async findById(@Param('id') id: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string } | undefined;
     return this.threadsService.findById(id, user?.id);
@@ -55,7 +62,12 @@ export class ThreadsController {
   @Patch(':id')
   @Auth()
   @ApiBearerAuth()
-  @ApiOperation({ summary: '修改主题帖（仅 OWNER/COLLABORATOR）。设置 published=true 即发布草稿' })
+  @ApiOperation({ summary: '修改/发布主题帖（仅 OWNER/COLLABORATOR）。设置 published=true 发布，带乐观锁 version' })
+  @ApiOkResponse({ description: '更新成功返回 Thread 完整对象。发布时会校验 title/category/子贴楼层完整性，成功后通知粉丝' })
+  @ApiUnauthorizedResponse({ description: '未登录或邮箱未验证' })
+  @ApiForbiddenResponse({ description: '无管理权限（非 OWNER/COLLABORATOR）' })
+  @ApiNotFoundResponse({ description: '主题帖不存在' })
+  @ApiConflictResponse({ description: '乐观锁冲突（version 过期）或已发布帖重复发布' })
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateThreadDto,
@@ -68,7 +80,11 @@ export class ThreadsController {
   @Delete(':id')
   @Auth()
   @ApiBearerAuth()
-  @ApiOperation({ summary: '删除主题帖。未发布帖硬删除，已发布帖软删除（仅 OWNER）' })
+  @ApiOperation({ summary: '删除主题帖。未发布帖硬删除（级联），已发布帖软删除（仅 OWNER）' })
+  @ApiOkResponse({ description: '删除成功返回 { message } 或 Thread 对象' })
+  @ApiUnauthorizedResponse({ description: '未登录或邮箱未验证' })
+  @ApiForbiddenResponse({ description: '非 OWNER 不可删除' })
+  @ApiNotFoundResponse({ description: '主题帖不存在' })
   async remove(@Param('id') id: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     await this.threadsService.remove(id, user.id);
@@ -78,7 +94,10 @@ export class ThreadsController {
   @Post(':id/invite-link')
   @Auth()
   @ApiBearerAuth()
-  @ApiOperation({ summary: '生成或刷新私密帖邀请链接（仅 OWNER，需已发布）' })
+  @ApiOperation({ summary: '生成或刷新私密帖邀请链接（仅 OWNER，需已发布 + 私密帖）' })
+  @ApiOkResponse({ description: '邀请链接对象（threadId / token）。已存在则刷新 token' })
+  @ApiUnauthorizedResponse({ description: '未登录或邮箱未验证' })
+  @ApiForbiddenResponse({ description: '仅 OWNER / 未发布 / 非私密帖' })
   async createInviteLink(@Param('id') id: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     return this.threadsService.createInviteLink(id, user.id);
@@ -87,7 +106,11 @@ export class ThreadsController {
   @Post('join-by-link/:token')
   @Auth()
   @ApiBearerAuth()
-  @ApiOperation({ summary: '通过邀请链接加入私密帖（需已发布）' })
+  @ApiOperation({ summary: '通过 16 位邀请 token 加入私密帖（需已发布）' })
+  @ApiOkResponse({ description: '加入成功返回成员记录（thread.title / user 基本信息）' })
+  @ApiUnauthorizedResponse({ description: '未登录或邮箱未验证' })
+  @ApiNotFoundResponse({ description: '邀请链接无效或已失效' })
+  @ApiConflictResponse({ description: '已是该帖参与人' })
   async joinByInviteLink(@Param('token') token: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     return this.threadsService.joinByInviteLink(token, user.id);

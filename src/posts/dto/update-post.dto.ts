@@ -12,7 +12,7 @@ export class UpdatePostDto {
   @MaxLength(10000)
   content: string;
 
-  @ApiProperty({ description: '乐观锁版本号（必填，前端需先 fetch 获取当前 version）' })
+  @ApiProperty({ example: 1, minimum: 1, description: '乐观锁版本号（必填，前端需先 fetch 获取当前 version，传入过期版本会返回 409）' })
   @IsInt()
   @Min(1)
   version: number;

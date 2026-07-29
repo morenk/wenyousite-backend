@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Query, Req } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { ReadingProgressService } from './reading-progress.service';
 import { UpdateReadingProgressDto } from './dto/update-reading-progress.dto';
@@ -16,6 +16,8 @@ export class ReadingProgressController {
   /** 查询阅读进度（按子贴） */
   @Get()
   @ApiOperation({ summary: '查询阅读进度（按子贴）' })
+  @ApiOkResponse({ description: '阅读进度记录（不传 subthreadId 返回全部子贴进度）' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async get(@Req() req: FastifyRequest, @Query('subthreadId') subthreadId: string) {
     const user = req['user'] as { id: string };
     if (!subthreadId) return this.readingProgressService.findAll(user.id);
@@ -25,6 +27,8 @@ export class ReadingProgressController {
   /** 自上次阅读后新增回复数（按子贴） */
   @Get('new-replies')
   @ApiOperation({ summary: '自上次阅读后子贴新增回复数' })
+  @ApiOkResponse({ description: '新增回复数' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async newReplies(@Req() req: FastifyRequest, @Query('subthreadId') subthreadId: string) {
     const user = req['user'] as { id: string };
     return this.readingProgressService.newRepliesSince(user.id, subthreadId);
@@ -33,6 +37,8 @@ export class ReadingProgressController {
   /** 记录阅读进度（精确到楼层/楼中楼） */
   @Post()
   @ApiOperation({ summary: '记录阅读进度（精确到楼层/楼中楼）' })
+  @ApiOkResponse({ description: '已记录阅读进度' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async update(@Req() req: FastifyRequest, @Body() dto: UpdateReadingProgressDto) {
     const user = req['user'] as { id: string };
     return this.readingProgressService.update(user.id, dto.subthreadId, dto.postId);
