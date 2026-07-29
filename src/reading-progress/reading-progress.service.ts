@@ -18,10 +18,10 @@ export class ReadingProgressService {
     });
   }
 
-  /** 查询用户在所有子贴的阅读进度 */
+  /** 查询用户在所有子贴的阅读进度，排除已软删除的子贴 */
   async findAll(userId: string) {
     return this.prisma.userReadProgress.findMany({
-      where: { userId },
+      where: { userId, subthread: { deletedAt: null } },
       include: {
         subthread: { select: { id: true, title: true, threadId: true } },
         post: { select: { id: true, floorNumber: true } },
@@ -39,43 +39,86 @@ export class ReadingProgressService {
     });
   }
 
-  /** 查询自上次阅读后的新增回复数 */
+  /** 查询自上次阅读位置后的新增回复数。锚点用 lastReadPost.createdAt，不受进度更新时间影响 */
   async newRepliesSince(userId: string, subthreadId: string) {
     const progress = await this.prisma.userReadProgress.findUnique({
       where: { userId_subthreadId: { userId, subthreadId } },
+      include: { post: { select: { id: true, createdAt: true, floorNumber: true, parentPostId: true } } },
     });
-    const lastReadTime = progress?.updatedAt;
-    const lastPostId = progress?.postId;
 
-    // 若从未读过，返回全部楼层数
     const totalPosts = await this.prisma.post.count({
       where: { subthreadId, deletedAt: null },
     });
 
-    if (!lastReadTime) {
-      return { newReplies: totalPosts, totalPosts, lastReadPostId: null, continueFrom: null };
+    if (!progress) {
+      return { newReplies: totalPosts, totalPosts, lastReadPostId: null, lastReadTime: null, continueFrom: null };
     }
 
-    // 统计上次阅读后新增的帖子
+    // 锚点：优先用上次读到的那条帖子的 createdAt，首次进入无 postId 时用 updatedAt
+    const anchor = progress.post?.createdAt ?? progress.updatedAt;
+
     const newPosts = await this.prisma.post.count({
       where: {
         subthreadId,
         deletedAt: null,
-        createdAt: { gt: lastReadTime },
+        createdAt: { gt: anchor },
       },
     });
 
     return {
       newReplies: newPosts,
       totalPosts,
-      lastReadPostId: lastPostId,
-      lastReadTime,
-      continueFrom: lastPostId
-        ? await this.prisma.post.findUnique({
-            where: { id: lastPostId, deletedAt: null },
-            select: { id: true, floorNumber: true, parentPostId: true },
-          })
+      lastReadPostId: progress.postId,
+      lastReadTime: progress.updatedAt,
+      continueFrom: progress.post
+        ? { id: progress.post.id, floorNumber: progress.post.floorNumber, parentPostId: progress.post.parentPostId }
         : null,
     };
+  }
+
+  /** 查询用户在某主题帖下所有子贴的阅读进度摘要 */
+  async threadAggregation(userId: string, threadId: string) {
+    const subthreads = await this.prisma.subthread.findMany({
+      where: { threadId, deletedAt: null },
+      select: { id: true, title: true, sortOrder: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+
+    if (subthreads.length === 0) return [];
+
+    const results = await Promise.all(
+      subthreads.map(async (st) => {
+        const progress = await this.prisma.userReadProgress.findUnique({
+          where: { userId_subthreadId: { userId, subthreadId: st.id } },
+          include: { post: { select: { id: true, createdAt: true, floorNumber: true, parentPostId: true } } },
+        });
+
+        const totalPosts = await this.prisma.post.count({
+          where: { subthreadId: st.id, deletedAt: null },
+        });
+
+        const anchor = progress?.post?.createdAt ?? progress?.updatedAt;
+        const newPosts = anchor
+          ? await this.prisma.post.count({
+              where: { subthreadId: st.id, deletedAt: null, createdAt: { gt: anchor } },
+            })
+          : totalPosts;
+
+        return {
+          subthreadId: st.id,
+          subthreadTitle: st.title,
+          sortOrder: st.sortOrder,
+          newReplies: newPosts,
+          totalPosts,
+          lastReadPostId: progress?.postId ?? null,
+          lastReadTime: progress?.updatedAt ?? null,
+          continueFrom: progress?.post
+            ? { id: progress.post.id, floorNumber: progress.post.floorNumber, parentPostId: progress.post.parentPostId }
+            : null,
+        };
+      }),
+    );
+
+    return results;
   }
 }

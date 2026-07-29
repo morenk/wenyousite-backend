@@ -1,9 +1,10 @@
-import { Injectable, HttpStatus } from '@nestjs/common';
+import { Injectable, HttpStatus, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../common/services/thread-access.service';
 import { NotificationProducer } from '../jobs/notification.producer';
 import { MentionsService } from '../mentions/mentions.service';
+import { ReadingProgressService } from '../reading-progress/reading-progress.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { ErrorCode } from '../common/exceptions/error-codes';
@@ -15,12 +16,15 @@ import { truncateMarkdown } from '../common/markdown-truncate';
 /** 楼层服务：发帖（事务楼层编号 + FOR UPDATE）、楼中楼、编辑、软删除 */
 @Injectable()
 export class PostsService {
+  private readonly logger = new Logger(PostsService.name);
+
   constructor(
     private prisma: PrismaService,
     private eventEmitter: EventEmitter2,
     private threadAccess: ThreadAccessService,
     private notificationProducer: NotificationProducer,
     private mentionsService: MentionsService,
+    private readingProgressService: ReadingProgressService,
   ) {}
 
   /** 获取子贴的楼层列表（Cursor 分页）。已软删子贴返回 404 */
@@ -192,6 +196,11 @@ export class PostsService {
         replyToPostId: dto.replyToPostId ?? null,
       });
     }
+
+    // 发帖人自己的阅读进度自动推进到此处（发帖即证明读到这里）
+    this.readingProgressService.update(userId, subthreadId, post.id).catch((err) => {
+      this.logger.error(`发帖后进度更新失败 userId=${userId} subthreadId=${subthreadId}`, err);
+    });
 
     return post;
   }

@@ -139,7 +139,8 @@
 | GET | `/tags` | Public | 搜索标签 |
 | POST | `/tags` | Auth | 创建标签，需邮箱已验证 |
 | GET | `/reading-progress` | AuthRead | 所有子贴阅读进度 |
-| GET | `/reading-progress/new-replies` | AuthRead | 某子贴新增回复数 |
+| GET | `/reading-progress/thread?threadId=` | AuthRead | 帖级聚合：一次返回整帖所有子贴的阅读摘要 |
+| GET | `/reading-progress/new-replies?subthreadId=` | AuthRead | 某子贴新增回复数 |
 | POST | `/reading-progress` | AuthRead | 记录/更新阅读进度 |
 | POST | `/reports` | Auth | 提交举报（已搁置），需邮箱已验证 |
 | GET | `/reports` | AuthRead | 举报列表（管理员，已搁置） |

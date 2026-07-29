@@ -11,6 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../common/services/thread-access.service';
 import { TagsService } from '../tags/tags.service';
 import { NotificationProducer } from '../jobs/notification.producer';
+import { ReadingProgressService } from '../reading-progress/reading-progress.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 
 // ============ Mock 基础设施 ============
@@ -41,6 +42,7 @@ const basicTx = () => ({
 });
 
 const mockEventEmitter = { emit: jest.fn() };
+const mockReadingProgressService = { update: jest.fn().mockResolvedValue(undefined) };
 const mockTags = { findOrCreate: jest.fn() };
 const mockNotificationProducer = { notify: jest.fn().mockResolvedValue(undefined) };
 
@@ -117,6 +119,7 @@ describe('发帖全流程集成测试', () => {
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: TagsService, useValue: mockTags },
         { provide: NotificationProducer, useValue: mockNotificationProducer },
+        { provide: ReadingProgressService, useValue: mockReadingProgressService },
       ],
     }).compile();
 
