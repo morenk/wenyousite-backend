@@ -150,16 +150,16 @@ export class PostEventsListener {
     } catch (e) { this.logger.error('reply notification failed', e); }
   }
 
-  /** 点赞后更新点赞计数 + 智能排序分 */
-  @OnEvent('post.liked')
-  async handlePostLiked(event: { postId: string; threadId: string }) {
+  /** 主题帖点赞后更新计数 + 智能排序分 */
+  @OnEvent('thread.liked')
+  async handleThreadLiked(event: { threadId: string }) {
     this.redis.hincrby(`thread:${event.threadId}:stats`, 'likes', 1).catch(() => {});
     updateSmartScore(this.redis, event.threadId).catch(() => {});
   }
 
-  /** 取消点赞后更新计数 */
-  @OnEvent('post.unliked')
-  async handlePostUnliked(event: { postId: string; threadId: string }) {
+  /** 主题帖取消点赞后更新计数 */
+  @OnEvent('thread.unliked')
+  async handleThreadUnliked(event: { threadId: string }) {
     this.redis.hincrby(`thread:${event.threadId}:stats`, 'likes', -1).catch(() => {});
     updateSmartScore(this.redis, event.threadId).catch(() => {});
   }

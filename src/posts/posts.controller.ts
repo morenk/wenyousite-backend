@@ -103,28 +103,4 @@ export class PostsController {
     await this.postsService.remove(id, user.id);
     return { message: '帖子已删除' };
   }
-
-  @Post('posts/:id/like')
-  @Auth()
-  @ApiBearerAuth()
-  @ApiOperation({ summary: '点赞帖子' })
-  @ApiOkResponse({ description: '点赞成功（含最新点赞数）' })
-  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
-  @ApiNotFoundResponse({ description: '帖子不存在' })
-  async like(@Param('id') id: string, @Req() req: FastifyRequest) {
-    const user = req['user'] as { id: string; username: string };
-    return this.postsService.like(id, user.id, user.username);
-  }
-
-  @Delete('posts/:id/like')
-  @Auth()
-  @ApiBearerAuth()
-  @ApiOperation({ summary: '取消点赞' })
-  @ApiOkResponse({ description: '取消点赞成功（含最新点赞数）' })
-  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
-  @ApiNotFoundResponse({ description: '帖子不存在' })
-  async unlike(@Param('id') id: string, @Req() req: FastifyRequest) {
-    const user = req['user'] as { id: string };
-    return this.postsService.unlike(id, user.id);
-  }
 }

@@ -21,12 +21,58 @@ export class NotificationProcessor extends WorkerHost {
       case 'new_post':
       case 'thread_created':
       case 'follow':
-      case 'like':
       case 'system':
         await this.createNotifications(recipients, type, content, postId, threadId, fromUserId, payload);
         break;
+      case 'like':
+        await this.createOrUpdateLikeNotifications(recipients, content, threadId, fromUserId, payload);
+        break;
       default:
         this.logger.warn(`Unknown notification type: ${type}`);
+    }
+  }
+
+  /** 点赞通知聚合：未读则更新，已读或不存在则新建 */
+  private async createOrUpdateLikeNotifications(
+    userIds: string[],
+    content: string,
+    threadId?: string,
+    fromUserId?: string,
+    payload?: any,
+  ) {
+    for (const userId of userIds) {
+      const existing = await this.prisma.notification.findFirst({
+        where: { userId, type: 'like' as any, threadId, isRead: false },
+      });
+
+      if (existing) {
+        // 聚合更新：累加计数、更新文案和 likers 列表
+        const currentCount = ((existing.payload as any)?.totalCount ?? 1) + 1;
+        const existingLikers: any[] = (existing.payload as any)?.likers ?? [];
+        const newLiker = payload?.likers?.[0];
+        const likers = newLiker && !existingLikers.some((l: any) => l.userId === newLiker.userId)
+          ? [...existingLikers, newLiker].slice(-3) // 保留最近 3 人
+          : existingLikers;
+
+        const aggregatedContent = currentCount <= 2
+          ? likers.map((l: any) => l.username).join('、') + ` 赞了你的主题帖`
+          : `${likers[0]?.username ?? ''}、${likers[1]?.username ?? ''}等 ${currentCount} 人赞了你的主题帖`;
+
+        await this.prisma.notification.update({
+          where: { id: existing.id },
+          data: {
+            content: aggregatedContent,
+            fromUserId, // 最近一位点赞者
+            payload: { ...payload, likers, totalCount: currentCount },
+            createdAt: new Date(), // 推送到列表顶部
+          },
+        });
+        this.logger.log(`Aggregated like notification for user ${userId} (count: ${currentCount})`);
+      } else {
+        await this.prisma.notification.create({
+          data: { userId, type: 'like' as any, content, threadId, fromUserId, payload },
+        });
+      }
     }
   }
 

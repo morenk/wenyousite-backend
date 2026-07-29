@@ -89,7 +89,7 @@ model User {
   threads      ThreadMember[]
   posts        Post[]
   drafts       Draft[]
-  likedPosts  PostLike[]
+  likedThreads  ThreadLike[]
   mentions     PostMention[]   @relation("mentionedUser")
   notifications Notification[]
   readProgress UserReadProgress[]
@@ -177,6 +177,7 @@ model Thread {
 
   viewCount  Int  @default(0)  @map("view_count")
   version    Int  @default(1)  @map("lock_version")
+  likeCount  Int  @default(0)  @map("like_count")
 
   defaultSubthreadId String?    @unique @map("default_subthread_id")
   defaultSubthread   Subthread? @relation("DefaultSubthread", fields: [defaultSubthreadId], references: [id], onDelete: SetNull)
@@ -194,8 +195,22 @@ model Thread {
   notifications Notification[]
   invites     ThreadInvite[]
   bookmarks    UserBookmark[]
+  likes        ThreadLike[]
 
   @@map("threads")
+}
+
+model ThreadLike {
+  id        String   @id @default(cuid())
+  threadId  String   @map("thread_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, userId])
+  @@map("thread_likes")
 }
 
 model ThreadMember {
@@ -342,19 +357,6 @@ model Media {
   @@map("media")
 }
 
-model PostLike {
-  id        String   @id @default(cuid())
-  postId    String   @map("post_id")
-  userId    String   @map("user_id")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([postId, userId])
-  @@map("post_likes")
-}
-
 model Post {
   id            String    @id @default(cuid())
   threadId      String    @map("thread_id")
@@ -368,7 +370,6 @@ model Post {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
   deletedAt    DateTime? @map("deleted_at")
-  likeCount  Int      @default(0) @map("like_count")
 
   thread      Thread    @relation(fields: [threadId], references: [id], onDelete: Cascade)
   subthread   Subthread @relation(fields: [subthreadId], references: [id], onDelete: Cascade)
@@ -381,8 +382,6 @@ model Post {
   readProgressBy UserReadProgress[]
   mentions    PostMention[]
   notifications Notification[]
-  likes     PostLike[]
-
   @@index([subthreadId, createdAt])
   @@index([threadId, createdAt])
   @@unique([subthreadId, floorNumber])

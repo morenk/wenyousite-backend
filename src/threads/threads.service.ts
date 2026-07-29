@@ -448,6 +448,71 @@ export class ThreadsService {
     return result;
   }
 
+  /** 点赞主题帖（幂等） */
+  async like(id: string, userId: string, username: string) {
+    const thread = await this.prisma.thread.findUnique({
+      where: { id, ...notDeleted },
+      select: { id: true, published: true, ownerId: true, title: true, likeCount: true },
+    });
+    if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
+    if (!thread.published) throw new BusinessException(ErrorCode.BAD_REQUEST, '草稿暂不支持点赞');
+    await this.threadAccess.assertAccessible(id, userId);
+
+    const existing = await this.prisma.threadLike.findUnique({
+      where: { threadId_userId: { threadId: id, userId } },
+    });
+    if (existing) return thread;
+
+    await this.prisma.threadLike.create({ data: { threadId: id, userId } });
+
+    const updated = await this.prisma.thread.update({
+      where: { id },
+      data: { likeCount: { increment: 1 } },
+    });
+
+    this.redis.hincrby(`thread:${id}:stats`, 'likes', 1).catch(() => {});
+
+    if (thread.ownerId !== userId) {
+      const blockSets = await this.blockFilter.loadBlockSets(userId);
+      const filtered = this.blockFilter.filterRecipients([thread.ownerId], blockSets);
+      if (filtered.length > 0) {
+        this.notificationProducer.notify(
+          'like',
+          [thread.ownerId],
+          `${username} 赞了你的主题帖「${thread.title}」`,
+          { threadId: id, fromUserId: userId,
+            payload: { action: 'like', actorName: username, totalCount: 1, likers: [{ userId, username }] } },
+        ).catch(() => {});
+      }
+    }
+
+    this.eventEmitter.emit('thread.liked', { threadId: id });
+    return updated;
+  }
+
+  /** 取消点赞主题帖（幂等） */
+  async unlike(id: string, userId: string) {
+    const thread = await this.prisma.thread.findUnique({
+      where: { id, ...notDeleted },
+      select: { id: true, published: true, likeCount: true },
+    });
+    if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
+
+    const result = await this.prisma.threadLike.deleteMany({
+      where: { threadId: id, userId },
+    });
+    if (result.count === 0) return thread;
+
+    const updated = await this.prisma.thread.update({
+      where: { id },
+      data: { likeCount: { increment: -1 } },
+    });
+
+    this.redis.hincrby(`thread:${id}:stats`, 'likes', -1).catch(() => {});
+    this.eventEmitter.emit('thread.unliked', { threadId: id });
+    return updated;
+  }
+
   /** 校验发布前完整性 */
   async validatePublishReadiness(threadId: string, title: string, category: string) {
     if (!title || !title.trim() || title === '未命名草稿') {

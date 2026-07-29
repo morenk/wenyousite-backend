@@ -11,7 +11,7 @@ import { ThreadQueryDto } from './dto/thread-query.dto';
 import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
 
-/** 主题帖控制器：草稿箱、列表、详情、修改、发布、删除 */
+/** 主题帖控制器：草稿箱、列表、详情、修改、发布、删除、点赞 */
 @ApiTags('Threads')
 @Controller('threads')
 export class ThreadsController {
@@ -89,6 +89,26 @@ export class ThreadsController {
     const user = req['user'] as { id: string };
     await this.threadsService.remove(id, user.id);
     return { message: '主题帖已删除' };
+  }
+
+  /** 点赞主题帖 */
+  @Post(':id/like')
+  @Auth()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '点赞主题帖（幂等，不通知自己）' })
+  async like(@Param('id') id: string, @Req() req: FastifyRequest) {
+    const user = req['user'] as { id: string; username: string };
+    return this.threadsService.like(id, user.id, user.username);
+  }
+
+  /** 取消点赞主题帖 */
+  @Delete(':id/like')
+  @Auth()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '取消点赞主题帖（幂等）' })
+  async unlike(@Param('id') id: string, @Req() req: FastifyRequest) {
+    const user = req['user'] as { id: string };
+    return this.threadsService.unlike(id, user.id);
   }
 
   @Post(':id/invite-link')

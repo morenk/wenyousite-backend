@@ -64,13 +64,13 @@ export class CacheInvalidationListener {
     await this.cache.delByPattern(this.cache.buildKey('threads', 'list', '*'));
   }
 
-  // ── 点赞变更（影响计数器缓存） ──
+  // ── 主题帖点赞变更（影响缓存） ──
 
-  @OnEvent('post.liked')
-  @OnEvent('post.unliked')
-  async handlePostLikeChange(event: { postId: string }) {
-    // 帖子详情缓存失效
-    await this.cache.del(this.cache.buildKey('post', event.postId));
+  @OnEvent('thread.liked')
+  @OnEvent('thread.unliked')
+  async handleThreadLikeChange(event: { threadId: string }) {
+    await this.cache.del(this.cache.buildKey('thread', event.threadId));
+    await this.cache.delByPattern(this.cache.buildKey('threads', 'list', '*'));
   }
 
   // ── 用户变更 ──
