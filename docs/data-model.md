@@ -35,21 +35,21 @@
 | `ADMIN` | 管理员 |
 | `SUPER_ADMIN` | 超级管理员（站长） |
 
-### MemberRole — 帖内成员角色
+### MemberRole — 帖内角色
 
-| 值 | 说明 |
-|----|------|
-| `OWNER` | 楼主（唯一），拥有全部管理权限 |
-| `COLLABORATOR` | 协作者，可管理子贴 |
-| `PARTICIPANT` | 参与者，默认加入角色 |
+| 值 | 中文 | 定位 |
+|----|------|------|
+| `OWNER` | 楼主 | 帖子的创建者，拥有全部管理权限，唯一 |
+| `COLLABORATOR` | 协作者 | 被楼主指定的共同管理者，可管理子贴和参与人 |
+| `PARTICIPANT` | 参与人 | 在帖内发过言的用户，默认角色。本质是楼主的"玩家候选人池"——曾在帖内发言的用户才有资格被标记为玩家 |
 
 ### PostingPolicy — 子贴发帖权限
 
 | 值 | 说明 | 允许发帖者 |
 |----|------|-----------|
-| `PARTICIPANTS` | 所有成员 | 全部成员 |
+| `PARTICIPANTS` | 所有参与人 | 全体参与人 |
 | `COLLABORATORS` | 仅协作者 | OWNER + COLLABORATOR |
-| `PLAYERS` | 仅玩家 | 被标记为 playerMarked 的成员 |
+| `PLAYERS` | 仅玩家 | 被标记为 playerMarked 的参与人 |
 
 ### NotificationType — 通知类别
 
@@ -182,7 +182,7 @@
 | token | String | unique | 16 位随机字符串 |
 | createdAt | DateTime | — | — |
 
-### thread_members — 主题帖成员
+### thread_members — 主题帖参与人
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|

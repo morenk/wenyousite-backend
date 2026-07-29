@@ -8,7 +8,7 @@ import { TagsModule } from '../tags/tags.module';
 import { TagsService } from '../tags/tags.service';
 import { JobsModule } from '../jobs/jobs.module';
 
-/** 主题帖模块：CRUD、成员管理、标签关联 */
+/** 主题帖模块：CRUD、参与人管理、标签关联 */
 @Module({
   imports: [TagsModule, JobsModule],
   controllers: [ThreadsController, ThreadMembersController, ThreadTagsController],

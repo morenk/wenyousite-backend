@@ -24,7 +24,7 @@ export class ThreadsService {
     private eventEmitter: EventEmitter2,
   ) {}
 
-  /** 创建主题帖草稿：仅创建 Thread(published=false) + OWNER 成员 */
+  /** 创建主题帖草稿：仅创建 Thread(published=false) + OWNER */
   async create(dto: CreateThreadDto, userId: string) {
     const thread = await this.prisma.thread.create({
       data: {
@@ -162,6 +162,51 @@ export class ThreadsService {
     });
   }
 
+  /** 查看指定用户参与的主题帖（被标记为玩家，受 showPlayerBadges 隐私开关控制） */
+  async findByPlayedUser(targetId: string, viewerId?: string, cursor?: string, limit = 20) {
+    const take = Math.min(limit, 50);
+    const where: any = {
+      userId: targetId,
+      playerMarked: true,
+      thread: { ...notDeleted, published: true },
+    };
+
+    if (targetId !== viewerId) {
+      where.thread.visibility = 'PUBLIC';
+    }
+
+    const members = await this.prisma.threadMember.findMany({
+      where,
+      orderBy: { joinedAt: 'desc' },
+      take: take + 1,
+      cursor: cursor ? { id: cursor } : undefined,
+      skip: cursor ? 1 : 0,
+      include: {
+        thread: {
+          include: {
+            owner: { select: authorSelect },
+            subthreads: {
+              where: notDeleted,
+              orderBy: { sortOrder: 'asc' },
+              take: 1,
+              select: { id: true, title: true, lastPostAt: true },
+            },
+            topicTags: { include: { tag: true } },
+            ...countMembersAndPosts(),
+          },
+        },
+      },
+    });
+
+    const hasMore = members.length > take;
+    if (hasMore) members.pop();
+
+    return paginate(
+      members.map(m => m.thread),
+      { cursor: members.length > 0 ? members[members.length - 1].id : null, hasMore },
+    );
+  }
+
   /** 修改主题帖（仅 OWNER/COLLABORATOR）。published=true 触发发布 */
   async update(id: string, dto: { title?: string; category?: string; status?: string; visibility?: string; published?: boolean; version: number }, userId: string) {
     await this.threadAccess.assertCanManage(id, userId);
@@ -295,7 +340,7 @@ export class ThreadsService {
     const existing = await this.prisma.threadMember.findUnique({
       where: { threadId_userId: { threadId: invite.threadId, userId } },
     });
-    if (existing) throw new BusinessException(ErrorCode.ALREADY_MEMBER, '已是该主题帖成员', HttpStatus.CONFLICT);
+    if (existing) throw new BusinessException(ErrorCode.ALREADY_MEMBER, '已是该主题帖参与人', HttpStatus.CONFLICT);
 
     return this.prisma.threadMember.create({
       data: { threadId: invite.threadId, userId, role: 'PARTICIPANT' },

@@ -4,7 +4,7 @@ import { ThreadAccessService } from '../common/services/thread-access.service';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound, forbidden } from '../common/exceptions/business.exception';
 
-/** 主题帖成员服务：加入、邀请、踢出、角色修改、玩家标记 */
+/** 主题帖参与人服务：加入、踢出、角色修改、玩家标记 */
 @Injectable()
 export class ThreadMembersService {
   constructor(
@@ -12,7 +12,7 @@ export class ThreadMembersService {
     private threadAccess: ThreadAccessService,
   ) {}
 
-  /** 获取成员列表 */
+  /** 获取参与人列表 */
   async findAll(threadId: string) {
     const thread = await this.prisma.thread.findUnique({ where: { id: threadId, deletedAt: null } });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
@@ -38,7 +38,7 @@ export class ThreadMembersService {
     const existing = await this.prisma.threadMember.findUnique({
       where: { threadId_userId: { threadId, userId } },
     });
-    if (existing) throw new BusinessException(ErrorCode.ALREADY_MEMBER, '已是该主题帖成员', HttpStatus.CONFLICT);
+    if (existing) throw new BusinessException(ErrorCode.ALREADY_MEMBER, '已是该主题帖参与人', HttpStatus.CONFLICT);
 
     return this.prisma.threadMember.create({
       data: { threadId, userId, role: 'PARTICIPANT' },
@@ -48,32 +48,8 @@ export class ThreadMembersService {
     });
   }
 
-  /** 邀请成员（仅 OWNER/COLLABORATOR，需已发布） */
-  async invite(threadId: string, targetUserId: string, actorId: string) {
-    await this.threadAccess.assertCanManage(threadId, actorId);
-
-    const thread = await this.prisma.thread.findUnique({ where: { id: threadId, deletedAt: null } });
-    if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
-    if (!thread.published) throw forbidden('请先发布主题帖后再邀请成员');
-
-    const targetUser = await this.prisma.user.findUnique({ where: { id: targetUserId } });
-    if (!targetUser) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
-
-    const existing = await this.prisma.threadMember.findUnique({
-      where: { threadId_userId: { threadId, userId: targetUserId } },
-    });
-    if (existing) throw new BusinessException(ErrorCode.ALREADY_MEMBER, '该用户已是成员', HttpStatus.CONFLICT);
-
-    return this.prisma.threadMember.create({
-      data: { threadId, userId: targetUserId, role: 'PARTICIPANT' },
-      include: {
-        user: { select: { id: true, username: true, avatar: true } },
-      },
-    });
-  }
-
-  /** 修改成员角色或玩家标记（仅 OWNER/COLLABORATOR）
-   *  - role: COLLABORATOR（协作者）或 PARTICIPANT
+  /** 修改参与人角色或玩家标记（仅 OWNER/COLLABORATOR）
+   *  - role: COLLABORATOR（协作者）或 PARTICIPANT（参与人）
    *  - playerMarked: 标记为玩家
    *  不能修改 OWNER 角色 */
   async updateMember(threadId: string, targetUserId: string, dto: { role?: string; playerMarked?: boolean }, actorId: string) {
@@ -82,7 +58,7 @@ export class ThreadMembersService {
     const member = await this.prisma.threadMember.findUnique({
       where: { threadId_userId: { threadId, userId: targetUserId } },
     });
-    if (!member) throw notFound(ErrorCode.USER_NOT_FOUND, '该用户不是此主题帖成员');
+    if (!member) throw notFound(ErrorCode.USER_NOT_FOUND, '该用户不是此主题帖参与人');
     if (member.role === 'OWNER') throw forbidden('不能修改楼主角色', ErrorCode.CANNOT_MODERATE_OWNER);
 
     return this.prisma.threadMember.update({
@@ -94,14 +70,14 @@ export class ThreadMembersService {
     });
   }
 
-  /** 踢出成员：取消该用户的玩家标记（公开/私密帖统一逻辑） */
+  /** 取消参与人资格：收回该用户的玩家标记 */
   async removeMember(threadId: string, targetUserId: string, actorId: string) {
     await this.threadAccess.assertCanManage(threadId, actorId);
 
     const member = await this.prisma.threadMember.findUnique({
       where: { threadId_userId: { threadId, userId: targetUserId } },
     });
-    if (!member) throw notFound(ErrorCode.USER_NOT_FOUND, '该用户不是此主题帖成员');
+    if (!member) throw notFound(ErrorCode.USER_NOT_FOUND, '该用户不是此主题帖参与人');
     if (member.role === 'OWNER') throw forbidden('不能踢出楼主', ErrorCode.CANNOT_MODERATE_OWNER);
 
     return this.prisma.threadMember.update({
@@ -118,7 +94,7 @@ export class ThreadMembersService {
     const member = await this.prisma.threadMember.findUnique({
       where: { threadId_userId: { threadId, userId } },
     });
-    if (!member) throw notFound(ErrorCode.USER_NOT_FOUND, '您不是此主题帖成员');
+    if (!member) throw notFound(ErrorCode.USER_NOT_FOUND, '您不是此主题帖参与人');
     if (member.role === 'OWNER') throw forbidden('楼主不能退出', ErrorCode.CANNOT_MODERATE_OWNER);
 
     return this.prisma.threadMember.update({

@@ -85,7 +85,7 @@ export class PostsService {
     return paginate(replies, { cursor: replies.length > 0 ? replies[replies.length - 1].id : null, hasMore });
   }
 
-  /** 发帖：楼层或楼中楼回复。先校验访问权限与发帖策略，通过后才自动加入成员 */
+  /** 发帖：楼层或楼中楼回复。先校验访问权限与发帖策略，通过后才自动加入为参与人 */
   async create(subthreadId: string, dto: CreatePostDto, userId: string) {
     const subthread = await this.prisma.subthread.findUnique({
       where: { id: subthreadId, ...notDeleted },
@@ -93,15 +93,15 @@ export class PostsService {
     });
     if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
 
-    // 校验主题帖访问权限（私密帖非成员在此被拦截）
+    // 校验主题帖访问权限（私密帖非参与人在此被拦截）
     await this.threadAccess.assertAccessible(subthread.threadId, userId);
 
-    // 先查当前成员状态（未加入时按非成员处理）
+    // 先查当前参与人状态（未加入时按未参与处理）
     const member = await this.prisma.threadMember.findUnique({
       where: { threadId_userId: { threadId: subthread.threadId, userId } },
     });
 
-    // 检查发帖权限（通过后才自动加入，避免被拒时仍写入成员记录）
+    // 检查发帖权限（通过后才自动加入，避免被拒时仍写入参与人记录）
     if (subthread.postingPolicy === 'COLLABORATORS') {
       if (!member || (member.role !== 'OWNER' && member.role !== 'COLLABORATOR')) {
         throw forbidden('该子贴仅限协作者发帖', ErrorCode.NOT_COLLABORATOR);

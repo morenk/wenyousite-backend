@@ -5,12 +5,11 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { ThreadMembersService } from './thread-members.service';
-import { InviteMemberDto } from './dto/invite-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
 
-/** 主题帖成员控制器：加入、管理、踢出 */
+/** 主题帖参与人控制器：加入、管理、踢出 */
 @ApiTags('Threads')
 @Controller('threads/:threadId/members')
 export class ThreadMembersController {
@@ -18,7 +17,7 @@ export class ThreadMembersController {
 
   @Get()
   @Public()
-  @ApiOperation({ summary: '获取主题帖成员列表' })
+  @ApiOperation({ summary: '获取主题帖参与人列表' })
   async findAll(@Param('threadId') threadId: string) {
     return this.membersService.findAll(threadId);
   }
@@ -26,30 +25,16 @@ export class ThreadMembersController {
   @Post('join')
   @Auth()
   @ApiBearerAuth()
-  @ApiOperation({ summary: '用户自由加入主题帖' })
+  @ApiOperation({ summary: '自由加入主题帖' })
   async join(@Param('threadId') threadId: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     return this.membersService.join(threadId, user.id);
   }
 
-  @Post()
-  @Auth()
-  @ApiBearerAuth()
-  @ApiOperation({ summary: '邀请用户加入（仅 OWNER/COLLABORATOR）' })
-  @ApiBody({ schema: { properties: { userId: { type: 'string' } } } })
-  async invite(
-    @Param('threadId') threadId: string,
-    @Body() dto: InviteMemberDto,
-    @Req() req: FastifyRequest,
-  ) {
-    const user = req['user'] as { id: string };
-    return this.membersService.invite(threadId, dto.userId, user.id);
-  }
-
   @Patch(':userId')
   @Auth()
   @ApiBearerAuth()
-  @ApiOperation({ summary: '修改成员角色或玩家标记（仅 OWNER/COLLABORATOR）' })
+  @ApiOperation({ summary: '修改参与人角色或玩家标记（仅 OWNER/COLLABORATOR）' })
   @ApiBody({
     schema: {
       properties: {
@@ -84,7 +69,7 @@ export class ThreadMembersController {
   @Delete(':userId')
   @Auth()
   @ApiBearerAuth()
-  @ApiOperation({ summary: '踢出成员 / 取消玩家标记（仅 OWNER/COLLABORATOR）' })
+  @ApiOperation({ summary: '取消参与人资格 / 收回玩家标记（仅 OWNER/COLLABORATOR）' })
   async removeMember(
     @Param('threadId') threadId: string,
     @Param('userId') targetUserId: string,
@@ -92,6 +77,6 @@ export class ThreadMembersController {
   ) {
     const user = req['user'] as { id: string };
     await this.membersService.removeMember(threadId, targetUserId, user.id);
-    return { message: '成员已移除' };
+    return { message: '已移出主题帖' };
   }
 }

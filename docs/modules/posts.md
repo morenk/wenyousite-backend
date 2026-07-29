@@ -27,8 +27,8 @@
 
 ## 核心业务规则
 
-- 发帖前校验主题帖访问权限（`ThreadAccessService.assertAccessible`）：私密帖非成员被拒绝，未发布帖非 owner 被拒绝
-- 发帖权限校验在自动加入成员之前：被 PostingPolicy 拒绝时不会写入 ThreadMember 记录
+- 发帖前校验主题帖访问权限（`ThreadAccessService.assertAccessible`）：私密帖非参与人被拒绝，未发布帖非 owner 被拒绝
+- 发帖权限校验在自动加入之前：被 PostingPolicy 拒绝时不会写入 ThreadMember 记录
 - 楼层编号 floorNumber 在事务内通过 `MAX(floorNumber) + 1` 分配，永不复用
 - 楼中楼回复 floorNumber = null，通过 parentPostId 关联父楼层
 - 楼中楼平级挂载：所有回复共享同一个 parentPostId，无嵌套深度限制；回复目标通过 replyToPostId 追踪
@@ -39,7 +39,7 @@
 - 权限校验通过后自动将用户加入主题帖（upsert ThreadMember，角色 PARTICIPANT）
 - 发帖权限由子贴的 postingPolicy 控制：
   - COLLABORATORS：仅 OWNER/COLLABORATOR 可发帖
-  - PLAYERS：仅 playerMarked=true 的成员可发帖
+  - PLAYERS：仅 playerMarked=true 的参与人可发帖
 - 发帖后通过 EventEmitter 发射 `post.created` 事件，由 PostEventsListener 解耦处理 @提及解析和通知投递
 - 点赞/取消点赞前校验主题帖访问权限（`ThreadAccessService.assertAccessible`）
 - 点赞使用 PostLike upsert 保证幂等（重复点赞不报错，但 likeCount 不会重复增加）

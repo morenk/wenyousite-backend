@@ -25,12 +25,15 @@
 
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
-| GET | `/users/me` | AuthRead | 当前登录用户完整信息（含 email、隐私设置） |
+| GET | `/users/me` | AuthRead | 当前登录用户完整信息（含 email、隐私设置、关注/粉丝数） |
 | PATCH | `/users/me` | Auth | 修改当前用户资料（用户名/Bio/隐私设置），5次/分钟，需邮箱已验证 |
 | PATCH | `/users/me/avatar` | Auth | 设置头像（传入 mediaId），需邮箱已验证 |
 | DELETE | `/users/me` | Auth | 注销当前账号（软删除，设置 deletedAt），需邮箱已验证 |
 | GET | `/users/search?q=xxx` | AuthRead | 搜索用户（@提及用），排除已注销 |
-| GET | `/users/:id` | Public | 用户公开资料（不含 email） |
+| GET | `/users/:id` | OptionalAuth | 用户公开资料（不含 email）。登录后附加 isFollowing / isFollowedBy / isBlocked / isBlockedBy |
+| GET | `/users/:id/bookmarks` | OptionalAuth | 用户公开收藏，Cursor 分页（受 showBookmarks 控制） |
+| GET | `/users/:id/played-threads` | OptionalAuth | 用户参与的帖子（被标记为玩家），按加入时间倒序，Cursor 分页（受 showPlayerBadges 控制） |
+| GET | `/users/:id/recent-replies` | OptionalAuth | 用户最近 10 条回复（含 content、preview、parentPostId），固定返回不分页（受 showRecentReplies 控制） |
 | POST | `/users/follow/:id` | Auth | 关注用户，发送 follow 通知 |
 | DELETE | `/users/follow/:id` | Auth | 取消关注 |
 | GET | `/users/following` | AuthRead | 我的关注列表 |
@@ -56,12 +59,11 @@
 
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
-| GET | `/threads/:id/members` | Public | 成员列表 |
-| POST | `/threads/:id/members/join` | Auth | 自由加入（需已发布，PRIVATE 帖禁止，返回 403） |
-| POST | `/threads/:id/members` | Auth | 邀请用户加入（需已发布，仅 OWNER/COLLABORATOR） |
-| PATCH | `/threads/:id/members/:userId` | Auth | 修改成员 role/playerMarked（授予/收回玩家身份，仅 OWNER/COLLABORATOR），需邮箱已验证 |
+| GET | `/threads/:id/members` | Public | 参与人列表 |
+| POST | `/threads/:id/members/join` | Auth | 自由加入（需已发布，PRIVATE 帖禁止） |
+| PATCH | `/threads/:id/members/:userId` | Auth | 修改参与人 role/playerMarked（授予/收回玩家身份，仅 OWNER/COLLABORATOR），需邮箱已验证 |
 | DELETE | `/threads/:id/members/me` | AuthRead | 主动退出，取消自己的玩家标记（OWNER 不可退出），需邮箱已验证 |
-| DELETE | `/threads/:id/members/:userId` | Auth | 收回该成员的玩家身份（仅 OWNER/COLLABORATOR），需邮箱已验证 |
+| DELETE | `/threads/:id/members/:userId` | Auth | 收回该参与人的玩家身份（仅 OWNER/COLLABORATOR），需邮箱已验证 |
 
 ## 子贴端点 (Subthreads)
 

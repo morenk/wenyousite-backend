@@ -1,5 +1,6 @@
 import { applyDecorators, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
 import { VerifiedGuard } from '../../common/guards/verified.guard';
 
 /** @Auth() — JWT 登录 + 邮箱验证，用于所有写操作 */
@@ -10,4 +11,9 @@ export function Auth() {
 /** @AuthRead() — 仅 JWT 登录，不校验邮箱，用于纯读操作 */
 export function AuthRead() {
   return applyDecorators(UseGuards(JwtAuthGuard));
+}
+
+/** @OptionalAuth() — 可选 JWT 认证：有 token 就挂载 user，没有也不抛异常 */
+export function OptionalAuth() {
+  return applyDecorators(UseGuards(OptionalJwtAuthGuard));
 }

@@ -1,19 +1,26 @@
-import { Controller, Get, Patch, Delete, Body, Param, Query, Req } from '@nestjs/common';
+import { Controller, Get, Patch, Delete, Body, Param, Query, Req, NotFoundException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { FastifyRequest } from 'fastify';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { SetAvatarDto } from './dto/set-avatar.dto';
-import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
-import { Public } from '../common/decorators/public.decorator';
+import { Auth, AuthRead, OptionalAuth } from '../auth/decorators/auth.decorator';
 import { PrismaService } from '../prisma/prisma.service';
+import { BookmarksService } from '../bookmarks/bookmarks.service';
+import { ThreadsService } from '../threads/threads.service';
+import { truncateMarkdown } from '../common/markdown-truncate';
 
 /** 用户控制器：查询和修改个人资料 */
 @ApiTags('Users')
 @Controller('users')
 export class UsersController {
-  constructor(private usersService: UsersService, private prisma: PrismaService) {}
+  constructor(
+    private usersService: UsersService,
+    private prisma: PrismaService,
+    private bookmarksService: BookmarksService,
+    private threadsService: ThreadsService,
+  ) {}
 
   @Get('search')
   @AuthRead()
@@ -67,10 +74,95 @@ export class UsersController {
     return this.usersService.deactivate(user.id);
   }
 
+  @Get(':id/bookmarks')
+  @OptionalAuth()
+  @ApiOperation({ summary: '查看用户的收藏列表（受 showBookmarks 隐私开关控制）' })
+  async getUserBookmarks(
+    @Param('id') id: string,
+    @Query('cursor') cursor: string | undefined,
+    @Query('limit') limit: string | undefined,
+    @Req() req: FastifyRequest,
+  ) {
+    const viewer = req['user'] as { id: string } | undefined;
+    return this.bookmarksService.findByUserId(id, viewer?.id, cursor, limit ? parseInt(limit) : undefined);
+  }
+
+  @Get(':id/played-threads')
+  @OptionalAuth()
+  @ApiOperation({ summary: '查看用户参与的帖子（被标记为玩家，受 showPlayerBadges 隐私开关控制）' })
+  async getUserPlayedThreads(
+    @Param('id') id: string,
+    @Query('cursor') cursor: string | undefined,
+    @Query('limit') limit: string | undefined,
+    @Req() req: FastifyRequest,
+  ) {
+    const viewer = req['user'] as { id: string } | undefined;
+
+    const targetUser = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, showPlayerBadges: true },
+    });
+    if (!targetUser) throw new NotFoundException('用户不存在');
+    if (!targetUser.showPlayerBadges && targetUser.id !== viewer?.id) {
+      throw new NotFoundException('该用户未公开参与的帖子');
+    }
+
+    return this.threadsService.findByPlayedUser(id, viewer?.id, cursor, limit ? parseInt(limit) : undefined);
+  }
+
+  @Get(':id/recent-replies')
+  @OptionalAuth()
+  @ApiOperation({ summary: '查看用户最近 10 条回复（受 showRecentReplies 隐私开关控制）' })
+  async getUserRecentReplies(@Param('id') id: string, @Req() req: FastifyRequest) {
+    const viewer = req['user'] as { id: string } | undefined;
+
+    const targetUser = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, showRecentReplies: true },
+    });
+    if (!targetUser) throw new NotFoundException('用户不存在');
+    if (!targetUser.showRecentReplies && targetUser.id !== viewer?.id) {
+      throw new NotFoundException('该用户未公开最近动态');
+    }
+
+    const isSelf = viewer?.id === id;
+    const replies = await this.prisma.post.findMany({
+      where: {
+        authorId: id,
+        deletedAt: null,
+        subthread: { deletedAt: null },
+        thread: {
+          published: true,
+          deletedAt: null,
+          ...(isSelf ? {} : { visibility: 'PUBLIC' }),
+        },
+      },
+      select: {
+        id: true,
+        createdAt: true,
+        floorNumber: true,
+        parentPostId: true,
+        content: true,
+        threadId: true,
+        thread: { select: { title: true } },
+        subthreadId: true,
+        subthread: { select: { title: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    });
+
+    return replies.map((r) => ({
+      ...r,
+      preview: truncateMarkdown(r.content),
+    }));
+  }
+
   @Get(':id')
-  @Public()
-  @ApiOperation({ summary: '根据用户 ID 获取公开资料' })
-  async getUser(@Param('id') id: string) {
-    return this.usersService.findById(id);
+  @OptionalAuth()
+  @ApiOperation({ summary: '获取指定用户的公开资料。登录后额外返回关注/拉黑关系' })
+  async getUser(@Param('id') id: string, @Req() req: FastifyRequest) {
+    const viewer = req['user'] as { id: string } | undefined;
+    return this.usersService.findById(id, viewer?.id);
   }
 }

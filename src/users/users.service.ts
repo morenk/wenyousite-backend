@@ -15,8 +15,11 @@ const userSelectPublic = {
 };
 
 const maskDeactivated = (user: Record<string, any>) => {
-  if (!user.deletedAt) return user;
-  return { id: user.id, username: '已注销用户', deletedAt: user.deletedAt, isDeactivated: true };
+  if (!user.deletedAt) {
+    const { deletedAt, ...rest } = user;
+    return rest;
+  }
+  return { id: user.id, username: '已注销用户', isDeactivated: true };
 };
 
 /** 用户服务：用户资料查询与更新 */
@@ -24,14 +27,20 @@ const maskDeactivated = (user: Record<string, any>) => {
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
-  /** 根据用户 ID 查找用户 */
+  /** 获取本人完整资料（含 email、社交统计） */
   async findMe(id: string) {
-    const user = await this.prisma.user.findUnique({ where: { id }, select: userSelectPrivate });
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        ...userSelectPrivate,
+        _count: { select: { following: true, followers: true } },
+      },
+    });
     if (!user) throw new NotFoundException('用户不存在');
     return user;
   }
 
-  async findById(id: string) {
+  async findById(id: string, viewerId?: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },
       select: {
@@ -40,7 +49,32 @@ export class UsersService {
       },
     });
     if (!user) throw new NotFoundException('用户不存在');
-    return maskDeactivated(user);
+    const masked = maskDeactivated(user);
+
+    if (!viewerId || (masked as any).isDeactivated) return masked;
+
+    const [following, follower, blocked, blockedBy] = await Promise.all([
+      this.prisma.userFollow.findUnique({
+        where: { followerId_followingId: { followerId: viewerId, followingId: id } },
+      }),
+      this.prisma.userFollow.findUnique({
+        where: { followerId_followingId: { followerId: id, followingId: viewerId } },
+      }),
+      this.prisma.userBlock.findUnique({
+        where: { blockerId_blockedId: { blockerId: viewerId, blockedId: id } },
+      }),
+      this.prisma.userBlock.findUnique({
+        where: { blockerId_blockedId: { blockerId: id, blockedId: viewerId } },
+      }),
+    ]);
+
+    return {
+      ...masked,
+      isFollowing: !!following,
+      isFollowedBy: !!follower,
+      isBlocked: !!blocked,
+      isBlockedBy: !!blockedBy,
+    };
   }
 
   /** 根据邮箱查找用户（内部使用，包含密码字段） */

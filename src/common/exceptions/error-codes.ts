@@ -87,7 +87,7 @@ export const ErrorCode = {
   EMAIL_ALREADY_REGISTERED: 40901,
   /** 用户名已被占用 */
   USERNAME_TAKEN: 40902,
-  /** 已是成员 */
+  /** 已是参与人 */
   ALREADY_MEMBER: 40903,
   /** 已订阅 */
   ALREADY_SUBSCRIBED: 40904,

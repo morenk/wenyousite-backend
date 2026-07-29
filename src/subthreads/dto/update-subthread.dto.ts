@@ -14,7 +14,7 @@ export class UpdateSubthreadDto {
   @IsInt()
   sortOrder?: number;
 
-  @ApiPropertyOptional({ enum: ['PARTICIPANTS', 'COLLABORATORS', 'PLAYERS'] })
+  @ApiPropertyOptional({ enum: ['PARTICIPANTS', 'COLLABORATORS', 'PLAYERS'], description: 'PARTICIPANTS=所有参与人, COLLABORATORS=仅协作者, PLAYERS=仅玩家' })
   @IsOptional()
   @IsString()
   @IsIn(['PARTICIPANTS', 'COLLABORATORS', 'PLAYERS'])
