@@ -52,6 +52,8 @@
 | GET | `/threads/:id` | AuthRead | 详情（含子贴列表）。未发布帖仅 owner 可查看；已发布帖浏览量+1，PRIVATE 帖非成员 404 |
 | PATCH | `/threads/:id` | Auth | 修改/发布（仅 OWNER/COLLABORATOR）。设置 published=true 即发布，此时校验 title/category/子贴/楼层完整性，发布后通知粉丝 |
 | DELETE | `/threads/:id` | Auth | 删除（仅 OWNER）。未发布帖硬删除（级联），已发布帖软删除 |
+| POST | `/threads/:id/like` | Auth | 点赞主题帖（幂等） |
+| DELETE | `/threads/:id/like` | Auth | 取消点赞（幂等） |
 | POST | `/threads/:id/invite-link` | Auth | 生成/刷新私密帖邀请链接（需已发布，仅 OWNER） |
 | GET | `/threads/join-by-link/:token` | AuthRead | 预览邀请链接对应的私密帖概要（title / category / owner / memberCount，不创建成员） |
 | POST | `/threads/join-by-link/:token` | Auth | 通过邀请链接加入私密帖（需已发布） |
@@ -83,12 +85,10 @@
 |------|------|------|------|
 | GET | `/subthreads/:id/posts` | Public | 楼层列表（Cursor 分页），只返回 parentPostId=null 的楼层，内嵌每个楼层前 3 条楼中楼回复 |
 | POST | `/subthreads/:id/posts` | Auth | 发帖（楼层/楼中楼），需邮箱已验证，事务分配 floorNumber |
-| GET | `/posts/:id` | Public | 帖子详情，含 likeCount |
+| GET | `/posts/:id` | Public | 帖子详情 |
 | GET | `/posts/:id/replies` | Public | 楼中楼回复列表（Cursor 分页） |
 | PATCH | `/posts/:id` | Auth | 编辑（仅作者自己），需邮箱已验证，乐观锁 |
 | DELETE | `/posts/:id` | Auth | 软删除（仅作者，第一楼除外），需邮箱已验证 |
-| POST | `/posts/:id/like` | Auth | 点赞（upsert），需邮箱已验证 |
-| DELETE | `/posts/:id/like` | Auth | 取消点赞，需邮箱已验证 |
 
 ## 草稿端点 (Drafts)
 

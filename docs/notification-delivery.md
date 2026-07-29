@@ -103,13 +103,17 @@ const followers = await this.prisma.userFollow.findMany({
 
 ### 6. like — 被点赞
 
-**触发条件**：首次点赞（`PostsService.like()`，已点赞则跳过）
+**触发条件**：主题帖首次点赞（`ThreadsService.like()`，已点赞则跳过）
 
-**接收者**：被点赞帖子的作者（单个用户）
+**接收者**：主题帖楼主（单个用户）
 
-- 不通知自己赞自己（判断 `post.authorId !== userId`）
+**聚合机制**（X/Twitter 风格）：
+- 同帖、同类型、未读 → 更新同一条通知：累加 `likers` 列表（保留最近 3 人）、`aggregationCount += 1`、`createdAt` 刷新推顶
+- 已读后新赞 → 新建一条聚合通知
+- 不通知自己赞自己（判断 `thread.ownerId !== userId`）
+- `content` 文案：1 人 → `张三 赞了你的主题帖「{title}」`；2 人 → `张三、李四 赞了你的主题帖「{title}」`；3+ 人 → `张三、李四等 5 人赞了你的主题帖「{title}」`
+- `payload.likers` 保留最近 3 人 `{ userId, username }`，`payload.totalCount` 累计总人数
 - 使用 `.catch(() => {})` 吞掉队列异常
-- 通知内容包含帖子正文智能截断预览
 
 ### 7. system — 系统通知
 
@@ -248,7 +252,7 @@ WHERE threadId = {threadId}
 | `mention` | `{username} 在「{subthreadTitle}」提到了你：{正文智能截断}` |
 | `thread_created` | `{username}创建了新主题帖`（无正文预览） |
 | `follow` | `{username}关注了你` |
-| `like` | `{username} 赞了你的帖子：{正文智能截断}` |
+| `like` | `{username} 赞了你的主题帖「{title}」`（单人）/ `张三、李四等 5 人赞了你的主题帖「{title}」`（聚合） |
 | `system` | 管理员指定的纯文本内容 |
 
 **正文智能截断**：使用 `remove-markdown` 转纯文本后，优先在句号/换行/问号/感叹号处截断，最少 50 字，最多 100 字。

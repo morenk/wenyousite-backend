@@ -33,6 +33,8 @@
 | GET | `/threads/:id` | AuthRead | 详情（含子贴列表和标签）。未发布帖仅 owner 可查看 |
 | PATCH | `/threads/:id` | Auth | 修改/发布（OWNER/COLLABORATOR，乐观锁）。设置 published=true 即发布，校验完整性后通知粉丝 |
 | DELETE | `/threads/:id` | Auth | 删除（仅 OWNER）。草稿帖硬删除（级联），已发布帖软删除 |
+| POST | `/threads/:id/like` | Auth | 点赞主题帖（幂等，不通知自己） |
+| DELETE | `/threads/:id/like` | Auth | 取消点赞主题帖（幂等） |
 | POST | `/threads/:id/invite-link` | Auth | 生成/刷新私密帖邀请链接（需已发布，仅 OWNER） |
 | GET | `/threads/join-by-link/:token` | AuthRead | 预览邀请链接对应的私密帖概要（不创建成员） |
 | POST | `/threads/join-by-link/:token` | Auth | 通过邀请链接加入私密帖（需已发布） |
@@ -84,6 +86,16 @@
 - `POST /threads/join-by-link/:token`：正式加入（`@Auth()`），角色为 PARTICIPANT（参与人）
 - 邀请链接使用 ThreadInvite 表 upsert，token 为随机 16 位小写字母+数字
 
+### 点赞
+
+- `POST /threads/:id/like` 点赞主题帖；`DELETE /threads/:id/like` 取消点赞
+- 点赞使用 `ThreadLike` 记录防重（`@@unique([threadId, userId])`），重复点赞幂等返回当前帖
+- `Thread.likeCount` 维护在 Thread 表上（反范式），通过事务内 create ThreadLike + increment likeCount 保持一致性
+- Redis `thread:{id}:stats` 的 `likes` 字段同步维护，供智能排序公式使用
+- 点赞通知发送给楼主（不通知自己），包含拉黑过滤；通知聚合采用 X/Twitter 风格（同帖同类型未读通知聚合为一条，已读后新赞新建）
+- 草稿帖不支持点赞（`published=false` 时返回错误）
+- 点赞/取消点赞发射 `thread.liked` / `thread.unliked` 事件，更新 Redis 智能排序分并失效缓存
+
 ## Thread 与 Subthread 的关系
 
 ### 数据模型
@@ -102,7 +114,7 @@ Thread ──1:N── Subthread ──1:N── Post
 
 | 实体 | 是否有内容 | 说明 |
 |------|-----------|------|
-| Thread | 无 | 仅元数据。列表卡片展示通过第一个子贴间接获取 |
+| Thread | 无 | 仅元数据 + likeCount。列表卡片展示通过第一个子贴间接获取 |
 | Subthread | 部分有 | 创建时可选附带第一楼正文；也可以是空子贴，后续通过发帖填充 |
 | Post | 有 | 正文唯一载体，`content` 为 Markdown 字符串 |
 

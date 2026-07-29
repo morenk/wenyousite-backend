@@ -170,6 +170,7 @@
 | pinnedAt | DateTime? | — | 置顶时间 |
 | viewCount | Int | default 0 | 浏览量 |
 | version | Int | default 1 | 乐观锁版本号 |
+| likeCount | Int | default 0 | 点赞数（反范式，与 thread_likes 表同步） |
 | defaultSubthreadId | String? | unique, FK subthreads (SetNull) | 默认子贴 ID（主题帖创建时自动生成，不可单独删除） |
 | createdAt | DateTime | — | — |
 | updatedAt | DateTime | @updatedAt | — |
@@ -224,23 +225,22 @@
 | replyToPostId | String? | FK posts | 被回复的帖子 ID |
 | content | String | — | 正文（Markdown，含图片 URL） |
 | version | Int | default 1 | 乐观锁 |
-| likeCount | Int | default 0 | 点赞数（反范式） |
 | deletedAt | DateTime? | — | 软删除时间 |
 | createdAt | DateTime | — | — |
 | updatedAt | DateTime | @updatedAt | — |
 
 索引：`@@index([subthreadId, createdAt])`, `@@index([threadId, createdAt])`
 
-### post_likes — 点赞记录
+### thread_likes — 点赞记录
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | String | PK | — |
-| postId | String | FK posts (Cascade) | — |
+| threadId | String | FK threads (Cascade) | — |
 | userId | String | FK users (Cascade) | — |
 | createdAt | DateTime | — | — |
 
-`@@unique([postId, userId])`
+`@@unique([threadId, userId])`
 
 ### post_mentions — @提及记录
 

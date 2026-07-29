@@ -225,7 +225,7 @@ GET /subthreads/:id/posts?limit=20
 ```
 
 每个楼层对象包含：
-- 楼层基础字段（floorNumber、content、author、likeCount、createdAt）
+- 楼层基础字段（floorNumber、content、author、createdAt）
 - `_count.replies`：该楼层总的楼中楼回复数
 - `replies`：前 3 条楼中楼回复的内嵌数组（含 author / replyToPost）
 - 如果 `_count.replies > 3`，前端应显示"查看全部 N 条回复"入口
