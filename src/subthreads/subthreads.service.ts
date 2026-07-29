@@ -157,17 +157,15 @@ export class SubthreadsService {
     }
 
     // 若该帖尚无默认子贴，自动设置为此子贴
-    if (!thread.published || !result) {
-      const current = await this.prisma.thread.findUnique({
-        where: { id: threadId, ...notDeleted },
-        select: { defaultSubthreadId: true },
+    const current = await this.prisma.thread.findUnique({
+      where: { id: threadId, ...notDeleted },
+      select: { defaultSubthreadId: true },
+    });
+    if (!current?.defaultSubthreadId && result.subthread) {
+      await this.prisma.thread.update({
+        where: { id: threadId },
+        data: { defaultSubthreadId: result.subthread.id },
       });
-      if (!current?.defaultSubthreadId && result.subthread) {
-        await this.prisma.thread.update({
-          where: { id: threadId },
-          data: { defaultSubthreadId: result.subthread.id },
-        });
-      }
     }
 
     return result.subthread!;
@@ -258,7 +256,7 @@ export class SubthreadsService {
         tags: { include: { tag: true } },
         ...countNonDeletedPosts(),
       },
-    }).catch(() => { throw new BusinessException(ErrorCode.OPTIMISTIC_LOCK_CONFLICT, '子贴已被修改，请刷新后重试', HttpStatus.CONFLICT); });
+    }).catch((err) => { if (err?.code === 'P2025') throw new BusinessException(ErrorCode.OPTIMISTIC_LOCK_CONFLICT, '子贴已被修改，请刷新后重试', HttpStatus.CONFLICT); throw err; });
 
     // 缓存失效事件
     this.eventEmitter.emit('subthread.updated', {

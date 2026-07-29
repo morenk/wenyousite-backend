@@ -5,6 +5,7 @@ import { NotificationProducer } from './notification.producer';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { BlockFilterService } from '../common/services/block-filter.service';
 import { truncateMarkdown } from '../common/markdown-truncate';
 
 /** ZSET 键名 */
@@ -43,6 +44,7 @@ export class PostEventsListener {
     private subscriptionsService: SubscriptionsService,
     private prisma: PrismaService,
     private redis: RedisService,
+    private blockFilter: BlockFilterService,
   ) {}
 
   /** 监听 post.created 事件，处理：@提及、新帖通知、楼中楼回复通知 + Redis 计数器更新 */
@@ -58,18 +60,11 @@ export class PostEventsListener {
     updateSmartScore(this.redis, event.threadId).catch(() => {});
 
     // 预加载拉黑关系、订阅者、管理者（多类通知共用，一次 DB 查询）
-    const [subscribers, blockedByAuthor, blocksOfAuthor, managers] = await Promise.all([
+    const [subscribers, blockSets, managers] = await Promise.all([
       this.subscriptionsService.findSubscribers(
         event.threadId, event.userId, event.userId,
       ),
-      this.prisma.userBlock.findMany({
-        where: { blockedId: event.userId },
-        select: { blockerId: true },
-      }),
-      this.prisma.userBlock.findMany({
-        where: { blockerId: event.userId },
-        select: { blockedId: true },
-      }),
+      this.blockFilter.loadBlockSets(event.userId),
       this.prisma.threadMember.findMany({
         where: {
           threadId: event.threadId,
@@ -80,8 +75,6 @@ export class PostEventsListener {
       }),
     ]);
     const subscriberIds = subscribers.map(s => s.userId);
-    const blockedAuthorIds = new Set(blockedByAuthor.map(b => b.blockerId));
-    const authorBlockedIds = new Set(blocksOfAuthor.map(b => b.blockedId));
     const managerIds = managers.map(m => m.userId);
 
     const username = event.authorUsername ?? '有人';
@@ -93,13 +86,13 @@ export class PostEventsListener {
         event.postId, event.content, event.userId, event.threadId,
       );
       if (mentionedUsers.length > 0) {
-        const filtered = mentionedUsers.filter(
-          u => !blockedAuthorIds.has(u.userId) && !authorBlockedIds.has(u.userId),
+        const filteredIds = this.blockFilter.filterRecipients(
+          mentionedUsers.map(u => u.userId), blockSets,
         );
-        if (filtered.length > 0) {
+        if (filteredIds.length > 0) {
           await this.notificationProducer.notify(
             'mention',
-            filtered.map(u => u.userId),
+            filteredIds,
             `${username} 在「${event.subthreadTitle}」提到了你：${preview}`,
             { postId: event.postId, threadId: event.threadId, fromUserId: event.userId,
               payload: { actorName: username, action: 'mention', preview, subthreadTitle: event.subthreadTitle } },
@@ -111,8 +104,9 @@ export class PostEventsListener {
     // 2. 新帖通知（子贴正文 / 新楼层）：通知楼主 + 协作者 + 订阅者（排除自己，过滤拉黑）
     if (!event.parentPostId || event.isSubthreadBody) {
       try {
-        const recipients = [...new Set([...managerIds, ...subscriberIds])]
-          .filter(id => !authorBlockedIds.has(id) && !blockedAuthorIds.has(id));
+        const recipients = this.blockFilter.filterRecipients(
+          [...new Set([...managerIds, ...subscriberIds])], blockSets,
+        );
         if (recipients.length > 0) {
           const isSubthread = event.isSubthreadBody === true;
           const content = isSubthread
@@ -139,8 +133,9 @@ export class PostEventsListener {
         });
         if (targetPost && targetPost.authorId !== event.userId) {
           const replyTargetId = targetPost.authorId;
-          const recipients = [...new Set([replyTargetId, ...managerIds, ...subscriberIds])]
-            .filter(id => !authorBlockedIds.has(id) && !blockedAuthorIds.has(id));
+          const recipients = this.blockFilter.filterRecipients(
+            [...new Set([replyTargetId, ...managerIds, ...subscriberIds])], blockSets,
+          );
           if (recipients.length > 0) {
             await this.notificationProducer.notify(
               'reply',

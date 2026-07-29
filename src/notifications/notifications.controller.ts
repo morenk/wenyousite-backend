@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery, ApiOkResponse, ApiUnaut
 import { FastifyRequest } from 'fastify';
 import { NotificationsService } from './notifications.service';
 import { AuthRead } from '../auth/decorators/auth.decorator';
+import { SetReadStatusDto } from './dto/set-read-status.dto';
 
 /** 通知控制器：站内通知的查询、标记已读/未读、删除 */
 @ApiTags('Notifications')
@@ -56,7 +57,7 @@ export class NotificationsController {
   async setReadStatus(
     @Param('id') id: string,
     @Req() req: FastifyRequest,
-    @Body() body: { isRead: boolean },
+    @Body() body: SetReadStatusDto,
   ) {
     const user = req['user'] as { id: string };
     await this.notificationsService.setReadStatus(id, user.id, body.isRead);

@@ -5,13 +5,10 @@ import removeMd from 'remove-markdown';
 export function truncateMarkdown(md: string, maxLen = 100, minLen = 50): string {
   if (!md || md.length <= maxLen) return md || '';
 
-  // 先去纯文本
   const plain = removeMd(md).trim();
   if (plain.length <= maxLen) return plain;
 
-  // 在 maxLen 附近寻找合适截断点
   let cut = maxLen;
-  if (cut > plain.length) cut = plain.length;
 
   // 优先在句末/换行处截断
   const chunk = plain.slice(0, cut + 20);
@@ -20,7 +17,6 @@ export function truncateMarkdown(md: string, maxLen = 100, minLen = 50): string 
     chunk.lastIndexOf('。'),
     chunk.lastIndexOf('！'),
     chunk.lastIndexOf('？'),
-    chunk.lastIndexOf('\n\n'),
   ].filter((p) => p >= minLen && p <= cut);
 
   if (breakPoints.length > 0) {
@@ -30,5 +26,5 @@ export function truncateMarkdown(md: string, maxLen = 100, minLen = 50): string 
     while (cut > minLen && /\w/.test(plain[cut] || '')) cut--;
   }
 
-  return plain.slice(0, cut) + '...';
+  return plain.slice(0, cut).trimEnd() + '...';
 }

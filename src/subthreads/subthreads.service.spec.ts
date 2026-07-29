@@ -9,6 +9,7 @@ const mockPrisma = {
   $transaction: jest.fn(),
   thread: {
     findUnique: jest.fn(),
+    update: jest.fn(),
   },
   subthread: {
     findMany: jest.fn(),
@@ -64,7 +65,7 @@ describe('SubthreadsService', () => {
   describe('create', () => {
     it('创建子贴并自动分配 sortOrder', async () => {
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      mockPrisma.thread.findUnique.mockResolvedValue({ published: true, title: '主题A' });
+      mockPrisma.thread.findUnique.mockResolvedValue({ published: true, title: '主题A', defaultSubthreadId: 's0' });
       mockPrisma.$transaction.mockImplementation(async (fn) => fn(createTxMock()));
 
       const result = await service.create('t1', { title: '设定区', content: '正文' }, 'u1');
@@ -74,7 +75,7 @@ describe('SubthreadsService', () => {
 
     it('正文为空时仅创建子贴不创建楼层', async () => {
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      mockPrisma.thread.findUnique.mockResolvedValue({ published: true, title: '主题A' });
+      mockPrisma.thread.findUnique.mockResolvedValue({ published: true, title: '主题A', defaultSubthreadId: 's0' });
       mockPrisma.$transaction.mockImplementation(async (fn) => fn(createTxMock({
         aggregate: jest.fn().mockResolvedValue({ _max: { sortOrder: 1 } }),
         create: jest.fn().mockResolvedValue({ id: 's2', threadId: 't1', sortOrder: 2 }),

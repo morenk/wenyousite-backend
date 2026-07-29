@@ -134,8 +134,8 @@ export class AdminService {
       where: {
         deletedAt: null,
         OR: [
-          { username: { contains: query } },
-          { email: { contains: query } },
+          { username: { contains: query, mode: 'insensitive' } },
+          { email: { contains: query, mode: 'insensitive' } },
         ],
       },
       select: { id: true, username: true, email: true, role: true, emailVerified: true, createdAt: true },

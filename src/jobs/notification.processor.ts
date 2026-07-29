@@ -43,17 +43,26 @@ export class NotificationProcessor extends WorkerHost {
 
     const data = userIds.map((userId) => ({ userId, type: type as any, content, postId, threadId, fromUserId, payload }));
 
-    // 防止 BullMQ retry 时重复插入：若任意一条已存在则整批跳过
-    // 系统通知的 fromUserId 为 null，dedup 查询需正确处理
+    // 防止 BullMQ retry 时重复插入：过滤已存在记录，不整批跳过
     const dedupWhere: any = { userId: { in: userIds }, type: type as any, postId, threadId };
     if (fromUserId !== undefined) {
       dedupWhere.fromUserId = fromUserId;
     }
-    const existing = await this.prisma.notification.findFirst({
+    const existing = await this.prisma.notification.findMany({
       where: dedupWhere,
+      select: { userId: true },
     });
-    if (existing) {
-      this.logger.warn(`Duplicate notifications of type '${type}' skipped (retry guard)`);
+    if (existing.length > 0) {
+      const existingIds = new Set(existing.map(n => n.userId));
+      const newIds = userIds.filter(id => !existingIds.has(id));
+      if (newIds.length === 0) {
+        this.logger.warn(`All ${userIds.length} notifications of type '${type}' already exist (retry guard)`);
+        return;
+      }
+      await this.prisma.notification.createMany({
+        data: newIds.map((userId) => ({ userId, type: type as any, content, postId, threadId, fromUserId, payload })),
+      });
+      this.logger.log(`Created ${newIds.length} notifications of type '${type}' (${existing.length} duplicates skipped)`);
       return;
     }
 

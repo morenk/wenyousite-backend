@@ -112,8 +112,8 @@ export class PostsController {
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   @ApiNotFoundResponse({ description: '帖子不存在' })
   async like(@Param('id') id: string, @Req() req: FastifyRequest) {
-    const user = req['user'] as { id: string };
-    return this.postsService.like(id, user.id);
+    const user = req['user'] as { id: string; username: string };
+    return this.postsService.like(id, user.id, user.username);
   }
 
   @Delete('posts/:id/like')

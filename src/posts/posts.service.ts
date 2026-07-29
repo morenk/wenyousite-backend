@@ -2,6 +2,7 @@ import { Injectable, HttpStatus, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../common/services/thread-access.service';
+import { BlockFilterService } from '../common/services/block-filter.service';
 import { NotificationProducer } from '../jobs/notification.producer';
 import { MentionsService } from '../mentions/mentions.service';
 import { ReadingProgressService } from '../reading-progress/reading-progress.service';
@@ -24,6 +25,7 @@ export class PostsService {
     private prisma: PrismaService,
     private eventEmitter: EventEmitter2,
     private threadAccess: ThreadAccessService,
+    private blockFilter: BlockFilterService,
     private notificationProducer: NotificationProducer,
     private mentionsService: MentionsService,
     private readingProgressService: ReadingProgressService,
@@ -225,6 +227,7 @@ export class PostsService {
         subthreadTitle: subthread.title,
         parentPostId: dto.parentPostId ?? null,
         replyToPostId: dto.replyToPostId ?? null,
+        isSubthreadBody: false,
       });
     }
 
@@ -252,7 +255,7 @@ export class PostsService {
       where: { id, version: dto.version, ...notDeleted },
       data: { content: dto.content, version: { increment: 1 } },
       include: { author: { select: authorSelect } },
-    }).catch(() => { throw new BusinessException(ErrorCode.OPTIMISTIC_LOCK_CONFLICT, '帖子已被编辑，请刷新后重试', HttpStatus.CONFLICT); });
+    }).catch((err) => { if (err?.code === 'P2025') throw new BusinessException(ErrorCode.OPTIMISTIC_LOCK_CONFLICT, '帖子已被编辑，请刷新后重试', HttpStatus.CONFLICT); throw err; });
 
     // 编辑新增 @提及通知：对比新旧正文，仅对新增的 @用户名创建提及和通知
     if (dto.content !== oldContent) {
@@ -262,12 +265,17 @@ export class PostsService {
         // 构造仅含新增 @用户名 的正文片段以复用 parseAndCreate 逻辑
         const fakeContent = newNames.map(n => `@${n}`).join(' ');
         this.mentionsService.parseAndCreate(updated.id, fakeContent, userId, postLight.threadId)
-          .then((mentioned) => {
+          .then(async (mentioned) => {
             if (mentioned.length > 0) {
+              const blockSets = await this.blockFilter.loadBlockSets(userId);
+              const filteredIds = this.blockFilter.filterRecipients(
+                mentioned.map(u => u.userId), blockSets,
+              );
+              if (filteredIds.length === 0) return;
               const preview = truncateMarkdown(dto.content);
               this.notificationProducer.notify(
                 'mention',
-                mentioned.map(u => u.userId),
+                filteredIds,
                 `${updated.author.username} 在编辑后的帖子里提到了你：${preview}`,
                 { postId: updated.id, threadId: postLight.threadId, fromUserId: userId,
                   payload: { actorName: updated.author.username, action: 'mention', preview } },
@@ -348,7 +356,7 @@ export class PostsService {
   }
 
   /** 点赞：先查是否已存在，仅在首次点赞时递增 likeCount，保证幂等 */
-  async like(id: string, userId: string) {
+  async like(id: string, userId: string, username: string) {
     const post = await this.prisma.post.findUnique({
       where: { id, ...notDeleted },
       select: { id: true, threadId: true, authorId: true, content: true, likeCount: true },
@@ -372,16 +380,20 @@ export class PostsService {
     // Redis 点赞计数器同步递增
     this.redis.hincrby(`post:${id}:stats`, 'likes', 1).catch(() => {});
 
-    // 点赞通知（不通知自己赞自己）
+    // 点赞通知（不通知自己赞自己，且排除拉黑关系）
     if (post.authorId !== userId) {
-      const preview = truncateMarkdown(post.content);
-      this.notificationProducer.notify(
-        'like',
-        [post.authorId],
-        `${userId} 赞了你的帖子：${preview}`,
-        { postId: id, threadId: post.threadId, fromUserId: userId,
-          payload: { actorId: userId, action: 'like', preview } },
-      ).catch(() => {});
+      const blockSets = await this.blockFilter.loadBlockSets(userId);
+      const filtered = this.blockFilter.filterRecipients([post.authorId], blockSets);
+      if (filtered.length > 0) {
+        const preview = truncateMarkdown(post.content);
+        this.notificationProducer.notify(
+          'like',
+          [post.authorId],
+          `${username} 赞了你的帖子：${preview}`,
+          { postId: id, threadId: post.threadId, fromUserId: userId,
+            payload: { actorName: username, action: 'like', preview } },
+        ).catch(() => {});
+      }
     }
 
     // 缓存失效事件

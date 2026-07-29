@@ -5,9 +5,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TagsService } from '../tags/tags.service';
 import { NotificationProducer } from '../jobs/notification.producer';
 import { ThreadAccessService } from '../common/services/thread-access.service';
+import { BlockFilterService } from '../common/services/block-filter.service';
 import { RedisService } from '../redis/redis.service';
 import { CacheService } from '../redis/cache.service';
-import { BusinessException } from '../common/exceptions/business.exception';
+import { BusinessException, notFound } from '../common/exceptions/business.exception';
+import { ErrorCode } from '../common/exceptions/error-codes';
 
 const mockPrisma = {
   $transaction: jest.fn(),
@@ -42,6 +44,11 @@ const mockPrisma = {
 };
 
 const mockTags = { findOrCreate: jest.fn() };
+const mockThreadAccess = { assertAccessible: jest.fn(), assertCanManage: jest.fn().mockResolvedValue({ role: 'OWNER' }) };
+const mockBlockFilter = {
+  loadBlockSets: jest.fn().mockResolvedValue({ blockedByUser: new Set(), blockedByAuthor: new Set() }),
+  filterRecipients: jest.fn((ids: string[]) => ids),
+};
 const mockNotificationProducer = { notify: jest.fn().mockResolvedValue(undefined) };
 const mockEventEmitter = { emit: jest.fn() };
 const mockRedis = { hincrby: jest.fn().mockResolvedValue(1), hset: jest.fn().mockResolvedValue(1), hdelAll: jest.fn().mockResolvedValue(1), zadd: jest.fn().mockResolvedValue(1), zrem: jest.fn().mockResolvedValue(1), zrevrange: jest.fn().mockResolvedValue([]) };
@@ -54,9 +61,10 @@ describe('ThreadsService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ThreadsService,
-        ThreadAccessService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: TagsService, useValue: mockTags },
+        { provide: ThreadAccessService, useValue: mockThreadAccess },
+        { provide: BlockFilterService, useValue: mockBlockFilter },
         { provide: NotificationProducer, useValue: mockNotificationProducer },
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: RedisService, useValue: mockRedis },
@@ -167,11 +175,13 @@ describe('ThreadsService', () => {
 
     it('未发布帖：非 owner 返回404', async () => {
       mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', published: false, ownerId: 'u1', visibility: 'PUBLIC' });
+      mockThreadAccess.assertAccessible.mockRejectedValueOnce(new BusinessException(ErrorCode.FORBIDDEN, ''));
       await expect(service.findById('t1', 'u2')).rejects.toThrow(BusinessException);
     });
 
     it('未发布帖：未登录返回404', async () => {
       mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', published: false, ownerId: 'u1', visibility: 'PUBLIC' });
+      mockThreadAccess.assertAccessible.mockRejectedValueOnce(new BusinessException(ErrorCode.FORBIDDEN, ''));
       await expect(service.findById('t1')).rejects.toThrow(BusinessException);
     });
 
@@ -179,6 +189,7 @@ describe('ThreadsService', () => {
       mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', published: true, visibility: 'PRIVATE' });
       mockPrisma.threadMember.findUnique.mockResolvedValue(null);
       mockPrisma.thread.update.mockResolvedValue({});
+      mockThreadAccess.assertAccessible.mockRejectedValueOnce(new BusinessException(ErrorCode.FORBIDDEN, ''));
       await expect(service.findById('t1', 'u2')).rejects.toThrow(BusinessException);
     });
 
@@ -202,6 +213,7 @@ describe('ThreadsService', () => {
 
     it('无权限返回403', async () => {
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
+      mockThreadAccess.assertCanManage.mockRejectedValueOnce(new BusinessException(ErrorCode.FORBIDDEN, ''));
       await expect(service.update('t1', { version: 1, title: 'x' }, 'u2')).rejects.toThrow(BusinessException);
     });
 
@@ -284,6 +296,7 @@ describe('ThreadsService', () => {
 
     it('PARTICIPANT 应该返回403', async () => {
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
+      mockThreadAccess.assertCanManage.mockRejectedValueOnce(new BusinessException(ErrorCode.FORBIDDEN, ''));
       await expect(service.assertCanManage('t1', 'u1')).rejects.toThrow(BusinessException);
     });
   });

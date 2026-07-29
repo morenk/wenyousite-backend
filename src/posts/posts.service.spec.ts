@@ -3,6 +3,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PostsService } from './posts.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../common/services/thread-access.service';
+import { BlockFilterService } from '../common/services/block-filter.service';
 import { NotificationProducer } from '../jobs/notification.producer';
 import { MentionsService } from '../mentions/mentions.service';
 import { ReadingProgressService } from '../reading-progress/reading-progress.service';
@@ -28,6 +29,11 @@ const mockReadingProgress = { update: jest.fn().mockResolvedValue(undefined) };
 const mockRedis = { hincrby: jest.fn().mockResolvedValue(1), hgetall: jest.fn().mockResolvedValue({}), hset: jest.fn().mockResolvedValue(1), zadd: jest.fn().mockResolvedValue(1) };
 const mockCache = { buildKey: jest.fn((...parts: string[]) => parts.join(':')), get: jest.fn().mockResolvedValue(undefined), set: jest.fn().mockResolvedValue(undefined), del: jest.fn().mockResolvedValue(undefined), delByPattern: jest.fn().mockResolvedValue(undefined) };
 
+const mockBlockFilter = {
+  loadBlockSets: jest.fn().mockResolvedValue({ blockedByUser: new Set(), blockedByAuthor: new Set() }),
+  filterRecipients: jest.fn((ids: string[]) => ids),
+};
+
 describe('PostsService', () => {
   let service: PostsService;
 
@@ -38,6 +44,7 @@ describe('PostsService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: ThreadAccessService, useValue: mockThreadAccess },
+        { provide: BlockFilterService, useValue: mockBlockFilter },
         { provide: NotificationProducer, useValue: mockNotificationProducer },
         { provide: MentionsService, useValue: mockMentions },
         { provide: ReadingProgressService, useValue: mockReadingProgress },
@@ -146,14 +153,14 @@ describe('PostsService', () => {
     mockPrisma.postLike.findUnique.mockResolvedValue(null);
     mockPrisma.postLike.create.mockResolvedValue({});
     mockPrisma.post.update.mockResolvedValue({ id: 'p1', likeCount: 1 });
-    await service.like('p1', 'u1');
+    await service.like('p1', 'u1', 'testuser');
     expect(mockPrisma.postLike.create).toHaveBeenCalledWith({ data: { postId: 'p1', userId: 'u1' } });
     expect(mockPrisma.post.update).toHaveBeenCalledWith({
       where: { id: 'p1' },
       data: { likeCount: { increment: 1 } },
     });
     expect(mockNotificationProducer.notify).toHaveBeenCalledWith(
-      'like', ['u2'], expect.stringContaining('u1 赞了你的帖子'), expect.objectContaining({ postId: 'p1' }),
+      'like', ['u2'], expect.stringContaining('testuser 赞了你的帖子'), expect.objectContaining({ postId: 'p1' }),
     );
   });
 
@@ -162,14 +169,14 @@ describe('PostsService', () => {
     mockPrisma.postLike.findUnique.mockResolvedValue(null);
     mockPrisma.postLike.create.mockResolvedValue({});
     mockPrisma.post.update.mockResolvedValue({ id: 'p1', likeCount: 1 });
-    await service.like('p1', 'u1');
+    await service.like('p1', 'u1', 'testuser');
     expect(mockNotificationProducer.notify).not.toHaveBeenCalled();
   });
 
   it('like 已点赞时不重复递增 likeCount（幂等）', async () => {
     mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', authorId: 'u1', content: '测试', likeCount: 1 });
     mockPrisma.postLike.findUnique.mockResolvedValue({ postId: 'p1', userId: 'u1' });
-    const result = await service.like('p1', 'u1');
+    const result = await service.like('p1', 'u1', 'testuser');
     expect(mockPrisma.postLike.create).not.toHaveBeenCalled();
     expect(mockPrisma.post.update).not.toHaveBeenCalled();
     expect(result.likeCount).toBe(1);

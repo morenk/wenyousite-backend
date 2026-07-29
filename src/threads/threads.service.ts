@@ -3,6 +3,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { TagsService } from '../tags/tags.service';
+import { BlockFilterService } from '../common/services/block-filter.service';
 import { NotificationProducer } from '../jobs/notification.producer';
 import { ThreadAccessService } from '../common/services/thread-access.service';
 import { RedisService } from '../redis/redis.service';
@@ -29,6 +30,7 @@ export class ThreadsService {
     private tagsService: TagsService,
     private notificationProducer: NotificationProducer,
     private threadAccess: ThreadAccessService,
+    private blockFilter: BlockFilterService,
     private eventEmitter: EventEmitter2,
     private redis: RedisService,
     private cache: CacheService,
@@ -369,8 +371,9 @@ export class ThreadsService {
         topicTags: { include: { tag: true } },
         ...countMembersAndPosts(),
       },
-    }).catch(() => {
-      throw new BusinessException(ErrorCode.OPTIMISTIC_LOCK_CONFLICT, '主题帖已被修改，请刷新后重试', HttpStatus.CONFLICT);
+    }).catch((err) => {
+      if (err?.code === 'P2025') throw new BusinessException(ErrorCode.OPTIMISTIC_LOCK_CONFLICT, '主题帖已被修改，请刷新后重试', HttpStatus.CONFLICT);
+      throw err;
     });
 
     // 缓存失效事件 + ZSET 维护
@@ -403,12 +406,16 @@ export class ThreadsService {
       });
       const followerIds = followers.map(f => f.followerId);
       if (followerIds.length > 0) {
-        this.notificationProducer.notify(
-          'thread_created',
-          followerIds,
-          `${updated.owner.username}创建了新主题帖`,
-          { threadId: updated.id, fromUserId: userId },
-        ).catch(() => {});
+        const blockSets = await this.blockFilter.loadBlockSets(userId);
+        const filtered = this.blockFilter.filterRecipients(followerIds, blockSets);
+        if (filtered.length > 0) {
+          this.notificationProducer.notify(
+            'thread_created',
+            filtered,
+            `${updated.owner.username}创建了新主题帖`,
+            { threadId: updated.id, fromUserId: userId },
+          ).catch(() => {});
+        }
       }
     }
 

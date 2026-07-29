@@ -1,5 +1,6 @@
-import { IsString, IsOptional, IsArray, IsUUID, IsBoolean, IsDateString, IsIn } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsUUID, IsBoolean, IsDateString, IsIn, ValidateNested } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
 /** 系统通知用户筛选条件 */
 class UserConditionDto {
@@ -43,6 +44,8 @@ export class SendSystemNotificationDto {
 
   @ApiProperty({ description: '用户筛选条件（不指定则全站广播）', required: false })
   @IsOptional()
+  @ValidateNested()
+  @Type(() => UserConditionDto)
   conditions?: UserConditionDto;
 
   @ApiProperty({ description: '关联主题帖 ID（可选，前端跳转用）', required: false })

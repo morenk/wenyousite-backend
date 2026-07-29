@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse, ApiUnauthorizedRes
 import { FastifyRequest } from 'fastify';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationProducer } from '../jobs/notification.producer';
+import { BlockFilterService } from '../common/services/block-filter.service';
 import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 
 /** 关注与拉黑控制器 */
@@ -12,6 +13,7 @@ export class UsersFollowController {
   constructor(
     private prisma: PrismaService,
     private notificationProducer: NotificationProducer,
+    private blockFilter: BlockFilterService,
   ) {}
 
   // ====== 关注 ======
@@ -38,12 +40,17 @@ export class UsersFollowController {
       data: { followerId: user.id, followingId: targetId },
     });
 
-    this.notificationProducer.notify(
-      'follow',
-      [targetId],
-      `${user.username ?? '有人'} 关注了你`,
-      { fromUserId: user.id },
-    ).catch(() => {});
+    // 关注通知：排除拉黑关系
+    const blockSets = await this.blockFilter.loadBlockSets(user.id);
+    const filtered = this.blockFilter.filterRecipients([targetId], blockSets);
+    if (filtered.length > 0) {
+      this.notificationProducer.notify(
+        'follow',
+        [targetId],
+        `${user.username ?? '有人'} 关注了你`,
+        { fromUserId: user.id },
+      ).catch(() => {});
+    }
     return { message: '已关注' };
   }
 
