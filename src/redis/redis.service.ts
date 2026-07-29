@@ -1,11 +1,9 @@
-import { Inject, Injectable, OnModuleDestroy, Logger } from '@nestjs/common';
+import { Inject, Injectable, OnModuleDestroy } from '@nestjs/common';
 import Redis from 'ioredis';
 
 /** Redis 底层服务：计数器(Hash)、有序集合(ZSET)、键操作 */
 @Injectable()
 export class RedisService implements OnModuleDestroy {
-  private readonly logger = new Logger(RedisService.name);
-
   constructor(@Inject('REDIS_CLIENT') private readonly redis: Redis) {}
 
   async onModuleDestroy() {

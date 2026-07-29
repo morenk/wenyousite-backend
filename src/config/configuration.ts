@@ -56,4 +56,10 @@ export default () => ({
     url: process.env.APP_URL ?? 'http://localhost:3000',
     nodeEnv: process.env.NODE_ENV ?? 'development',
   },
+
+  // 日志：Pino 结构化日志配置
+  log: {
+    level: process.env.LOG_LEVEL ?? 'info',
+    fileDir: process.env.LOG_FILE_DIR || undefined,
+  },
 });

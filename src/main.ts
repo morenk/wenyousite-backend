@@ -6,7 +6,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Logger } from 'nestjs-pino';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import helmet from 'helmet';
+import fastifyHelmet from '@fastify/helmet';
 import fastifyCookie from '@fastify/cookie';
 import * as Sentry from '@sentry/node';
 import { AppModule } from './app.module';
@@ -37,12 +37,16 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
-  app.enableCors();
-  await app.register(helmet as any);
+  app.enableCors({
+    origin: true,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    credentials: true,
+  });
+  await app.register(fastifyHelmet);
   await app.register(fastifyCookie as any);
 
-  // Swagger 文档：仅 dev 环境
-  if (process.env.NODE_ENV !== 'production') {
+  // Swagger 文档：仅当开启时挂载，与 NODE_ENV 解耦，方便线上移动端开发
+  if (process.env.ENABLE_API_DOCS !== 'false') {
     const config = new DocumentBuilder()
       .setTitle('温油站 API')
       .setDescription('温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)')
@@ -63,7 +67,7 @@ async function bootstrap() {
       .addTag('ReadingProgress', '阅读进度 — 记录/新增回复数')
       .addTag('Reports', '举报 — 已搁置')
       .addTag('Health', '健康检查 — 数据库连通')
-      .addTag('Admin', '管理后台 — 已搁置')
+      .addTag('Admin', '管理后台 — 系统通知、用户搜索')
       .build();
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('api/docs', app, document, {
@@ -73,6 +77,7 @@ async function bootstrap() {
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port, '0.0.0.0');
-  console.log(`温油站 API running on http://localhost:${port}`);
+  const logger = app.get(Logger);
+  logger.log(`温油站 API running on http://localhost:${port}`, 'Bootstrap');
 }
 bootstrap();

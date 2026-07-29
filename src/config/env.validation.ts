@@ -64,6 +64,14 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   COS_SECRET_ACCESS_KEY: string = '';
+
+  @IsString()
+  @IsOptional()
+  LOG_LEVEL: string = 'info';
+
+  @IsString()
+  @IsOptional()
+  LOG_FILE_DIR: string = '';
 }
 
 /** 校验函数：在 ConfigModule.forRoot 中调用，启动时验证环境变量完整性 */

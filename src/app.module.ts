@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
@@ -33,6 +34,27 @@ import { ThrottlerRedisStorage } from './redis/throttler-redis.storage';
 import configuration from './config/configuration';
 import { validate } from './config/env.validation';
 
+/** 构建 Pino 传输配置：开发环境 colorized 控制台，生产环境支持可选文件日志 */
+function buildPinoTransport(logLevel: string, logFileDir?: string) {
+  const isProd = process.env.NODE_ENV === 'production';
+
+  if (!isProd) {
+    return { target: 'pino-pretty', options: { colorize: true, singleLine: true } };
+  }
+
+  const targets: any[] = [
+    { target: 'pino-pretty', options: { colorize: false, destination: 1, singleLine: true }, level: logLevel },
+  ];
+  if (logFileDir) {
+    targets.push({
+      target: 'pino-roll',
+      options: { file: logFileDir, frequency: 'daily', mkdir: true, size: '10m' },
+      level: logLevel,
+    });
+  }
+  return { targets };
+}
+
 /** 根模块：注册所有特性模块和全局功能 */
 @Module({
   imports: [
@@ -43,12 +65,24 @@ import { validate } from './config/env.validation';
       validate,
       envFilePath: ['.env.local', '.env'],
     }),
-    LoggerModule.forRoot({
-      pinoHttp: {
-        transport: process.env.NODE_ENV !== 'production'
-          ? { target: 'pino-pretty', options: { colorize: true } }
-          : undefined,
-        level: process.env.LOG_LEVEL ?? 'info',
+    // 全局日志：Pino 结构化日志 + HTTP 请求自动记录
+    LoggerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const logLevel = config.get<string>('log.level') ?? 'info';
+        const logFileDir = config.get<string>('log.fileDir');
+        return {
+          pinoHttp: {
+            level: logLevel,
+            genReqId: (req: any) => req.headers['x-request-id'] ?? randomUUID(),
+            transport: buildPinoTransport(logLevel, logFileDir),
+            redact: ['req.headers.authorization', 'req.headers.cookie', `req.headers['x-refresh-token']`],
+            serializers: {
+              req: (req: any) => ({ id: req.id, method: req.method, url: req.url }),
+              res: (res: any) => ({ statusCode: res.statusCode }),
+            },
+          },
+        };
       },
     }),
     // BullMQ 队列：全局 Redis 连接

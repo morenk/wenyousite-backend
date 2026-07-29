@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-温油站是一个文字接力、角色扮演、国策等自由玩法的共同创作社区后端。
+温油站是一个文字接力、角色扮演、国策等自由玩法的共同创作论坛。
 NestJS + Fastify + PostgreSQL + Prisma + Redis + BullMQ，模块化单体架构。
 
 ## 技术栈
@@ -15,7 +15,7 @@ NestJS + Fastify + PostgreSQL + Prisma + Redis + BullMQ，模块化单体架构�
 | 缓存/队列 | Redis 7 + BullMQ | 通知队列 (notification) + 图片处理队列 (image) |
 | 认证 | Passport JWT + Argon2 | 双 Token (access 15m / refresh 7d) |
 | 校验 | class-validator + class-transformer | DTO 自动校验 |
-| 日志 | nestjs-pino + pino-pretty | 结构化日志，dev 彩色输出 |
+| 日志 | nestjs-pino + pino-pretty + pino-roll | 结构化日志，dev 彩色控制台，prod JSON + 可选日滚动文件 |
 | 错误监控 | @sentry/nestjs + @sentry/node | 有 DSN 时启用 |
 | 限流 | @nestjs/throttler | 全局 + auth 端点加强 |
 | 事件 | @nestjs/event-emitter | 发帖后事件解耦 mentions/notifications |
