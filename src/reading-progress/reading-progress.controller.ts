@@ -22,14 +22,6 @@ export class ReadingProgressController {
     return this.readingProgressService.findBySubthread(user.id, subthreadId);
   }
 
-  /** 帖级聚合：一次性返回主题帖下所有子贴的阅读摘要 */
-  @Get('thread')
-  @ApiOperation({ summary: '帖级聚合：一次返回整帖所有子贴的阅读摘要' })
-  async threadAggregation(@Req() req: FastifyRequest, @Query('threadId') threadId: string) {
-    const user = req['user'] as { id: string };
-    return this.readingProgressService.threadAggregation(user.id, threadId);
-  }
-
   /** 自上次阅读后新增回复数（按子贴） */
   @Get('new-replies')
   @ApiOperation({ summary: '自上次阅读后子贴新增回复数' })

@@ -12,9 +12,6 @@ const mockPrisma = {
     count: jest.fn(),
     findUnique: jest.fn(),
   },
-  subthread: {
-    findMany: jest.fn(),
-  },
 };
 
 describe('ReadingProgressService', () => {
@@ -126,43 +123,5 @@ describe('ReadingProgressService', () => {
     expect(result.newReplies).toBe(10);
     expect(result.continueFrom).toBeNull();
   });
-
-  // ── threadAggregation ──
-
-  it('threadAggregation 空子贴返回空数组', async () => {
-    mockPrisma.subthread.findMany.mockResolvedValue([]);
-    const result = await service.threadAggregation('u1', 't1');
-    expect(result).toEqual([]);
-  });
-
-  it('threadAggregation 应返回每个子贴的摘要', async () => {
-    mockPrisma.subthread.findMany.mockResolvedValue([
-      { id: 's1', title: '主区', sortOrder: 0 },
-      { id: 's2', title: '角色', sortOrder: 1 },
-    ]);
-    mockPrisma.userReadProgress.findUnique
-      .mockResolvedValueOnce({ userId: 'u1', subthreadId: 's1', postId: 'p1', updatedAt: new Date('2026-07-28T12:00:00Z'), post: { id: 'p1', createdAt: new Date('2026-07-28T10:00:00Z'), floorNumber: 5, parentPostId: null } })
-      .mockResolvedValueOnce(null);
-    // 并发执行下用 mockImplementation 按 subthreadId 区分返回值
-    const countMap: Record<string, number[]> = {
-      s1: [50, 10], // total, new
-      s2: [30, 30],
-    };
-    const callCounts: Record<string, number> = { s1: 0, s2: 0 };
-    mockPrisma.post.count.mockImplementation((args: any) => {
-      const sid = args.where.subthreadId;
-      const val = countMap[sid][callCounts[sid]++];
-      return Promise.resolve(val);
-    });
-
-    const result = await service.threadAggregation('u1', 't1');
-    expect(result).toHaveLength(2);
-    expect(result[0].subthreadId).toBe('s1');
-    expect(result[0].newReplies).toBe(10);
-    expect(result[0].totalPosts).toBe(50);
-    expect(result[1].subthreadId).toBe('s2');
-    expect(result[1].newReplies).toBe(30);
-    expect(result[1].totalPosts).toBe(30);
-    expect(result[1].continueFrom).toBeNull();
-  });
 });
+
