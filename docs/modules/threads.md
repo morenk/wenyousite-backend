@@ -4,7 +4,7 @@
 
 主题帖的草稿创建、沙盒迭代、发布、列表、详情、修改、删除，参与人管理（加入/角色/收回玩家身份），私密帖邀请链接，置顶排序，标签管理。
 
-**核心流程**：所有主题帖创建统一走"草稿 → 发布"两阶段 —— `POST /threads` 创建空壳草稿（published=false），在沙盒内逐步完善标题/子贴/楼层，最后通过 `PATCH /threads/:id { published: true }` 发布。发布前帖子不出现在列表/搜索中，仅楼主本人可访问。
+**核心流程**：所有主题帖创建统一走"草稿 → 发布"两阶段 —— `POST /threads` 事务内创建 Thread + OWNER + 默认子贴（可选首楼正文），在沙盒内逐步完善标题/子贴/楼层，最后通过 `PATCH /threads/:id { published: true }` 发布。发布前帖子不出现在列表/搜索中，仅楼主本人可访问。
 
 ## 涉及的模型
 
@@ -28,8 +28,8 @@
 | Method | Path | Guard | 描述 |
 |--------|------|-------|------|
 | GET | `/threads/draft` | AuthRead | 我的草稿箱列表（published=false 的帖） |
-| POST | `/threads` | Auth | 创建主题帖草稿（仅 Thread + OWNER，无子贴/帖子） |
-| GET | `/threads` | Public | 主题帖列表（仅已发布帖）。`filter=all`(默认)公开帖，`filter=playing`我参与的帖。支持 `sort=created\|active\|smart` 三种排序 |
+| POST | `/threads` | Auth | 创建主题帖草稿（事务内创建 Thread + OWNER + 默认子贴 + 可选首楼正文，published=false） |
+| GET | `/threads` | Public | 主题帖列表（仅已发布帖），每帖含 `preview` 截断纯文本（`truncateMarkdown` 处理默认子贴首楼正文，~100 字） |
 | GET | `/threads/:id` | AuthRead | 详情（含子贴列表和标签）。未发布帖仅 owner 可查看 |
 | PATCH | `/threads/:id` | Auth | 修改/发布（OWNER/COLLABORATOR，乐观锁）。设置 published=true 即发布，校验完整性后通知粉丝 |
 | DELETE | `/threads/:id` | Auth | 删除（仅 OWNER）。草稿帖硬删除（级联），已发布帖软删除 |
@@ -49,18 +49,18 @@
 
 ### 草稿与发布
 
-- 创建草稿：`POST /threads` 仅创建 Thread(published=false) + OWNER（playerMarked=true）。不自动创建子贴和楼层，标题缺省为"未命名草稿"
-- 沙盒迭代：楼主可在草稿内自由创建子贴（`POST subthreads`）、撰写楼层（`POST posts`），所有端点自动保存
+- 创建草稿：`POST /threads` 事务内创建 Thread(published=false) + OWNER（playerMarked=true）+ 默认子贴（sortOrder=0）。`content` 可选传入默认子贴首楼正文。`subthreadTitle` 可选，默认定值同 title；title 缺省为"未命名草稿"
+- 沙盒迭代：楼主可在草稿内自由创建更多子贴（`POST subthreads`）、撰写楼层（`POST posts`），所有端点自动保存
 - 草稿列表：`GET /threads/draft` 返回当前用户所有未发布帖，按 createdAt DESC 排序
-- 发布校验：`PATCH /threads/:id { published: true }` 时校验 —— ① title 非空且非默认值"未命名草稿" ② category 已设置 ③ 至少存在一个子贴 ④ 该子贴有未删除的帖子
-- 发布后通知：校验通过后 published=true，异步通知创建者的所有粉丝（thread_created 类型）
+- 发布校验：`PATCH /threads/:id { published: true }` 时校验 —— ① title 非空且非默认值"未命名草稿" ② category 已设置 ③ 默认子贴存在且有正文（bodyPostId 或 posts 不为空）
+- 发布后通知：校验通过后先回放草稿期内全部帖子的 post.created 事件（补解析 @提及和通知），再通知创建者的所有粉丝（thread_created 类型）
 - 草稿内发帖不触发 @提及解析和通知（`post.created` 事件仅在已发布帖下发帖时发射）
 - 草稿仅 owner 可查看和操作，非 owner 访问返回 404
 - 草稿帖删除为硬删除（级联删除子贴/帖子/参与人），已发布帖删除为软删除
 
 ### 列表与详情
 
-- 列表接口 `findAll`：仅返回 published=true 的帖；`filter=all`(默认)仅 PUBLIC 帖；`filter=playing`返回 playerMarked=true 的帖（含私密帖），需登录。每个帖返回默认子贴的正文（bodyPost.content）供前端渲染卡片预览
+- 列表接口 `findAll`：仅返回 published=true 的帖；`filter=all`(默认)仅 PUBLIC 帖；`filter=playing`返回 playerMarked=true 的帖（含私密帖），需登录。每帖含 `preview` 字段（truncateMarkdown 截断默认子贴首楼正文，纯文本，~100 字），不再返回 `bodyPost.content` 全文
 - 详情接口 `findById`：未发布帖仅 owner 可查看且不递增 viewCount；已发布帖 viewCount 异步 +1（Redis 计数器 + DB），PRIVATE 帖非参与人返回 404
 - 排序规则：
   - `sort=created`（默认）：置顶优先，其次按 createdAt DESC
@@ -108,22 +108,24 @@ Thread ──1:N── Subthread ──1:N── Post
 
 ### 默认子贴
 
-每个 Thread 下最早创建的子贴为**默认子贴**，具有特殊规则：
+每个 Thread 有一个**默认子贴**，通过 `Thread.defaultSubthreadId` 外键显式标记（数据库级 enforce）：
 
 | 规则 | 说明 |
 |------|------|
-| 排序锁定 | sortOrder 固定为 0，不可通过 PATCH 修改 |
+| 创建时机 | `POST /threads` 事务内自动创建，sortOrder 固定为 0 |
+| 排序锁定 | 不可通过 PATCH /subthreads 修改 sortOrder |
 | 不可删除 | 默认子贴不可单独删除，需删除整个主题帖 |
 | 拖拽首位 | 批量重排时首项必须是默认子贴 |
-| 列表展示 | `GET /threads` 列表卡片取第一个子贴信息展示 |
+| 列表展示 | `GET /threads` 通过 `defaultSubthread.bodyPost.content` 生成 preview 字段 |
+| 回退机制 | 若单独创建子贴（非通过 POST /threads），首个创建的子贴自动补设为默认 |
 
 默认子贴的设计意图是充当帖子的"主内容区"——即便楼主创建了多个子贴用于不同话题，始终有一个固定的首版块用于主要讨论。
 
 ### 创建与发布联动
 
 ```
-POST /threads          → Thread(published=false) + OWNER
-                         [无子贴、无帖子]
+POST /threads          → 事务: Thread(published=false) + OWNER + 默认子贴 + [首楼正文]
+                          [一次请求完成，无需额外创建子贴]
 
 POST subthreads        → Subthread + 可选第一楼 Post（正文为空时仅子贴）
   GET /subthreads      → 查看已创建的子贴及其帖子数量
@@ -134,9 +136,9 @@ POST posts             → 在子贴下新增楼层，自动记入该子贴
 PATCH published=true   → 发布前校验：
                          ① title 非空
                          ② category 已选
-                         ③ 至少一个子贴
-                         ④ 该子贴有未删除帖子
-                         → publishedAt 记入当前时间 → 通知所有粉丝
+                         ③ 默认子贴有正文
+                         → 回放草稿帖事件（@提及+通知）
+                         → 通知所有粉丝
 ```
 
 ### 级联删除
@@ -166,7 +168,7 @@ ThreadAccessService.assertAccessible(threadId, userId)
 
 | 视图 | 子贴信息 | 帖子信息 |
 |------|---------|---------|
-| Thread 列表 (`findAll`) | `take: 1` 首个子贴的 id / title / lastPostAt / bodyPost.content | bodyPost.content 即正文预览 |
+| Thread 列表 (`findAll`) | 通过 defaultSubthreadId 取默认子贴的 id / title / lastPostAt + bodyPost.content → truncateMarkdown 生成 preview |
 | Thread 详情 (`findById`) | 全部子贴列表 + `_count.posts` | 不返回正文 |
 | Subthread 列表 (`findAll`) | 按 sortOrder 排列 + `_count.posts` | 不返回正文 |
 | Subthread 详情 (`findById`) | 单个子贴 + `_count.posts` | 不返回正文 |

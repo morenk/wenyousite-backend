@@ -43,6 +43,24 @@ const basicTx = () => ({
   subthread: { update: jest.fn().mockResolvedValue({}), create: jest.fn(), findUnique: jest.fn(), aggregate: jest.fn(), findFirst: jest.fn() },
 });
 
+/** 为主题帖创建流程准备 $transaction 模拟 */
+const setupThreadTransaction = (prisma: MockPrisma, threadId = 't1', subthreadId = 's1') => {
+  const tx = {
+    thread: {
+      create: jest.fn().mockResolvedValue({ id: threadId }),
+      update: jest.fn().mockResolvedValue({}),
+    },
+    threadMember: { create: jest.fn().mockResolvedValue({ id: 'm1' }) },
+    subthread: {
+      create: jest.fn().mockResolvedValue({ id: subthreadId }),
+      update: jest.fn().mockResolvedValue({}),
+    },
+    post: { create: jest.fn().mockResolvedValue({ id: 'p1', floorNumber: 1 }) },
+  };
+  prisma.$transaction.mockImplementation(async (fn: any) => fn(tx));
+  return tx;
+};
+
 const mockEventEmitter = { emit: jest.fn() };
 const mockReadingProgressService = { update: jest.fn().mockResolvedValue(undefined) };
 const mockTags = { findOrCreate: jest.fn() };
@@ -141,8 +159,7 @@ describe('发帖全流程集成测试', () => {
   // ======================== 第一部分：主题帖草稿生命周期 ========================
   describe('主题帖草稿 (Thread Draft)', () => {
     it('创建草稿：published=false，自动创建 OWNER 成员', async () => {
-      prisma.thread.create.mockResolvedValue({ id: 't1', title: '测试标题', category: 'RPG', visibility: 'PUBLIC', published: false, ownerId: 'u1' });
-      prisma.threadMember.create.mockResolvedValue({ id: 'm1', threadId: 't1', userId: 'u1', role: 'OWNER', playerMarked: true });
+      const tx = setupThreadTransaction(prisma);
       prisma.thread.findUnique.mockResolvedValue({
         id: 't1', title: '测试标题', category: 'RPG', published: false,
         owner: { id: 'u1', username: 'test', avatar: null },
@@ -152,29 +169,27 @@ describe('发帖全流程集成测试', () => {
       const result = await threadsService.create({ title: '测试标题', category: 'RPG' }, 'u1');
       expect(result).toBeDefined();
       expect(result!.id).toBe('t1');
-      expect(prisma.thread.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ published: false }) }),
+      expect(tx.thread.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ title: '测试标题', published: false }) }),
       );
-      expect(prisma.threadMember.create).toHaveBeenCalledWith(
+      expect(tx.threadMember.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ role: 'OWNER', playerMarked: true }) }),
       );
       expect(mockNotificationProducer.notify).not.toHaveBeenCalled();
     });
 
     it('创建草稿：无标题时 title 默认为未命名草稿', async () => {
-      prisma.thread.create.mockResolvedValue({ id: 't1', title: null, category: 'DEDUCTION', visibility: 'PUBLIC', published: false });
-      prisma.threadMember.create.mockResolvedValue({ id: 'm1' });
+      const tx = setupThreadTransaction(prisma);
       prisma.thread.findUnique.mockResolvedValue({ id: 't1', owner: {}, subthreads: [], topicTags: [], _count: {} });
 
       await threadsService.create({}, 'u1');
-      expect(prisma.thread.create).toHaveBeenCalledWith(
+      expect(tx.thread.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ title: '未命名草稿' }) }),
       );
     });
 
     it('创建草稿：携带标签应同步创建 TopicTag', async () => {
-      prisma.thread.create.mockResolvedValue({ id: 't1', title: '测试', category: 'RPG', ownerId: 'u1', published: false });
-      prisma.threadMember.create.mockResolvedValue({ id: 'm1' });
+      setupThreadTransaction(prisma);
       mockTags.findOrCreate.mockResolvedValue([{ id: 'tag1', name: '科幻' }, { id: 'tag2', name: '悬疑' }]);
       prisma.threadTopicTag.createMany.mockResolvedValue({ count: 2 });
       prisma.thread.findUnique.mockResolvedValue({ id: 't1', owner: {}, subthreads: [], topicTags: [], _count: {} });
@@ -266,8 +281,9 @@ describe('发帖全流程集成测试', () => {
   describe('发布流程 (Publish)', () => {
     it('发布成功：title + category + subthread + post 齐备 → 通知粉丝', async () => {
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      prisma.thread.findUnique.mockResolvedValue({ published: false, title: '测试', category: 'RPG' });
-      prisma.subthread.findFirst.mockResolvedValue({ posts: [{ id: 'p1' }] });
+      prisma.thread.findUnique
+        .mockResolvedValueOnce({ published: false, title: '测试', category: 'RPG' })     // update() 初次查询
+        .mockResolvedValueOnce({ defaultSubthread: { id: 's1', bodyPostId: 'p1', posts: [{ id: 'p1' }] } }); // validatePublishReadiness
       prisma.thread.update.mockResolvedValue({
         id: 't1', title: '测试', category: 'RPG', published: true, publishedAt: new Date(),
         createdAt: new Date('2025-01-01'), updatedAt: new Date(), viewCount: 0,
@@ -304,8 +320,9 @@ describe('发帖全流程集成测试', () => {
 
     it('发布失败：子贴中无楼层', async () => {
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      prisma.thread.findUnique.mockResolvedValue({ published: false, title: '测试', category: 'RPG' });
-      prisma.subthread.findFirst.mockResolvedValue({ posts: [] });
+      prisma.thread.findUnique
+        .mockResolvedValueOnce({ published: false, title: '测试', category: 'RPG' })
+        .mockResolvedValueOnce({ defaultSubthread: { id: 's1', bodyPostId: null, posts: [] } });
       await expect(threadsService.update('t1', { version: 1, published: true }, 'u1')).rejects.toThrow(BusinessException);
     });
 
@@ -317,8 +334,9 @@ describe('发帖全流程集成测试', () => {
 
     it('发布时 title 取自 updateData 而非 thread.title', async () => {
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      prisma.thread.findUnique.mockResolvedValue({ published: false, title: '旧标题', category: 'DEDUCTION' });
-      prisma.subthread.findFirst.mockResolvedValue({ posts: [{ id: 'p1' }] });
+      prisma.thread.findUnique
+        .mockResolvedValueOnce({ published: false, title: '旧标题', category: 'DEDUCTION' })
+        .mockResolvedValueOnce({ defaultSubthread: { id: 's1', bodyPostId: 'p1', posts: [{ id: 'p1' }] } });
       prisma.thread.update.mockResolvedValue({
         id: 't1', title: '新标题', category: 'DEDUCTION', published: true, publishedAt: new Date(),
         createdAt: new Date('2025-01-01'), updatedAt: new Date(), viewCount: 0,
@@ -436,7 +454,7 @@ describe('发帖全流程集成测试', () => {
     it('排序：首项非默认子贴 → 拒绝', async () => {
       setupHelpers.mockThreadMember_ownerOrCollab(prisma);
       prisma.subthread.findMany.mockResolvedValue([{ id: 'a' }, { id: 'b' }]);
-      prisma.subthread.findFirst.mockResolvedValue({ id: 'a' });
+      prisma.thread.findUnique.mockResolvedValue({ defaultSubthreadId: 'a' }); // 默认是 a，首项是 b
       await expect(subthreadsService.reorder('t1', ['b', 'a'], 'u1')).rejects.toThrow(BusinessException);
     });
 
@@ -477,7 +495,7 @@ describe('发帖全流程集成测试', () => {
     it('修改：默认子贴不可修改 sortOrder', async () => {
       prisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1' });
       setupHelpers.mockThreadMember_ownerOrCollab(prisma);
-      prisma.subthread.findFirst.mockResolvedValue({ id: 's1' });
+      prisma.thread.findUnique.mockResolvedValue({ defaultSubthreadId: 's1' });
       await expect(subthreadsService.update('s1', { version: 1, sortOrder: 5 }, 'u1')).rejects.toThrow(BusinessException);
     });
 
@@ -489,14 +507,14 @@ describe('发帖全流程集成测试', () => {
     it('删除：默认子贴不可删除', async () => {
       prisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1', deletedAt: null });
       setupHelpers.mockThreadMember_ownerOrCollab(prisma);
-      prisma.subthread.findFirst.mockResolvedValue({ id: 's1' });
+      prisma.thread.findUnique.mockResolvedValue({ defaultSubthreadId: 's1' });
       await expect(subthreadsService.remove('s1', 'u1')).rejects.toThrow(BusinessException);
     });
 
     it('删除：非默认子贴应设置 deletedAt', async () => {
       prisma.subthread.findUnique.mockResolvedValue({ id: 's2', threadId: 't1', deletedAt: null });
       setupHelpers.mockThreadMember_ownerOrCollab(prisma);
-      prisma.subthread.findFirst.mockResolvedValue({ id: 's1' });
+      prisma.thread.findUnique.mockResolvedValue({ defaultSubthreadId: 's1' }); // 默认是 s1
       prisma.subthread.update.mockResolvedValue({ id: 's2', deletedAt: new Date() });
       await subthreadsService.remove('s2', 'u1');
       expect(prisma.subthread.update).toHaveBeenCalledWith(

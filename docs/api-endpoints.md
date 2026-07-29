@@ -46,8 +46,8 @@
 
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
-| GET | `/threads` | Public | 主题帖列表（仅已发布帖），支持分区/排序(sort=created\|active\|smart)/标签/Cursor。`filter=all`(默认)公开帖，`filter=playing`我参与的帖（需登录）。每个帖含默认子贴正文预览 |
-| POST | `/threads` | Auth | 创建主题帖草稿（仅创建 Thread + OWNER 成员，published=false）。发布前需通过 PATCH 完善并设置 published=true |
+| GET | `/threads` | Public | 主题帖列表（仅已发布帖），支持分区/排序/标签/Cursor，每帖含 `preview` 截断纯文本（源自默认子贴首楼） |
+| POST | `/threads` | Auth | 创建主题帖草稿（事务内创建 Thread + OWNER + 默认子贴 + 可选首楼正文，published=false）。参数: title/category/content/subthreadTitle/tagNames/visibility 全部可选 |
 | GET | `/threads/draft` | AuthRead | 我的草稿箱列表（未发布帖） |
 | GET | `/threads/:id` | AuthRead | 详情（含子贴列表）。未发布帖仅 owner 可查看；已发布帖浏览量+1，PRIVATE 帖非成员 404 |
 | PATCH | `/threads/:id` | Auth | 修改/发布（仅 OWNER/COLLABORATOR）。设置 published=true 即发布，此时校验 title/category/子贴/楼层完整性，发布后通知粉丝 |

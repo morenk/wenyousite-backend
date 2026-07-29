@@ -178,12 +178,15 @@ model Thread {
   viewCount  Int  @default(0)  @map("view_count")
   version    Int  @default(1)  @map("lock_version")
 
+  defaultSubthreadId String?    @unique @map("default_subthread_id")
+  defaultSubthread   Subthread? @relation("DefaultSubthread", fields: [defaultSubthreadId], references: [id], onDelete: SetNull)
+
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
   deletedAt  DateTime? @map("deleted_at")
 
   members       ThreadMember[]
-  subthreads    Subthread[]
+  subthreads    Subthread[]    @relation("ThreadSubthreads")
   subthreadTags SubthreadTagDef[]
   posts         Post[]
   topicTags     ThreadTopicTag[]
@@ -222,8 +225,9 @@ model Subthread {
   deletedAt     DateTime? @map("deleted_at")
   createdAt     DateTime  @default(now()) @map("created_at")
 
-  thread   Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  bodyPost Post?    @relation("SubthreadBody", fields: [bodyPostId], references: [id], onDelete: SetNull)
+  thread        Thread    @relation("ThreadSubthreads", fields: [threadId], references: [id], onDelete: Cascade)
+  bodyPost      Post?     @relation("SubthreadBody", fields: [bodyPostId], references: [id], onDelete: SetNull)
+  defaultForThread Thread? @relation("DefaultSubthread")
   tags     SubthreadTag[]
   posts    Post[]
   readProgress UserReadProgress[]

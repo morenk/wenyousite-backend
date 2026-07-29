@@ -156,6 +156,20 @@ export class SubthreadsService {
       });
     }
 
+    // 若该帖尚无默认子贴，自动设置为此子贴
+    if (!thread.published || !result) {
+      const current = await this.prisma.thread.findUnique({
+        where: { id: threadId, ...notDeleted },
+        select: { defaultSubthreadId: true },
+      });
+      if (!current?.defaultSubthreadId && result.subthread) {
+        await this.prisma.thread.update({
+          where: { id: threadId },
+          data: { defaultSubthreadId: result.subthread.id },
+        });
+      }
+    }
+
     return result.subthread!;
   }
 
@@ -177,12 +191,11 @@ export class SubthreadsService {
     }
 
     // 列表第一项必须是默认子贴
-    const defaultSubthread = await this.prisma.subthread.findFirst({
-      where: { threadId, ...notDeleted },
-      orderBy: { createdAt: 'asc' },
-      select: { id: true },
+    const thread = await this.prisma.thread.findUnique({
+      where: { id: threadId, ...notDeleted },
+      select: { defaultSubthreadId: true },
     });
-    if (defaultSubthread && ids[0] !== defaultSubthread.id) {
+    if (thread?.defaultSubthreadId && ids[0] !== thread.defaultSubthreadId) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '默认子贴必须排在第一位');
     }
 
@@ -219,12 +232,11 @@ export class SubthreadsService {
 
     // 默认子贴不可修改排序
     if (sortOrder !== undefined) {
-      const firstSubthread = await this.prisma.subthread.findFirst({
-        where: { threadId: subthread.threadId, ...notDeleted },
-        orderBy: { createdAt: 'asc' },
-        select: { id: true },
+      const thread = await this.prisma.thread.findUnique({
+        where: { id: subthread.threadId, ...notDeleted },
+        select: { defaultSubthreadId: true },
       });
-      if (firstSubthread?.id === id) {
+      if (thread?.defaultSubthreadId === id) {
         throw new BusinessException(ErrorCode.BAD_REQUEST, '默认子贴不可修改排序', HttpStatus.BAD_REQUEST);
       }
       // 检查是否冲突
@@ -263,16 +275,15 @@ export class SubthreadsService {
     if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
     await this.threadAccess.assertCanManage(subthread.threadId, userId);
 
-    // 默认子贴：主题帖创建时同步生成的第一个子贴，是主题帖主内容区，不可单独删除
-    const firstSubthread = await this.prisma.subthread.findFirst({
-      where: { threadId: subthread.threadId, ...notDeleted },
-      orderBy: { createdAt: 'asc' },
-      select: { id: true },
+    // 默认子贴不可删除
+    const thread = await this.prisma.thread.findUnique({
+      where: { id: subthread.threadId, ...notDeleted },
+      select: { defaultSubthreadId: true },
     });
-    if (firstSubthread?.id === id) {
+    if (thread?.defaultSubthreadId === id) {
       throw new BusinessException(
         ErrorCode.BAD_REQUEST,
-        '默认子贴不可单独删除，请删除整个主题帖',
+        '默认子贴不可删除，请删除整个主题帖',
         HttpStatus.BAD_REQUEST,
       );
     }

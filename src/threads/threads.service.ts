@@ -14,6 +14,7 @@ import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound, forbidden } from '../common/exceptions/business.exception';
 import { paginate } from '../common/dto/paginated-result';
 import { notDeleted, countNonDeletedPosts, includeSubthreads, authorSelect, countMembersAndPosts } from '../common/prisma-helpers';
+import { truncateMarkdown } from '../common/markdown-truncate';
 
 /** 帖子列表 ZSET 键名 */
 const ZSET_BY_CREATED = 'threads:by:created';
@@ -33,36 +34,60 @@ export class ThreadsService {
     private cache: CacheService,
   ) {}
 
-  /** 创建主题帖草稿：仅创建 Thread(published=false) + OWNER */
+  /** 创建主题帖草稿：事务内创建 Thread + Owner + 默认子贴 + 可选首楼正文，一次请求完成 */
   async create(dto: CreateThreadDto, userId: string) {
-    const thread = await this.prisma.thread.create({
-      data: {
-        title: dto.title ?? '未命名草稿',
-        category: dto.category ?? 'DEDUCTION',
-        ownerId: userId,
-        visibility: dto.visibility ?? 'PUBLIC',
-        published: false,
-      } as any,
+    const title = dto.title ?? '未命名草稿';
+    const subthreadTitle = dto.subthreadTitle ?? title;
+    const category = dto.category ?? 'DEDUCTION';
+    const visibility = dto.visibility ?? 'PUBLIC';
+    const hasContent = !!dto.content?.trim();
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      // 1. 创建 Thread
+      const thread = await tx.thread.create({
+        data: { title, category, ownerId: userId, visibility, published: false } as any,
+      });
+
+      // 2. 创建 OWNER 成员
+      await tx.threadMember.create({
+        data: { threadId: thread.id, userId, role: 'OWNER', playerMarked: true },
+      });
+
+      // 3. 创建默认子贴
+      const subthread = await tx.subthread.create({
+        data: { threadId: thread.id, title: subthreadTitle, sortOrder: 0 },
+      });
+
+      // 4. 若有正文则创建首楼
+      if (hasContent) {
+        const post = await tx.post.create({
+          data: { threadId: thread.id, subthreadId: subthread.id, authorId: userId, floorNumber: 1, content: dto.content! },
+        });
+        await tx.subthread.update({
+          where: { id: subthread.id },
+          data: { bodyPostId: post.id },
+        });
+      }
+
+      // 5. 回写默认子贴引用
+      await tx.thread.update({
+        where: { id: thread.id },
+        data: { defaultSubthreadId: subthread.id },
+      });
+
+      return { threadId: thread.id };
     });
 
-    await this.prisma.threadMember.create({
-      data: {
-        threadId: thread.id,
-        userId: userId,
-        role: 'OWNER',
-        playerMarked: true,
-      },
-    });
-
+    // 6. 事务外处理标签（避免事务内复杂联表死锁）
     if (dto.tagNames && dto.tagNames.length > 0) {
       const tags = await this.tagsService.findOrCreate(dto.tagNames);
       await this.prisma.threadTopicTag.createMany({
-        data: tags.map((tag) => ({ threadId: thread.id, tagId: tag.id })),
+        data: tags.map((tag) => ({ threadId: result.threadId, tagId: tag.id })),
       });
     }
 
     return this.prisma.thread.findUnique({
-      where: { id: thread.id, ...notDeleted },
+      where: { id: result.threadId, ...notDeleted },
       include: {
         owner: { select: authorSelect },
         ...includeSubthreads(),
@@ -74,20 +99,16 @@ export class ThreadsService {
 
   /** 我的草稿列表（未发布帖） */
   async findDrafts(userId: string) {
-    return this.prisma.thread.findMany({
+    const drafts = await this.prisma.thread.findMany({
       where: { ownerId: userId, published: false, ...notDeleted },
       orderBy: { createdAt: 'desc' },
       include: {
-        subthreads: {
-          where: notDeleted,
-          orderBy: { sortOrder: 'asc' },
-          take: 1,
-          select: { id: true, title: true },
-        },
+        defaultSubthread: { select: { id: true, title: true } },
         topicTags: { include: { tag: true } },
         _count: { select: { subthreads: true, posts: true } },
       },
     });
+    return drafts;
   }
 
   /** 详情：主题帖 + 子贴列表。未发布帖仅 owner 可查看 */
@@ -180,14 +201,8 @@ export class ThreadsService {
       skip: query.cursor ? 1 : 0,
       include: {
         owner: { select: authorSelect },
-        subthreads: {
-          where: notDeleted,
-          orderBy: { sortOrder: 'asc' },
-          take: 1,
-          select: {
-            id: true, title: true, lastPostAt: true,
-            bodyPost: { select: { content: true } },
-          },
+        defaultSubthread: {
+          include: { bodyPost: { select: { content: true } } },
         },
         topicTags: { include: { tag: true } },
         ...countMembersAndPosts(),
@@ -197,8 +212,19 @@ export class ThreadsService {
     const hasMore = threads.length > take;
     if (hasMore) threads.pop();
 
-    const result = paginate(threads, {
-      cursor: threads.length > 0 ? threads[threads.length - 1].id : null,
+    const items = threads.map(t => ({
+      ...t,
+      preview: t.defaultSubthread?.bodyPost?.content
+        ? truncateMarkdown(t.defaultSubthread.bodyPost.content)
+        : '',
+    }));
+    // 移除 defaultSubthread.bodyPost.content 全量，仅保留 preview
+    items.forEach((t: any) => {
+      if (t.defaultSubthread?.bodyPost) delete t.defaultSubthread.bodyPost.content;
+    });
+
+    const result = paginate(items, {
+      cursor: items.length > 0 ? items[items.length - 1].id : null,
       hasMore,
     });
 
@@ -240,14 +266,8 @@ export class ThreadsService {
       where,
       include: {
         owner: { select: authorSelect },
-        subthreads: {
-          where: notDeleted,
-          orderBy: { sortOrder: 'asc' },
-          take: 1,
-          select: {
-            id: true, title: true, lastPostAt: true,
-            bodyPost: { select: { content: true } },
-          },
+        defaultSubthread: {
+          include: { bodyPost: { select: { content: true } } },
         },
         topicTags: { include: { tag: true } },
         ...countMembersAndPosts(),
@@ -262,7 +282,17 @@ export class ThreadsService {
     const hasMore = threads.length > take || ids.length >= fetchCount;
     const nextCursor = hasMore ? String(offset + (sliced.length > 0 ? offset + sliced.length : take)) : null;
 
-    return paginate(sliced, { cursor: nextCursor, hasMore });
+    const items = sliced.map(t => ({
+      ...t,
+      preview: t.defaultSubthread?.bodyPost?.content
+        ? truncateMarkdown(t.defaultSubthread.bodyPost.content)
+        : '',
+    }));
+    items.forEach((t: any) => {
+      if (t.defaultSubthread?.bodyPost) delete t.defaultSubthread.bodyPost.content;
+    });
+
+    return paginate(items, { cursor: nextCursor, hasMore });
   }
 
   /** 查看指定用户参与的主题帖（被标记为玩家，受 showPlayerBadges 隐私开关控制） */
@@ -288,12 +318,7 @@ export class ThreadsService {
         thread: {
           include: {
             owner: { select: authorSelect },
-            subthreads: {
-              where: notDeleted,
-              orderBy: { sortOrder: 'asc' },
-              take: 1,
-              select: { id: true, title: true, lastPostAt: true },
-            },
+            defaultSubthread: { select: { id: true, title: true, lastPostAt: true } },
             topicTags: { include: { tag: true } },
             ...countMembersAndPosts(),
           },
@@ -363,17 +388,15 @@ export class ThreadsService {
       const initEngagement = postCount * 2;
       const initScore = initEngagement / Math.pow(2, 1.5);
       this.redis.zadd(ZSET_BY_SMART, initScore, id).catch(() => {});
-
-      this.eventEmitter.emit('thread.published', { threadId: id, ownerId: userId });
     }
     this.eventEmitter.emit('thread.updated', { threadId: id });
 
-    // 发布后通知粉丝
     if (published === true) {
-      // 先补发草稿期间帖子的 @提及解析和新楼层/子贴通知
+      // 1. 先回放草稿帖事件（@提及 + 通知）
       await this.replayDraftPostEvents(updated.id).catch(() => {});
+      // 2. 再发射 thread.published（此时内容已完整处理）
+      this.eventEmitter.emit('thread.published', { threadId: id, ownerId: userId });
 
-      // 再通知粉丝（确保以上通知入队后才发）
       const followers = await this.prisma.userFollow.findMany({
         where: { followingId: userId },
         select: { followerId: true },
@@ -427,16 +450,25 @@ export class ThreadsService {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '请选择分区后再发布');
     }
 
-    const subthread = await this.prisma.subthread.findFirst({
-      where: { threadId, ...notDeleted },
-      include: { posts: { where: notDeleted, take: 1 } },
+    // 检查默认子贴是否存在且有正文
+    const thread = await this.prisma.thread.findUnique({
+      where: { id: threadId, ...notDeleted },
+      select: {
+        defaultSubthread: {
+          select: {
+            id: true,
+            bodyPostId: true,
+            posts: { where: notDeleted, take: 1 },
+          },
+        },
+      },
     });
 
-    if (!subthread) {
+    if (!thread?.defaultSubthread) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '请至少创建一个子贴后再发布');
     }
-    if (subthread.posts.length === 0) {
-      throw new BusinessException(ErrorCode.BAD_REQUEST, '请在子贴中至少撰写一个楼层后再发布');
+    if (!thread.defaultSubthread.bodyPostId && thread.defaultSubthread.posts.length === 0) {
+      throw new BusinessException(ErrorCode.BAD_REQUEST, '请将子贴至少填写正文再发布');
     }
   }
 

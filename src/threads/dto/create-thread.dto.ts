@@ -1,5 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsOptional, MinLength, MaxLength, IsIn, IsArray } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { sanitizeContent } from '../../common/transform/sanitize.transform';
 
 /** 创建主题帖草稿 DTO：全部可选，发布时校验完整 */
 export class CreateThreadDto {
@@ -15,6 +17,20 @@ export class CreateThreadDto {
   @IsString()
   @IsIn(['DEDUCTION', 'NATION', 'RPG'])
   category?: string;
+
+  @ApiPropertyOptional({ example: '这里是开场白...', description: '默认子贴首楼正文（可选，留空仅创建空子贴）', maxLength: 10000 })
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => sanitizeContent(value))
+  @MaxLength(10000)
+  content?: string;
+
+  @ApiPropertyOptional({ example: '主帖', description: '默认子贴标题（可选，不填则取主题帖标题）', minLength: 1, maxLength: 100 })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  subthreadTitle?: string;
 
   @ApiPropertyOptional({ example: ['无限流', '穿越'], description: '主题帖标签名称列表' })
   @IsOptional()

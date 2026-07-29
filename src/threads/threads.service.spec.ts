@@ -69,10 +69,20 @@ describe('ThreadsService', () => {
 
   describe('create', () => {
     it('创建草稿帖，不通知粉丝', async () => {
-      const thread = { id: 't1', title: '未命名草稿', category: 'DEDUCTION', ownerId: 'u1', published: false };
-      mockPrisma.thread.create.mockResolvedValue(thread);
-      mockPrisma.threadMember.create.mockResolvedValue({ id: 'm1' });
-      mockPrisma.thread.findUnique.mockResolvedValue(thread);
+      const threadId = 't1';
+      mockPrisma.$transaction.mockImplementation(async (fn) => fn({
+        thread: {
+          create: jest.fn().mockResolvedValue({ id: threadId }),
+          update: jest.fn().mockResolvedValue({}),
+        },
+        threadMember: { create: jest.fn().mockResolvedValue({ id: 'm1' }) },
+        subthread: {
+          create: jest.fn().mockResolvedValue({ id: 's1', threadId }),
+          update: jest.fn().mockResolvedValue({}),
+        },
+        post: { create: jest.fn().mockResolvedValue({ id: 'p1' }) },
+      }));
+      mockPrisma.thread.findUnique.mockResolvedValue({ id: threadId, title: '测试', category: 'RPG', ownerId: 'u1', published: false });
 
       const result = await service.create({ title: '测试', category: 'RPG' }, 'u1');
       expect(result).toBeDefined();
@@ -80,15 +90,24 @@ describe('ThreadsService', () => {
     });
 
     it('无标题时 title 默认为未命名草稿', async () => {
-      const thread = { id: 't1', title: null, category: 'DEDUCTION', published: false };
-      mockPrisma.thread.create.mockResolvedValue(thread);
-      mockPrisma.threadMember.create.mockResolvedValue({ id: 'm1' });
-      mockPrisma.thread.findUnique.mockResolvedValue(thread);
+      const threadId = 't1';
+      let capturedThreadData: any;
+      mockPrisma.$transaction.mockImplementation(async (fn) => fn({
+        thread: {
+          create: jest.fn().mockImplementation((args: any) => { capturedThreadData = args; return { id: threadId }; }),
+          update: jest.fn().mockResolvedValue({}),
+        },
+        threadMember: { create: jest.fn().mockResolvedValue({ id: 'm1' }) },
+        subthread: {
+          create: jest.fn().mockResolvedValue({ id: 's1', threadId }),
+          update: jest.fn().mockResolvedValue({}),
+        },
+        post: { create: jest.fn().mockResolvedValue({ id: 'p1' }) },
+      }));
+      mockPrisma.thread.findUnique.mockResolvedValue({ id: threadId, title: '未命名草稿', category: 'DEDUCTION', published: false });
 
       await service.create({}, 'u1');
-      expect(mockPrisma.thread.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ title: '未命名草稿' }) }),
-      );
+      expect(capturedThreadData.data.title).toBe('未命名草稿');
     });
   });
 
@@ -188,10 +207,9 @@ describe('ThreadsService', () => {
 
     it('发布时应校验并通知粉丝', async () => {
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      mockPrisma.thread.findUnique.mockResolvedValue({ published: false, title: '测试', category: 'RPG' });
-      mockPrisma.subthread.findFirst.mockResolvedValue({
-        posts: [{ id: 'p1' }],
-      });
+      mockPrisma.thread.findUnique
+        .mockResolvedValueOnce({ published: false, title: '测试', category: 'RPG' })     // update() 初次查询
+        .mockResolvedValueOnce({ defaultSubthread: { id: 's1', bodyPostId: 'p1', posts: [{ id: 'p1' }] } }); // validatePublishReadiness
       mockPrisma.thread.update.mockResolvedValue({
         id: 't1', title: '测试', category: 'RPG', published: true,
         createdAt: new Date('2025-01-01'), updatedAt: new Date(),
@@ -218,8 +236,9 @@ describe('ThreadsService', () => {
 
     it('发布时无子贴应拒绝', async () => {
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      mockPrisma.thread.findUnique.mockResolvedValue({ published: false, title: '测试', category: 'RPG' });
-      mockPrisma.subthread.findFirst.mockResolvedValue(null);
+      mockPrisma.thread.findUnique
+        .mockResolvedValueOnce({ published: false, title: '测试', category: 'RPG' })
+        .mockResolvedValueOnce(null); // validatePublishReadiness 查不到默认子贴
       await expect(service.update('t1', { version: 1, published: true }, 'u1')).rejects.toThrow(BusinessException);
     });
 

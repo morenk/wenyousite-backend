@@ -106,7 +106,7 @@ describe('SubthreadsService', () => {
     it('默认子贴不可修改 sortOrder', async () => {
       mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1' });
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      mockPrisma.subthread.findFirst.mockResolvedValue({ id: 's1' });
+      mockPrisma.thread.findUnique.mockResolvedValue({ defaultSubthreadId: 's1' });
 
       await expect(
         service.update('s1', { version: 1, sortOrder: 5 }, 'u1'),
@@ -118,7 +118,8 @@ describe('SubthreadsService', () => {
     it('remove 应设置 deletedAt 而非硬删除', async () => {
       mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1', deletedAt: null });
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      mockPrisma.subthread.findFirst.mockResolvedValue({ id: 's0' }); // 默认子贴是 s0，不是 s1
+      mockPrisma.thread.findUnique.mockResolvedValue({ defaultSubthreadId: 's0' }); // 默认子贴是 s0，不是 s1
+      mockPrisma.subthread.update.mockResolvedValue({ id: 's1', deletedAt: new Date() });
       mockPrisma.subthread.update.mockResolvedValue({ id: 's1', deletedAt: new Date() });
       await service.remove('s1', 'u1');
       expect(mockPrisma.subthread.update).toHaveBeenCalledWith(
@@ -134,7 +135,7 @@ describe('SubthreadsService', () => {
     it('默认子贴不可删除', async () => {
       mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1', deletedAt: null });
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      mockPrisma.subthread.findFirst.mockResolvedValue({ id: 's1' });
+      mockPrisma.thread.findUnique.mockResolvedValue({ defaultSubthreadId: 's1' }); // s1 是默认子贴
 
       await expect(service.remove('s1', 'u1')).rejects.toThrow(BusinessException);
     });
@@ -142,7 +143,7 @@ describe('SubthreadsService', () => {
     it('非默认子贴可正常删除', async () => {
       mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's2', threadId: 't1', deletedAt: null });
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      mockPrisma.subthread.findFirst.mockResolvedValue({ id: 's1' });
+      mockPrisma.thread.findUnique.mockResolvedValue({ defaultSubthreadId: 's1' }); // 默认是 s1，不是 s2
       mockPrisma.subthread.update.mockResolvedValue({ id: 's2', deletedAt: new Date() });
 
       await service.remove('s2', 'u1');
@@ -162,7 +163,7 @@ describe('SubthreadsService', () => {
           { id: 'b', title: 'sB', sortOrder: 1 },
           { id: 'c', title: 'sC', sortOrder: 2 },
         ]);
-      mockPrisma.subthread.findFirst.mockResolvedValue({ id: 'a' }); // 默认子贴
+      mockPrisma.thread.findUnique.mockResolvedValue({ defaultSubthreadId: 'a' }); // 默认子贴
       mockPrisma.$transaction.mockImplementation(async (fn) => {
         const tx = { subthread: { update: jest.fn() } };
         return fn(tx);
@@ -181,7 +182,7 @@ describe('SubthreadsService', () => {
     it('首项不是默认子贴应拒绝', async () => {
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
       mockPrisma.subthread.findMany.mockResolvedValue([{ id: 'a' }, { id: 'b' }]);
-      mockPrisma.subthread.findFirst.mockResolvedValue({ id: 'a' }); // 默认是 a，但请求首项是 b
+      mockPrisma.thread.findUnique.mockResolvedValue({ defaultSubthreadId: 'a' }); // 默认是 a，但请求首项是 b
 
       await expect(
         service.reorder('t1', ['b', 'a'], 'u1'),

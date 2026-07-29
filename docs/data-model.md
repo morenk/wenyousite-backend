@@ -170,6 +170,7 @@
 | pinnedAt | DateTime? | — | 置顶时间 |
 | viewCount | Int | default 0 | 浏览量 |
 | version | Int | default 1 | 乐观锁版本号 |
+| defaultSubthreadId | String? | unique, FK subthreads (SetNull) | 默认子贴 ID（主题帖创建时自动生成，不可单独删除） |
 | createdAt | DateTime | — | — |
 | updatedAt | DateTime | @updatedAt | — |
 | deletedAt | DateTime? | — | 软删除时间 |
