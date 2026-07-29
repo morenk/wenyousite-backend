@@ -46,7 +46,7 @@
 
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
-| GET | `/threads` | Public | 主题帖列表（仅已发布帖），支持分区/排序/标签/Cursor。`filter=all`(默认)公开帖，`filter=playing`我参与的帖（需登录） |
+| GET | `/threads` | Public | 主题帖列表（仅已发布帖），支持分区/排序(sort=created\|active\|smart)/标签/Cursor。`filter=all`(默认)公开帖，`filter=playing`我参与的帖（需登录）。每个帖含默认子贴正文预览 |
 | POST | `/threads` | Auth | 创建主题帖草稿（仅创建 Thread + OWNER 成员，published=false）。发布前需通过 PATCH 完善并设置 published=true |
 | GET | `/threads/draft` | AuthRead | 我的草稿箱列表（未发布帖） |
 | GET | `/threads/:id` | AuthRead | 详情（含子贴列表）。未发布帖仅 owner 可查看；已发布帖浏览量+1，PRIVATE 帖非成员 404 |
@@ -80,7 +80,7 @@
 
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
-| GET | `/subthreads/:id/posts` | Public | 楼层列表（Cursor 分页），只返回 parentPostId=null 的楼层 |
+| GET | `/subthreads/:id/posts` | Public | 楼层列表（Cursor 分页），只返回 parentPostId=null 的楼层，内嵌每个楼层前 3 条楼中楼回复 |
 | POST | `/subthreads/:id/posts` | Auth | 发帖（楼层/楼中楼），需邮箱已验证，事务分配 floorNumber |
 | GET | `/posts/:id` | Public | 帖子详情，含 likeCount |
 | GET | `/posts/:id/replies` | Public | 楼中楼回复列表（Cursor 分页） |

@@ -5,6 +5,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TagsService } from '../tags/tags.service';
 import { NotificationProducer } from '../jobs/notification.producer';
 import { ThreadAccessService } from '../common/services/thread-access.service';
+import { RedisService } from '../redis/redis.service';
+import { CacheService } from '../redis/cache.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 
 const mockPrisma = {
@@ -41,6 +43,8 @@ const mockPrisma = {
 const mockTags = { findOrCreate: jest.fn() };
 const mockNotificationProducer = { notify: jest.fn().mockResolvedValue(undefined) };
 const mockEventEmitter = { emit: jest.fn() };
+const mockRedis = { hincrby: jest.fn().mockResolvedValue(1), hset: jest.fn().mockResolvedValue(1), hdelAll: jest.fn().mockResolvedValue(1), zadd: jest.fn().mockResolvedValue(1), zrem: jest.fn().mockResolvedValue(1) };
+const mockCache = { buildKey: jest.fn((...parts: string[]) => parts.join(':')), get: jest.fn().mockResolvedValue(undefined), set: jest.fn().mockResolvedValue(undefined), del: jest.fn().mockResolvedValue(undefined), delByPattern: jest.fn().mockResolvedValue(undefined) };
 
 describe('ThreadsService', () => {
   let service: ThreadsService;
@@ -54,6 +58,8 @@ describe('ThreadsService', () => {
         { provide: TagsService, useValue: mockTags },
         { provide: NotificationProducer, useValue: mockNotificationProducer },
         { provide: EventEmitter2, useValue: mockEventEmitter },
+        { provide: RedisService, useValue: mockRedis },
+        { provide: CacheService, useValue: mockCache },
       ],
     }).compile();
     service = module.get<ThreadsService>(ThreadsService);
@@ -187,6 +193,7 @@ describe('ThreadsService', () => {
       });
       mockPrisma.thread.update.mockResolvedValue({
         id: 't1', title: '测试', category: 'RPG', published: true,
+        createdAt: new Date('2025-01-01'), updatedAt: new Date(),
         owner: { id: 'u1', username: 'test', avatar: null },
         subthreads: [], topicTags: [], _count: { members: 1, posts: 1 },
       });

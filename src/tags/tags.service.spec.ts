@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { TagsService } from './tags.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { CacheService } from '../redis/cache.service';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 
 const mockPrisma = {
@@ -12,6 +14,9 @@ const mockPrisma = {
   },
 };
 
+const mockEventEmitter = { emit: jest.fn() };
+const mockCache = { buildKey: jest.fn((...parts: string[]) => parts.join(':')), get: jest.fn().mockResolvedValue(undefined), set: jest.fn().mockResolvedValue(undefined), del: jest.fn().mockResolvedValue(undefined) };
+
 describe('TagsService', () => {
   let service: TagsService;
 
@@ -20,6 +25,8 @@ describe('TagsService', () => {
       providers: [
         TagsService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: EventEmitter2, useValue: mockEventEmitter },
+        { provide: CacheService, useValue: mockCache },
       ],
     }).compile();
     service = module.get<TagsService>(TagsService);

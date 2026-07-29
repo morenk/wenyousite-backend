@@ -12,6 +12,8 @@ import { ThreadAccessService } from '../common/services/thread-access.service';
 import { TagsService } from '../tags/tags.service';
 import { NotificationProducer } from '../jobs/notification.producer';
 import { ReadingProgressService } from '../reading-progress/reading-progress.service';
+import { RedisService } from '../redis/redis.service';
+import { CacheService } from '../redis/cache.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 
 // ============ Mock 基础设施 ============
@@ -45,6 +47,8 @@ const mockEventEmitter = { emit: jest.fn() };
 const mockReadingProgressService = { update: jest.fn().mockResolvedValue(undefined) };
 const mockTags = { findOrCreate: jest.fn() };
 const mockNotificationProducer = { notify: jest.fn().mockResolvedValue(undefined) };
+const mockRedis = { hincrby: jest.fn().mockResolvedValue(1), hgetall: jest.fn().mockResolvedValue({}), hset: jest.fn().mockResolvedValue(1), hdelAll: jest.fn().mockResolvedValue(1), zadd: jest.fn().mockResolvedValue(1), zrem: jest.fn().mockResolvedValue(1) };
+const mockCache = { buildKey: jest.fn((...parts: string[]) => parts.join(':')), get: jest.fn().mockResolvedValue(undefined), set: jest.fn().mockResolvedValue(undefined), del: jest.fn().mockResolvedValue(undefined), delByPattern: jest.fn().mockResolvedValue(undefined) };
 
 // ============ 辅助工厂 ============
 type MockPrisma = ReturnType<typeof createMockPrisma>;
@@ -120,6 +124,8 @@ describe('发帖全流程集成测试', () => {
         { provide: TagsService, useValue: mockTags },
         { provide: NotificationProducer, useValue: mockNotificationProducer },
         { provide: ReadingProgressService, useValue: mockReadingProgressService },
+        { provide: RedisService, useValue: mockRedis },
+        { provide: CacheService, useValue: mockCache },
       ],
     }).compile();
 
@@ -264,6 +270,7 @@ describe('发帖全流程集成测试', () => {
       prisma.subthread.findFirst.mockResolvedValue({ posts: [{ id: 'p1' }] });
       prisma.thread.update.mockResolvedValue({
         id: 't1', title: '测试', category: 'RPG', published: true, publishedAt: new Date(),
+        createdAt: new Date('2025-01-01'), updatedAt: new Date(), viewCount: 0,
         owner: { id: 'u1', username: 'test', avatar: null },
         subthreads: [], topicTags: [], _count: { members: 1, posts: 1 },
       });
@@ -314,6 +321,7 @@ describe('发帖全流程集成测试', () => {
       prisma.subthread.findFirst.mockResolvedValue({ posts: [{ id: 'p1' }] });
       prisma.thread.update.mockResolvedValue({
         id: 't1', title: '新标题', category: 'DEDUCTION', published: true, publishedAt: new Date(),
+        createdAt: new Date('2025-01-01'), updatedAt: new Date(), viewCount: 0,
         owner: { id: 'u1', username: 'test', avatar: null },
         subthreads: [], topicTags: [], _count: { members: 1, posts: 1 },
       });
@@ -368,7 +376,7 @@ describe('发帖全流程集成测试', () => {
       });
 
       await subthreadsService.create('t1', { title: '空白区' }, 'u1');
-      expect(mockEventEmitter.emit).not.toHaveBeenCalled();
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith('subthread.created', expect.any(Object));
     });
 
     it('创建子贴：未发布帖创建含正文子贴 → 不发射事件', async () => {

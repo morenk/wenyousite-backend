@@ -148,7 +148,15 @@ export class SubthreadsService {
       });
     }
 
-    return result.subthread;
+    // 缓存失效事件（仅已发布帖）
+    if (thread.published && result.subthread) {
+      this.eventEmitter.emit('subthread.created', {
+        threadId: result.subthread.threadId,
+        subthreadId: result.subthread.id,
+      });
+    }
+
+    return result.subthread!;
   }
 
   /** 批量重排子贴：按 ids 数组顺序分配 sortOrder（首发须为默认子贴） */
@@ -231,7 +239,7 @@ export class SubthreadsService {
     const updateData: any = { ...data, version: { increment: 1 } };
     if (sortOrder !== undefined) updateData.sortOrder = sortOrder;
 
-    return this.prisma.subthread.update({
+    const updated = await this.prisma.subthread.update({
       where: { id, version, ...notDeleted },
       data: updateData,
       include: {
@@ -239,6 +247,14 @@ export class SubthreadsService {
         ...countNonDeletedPosts(),
       },
     }).catch(() => { throw new BusinessException(ErrorCode.OPTIMISTIC_LOCK_CONFLICT, '子贴已被修改，请刷新后重试', HttpStatus.CONFLICT); });
+
+    // 缓存失效事件
+    this.eventEmitter.emit('subthread.updated', {
+      threadId: updated.threadId,
+      subthreadId: updated.id,
+    });
+
+    return updated;
   }
 
   /** 软删除子贴（仅 OWNER/COLLABORATOR）。默认子贴不可单独删除 */
@@ -261,10 +277,17 @@ export class SubthreadsService {
       );
     }
 
-    return this.prisma.subthread.update({
+    const result = await this.prisma.subthread.update({
       where: { id, ...notDeleted },
       data: { deletedAt: new Date() },
     });
+
+    this.eventEmitter.emit('subthread.deleted', {
+      threadId: subthread.threadId,
+      subthreadId: id,
+    });
+
+    return result;
   }
 
   /** 检查是否有管理权限（公开方法，供标签控制器调用） */

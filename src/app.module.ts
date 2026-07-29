@@ -4,7 +4,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { LoggerModule } from 'nestjs-pino';
 import { BullModule } from '@nestjs/bullmq';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule, ThrottlerGuard, ThrottlerStorage } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { BlockGuard } from './common/guards/block.guard';
 import { PrismaModule } from './prisma/prisma.module';
@@ -28,6 +28,8 @@ import { MediaModule } from './media/media.module';
 import { JobsModule } from './jobs/jobs.module';
 import { BookmarksModule } from './bookmarks/bookmarks.module';
 import { CommonModule } from './common/common.module';
+import { RedisModule } from './redis/redis.module';
+import { ThrottlerRedisStorage } from './redis/throttler-redis.storage';
 import configuration from './config/configuration';
 import { validate } from './config/env.validation';
 
@@ -59,8 +61,16 @@ import { validate } from './config/env.validation';
         },
       }),
     }),
-    // 全局限流：每秒最多 10 个请求
-    ThrottlerModule.forRoot([{ ttl: 1000, limit: 10 }]),
+    // Redis 模块（缓存、计数器、限流存储）
+    RedisModule,
+    // 全局限流：每秒最多 10 个请求，使用 Redis 存储支持多实例
+    ThrottlerModule.forRootAsync({
+      inject: [ThrottlerRedisStorage],
+      useFactory: (storage: ThrottlerStorage) => ({
+        storage,
+        throttlers: [{ ttl: 1000, limit: 10 }],
+      }),
+    }),
     // 事件发射器：模块间解耦（发帖 → 通知/提及/订阅等）
     EventEmitterModule.forRoot(),
     // 定时任务：清理过期数据

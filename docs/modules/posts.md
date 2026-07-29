@@ -16,7 +16,7 @@
 
 | Method | Path | Guard | 描述 |
 |--------|------|-------|------|
-| GET | `/subthreads/:subthreadId/posts` | Public | 楼层列表（Cursor 分页，仅主楼层 parentPostId=null） |
+| GET | `/subthreads/:subthreadId/posts` | Public | 楼层列表（Cursor 分页，仅主楼层 parentPostId=null，内嵌每个楼层前 3 条楼中楼回复） |
 | GET | `/posts/:id/replies` | Public | 楼中楼回复列表（Cursor 分页，无限下拉） |
 | POST | `/subthreads/:subthreadId/posts` | Auth | 发帖（楼层或楼中楼回复） |
 | GET | `/posts/:id` | Public | 帖子详情（含导航上下文：帖/子贴/父楼） |
@@ -46,6 +46,7 @@
 - likeCount 直接维护在 Post 表上，用于快速排序和展示，不依赖 count 聚合查询
 - 编辑使用乐观锁 version 防止并发编辑冲突
 - 楼层列表按 floorNumber ASC 排序（主楼层），楼中楼按 createdAt ASC 排序
+- 楼层列表响应中每个楼层内嵌 `replies` 字段（前 3 条楼中楼回复），含 `author` 和 `replyToPost`；`_count.replies` 提供回复总数，超过 3 条时前端显示"查看全部 N 条回复"入口跳转至独立楼中楼界面
 
 ## 设计决策
 

@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException, ConflictException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
+import { CacheService } from '../redis/cache.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 
 const userSelectPrivate = {
@@ -25,7 +27,11 @@ const maskDeactivated = (user: Record<string, any>) => {
 /** 用户服务：用户资料查询与更新 */
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private eventEmitter: EventEmitter2,
+    private cache: CacheService,
+  ) {}
 
   /** 获取本人完整资料（含 email、社交统计） */
   async findMe(id: string) {
@@ -41,6 +47,22 @@ export class UsersService {
   }
 
   async findById(id: string, viewerId?: string) {
+    // 无登录态 viewer → 尝试缓存命中
+    if (!viewerId) {
+      const cacheKey = this.cache.buildKey('user', id);
+      const cached = await this.cache.get<any>(cacheKey);
+      if (cached) return cached;
+
+      const user = await this.prisma.user.findUnique({
+        where: { id },
+        select: { ...userSelectPublic, _count: { select: { following: true, followers: true } } },
+      });
+      if (!user) throw new NotFoundException('用户不存在');
+      const masked = maskDeactivated(user);
+      this.cache.set(cacheKey, masked, 300000).catch(() => {}); // 5 min
+      return masked;
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { id },
       select: {
@@ -51,7 +73,7 @@ export class UsersService {
     if (!user) throw new NotFoundException('用户不存在');
     const masked = maskDeactivated(user);
 
-    if (!viewerId || (masked as any).isDeactivated) return masked;
+    if ((masked as any).isDeactivated) return masked;
 
     const [following, follower, blocked, blockedBy] = await Promise.all([
       this.prisma.userFollow.findUnique({
@@ -116,7 +138,7 @@ export class UsersService {
     }
 
     try {
-      return await this.prisma.user.update({
+      const result = await this.prisma.user.update({
         where: { id },
         data: {
           ...dto,
@@ -124,6 +146,8 @@ export class UsersService {
         },
         select: userSelectPrivate,
       });
+      this.eventEmitter.emit('user.updated', { userId: id });
+      return result;
     } catch (e: any) {
       if (e.code === 'P2002') {
         // findByUsername 与 DB 写之间的竞态
@@ -153,6 +177,9 @@ export class UsersService {
       where: { id: userId },
       data: { avatar: media.url },
       select: userSelectPrivate,
+    }).then((result) => {
+      this.eventEmitter.emit('user.updated', { userId });
+      return result;
     });
   }
 
@@ -181,6 +208,7 @@ export class UsersService {
         data: { revokedAt: new Date() },
       }),
     ]);
+    this.eventEmitter.emit('user.deleted', { userId: id });
     return { message: '账号已注销' };
   }
 }

@@ -1,13 +1,20 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 
-/** 定时清理任务：清理过期验证 token、未验证的僵尸用户、过期/已撤销的 refresh token、废弃草稿帖、已读旧通知 */
+/** ZSET 键名 */
+const ZSET_BY_SMART = 'threads:by:smart';
+
+/** 定时清理任务：清理过期验证 token、未验证的僵尸用户、过期/已撤销的 refresh token、废弃草稿帖、已读旧通知 + 智能排序分全量重算 */
 @Injectable()
 export class CleanupTask {
   private readonly logger = new Logger(CleanupTask.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
 
   /** 每天凌晨 4 点执行 */
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
@@ -79,6 +86,39 @@ export class CleanupTask {
     });
     if (deletedNotifs.count > 0) {
       this.logger.log(`清理过期已读通知: ${deletedNotifs.count} 条`);
+    }
+  }
+
+  /** 每 10 分钟全量重算智能排序分：遍历已发布帖，按公式重算 ZSET 分数 */
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  async recalcSmartScores() {
+    const threads = await this.prisma.thread.findMany({
+      where: { published: true, deletedAt: null },
+      select: { id: true, createdAt: true, viewCount: true },
+    });
+
+    if (threads.length === 0) return;
+
+    let updated = 0;
+    for (const thread of threads) {
+      try {
+        const stats = await this.redis.hgetall(`thread:${thread.id}:stats`);
+        const views = Math.max(parseInt(stats?.views ?? '0', 10), thread.viewCount);
+        const replies = parseInt(stats?.replies ?? '0', 10);
+        const likes = parseInt(stats?.likes ?? '0', 10);
+
+        const ageHours = (Date.now() - thread.createdAt.getTime()) / 3600000;
+        const engagement = replies * 2 + likes * 3 + views * 0.3;
+        const score = engagement / Math.pow(ageHours + 2, 1.5);
+
+        await this.redis.zadd(ZSET_BY_SMART, score, thread.id);
+        updated++;
+      } catch (err) {
+        this.logger.warn(`重算智能排序分失败 threadId=${thread.id}`, err);
+      }
+    }
+    if (updated > 0) {
+      this.logger.log(`智能排序分全量重算完成: ${updated} 个帖子`);
     }
   }
 }

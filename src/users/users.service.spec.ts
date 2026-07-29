@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { UsersService } from './users.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { CacheService } from '../redis/cache.service';
 import { NotFoundException, ConflictException, ForbiddenException, BadRequestException } from '@nestjs/common';
 
 const mockPrisma = {
@@ -17,6 +19,9 @@ const mockPrisma = {
   $transaction: jest.fn((ops: any[]) => Promise.all(ops)),
 };
 
+const mockEventEmitter = { emit: jest.fn() };
+const mockCache = { buildKey: jest.fn((...parts: string[]) => parts.join(':')), get: jest.fn().mockResolvedValue(undefined), set: jest.fn().mockResolvedValue(undefined), del: jest.fn().mockResolvedValue(undefined), delByPattern: jest.fn().mockResolvedValue(undefined) };
+
 const userFixture = { id: 'u1', username: 'test', email: 'test@example.com', avatar: null, bio: null, role: 'USER', deletedAt: null, lastUsernameChange: null, showRecentReplies: true, showPlayerBadges: true, showBookmarks: true };
 
 describe('UsersService', () => {
@@ -27,6 +32,8 @@ describe('UsersService', () => {
       providers: [
         UsersService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: EventEmitter2, useValue: mockEventEmitter },
+        { provide: CacheService, useValue: mockCache },
       ],
     }).compile();
     service = module.get<UsersService>(UsersService);

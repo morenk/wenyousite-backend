@@ -6,6 +6,8 @@ import { ThreadAccessService } from '../common/services/thread-access.service';
 import { NotificationProducer } from '../jobs/notification.producer';
 import { MentionsService } from '../mentions/mentions.service';
 import { ReadingProgressService } from '../reading-progress/reading-progress.service';
+import { RedisService } from '../redis/redis.service';
+import { CacheService } from '../redis/cache.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 
 const mockPrisma = {
@@ -23,6 +25,8 @@ const mockThreadAccess = { assertAccessible: jest.fn() };
 const mockNotificationProducer = { notify: jest.fn().mockResolvedValue(undefined) };
 const mockMentions = { extractUsernames: jest.fn().mockReturnValue([]), parseAndCreate: jest.fn().mockResolvedValue([]) };
 const mockReadingProgress = { update: jest.fn().mockResolvedValue(undefined) };
+const mockRedis = { hincrby: jest.fn().mockResolvedValue(1), hgetall: jest.fn().mockResolvedValue({}), hset: jest.fn().mockResolvedValue(1), zadd: jest.fn().mockResolvedValue(1) };
+const mockCache = { buildKey: jest.fn((...parts: string[]) => parts.join(':')), get: jest.fn().mockResolvedValue(undefined), set: jest.fn().mockResolvedValue(undefined), del: jest.fn().mockResolvedValue(undefined), delByPattern: jest.fn().mockResolvedValue(undefined) };
 
 describe('PostsService', () => {
   let service: PostsService;
@@ -37,6 +41,8 @@ describe('PostsService', () => {
         { provide: NotificationProducer, useValue: mockNotificationProducer },
         { provide: MentionsService, useValue: mockMentions },
         { provide: ReadingProgressService, useValue: mockReadingProgress },
+        { provide: RedisService, useValue: mockRedis },
+        { provide: CacheService, useValue: mockCache },
       ],
     }).compile();
     service = module.get<PostsService>(PostsService);
@@ -198,11 +204,24 @@ describe('PostsService', () => {
     await expect(service.create('s1', { content: 'test' }, 'u1')).rejects.toThrow(BusinessException);
   });
 
-  it('findAllBySubthread 应该返回楼层及 likeCount', async () => {
+  it('findAllBySubthread 应该返回楼层及 likeCount，内嵌前 3 条楼中楼回复', async () => {
     mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1' });
-    mockPrisma.post.findMany.mockResolvedValue([{ id: 'p1', likeCount: 3, author: {} }]);
+    mockPrisma.post.findMany
+      .mockResolvedValueOnce([{ id: 'p1', likeCount: 3, author: {}, _count: { replies: 2 } }])
+      .mockResolvedValueOnce([
+        { id: 'r1', likeCount: 0, author: {}, replyToPost: null },
+        { id: 'r2', likeCount: 1, author: {}, replyToPost: null },
+      ]);
     const result = await service.findAllBySubthread('s1');
     expect(result.items[0].likeCount).toBe(3);
+    expect((result.items[0] as any).replies).toHaveLength(2);
+  });
+
+  it('findAllBySubthread 无回复楼层应返回空 replies 数组', async () => {
+    mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1' });
+    mockPrisma.post.findMany.mockResolvedValue([{ id: 'p1', likeCount: 0, author: {}, _count: { replies: 0 } }]);
+    const result = await service.findAllBySubthread('s1');
+    expect((result.items[0] as any).replies).toEqual([]);
   });
 
   it('findReplies 应该返回楼中楼及 likeCount', async () => {

@@ -5,6 +5,8 @@ import { ThreadAccessService } from '../common/services/thread-access.service';
 import { NotificationProducer } from '../jobs/notification.producer';
 import { MentionsService } from '../mentions/mentions.service';
 import { ReadingProgressService } from '../reading-progress/reading-progress.service';
+import { RedisService } from '../redis/redis.service';
+import { CacheService } from '../redis/cache.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { ErrorCode } from '../common/exceptions/error-codes';
@@ -25,9 +27,11 @@ export class PostsService {
     private notificationProducer: NotificationProducer,
     private mentionsService: MentionsService,
     private readingProgressService: ReadingProgressService,
+    private redis: RedisService,
+    private cache: CacheService,
   ) {}
 
-  /** 获取子贴的楼层列表（Cursor 分页）。已软删子贴返回 404 */
+  /** 获取子贴的楼层列表（Cursor 分页），内嵌每个楼层的前 3 条楼中楼回复。已软删子贴返回 404 */
   async findAllBySubthread(subthreadId: string, cursor?: string, limit = 20, userId?: string) {
     const subthread = await this.prisma.subthread.findUnique({
       where: { id: subthreadId, ...notDeleted },
@@ -51,6 +55,33 @@ export class PostsService {
 
     const hasMore = posts.length > take;
     if (hasMore) posts.pop();
+
+    // 为有回复的楼层批量获取前 3 条楼中楼回复
+    const floorIdsWithReplies = posts.filter(p => p._count.replies > 0).map(p => p.id);
+    if (floorIdsWithReplies.length > 0) {
+      const repliesMap = new Map<string, any[]>();
+      await Promise.all(
+        floorIdsWithReplies.map(async (floorId) => {
+          const replies = await this.prisma.post.findMany({
+            where: { parentPostId: floorId, ...notDeleted },
+            orderBy: { createdAt: 'asc' },
+            take: 3,
+            include: {
+              author: { select: authorSelect },
+              replyToPost: { select: { id: true, authorId: true } },
+            },
+          });
+          repliesMap.set(floorId, replies);
+        }),
+      );
+      for (const post of posts) {
+        (post as any).replies = repliesMap.get(post.id) || [];
+      }
+    } else {
+      for (const post of posts) {
+        (post as any).replies = [];
+      }
+    }
 
     return paginate(posts, {
       cursor: posts.length > 0 ? posts[posts.length - 1].id : null,
@@ -247,6 +278,13 @@ export class PostsService {
       }
     }
 
+    // 缓存失效事件
+    this.eventEmitter.emit('post.updated', {
+      postId: updated.id,
+      threadId: postLight.threadId,
+      parentPostId: updated.parentPostId,
+    });
+
     return updated;
   }
 
@@ -254,7 +292,7 @@ export class PostsService {
   async remove(id: string, userId: string) {
     const postLight = await this.prisma.post.findUnique({
       where: { id, ...notDeleted },
-      select: { id: true, authorId: true, floorNumber: true, parentPostId: true, subthread: { select: { deletedAt: true, bodyPostId: true } } },
+      select: { id: true, authorId: true, floorNumber: true, parentPostId: true, threadId: true, subthread: { select: { deletedAt: true, bodyPostId: true } } },
     });
     if (!postLight) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
     if (postLight.subthread.deletedAt) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
@@ -270,10 +308,19 @@ export class PostsService {
       );
     }
 
-    return this.prisma.post.update({
+    const result = await this.prisma.post.update({
       where: { id, ...notDeleted },
       data: { deletedAt: new Date() },
     });
+
+    // 缓存失效 + 有序集合更新
+    this.eventEmitter.emit('post.deleted', {
+      postId: id,
+      threadId: postLight.threadId,
+      parentPostId: postLight.parentPostId,
+    });
+
+    return result;
   }
 
   /** 获取单条帖子 + 导航上下文。已软删子贴返回 404 */
@@ -322,6 +369,9 @@ export class PostsService {
       data: { likeCount: { increment: 1 } },
     });
 
+    // Redis 点赞计数器同步递增
+    this.redis.hincrby(`post:${id}:stats`, 'likes', 1).catch(() => {});
+
     // 点赞通知（不通知自己赞自己）
     if (post.authorId !== userId) {
       const preview = truncateMarkdown(post.content);
@@ -333,6 +383,9 @@ export class PostsService {
           payload: { actorId: userId, action: 'like', preview } },
       ).catch(() => {});
     }
+
+    // 缓存失效事件
+    this.eventEmitter.emit('post.liked', { postId: id, threadId: post.threadId });
 
     return updated;
   }
@@ -349,9 +402,17 @@ export class PostsService {
     });
     if (result.count === 0) return post;
 
-    return this.prisma.post.update({
+    const updated = await this.prisma.post.update({
       where: { id },
       data: { likeCount: { increment: -1 } },
     });
+
+    // Redis 点赞计数器同步递减
+    this.redis.hincrby(`post:${id}:stats`, 'likes', -1).catch(() => {});
+
+    // 缓存失效事件
+    this.eventEmitter.emit('post.unliked', { postId: id, threadId: post.threadId });
+
+    return updated;
   }
 }

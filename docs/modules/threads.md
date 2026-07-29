@@ -29,7 +29,7 @@
 |--------|------|-------|------|
 | GET | `/threads/draft` | AuthRead | 我的草稿箱列表（published=false 的帖） |
 | POST | `/threads` | Auth | 创建主题帖草稿（仅 Thread + OWNER，无子贴/帖子） |
-| GET | `/threads` | Public | 主题帖列表（仅已发布帖）。`filter=all`(默认)公开帖，`filter=playing`我参与的帖 |
+| GET | `/threads` | Public | 主题帖列表（仅已发布帖）。`filter=all`(默认)公开帖，`filter=playing`我参与的帖。支持 `sort=created\|active\|smart` 三种排序 |
 | GET | `/threads/:id` | AuthRead | 详情（含子贴列表和标签）。未发布帖仅 owner 可查看 |
 | PATCH | `/threads/:id` | Auth | 修改/发布（OWNER/COLLABORATOR，乐观锁）。设置 published=true 即发布，校验完整性后通知粉丝 |
 | DELETE | `/threads/:id` | Auth | 删除（仅 OWNER）。草稿帖硬删除（级联），已发布帖软删除 |
@@ -59,10 +59,13 @@
 
 ### 列表与详情
 
-- 列表接口 `findAll`：仅返回 published=true 的帖；`filter=all`(默认)仅 PUBLIC 帖；`filter=playing`返回 playerMarked=true 的帖（含私密帖），需登录
-- 详情接口 `findById`：未发布帖仅 owner 可查看且不递增 viewCount；已发布帖 viewCount 异步 +1，PRIVATE 帖非参与人返回 404
-- 排序规则：置顶帖优先（pinned DESC），其次按 createdAt 或 updatedAt（sort=active）
-- Cursor 分页：limit 默认 20 最大 50，返回 cursor + hasMore
+- 列表接口 `findAll`：仅返回 published=true 的帖；`filter=all`(默认)仅 PUBLIC 帖；`filter=playing`返回 playerMarked=true 的帖（含私密帖），需登录。每个帖返回默认子贴的正文（bodyPost.content）供前端渲染卡片预览
+- 详情接口 `findById`：未发布帖仅 owner 可查看且不递增 viewCount；已发布帖 viewCount 异步 +1（Redis 计数器 + DB），PRIVATE 帖非参与人返回 404
+- 排序规则：
+  - `sort=created`（默认）：置顶优先，其次按 createdAt DESC
+  - `sort=active`：置顶优先，其次按 updatedAt DESC
+  - `sort=smart`：基于热度公式（Hacker News 变体）从 Redis ZSET 偏移分页
+- Cursor 分页：limit 默认 20 最大 50；created/active 用 ID cursor，smart 用偏移量 cursor
 
 ### 参与人管理
 
@@ -161,7 +164,7 @@ ThreadAccessService.assertAccessible(threadId, userId)
 
 | 视图 | 子贴信息 | 帖子信息 |
 |------|---------|---------|
-| Thread 列表 (`findAll`) | `take: 1` 首个子贴的 id / title / lastPostAt | 不返回正文（TODO） |
+| Thread 列表 (`findAll`) | `take: 1` 首个子贴的 id / title / lastPostAt / bodyPost.content | bodyPost.content 即正文预览 |
 | Thread 详情 (`findById`) | 全部子贴列表 + `_count.posts` | 不返回正文 |
 | Subthread 列表 (`findAll`) | 按 sortOrder 排列 + `_count.posts` | 不返回正文 |
 | Subthread 详情 (`findById`) | 单个子贴 + `_count.posts` | 不返回正文 |
@@ -174,9 +177,6 @@ ThreadAccessService.assertAccessible(threadId, userId)
 - **草稿内不发通知**：发帖事件（post.created）仅在已发布帖下发帖时发射，草稿内的所有操作不触发 @提及解析和通知。通知逻辑移至 publish 时刻（thread_created 通知粉丝）
 - **未发布帖硬删除**：草稿帖数据尚未对外发布，硬删除可直接级联清理所有关联的子贴/帖子/参与人。定时任务每天凌晨 4 点清理超过 7 天未发布的草稿
 - **乐观锁 version**：比悲观锁更适合读多写少的协作编辑场景；使用 Prisma 的 where { version } + data { version: increment: 1 } 实现原子比较并更新
-- **viewCount 异步更新**：不阻塞详情接口的返回，使用 fire-and-forget catch，牺牲极端情况下的精度换取响应速度。未发布帖不递增 viewCount
+- **viewCount 异步更新**：不阻塞详情接口的返回，使用 fire-and-forget catch，牺牲极端情况下的精度换取响应速度。未发布帖不递增 viewCount。同时维护 Redis 计数器 `thread:{id}:stats` 的 views 字段供智能排序
 - **访问权限统一入口**：`ThreadAccessService.assertAccessible()` 为所有主题帖读写的统一入口（含软删除 / 未发布 / 私密帖校验），`assertCanManage()` 统一 OWNER/COLLABORATOR 管理权限校验。所有服务层（ThreadsService / SubthreadsService / ThreadMembersService）和标签控制器均复用此服务，不再重复实现
-
-## TODO
-
-- 主题帖列表卡片正文预览：`findAll()` 需 include 第一个子贴的首条 Post 正文内容，前端截取前 N 字展示
+- **智能排序**：采用 Hacker News 热度算法变体 `score = (replies * 2 + likes * 3 + views * 0.3) / (age_hours + 2)^1.5`。每次发帖/点赞/浏览通过事件监听器实时更新 Redis ZSET 分数，每 10 分钟全量重算修正精度漂移。查询时从 ZSET 按偏移分页获取 ID 列表，再经 SQL 过滤（分类/标签/可见性）后按 ZSET 顺序归位输出

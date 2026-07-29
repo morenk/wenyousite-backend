@@ -4,9 +4,35 @@ import { MentionsService } from '../mentions/mentions.service';
 import { NotificationProducer } from './notification.producer';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 import { truncateMarkdown } from '../common/markdown-truncate';
 
-/** 发帖事件监听器：PostCreated → @提及解析 + 通知队列投递 */
+/** ZSET 键名 */
+const ZSET_BY_ACTIVITY = 'threads:by:activity';
+const ZSET_BY_SMART = 'threads:by:smart';
+
+/** 智能排序分计算：Hacker News 变体 */
+function computeSmartScore(engagement: number, ageHours: number): number {
+  return engagement / Math.pow(ageHours + 2, 1.5);
+}
+
+/** 从 Redis Hash 读取统计值计算智能排序分 */
+async function updateSmartScore(redis: RedisService, threadId: string): Promise<number> {
+  const stats = await redis.hgetall(`thread:${threadId}:stats`);
+  const views = parseInt(stats?.views ?? '0', 10);
+  const replies = parseInt(stats?.replies ?? '0', 10);
+  const likes = parseInt(stats?.likes ?? '0', 10);
+  const createdAt = parseInt(stats?.createdAt ?? '0', 10);
+  if (!createdAt) return 0;
+
+  const ageHours = (Date.now() - createdAt) / 3600000;
+  const engagement = replies * 2 + likes * 3 + views * 0.3;
+  const score = computeSmartScore(engagement, ageHours);
+  await redis.zadd(ZSET_BY_SMART, score, threadId);
+  return score;
+}
+
+/** 发帖事件监听器：PostCreated → @提及解析 + 通知队列投递 + Redis 计数器/SortedSet 更新 */
 @Injectable()
 export class PostEventsListener {
   private readonly logger = new Logger(PostEventsListener.name);
@@ -16,11 +42,21 @@ export class PostEventsListener {
     private notificationProducer: NotificationProducer,
     private subscriptionsService: SubscriptionsService,
     private prisma: PrismaService,
+    private redis: RedisService,
   ) {}
 
-  /** 监听 post.created 事件，处理：@提及、新楼层通知、楼中楼回复通知、新子贴通知 */
+  /** 监听 post.created 事件，处理：@提及、新楼层通知、楼中楼回复通知、新子贴通知 + Redis 计数器更新 */
   @OnEvent('post.created')
   async handlePostCreated(event: PostCreatedEvent) {
+    // Redis: 更新回复计数器 + 帖子活跃度 ZSET + 智能排序分
+    this.redis.hincrby(`thread:${event.threadId}:stats`, 'replies', 1).catch(() => {});
+    if (event.parentPostId) {
+      this.redis.hincrby(`post:${event.parentPostId}:stats`, 'replies', 1).catch(() => {});
+    }
+    const now = Date.now();
+    this.redis.zadd(ZSET_BY_ACTIVITY, now, event.threadId).catch(() => {});
+    updateSmartScore(this.redis, event.threadId).catch(() => {});
+
     // 预加载拉黑关系和订阅者（多类通知共用，一次 DB 查询）
     const [subscribers, blockedByAuthor, blocksOfAuthor] = await Promise.all([
       this.subscriptionsService.findSubscribers(
@@ -146,6 +182,20 @@ export class PostEventsListener {
         }
       }
     } catch (e) { this.logger.error('reply notification failed', e); }
+  }
+
+  /** 点赞后更新点赞计数 + 智能排序分 */
+  @OnEvent('post.liked')
+  async handlePostLiked(event: { postId: string; threadId: string }) {
+    this.redis.hincrby(`thread:${event.threadId}:stats`, 'likes', 1).catch(() => {});
+    updateSmartScore(this.redis, event.threadId).catch(() => {});
+  }
+
+  /** 取消点赞后更新计数 */
+  @OnEvent('post.unliked')
+  async handlePostUnliked(event: { postId: string; threadId: string }) {
+    this.redis.hincrby(`thread:${event.threadId}:stats`, 'likes', -1).catch(() => {});
+    updateSmartScore(this.redis, event.threadId).catch(() => {});
   }
 }
 
