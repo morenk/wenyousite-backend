@@ -5,7 +5,7 @@ export default () => ({
 
   // PostgreSQL 数据库连接串
   database: {
-    url: process.env.DATABASE_URL ?? 'postgresql://wenyou:wenyou@127.0.0.1:5432/wenyouzhan?schema=public',
+    url: process.env.DATABASE_URL ?? 'postgresql://wenyou:wenyou@127.0.0.1:5432/wenyousite?schema=public',
   },
 
   // Redis 连接配置（用于缓存、队列、会话）
@@ -43,7 +43,7 @@ export default () => ({
     port: parseInt(process.env.SES_SMTP_PORT ?? '465', 10),
     user: process.env.SES_SMTP_USER ?? '',
     pass: process.env.SES_SMTP_PASS ?? '',
-    from: process.env.SES_FROM_ADDRESS ?? 'noreply@wenyouzhan.com',
+    from: process.env.SES_FROM_ADDRESS ?? 'noreply@wenyousite.com',
   },
 
   // Sentry 错误监控

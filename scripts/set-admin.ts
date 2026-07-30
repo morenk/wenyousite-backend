@@ -6,7 +6,7 @@ async function main() {
   const email = process.argv[2];
   if (!email) {
     console.log('用法: tsx scripts/set-admin.ts <用户邮箱>');
-    console.log('示例: tsx scripts/set-admin.ts admin@wenyouzhan.com');
+    console.log('示例: tsx scripts/set-admin.ts admin@wenyousite.com');
     process.exit(1);
   }
 

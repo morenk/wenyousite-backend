@@ -290,7 +290,7 @@ let useTestuserId = "cms5zycb900017q0azar1nag2";
 function fetchCodeFromDB(email: string): string | null {
   try {
     const result = execSync(
-      `docker exec wenyouzhan-postgres psql -U wenyou -d wenyouzhan -t -c "SELECT token FROM email_verifications WHERE email='${email}' ORDER BY created_at DESC LIMIT 1;"`,
+      `docker exec wenyousite-postgres psql -U wenyou -d wenyousite -t -c "SELECT token FROM email_verifications WHERE email='${email}' ORDER BY created_at DESC LIMIT 1;"`,
       { encoding: "utf-8", timeout: 5000 }
     );
     return result.trim();

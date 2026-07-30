@@ -22,7 +22,7 @@ services:
         condition: service_healthy
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://wenyou:${DB_PASSWORD:-wenyou}@postgres:5432/wenyouzhan?schema=public
+      - DATABASE_URL=postgresql://wenyou:${DB_PASSWORD:-wenyou}@postgres:5432/wenyousite?schema=public
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
@@ -43,11 +43,11 @@ services:
     environment:
       - POSTGRES_USER=wenyou
       - POSTGRES_PASSWORD=${DB_PASSWORD:-wenyou}
-      - POSTGRES_DB=wenyouzhan
+      - POSTGRES_DB=wenyousite
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U wenyou -d wenyouzhan"]
+      test: ["CMD-SHELL", "pg_isready -U wenyou -d wenyousite"]
       interval: 10s
       timeout: 5s
       retries: 5

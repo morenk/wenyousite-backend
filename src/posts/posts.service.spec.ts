@@ -18,7 +18,6 @@ const mockPrisma = {
   subthread: { findUnique: jest.fn() },
   threadMember: { findUnique: jest.fn(), upsert: jest.fn() },
   post: { findUnique: jest.fn(), aggregate: jest.fn(), create: jest.fn(), findMany: jest.fn(), update: jest.fn() },
-  postLike: { findUnique: jest.fn(), create: jest.fn(), upsert: jest.fn(), deleteMany: jest.fn() },
 };
 
 const mockEventEmitter = { emit: jest.fn() };
@@ -148,60 +147,6 @@ describe('PostsService', () => {
     await expect(service.remove('p1', 'u1')).rejects.toThrow(BusinessException);
   });
 
-  it('like 应该创建点赞并加计数 + 通知作者', async () => {
-    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', authorId: 'u2', content: '测试', likeCount: 0 });
-    mockPrisma.postLike.findUnique.mockResolvedValue(null);
-    mockPrisma.postLike.create.mockResolvedValue({});
-    mockPrisma.post.update.mockResolvedValue({ id: 'p1', likeCount: 1 });
-    await service.like('p1', 'u1', 'testuser');
-    expect(mockPrisma.postLike.create).toHaveBeenCalledWith({ data: { postId: 'p1', userId: 'u1' } });
-    expect(mockPrisma.post.update).toHaveBeenCalledWith({
-      where: { id: 'p1' },
-      data: { likeCount: { increment: 1 } },
-    });
-    expect(mockNotificationProducer.notify).toHaveBeenCalledWith(
-      'like', ['u2'], expect.stringContaining('testuser 赞了你的帖子'), expect.objectContaining({ postId: 'p1' }),
-    );
-  });
-
-  it('like 赞自己的帖子时不发通知', async () => {
-    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', authorId: 'u1', content: '测试', likeCount: 0 });
-    mockPrisma.postLike.findUnique.mockResolvedValue(null);
-    mockPrisma.postLike.create.mockResolvedValue({});
-    mockPrisma.post.update.mockResolvedValue({ id: 'p1', likeCount: 1 });
-    await service.like('p1', 'u1', 'testuser');
-    expect(mockNotificationProducer.notify).not.toHaveBeenCalled();
-  });
-
-  it('like 已点赞时不重复递增 likeCount（幂等）', async () => {
-    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', authorId: 'u1', content: '测试', likeCount: 1 });
-    mockPrisma.postLike.findUnique.mockResolvedValue({ postId: 'p1', userId: 'u1' });
-    const result = await service.like('p1', 'u1', 'testuser');
-    expect(mockPrisma.postLike.create).not.toHaveBeenCalled();
-    expect(mockPrisma.post.update).not.toHaveBeenCalled();
-    expect(result.likeCount).toBe(1);
-  });
-
-  it('unlike 应该取消点赞并减计数', async () => {
-    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', likeCount: 1 });
-    mockPrisma.postLike.deleteMany.mockResolvedValue({ count: 1 });
-    mockPrisma.post.update.mockResolvedValue({ id: 'p1', likeCount: 0 });
-    await service.unlike('p1', 'u1');
-    expect(mockPrisma.postLike.deleteMany).toHaveBeenCalledWith({ where: { postId: 'p1', userId: 'u1' } });
-    expect(mockPrisma.post.update).toHaveBeenCalledWith({
-      where: { id: 'p1' },
-      data: { likeCount: { increment: -1 } },
-    });
-  });
-
-  it('unlike 未点赞时不递减 likeCount（幂等）', async () => {
-    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', likeCount: 0 });
-    mockPrisma.postLike.deleteMany.mockResolvedValue({ count: 0 });
-    const result = await service.unlike('p1', 'u1');
-    expect(mockPrisma.post.update).not.toHaveBeenCalled();
-    expect(result.likeCount).toBe(0);
-  });
-
   it('create PLAYERS 权限非玩家应该返回403', async () => {
     mockPrisma.subthread.findUnique.mockResolvedValue({
       id: 's1', threadId: 't1', postingPolicy: 'PLAYERS',
@@ -211,40 +156,39 @@ describe('PostsService', () => {
     await expect(service.create('s1', { content: 'test' }, 'u1')).rejects.toThrow(BusinessException);
   });
 
-  it('findAllBySubthread 应该返回楼层及 likeCount，内嵌前 3 条楼中楼回复', async () => {
+  it('findAllBySubthread 应该返回楼层及内嵌前 3 条楼中楼回复', async () => {
     mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1' });
     mockPrisma.post.findMany
-      .mockResolvedValueOnce([{ id: 'p1', likeCount: 3, author: {}, _count: { replies: 2 } }])
+      .mockResolvedValueOnce([{ id: 'p1', author: {}, _count: { replies: 2 } }])
       .mockResolvedValueOnce([
-        { id: 'r1', likeCount: 0, author: {}, replyToPost: null },
-        { id: 'r2', likeCount: 1, author: {}, replyToPost: null },
+        { id: 'r1', author: {}, replyToPost: null },
+        { id: 'r2', author: {}, replyToPost: null },
       ]);
     const result = await service.findAllBySubthread('s1');
-    expect(result.items[0].likeCount).toBe(3);
     expect((result.items[0] as any).replies).toHaveLength(2);
   });
 
   it('findAllBySubthread 无回复楼层应返回空 replies 数组', async () => {
     mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1' });
-    mockPrisma.post.findMany.mockResolvedValue([{ id: 'p1', likeCount: 0, author: {}, _count: { replies: 0 } }]);
+    mockPrisma.post.findMany.mockResolvedValue([{ id: 'p1', author: {}, _count: { replies: 0 } }]);
     const result = await service.findAllBySubthread('s1');
     expect((result.items[0] as any).replies).toEqual([]);
   });
 
-  it('findReplies 应该返回楼中楼及 likeCount', async () => {
+  it('findReplies 应该返回楼中楼', async () => {
     mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', subthread: { deletedAt: null } });
-    mockPrisma.post.findMany.mockResolvedValue([{ id: 'p2', likeCount: 1, author: {}, replyToPost: null }]);
+    mockPrisma.post.findMany.mockResolvedValue([{ id: 'p2', author: {}, replyToPost: null }]);
     const result = await service.findReplies('p1');
-    expect(result.items[0].likeCount).toBe(1);
+    expect(result.items[0].id).toBe('p2');
   });
 
-  it('findById 应该返回帖子详情及 likeCount', async () => {
+  it('findById 应该返回帖子详情', async () => {
     mockPrisma.post.findUnique
       .mockResolvedValueOnce({ id: 'p1', threadId: 't1', subthread: { deletedAt: null } })
       .mockResolvedValueOnce({
-        id: 'p1', likeCount: 5, author: {}, thread: {}, subthread: {}, parentPost: null, _count: { replies: 0 },
+        id: 'p1', author: {}, thread: {}, subthread: {}, parentPost: null, _count: { replies: 0 },
       });
     const result = await service.findById('p1');
-    expect(result.likeCount).toBe(5);
+    expect(result.id).toBe('p1');
   });
 });
