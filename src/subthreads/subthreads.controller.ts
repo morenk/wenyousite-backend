@@ -8,8 +8,7 @@ import { SubthreadsService } from './subthreads.service';
 import { CreateSubthreadDto } from './dto/create-subthread.dto';
 import { UpdateSubthreadDto } from './dto/update-subthread.dto';
 import { ReorderSubthreadsDto } from './dto/reorder-subthreads.dto';
-import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
-import { Public } from '../common/decorators/public.decorator';
+import { Auth, AuthRead, OptionalAuth } from '../auth/decorators/auth.decorator';
 
 /** 子贴控制器：列表、创建、详情、修改、删除、重排 */
 @ApiTags('Subthreads')
@@ -18,7 +17,7 @@ export class SubthreadsController {
   constructor(private subthreadsService: SubthreadsService) {}
 
   @Get('threads/:threadId/subthreads')
-  @Public()
+  @OptionalAuth()
   @ApiOperation({ summary: '获取主题帖下的子贴列表' })
   async findAll(@Param('threadId') threadId: string, @Req() req: FastifyRequest) {
     const user = (req as any).user as { id: string } | undefined;
@@ -39,7 +38,7 @@ export class SubthreadsController {
   }
 
   @Get('subthreads/:id')
-  @Public()
+  @OptionalAuth()
   @ApiOperation({ summary: '获取子贴详情' })
   async findById(@Param('id') id: string, @Req() req: FastifyRequest) {
     const user = (req as any).user as { id: string } | undefined;

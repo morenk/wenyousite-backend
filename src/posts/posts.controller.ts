@@ -8,8 +8,7 @@ import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { PostQueryDto } from './dto/post-query.dto';
-import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
-import { Public } from '../common/decorators/public.decorator';
+import { Auth, AuthRead, OptionalAuth } from '../auth/decorators/auth.decorator';
 
 /** 楼层控制器：发帖、楼中楼、编辑、删除 */
 @ApiTags('Posts')
@@ -18,7 +17,7 @@ export class PostsController {
   constructor(private postsService: PostsService) {}
 
   @Get('subthreads/:subthreadId/posts')
-  @Public()
+  @OptionalAuth()
   @ApiOperation({ summary: '获取子贴的楼层列表（Cursor 分页）' })
   @ApiQuery({ name: 'cursor', required: false, description: '分页游标' })
   @ApiQuery({ name: 'limit', required: false, description: '每页条数' })
@@ -33,7 +32,7 @@ export class PostsController {
   }
 
   @Get('posts/:id/replies')
-  @Public()
+  @OptionalAuth()
   @ApiOperation({ summary: '获取楼中楼回复列表（cursor 分页，无限下拉）' })
   @ApiQuery({ name: 'cursor', required: false, description: '分页游标（上一页最后一条记录 ID）' })
   @ApiQuery({ name: 'limit', required: false, description: '每页条数（默认 20，最大 50）' })
@@ -64,7 +63,7 @@ export class PostsController {
   }
 
   @Get('posts/:id')
-  @Public()
+  @OptionalAuth()
   @ApiOperation({ summary: '获取帖子详情' })
   @ApiOkResponse({ description: '帖子详情（含作者信息、点赞数、是否已点赞）' })
   @ApiNotFoundResponse({ description: '帖子不存在' })
