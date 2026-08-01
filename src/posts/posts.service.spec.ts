@@ -82,6 +82,103 @@ describe('PostsService', () => {
     expect(result.floorNumber).toBe(6);
   });
 
+  it('create 非默认子贴首次发帖应回写 bodyPostId', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({ emailVerified: true });
+    const subthread = {
+      id: 's1', threadId: 't1', postingPolicy: 'PARTICIPANTS', bodyPostId: null,
+      thread: { published: true, defaultSubthreadId: 's0' },
+    };
+    mockPrisma.subthread.findUnique.mockResolvedValue(subthread);
+    mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
+    mockPrisma.post.aggregate.mockResolvedValue({ _max: { floorNumber: 5 } });
+    mockPrisma.post.create.mockResolvedValue({
+      id: 'p1', floorNumber: 6, content: 'test', author: { username: 'test' },
+    });
+    let tx: any;
+    mockPrisma.$transaction.mockImplementation(async (fn) => {
+      tx = {
+        $queryRaw: jest.fn(),
+        post: {
+          aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 5 } }),
+          create: jest.fn().mockResolvedValue({ id: 'p1', floorNumber: 6, content: 'test', author: { username: 'test' } }),
+        },
+        subthread: { update: jest.fn() },
+      };
+      return fn(tx);
+    });
+
+    await service.create('s1', { content: 'test' }, 'u1');
+    expect(tx.subthread.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ bodyPostId: 'p1' }) }),
+    );
+  });
+
+  it('create 已有 bodyPost 的子贴再次发帖不应覆盖', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({ emailVerified: true });
+    const subthread = {
+      id: 's1', threadId: 't1', postingPolicy: 'PARTICIPANTS', bodyPostId: 'existing',
+      thread: { published: true, defaultSubthreadId: 's0' },
+    };
+    mockPrisma.subthread.findUnique.mockResolvedValue(subthread);
+    mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
+    mockPrisma.post.aggregate.mockResolvedValue({ _max: { floorNumber: 5 } });
+    mockPrisma.post.create.mockResolvedValue({
+      id: 'p1', floorNumber: 6, content: 'test', author: { username: 'test' },
+    });
+    let tx: any;
+    mockPrisma.$transaction.mockImplementation(async (fn) => {
+      tx = {
+        $queryRaw: jest.fn(),
+        post: {
+          aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 5 } }),
+          create: jest.fn().mockResolvedValue({ id: 'p1', floorNumber: 6, content: 'test', author: { username: 'test' } }),
+        },
+        subthread: { update: jest.fn() },
+      };
+      return fn(tx);
+    });
+
+    await service.create('s1', { content: 'test' }, 'u1');
+    expect(tx.subthread.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ bodyPostId: expect.anything() }) }),
+    );
+    expect(tx.subthread.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ lastPostAt: expect.any(Date) }) }),
+    );
+  });
+
+  it('create 楼中楼回复不应回写 bodyPostId', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({ emailVerified: true });
+    const subthread = {
+      id: 's1', threadId: 't1', postingPolicy: 'PARTICIPANTS', bodyPostId: null,
+      thread: { published: true, defaultSubthreadId: 's0' },
+    };
+    mockPrisma.subthread.findUnique.mockResolvedValue(subthread);
+    mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
+    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', subthreadId: 's1', parentPostId: null });
+    mockPrisma.post.create.mockResolvedValue({
+      id: 'p2', floorNumber: null, parentPostId: 'p1', content: 'reply',
+      author: { username: 'test' },
+    });
+    let tx: any;
+    mockPrisma.$transaction.mockImplementation(async (fn) => {
+      tx = {
+        $queryRaw: jest.fn(),
+        post: {
+          aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 5 } }),
+          create: jest.fn().mockResolvedValue({ id: 'p2', floorNumber: null, parentPostId: 'p1', content: 'reply', author: { username: 'test' } }),
+        },
+        subthread: { update: jest.fn() },
+      };
+      return fn(tx);
+    });
+
+    await service.create('s1', { content: 'reply', parentPostId: 'p1' }, 'u1');
+    expect(tx.subthread.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ bodyPostId: expect.anything() }) }),
+    );
+  });
+
   it('create 楼中楼回复不应该有 floorNumber', async () => {
     const subthread = { id: 's1', threadId: 't1', postingPolicy: 'PARTICIPANTS', thread: { published: true } };
     mockPrisma.subthread.findUnique.mockResolvedValue(subthread);

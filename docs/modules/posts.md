@@ -41,6 +41,7 @@
 - 编辑使用乐观锁 version 防止并发编辑冲突
 - 楼层列表按 floorNumber ASC 排序（主楼层），楼中楼按 createdAt ASC 排序
 - 楼层列表响应中每个楼层内嵌 `replies` 字段（前 3 条楼中楼回复），含 `author` 和 `replyToPost`；`_count.replies` 提供回复总数，超过 3 条时前端显示"查看全部 N 条回复"入口跳转至独立楼中楼界面
+- 每个子贴首次创建非回复楼层时，自动将 `subthread.bodyPostId` 回写为该楼层 id（作为该子贴一楼，编辑器依赖 `subthread.bodyPost` 加载可编辑正文）；仅首个非回复楼层触发，已有 `bodyPostId` 或楼中楼回复（parentPostId 非空）不触发回写
 
 ## 设计决策
 

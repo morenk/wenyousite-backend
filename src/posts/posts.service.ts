@@ -212,6 +212,14 @@ export class PostsService {
         data: { lastPostAt: new Date() },
       });
 
+      // 每个子贴首次创建主楼层时，自动回写 bodyPostId（编辑器依赖该字段识别首楼）
+      if (!dto.parentPostId && !subthread.bodyPostId) {
+        await tx.subthread.update({
+          where: { id: subthreadId },
+          data: { bodyPostId: p.id },
+        });
+      }
+
       return p;
     });
 
