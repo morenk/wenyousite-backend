@@ -70,7 +70,7 @@ export class PostsService {
             take: 3,
             include: {
               author: { select: authorSelect },
-              replyToPost: { select: { id: true, authorId: true } },
+              replyToPost: { select: { id: true, authorId: true, author: { select: authorSelect } } },
             },
           });
           repliesMap.set(floorId, replies);
@@ -110,7 +110,7 @@ export class PostsService {
       skip: cursor ? 1 : 0,
       include: {
         author: { select: authorSelect },
-        replyToPost: { select: { id: true, authorId: true } },
+        replyToPost: { select: { id: true, authorId: true, author: { select: authorSelect } } },
       },
     });
     const hasMore = replies.length > take;
