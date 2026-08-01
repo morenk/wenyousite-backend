@@ -32,7 +32,8 @@
 | GET | `/users/search?q=xxx` | AuthRead | 搜索用户（@提及用），排除已注销 |
 | GET | `/users/:id` | OptionalAuth | 用户公开资料（不含 email）。登录后附加 isFollowing / isFollowedBy / isBlocked / isBlockedBy |
 | GET | `/users/:id/bookmarks` | OptionalAuth | 用户公开收藏，Cursor 分页（受 showBookmarks 控制） |
-| GET | `/users/:id/played-threads` | OptionalAuth | 用户参与的帖子（被标记为玩家），按加入时间倒序，Cursor 分页（受 showPlayerBadges 控制） |
+| GET | `/users/:id/played-threads` | OptionalAuth | 用户参与的帖子（被其他楼主标记为玩家，不含自建帖），按加入时间倒序，Cursor 分页（受 showPlayerBadges 控制） |
+| GET | `/users/:id/created-threads` | OptionalAuth | 用户创建的帖子（本人可见全部含私密帖，他人仅见 PUBLIC），按创建时间倒序，Cursor 分页 |
 | GET | `/users/:id/recent-replies` | OptionalAuth | 用户最近 10 条回复（含 content、preview、parentPostId），固定返回不分页（受 showRecentReplies 控制） |
 | POST | `/users/follow/:id` | Auth | 关注用户，发送 follow 通知 |
 | DELETE | `/users/follow/:id` | Auth | 取消关注 |

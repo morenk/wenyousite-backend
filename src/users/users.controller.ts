@@ -130,6 +130,30 @@ export class UsersController {
     return this.threadsService.findByPlayedUser(id, viewer?.id, cursor, limit ? parseInt(limit) : undefined);
   }
 
+  @Get(':id/created-threads')
+  @OptionalAuth()
+  @ApiOperation({ summary: '查看用户创建的主题帖（本人可见全部含私密帖，他人仅见 PUBLIC 已发布帖）' })
+  @ApiQuery({ name: 'cursor', required: false, description: '分页游标（上一页最后一条记录 ID）' })
+  @ApiQuery({ name: 'limit', required: false, description: '每页条数（默认 20，最大 50）' })
+  @ApiOkResponse({ description: '用户创建的主题帖列表（cursor 分页）' })
+  @ApiNotFoundResponse({ description: '用户不存在' })
+  async getUserCreatedThreads(
+    @Param('id') id: string,
+    @Query('cursor') cursor: string | undefined,
+    @Query('limit') limit: string | undefined,
+    @Req() req: FastifyRequest,
+  ) {
+    const viewer = req['user'] as { id: string } | undefined;
+
+    const targetUser = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!targetUser) throw new NotFoundException('用户不存在');
+
+    return this.threadsService.findByCreatedUser(id, viewer?.id, cursor, limit ? parseInt(limit) : undefined);
+  }
+
   @Get(':id/recent-replies')
   @OptionalAuth()
   @ApiOperation({ summary: '查看用户最近 10 条回复（受 showRecentReplies 隐私开关控制）' })

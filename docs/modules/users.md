@@ -28,7 +28,8 @@
 | DELETE | `/users/me` | Auth | 注销当前账号（软删除，设置 deletedAt），需邮箱已验证 |
 | GET | `/users/:id` | OptionalAuth | 获取指定用户的公开资料（不含邮箱）。登录后额外返回 isFollowing / isFollowedBy / isBlocked / isBlockedBy |
 | GET | `/users/:id/bookmarks` | OptionalAuth | 查看用户的公开收藏，Cursor 分页。受 showBookmarks 控制 |
-| GET | `/users/:id/played-threads` | OptionalAuth | 查看用户参与的主题帖（被标记为玩家的帖），按加入时间倒序，Cursor 分页。受 showPlayerBadges 控制 |
+| GET | `/users/:id/played-threads` | OptionalAuth | 查看用户参与的主题帖（被其他楼主标记为玩家的帖，不含自建帖），按加入时间倒序，Cursor 分页。受 showPlayerBadges 控制 |
+| GET | `/users/:id/created-threads` | OptionalAuth | 查看用户创建的主题帖（本人可见全部含私密帖，他人仅见 PUBLIC 已发布帖），按创建时间倒序，Cursor 分页 |
 | GET | `/users/:id/recent-replies` | OptionalAuth | 查看用户最近 10 条回复（仅 PUBLIC 帖）。受 showRecentReplies 控制 |
 | POST | `/users/follow/:id` | Auth | 关注指定用户 |
 | DELETE | `/users/follow/:id` | Auth | 取消关注 |
@@ -92,7 +93,8 @@
 - 拉黑使用 upsert 保证幂等，拉黑自己返回提示消息
 - 用户搜索返回最多 10 条结果，按用户名字母序排列，排除已注销用户
 - 公开收藏 (`GET /users/:id/bookmarks`)：受 `showBookmarks` 控制，关闭时返回 404；未发布帖不显示；私密帖仅对其参与人可见；本人始终可见；Cursor 分页
-- 参与帖子 (`GET /users/:id/played-threads`)：受 `showPlayerBadges` 控制，关闭时返回 404；按加入时间倒序排列；本人始终可见全部帖子；他人仅能看到 PUBLIC 帖；Cursor 分页
+- 参与帖子 (`GET /users/:id/played-threads`)：受 `showPlayerBadges` 控制，关闭时返回 404；**仅返回被其他楼主标记为玩家（playerMarked=true）的帖，排除自己创建的帖（ownerId = targetId）**；按加入时间倒序排列；本人始终可见全部帖子；他人仅能看到 PUBLIC 帖；Cursor 分页
+- 创建帖子 (`GET /users/:id/created-threads`)：无隐私开关，由帖本身 visibility 控制——本人可见全部已发布帖（含 PRIVATE），他人仅见 PUBLIC 帖；按创建时间倒序排列；Cursor 分页
 - 最近动态 (`GET /users/:id/recent-replies`)：受 `showRecentReplies` 控制，关闭时返回 404；仅返回 PUBLIC 帖中的回复；本人始终可见自己的动态；固定返回最近 10 条不分页。每条含 `preview`（Markdown 剥离后的纯文本截断，使用 `truncateMarkdown`）和 `parentPostId`（为 null 则为楼层回复，非 null 则为楼中楼）
 
 ## 隐私开关行为详解
@@ -107,6 +109,7 @@
 
 - **双查询方法（findMe / findById）**：分离本人信息和公开信息，避免敏感字段泄露。`findById` 接受可选 `viewerId` 供 optional auth 场景
 - **OptionalAuth 守卫**：不同于 `@Public()` 完全跳过 JWT 解析，`@OptionalAuth()` 会尝试解析 token 但不强制，使公开接口能在登录态下返回个性化数据
+- **参与/创建分离**：参与列表只含被其他楼主标记为玩家的帖，自建帖归入创建列表，避免个人主页两栏重叠
 - **已注销用户屏蔽**：保留记录不物理删除（外键关联完整性），但在公开接口中替换为兜底显示名，不暴露注销时间
 - **关注/拉黑/资料修改/注销使用 @Auth()**：这些写操作涉及通知推送和信息公开，要求邮箱已验证以减少滥用
 - **UserFollow 联合唯一键**：upsert 保证同一关注关系唯一，避免重复关注记录

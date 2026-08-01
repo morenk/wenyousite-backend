@@ -183,6 +183,8 @@ export class ThreadsService {
       where.members = {
         some: { userId, playerMarked: true },
       };
+      // 参与列表排除自己创建的帖（自建帖在「创建的帖子」中展示）
+      where.ownerId = { not: userId };
     } else {
       where.visibility = 'PUBLIC';
     }
@@ -335,7 +337,7 @@ export class ThreadsService {
     });
   }
 
-  /** 查看指定用户参与的主题帖（被标记为玩家，受 showPlayerBadges 隐私开关控制） */
+  /** 查看指定用户参与的主题帖（被其他楼主标记为玩家，受 showPlayerBadges 隐私开关控制） */
   async findByPlayedUser(targetId: string, viewerId?: string, cursor?: string, limit = 20) {
     const take = Math.min(limit, 50);
     const where: any = {
@@ -343,6 +345,8 @@ export class ThreadsService {
       playerMarked: true,
       thread: { ...notDeleted, published: true },
     };
+    // 参与列表排除自己创建的帖（自建帖在「创建的帖子」中展示）
+    where.thread.ownerId = { not: targetId };
 
     if (targetId !== viewerId) {
       where.thread.visibility = 'PUBLIC';
@@ -375,6 +379,44 @@ export class ThreadsService {
     return paginate(
       playedThreads,
       { cursor: members.length > 0 ? members[members.length - 1].id : null, hasMore },
+    );
+  }
+
+  /** 查看指定用户创建的主题帖（本人可见全部含私密帖，他人仅见 PUBLIC 已发布帖） */
+  async findByCreatedUser(targetId: string, viewerId?: string, cursor?: string, limit = 20) {
+    const take = Math.min(limit, 50);
+    const where: any = {
+      ownerId: targetId,
+      ...notDeleted,
+      published: true,
+    };
+
+    if (targetId !== viewerId) {
+      where.visibility = 'PUBLIC';
+    }
+
+    const threads = await this.prisma.thread.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: take + 1,
+      cursor: cursor ? { id: cursor } : undefined,
+      skip: cursor ? 1 : 0,
+      include: {
+        owner: { select: authorSelect },
+        defaultSubthread: { select: { id: true, title: true, lastPostAt: true } },
+        topicTags: { include: { tag: true } },
+        ...countMembersAndPosts(),
+      },
+    });
+
+    const hasMore = threads.length > take;
+    if (hasMore) threads.pop();
+
+    await attachPlayerCounts(this.prisma, threads);
+
+    return paginate(
+      threads,
+      { cursor: threads.length > 0 ? threads[threads.length - 1].id : null, hasMore },
     );
   }
 
