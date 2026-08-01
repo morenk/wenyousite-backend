@@ -87,7 +87,8 @@ export class AuthService {
     try {
       await this.emailService.sendVerification(email, code);
     } catch (err) {
-      this.logger.error(`注册验证邮件发送失败: ${email}`, err);
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(`注册验证邮件发送失败: ${email} | ${message}`);
       emailSent = false;
     }
 

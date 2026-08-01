@@ -1,19 +1,24 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 
 /** 邮件服务：通过阿里云企业邮箱 SMTP 发送验证码、通知和重置密码邮件 */
 @Injectable()
 export class EmailService {
+  private readonly logger = new Logger(EmailService.name);
   private transporter: nodemailer.Transporter;
 
   constructor(private config: ConfigService) {
+    const host = this.config.get<string>('ses.host');
+    const user = this.config.get<string>('ses.user');
+    this.logger.log(`SMTP 初始化: ${host} (${user})`);
+
     this.transporter = nodemailer.createTransport({
-      host: this.config.get<string>('ses.host'),
+      host,
       port: this.config.get<number>('ses.port'),
       secure: true,
       auth: {
-        user: this.config.get<string>('ses.user'),
+        user,
         pass: this.config.get<string>('ses.pass'),
       },
     });
