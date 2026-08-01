@@ -15,8 +15,8 @@ export class VerifyAndCompleteDto {
 
   @ApiProperty({ example: 'zhangsan', minLength: 2, maxLength: 24, description: '用户名（字母、数字、中文）' })
   @IsString()
-  @MinLength(2)
-  @MaxLength(24)
+  @MinLength(2, { message: '用户名至少 2 个字符' })
+  @MaxLength(24, { message: '用户名最多 24 个字符' })
   @Matches(/^[a-zA-Z0-9\u4e00-\u9fff]+$/, {
     message: '用户名只能包含字母、数字和中文',
   })

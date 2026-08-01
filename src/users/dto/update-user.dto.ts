@@ -8,17 +8,17 @@ export class UpdateUserDto {
   @ApiPropertyOptional({ example: '新昵称', minLength: 2, maxLength: 24, description: '用户名（字母、数字、中文，修改后 7 天内不可再次修改）' })
   @IsOptional()
   @IsString()
-  @MinLength(2)
-  @MaxLength(24)
+  @MinLength(2, { message: '用户名至少 2 个字符' })
+  @MaxLength(24, { message: '用户名最多 24 个字符' })
   @Matches(/^[a-zA-Z0-9\u4e00-\u9fff]+$/, { message: '用户名只能包含字母、数字和中文' })
-  @Transform(sanitizeContent)
+  @Transform(({ value }) => sanitizeContent(value))
   username?: string;
 
   @ApiPropertyOptional({ example: '这个人很懒，什么都没有写...', minLength: 1, maxLength: 255, description: '个人简介' })
   @IsOptional()
   @IsString()
-  @MinLength(1)
-  @MaxLength(255)
+  @MinLength(1, { message: '简介不能为空' })
+  @MaxLength(255, { message: '简介最多 255 个字符' })
   @Transform(({ value }) => sanitizeContent(typeof value === 'string' ? value.trim() : value))
   bio?: string;
 
