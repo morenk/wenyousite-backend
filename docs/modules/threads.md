@@ -67,8 +67,9 @@
 - 排序规则：
   - `sort=created`（默认）：置顶优先，其次按 createdAt DESC
   - `sort=active`：置顶优先，其次按 updatedAt DESC
-  - `sort=smart`：基于热度公式（Hacker News 变体）从 Redis ZSET 偏移分页
-- Cursor 分页：limit 默认 20 最大 50；created/active 用 ID cursor，smart 用偏移量 cursor
+  - `sort=smart`：基于热度公式（Hacker News 变体）从 Redis ZSET 前缀扫描 + 可见帖累进切片
+- Cursor 分页：limit 默认 20 最大 50；created/active 用 ID cursor，smart 用「已消费可见帖数」cursor（单调累进）
+- **smart 分页防重复**：ZSET 存全部帖子（含各分类），若按 ZSET 原始偏移做窗口分页，分类筛选（NATION/RPG/DEDUCTION 等稀疏分类）会使相邻窗口重叠、同一帖被多页返回。现改为：每次取 ZSET 足够长的前缀（不足时循环扩大），SQL 过滤（分类/标签/可见性）后按 ZSET 序排列，从 `consumed` 处切片 take 个，保证每帖只出现一次；前端 ThreadList 另按 id 兜底去重
 
 ### 参与人管理
 
@@ -196,4 +197,4 @@ ThreadAccessService.assertAccessible(threadId, userId)
 - **乐观锁 version**：比悲观锁更适合读多写少的协作编辑场景；使用 Prisma 的 where { version } + data { version: increment: 1 } 实现原子比较并更新
 - **viewCount 异步更新**：不阻塞详情接口的返回，使用 fire-and-forget catch，牺牲极端情况下的精度换取响应速度。未发布帖不递增 viewCount。同时维护 Redis 计数器 `thread:{id}:stats` 的 views 字段供智能排序
 - **访问权限统一入口**：`ThreadAccessService.assertAccessible()` 为所有主题帖读写的统一入口（含软删除 / 未发布 / 私密帖校验），`assertCanManage()` 统一 OWNER/COLLABORATOR 管理权限校验。所有服务层（ThreadsService / SubthreadsService / ThreadMembersService）和标签控制器均复用此服务，不再重复实现
-- **智能排序**：采用 Hacker News 热度算法变体 `score = (replies * 2 + likes * 3 + views * 0.3) / (age_hours + 2)^1.5`。每次发帖/点赞/浏览通过事件监听器实时更新 Redis ZSET 分数，每 10 分钟全量重算修正精度漂移。查询时从 ZSET 按偏移分页获取 ID 列表，再经 SQL 过滤（分类/标签/可见性）后按 ZSET 顺序归位输出
+- **智能排序**：采用 Hacker News 热度算法变体 `score = (replies * 2 + likes * 3 + views * 0.3) / (age_hours + 2)^1.5`。每次发帖/点赞/浏览通过事件监听器实时更新 Redis ZSET 分数，每 10 分钟全量重算修正精度漂移。查询时从 ZSET 前缀扫描取 ID 列表，再经 SQL 过滤（分类/标签/可见性）后按 ZSET 顺序归位，按「已消费可见帖数」切片输出（每帖只出现一次，避免分类筛选下相邻窗口重叠重复）
