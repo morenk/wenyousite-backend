@@ -133,6 +133,22 @@ echo "DOMAIN=xxx.com" > .env
 bash scripts/deploy.sh
 ```
 
+### 本地 VPS 生产模式运行（改代码需重启）
+
+VPS 上手动迭代用**生产模式**（`node dist/main`），比 `start:dev`（watch + ts 编译）省内存、RSS 稳定不涨。**生产模式没有热更新**：改代码必须 `pnpm build` 后重启进程。
+
+```bash
+cd /root/wenyousite/wenyousite-backend
+pnpm build
+kill $(ss -tlnp | grep :3000 | grep -oP 'pid=\K[0-9]+')
+setsid nohup env NODE_ENV=production node dist/main </dev/null \
+  > /tmp/opencode/wenyousite-backend.log 2>&1 &
+```
+
+- 首次/依赖变更后先 `npx prisma generate`；`npx prisma migrate deploy` 应用未执行迁移（幂等）
+- 日志：`/tmp/opencode/wenyousite-backend.log`
+- 前端对应的生产模式迭代流程见前端 `AGENTS.md` 第 11 节
+
 ## 代码规范
 
 ### 中文注释（强制）

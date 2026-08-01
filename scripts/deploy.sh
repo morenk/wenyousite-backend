@@ -15,12 +15,12 @@ if [ ! -f .env.prod ]; then
   exit 1
 fi
 
-# 构建并启动
+# 构建并启动（生产 compose 在项目根目录）
 echo "3. 构建并启动服务..."
-docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f ../docker-compose.yml up -d --build
 
 # 运行数据库迁移
 echo "4. 运行数据库迁移..."
-docker compose -f docker-compose.prod.yml exec -T api npx prisma migrate deploy
+docker compose -f ../docker-compose.yml exec -T api npx prisma migrate deploy
 
 echo "=== 部署完成 ==="
