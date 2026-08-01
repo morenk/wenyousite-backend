@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, MinLength, MaxLength, IsUUID } from 'class-validator';
+import { IsString, IsOptional, MinLength, MaxLength } from 'class-validator';
 import { Transform } from 'class-transformer';
+import { IsCuid } from '../../common/decorators/is-cuid.decorator';
 import { sanitizeContent } from '../../common/transform/sanitize.transform';
 
 /** 创建帖子 DTO */
@@ -15,12 +16,12 @@ export class CreatePostDto {
   @ApiPropertyOptional({ example: 'clxfloor001...', description: '父楼层 ID（楼中楼回复时指定，平级挂载，无嵌套深度限制）' })
   @IsOptional()
   @IsString()
-  @IsUUID()
+  @IsCuid()
   parentPostId?: string;
 
   @ApiPropertyOptional({ example: 'clxreply001...', description: '回复目标帖 ID（追踪具体回复哪个帖子，可为同楼层其他回复）' })
   @IsOptional()
   @IsString()
-  @IsUUID()
+  @IsCuid()
   replyToPostId?: string;
 }

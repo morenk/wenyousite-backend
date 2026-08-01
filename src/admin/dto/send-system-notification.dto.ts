@@ -1,6 +1,7 @@
-import { IsString, IsOptional, IsArray, IsUUID, IsBoolean, IsDateString, IsIn, ValidateNested } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsBoolean, IsDateString, IsIn, ValidateNested } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import { IsCuid } from '../../common/decorators/is-cuid.decorator';
 
 /** 系统通知用户筛选条件 */
 class UserConditionDto {
@@ -39,7 +40,7 @@ export class SendSystemNotificationDto {
   @ApiProperty({ description: '接收者用户 ID 列表（手动指定，优先级高于条件筛选）', required: false, isArray: true, type: String })
   @IsOptional()
   @IsArray()
-  @IsUUID('4', { each: true })
+  @IsCuid({ each: true })
   recipientIds?: string[];
 
   @ApiProperty({ description: '用户筛选条件（不指定则全站广播）', required: false })
@@ -50,6 +51,6 @@ export class SendSystemNotificationDto {
 
   @ApiProperty({ description: '关联主题帖 ID（可选，前端跳转用）', required: false })
   @IsOptional()
-  @IsUUID('4')
+  @IsCuid()
   threadId?: string;
 }

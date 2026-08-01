@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, MinLength, IsUUID } from 'class-validator';
+import { IsString, MinLength } from 'class-validator';
+import { IsCuid } from '../../common/decorators/is-cuid.decorator';
 
 /** 提交举报 DTO */
 export class CreateReportDto {
@@ -10,7 +11,7 @@ export class CreateReportDto {
 
   @ApiProperty({ description: '举报目标 ID' })
   @IsString()
-  @IsUUID()
+  @IsCuid()
   targetId: string;
 
   @ApiProperty({ description: '举报原因' })
