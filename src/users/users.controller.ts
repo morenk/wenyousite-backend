@@ -89,6 +89,8 @@ export class UsersController {
   @Get(':id/bookmarks')
   @OptionalAuth()
   @ApiOperation({ summary: '查看用户的收藏列表（受 showBookmarks 隐私开关控制）' })
+  @ApiQuery({ name: 'cursor', required: false, description: '分页游标（上一页最后一条记录 ID）' })
+  @ApiQuery({ name: 'limit', required: false, description: '每页条数（默认 20，最大 50）' })
   @ApiOkResponse({ description: '用户的收藏列表（cursor 分页，含帖子摘要）' })
   @ApiNotFoundResponse({ description: '用户不存在或未公开收藏' })
   async getUserBookmarks(
@@ -104,6 +106,8 @@ export class UsersController {
   @Get(':id/played-threads')
   @OptionalAuth()
   @ApiOperation({ summary: '查看用户参与的帖子（被标记为玩家，受 showPlayerBadges 隐私开关控制）' })
+  @ApiQuery({ name: 'cursor', required: false, description: '分页游标（上一页最后一条记录 ID）' })
+  @ApiQuery({ name: 'limit', required: false, description: '每页条数（默认 20，最大 50）' })
   @ApiOkResponse({ description: '用户参与的帖子列表（cursor 分页）' })
   @ApiNotFoundResponse({ description: '用户不存在或未公开参与的帖子' })
   async getUserPlayedThreads(
