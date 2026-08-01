@@ -129,7 +129,7 @@ Thread ──1:N── Subthread ──1:N── Post
 | 排序锁定 | 不可通过 PATCH /subthreads 修改 sortOrder |
 | 不可删除 | 默认子贴不可单独删除，需删除整个主题帖 |
 | 拖拽首位 | 批量重排时首项必须是默认子贴 |
-| 列表展示 | `GET /threads` 通过 `defaultSubthread.bodyPost.content` 生成 preview 字段 |
+| 列表展示 | `GET /threads` 通过默认子贴的 `kind=BODY` 正文帖（`posts[0].content`）生成 preview 字段；列表响应中 `defaultSubthread` 不携带 `bodyPost` |
 | 回退机制 | 若单独创建子贴（非通过 POST /threads），首个创建的子贴自动补设为默认 |
 
 默认子贴的设计意图是充当帖子的"主内容区"——即便楼主创建了多个子贴用于不同话题，始终有一个固定的首版块用于主要讨论。
