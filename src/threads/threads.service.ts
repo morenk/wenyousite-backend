@@ -36,7 +36,7 @@ export class ThreadsService {
     private cache: CacheService,
   ) {}
 
-  /** 创建主题帖草稿：事务内创建 Thread + Owner + 默认子贴 + 可选首楼正文，一次请求完成 */
+  /** 创建主题帖草稿：事务内创建 Thread + Owner + 默认子贴 + 可选子贴正文，一次请求完成 */
   async create(dto: CreateThreadDto, userId: string) {
     const title = dto.title ?? '未命名草稿';
     const subthreadTitle = dto.subthreadTitle ?? title;

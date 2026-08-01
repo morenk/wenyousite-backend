@@ -110,7 +110,7 @@ export class PostsController {
   @Delete('posts/:id')
   @Auth()
   @ApiBearerAuth()
-  @ApiOperation({ summary: '软删除帖子（不能删除子贴第一楼）' })
+  @ApiOperation({ summary: '软删除楼层（子贴正文 kind=BODY 不可删除）' })
   @ApiOkResponse({ description: '帖子已删除' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   @ApiForbiddenResponse({ description: '非本人帖子，无权删除' })

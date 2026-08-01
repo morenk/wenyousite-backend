@@ -11,7 +11,7 @@ export class CreateSubthreadDto {
   @MaxLength(100)
   title: string;
 
-  @ApiPropertyOptional({ example: '这里是世界观设定...', description: '第一楼正文（可选，留空仅创建空子贴）', maxLength: 10000 })
+  @ApiPropertyOptional({ example: '这里是世界观设定...', description: '子贴正文（kind=BODY，可选，留空仅创建空子贴）', maxLength: 10000 })
   @IsOptional()
   @IsString()
   @Transform(({ value }) => sanitizeContent(value))

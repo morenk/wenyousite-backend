@@ -18,7 +18,7 @@ export class CreateThreadDto {
   @IsIn(['DEDUCTION', 'NATION', 'RPG'])
   category?: string;
 
-  @ApiPropertyOptional({ example: '这里是开场白...', description: '默认子贴首楼正文（可选，留空仅创建空子贴）', maxLength: 10000 })
+  @ApiPropertyOptional({ example: '这里是开场白...', description: '默认子贴正文（kind=BODY，可选，留空仅创建空子贴）', maxLength: 10000 })
   @IsOptional()
   @IsString()
   @Transform(({ value }) => sanitizeContent(value))
