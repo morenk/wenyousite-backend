@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 const mockPrisma = {
   thread: { findMany: jest.fn() },
   post: { findMany: jest.fn() },
+  threadMember: { groupBy: jest.fn().mockResolvedValue([]) },
 };
 
 describe('SearchService', () => {
@@ -61,5 +62,21 @@ describe('SearchService', () => {
     // 验证 post 查询包含私密帖过滤条件
     const call = mockPrisma.post.findMany.mock.calls[0][0];
     expect(call.where.thread).toEqual({ published: true, visibility: 'PUBLIC', deletedAt: null });
+  });
+
+  it('搜索结果合并玩家计数 _count.players', async () => {
+    const threads = [{ id: 't1', title: '测试帖', _count: { members: 5, posts: 3 } as any }];
+    mockPrisma.thread.findMany.mockResolvedValue(threads);
+    mockPrisma.post.findMany.mockResolvedValue([]);
+    mockPrisma.threadMember.groupBy.mockResolvedValue([{ threadId: 't1', _count: 2 }]);
+
+    const result = await service.search('测试');
+    expect((result.threads[0]._count as any).players).toBe(2);
+    expect((result.threads[0]._count as any).members).toBe(5);
+    expect(mockPrisma.threadMember.groupBy).toHaveBeenCalledWith({
+      by: ['threadId'],
+      where: { threadId: { in: ['t1'] }, playerMarked: true },
+      _count: true,
+    });
   });
 });

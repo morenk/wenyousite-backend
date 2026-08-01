@@ -14,7 +14,7 @@ import { ThreadQueryDto } from './dto/thread-query.dto';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound, forbidden } from '../common/exceptions/business.exception';
 import { paginate } from '../common/dto/paginated-result';
-import { notDeleted, countNonDeletedPosts, includeSubthreads, authorSelect, countMembersAndPosts } from '../common/prisma-helpers';
+import { notDeleted, countNonDeletedPosts, includeSubthreads, authorSelect, countMembersAndPosts, attachPlayerCounts } from '../common/prisma-helpers';
 import { truncateMarkdown } from '../common/markdown-truncate';
 
 /** 帖子列表 ZSET 键名 */
@@ -88,7 +88,7 @@ export class ThreadsService {
       });
     }
 
-    return this.prisma.thread.findUnique({
+    const thread = await this.prisma.thread.findUnique({
       where: { id: result.threadId, ...notDeleted },
       include: {
         owner: { select: authorSelect },
@@ -97,6 +97,8 @@ export class ThreadsService {
         ...countMembersAndPosts(),
       },
     });
+    if (thread) await attachPlayerCounts(this.prisma, [thread]);
+    return thread;
   }
 
   /** 我的草稿列表（未发布帖） */
@@ -129,6 +131,8 @@ export class ThreadsService {
       },
     });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
+
+    await attachPlayerCounts(this.prisma, [thread]);
 
     // 浏览量 +1：Redis 计数器 + DB 异步写入
     if (thread.published) {
@@ -214,6 +218,8 @@ export class ThreadsService {
     const hasMore = threads.length > take;
     if (hasMore) threads.pop();
 
+    await attachPlayerCounts(this.prisma, threads);
+
     const items = threads.map(t => ({
       ...t,
       preview: t.defaultSubthread?.bodyPost?.content
@@ -284,6 +290,8 @@ export class ThreadsService {
     const hasMore = threads.length > take || ids.length >= fetchCount;
     const nextCursor = hasMore ? String(offset + (sliced.length > 0 ? offset + sliced.length : take)) : null;
 
+    await attachPlayerCounts(this.prisma, sliced);
+
     const items = sliced.map(t => ({
       ...t,
       preview: t.defaultSubthread?.bodyPost?.content
@@ -331,8 +339,11 @@ export class ThreadsService {
     const hasMore = members.length > take;
     if (hasMore) members.pop();
 
+    const playedThreads = members.map(m => m.thread);
+    await attachPlayerCounts(this.prisma, playedThreads);
+
     return paginate(
-      members.map(m => m.thread),
+      playedThreads,
       { cursor: members.length > 0 ? members[members.length - 1].id : null, hasMore },
     );
   }
@@ -375,6 +386,8 @@ export class ThreadsService {
       if (err?.code === 'P2025') throw new BusinessException(ErrorCode.OPTIMISTIC_LOCK_CONFLICT, '主题帖已被修改，请刷新后重试', HttpStatus.CONFLICT);
       throw err;
     });
+
+    await attachPlayerCounts(this.prisma, [updated]);
 
     // 缓存失效事件 + ZSET 维护
     if (published === true) {

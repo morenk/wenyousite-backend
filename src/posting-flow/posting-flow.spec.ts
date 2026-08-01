@@ -23,7 +23,7 @@ const createMockPrisma = () => ({
   $queryRaw: jest.fn(),
   user: { findUnique: jest.fn(), findMany: jest.fn() },
   thread: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(), findMany: jest.fn() },
-  threadMember: { findUnique: jest.fn(), findMany: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(), upsert: jest.fn(), count: jest.fn() },
+  threadMember: { findUnique: jest.fn(), findMany: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(), upsert: jest.fn(), count: jest.fn(), groupBy: jest.fn().mockResolvedValue([]) },
   threadInvite: { upsert: jest.fn(), findUnique: jest.fn() },
   threadTopicTag: { createMany: jest.fn() },
   subthread: { findMany: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn(), aggregate: jest.fn(), create: jest.fn(), update: jest.fn() },

@@ -72,11 +72,12 @@
 
 ### 参与人管理
 
+- 参与人（`PARTICIPANT`）本质是楼主的**玩家候选人池**：用户无需手动加入，发帖时自动 upsert 为参与人（`PostsService.create`），对用户无感
+- `_count.members` 统计候选池总数；`_count.players` 统计被授予玩家身份（`playerMarked=true`）的人数，供前端展示"玩家数"（Prisma `_count` 无法给关系计数别名，由服务层 `attachPlayerCounts()` 单独 `groupBy` 合并）
 - 修改和删除使用乐观锁（version 字段），并发冲突返回 "主题帖已被修改，请刷新后重试"
-- 参与人管理权限：OWNER/COLLABORATOR 可管理（角色修改、收回玩家身份），不能修改/收回 OWNER
+- 参与人管理权限：OWNER/COLLABORATOR 可管理（角色修改、授予/收回玩家身份），不能修改/收回 OWNER
 - 私密帖禁止自由加入（POST join），仅可通过邀请链接加入
 - 收回玩家身份：取消该参与人的 playerMarked 标记。参与人记录保留，仍可浏览和在 PARTICIPANTS 策略子贴中发帖
-- 参与人可主动退出（DELETE me）：取消自己的 playerMarked，OWNER 不可退出
 - 玩家身份决定 PLAYERS 策略子贴的发帖权限，详见子贴文档
 
 ### 邀请链接
@@ -180,8 +181,8 @@ ThreadAccessService.assertAccessible(threadId, userId)
 
 | 视图 | 子贴信息 | 帖子信息 |
 |------|---------|---------|
-| Thread 列表 (`findAll`) | 通过 defaultSubthreadId 取默认子贴的 id / title / lastPostAt + bodyPost.content → truncateMarkdown 生成 preview |
-| Thread 详情 (`findById`) | 全部子贴列表 + `_count.posts` | 不返回正文 |
+| Thread 列表 (`findAll`) | 通过 defaultSubthreadId 取默认子贴的 id / title / lastPostAt + bodyPost.content → truncateMarkdown 生成 preview | `_count.members`（候选池）+ `_count.players`（玩家）+ `_count.posts` |
+| Thread 详情 (`findById`) | 全部子贴列表 + `_count.posts` + `bodyPost`（首楼 id/content/version，供编辑器回填） | 正文通过 POST 接口写入 |
 | Subthread 列表 (`findAll`) | 按 sortOrder 排列 + `_count.posts` | 不返回正文 |
 | Subthread 详情 (`findById`) | 单个子贴 + `_count.posts` | 不返回正文 |
 | Post 列表 (`findAllBySubthread`) | 已通过 threadAccess 校验 | 楼层列表（Cursor 分页） |

@@ -24,6 +24,7 @@ const mockPrisma = {
     findUnique: jest.fn(),
     create: jest.fn(),
     count: jest.fn(),
+    groupBy: jest.fn().mockResolvedValue([]),
   },
   subthread: {
     findFirst: jest.fn(),
@@ -159,6 +160,32 @@ describe('ThreadsService', () => {
         where: { id: 't1' },
         data: { viewCount: { increment: 1 } },
       });
+    });
+
+    it('详情合并玩家计数 _count.players（playerMarked=true）', async () => {
+      const thread = { id: 't1', title: '测试', published: true, visibility: 'PUBLIC', owner: { id: 'u1' }, subthreads: [], _count: { members: 5, posts: 3 } as any };
+      mockPrisma.thread.findUnique.mockResolvedValue(thread);
+      mockPrisma.thread.update.mockResolvedValue({});
+      mockPrisma.threadMember.groupBy.mockResolvedValue([{ threadId: 't1', _count: 2 }]);
+
+      const result = await service.findById('t1');
+      expect((result._count as any).players).toBe(2);
+      expect((result._count as any).members).toBe(5); // 候选池总数保留
+      expect(mockPrisma.threadMember.groupBy).toHaveBeenCalledWith({
+        by: ['threadId'],
+        where: { threadId: { in: ['t1'] }, playerMarked: true },
+        _count: true,
+      });
+    });
+
+    it('无玩家标记成员时 _count.players 为 0', async () => {
+      const thread = { id: 't1', title: '测试', published: true, visibility: 'PUBLIC', owner: { id: 'u1' }, subthreads: [], _count: { members: 5, posts: 3 } as any };
+      mockPrisma.thread.findUnique.mockResolvedValue(thread);
+      mockPrisma.thread.update.mockResolvedValue({});
+      mockPrisma.threadMember.groupBy.mockResolvedValue([]);
+
+      const result = await service.findById('t1');
+      expect((result._count as any).players).toBe(0);
     });
 
     it('不存在返回404', async () => {

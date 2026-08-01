@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { attachPlayerCounts } from '../common/prisma-helpers';
 
 /**
  * 全文搜索服务：基于 PostgreSQL ILIKE 搜索主题帖和楼层
@@ -48,6 +49,8 @@ export class SearchService {
         orderBy: { createdAt: 'desc' },
       }),
     ]);
+
+    await attachPlayerCounts(this.prisma, threads);
 
     return { threads, posts };
   }
