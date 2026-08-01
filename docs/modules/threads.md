@@ -4,7 +4,7 @@
 
 主题帖的草稿创建、沙盒迭代、发布、列表、详情、修改、删除，参与人管理（加入/角色/收回玩家身份），私密帖邀请链接，置顶排序，标签管理。
 
-**核心流程**：所有主题帖创建统一走"草稿 → 发布"两阶段 —— `POST /threads` 事务内创建 Thread + OWNER + 默认子贴（可选首楼正文），在沙盒内逐步完善标题/子贴/楼层，最后通过 `PATCH /threads/:id { published: true }` 发布。发布前帖子不出现在列表/搜索中，仅楼主本人可访问。
+**核心流程**：所有主题帖创建统一走"草稿 → 发布"两阶段 —— `POST /threads` 事务内创建 Thread + OWNER + 默认子贴（可选正文，kind=BODY），在沙盒内逐步完善标题/子贴/楼层，最后通过 `PATCH /threads/:id { published: true }` 发布。发布前帖子不出现在列表/搜索中，仅楼主本人可访问。
 
 ## 涉及的模型
 
@@ -28,8 +28,8 @@
 | Method | Path | Guard | 描述 |
 |--------|------|-------|------|
 | GET | `/threads/draft` | AuthRead | 我的草稿箱列表（published=false 的帖） |
-| POST | `/threads` | Auth | 创建主题帖草稿（事务内创建 Thread + OWNER + 默认子贴 + 可选首楼正文，published=false） |
-| GET | `/threads` | Public | 主题帖列表（仅已发布帖），每帖含 `preview` 截断纯文本（`truncateMarkdown` 处理默认子贴首楼正文，~100 字） |
+| POST | `/threads` | Auth | 创建主题帖草稿（事务内创建 Thread + OWNER + 默认子贴 + 可选正文 kind=BODY，published=false） |
+| GET | `/threads` | Public | 主题帖列表（仅已发布帖），每帖含 `preview` 截断纯文本（`truncateMarkdown` 处理默认子贴正文 kind=BODY，~100 字） |
 | GET | `/threads/:id` | AuthRead | 详情（含子贴列表和标签）。未发布帖仅 owner 可查看 |
 | PATCH | `/threads/:id` | Auth | 修改/发布（OWNER/COLLABORATOR，乐观锁）。设置 published=true 即发布，校验完整性后通知粉丝 |
 | DELETE | `/threads/:id` | Auth | 删除（仅 OWNER）。草稿帖硬删除（级联），已发布帖软删除 |
@@ -51,10 +51,10 @@
 
 ### 草稿与发布
 
-- 创建草稿：`POST /threads` 事务内创建 Thread(published=false) + OWNER（playerMarked=true）+ 默认子贴（sortOrder=0）。`content` 可选传入默认子贴首楼正文。`subthreadTitle` 可选，默认定值同 title；title 缺省为"未命名草稿"
+- 创建草稿：`POST /threads` 事务内创建 Thread(published=false) + OWNER（playerMarked=true）+ 默认子贴（sortOrder=0）。`content` 可选传入默认子贴正文（创建 kind=BODY 正文帖）。`subthreadTitle` 可选，默认定值同 title；title 缺省为"未命名草稿"
 - 沙盒迭代：楼主可在草稿内自由创建更多子贴（`POST subthreads`）、撰写楼层（`POST posts`），所有端点自动保存
 - 草稿列表：`GET /threads/draft` 返回当前用户所有未发布帖，按 createdAt DESC 排序
-- 发布校验：`PATCH /threads/:id { published: true }` 时校验 —— ① title 非空且非默认值"未命名草稿" ② category 已设置 ③ 默认子贴存在且有正文（bodyPostId 或 posts 不为空）
+- 发布校验：`PATCH /threads/:id { published: true }` 时校验 —— ① title 非空且非默认值"未命名草稿" ② category 已设置 ③ 默认子贴存在且有正文（存在 kind=BODY 的正文帖）
 - 发布后通知：校验通过后先回放草稿期内全部帖子的 post.created 事件（补解析 @提及和通知），再通知创建者的所有粉丝（thread_created 类型）
 - 草稿内发帖不触发 @提及解析和通知（`post.created` 事件仅在已发布帖下发帖时发射）
 - 草稿仅 owner 可查看和操作，非 owner 访问返回 404
@@ -62,7 +62,7 @@
 
 ### 列表与详情
 
-- 列表接口 `findAll`：仅返回 published=true 的帖；`filter=all`(默认)仅 PUBLIC 帖；`filter=playing`返回 playerMarked=true 的帖（含私密帖），需登录。每帖含 `preview` 字段（truncateMarkdown 截断默认子贴首楼正文，纯文本，~100 字），不再返回 `bodyPost.content` 全文
+- 列表接口 `findAll`：仅返回 published=true 的帖；`filter=all`(默认)仅 PUBLIC 帖；`filter=playing`返回 playerMarked=true 的帖（含私密帖），需登录。每帖含 `preview` 字段（truncateMarkdown 截断默认子贴正文 kind=BODY，纯文本，~100 字），不再返回 `bodyPost.content` 全文
 - 详情接口 `findById`：未发布帖仅 owner 可查看且不递增 viewCount；已发布帖 viewCount 异步 +1（Redis 计数器 + DB），PRIVATE 帖非参与人返回 404
 - 排序规则：
   - `sort=created`（默认）：置顶优先，其次按 createdAt DESC
@@ -116,7 +116,7 @@ Thread ──1:N── Subthread ──1:N── Post
 | 实体 | 是否有内容 | 说明 |
 |------|-----------|------|
 | Thread | 无 | 仅元数据 + likeCount。列表卡片展示通过第一个子贴间接获取 |
-| Subthread | 部分有 | 创建时可选附带第一楼正文；也可以是空子贴，后续通过发帖填充 |
+| Subthread | 部分有 | 创建时可选附带正文（kind=BODY 帖）；也可以是空子贴，后续通过发帖填充 |
 | Post | 有 | 正文唯一载体，`content` 为 Markdown 字符串 |
 
 ### 默认子贴
@@ -137,10 +137,10 @@ Thread ──1:N── Subthread ──1:N── Post
 ### 创建与发布联动
 
 ```
-POST /threads          → 事务: Thread(published=false) + OWNER + 默认子贴 + [首楼正文]
+POST /threads          → 事务: Thread(published=false) + OWNER + 默认子贴 + [正文 kind=BODY]
                           [一次请求完成，无需额外创建子贴]
 
-POST subthreads        → Subthread + 可选第一楼 Post（正文为空时仅子贴）
+POST subthreads        → Subthread + 可选正文帖（kind=BODY，正文为空时仅子贴）
   GET /subthreads      → 查看已创建的子贴及其帖子数量
 
 POST posts             → 在子贴下新增楼层，自动记入该子贴
@@ -181,8 +181,8 @@ ThreadAccessService.assertAccessible(threadId, userId)
 
 | 视图 | 子贴信息 | 帖子信息 |
 |------|---------|---------|
-| Thread 列表 (`findAll`) | 通过 defaultSubthreadId 取默认子贴的 id / title / lastPostAt + bodyPost.content → truncateMarkdown 生成 preview | `_count.members`（候选池）+ `_count.players`（玩家）+ `_count.posts` |
-| Thread 详情 (`findById`) | 全部子贴列表 + `_count.posts` + `bodyPost`（首楼 id/content/version，供编辑器回填） | 正文通过 POST 接口写入 |
+| Thread 列表 (`findAll`) | 通过 defaultSubthreadId 取默认子贴的 id / title / lastPostAt + bodyPost.content → truncateMarkdown 生成 preview | `_count.members`（候选池）+ `_count.players`（玩家）+ `_count.posts`（楼层数，正文不计入） |
+| Thread 详情 (`findById`) | 全部子贴列表 + `_count.posts` + `bodyPost`（正文帖 id/content/version，供编辑器回填） | 正文通过 PUT `/subthreads/:id/body` upsert 写入 |
 | Subthread 列表 (`findAll`) | 按 sortOrder 排列 + `_count.posts` | 不返回正文 |
 | Subthread 详情 (`findById`) | 单个子贴 + `_count.posts` | 不返回正文 |
 | Post 列表 (`findAllBySubthread`) | 已通过 threadAccess 校验 | 楼层列表（Cursor 分页） |

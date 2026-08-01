@@ -44,7 +44,7 @@ export class PostsService {
 
     const take = Math.min(limit, 50);
     const posts = await this.prisma.post.findMany({
-      where: { subthreadId, parentPostId: null, ...notDeleted },
+      where: { subthreadId, kind: 'FLOOR', parentPostId: null, ...notDeleted },
       orderBy: { floorNumber: 'asc' },
       take: take + 1,
       cursor: cursor ? { id: cursor } : undefined,
@@ -179,14 +179,14 @@ export class PostsService {
       }
     }
 
-    // 事务：SELECT FOR UPDATE 锁子贴行 → 读 MAX → 创建帖子 → 更新 lastPostAt
+    // 事务：SELECT FOR UPDATE 锁子贴行 → 读 MAX → 创建楼层 → 更新 lastPostAt
     const post = await this.prisma.$transaction(async (tx) => {
       let floorNumber: number | null = null;
 
       if (!dto.parentPostId) {
         await tx.$queryRaw`SELECT id FROM subthreads WHERE id = ${subthreadId} FOR UPDATE`;
         const maxFloor = await tx.post.aggregate({
-          where: { subthreadId, parentPostId: null },
+          where: { subthreadId, kind: 'FLOOR', parentPostId: null },
           _max: { floorNumber: true },
         });
         floorNumber = (maxFloor._max.floorNumber ?? 0) + 1;
@@ -197,6 +197,7 @@ export class PostsService {
           threadId: subthread.threadId,
           subthreadId,
           authorId: userId,
+          kind: 'FLOOR',
           floorNumber,
           parentPostId: dto.parentPostId ?? null,
           replyToPostId: dto.replyToPostId ?? null,
@@ -211,14 +212,6 @@ export class PostsService {
         where: { id: subthreadId },
         data: { lastPostAt: new Date() },
       });
-
-      // 每个子贴首次创建主楼层时，自动回写 bodyPostId（编辑器依赖该字段识别首楼）
-      if (!dto.parentPostId && !subthread.bodyPostId) {
-        await tx.subthread.update({
-          where: { id: subthreadId },
-          data: { bodyPostId: p.id },
-        });
-      }
 
       return p;
     });
@@ -245,6 +238,110 @@ export class PostsService {
     });
 
     return post;
+  }
+
+  /** 写入子贴正文（kind=BODY）：无正文则创建，有正文则乐观锁更新。仅 OWNER/COLLABORATOR 可操作 */
+  async upsertBody(subthreadId: string, content: string, version: number | undefined, userId: string) {
+    const subthread = await this.prisma.subthread.findUnique({
+      where: { id: subthreadId, ...notDeleted },
+      include: { thread: { select: { id: true, published: true, title: true } } },
+    });
+    if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
+    await this.threadAccess.assertCanManage(subthread.threadId, userId);
+
+    const existing = await this.prisma.post.findFirst({
+      where: { subthreadId, kind: 'BODY', ...notDeleted },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // 创建正文
+    if (!existing) {
+      const post = await this.prisma.post.create({
+        data: {
+          threadId: subthread.threadId,
+          subthreadId,
+          authorId: userId,
+          kind: 'BODY',
+          content,
+        },
+        include: { author: { select: authorSelect } },
+      });
+      await this.prisma.subthread.update({
+        where: { id: subthreadId },
+        data: { lastPostAt: new Date() },
+      });
+      if (subthread.thread.published) {
+        this.eventEmitter.emit('post.created', {
+          postId: post.id,
+          content,
+          userId,
+          authorUsername: post.author.username,
+          threadId: subthread.threadId,
+          subthreadId: subthread.id,
+          subthreadTitle: subthread.title,
+          parentPostId: null,
+          replyToPostId: null,
+          isSubthreadBody: true,
+        });
+      }
+      this.readingProgressService.update(userId, subthreadId, post.id).catch((err) => {
+        this.logger.error(`正文创建后进度更新失败 userId=${userId} subthreadId=${subthreadId}`, err);
+      });
+      return post;
+    }
+
+    // 更新正文（乐观锁）
+    if (version === undefined || version !== existing.version) {
+      throw new BusinessException(
+        ErrorCode.OPTIMISTIC_LOCK_CONFLICT, '正文已被修改，请刷新后重试', HttpStatus.CONFLICT,
+      );
+    }
+    const oldContent = existing.content;
+    const updated = await this.prisma.post.update({
+      where: { id: existing.id, version, ...notDeleted },
+      data: { content, version: { increment: 1 } },
+      include: { author: { select: authorSelect } },
+    }).catch((err) => {
+      if (err?.code === 'P2025') throw new BusinessException(ErrorCode.OPTIMISTIC_LOCK_CONFLICT, '正文已被修改，请刷新后重试', HttpStatus.CONFLICT);
+      throw err;
+    });
+
+    // 编辑新增 @提及通知：对比新旧正文，仅对新增的 @用户名创建提及和通知
+    if (content !== oldContent) {
+      const oldNames = new Set(this.mentionsService.extractUsernames(oldContent));
+      const newNames = this.mentionsService.extractUsernames(content).filter(n => !oldNames.has(n));
+      if (newNames.length > 0) {
+        const fakeContent = newNames.map(n => `@${n}`).join(' ');
+        this.mentionsService.parseAndCreate(updated.id, fakeContent, userId, subthread.threadId)
+          .then(async (mentioned) => {
+            if (mentioned.length > 0) {
+              const blockSets = await this.blockFilter.loadBlockSets(userId);
+              const filteredIds = this.blockFilter.filterRecipients(
+                mentioned.map(u => u.userId), blockSets,
+              );
+              if (filteredIds.length === 0) return;
+              const preview = truncateMarkdown(content);
+              this.notificationProducer.notify(
+                'mention',
+                filteredIds,
+                `${updated.author.username} 在编辑后的正文里提到了你：${preview}`,
+                { postId: updated.id, threadId: subthread.threadId, fromUserId: userId,
+                  payload: { actorName: updated.author.username, action: 'mention', preview } },
+              ).catch(() => {});
+            }
+          })
+          .catch(() => {});
+      }
+    }
+
+    // 缓存失效事件
+    this.eventEmitter.emit('post.updated', {
+      postId: updated.id,
+      threadId: subthread.threadId,
+      parentPostId: updated.parentPostId,
+    });
+
+    return updated;
   }
 
   /** 编辑帖子 */
@@ -308,17 +405,14 @@ export class PostsService {
   async remove(id: string, userId: string) {
     const postLight = await this.prisma.post.findUnique({
       where: { id, ...notDeleted },
-      select: { id: true, authorId: true, floorNumber: true, parentPostId: true, threadId: true, subthread: { select: { deletedAt: true, bodyPostId: true } } },
+      select: { id: true, authorId: true, kind: true, parentPostId: true, threadId: true, subthread: { select: { deletedAt: true } } },
     });
     if (!postLight) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
     if (postLight.subthread.deletedAt) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
     if (postLight.authorId !== userId) throw forbidden('只能删除自己的帖子');
 
-    // 检查是否是子贴主体正文
-    const isBodyPost = postLight.subthread.bodyPostId
-      ? postLight.id === postLight.subthread.bodyPostId
-      : postLight.floorNumber === 1 && !postLight.parentPostId;
-    if (isBodyPost) {
+    // 正文（kind=BODY）不可删除，由子贴生命周期管理
+    if (postLight.kind === 'BODY') {
       throw forbidden(
         '主体正文不可删除。如需修改请编辑帖子；如需移除请删除整个子贴。',
       );

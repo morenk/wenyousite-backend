@@ -14,7 +14,7 @@ import { ThreadQueryDto } from './dto/thread-query.dto';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound, forbidden } from '../common/exceptions/business.exception';
 import { paginate } from '../common/dto/paginated-result';
-import { notDeleted, countNonDeletedPosts, includeSubthreads, authorSelect, countMembersAndPosts, attachPlayerCounts } from '../common/prisma-helpers';
+import { notDeleted, countNonDeletedPosts, includeSubthreads, mapSubthreadBody, authorSelect, countMembersAndPosts, attachPlayerCounts } from '../common/prisma-helpers';
 import { truncateMarkdown } from '../common/markdown-truncate';
 
 /** 帖子列表 ZSET 键名 */
@@ -60,14 +60,10 @@ export class ThreadsService {
         data: { threadId: thread.id, title: subthreadTitle, sortOrder: 0 },
       });
 
-      // 4. 若有正文则创建首楼
+      // 4. 若有正文则创建正文帖（kind=BODY，不占楼层号）
       if (hasContent) {
-        const post = await tx.post.create({
-          data: { threadId: thread.id, subthreadId: subthread.id, authorId: userId, floorNumber: 1, content: dto.content! },
-        });
-        await tx.subthread.update({
-          where: { id: subthread.id },
-          data: { bodyPostId: post.id },
+        await tx.post.create({
+          data: { threadId: thread.id, subthreadId: subthread.id, authorId: userId, kind: 'BODY', content: dto.content! },
         });
       }
 
@@ -97,7 +93,10 @@ export class ThreadsService {
         ...countMembersAndPosts(),
       },
     });
-    if (thread) await attachPlayerCounts(this.prisma, [thread]);
+    if (thread) {
+      thread.subthreads = mapSubthreadBody(thread.subthreads);
+      await attachPlayerCounts(this.prisma, [thread]);
+    }
     return thread;
   }
 
@@ -131,6 +130,9 @@ export class ThreadsService {
       },
     });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
+
+    // 把子贴的 posts[0]（kind=BODY）映射回 bodyPost 响应字段
+    thread.subthreads = mapSubthreadBody(thread.subthreads);
 
     await attachPlayerCounts(this.prisma, [thread]);
 
@@ -208,7 +210,14 @@ export class ThreadsService {
       include: {
         owner: { select: authorSelect },
         defaultSubthread: {
-          include: { bodyPost: { select: { content: true } } },
+          include: {
+            posts: {
+              where: { kind: 'BODY', ...notDeleted },
+              take: 1,
+              orderBy: { createdAt: 'asc' },
+              select: { content: true },
+            },
+          },
         },
         topicTags: { include: { tag: true } },
         ...countMembersAndPosts(),
@@ -220,15 +229,13 @@ export class ThreadsService {
 
     await attachPlayerCounts(this.prisma, threads);
 
-    const items = threads.map(t => ({
-      ...t,
-      preview: t.defaultSubthread?.bodyPost?.content
-        ? truncateMarkdown(t.defaultSubthread.bodyPost.content)
-        : '',
-    }));
-    // 移除 defaultSubthread.bodyPost.content 全量，仅保留 preview
-    items.forEach((t: any) => {
-      if (t.defaultSubthread?.bodyPost) delete t.defaultSubthread.bodyPost.content;
+    const items = threads.map((t: any) => {
+      const preview = t.defaultSubthread?.posts?.[0]?.content
+        ? truncateMarkdown(t.defaultSubthread.posts[0].content)
+        : '';
+      // 移除 defaultSubthread.posts 全量，仅保留 preview
+      const { posts, ...rest } = t.defaultSubthread ?? {};
+      return { ...t, preview, defaultSubthread: t.defaultSubthread ? rest : null };
     });
 
     const result = paginate(items, {
@@ -275,7 +282,14 @@ export class ThreadsService {
       include: {
         owner: { select: authorSelect },
         defaultSubthread: {
-          include: { bodyPost: { select: { content: true } } },
+          include: {
+            posts: {
+              where: { kind: 'BODY', ...notDeleted },
+              take: 1,
+              orderBy: { createdAt: 'asc' },
+              select: { content: true },
+            },
+          },
         },
         topicTags: { include: { tag: true } },
         ...countMembersAndPosts(),
@@ -292,14 +306,13 @@ export class ThreadsService {
 
     await attachPlayerCounts(this.prisma, sliced);
 
-    const items = sliced.map(t => ({
-      ...t,
-      preview: t.defaultSubthread?.bodyPost?.content
-        ? truncateMarkdown(t.defaultSubthread.bodyPost.content)
-        : '',
-    }));
-    items.forEach((t: any) => {
-      if (t.defaultSubthread?.bodyPost) delete t.defaultSubthread.bodyPost.content;
+    const items = sliced.map((t: any) => {
+      const preview = t.defaultSubthread?.posts?.[0]?.content
+        ? truncateMarkdown(t.defaultSubthread.posts[0].content)
+        : '';
+      // 移除 defaultSubthread.posts 全量，仅保留 preview
+      const { posts, ...rest } = t.defaultSubthread ?? {};
+      return { ...t, preview, defaultSubthread: t.defaultSubthread ? rest : null };
     });
 
     return paginate(items, { cursor: nextCursor, hasMore });
@@ -387,6 +400,7 @@ export class ThreadsService {
       throw err;
     });
 
+    updated.subthreads = mapSubthreadBody(updated.subthreads);
     await attachPlayerCounts(this.prisma, [updated]);
 
     // 缓存失效事件 + ZSET 维护
@@ -542,8 +556,7 @@ export class ThreadsService {
         defaultSubthread: {
           select: {
             id: true,
-            bodyPostId: true,
-            posts: { where: notDeleted, take: 1 },
+            posts: { where: { ...notDeleted, kind: 'BODY' }, take: 1 },
           },
         },
       },
@@ -552,7 +565,7 @@ export class ThreadsService {
     if (!thread?.defaultSubthread) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '请至少创建一个子贴后再发布');
     }
-    if (!thread.defaultSubthread.bodyPostId && thread.defaultSubthread.posts.length === 0) {
+    if (thread.defaultSubthread.posts.length === 0) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '请将子贴至少填写正文再发布');
     }
   }
@@ -636,11 +649,12 @@ export class ThreadsService {
       },
       select: {
         id: true,
+        kind: true,
         content: true,
         authorId: true,
         author: { select: { username: true } },
         subthreadId: true,
-        subthread: { select: { title: true, bodyPostId: true } },
+        subthread: { select: { title: true } },
         parentPostId: true,
         replyToPostId: true,
       },
@@ -658,7 +672,7 @@ export class ThreadsService {
         subthreadTitle: post.subthread.title,
         parentPostId: post.parentPostId ?? null,
         replyToPostId: post.replyToPostId ?? null,
-        isSubthreadBody: post.subthread.bodyPostId === post.id,
+        isSubthreadBody: post.kind === 'BODY',
       });
     }
   }

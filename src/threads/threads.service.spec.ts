@@ -91,7 +91,11 @@ describe('ThreadsService', () => {
         },
         post: { create: jest.fn().mockResolvedValue({ id: 'p1' }) },
       }));
-      mockPrisma.thread.findUnique.mockResolvedValue({ id: threadId, title: '测试', category: 'RPG', ownerId: 'u1', published: false });
+      mockPrisma.thread.findUnique.mockResolvedValue({
+        id: threadId, title: '测试', category: 'RPG', ownerId: 'u1', published: false,
+        owner: { id: 'u1', username: 'test', avatar: null },
+        subthreads: [], topicTags: [], _count: { members: 1, posts: 0 },
+      });
 
       const result = await service.create({ title: '测试', category: 'RPG' }, 'u1');
       expect(result).toBeDefined();
@@ -113,7 +117,11 @@ describe('ThreadsService', () => {
         },
         post: { create: jest.fn().mockResolvedValue({ id: 'p1' }) },
       }));
-      mockPrisma.thread.findUnique.mockResolvedValue({ id: threadId, title: '未命名草稿', category: 'DEDUCTION', published: false });
+      mockPrisma.thread.findUnique.mockResolvedValue({
+        id: threadId, title: '未命名草稿', category: 'DEDUCTION', published: false,
+        owner: { id: 'u1', username: 'test', avatar: null },
+        subthreads: [], topicTags: [], _count: { members: 1, posts: 0 },
+      });
 
       await service.create({}, 'u1');
       expect(capturedThreadData.data.title).toBe('未命名草稿');
@@ -233,7 +241,10 @@ describe('ThreadsService', () => {
   describe('update', () => {
     it('修改标题应正常', async () => {
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      mockPrisma.thread.update.mockResolvedValue({ id: 't1', title: '新标题' });
+      mockPrisma.thread.update.mockResolvedValue({
+        id: 't1', title: '新标题', owner: { id: 'u1', username: 'test', avatar: null },
+        subthreads: [], topicTags: [], _count: { members: 1, posts: 0 },
+      });
       const result = await service.update('t1', { version: 1, title: '新标题' }, 'u1');
       expect(result.title).toBe('新标题');
     });
@@ -248,7 +259,7 @@ describe('ThreadsService', () => {
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
       mockPrisma.thread.findUnique
         .mockResolvedValueOnce({ published: false, title: '测试', category: 'RPG' })     // update() 初次查询
-        .mockResolvedValueOnce({ defaultSubthread: { id: 's1', bodyPostId: 'p1', posts: [{ id: 'p1' }] } }); // validatePublishReadiness
+        .mockResolvedValueOnce({ defaultSubthread: { id: 's1', posts: [{ id: 'p1', kind: 'BODY' }] } }); // validatePublishReadiness
       mockPrisma.thread.update.mockResolvedValue({
         id: 't1', title: '测试', category: 'RPG', published: true,
         createdAt: new Date('2025-01-01'), updatedAt: new Date(),
@@ -278,6 +289,14 @@ describe('ThreadsService', () => {
       mockPrisma.thread.findUnique
         .mockResolvedValueOnce({ published: false, title: '测试', category: 'RPG' })
         .mockResolvedValueOnce(null); // validatePublishReadiness 查不到默认子贴
+      await expect(service.update('t1', { version: 1, published: true }, 'u1')).rejects.toThrow(BusinessException);
+    });
+
+    it('发布时默认子贴无正文（kind=BODY posts 为空）应拒绝', async () => {
+      mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
+      mockPrisma.thread.findUnique
+        .mockResolvedValueOnce({ published: false, title: '测试', category: 'RPG' })
+        .mockResolvedValueOnce({ defaultSubthread: { id: 's1', posts: [] } }); // validatePublishReadiness：无 BODY 正文
       await expect(service.update('t1', { version: 1, published: true }, 'u1')).rejects.toThrow(BusinessException);
     });
 

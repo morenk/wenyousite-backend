@@ -288,7 +288,7 @@ describe('发帖全流程集成测试', () => {
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
       prisma.thread.findUnique
         .mockResolvedValueOnce({ published: false, title: '测试', category: 'RPG' })     // update() 初次查询
-        .mockResolvedValueOnce({ defaultSubthread: { id: 's1', bodyPostId: 'p1', posts: [{ id: 'p1' }] } }); // validatePublishReadiness
+        .mockResolvedValueOnce({ defaultSubthread: { id: 's1', posts: [{ id: 'p1', kind: 'BODY' }] } }); // validatePublishReadiness
       prisma.thread.update.mockResolvedValue({
         id: 't1', title: '测试', category: 'RPG', published: true, publishedAt: new Date(),
         createdAt: new Date('2025-01-01'), updatedAt: new Date(), viewCount: 0,
@@ -323,11 +323,11 @@ describe('发帖全流程集成测试', () => {
       await expect(threadsService.update('t1', { version: 1, published: true }, 'u1')).rejects.toThrow(BusinessException);
     });
 
-    it('发布失败：子贴中无楼层', async () => {
+    it('发布失败：子贴中无正文', async () => {
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
       prisma.thread.findUnique
         .mockResolvedValueOnce({ published: false, title: '测试', category: 'RPG' })
-        .mockResolvedValueOnce({ defaultSubthread: { id: 's1', bodyPostId: null, posts: [] } });
+        .mockResolvedValueOnce({ defaultSubthread: { id: 's1', posts: [] } }); // 无 kind=BODY 正文
       await expect(threadsService.update('t1', { version: 1, published: true }, 'u1')).rejects.toThrow(BusinessException);
     });
 
@@ -341,7 +341,7 @@ describe('发帖全流程集成测试', () => {
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
       prisma.thread.findUnique
         .mockResolvedValueOnce({ published: false, title: '旧标题', category: 'DEDUCTION' })
-        .mockResolvedValueOnce({ defaultSubthread: { id: 's1', bodyPostId: 'p1', posts: [{ id: 'p1' }] } });
+        .mockResolvedValueOnce({ defaultSubthread: { id: 's1', posts: [{ id: 'p1', kind: 'BODY' }] } });
       prisma.thread.update.mockResolvedValue({
         id: 't1', title: '新标题', category: 'DEDUCTION', published: true, publishedAt: new Date(),
         createdAt: new Date('2025-01-01'), updatedAt: new Date(), viewCount: 0,
@@ -357,7 +357,7 @@ describe('发帖全流程集成测试', () => {
 
   // ======================== 第三部分：子贴生命周期 ========================
   describe('子贴 (Subthread)', () => {
-    it('创建子贴：含正文 → 创建子贴 + 第一楼 (floorNumber=1) + 发射事件', async () => {
+    it('创建子贴：含正文 → 创建子贴 + kind=BODY 正文帖（无楼层号）+ 发射事件', async () => {
       setupHelpers.mockThreadMember_ownerOrCollab(prisma);
       prisma.thread.findUnique.mockResolvedValue({ published: true, title: '主题A' });
       prisma.$transaction.mockImplementation(async (fn: any) => {
@@ -370,7 +370,7 @@ describe('发帖全流程集成测试', () => {
             create: jest.fn().mockResolvedValue({ id: 's1', threadId: 't1', sortOrder: 0 }),
             findUnique: jest.fn().mockResolvedValue({ id: 's1', threadId: 't1', tags: [], _count: { posts: 1 } }),
           },
-          post: { create: jest.fn().mockResolvedValue({ id: 'p1', floorNumber: 1, content: '正文' }) },
+          post: { create: jest.fn().mockResolvedValue({ id: 'p1', kind: 'BODY', floorNumber: null, content: '正文' }) },
         };
         return fn(tx);
       });
@@ -415,7 +415,7 @@ describe('发帖全流程集成测试', () => {
             create: jest.fn().mockResolvedValue({ id: 's1', threadId: 't1', sortOrder: 1 }),
             findUnique: jest.fn().mockResolvedValue({ id: 's1', threadId: 't1', tags: [], _count: { posts: 1 } }),
           },
-          post: { create: jest.fn().mockResolvedValue({ id: 'p1', floorNumber: 1, content: '正文' }) },
+          post: { create: jest.fn().mockResolvedValue({ id: 'p1', kind: 'BODY', floorNumber: null, content: '正文' }) },
         };
         return fn(tx);
       });
@@ -793,7 +793,7 @@ describe('发帖全流程集成测试', () => {
   // ======================== 第八部分：帖子删除 ========================
   describe('帖子删除 (Post Delete)', () => {
     it('软删除非第一楼 → 成功', async () => {
-      prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', floorNumber: 3, parentPostId: 'p0', subthread: { deletedAt: null } });
+      prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', kind: 'FLOOR', floorNumber: 3, parentPostId: 'p0', threadId: 't1', subthread: { deletedAt: null } });
       prisma.post.update.mockResolvedValue({ id: 'p1', deletedAt: new Date() });
       await postsService.remove('p1', 'u1');
       expect(prisma.post.update).toHaveBeenCalledWith(
@@ -806,13 +806,13 @@ prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', subthread: 
     await expect(postsService.remove('p1', 'u2')).rejects.toThrow(BusinessException);
     });
 
-    it('删除主体正文 (floorNumber=1 + parentPostId=null) → 403', async () => {
-      prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', floorNumber: 1, parentPostId: null, subthread: { deletedAt: null } });
+    it('删除主体正文（kind=BODY）→ 403', async () => {
+      prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', kind: 'BODY', parentPostId: null, threadId: 't1', subthread: { deletedAt: null } });
       await expect(postsService.remove('p1', 'u1')).rejects.toThrow(BusinessException);
     });
 
-    it('删除主体正文 (floorNumber=1 + parentPostId 非空) → 成功（楼中楼不受影响）', async () => {
-      prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', floorNumber: 1, parentPostId: 'p_parent', subthread: { deletedAt: null } });
+    it('删除楼层（kind=FLOOR 带 parentPostId）→ 成功（楼中楼不受影响）', async () => {
+      prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', kind: 'FLOOR', floorNumber: 1, parentPostId: 'p_parent', threadId: 't1', subthread: { deletedAt: null } });
       prisma.post.update.mockResolvedValue({ id: 'p1', deletedAt: new Date() });
       await postsService.remove('p1', 'u1');
       expect(prisma.post.update).toHaveBeenCalled();

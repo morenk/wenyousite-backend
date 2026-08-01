@@ -10,18 +10,19 @@ import { ReadingProgressService } from '../reading-progress/reading-progress.ser
 import { RedisService } from '../redis/redis.service';
 import { CacheService } from '../redis/cache.service';
 import { BusinessException } from '../common/exceptions/business.exception';
+import { ErrorCode } from '../common/exceptions/error-codes';
 
 const mockPrisma = {
   $transaction: jest.fn(),
   user: { findUnique: jest.fn() },
   thread: { findUnique: jest.fn() },
-  subthread: { findUnique: jest.fn() },
+  subthread: { findUnique: jest.fn(), update: jest.fn() },
   threadMember: { findUnique: jest.fn(), upsert: jest.fn() },
-  post: { findUnique: jest.fn(), aggregate: jest.fn(), create: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+  post: { findUnique: jest.fn(), aggregate: jest.fn(), create: jest.fn(), findMany: jest.fn(), update: jest.fn(), findFirst: jest.fn() },
 };
 
 const mockEventEmitter = { emit: jest.fn() };
-const mockThreadAccess = { assertAccessible: jest.fn() };
+const mockThreadAccess = { assertAccessible: jest.fn(), assertCanManage: jest.fn().mockResolvedValue({ role: 'OWNER' }) };
 const mockNotificationProducer = { notify: jest.fn().mockResolvedValue(undefined) };
 const mockMentions = { extractUsernames: jest.fn().mockReturnValue([]), parseAndCreate: jest.fn().mockResolvedValue([]) };
 const mockReadingProgress = { update: jest.fn().mockResolvedValue(undefined) };
@@ -64,14 +65,15 @@ describe('PostsService', () => {
     mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
     mockPrisma.post.aggregate.mockResolvedValue({ _max: { floorNumber: 5 } });
     mockPrisma.post.create.mockResolvedValue({
-      id: 'p1', floorNumber: 6, content: 'test', author: { username: 'test' },
+      id: 'p1', kind: 'FLOOR', floorNumber: 6, content: 'test', author: { username: 'test' },
     });
+    let tx: any;
     mockPrisma.$transaction.mockImplementation(async (fn) => {
-      const tx = {
+      tx = {
         $queryRaw: jest.fn(),
         post: {
           aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 5 } }),
-          create: jest.fn().mockResolvedValue({ id: 'p1', floorNumber: 6, content: 'test', author: { username: 'test' } }),
+          create: jest.fn().mockResolvedValue({ id: 'p1', kind: 'FLOOR', floorNumber: 6, content: 'test', author: { username: 'test' } }),
         },
         subthread: { update: jest.fn() },
       };
@@ -80,102 +82,9 @@ describe('PostsService', () => {
 
     const result = await service.create('s1', { content: 'test' }, 'u1');
     expect(result.floorNumber).toBe(6);
-  });
-
-  it('create 非默认子贴首次发帖应回写 bodyPostId', async () => {
-    mockPrisma.user.findUnique.mockResolvedValue({ emailVerified: true });
-    const subthread = {
-      id: 's1', threadId: 't1', postingPolicy: 'PARTICIPANTS', bodyPostId: null,
-      thread: { published: true, defaultSubthreadId: 's0' },
-    };
-    mockPrisma.subthread.findUnique.mockResolvedValue(subthread);
-    mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
-    mockPrisma.post.aggregate.mockResolvedValue({ _max: { floorNumber: 5 } });
-    mockPrisma.post.create.mockResolvedValue({
-      id: 'p1', floorNumber: 6, content: 'test', author: { username: 'test' },
-    });
-    let tx: any;
-    mockPrisma.$transaction.mockImplementation(async (fn) => {
-      tx = {
-        $queryRaw: jest.fn(),
-        post: {
-          aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 5 } }),
-          create: jest.fn().mockResolvedValue({ id: 'p1', floorNumber: 6, content: 'test', author: { username: 'test' } }),
-        },
-        subthread: { update: jest.fn() },
-      };
-      return fn(tx);
-    });
-
-    await service.create('s1', { content: 'test' }, 'u1');
+    // 发帖事务只更新 lastPostAt，不再回写 bodyPostId
     expect(tx.subthread.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ bodyPostId: 'p1' }) }),
-    );
-  });
-
-  it('create 已有 bodyPost 的子贴再次发帖不应覆盖', async () => {
-    mockPrisma.user.findUnique.mockResolvedValue({ emailVerified: true });
-    const subthread = {
-      id: 's1', threadId: 't1', postingPolicy: 'PARTICIPANTS', bodyPostId: 'existing',
-      thread: { published: true, defaultSubthreadId: 's0' },
-    };
-    mockPrisma.subthread.findUnique.mockResolvedValue(subthread);
-    mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
-    mockPrisma.post.aggregate.mockResolvedValue({ _max: { floorNumber: 5 } });
-    mockPrisma.post.create.mockResolvedValue({
-      id: 'p1', floorNumber: 6, content: 'test', author: { username: 'test' },
-    });
-    let tx: any;
-    mockPrisma.$transaction.mockImplementation(async (fn) => {
-      tx = {
-        $queryRaw: jest.fn(),
-        post: {
-          aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 5 } }),
-          create: jest.fn().mockResolvedValue({ id: 'p1', floorNumber: 6, content: 'test', author: { username: 'test' } }),
-        },
-        subthread: { update: jest.fn() },
-      };
-      return fn(tx);
-    });
-
-    await service.create('s1', { content: 'test' }, 'u1');
-    expect(tx.subthread.update).not.toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ bodyPostId: expect.anything() }) }),
-    );
-    expect(tx.subthread.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ lastPostAt: expect.any(Date) }) }),
-    );
-  });
-
-  it('create 楼中楼回复不应回写 bodyPostId', async () => {
-    mockPrisma.user.findUnique.mockResolvedValue({ emailVerified: true });
-    const subthread = {
-      id: 's1', threadId: 't1', postingPolicy: 'PARTICIPANTS', bodyPostId: null,
-      thread: { published: true, defaultSubthreadId: 's0' },
-    };
-    mockPrisma.subthread.findUnique.mockResolvedValue(subthread);
-    mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
-    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', subthreadId: 's1', parentPostId: null });
-    mockPrisma.post.create.mockResolvedValue({
-      id: 'p2', floorNumber: null, parentPostId: 'p1', content: 'reply',
-      author: { username: 'test' },
-    });
-    let tx: any;
-    mockPrisma.$transaction.mockImplementation(async (fn) => {
-      tx = {
-        $queryRaw: jest.fn(),
-        post: {
-          aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 5 } }),
-          create: jest.fn().mockResolvedValue({ id: 'p2', floorNumber: null, parentPostId: 'p1', content: 'reply', author: { username: 'test' } }),
-        },
-        subthread: { update: jest.fn() },
-      };
-      return fn(tx);
-    });
-
-    await service.create('s1', { content: 'reply', parentPostId: 'p1' }, 'u1');
-    expect(tx.subthread.update).not.toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ bodyPostId: expect.anything() }) }),
+      expect.objectContaining({ data: { lastPostAt: expect.any(Date) } }),
     );
   });
 
@@ -184,7 +93,7 @@ describe('PostsService', () => {
     mockPrisma.subthread.findUnique.mockResolvedValue(subthread);
     mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', subthreadId: 's1', parentPostId: null });
     mockPrisma.post.create.mockResolvedValue({
-      id: 'p2', floorNumber: null, parentPostId: 'p1', content: 'reply',
+      id: 'p2', kind: 'FLOOR', floorNumber: null, parentPostId: 'p1', content: 'reply',
       author: { username: 'test' },
     });
     mockPrisma.$transaction.mockImplementation(async (fn) => {
@@ -192,7 +101,7 @@ describe('PostsService', () => {
         $queryRaw: jest.fn(),
         post: {
           aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 5 } }),
-          create: jest.fn().mockResolvedValue({ id: 'p2', floorNumber: null, parentPostId: 'p1', content: 'reply', author: { username: 'test' } }),
+          create: jest.fn().mockResolvedValue({ id: 'p2', kind: 'FLOOR', floorNumber: null, parentPostId: 'p1', content: 'reply', author: { username: 'test' } }),
         },
         subthread: { update: jest.fn() },
       };
@@ -202,6 +111,80 @@ describe('PostsService', () => {
     const result = await service.create('s1', { content: 'reply', parentPostId: 'p1' }, 'u1');
     expect(result.floorNumber).toBeNull();
     expect(result.parentPostId).toBe('p1');
+  });
+
+  describe('upsertBody', () => {
+    it('无正文时创建 kind=BODY 正文帖并更新 lastPostAt、发 post.created 事件', async () => {
+      mockPrisma.subthread.findUnique.mockResolvedValue({
+        id: 's1', threadId: 't1', title: 'x',
+        thread: { id: 't1', published: true, title: 'x' },
+      });
+      mockPrisma.post.findFirst.mockResolvedValue(null);
+      mockPrisma.post.create.mockResolvedValue({
+        id: 'b1', kind: 'BODY', floorNumber: null, version: 1, author: { username: 'u' },
+      });
+      mockPrisma.subthread.update.mockResolvedValue({});
+
+      const result = await service.upsertBody('s1', '新正文', undefined, 'u1');
+      expect(result.id).toBe('b1');
+      expect(result.kind).toBe('BODY');
+      expect(result.floorNumber).toBeNull();
+      expect(mockPrisma.subthread.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 's1' }, data: { lastPostAt: expect.any(Date) } }),
+      );
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        'post.created',
+        expect.objectContaining({ postId: 'b1', isSubthreadBody: true }),
+      );
+    });
+
+    it('更新已有正文（乐观锁 version 匹配）', async () => {
+      mockPrisma.subthread.findUnique.mockResolvedValue({
+        id: 's1', threadId: 't1', title: 'x',
+        thread: { id: 't1', published: true, title: 'x' },
+      });
+      mockPrisma.post.findFirst.mockResolvedValue({ id: 'b1', content: '旧', version: 2, kind: 'BODY' });
+      mockPrisma.post.update.mockResolvedValue({
+        id: 'b1', content: '新', version: 3, kind: 'BODY', parentPostId: null, author: { username: 'u' },
+      });
+
+      const result = await service.upsertBody('s1', '新', 2, 'u1');
+      expect(result.content).toBe('新');
+      expect(mockPrisma.post.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: 'b1', version: 2 }),
+          data: expect.objectContaining({ content: '新', version: { increment: 1 } }),
+        }),
+      );
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        'post.updated',
+        expect.objectContaining({ postId: 'b1' }),
+      );
+    });
+
+    it('version 不匹配应返回 409（OPTIMISTIC_LOCK_CONFLICT）', async () => {
+      mockPrisma.subthread.findUnique.mockResolvedValue({
+        id: 's1', threadId: 't1', title: 'x',
+        thread: { id: 't1', published: true, title: 'x' },
+      });
+      mockPrisma.post.findFirst.mockResolvedValue({ id: 'b1', content: '旧', version: 2, kind: 'BODY' });
+
+      const err = await service.upsertBody('s1', '新', 1, 'u1').catch((e) => e);
+      expect(err).toBeInstanceOf(BusinessException);
+      expect((err as BusinessException).errorCode).toBe(ErrorCode.OPTIMISTIC_LOCK_CONFLICT);
+    });
+
+    it('非管理者应返回 403', async () => {
+      mockPrisma.subthread.findUnique.mockResolvedValue({
+        id: 's1', threadId: 't1', title: 'x',
+        thread: { id: 't1', published: true, title: 'x' },
+      });
+      mockThreadAccess.assertCanManage.mockRejectedValueOnce(
+        new BusinessException(ErrorCode.FORBIDDEN, '无管理权限'),
+      );
+
+      await expect(service.upsertBody('s1', '新', undefined, 'u2')).rejects.toThrow(BusinessException);
+    });
   });
 
   it('create COLLABORATORS 权限子贴非协作者应该返回403', async () => {
@@ -231,7 +214,7 @@ describe('PostsService', () => {
   });
 
   it('remove 软删除非第一楼应该成功', async () => {
-    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', floorNumber: 3, parentPostId: 'p0', subthread: { deletedAt: null } });
+    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', kind: 'FLOOR', floorNumber: 3, parentPostId: 'p0', threadId: 't1', subthread: { deletedAt: null } });
     mockPrisma.post.update.mockResolvedValue({ id: 'p1', deletedAt: new Date() });
     await service.remove('p1', 'u1');
     expect(mockPrisma.post.update).toHaveBeenCalledWith(
@@ -239,8 +222,8 @@ describe('PostsService', () => {
     );
   });
 
-  it('remove 第一楼应该返回403', async () => {
-    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', floorNumber: 1, parentPostId: null, subthread: { deletedAt: null } });
+  it('remove 正文帖（kind=BODY）应该返回403', async () => {
+    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', kind: 'BODY', threadId: 't1', subthread: { deletedAt: null } });
     await expect(service.remove('p1', 'u1')).rejects.toThrow(BusinessException);
   });
 
@@ -263,6 +246,10 @@ describe('PostsService', () => {
       ]);
     const result = await service.findAllBySubthread('s1');
     expect((result.items[0] as any).replies).toHaveLength(2);
+    // 楼层查询 where 只包含 kind=FLOOR
+    expect(mockPrisma.post.findMany).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      where: expect.objectContaining({ kind: 'FLOOR', parentPostId: null }),
+    }));
   });
 
   it('findAllBySubthread 无回复楼层应返回空 replies 数组', async () => {

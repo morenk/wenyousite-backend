@@ -37,6 +37,11 @@ enum PostingPolicy {
   PLAYERS
 }
 
+enum PostKind {
+  BODY
+  FLOOR
+}
+
 enum ThreadVisibility {
   PUBLIC
   PRIVATE
@@ -236,12 +241,10 @@ model Subthread {
   postingPolicy PostingPolicy @default(PARTICIPANTS) @map("posting_policy")
   version       Int      @default(1) @map("lock_version")
   lastPostAt    DateTime? @map("last_post_at")
-  bodyPostId    String?   @unique @map("body_post_id")
   deletedAt     DateTime? @map("deleted_at")
   createdAt     DateTime  @default(now()) @map("created_at")
 
   thread        Thread    @relation("ThreadSubthreads", fields: [threadId], references: [id], onDelete: Cascade)
-  bodyPost      Post?     @relation("SubthreadBody", fields: [bodyPostId], references: [id], onDelete: SetNull)
   defaultForThread Thread? @relation("DefaultSubthread")
   tags     SubthreadTag[]
   posts    Post[]
@@ -362,6 +365,7 @@ model Post {
   threadId      String    @map("thread_id")
   subthreadId   String    @map("subthread_id")
   authorId      String    @map("author_id")
+  kind          PostKind  @default(FLOOR) @map("kind")
   floorNumber   Int?      @map("floor_number")
   parentPostId  String?   @map("parent_post_id")
   replyToPostId String?   @map("reply_to_post_id")
@@ -378,10 +382,10 @@ model Post {
   replyToPost Post?     @relation("ReplyTo", fields: [replyToPostId], references: [id])
   replies     Post[]    @relation("PostReplies")
   repliedBy   Post[]    @relation("ReplyTo")
-  subthreadBodyFor Subthread? @relation("SubthreadBody")
   readProgressBy UserReadProgress[]
   mentions    PostMention[]
   notifications Notification[]
+  @@index([subthreadId, kind])
   @@index([subthreadId, createdAt])
   @@index([threadId, createdAt])
   @@unique([subthreadId, floorNumber])

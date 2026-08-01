@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Patch, Delete,
+  Controller, Get, Post, Put, Patch, Delete,
   Body, Param, Query, Req, UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery, ApiOkResponse, ApiCreatedResponse, ApiUnauthorizedResponse, ApiForbiddenResponse, ApiNotFoundResponse } from '@nestjs/swagger';
@@ -7,6 +7,7 @@ import { FastifyRequest } from 'fastify';
 import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
+import { UpsertBodyDto } from './dto/upsert-body.dto';
 import { PostQueryDto } from './dto/post-query.dto';
 import { Auth, AuthRead, OptionalAuth } from '../auth/decorators/auth.decorator';
 
@@ -44,6 +45,23 @@ export class PostsController {
   ) {
     const user = (req as any).user as { id: string } | undefined;
     return this.postsService.findReplies(id, query.cursor, query.limit, user?.id);
+  }
+
+  @Put('subthreads/:subthreadId/body')
+  @Auth()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '写入子贴正文（upsert：无正文创建，有正文乐观锁更新）。仅 OWNER/COLLABORATOR' })
+  @ApiOkResponse({ description: '正文帖子（kind=BODY，不占楼层号）' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
+  @ApiForbiddenResponse({ description: '无管理权限' })
+  @ApiNotFoundResponse({ description: '子贴不存在' })
+  async upsertBody(
+    @Param('subthreadId') subthreadId: string,
+    @Body() dto: UpsertBodyDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const user = req['user'] as { id: string };
+    return this.postsService.upsertBody(subthreadId, dto.content, dto.version, user.id);
   }
 
   @Post('subthreads/:subthreadId/posts')

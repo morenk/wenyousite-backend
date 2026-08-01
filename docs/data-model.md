@@ -1,6 +1,6 @@
 # 数据模型
 
-> 22 张表，8 个 Prisma 枚举。所有 ID 使用 `cuid()` 生成，时间戳使用 `DateTime`。
+> 22 张表，9 个 Prisma 枚举。所有 ID 使用 `cuid()` 生成，时间戳使用 `DateTime`。
 
 ## 枚举定义
 
@@ -50,6 +50,13 @@
 | `PARTICIPANTS` | 所有参与人 | 全体参与人 |
 | `COLLABORATORS` | 仅协作者 | OWNER + COLLABORATOR |
 | `PLAYERS` | 仅玩家 | 被标记为 playerMarked 的参与人 |
+
+### PostKind — 帖子角色
+
+| 值 | 说明 |
+|----|------|
+| `BODY` | 子贴正文（每子贴至多一个，`floorNumber = null`，不占楼层号；不可删除，由子贴生命周期管理） |
+| `FLOOR` | 楼层（`floorNumber` 从 1 开始编号） |
 
 ### NotificationType — 通知类别
 
@@ -212,7 +219,7 @@
 | deletedAt | DateTime? | — | 软删除时间 |
 | createdAt | DateTime | — | — |
 
-### posts — 帖子（楼层/楼中楼）
+### posts — 帖子（正文/楼层/楼中楼）
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
@@ -220,7 +227,8 @@
 | threadId | String | FK threads (Cascade) | — |
 | subthreadId | String | FK subthreads (Cascade) | — |
 | authorId | String | FK users | 作者 |
-| floorNumber | Int? | unique per subthread | 楼层号（楼中楼为 null） |
+| kind | PostKind | default FLOOR | BODY=子贴正文（floorNumber=null）/ FLOOR=楼层 |
+| floorNumber | Int? | unique per subthread | 楼层号（正文与楼中楼为 null） |
 | parentPostId | String? | FK posts | 父楼层（楼中楼用） |
 | replyToPostId | String? | FK posts | 被回复的帖子 ID |
 | content | String | — | 正文（Markdown，含图片 URL） |
@@ -229,7 +237,9 @@
 | createdAt | DateTime | — | — |
 | updatedAt | DateTime | @updatedAt | — |
 
-索引：`@@index([subthreadId, createdAt])`, `@@index([threadId, createdAt])`
+索引：`@@index([subthreadId, kind])`, `@@index([subthreadId, createdAt])`, `@@index([threadId, createdAt])`
+
+> 子贴正文不单独建表：每子贴至多一个 `kind=BODY` 的帖子，通过 `PUT /subthreads/:id/body` upsert 维护；楼层接口只返回 `kind=FLOOR`。
 
 ### thread_likes — 点赞记录
 

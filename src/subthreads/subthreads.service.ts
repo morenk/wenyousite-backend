@@ -108,13 +108,9 @@ export class SubthreadsService {
             threadId,
             subthreadId: subthread.id,
             authorId: userId,
-            floorNumber: 1,
+            kind: 'BODY',
             content: dto.content!,
           },
-        });
-        await tx.subthread.update({
-          where: { id: subthread.id },
-          data: { bodyPostId: bodyPost.id },
         });
       }
 

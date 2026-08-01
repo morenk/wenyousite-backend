@@ -34,7 +34,7 @@ const mockEventEmitter = { emit: jest.fn() };
 const createTxMock = (overrides: Record<string, any> = {}) => ({
   $queryRaw: jest.fn(),
   $queryRawUnsafe: jest.fn(),
-  post: { create: jest.fn().mockResolvedValue({ id: 'p1', floorNumber: 1, content: 'test' }) },
+  post: { create: jest.fn().mockResolvedValue({ id: 'p1', kind: 'BODY', floorNumber: null, content: 'test' }) },
   subthread: {
     aggregate: jest.fn().mockResolvedValue({ _max: { sortOrder: 0 } }),
     findFirst: jest.fn().mockResolvedValue(null),
@@ -63,14 +63,25 @@ describe('SubthreadsService', () => {
   });
 
   describe('create', () => {
-    it('创建子贴并自动分配 sortOrder', async () => {
+    it('创建子贴并自动分配 sortOrder，正文创建为 kind=BODY 正文帖', async () => {
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
       mockPrisma.thread.findUnique.mockResolvedValue({ published: true, title: '主题A', defaultSubthreadId: 's0' });
-      mockPrisma.$transaction.mockImplementation(async (fn) => fn(createTxMock()));
+      let tx: any;
+      mockPrisma.$transaction.mockImplementation(async (fn) => {
+        tx = createTxMock();
+        return fn(tx);
+      });
 
       const result = await service.create('t1', { title: '设定区', content: '正文' }, 'u1');
       expect(result).toBeDefined();
       expect(result!.id).toBe('s1');
+      // 正文帖为 kind=BODY，不占楼层号（floorNumber=null），且不再回写 bodyPostId
+      expect(tx.post.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ kind: 'BODY', content: '正文' }) }),
+      );
+      expect(tx.post.create).toHaveBeenCalledWith(
+        expect.not.objectContaining({ data: expect.objectContaining({ floorNumber: expect.anything() }) }),
+      );
     });
 
     it('正文为空时仅创建子贴不创建楼层', async () => {

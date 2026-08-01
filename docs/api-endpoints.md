@@ -46,8 +46,8 @@
 
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
-| GET | `/threads` | Public | 主题帖列表（仅已发布帖），支持分区/排序/标签/Cursor，每帖含 `preview` 截断纯文本（源自默认子贴首楼） |
-| POST | `/threads` | Auth | 创建主题帖草稿（事务内创建 Thread + OWNER + 默认子贴 + 可选首楼正文，published=false）。参数: title/category/content/subthreadTitle/tagNames/visibility 全部可选 |
+| GET | `/threads` | Public | 主题帖列表（仅已发布帖），支持分区/排序/标签/Cursor，每帖含 `preview` 截断纯文本（源自默认子贴正文 kind=BODY） |
+| POST | `/threads` | Auth | 创建主题帖草稿（事务内创建 Thread + OWNER + 默认子贴 + 可选正文 kind=BODY，published=false）。参数: title/category/content/subthreadTitle/tagNames/visibility 全部可选 |
 | GET | `/threads/draft` | AuthRead | 我的草稿箱列表（未发布帖） |
 | GET | `/threads/:id` | AuthRead | 详情（含子贴列表）。未发布帖仅 owner 可查看；已发布帖浏览量+1，PRIVATE 帖非成员 404 |
 | PATCH | `/threads/:id` | Auth | 修改/发布（仅 OWNER/COLLABORATOR）。设置 published=true 即发布，此时校验 title/category/子贴/楼层完整性，发布后通知粉丝 |
@@ -83,12 +83,13 @@
 
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
-| GET | `/subthreads/:id/posts` | Public | 楼层列表（Cursor 分页），只返回 parentPostId=null 的楼层，内嵌每个楼层前 3 条楼中楼回复 |
-| POST | `/subthreads/:id/posts` | Auth | 发帖（楼层/楼中楼），需邮箱已验证，事务分配 floorNumber |
+| GET | `/subthreads/:id/posts` | Public | 楼层列表（Cursor 分页），只返回 kind=FLOOR（不含正文），主楼层 parentPostId=null，内嵌每个楼层前 3 条楼中楼回复 |
+| POST | `/subthreads/:id/posts` | Auth | 发帖（创建楼层 kind=FLOOR，含楼中楼回复），需邮箱已验证，事务分配 floorNumber |
+| PUT | `/subthreads/:id/body` | Auth | upsert 子贴正文（仅 OWNER/COLLABORATOR）：无正文创建 kind=BODY，有正文乐观锁更新（version 不匹配返回 409） |
 | GET | `/posts/:id` | Public | 帖子详情 |
 | GET | `/posts/:id/replies` | Public | 楼中楼回复列表（Cursor 分页） |
 | PATCH | `/posts/:id` | Auth | 编辑（仅作者自己），需邮箱已验证，乐观锁 |
-| DELETE | `/posts/:id` | Auth | 软删除（仅作者，第一楼除外），需邮箱已验证 |
+| DELETE | `/posts/:id` | Auth | 软删除楼层（仅作者，正文 kind=BODY 不可删），需邮箱已验证 |
 
 ## 草稿端点 (Drafts)
 
