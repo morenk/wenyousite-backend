@@ -52,7 +52,7 @@ const mockBlockFilter = {
 };
 const mockNotificationProducer = { notify: jest.fn().mockResolvedValue(undefined) };
 const mockEventEmitter = { emit: jest.fn() };
-const mockRedis = { hincrby: jest.fn().mockResolvedValue(1), hset: jest.fn().mockResolvedValue(1), hdelAll: jest.fn().mockResolvedValue(1), zadd: jest.fn().mockResolvedValue(1), zrem: jest.fn().mockResolvedValue(1), zrevrange: jest.fn().mockResolvedValue([]) };
+const mockRedis = { hincrby: jest.fn().mockResolvedValue(1), hset: jest.fn().mockResolvedValue(1), hdelAll: jest.fn().mockResolvedValue(1), zadd: jest.fn().mockResolvedValue(1), zrem: jest.fn().mockResolvedValue(1), zrevrange: jest.fn().mockResolvedValue([]), zcard: jest.fn().mockResolvedValue(100) };
 const mockCache = { buildKey: jest.fn((...parts: string[]) => parts.join(':')), get: jest.fn().mockResolvedValue(undefined), set: jest.fn().mockResolvedValue(undefined), del: jest.fn().mockResolvedValue(undefined), delByPattern: jest.fn().mockResolvedValue(undefined) };
 
 describe('ThreadsService', () => {
@@ -154,6 +154,79 @@ describe('ThreadsService', () => {
       expect(mockPrisma.thread.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }] }),
       );
+    });
+
+    describe('recommended（智能排序）', () => {
+      const mkThread = (id: string) => ({
+        id, title: id, category: 'RPG', published: true, visibility: 'PUBLIC',
+        owner: { id: 'u1', username: 'u', avatar: null },
+        defaultSubthread: { id: `s-${id}`, title: id, posts: [] },
+        topicTags: [], _count: { members: 1, posts: 0 },
+      });
+
+      beforeEach(() => {
+        mockRedis.zcard.mockResolvedValue(137);
+        mockRedis.zrevrange.mockReset();
+        mockRedis.zrevrange.mockResolvedValue([]);
+        mockPrisma.thread.findMany.mockReset();
+        // attachPlayerCounts 依赖 threadMember.groupBy
+        mockPrisma.threadMember.groupBy.mockResolvedValue([]);
+      });
+
+      it('ZSET 前缀 + 可见帖累进切片，相邻页不重复', async () => {
+        // 模拟：ZSET 前缀（混合分类），SQL 过滤后仅 3 篇 RPG 可见，且分散在 ZSET 中
+        const rpgIds = ['r1', 'r2', 'r3'];
+        mockRedis.zrevrange.mockResolvedValue([...rpgIds, 'x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7']);
+        mockPrisma.thread.findMany.mockResolvedValue([
+          mkThread('r1'), mkThread('r2'), mkThread('r3'),
+        ]);
+
+        // 第 1 页：consumed=0，切片前 2 个
+        const page1 = await service.findAll({ sort: 'recommended', category: 'RPG', limit: 2 } as any);
+        expect(page1.items.map(t => t.id)).toEqual(['r1', 'r2']);
+        expect(page1.pagination.hasMore).toBe(true);
+        expect(page1.pagination.cursor).toBe('2');
+
+        // 第 2 页：consumed=2，切片 [2,4)，只返回 r3，不重复
+        const page2 = await service.findAll({ sort: 'recommended', category: 'RPG', limit: 2, cursor: '2' } as any);
+        expect(page2.items.map(t => t.id)).toEqual(['r3']);
+        expect(page2.pagination.hasMore).toBe(false);
+        expect(page2.pagination.cursor).toBeNull();
+
+        // 两页合并无重复
+        const merged = [...page1.items, ...page2.items].map(t => t.id);
+        expect(new Set(merged).size).toBe(merged.length);
+      });
+
+      it('过滤损耗大时扩大前缀扫描直至取够可见帖', async () => {
+        const rpgIds = ['r1', 'r2', 'r3'];
+        // 第一次前缀只含 1 篇 RPG（不够 consumed+take），第二次扩大后含 3 篇
+        mockRedis.zrevrange
+          .mockResolvedValueOnce(['r1', 'x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7', 'x8', 'x9'])
+          .mockResolvedValueOnce([...rpgIds, 'x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7']);
+        mockPrisma.thread.findMany
+          .mockResolvedValueOnce([mkThread('r1')])
+          .mockResolvedValueOnce([mkThread('r1'), mkThread('r2'), mkThread('r3')]);
+
+        const page = await service.findAll({ sort: 'recommended', category: 'RPG', limit: 2 } as any);
+        expect(mockRedis.zrevrange).toHaveBeenCalledTimes(2);
+        expect(page.items.map(t => t.id)).toEqual(['r1', 'r2']);
+        expect(page.pagination.cursor).toBe('2');
+      });
+
+      it('ZSET 为空时返回空页', async () => {
+        mockRedis.zcard.mockResolvedValue(0);
+        mockRedis.zrevrange.mockResolvedValue([]);
+        const page = await service.findAll({ sort: 'recommended' } as any);
+        expect(page.items).toEqual([]);
+        expect(page.pagination.hasMore).toBe(false);
+      });
+
+      it('未登录 playing 筛选返回空', async () => {
+        const page = await service.findAll({ sort: 'recommended', filter: 'playing' } as any);
+        expect(page.items).toEqual([]);
+        expect(mockPrisma.thread.findMany).not.toHaveBeenCalled();
+      });
     });
   });
 

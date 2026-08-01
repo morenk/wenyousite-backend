@@ -251,19 +251,14 @@ export class ThreadsService {
     return result;
   }
 
-  /** 智能排序：从 Redis ZSET 按偏移分页，SQL 过滤后归位排序 */
+  /** 智能排序：从 Redis ZSET 按「已消费可见帖数」累进分页，SQL 过滤后归位切片，保证每帖只出现一次 */
   private async findAllSmart(query: ThreadQueryDto, userId?: string) {
     const take = Math.min(query.limit ?? 20, 50);
-    const offset = query.cursor ? parseInt(query.cursor, 10) : 0;
-    // 多取 3 倍补偿 SQL 过滤损耗
-    const fetchCount = take * 3;
-    const ids = await this.redis.zrevrange(ZSET_BY_SMART, offset, offset + fetchCount - 1);
+    // cursor 记录「已消费的可见帖数」，单调累进
+    const consumed = query.cursor ? parseInt(query.cursor, 10) : 0;
+    const zsetSize = await this.redis.zcard(ZSET_BY_SMART);
 
-    if (ids.length === 0) {
-      return paginate([], { cursor: null, hasMore: false });
-    }
-
-    const where: any = { ...notDeleted, published: true, id: { in: ids } };
+    const where: any = { ...notDeleted, published: true };
     if (query.filter === 'playing') {
       if (!userId) return paginate([], { cursor: null, hasMore: false });
       where.members = { some: { userId, playerMarked: true } };
@@ -277,8 +272,51 @@ export class ThreadsService {
       };
     }
 
-    const threads = await this.prisma.thread.findMany({
-      where,
+    // 前缀累进扫描：从 ZSET 头部取足够长的前缀，SQL 过滤后按 ZSET 序排列
+    // 若前缀内可见帖仍不足以切够 take 个，扩大扫描窗口继续取（补偿过滤损耗）
+    let scanEnd = consumed + take * 5;
+    let ids: string[] = [];
+    let threads: any[] = [];
+
+    for (;;) {
+      const batch = await this.redis.zrevrange(ZSET_BY_SMART, 0, scanEnd - 1);
+      if (batch.length === 0) {
+        // ZSET 为空或超出范围
+        return paginate([], { cursor: null, hasMore: false });
+      }
+      ids = batch;
+      threads = await this.fetchSmartThreads(ids, where);
+      if (threads.length >= consumed + take || scanEnd >= zsetSize) break;
+      // 过滤损耗大：扩大前缀继续扫描
+      scanEnd = scanEnd * 2;
+    }
+
+    // 按 ZSET 原有顺序排列
+    const idOrder = new Map(ids.map((id, i) => [id, i]));
+    threads.sort((a, b) => (idOrder.get(a.id) ?? 9999) - (idOrder.get(b.id) ?? 9999));
+
+    const sliced = threads.slice(consumed, consumed + take);
+    const hasMore = threads.length > consumed + take;
+    const nextCursor = hasMore ? String(consumed + sliced.length) : null;
+
+    await attachPlayerCounts(this.prisma, sliced);
+
+    const items = sliced.map((t: any) => {
+      const preview = t.defaultSubthread?.posts?.[0]?.content
+        ? truncateMarkdown(t.defaultSubthread.posts[0].content)
+        : '';
+      // 移除 defaultSubthread.posts 全量，仅保留 preview
+      const { posts, ...rest } = t.defaultSubthread ?? {};
+      return { ...t, preview, defaultSubthread: t.defaultSubthread ? rest : null };
+    });
+
+    return paginate(items, { cursor: nextCursor, hasMore });
+  }
+
+  /** 按 id 列表查询已发布帖（含 owner/defaultSubthread/topicTags/_count），供智能排序过滤用 */
+  private async fetchSmartThreads(ids: string[], where: Record<string, unknown>) {
+    return this.prisma.thread.findMany({
+      where: { ...where, id: { in: ids } },
       include: {
         owner: { select: authorSelect },
         defaultSubthread: {
@@ -295,27 +333,6 @@ export class ThreadsService {
         ...countMembersAndPosts(),
       },
     });
-
-    // 按 ZSET 原有顺序排列
-    const idOrder = new Map(ids.map((id, i) => [id, i]));
-    threads.sort((a, b) => (idOrder.get(a.id) ?? 9999) - (idOrder.get(b.id) ?? 9999));
-
-    const sliced = threads.slice(0, take);
-    const hasMore = threads.length > take || ids.length >= fetchCount;
-    const nextCursor = hasMore ? String(offset + (sliced.length > 0 ? offset + sliced.length : take)) : null;
-
-    await attachPlayerCounts(this.prisma, sliced);
-
-    const items = sliced.map((t: any) => {
-      const preview = t.defaultSubthread?.posts?.[0]?.content
-        ? truncateMarkdown(t.defaultSubthread.posts[0].content)
-        : '';
-      // 移除 defaultSubthread.posts 全量，仅保留 preview
-      const { posts, ...rest } = t.defaultSubthread ?? {};
-      return { ...t, preview, defaultSubthread: t.defaultSubthread ? rest : null };
-    });
-
-    return paginate(items, { cursor: nextCursor, hasMore });
   }
 
   /** 查看指定用户参与的主题帖（被标记为玩家，受 showPlayerBadges 隐私开关控制） */
