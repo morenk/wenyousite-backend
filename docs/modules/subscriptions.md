@@ -28,6 +28,8 @@
 
 - THREAD 类型不传 `targetUserId`，USER 类型必须传 `targetUserId`
 - 创建前校验主题帖和目标用户是否存在，已订阅则返回 `ConflictException`
+- 不能订阅自己创建的帖子：`type=THREAD` 且 `thread.ownerId=userId` 时返回 400（楼主本就作为管理者收到通知，订阅无意义）
+- 不能订阅自己：`type=USER` 且 `targetUserId=userId` 时返回 400
 - 取消订阅时校验订阅归属，仅允许取消自己的订阅
 - 同一用户对同一主题帖的同一 targetUserId 唯一（通过 `@@unique([userId, threadId, targetUserId])` 约束）
 - `findSubscribers(threadId, excludeUserId?, authorId?)` 是供 `PostEventsListener` 调用的核心接口，用于合并订阅者进入通知接收人列表

@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { BusinessException } from '../common/exceptions/business.exception';
+import { ErrorCode } from '../common/exceptions/error-codes';
 
 /** 订阅服务：玩家可订阅特定用户或整个主题帖 */
 @Injectable()
@@ -10,13 +12,21 @@ export class SubscriptionsService {
   async create(userId: string, threadId: string, type: 'THREAD' | 'USER', targetUserId?: string) {
     const thread = await this.prisma.thread.findUnique({
       where: { id: threadId, deletedAt: null },
-      select: { id: true, published: true },
+      select: { id: true, published: true, ownerId: true },
     });
     if (!thread) throw new NotFoundException('主题帖不存在');
     if (!thread.published) throw new NotFoundException('主题帖不存在');
+    // 楼主订阅自己创建的帖子无意义（本就作为管理者收到通知），直接拒绝
+    if (type === 'THREAD' && thread.ownerId === userId) {
+      throw new BusinessException(ErrorCode.BAD_REQUEST, '不能订阅自己创建的帖子');
+    }
 
     if (type === 'USER') {
       if (!targetUserId) throw new NotFoundException('需要指定要订阅的用户');
+      // 订阅自己无意义，直接拒绝
+      if (targetUserId === userId) {
+        throw new BusinessException(ErrorCode.BAD_REQUEST, '不能订阅自己');
+      }
       const target = await this.prisma.user.findUnique({ where: { id: targetUserId } });
       if (!target) throw new NotFoundException('用户不存在');
     }
