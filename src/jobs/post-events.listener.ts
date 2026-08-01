@@ -69,13 +69,17 @@ export class PostEventsListener {
         where: {
           threadId: event.threadId,
           role: { in: ['OWNER', 'COLLABORATOR'] },
-          userId: { not: event.userId },
         },
         select: { userId: true },
       }),
     ]);
-    const subscriberIds = subscribers.map(s => s.userId);
-    const managerIds = managers.map(m => m.userId);
+    // 发帖者是楼主/协作者时才通知 THREAD 订阅者；USER 订阅者（订阅该用户）不受限制
+    const managerIdSet = new Set(managers.map(m => m.userId));
+    const authorIsManager = managerIdSet.has(event.userId);
+    const managerIds = [...managerIdSet].filter(id => id !== event.userId);
+    const subscriberIds = subscribers
+      .filter(s => authorIsManager || s.type === 'USER')
+      .map(s => s.userId);
 
     const username = event.authorUsername ?? '有人';
     const preview = truncateMarkdown(event.content);

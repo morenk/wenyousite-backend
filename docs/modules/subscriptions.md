@@ -13,7 +13,7 @@
 
 | 枚举 | 值 | 说明 |
 |------|----|------|
-| `SubscriptionType` | `THREAD` | 订阅整个主题帖下所有新帖 |
+| `SubscriptionType` | `THREAD` | 订阅整个主题帖，仅接收楼主/协作者的发言 |
 | `SubscriptionType` | `USER` | 订阅指定用户在该主题帖下的所有回复 |
 
 ## API 端点
@@ -32,10 +32,12 @@
 - 同一用户对同一主题帖的同一 targetUserId 唯一（通过 `@@unique([userId, threadId, targetUserId])` 约束）
 - `findSubscribers(threadId, excludeUserId?, authorId?)` 是供 `PostEventsListener` 调用的核心接口，用于合并订阅者进入通知接收人列表
 - 当提供 `authorId` 时，查询 WHERE 条件为 OR：`type='THREAD'` 或 `type='USER' AND targetUserId=authorId`，即合并"订阅整帖"与"订阅了发帖者"的用户
+- **THREAD 订阅限制**：只有发帖者是楼主（OWNER）或协作者（COLLABORATOR）时，THREAD 订阅者才会收到 `new_post` / `reply` 通知；普通玩家发言不会打扰整帖订阅者。USER 订阅（订阅了该发帖者）不受此限制，该用户发帖即通知
 - 订阅通知在 `new_post` 和 `reply` 两类通知中使用，@提及通知不走订阅逻辑
 
 ## 设计决策
 
 - 订阅粒度分为整帖和特定用户两级，而非仅整帖，允许用户自由控制通知密度
+- 整帖订阅仅推送楼主/协作者的发言，避免订阅者被帖内普通玩家的闲聊刷屏
 - `findSubscribers` 被设计为带灵活过滤条件的查询方法，因为不同通知场景需要不同的订阅者集合
 - 订阅通知不包含 @提及，原因是 @提及已有独立权限规则，重复通知会造成骚扰
