@@ -39,6 +39,29 @@ describe('truncateMarkdown', () => {
     expect(truncateMarkdown('> 引用内容')).toBe('引用内容');
   });
 
+  it('Milkdown 转义的其他特殊字符还原为字面，不残留反斜杠', () => {
+    expect(truncateMarkdown('a\\*b\\*c')).toBe('a*b*c');
+    expect(truncateMarkdown('a\\_b\\_c')).toBe('a_b_c');
+    expect(truncateMarkdown('a\\~b\\~c')).toBe('a~b~c');
+    expect(truncateMarkdown('a\\|b')).toBe('a|b');
+    expect(truncateMarkdown('a\\=b')).toBe('a=b');
+    expect(truncateMarkdown('\\[x\\]')).toBe('[x]');
+    expect(truncateMarkdown('\\{x\\}')).toBe('{x}');
+    expect(truncateMarkdown('\\`code\\`')).toBe('`code`');
+    expect(truncateMarkdown('\\# 标题')).toBe('# 标题');
+    expect(truncateMarkdown('\\- 条目')).toBe('- 条目');
+  });
+
+  it('真实 Markdown 强调/斜体/标题/链接/代码/列表仍被清理', () => {
+    expect(truncateMarkdown('**加粗**')).toBe('加粗');
+    expect(truncateMarkdown('*斜体*')).toBe('斜体');
+    expect(truncateMarkdown('# 标题')).toBe('标题');
+    expect(truncateMarkdown('[链接](https://example.com)')).toBe('链接');
+    expect(truncateMarkdown('`code`')).toBe('code');
+    expect(truncateMarkdown('- 列表项')).toBe('列表项');
+    expect(truncateMarkdown('1. 有序')).toBe('有序');
+  });
+
   it('普通反斜杠路径不受影响', () => {
     expect(truncateMarkdown('保存到 C:\\temp 目录')).toBe('保存到 C:\\temp 目录');
   });
