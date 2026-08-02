@@ -85,6 +85,7 @@ describe('ThreadsService', () => {
       const threadId = 't1';
       mockPrisma.$transaction.mockImplementation(async (fn) => fn({
         thread: {
+          count: jest.fn().mockResolvedValue(0),
           create: jest.fn().mockResolvedValue({ id: threadId }),
           update: jest.fn().mockResolvedValue({}),
         },
@@ -111,6 +112,7 @@ describe('ThreadsService', () => {
       let capturedThreadData: any;
       mockPrisma.$transaction.mockImplementation(async (fn) => fn({
         thread: {
+          count: jest.fn().mockResolvedValue(0),
           create: jest.fn().mockImplementation((args: any) => { capturedThreadData = args; return { id: threadId }; }),
           update: jest.fn().mockResolvedValue({}),
         },
@@ -129,6 +131,23 @@ describe('ThreadsService', () => {
 
       await service.create({}, 'u1');
       expect(capturedThreadData.data.title).toBe('未命名草稿');
+    });
+
+    it('超过草稿上限（10）时拒绝创建', async () => {
+      const threadCreate = jest.fn();
+      mockPrisma.$transaction.mockImplementation(async (fn) => fn({
+        thread: {
+          count: jest.fn().mockResolvedValue(10),
+          create: threadCreate,
+          update: jest.fn(),
+        },
+        threadMember: { create: jest.fn() },
+        subthread: { create: jest.fn(), update: jest.fn() },
+        post: { create: jest.fn() },
+      }));
+
+      await expect(service.create({ title: '测试' }, 'u1')).rejects.toThrow(BusinessException);
+      expect(threadCreate).not.toHaveBeenCalled();
     });
   });
 

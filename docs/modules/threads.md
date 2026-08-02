@@ -28,7 +28,7 @@
 | Method | Path | Guard | 描述 |
 |--------|------|-------|------|
 | GET | `/threads/draft` | AuthRead | 我的草稿箱列表（published=false 的帖） |
-| POST | `/threads` | Auth | 创建主题帖草稿（事务内创建 Thread + OWNER + 默认子贴 + 可选正文 kind=BODY，published=false） |
+| POST | `/threads` | Auth | 创建主题帖草稿（事务内创建 Thread + OWNER + 默认子贴 + 可选正文 kind=BODY，published=false）。每用户最多 10 条未发布草稿，超限返回 BAD_REQUEST |
 | GET | `/threads` | Public | 主题帖列表（仅已发布帖），每帖含 `preview` 截断纯文本（`truncateMarkdown` 处理默认子贴正文 kind=BODY，~100 字） |
 | GET | `/threads/:id` | AuthRead | 详情（含子贴列表和标签）。未发布帖仅 owner 可查看 |
 | PATCH | `/threads/:id` | Auth | 修改/发布（OWNER/COLLABORATOR，乐观锁）。设置 published=true 即发布，校验完整性后通知粉丝 |
@@ -52,6 +52,7 @@
 ### 草稿与发布
 
 - 创建草稿：`POST /threads` 事务内创建 Thread(published=false) + OWNER（playerMarked=true）+ 默认子贴（sortOrder=0）。`content` 可选传入默认子贴正文（创建 kind=BODY 正文帖）。`subthreadTitle` 可选，默认定值同 title；title 缺省为"未命名草稿"
+- 草稿上限：每用户最多持有 **10 条**未发布草稿（`published=false` 且未删除）。超限时 `POST /threads` 返回 `BAD_REQUEST`（"草稿数量已达上限（10/10）"），须先发布或删除旧草稿；已有超出上限的历史草稿不受影响，清理后自动恢复。配合定时任务每天清理 7 天未发布草稿作为兜底
 - 沙盒迭代：楼主可在草稿内自由创建更多子贴（`POST subthreads`）、撰写楼层（`POST posts`），所有端点自动保存
 - 草稿列表：`GET /threads/draft` 返回当前用户所有未发布帖，按 createdAt DESC 排序
 - 发布校验：`PATCH /threads/:id { published: true }` 时校验 —— ① title 非空且非默认值"未命名草稿" ② category 已设置 ③ 默认子贴存在且有正文（存在 kind=BODY 的正文帖）

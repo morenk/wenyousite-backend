@@ -22,6 +22,9 @@ const ZSET_BY_CREATED = 'threads:by:created';
 const ZSET_BY_ACTIVITY = 'threads:by:activity';
 const ZSET_BY_SMART = 'threads:by:smart';
 
+/** 每个用户最多可持有的未发布主题帖草稿数 */
+const MAX_THREAD_DRAFTS = 10;
+
 /** 主题帖服务：草稿创建、沙盒迭代、发布、CRUD */
 @Injectable()
 export class ThreadsService {
@@ -45,6 +48,17 @@ export class ThreadsService {
     const hasContent = !!dto.content?.trim();
 
     const result = await this.prisma.$transaction(async (tx) => {
+      // 0. 草稿数上限校验：未发布草稿超过上限则拒绝创建
+      const draftCount = await tx.thread.count({
+        where: { ownerId: userId, published: false, ...notDeleted },
+      });
+      if (draftCount >= MAX_THREAD_DRAFTS) {
+        throw new BusinessException(
+          ErrorCode.BAD_REQUEST,
+          `草稿数量已达上限（${MAX_THREAD_DRAFTS}/${MAX_THREAD_DRAFTS}），请先发布或删除旧草稿`,
+        );
+      }
+
       // 1. 创建 Thread
       const thread = await tx.thread.create({
         data: { title, category, ownerId: userId, visibility, published: false } as any,

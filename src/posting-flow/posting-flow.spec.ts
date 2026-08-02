@@ -48,6 +48,7 @@ const basicTx = () => ({
 const setupThreadTransaction = (prisma: MockPrisma, threadId = 't1', subthreadId = 's1') => {
   const tx = {
     thread: {
+      count: jest.fn().mockResolvedValue(0),
       create: jest.fn().mockResolvedValue({ id: threadId }),
       update: jest.fn().mockResolvedValue({}),
     },
