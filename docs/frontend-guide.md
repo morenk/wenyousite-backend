@@ -397,6 +397,7 @@ POST   /reading-progress                        记录/更新进度
 5. **楼中楼展开**：列表里显示前 3 条 + "查看全部"按钮，点击进入独立楼中楼界面分页加载。
 6. **图片上传**：等 `status: COMPLETED` 后再插入 Markdown `![](url)`。
 7. **通知轮询**：`GET /notifications/unread` 按业务需要间隔（15-30s 均可），避免过于频繁触发限流。
+8. **内容安全**：帖子/子贴/草稿/简介等 content 字段按 **Markdown 原样存储**（后端不做 HTML 转义）。客户端必须在**渲染层**净化：web 端用 react-markdown（默认剥离原始 HTML 标签、拦截危险 URL）；移动端用 markdown 渲染器，若需渲染原始 HTML 则对渲染输出加净化。**禁止在后端把内容当 HTML 转义后再存**（会破坏 markdown，导致 `>` 变成 `&gt;`）。
 
 ---
 

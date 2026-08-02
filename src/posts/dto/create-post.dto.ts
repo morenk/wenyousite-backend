@@ -1,15 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsOptional, MinLength, MaxLength } from 'class-validator';
-import { Transform } from 'class-transformer';
 import { IsCuid } from '../../common/decorators/is-cuid.decorator';
-import { sanitizeContent } from '../../common/transform/sanitize.transform';
 
 /** 创建帖子 DTO */
 export class CreatePostDto {
   @ApiProperty({ example: '这是一段正文内容，支持 Markdown 格式。', description: '帖子正文（支持 Markdown，前后端不渲染）', minLength: 1, maxLength: 10000 })
   @IsString()
   @MinLength(1)
-  @Transform(({ value }) => sanitizeContent(value))
   @MaxLength(10000)
   content: string;
 

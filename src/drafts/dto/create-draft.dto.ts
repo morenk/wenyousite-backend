@@ -1,14 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsOptional, MinLength, MaxLength, IsIn } from 'class-validator';
-import { Transform } from 'class-transformer';
-import { sanitizeContent } from '../../common/transform/sanitize.transform';
 
 /** 保存草稿 DTO */
 export class CreateDraftDto {
   @ApiProperty({ example: '这是一段草稿内容...', description: '草稿正文（Markdown 格式，与楼层一致）', minLength: 1, maxLength: 10000 })
   @IsString()
   @MinLength(1)
-  @Transform(({ value }) => sanitizeContent(value))
   @MaxLength(10000)
   content: string;
 

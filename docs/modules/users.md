@@ -83,7 +83,7 @@
 - 更新用户名时检查唯一性（过滤 deletedAt），冲突返回 409；DB 层 P2002 同样转 409 防竞态
 - 用户名修改需间隔 7 天以上，不足时返回剩余天数提示
 - 用户名规则：2-24 位，字母 + 数字 + 中文，禁止标点符号和特殊字符（注册与修改一致）
-- 用户名/简介自动去除 HTML 标签（sanitizeContent），防 XSS
+- 用户名/简介按 **Markdown 原样存储**（不做 HTML 转义/剥除），XSS 由各端渲染层净化（web 端 react-markdown 默认剥离原始 HTML 标签；移动端需使用 markdown 渲染器或对渲染输出净化）
 - 头像仅可通过 `PATCH /users/me/avatar` 设置（传入 mediaId），不可通过 `PATCH /users/me` 直接修改
 - 隐私开关（showRecentReplies / showPlayerBadges / showBookmarks）可通过 `PATCH /users/me` 修改
 - 空 body 的 PATCH /users/me 不执行数据库写入，直接返回当前信息
