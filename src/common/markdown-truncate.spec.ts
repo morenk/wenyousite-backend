@@ -26,12 +26,17 @@ describe('truncateMarkdown', () => {
     expect(truncateMarkdown('\\>niubi')).toBe('>niubi');
   });
 
-  it('Milkdown 转义的行首引用块保留字面 >，不残留反斜杠', () => {
-    expect(truncateMarkdown('\\> <\n\n\n>')).toBe('>');
+  it('回复只有 < 与 > 分行时预览保留字面内容，不被当 HTML 标签吞掉', () => {
+    expect(truncateMarkdown('<\n\n\n\\>')).toBe('<\n\n\n>');
   });
 
-  it('Milkdown 转义的 HTML 标签 < > 还原后清理，不残留反斜杠', () => {
-    expect(truncateMarkdown('\\<div>代码\\</div>')).toBe('代码');
+  it('Milkdown 转义的 HTML 标签保留字面文本，不残留反斜杠', () => {
+    expect(truncateMarkdown('\\<div>代码\\</div>')).toBe('<div>代码</div>');
+    expect(truncateMarkdown('使用 \\<br> 换行')).toBe('使用 <br> 换行');
+  });
+
+  it('真实引用块仍被清理，保留引用内容', () => {
+    expect(truncateMarkdown('> 引用内容')).toBe('引用内容');
   });
 
   it('普通反斜杠路径不受影响', () => {
