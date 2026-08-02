@@ -440,7 +440,7 @@ describe('发帖全流程集成测试', () => {
             findUnique: jest.fn(),
           },
         };
-        try { return await fn(tx); } catch (e) { throw e; }
+        return fn(tx);
       });
 
       await expect(
