@@ -1,10 +1,10 @@
-import { Controller, Post, Delete, Get, Param, Req } from '@nestjs/common';
+import { Controller, Post, Delete, Get, Param, Req, NotFoundException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse, ApiUnauthorizedResponse, ApiForbiddenResponse, ApiNotFoundResponse } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationProducer } from '../jobs/notification.producer';
 import { BlockFilterService } from '../common/services/block-filter.service';
-import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
+import { Auth, AuthRead, OptionalAuth } from '../auth/decorators/auth.decorator';
 
 /** 关注与拉黑控制器 */
 @ApiTags('Users')
@@ -98,6 +98,46 @@ export class UsersFollowController {
       where: { followingId: user.id },
       include: { follower: { select: { id: true, username: true, avatar: true } } },
     });
+  }
+
+  // ====== 公开关注/粉丝列表（按用户 ID） ======
+
+  /** 指定用户的关注列表（公开，OptionalAuth） */
+  @Get(':id/following')
+  @OptionalAuth()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '指定用户的关注列表' })
+  @ApiOkResponse({ description: '指定用户的关注列表（含 id/username/avatar）' })
+  @ApiNotFoundResponse({ description: '用户不存在' })
+  async userFollowing(@Param('id') id: string) {
+    await this.assertUserExists(id);
+    return this.prisma.userFollow.findMany({
+      where: { followerId: id },
+      include: { following: { select: { id: true, username: true, avatar: true } } },
+    });
+  }
+
+  /** 指定用户的粉丝列表（公开，OptionalAuth） */
+  @Get(':id/followers')
+  @OptionalAuth()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '指定用户的粉丝列表' })
+  @ApiOkResponse({ description: '指定用户的粉丝列表（含 id/username/avatar）' })
+  @ApiNotFoundResponse({ description: '用户不存在' })
+  async userFollowers(@Param('id') id: string) {
+    await this.assertUserExists(id);
+    return this.prisma.userFollow.findMany({
+      where: { followingId: id },
+      include: { follower: { select: { id: true, username: true, avatar: true } } },
+    });
+  }
+
+  private async assertUserExists(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!user) throw new NotFoundException('用户不存在');
   }
 
   // ====== 拉黑 ======

@@ -39,6 +39,8 @@
 | DELETE | `/users/follow/:id` | Auth | 取消关注 |
 | GET | `/users/following` | AuthRead | 我的关注列表 |
 | GET | `/users/followers` | AuthRead | 我的粉丝列表 |
+| GET | `/users/:id/following` | OptionalAuth | 指定用户的关注列表（公开） |
+| GET | `/users/:id/followers` | OptionalAuth | 指定用户的粉丝列表（公开） |
 | POST | `/users/me/block/:id` | Auth | 拉黑用户 |
 | DELETE | `/users/me/block/:id` | Auth | 取消拉黑 |
 | GET | `/users/me/blocks` | AuthRead | 我的黑名单 |

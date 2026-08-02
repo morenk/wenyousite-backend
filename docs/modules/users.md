@@ -35,6 +35,8 @@
 | DELETE | `/users/follow/:id` | Auth | 取消关注 |
 | GET | `/users/following` | AuthRead | 我的关注列表 |
 | GET | `/users/followers` | AuthRead | 我的粉丝列表 |
+| GET | `/users/:id/following` | OptionalAuth | 指定用户的关注列表（公开，用户不存在返回 404） |
+| GET | `/users/:id/followers` | OptionalAuth | 指定用户的粉丝列表（公开，用户不存在返回 404） |
 | POST | `/users/me/block/:id` | Auth | 拉黑指定用户 |
 | DELETE | `/users/me/block/:id` | Auth | 取消拉黑 |
 | GET | `/users/me/blocks` | AuthRead | 我的黑名单 |
@@ -87,6 +89,7 @@
 - 空 body 的 PATCH /users/me 不执行数据库写入，直接返回当前信息
 - 资料修改限流 5 次/分钟
 - 关注和拉黑端点、资料修改、账号注销均使用 `@Auth()`（需邮箱验证），仅查询操作使用 `@AuthRead()`
+- `GET /users/:id/following` / `GET /users/:id/followers` 为公开查询（`@OptionalAuth()`，无隐私开关），返回全部关注/粉丝（含 id/username/avatar），目标用户不存在返回 404；与「我的关注/粉丝」（`/users/following`、`/users/followers`，仅本人）并存
 - 关注时检查是否已关注，仅在首次关注时发送通知，避免重复通知
 - 关注自己返回 "不能关注自己" 消息，不执行数据库操作
 - 关注成功后异步发送 follow 类型通知给被关注者（fire-and-forget）
