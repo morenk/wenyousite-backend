@@ -25,6 +25,7 @@
 | GET | `/users/me` | AuthRead | 获取当前登录用户的完整资料（含邮箱、隐私设置、社交统计） |
 | PATCH | `/users/me` | Auth | 修改当前用户资料（用户名、Bio、隐私设置），5次/分钟限流，需邮箱已验证 |
 | PATCH | `/users/me/avatar` | Auth | 设置头像（传入 mediaId，校验归属 + 状态 COMPLETED），需邮箱已验证 |
+| DELETE | `/users/me/avatar` | Auth | 移除头像（置空 `user.avatar`，回到首字母占位），需邮箱已验证 |
 | DELETE | `/users/me` | Auth | 注销当前账号（软删除，设置 deletedAt），需邮箱已验证 |
 | GET | `/users/:id` | OptionalAuth | 获取指定用户的公开资料（不含邮箱）。登录后额外返回 isFollowing / isFollowedBy / isBlocked / isBlockedBy |
 | GET | `/users/:id/bookmarks` | OptionalAuth | 查看用户的公开收藏，Cursor 分页。受 showBookmarks 控制 |

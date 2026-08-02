@@ -75,6 +75,17 @@ export class UsersController {
     return this.usersService.setAvatar(user.id, dto.mediaId);
   }
 
+  @Delete('me/avatar')
+  @Auth()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '移除头像（置空 user.avatar，回到首字母占位）' })
+  @ApiOkResponse({ description: '更新后的用户资料（avatar 为 null）' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
+  async removeAvatar(@Req() req: FastifyRequest) {
+    const user = req['user'] as { id: string };
+    return this.usersService.setAvatar(user.id, null);
+  }
+
   @Delete('me')
   @Auth()
   @ApiBearerAuth()

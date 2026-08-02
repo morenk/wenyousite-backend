@@ -28,6 +28,7 @@
 | GET | `/users/me` | AuthRead | 当前登录用户完整信息（含 email、隐私设置、关注/粉丝数） |
 | PATCH | `/users/me` | Auth | 修改当前用户资料（用户名/Bio/隐私设置），5次/分钟，需邮箱已验证 |
 | PATCH | `/users/me/avatar` | Auth | 设置头像（传入 mediaId），需邮箱已验证 |
+| DELETE | `/users/me/avatar` | Auth | 移除头像（置空 `user.avatar`），需邮箱已验证 |
 | DELETE | `/users/me` | Auth | 注销当前账号（软删除，设置 deletedAt），需邮箱已验证 |
 | GET | `/users/search?q=xxx` | AuthRead | 搜索用户（@提及用），排除已注销 |
 | GET | `/users/:id` | OptionalAuth | 用户公开资料（不含 email）。登录后附加 isFollowing / isFollowedBy / isBlocked / isBlockedBy |

@@ -165,4 +165,11 @@ describe('UsersService', () => {
     });
     await expect(service.setAvatar('u1', 'm1')).rejects.toThrow(BadRequestException);
   });
+
+  it('setAvatar(null) 应清除头像且不查询 media', async () => {
+    mockPrisma.user.update.mockResolvedValue({ ...userFixture, avatar: null });
+    const result = await service.setAvatar('u1', null);
+    expect(result.avatar).toBeNull();
+    expect(mockPrisma.media.findUnique).not.toHaveBeenCalled();
+  });
 });

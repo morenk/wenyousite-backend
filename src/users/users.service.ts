@@ -160,8 +160,20 @@ export class UsersService {
     }
   }
 
-  /** 设置头像：校验 media 归属 + COMPLETED 状态后写入 user.avatar */
-  async setAvatar(userId: string, mediaId: string) {
+  /** 设置/移除头像：mediaId 传入校验归属 + COMPLETED 后写入 user.avatar；传 null 清除头像 */
+  async setAvatar(userId: string, mediaId: string | null) {
+    // mediaId 为 null 表示清除头像
+    if (mediaId === null) {
+      return this.prisma.user.update({
+        where: { id: userId },
+        data: { avatar: null },
+        select: userSelectPrivate,
+      }).then((result) => {
+        this.eventEmitter.emit('user.updated', { userId });
+        return result;
+      });
+    }
+
     const media = await this.prisma.media.findUnique({ where: { id: mediaId } });
     if (!media) {
       throw new NotFoundException('媒体记录不存在');
