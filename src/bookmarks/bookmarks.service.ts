@@ -38,7 +38,7 @@ export class BookmarksService {
     if (hasMore) valid.pop();
 
     return paginate(
-      valid.map((b) => b.thread),
+      valid.map((b) => ({ ...b.thread, bookmarkId: b.id })),
       {
         cursor: valid.length > 0 ? bookmarks[valid.length - 1].id : null,
         hasMore,

@@ -43,6 +43,9 @@ const mockPrisma = {
   post: {
     findMany: jest.fn().mockResolvedValue([]),
   },
+  userBookmark: {
+    findUnique: jest.fn(),
+  },
 };
 
 const mockTags = { findOrCreate: jest.fn() };
@@ -289,6 +292,31 @@ describe('ThreadsService', () => {
       mockPrisma.thread.findUnique.mockResolvedValue(thread);
       const result = await service.findById('t1', 'u1');
       expect(result.id).toBe('t1');
+    });
+
+    it('登录态附加 isBookmarked 与 bookmarkId', async () => {
+      const thread = { id: 't1', title: '测试', published: true, visibility: 'PUBLIC', owner: { id: 'u1' }, subthreads: [] };
+      mockPrisma.thread.findUnique.mockResolvedValue(thread);
+      mockPrisma.thread.update.mockResolvedValue({});
+      mockPrisma.userBookmark.findUnique.mockResolvedValue({ id: 'bm1' });
+
+      const result = await service.findById('t1', 'u1') as any;
+      expect(result.isBookmarked).toBe(true);
+      expect(result.bookmarkId).toBe('bm1');
+      expect(mockPrisma.userBookmark.findUnique).toHaveBeenCalledWith({
+        where: { userId_threadId: { userId: 'u1', threadId: 't1' } },
+        select: { id: true },
+      });
+    });
+
+    it('未登录不附加收藏字段', async () => {
+      const thread = { id: 't1', title: '测试', published: true, visibility: 'PUBLIC', owner: { id: 'u1' }, subthreads: [] };
+      mockPrisma.thread.findUnique.mockResolvedValue(thread);
+      mockPrisma.thread.update.mockResolvedValue({});
+
+      const result = await service.findById('t1') as any;
+      expect(result.isBookmarked).toBeUndefined();
+      expect(mockPrisma.userBookmark.findUnique).not.toHaveBeenCalled();
     });
 
     it('未发布帖：非 owner 返回404', async () => {

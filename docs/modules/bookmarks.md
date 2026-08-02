@@ -21,6 +21,7 @@
 ## 核心业务规则
 
 - 收藏列表仅返回当前用户的收藏，按收藏时间倒序排列
+- `GET /bookmarks` 每条返回 `{ ...thread, bookmarkId }`（bookmarkId 为收藏记录 ID，供前端取消收藏 DELETE /bookmarks/:id）
 - 公开帖：任何人都可收藏
 - 私密帖：仅参与人可收藏（非参与人尝试收藏 → 404）
 - 已收藏的帖重复收藏 → 409 Conflict

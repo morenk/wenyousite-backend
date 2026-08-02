@@ -63,7 +63,7 @@
 ### 列表与详情
 
 - 列表接口 `findAll`：仅返回 published=true 的帖；`filter=all`(默认)仅 PUBLIC 帖；`filter=playing`返回被其他楼主标记为玩家（playerMarked=true）的帖（含私密帖，排除自己创建的帖），需登录。每帖含 `preview` 字段（truncateMarkdown 截断默认子贴正文 kind=BODY，纯文本，~100 字），不再返回 `bodyPost.content` 全文
-- 详情接口 `findById`：未发布帖仅 owner 可查看且不递增 viewCount；已发布帖 viewCount 异步 +1（Redis 计数器 + DB），PRIVATE 帖非参与人返回 404
+- 详情接口 `findById`：未发布帖仅 owner 可查看且不递增 viewCount；已发布帖 viewCount 异步 +1（Redis 计数器 + DB），PRIVATE 帖非参与人返回 404；登录态附加 `isBookmarked` / `bookmarkId`（浅拷贝返回，不写入共享响应缓存）
 - 排序规则：
   - `sort=created`（默认）：置顶优先，其次按 createdAt DESC
   - `sort=active`：置顶优先，其次按 updatedAt DESC
