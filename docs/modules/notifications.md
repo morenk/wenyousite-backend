@@ -40,7 +40,7 @@
 - 通知创建时的结构化导航字段（postId / threadId / fromUserId）在创建时写入，查询时直接关联返回
 - 定时清理任务每天凌晨 4 点清理 90 天前已读的通知
 - `payload` JSON 字段携带通知的结构化数据（actorName、action、preview 等），供前端灵活渲染
-- 通知摘要先移除 Markdown 图片语法，再剥离其他 Markdown 标记；图片 alt（包括 Milkdown 的 `1.00` 比例占位）不会进入通知文案
+- 通知摘要先把 Markdown 图片语法替换为 `[图片]`，再剥离其他 Markdown 标记；纯图片回复仍有可识别预览，同时图片 alt（包括 Milkdown 的 `1.00` 比例占位）不会进入通知文案
 
 ## 设计决策
 

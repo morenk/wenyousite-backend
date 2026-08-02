@@ -5,9 +5,9 @@ import removeMd from 'remove-markdown';
 export function truncateMarkdown(md: string, maxLen = 100, minLen = 50): string {
   if (!md) return '';
 
-  // 图片不进入通知摘要；先整体移除，避免 Milkdown 的比例 alt（如 1.00）泄漏为正文。
-  const withoutImages = md.replace(/!\[[^\]]*\]\([^)]*\)/g, '');
-  const plain = removeMd(withoutImages).trim();
+  // 图片只以统一占位进入摘要，避免 Milkdown 的比例 alt（如 1.00）泄漏为正文。
+  const withImagePlaceholders = md.replace(/!\[[^\]]*\]\([^)]*\)/g, '[图片]');
+  const plain = removeMd(withImagePlaceholders).trim();
   if (plain.length <= maxLen) return plain;
 
   let cut = maxLen;
