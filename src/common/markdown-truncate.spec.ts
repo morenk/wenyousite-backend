@@ -62,6 +62,11 @@ describe('truncateMarkdown', () => {
     expect(truncateMarkdown('1. 有序')).toBe('有序');
   });
 
+  it('Milkdown 硬换行（行尾反斜杠）还原为换行，不残留反斜杠', () => {
+    expect(truncateMarkdown('<看看呢>\\\n\\>看看呢<\n\n<\n\n\\>'))
+      .toBe('<看看呢>\n>看看呢<\n\n<\n\n>');
+  });
+
   it('普通反斜杠路径不受影响', () => {
     expect(truncateMarkdown('保存到 C:\\temp 目录')).toBe('保存到 C:\\temp 目录');
   });

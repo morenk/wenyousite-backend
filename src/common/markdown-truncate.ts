@@ -33,7 +33,10 @@ export function truncateMarkdown(md: string, maxLen = 100, minLen = 50): string 
   const protectedContent = withImagePlaceholders
     .replace(/\\([!-/:-@[-`{-~])/g, (_, c) => ESCAPE_MAP.get(c) ?? c)
     .replace(/</g, LT_PLACEHOLDER);
-  const plain = restorePlaceholders(removeMd(protectedContent)).trim();
+  const plain = restorePlaceholders(removeMd(protectedContent))
+    // Milkdown 硬换行（行尾反斜杠 + 换行）还原为普通换行，避免预览残留字面 \。
+    .replace(/\\\n/g, '\n')
+    .trim();
   if (plain.length <= maxLen) return plain;
 
   let cut = maxLen;
