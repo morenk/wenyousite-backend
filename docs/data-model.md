@@ -237,7 +237,7 @@
 | createdAt | DateTime | — | — |
 | updatedAt | DateTime | @updatedAt | — |
 
-索引：`@@index([subthreadId, kind])`, `@@index([subthreadId, createdAt])`, `@@index([threadId, createdAt])`
+索引：`@@index([subthreadId, kind])`, `@@index([subthreadId, createdAt])`, `@@index([threadId, createdAt])`, `@@index([parentPostId, createdAt])`（楼中楼分页）
 
 > 子贴正文不单独建表：每子贴至多一个 `kind=BODY` 的帖子，通过 `PUT /subthreads/:id/body` upsert 维护；楼层接口只返回 `kind=FLOOR`。
 

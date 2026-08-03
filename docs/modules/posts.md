@@ -16,7 +16,7 @@
 | Method | Path | Guard | 描述 |
 |--------|------|-------|------|
 | GET | `/subthreads/:subthreadId/posts` | Public | 楼层列表（Cursor 分页，仅返回楼层 kind=FLOOR，不含正文；主楼层 parentPostId=null，内嵌每个楼层前 3 条楼中楼回复） |
-| GET | `/posts/:id/replies` | Public | 楼中楼回复列表（Cursor 分页，无限下拉） |
+| GET | `/posts/:id/replies` | Public | 主楼层的楼中楼回复列表（Cursor 分页，无限下拉；仅接受 parentPostId=null 的 FLOOR） |
 | POST | `/subthreads/:subthreadId/posts` | Auth | 发帖（创建楼层 kind=FLOOR，含楼中楼回复；正文不通过本接口创建） |
 | PUT | `/subthreads/:subthreadId/body` | Auth | upsert 子贴正文（kind=BODY：无正文创建，有正文乐观锁更新，version 不匹配返回 409；仅 OWNER/COLLABORATOR） |
 | GET | `/posts/:id` | Public | 帖子详情（含导航上下文：帖/子贴/父楼） |
@@ -41,7 +41,8 @@
   - PLAYERS：仅 playerMarked=true 的参与人可发帖
 - 发帖后通过 EventEmitter 发射 `post.created` 事件，由 PostEventsListener 解耦处理 @提及解析和通知投递
 - 编辑使用乐观锁 version 防止并发编辑冲突
-- 楼层列表按 floorNumber ASC 排序（主楼层），楼中楼按 createdAt ASC 排序
+- 楼层列表按 floorNumber ASC 排序（主楼层），楼中楼按 createdAt ASC、id ASC 稳定排序；`parentPostId + createdAt` 复合索引支撑上百条回复的分页读取
+- 独立楼中楼阅读页复用 `GET /posts/:id` 获取原楼层及主题帖/子贴导航上下文，再用 `GET /posts/:id/replies` 分页读取回复；replies 接口拒绝以正文或楼中楼回复作为讨论根
 - 楼层列表响应中每个楼层内嵌 `replies` 字段（前 3 条楼中楼回复），含 `author` 和 `replyToPost`；`replyToPost` 关联被回复的目标帖并带出其 `author`（前端据此显示「回复 @xxx」上下文）；`_count.replies` 提供回复总数，超过 3 条时前端显示"查看全部 N 条回复"入口跳转至独立楼中楼界面
 - 子贴正文通过 `PUT /subthreads/:subthreadId/body` upsert：无正文时创建 kind=BODY 帖（floorNumber=null），有正文时乐观锁更新（version 不匹配返回 409）。后端把子贴的 kind=BODY 帖映射回响应字段 `bodyPost`（不再有 `bodyPostId`），编辑器依赖 `subthread.bodyPost` 加载可编辑正文
 - `_count.posts`（子贴与线程）只统计楼层（kind=FLOOR），正文（kind=BODY）不计入
@@ -51,5 +52,6 @@
 
 - **楼层编号事务内分配**：`SELECT MAX + 1` 在事务内执行，防止并发发帖导致的编号冲突和空洞
 - **楼中楼平级设计**：所有回复共享 parentPostId，通过 replyToPostId 区分回复目标，避免无限嵌套的 UI 复杂度和查询复杂度
+- **独立阅读页不新增数据模型**：原楼层只在视觉上充当讨论正文，存储语义仍为 FLOOR；其下回复继续通过 parentPostId 平级关联
 - **事件解耦 @提及和通知**：发帖服务不直接处理 @提及解析（涉用户匹配逻辑）和通知投递（涉订阅查询逻辑），通过 EventEmitter 发射事件到 PostEventsListener 异步处理，单一职责
 - **主体正文保护**：子贴正文（kind=BODY）不可删除，删除它等同于删除子贴；通过 kind=BODY 判断阻止误删。如需移除正文请删除整个子贴

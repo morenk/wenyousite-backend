@@ -842,7 +842,9 @@ prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', subthread: 
     });
 
     it('findReplies：返回楼中楼列表带 replyToPost', async () => {
-      prisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', subthread: { deletedAt: null } });
+      prisma.post.findUnique.mockResolvedValue({
+        id: 'p1', threadId: 't1', kind: 'FLOOR', parentPostId: null, subthread: { deletedAt: null },
+      });
       setupHelpers.mockThreadAccess_pass(prisma);
       prisma.post.findMany.mockResolvedValue([{ id: 'p2', author: {}, replyToPost: null }]);
       const result = await postsService.findReplies('p1');

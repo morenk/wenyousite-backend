@@ -91,7 +91,7 @@
 | POST | `/subthreads/:id/posts` | Auth | 发帖（创建楼层 kind=FLOOR，含楼中楼回复），需邮箱已验证，事务分配 floorNumber |
 | PUT | `/subthreads/:id/body` | Auth | upsert 子贴正文（仅 OWNER/COLLABORATOR）：无正文创建 kind=BODY，有正文乐观锁更新（version 不匹配返回 409） |
 | GET | `/posts/:id` | Public | 帖子详情 |
-| GET | `/posts/:id/replies` | Public | 楼中楼回复列表（Cursor 分页） |
+| GET | `/posts/:id/replies` | Public | 主楼层的楼中楼回复列表（Cursor 分页，createdAt + id 稳定正序；正文或回复 ID 返回 404） |
 | PATCH | `/posts/:id` | Auth | 编辑（仅作者自己），需邮箱已验证，乐观锁 |
 | DELETE | `/posts/:id` | Auth | 软删除楼层（仅作者，正文 kind=BODY 不可删），需邮箱已验证 |
 

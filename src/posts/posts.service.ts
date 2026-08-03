@@ -92,20 +92,29 @@ export class PostsService {
     });
   }
 
-  /** 获取楼中楼回复列表（cursor 分页）。已软删子贴返回 404 */
+  /** 获取主楼层的楼中楼回复列表（cursor 分页）。已软删子贴或非主楼层返回 404 */
   async findReplies(postId: string, cursor?: string, limit = 20, userId?: string) {
     const post = await this.prisma.post.findUnique({
       where: { id: postId, deletedAt: null },
-      select: { id: true, threadId: true, subthread: { select: { deletedAt: true } } },
+      select: {
+        id: true,
+        threadId: true,
+        kind: true,
+        parentPostId: true,
+        subthread: { select: { deletedAt: true } },
+      },
     });
     if (!post) throw notFound(ErrorCode.POST_NOT_FOUND, '楼层不存在');
     if (post.subthread.deletedAt) throw notFound(ErrorCode.POST_NOT_FOUND, '楼层不存在');
+    if (post.kind !== 'FLOOR' || post.parentPostId !== null) {
+      throw notFound(ErrorCode.POST_NOT_FOUND, '楼层不存在');
+    }
     await this.threadAccess.assertAccessible(post.threadId, userId);
 
     const take = Math.min(limit, 50);
     const replies = await this.prisma.post.findMany({
       where: { parentPostId: postId, ...notDeleted },
-      orderBy: { createdAt: 'asc' },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       take: take + 1,
       cursor: cursor ? { id: cursor } : undefined,
       skip: cursor ? 1 : 0,

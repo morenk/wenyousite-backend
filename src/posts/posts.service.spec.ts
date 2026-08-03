@@ -260,10 +260,24 @@ describe('PostsService', () => {
   });
 
   it('findReplies 应该返回楼中楼', async () => {
-    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', threadId: 't1', subthread: { deletedAt: null } });
+    mockPrisma.post.findUnique.mockResolvedValue({
+      id: 'p1', threadId: 't1', kind: 'FLOOR', parentPostId: null, subthread: { deletedAt: null },
+    });
     mockPrisma.post.findMany.mockResolvedValue([{ id: 'p2', author: {}, replyToPost: null }]);
     const result = await service.findReplies('p1');
     expect(result.items[0].id).toBe('p2');
+    expect(mockPrisma.post.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    }));
+  });
+
+  it('findReplies 拒绝以楼中楼回复作为讨论根', async () => {
+    mockPrisma.post.findUnique.mockResolvedValue({
+      id: 'p2', threadId: 't1', kind: 'FLOOR', parentPostId: 'p1', subthread: { deletedAt: null },
+    });
+
+    await expect(service.findReplies('p2')).rejects.toThrow(BusinessException);
+    expect(mockPrisma.post.findMany).not.toHaveBeenCalled();
   });
 
   it('findById 应该返回帖子详情', async () => {

@@ -388,6 +388,7 @@ model Post {
   @@index([subthreadId, kind])
   @@index([subthreadId, createdAt])
   @@index([threadId, createdAt])
+  @@index([parentPostId, createdAt])
   @@unique([subthreadId, floorNumber])
   @@map("posts")
 }
