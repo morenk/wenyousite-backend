@@ -29,7 +29,7 @@
 ## 核心业务规则
 
 - 通知列表按 createdAt DESC 排序，Cursor 分页（默认 20 条/页，最大 50）
-- 列表查询 include 关联关系：post（id/floorNumber/parentPostId）、thread（id/title）、fromUser（id/username/avatar），供前端拼接跳转 URL。系统通知 fromUser 为 null
+- 列表查询 include 关联关系：post（id/floorNumber/parentPostId/deletedAt）、thread（id/title/deletedAt）、fromUser（id/username/avatar/deletedAt），供前端拼接跳转 URL 并识别已删除的跳转对象。系统通知 fromUser 为 null
 - 列表查询自动过滤已软删帖/子贴关联的通知
 - 支持按类型过滤（`?type=mention,reply` 逗号分隔多个），兼容旧类型 `new_floor` / `subthread_created`（自动映射为 `new_post`）
 - 未读数基于 `isRead: false` 的 count 查询

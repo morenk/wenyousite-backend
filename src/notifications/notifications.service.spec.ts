@@ -27,6 +27,20 @@ describe('NotificationsService', () => {
     jest.clearAllMocks();
   });
 
+  it('findAll 应返回目标对象的删除状态 deletedAt，供前端识别已删除跳转对象', async () => {
+    mockPrisma.notification.findMany.mockResolvedValue([]);
+    await service.findAll('u1');
+    expect(mockPrisma.notification.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: {
+          post: expect.objectContaining({ select: expect.objectContaining({ deletedAt: true }) }),
+          thread: expect.objectContaining({ select: expect.objectContaining({ deletedAt: true }) }),
+          fromUser: expect.objectContaining({ select: expect.objectContaining({ deletedAt: true }) }),
+        },
+      }),
+    );
+  });
+
   it('create 应该传递结构化导航字段', async () => {
     mockPrisma.notification.create.mockResolvedValue({ id: 'n1', userId: 'u1' });
     await service.create('u1', 'reply', '内容', { postId: 'p1', threadId: 't1', fromUserId: 'u2' });

@@ -29,9 +29,9 @@ export class NotificationsService {
       cursor: cursor ? { id: cursor } : undefined,
       skip: cursor ? 1 : 0,
       include: {
-        post: { select: { id: true, floorNumber: true, parentPostId: true } },
-        thread: { select: { id: true, title: true } },
-        fromUser: { select: { id: true, username: true, avatar: true } },
+        post: { select: { id: true, floorNumber: true, parentPostId: true, deletedAt: true } },
+        thread: { select: { id: true, title: true, deletedAt: true } },
+        fromUser: { select: { id: true, username: true, avatar: true, deletedAt: true } },
       },
     });
 
