@@ -4,7 +4,7 @@ import { ThreadAccessService } from '../common/services/thread-access.service';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound, forbidden } from '../common/exceptions/business.exception';
 
-/** 主题帖参与人服务：加入、踢出、角色修改、玩家标记 */
+/** 主题帖参与人服务：候选池加入、角色修改、玩家标记 */
 @Injectable()
 export class ThreadMembersService {
   constructor(
@@ -64,25 +64,6 @@ export class ThreadMembersService {
     return this.prisma.threadMember.update({
       where: { threadId_userId: { threadId, userId: targetUserId } },
       data: dto as any,
-      include: {
-        user: { select: { id: true, username: true, avatar: true } },
-      },
-    });
-  }
-
-  /** 取消参与人资格：收回该用户的玩家标记 */
-  async removeMember(threadId: string, targetUserId: string, actorId: string) {
-    await this.threadAccess.assertCanManage(threadId, actorId);
-
-    const member = await this.prisma.threadMember.findUnique({
-      where: { threadId_userId: { threadId, userId: targetUserId } },
-    });
-    if (!member) throw notFound(ErrorCode.USER_NOT_FOUND, '该用户不是此主题帖参与人');
-    if (member.role === 'OWNER') throw forbidden('不能踢出楼主', ErrorCode.CANNOT_MODERATE_OWNER);
-
-    return this.prisma.threadMember.update({
-      where: { threadId_userId: { threadId, userId: targetUserId } },
-      data: { playerMarked: false },
       include: {
         user: { select: { id: true, username: true, avatar: true } },
       },

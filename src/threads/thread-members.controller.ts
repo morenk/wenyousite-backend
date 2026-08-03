@@ -9,7 +9,7 @@ import { UpdateMemberDto } from './dto/update-member.dto';
 import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
 
-/** 主题帖参与人控制器：加入、管理、踢出 */
+/** 主题帖参与人控制器：候选池加入、身份管理、退出 */
 @ApiTags('Threads')
 @Controller('threads/:threadId/members')
 export class ThreadMembersController {
@@ -66,17 +66,4 @@ export class ThreadMembersController {
     return { message: '已退出主题帖' };
   }
 
-  @Delete(':userId')
-  @Auth()
-  @ApiBearerAuth()
-  @ApiOperation({ summary: '取消参与人资格 / 收回玩家标记（仅 OWNER/COLLABORATOR）' })
-  async removeMember(
-    @Param('threadId') threadId: string,
-    @Param('userId') targetUserId: string,
-    @Req() req: FastifyRequest,
-  ) {
-    const user = req['user'] as { id: string };
-    await this.membersService.removeMember(threadId, targetUserId, user.id);
-    return { message: '已移出主题帖' };
-  }
 }

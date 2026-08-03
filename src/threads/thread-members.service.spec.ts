@@ -48,26 +48,4 @@ describe('ThreadMembersService', () => {
     expect(result.id).toBe('m1');
   });
 
-  it('私密帖踢出仅取消玩家标记', async () => {
-    mockPrisma.threadMember.findUnique
-      .mockResolvedValueOnce({ role: 'OWNER' }) // assertCanManage: 操作者权限
-      .mockResolvedValueOnce({ role: 'PARTICIPANT' }); // removeMember: 被踢者
-    mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', visibility: 'PRIVATE' });
-    mockPrisma.threadMember.update.mockResolvedValue({ id: 'm1', playerMarked: false });
-    await service.removeMember('t1', 'u2', 'u1');
-    expect(mockPrisma.threadMember.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { playerMarked: false } }),
-    );
-  });
-
-  it('踢出应取消玩家标记', async () => {
-    mockPrisma.threadMember.findUnique
-      .mockResolvedValueOnce({ role: 'OWNER' }) // assertCanManage
-      .mockResolvedValueOnce({ role: 'PARTICIPANT', playerMarked: true }); // removeMember
-    mockPrisma.threadMember.update.mockResolvedValue({ id: 'm1', playerMarked: false });
-    await service.removeMember('t1', 'u2', 'u1');
-    expect(mockPrisma.threadMember.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { playerMarked: false } }),
-    );
-  });
 });

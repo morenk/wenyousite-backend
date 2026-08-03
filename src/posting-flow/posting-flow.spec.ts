@@ -1060,28 +1060,6 @@ prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', subthread: 
       await expect(membersService.join('t1', 'u1')).rejects.toThrow(BusinessException);
     });
 
-    it('踢出应取消玩家标记', async () => {
-      prisma.threadMember.findUnique
-        .mockResolvedValueOnce({ role: 'OWNER' })
-        .mockResolvedValueOnce({ role: 'PARTICIPANT', playerMarked: true });
-      prisma.threadMember.update.mockResolvedValue({ id: 'm1', playerMarked: false });
-      await membersService.removeMember('t1', 'u2', 'u1');
-      expect(prisma.threadMember.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: { playerMarked: false } }),
-      );
-    });
-
-    it('私密帖踢出仅取消玩家标记不删除成员', async () => {
-      prisma.threadMember.findUnique
-        .mockResolvedValueOnce({ role: 'OWNER' })
-        .mockResolvedValueOnce({ role: 'PARTICIPANT' });
-      prisma.thread.findUnique.mockResolvedValue({ id: 't1', visibility: 'PRIVATE' });
-      prisma.threadMember.update.mockResolvedValue({ id: 'm1', playerMarked: false });
-      await membersService.removeMember('t1', 'u2', 'u1');
-      expect(prisma.threadMember.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: { playerMarked: false } }),
-      );
-    });
   });
 
   // ======================== 第十六部分：@提及 ========================

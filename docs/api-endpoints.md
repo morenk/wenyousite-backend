@@ -68,9 +68,8 @@
 |------|------|------|------|
 | GET | `/threads/:id/members` | Public | 回复过帖子的人列表 |
 | POST | `/threads/:id/members/join` | Auth | 自由加入（需已发布，PRIVATE 帖禁止） |
-| PATCH | `/threads/:id/members/:userId` | Auth | 修改参与人 role/playerMarked（授予/收回玩家身份，仅 OWNER/COLLABORATOR），需邮箱已验证 |
+| PATCH | `/threads/:id/members/:userId` | Auth | 授予/移除协作者身份，授予/收回玩家标记（仅 OWNER/COLLABORATOR），需邮箱已验证 |
 | DELETE | `/threads/:id/members/me` | AuthRead | 主动退出，取消自己的玩家标记（OWNER 不可退出），需邮箱已验证 |
-| DELETE | `/threads/:id/members/:userId` | Auth | 收回该参与人的玩家身份（仅 OWNER/COLLABORATOR），需邮箱已验证 |
 
 ## 子贴端点 (Subthreads)
 

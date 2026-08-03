@@ -2,7 +2,7 @@
 
 ## 概述
 
-主题帖的草稿创建、沙盒迭代、发布、列表、详情、修改、删除，参与人管理（加入/角色/收回玩家身份），私密帖邀请链接，置顶排序，标签管理。
+主题帖的草稿创建、沙盒迭代、发布、列表、详情、修改、删除，参与人候选池管理（授予/移除协作者身份、授予/收回玩家身份），私密帖邀请链接，置顶排序，标签管理。
 
 **核心流程**：所有主题帖创建统一走"草稿 → 发布"两阶段 —— `POST /threads` 事务内创建 Thread + OWNER + 默认子贴（可选正文，kind=BODY），在沙盒内逐步完善标题/子贴/楼层，最后通过 `PATCH /threads/:id { published: true }` 发布。发布前帖子不出现在列表/搜索中，仅楼主本人可访问。
 
@@ -44,7 +44,6 @@
 > 主题帖稳定访问链接为 `/threads/{threadId}`，由前端根据详情响应中的 `id` 生成；复制主题帖链接不新增后端端点。
 | PATCH | `/threads/:threadId/members/:userId` | Auth | 修改参与人角色/玩家标记 |
 | DELETE | `/threads/:threadId/members/me` | AuthRead | 主动退出（取消自己的 playerMarked），OWNER 不可退出 |
-| DELETE | `/threads/:threadId/members/:userId` | Auth | 收回该参与人的玩家身份 |
 | GET | `/threads/:threadId/tags` | Public | 主题帖标签列表 |
 | POST | `/threads/:threadId/tags` | Auth | 添加标签（OWNER/COLLABORATOR） |
 | DELETE | `/threads/:threadId/tags/:tagId` | Auth | 移除标签 |
@@ -80,7 +79,7 @@
 - 参与人（`PARTICIPANT`）本质是楼主的**玩家候选人池**：用户无需手动加入，发帖时自动 upsert 为参与人（`PostsService.create`），对用户无感
 - `_count.members` 统计候选池总数；`_count.players` 统计被授予玩家身份（`playerMarked=true`）的人数，供前端展示"玩家数"（Prisma `_count` 无法给关系计数别名，由服务层 `attachPlayerCounts()` 单独 `groupBy` 合并）
 - 修改和删除使用乐观锁（version 字段），并发冲突返回 "主题帖已被修改，请刷新后重试"
-- 参与人管理权限：OWNER/COLLABORATOR 可管理（角色修改、授予/收回玩家身份），不能修改/收回 OWNER
+- 参与人管理权限：OWNER/COLLABORATOR 可管理（授予/移除协作者身份、授予/收回玩家身份），不能修改/收回 OWNER；不提供删除参与人记录的操作
 - 私密帖禁止自由加入（POST join），仅可通过邀请链接加入
 - 收回玩家身份：取消该参与人的 playerMarked 标记。参与人记录保留，仍可浏览和在 PARTICIPANTS 策略子贴中发帖
 - 玩家身份决定 PLAYERS 策略子贴的发帖权限，详见子贴文档
