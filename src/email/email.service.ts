@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 
-/** 邮件服务：通过阿里云企业邮箱 SMTP 发送验证码、通知和重置密码邮件 */
+/** 邮件服务：通过阿里云邮件推送 (DirectMail) SMTP 发送验证码、通知和重置密码邮件 */
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);

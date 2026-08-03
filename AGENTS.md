@@ -22,7 +22,7 @@ NestJS + Fastify + PostgreSQL + Prisma + Redis + BullMQ，模块化单体架构�
 | 定时 | @nestjs/schedule | 每天凌晨 4 点清理过期 token 和僵尸用户 |
 | 安全 | helmet | HTTP 安全头 |
 | 图片 | @aws-sdk/client-s3 + sharp | 预签名直传 + 异步缩略图（300x300 + 800px） |
-| 邮件 | nodemailer | 阿里云企业邮箱 SMTP（smtp.mxhichina.com） |
+| 邮件 | nodemailer | 阿里云邮件推送 DirectMail SMTP（smtpdm.aliyun.com） |
 | 文档 | @nestjs/swagger | /api/docs (仅 dev) |
 | 健康检查 | @nestjs/terminus | /api/v1/health |
 | 测试 | Jest + ts-jest | 16 套件 255 用例 |

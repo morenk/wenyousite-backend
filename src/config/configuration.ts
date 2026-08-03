@@ -37,13 +37,13 @@ export default () => ({
     secretAccessKey: process.env.COS_SECRET_ACCESS_KEY ?? '',
   },
 
-  // 腾讯 SES 邮件服务（注册验证、找回密码）
+  // 阿里云邮件推送 (DirectMail) SMTP（注册验证、找回密码）
   ses: {
     host: process.env.SES_SMTP_HOST ?? '',
     port: parseInt(process.env.SES_SMTP_PORT ?? '465', 10),
     user: process.env.SES_SMTP_USER ?? '',
     pass: process.env.SES_SMTP_PASS ?? '',
-    from: process.env.SES_FROM_ADDRESS ?? 'noreply@wenyousite.com',
+    from: process.env.SES_FROM_ADDRESS ?? 'noreply@mail.wenyou.site',
   },
 
   // Sentry 错误监控
