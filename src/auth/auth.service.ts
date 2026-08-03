@@ -479,16 +479,20 @@ export class AuthService {
   }
 
   /** 更换邮箱第一步：向新邮箱发送 6 位验证码 */
-  async requestChangeEmailCode(userId: string, newEmail: string) {
+  async requestChangeEmailCode(userId: string, newEmail: string, oldPassword: string) {
     const normalized = newEmail.toLowerCase().trim();
     const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { email: true },
+      select: { email: true, password: true },
     });
     if (!currentUser) throw new UnauthorizedException();
     if (currentUser.email === normalized) {
       throw new BadRequestException('新邮箱不能与当前邮箱相同');
     }
+
+    // 二次认证：校验当前密码，防止会话被劫持后直接改邮箱
+    const valid = await argon2.verify(currentUser.password, oldPassword);
+    if (!valid) throw new UnauthorizedException('当前密码错误');
 
     const existing = await this.prisma.user.findUnique({
       where: { email: normalized, deletedAt: null },

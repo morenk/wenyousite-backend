@@ -384,6 +384,42 @@ describe('AuthService', () => {
     });
   });
 
+  describe('requestChangeEmailCode', () => {
+    it('新邮箱与当前相同应 400', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ email: 'a@b.com', password: 'x' });
+      await expect(
+        service.requestChangeEmailCode('u1', 'a@b.com', 'Pass1234'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('当前密码错误应 401（二次认证）', async () => {
+      const hashed = await argon2.hash('CurrentPass123');
+      mockPrisma.user.findUnique.mockResolvedValue({ email: 'a@b.com', password: hashed });
+      await expect(
+        service.requestChangeEmailCode('u1', 'new@b.com', 'WrongPass'),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('密码正确时发送验证码并创建记录', async () => {
+      const hashed = await argon2.hash('CurrentPass123');
+      // 第一次调用返回当前用户，第二次（查重）返回 null
+      mockPrisma.user.findUnique
+        .mockResolvedValueOnce({ email: 'a@b.com', password: hashed })
+        .mockResolvedValueOnce(null);
+      mockPrisma.emailVerification.findFirst.mockResolvedValue(null);
+      mockPrisma.emailVerification.create.mockResolvedValue({});
+
+      const result = await service.requestChangeEmailCode('u1', 'new@b.com', 'CurrentPass123');
+      expect(result.message).toContain('验证码已发送');
+      expect(mockPrisma.emailVerification.create).toHaveBeenCalled();
+      expect(mockEmailService.sendVerification).toHaveBeenCalledWith(
+        'new@b.com',
+        expect.any(String),
+        'CHANGE_EMAIL',
+      );
+    });
+  });
+
   describe('listSessions', () => {
     it('应该返回用户活跃会话列表', async () => {
       const crypto = await import('crypto');

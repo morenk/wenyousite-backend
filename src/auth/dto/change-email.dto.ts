@@ -1,11 +1,16 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsString, MinLength, MaxLength } from 'class-validator';
 
-/** 更换邮箱第一步：请求验证码 */
+/** 更换邮箱第一步：请求验证码（需当前密码二次认证） */
 export class ChangeEmailRequestDto {
   @ApiProperty({ example: 'newemail@example.com', description: '新邮箱地址' })
   @IsEmail()
   newEmail: string;
+
+  @ApiProperty({ example: 'CurrentPass123', description: '当前密码（二次认证）' })
+  @IsString()
+  @MinLength(1)
+  oldPassword: string;
 }
 
 /** 更换邮箱第二步：验证码确认 */

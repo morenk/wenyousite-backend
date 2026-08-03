@@ -163,7 +163,7 @@ export class AuthController {
   @ApiConflictResponse({ description: '新邮箱已被占用' })
   async requestChangeEmailCode(@Req() req: FastifyRequest, @Body() dto: ChangeEmailRequestDto) {
     const user = req['user'] as { id: string };
-    return this.authService.requestChangeEmailCode(user.id, dto.newEmail);
+    return this.authService.requestChangeEmailCode(user.id, dto.newEmail, dto.oldPassword);
   }
 
   @Post('change-email/verify')

@@ -32,7 +32,7 @@
 | POST | `/auth/change-password` | AuthRead | 全局 (20/min) | 修改密码（需提供旧密码），成功后吊销全部 refresh token + 发送通知邮件 |
 | POST | `/auth/forgot-password` | Public | 1/min | 发送密码重置邮件 |
 | POST | `/auth/reset-password` | Public | 5/min | 使用验证码重置密码，成功后吊销全部 refresh token |
-| POST | `/auth/change-email/request-code` | AuthRead | 1/min | 更换邮箱第一步：向新邮箱发验证码 |
+| POST | `/auth/change-email/request-code` | AuthRead | 1/min | 更换邮箱第一步：校验当前密码后向新邮箱发验证码 |
 | POST | `/auth/change-email/verify` | Auth | 5/min | 更换邮箱第二步：验证码确认，更新邮箱并发送成功通知 |
 | POST | `/auth/logout` | AuthRead | 全局 (20/min) | 登出，撤销指定设备的 refresh token（Cookie 优先） |
 | GET | `/auth/sessions` | AuthRead | 全局 (20/min) | 获取当前用户所有活跃会话列表 |
