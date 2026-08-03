@@ -2,7 +2,7 @@
 import removeMd from 'remove-markdown';
 
 /** Milkdown 会转义、且 remove-markdown 会误判为语法的 ASCII 标点集合（与 unsafe.js 转义范围一致） */
-const ESCAPE_CHARS = [...`!\"#$%&'()*+,-./:;<=>?@[\\]^_\`{|}~`];
+const ESCAPE_CHARS = [...`!"#$%&'()*+,-./:;<=>?@[\\]^_\`{|}~`];
 /** 转义标点 → 私有区占位符（0xE000 起逐个映射），remove-markdown 不会处理这些字符 */
 const ESCAPE_MAP = new Map(ESCAPE_CHARS.map((c, i) => [c, String.fromCharCode(0xE000 + i)]));
 /** 字面 < 占位符（0xE040，避开转义标点占位区间） */
