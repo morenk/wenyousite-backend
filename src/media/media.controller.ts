@@ -1,5 +1,5 @@
 import { Controller, Post, Get, Param, Body, Req } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse, ApiCreatedResponse, ApiUnauthorizedResponse, ApiBadRequestResponse, ApiNotFoundResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse, ApiCreatedResponse, ApiUnauthorizedResponse, ApiBadRequestResponse, ApiNotFoundResponse, ApiTooManyRequestsResponse } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { MediaService } from './media.service';
 import { CreateUploadUrlDto, ConfirmUploadDto } from './dto/upload.dto';
@@ -19,6 +19,7 @@ export class MediaController {
   @ApiCreatedResponse({ description: '预签名 URL 和 mediaId（UPLOADING 状态）' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   @ApiBadRequestResponse({ description: '文件类型不支持或超过大小限制' })
+  @ApiTooManyRequestsResponse({ description: '每用户小时上传配额超限（默认 60 次）' })
   async getUploadUrl(
     @Req() req: FastifyRequest,
     @Body() dto: CreateUploadUrlDto,
