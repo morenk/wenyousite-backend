@@ -1,12 +1,14 @@
 import {
-  Injectable, BadRequestException, NotFoundException, ForbiddenException, Logger,
+  Injectable, BadRequestException, NotFoundException, ForbiddenException,
+  HttpException, HttpStatus, Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectsCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 import sharp from 'sharp';
 
 /** 允许的文件类型白名单 */
@@ -17,6 +19,17 @@ const ALLOWED_MIME = [
 
 /** 单文件最大 10MB */
 const MAX_SIZE = 10 * 1024 * 1024;
+
+/** 孤儿图片清理：COMPLETED/FAILED 创建超过该天数且无引用才清理 */
+const ORPHAN_GRACE_DAYS = 7;
+/** 僵尸上传清理：UPLOADING 创建超过该小时数且未确认则清理 */
+const UPLOADING_STALE_HOURS = 24;
+/** Markdown 图片 URL 提取正则（匹配 ![...](url)） */
+const IMG_URL_PATTERN = /!\[[^\]]*\]\(([^)\s]+)/g;
+/** 单次 S3 批量删除对象上限 */
+const S3_BATCH_DELETE_LIMIT = 1000;
+/** 引用扫描分页大小 */
+const SCAN_PAGE_SIZE = 500;
 
 /** 图片处理任务类型 */
 export interface ImageProcessJob {
@@ -31,17 +44,21 @@ const ALLOWED_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif',
 /** 衍生图 Cache-Control：一年强缓存 */
 const DERIVATIVE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 
-/** 媒体服务：S3 预签名上传 URL 生成、上传确认、图片处理 */
+/** 媒体服务：S3 预签名上传 URL 生成、上传确认、图片处理、孤儿回收 */
 @Injectable()
 export class MediaService {
   private readonly logger = new Logger(MediaService.name);
   s3: S3Client;
+  /** 每用户小时上传配额 */
+  private readonly uploadRatePerHour: number;
 
   constructor(
     private config: ConfigService,
     private prisma: PrismaService,
+    private redis: RedisService,
     @InjectQueue('image') private imageQueue: Queue,
   ) {
+    this.uploadRatePerHour = this.config.get<number>('upload.ratePerHour') ?? 60;
     this.s3 = new S3Client({
       endpoint: this.config.get<string>('cos.endpoint'),
       region: this.config.get<string>('cos.region') ?? 'auto',
@@ -61,6 +78,8 @@ export class MediaService {
     if (opts.size > MAX_SIZE) {
       throw new BadRequestException('文件大小超过 10MB 限制');
     }
+
+    await this.assertUploadRate(opts.userId);
 
     const ext = this.sanitizeExt(opts.filename);
     const date = new Date().toISOString().slice(0, 10).replace(/-/g, '/');
@@ -215,6 +234,145 @@ export class MediaService {
       data: { status: 'FAILED' },
     });
     this.logger.warn(`Image processing permanently failed for mediaId=${mediaId}`);
+  }
+
+  /** 每用户小时上传配额校验：Redis 计数器，超限抛 429 */
+  private async assertUploadRate(userId: string) {
+    const hourEpoch = Math.floor(Date.now() / 3600000);
+    const key = `media:uploads:hour:${userId}`;
+    const count = await this.redis.hincrby(key, String(hourEpoch), 1);
+    await this.redis.expire(key, 7200);
+    if (count > this.uploadRatePerHour) {
+      throw new HttpException('图片上传频率超限，请稍后再试', HttpStatus.TOO_MANY_REQUESTS);
+    }
+  }
+
+  /** 孤儿图片回收：清理未确认上传、处理失败、以及未被任何存活内容引用的图片（S3 + DB） */
+  async cleanupOrphanMedia() {
+    // 1. 构建存活引用集合：头像 + 未删除帖子的 Markdown 正文 + 草稿
+    const referenced = new Set<string>();
+
+    const avatars = await this.prisma.user.findMany({
+      where: { avatar: { not: null } },
+      select: { avatar: true },
+    });
+    for (const u of avatars) {
+      if (u.avatar) referenced.add(u.avatar);
+    }
+
+    await this.collectMarkdownRefs(
+      (cursor) => this.prisma.post.findMany({
+        where: { deletedAt: null },
+        select: { id: true, content: true },
+        cursor: cursor ? { id: cursor } : undefined,
+        take: SCAN_PAGE_SIZE,
+        orderBy: { id: 'asc' },
+      }),
+      referenced,
+    );
+    await this.collectMarkdownRefs(
+      (cursor) => this.prisma.draft.findMany({
+        select: { id: true, content: true },
+        cursor: cursor ? { id: cursor } : undefined,
+        take: SCAN_PAGE_SIZE,
+        orderBy: { id: 'asc' },
+      }),
+      referenced,
+    );
+
+    // 安全阀：引用集合为空说明扫描异常，跳过本次清理避免误删
+    if (referenced.size === 0) {
+      this.logger.warn('Media cleanup aborted: referenced set is empty');
+      return;
+    }
+
+    // 2. 候选：僵尸上传 + 处理失败 + 超期且无引用的已处理图片
+    const now = Date.now();
+    const uploadingCutoff = new Date(now - UPLOADING_STALE_HOURS * 3600000);
+    const orphanCutoff = new Date(now - ORPHAN_GRACE_DAYS * 24 * 3600000);
+    const stale = await this.prisma.media.findMany({
+      where: {
+        OR: [
+          { status: 'UPLOADING', createdAt: { lt: uploadingCutoff } },
+          { status: 'FAILED', createdAt: { lt: orphanCutoff } },
+          { status: 'COMPLETED', createdAt: { lt: orphanCutoff } },
+        ],
+      },
+      select: { id: true, key: true, url: true },
+    });
+
+    const victims = stale.filter((m) => !referenced.has(m.url));
+    if (victims.length === 0) return;
+
+    // 3. 批量删除 S3 对象（含派生图）；原图删除失败的记录保留待下次重试
+    const bucket = this.config.get<string>('cos.bucket')!;
+    const deletedIds = new Set<string>();
+    for (let i = 0; i < victims.length; i += S3_BATCH_DELETE_LIMIT) {
+      const chunk = victims.slice(i, i + S3_BATCH_DELETE_LIMIT);
+      const keys: { key: string; mediaId: string; isOriginal: boolean }[] = [];
+      for (const m of chunk) {
+        keys.push({ key: m.key, mediaId: m.id, isOriginal: true });
+        if (!m.key.toLowerCase().endsWith('.svg')) {
+          const stem = m.key.replace(/\.[^.]+$/, '');
+          keys.push({ key: `${stem}_thumb.webp`, mediaId: m.id, isOriginal: false });
+          keys.push({ key: `${stem}_md.webp`, mediaId: m.id, isOriginal: false });
+        }
+      }
+      const failedKeys = await this.deleteS3Objects(bucket, keys.map((k) => k.key));
+      for (const k of keys) {
+        if (k.isOriginal && !failedKeys.has(k.key)) {
+          deletedIds.add(k.mediaId);
+        }
+      }
+    }
+
+    // 4. 删除已成功移除原图的 DB 记录
+    if (deletedIds.size > 0) {
+      await this.prisma.media.deleteMany({ where: { id: { in: [...deletedIds] } } });
+    }
+    this.logger.log(`孤儿图片清理完成: 扫描 ${stale.length} 条候选，清理 ${deletedIds.size} 条`);
+  }
+
+  /** 批量删除 S3 对象，返回删除失败的 key 集合 */
+  private async deleteS3Objects(bucket: string, keys: string[]): Promise<Set<string>> {
+    const failed = new Set<string>();
+    for (let i = 0; i < keys.length; i += S3_BATCH_DELETE_LIMIT) {
+      const chunk = keys.slice(i, i + S3_BATCH_DELETE_LIMIT);
+      try {
+        const resp = await this.s3.send(new DeleteObjectsCommand({
+          Bucket: bucket,
+          Delete: { Objects: chunk.map((Key) => ({ Key })), Quiet: true },
+        }));
+        for (const err of resp.Errors ?? []) {
+          if (err.Key) failed.add(err.Key);
+        }
+      } catch (e) {
+        this.logger.error('批量删除 S3 对象失败', e);
+        for (const key of chunk) failed.add(key);
+      }
+    }
+    return failed;
+  }
+
+  /** 分页扫描内容并提取 Markdown 图片 URL 加入引用集合 */
+  private async collectMarkdownRefs(
+    page: (cursor?: string) => Promise<{ id: string; content: string }[]>,
+    referenced: Set<string>,
+  ) {
+    let cursor: string | undefined;
+    for (;;) {
+      const rows = await page(cursor);
+      if (rows.length === 0) break;
+      const re = new RegExp(IMG_URL_PATTERN.source, 'g');
+      for (const row of rows) {
+        for (const match of row.content.matchAll(re)) {
+          const url = match[1].replace(/['"]$/, '').trim();
+          if (url) referenced.add(url);
+        }
+      }
+      cursor = rows[rows.length - 1].id;
+      if (rows.length < SCAN_PAGE_SIZE) break;
+    }
   }
 
   /** 构建文件公网访问 URL */

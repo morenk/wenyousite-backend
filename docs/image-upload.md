@@ -238,5 +238,24 @@ UPLOADING ──(SVG)──> COMPLETED
 | `COS_BUCKET` | `wenyou` | 存储桶名称 |
 | `COS_ACCESS_KEY_ID` | *(空，需设置)* | AccessKey |
 | `COS_SECRET_ACCESS_KEY` | *(空，需设置)* | SecretKey |
+| `UPLOAD_RATE_PER_HOUR` | `60` | 每用户小时上传配额（`upload-url` 超限返回 429） |
 
 `forcePathStyle: true` — 路径风格 URL（`{endpoint}/{bucket}/{key}`），兼容所有 S3 兼容实现。
+
+---
+
+## 上传配额
+
+`POST /media/upload-url` 会先做**每用户小时配额**校验：按 `userId + 小时桶` 在 Redis 计数（`media:uploads:hour:{userId}` Hash），超过 `UPLOAD_RATE_PER_HOUR`（默认 60 次/小时）返回 `429`。防止单个用户刷爆对象存储配额。
+
+---
+
+## 孤儿图片回收
+
+对象存储无原生引用管理，删除帖子/楼层/头像不会自动删图。每天凌晨 4 点 `CleanupTask` 调用 `MediaService.cleanupOrphanMedia()` 回收：
+
+1. **收集存活引用**：`users.avatar` + 未删除帖子的 Markdown 正文 + 草稿正文中的图片 URL
+2. **候选**：`UPLOADING` 超 24h、`FAILED` 超 7 天、`COMPLETED` 超 7 天且无引用
+3. **删除**：批量删除原图 + `_thumb.webp` + `_md.webp`（SVG 仅自身），再删 DB 记录；原图删除失败的记录留待下次重试
+
+> 7 天缓冲期保护"刚上传未发帖"的图；引用集合为空时跳过本轮（安全阀）。

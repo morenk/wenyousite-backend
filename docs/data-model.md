@@ -358,6 +358,8 @@
 | status | MediaStatus | default UPLOADING | 处理状态：UPLOADING / PROCESSING / COMPLETED / FAILED |
 | createdAt | DateTime | — | — |
 
+`@@index([status, createdAt])` — 支撑孤儿图片回收的候选查询。
+
 ### reports — 举报
 
 | 字段 | 类型 | 约束 | 说明 |

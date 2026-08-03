@@ -128,7 +128,7 @@
 
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
-| POST | `/media/upload-url` | Auth | 获取预签名上传 URL + mediaId（预建 UPLOADING 记录），需邮箱已验证 |
+| POST | `/media/upload-url` | Auth | 获取预签名上传 URL + mediaId（预建 UPLOADING 记录），需邮箱已验证；**每用户小时配额（默认 60 次）**，超限返回 429 |
 | POST | `/media/upload-done` | Auth | 确认上传完成（传 mediaId），校验归属 + S3 对象，入队处理，需邮箱已验证 |
 | GET | `/media/:id` | Auth | 查询图片处理状态（UPLOADING / PROCESSING / COMPLETED / FAILED），需邮箱已验证 |
 

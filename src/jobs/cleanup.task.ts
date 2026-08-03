@@ -2,11 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { MediaService } from '../media/media.service';
 
 /** ZSET 键名 */
 const ZSET_BY_SMART = 'threads:by:smart';
 
-/** 定时清理任务：清理过期验证 token、未验证的僵尸用户、过期/已撤销的 refresh token、废弃草稿帖、已读旧通知 + 智能排序分全量重算 */
+/** 定时清理任务：清理过期验证 token、未验证的僵尸用户、过期/已撤销的 refresh token、废弃草稿帖、已读旧通知、孤儿图片 + 智能排序分全量重算 */
 @Injectable()
 export class CleanupTask {
   private readonly logger = new Logger(CleanupTask.name);
@@ -14,6 +15,7 @@ export class CleanupTask {
   constructor(
     private prisma: PrismaService,
     private redis: RedisService,
+    private mediaService: MediaService,
   ) {}
 
   /** 每天凌晨 4 点执行 */
@@ -86,6 +88,13 @@ export class CleanupTask {
     });
     if (deletedNotifs.count > 0) {
       this.logger.log(`清理过期已读通知: ${deletedNotifs.count} 条`);
+    }
+
+    // 清理孤儿图片（未确认上传、处理失败、无引用的图片），失败不影响其他清理
+    try {
+      await this.mediaService.cleanupOrphanMedia();
+    } catch (e) {
+      this.logger.error('孤儿图片清理失败', e);
     }
   }
 

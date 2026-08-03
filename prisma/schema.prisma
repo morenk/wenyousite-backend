@@ -357,6 +357,7 @@ model Media {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([status, createdAt])
   @@map("media")
 }
 

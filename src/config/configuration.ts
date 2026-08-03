@@ -37,6 +37,11 @@ export default () => ({
     secretAccessKey: process.env.COS_SECRET_ACCESS_KEY ?? '',
   },
 
+  // 图片上传：每用户小时配额（防刷爆存储）
+  upload: {
+    ratePerHour: parseInt(process.env.UPLOAD_RATE_PER_HOUR ?? '60', 10),
+  },
+
   // 阿里云邮件推送 (DirectMail) SMTP（注册验证、找回密码）
   ses: {
     host: process.env.SES_SMTP_HOST ?? '',

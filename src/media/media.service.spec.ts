@@ -1,12 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, ForbiddenException, HttpException, HttpStatus } from '@nestjs/common';
 import { MediaService } from './media.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 
 const mockS3 = { send: jest.fn() };
 const mockImageQueue = { add: jest.fn().mockResolvedValue({}) };
 const mockGetSignedUrl = jest.fn().mockResolvedValue('https://presigned.url/upload');
+const mockRedis = {
+  hincrby: jest.fn().mockResolvedValue(1),
+  hget: jest.fn().mockResolvedValue('1'),
+  expire: jest.fn().mockResolvedValue(1),
+};
 
 jest.mock('@aws-sdk/s3-request-presigner', () => ({
   getSignedUrl: (...args: any[]) => mockGetSignedUrl(...args),
@@ -16,6 +22,7 @@ jest.mock('@aws-sdk/client-s3', () => ({
   S3Client: jest.fn(() => mockS3),
   PutObjectCommand: jest.fn((opts: any) => opts),
   GetObjectCommand: jest.fn((opts: any) => opts),
+  DeleteObjectsCommand: jest.fn((opts: any) => opts),
 }));
 
 const mockConfig = {
@@ -26,6 +33,7 @@ const mockConfig = {
       'cos.bucket': 'test-bucket',
       'cos.accessKeyId': 'test-key',
       'cos.secretAccessKey': 'test-secret',
+      'upload.ratePerHour': 60,
     };
     return map[key];
   }),
@@ -42,7 +50,12 @@ const mockPrisma = {
     create: jest.fn(),
     update: jest.fn(),
     findUnique: jest.fn(),
+    findMany: jest.fn(),
+    deleteMany: jest.fn(),
   },
+  user: { findMany: jest.fn() },
+  post: { findMany: jest.fn() },
+  draft: { findMany: jest.fn() },
 };
 
 describe('MediaService', () => {
@@ -54,12 +67,14 @@ describe('MediaService', () => {
         MediaService,
         { provide: ConfigService, useValue: mockConfig },
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: RedisService, useValue: mockRedis },
         { provide: 'BullQueue_image', useValue: mockImageQueue },
       ],
     }).compile();
     service = module.get<MediaService>(MediaService);
     (service as any).s3 = mockS3;
     jest.clearAllMocks();
+    mockRedis.hincrby.mockResolvedValue(1);
   });
 
   // ── getUploadUrl ──
@@ -179,5 +194,161 @@ describe('MediaService', () => {
       where: { id: 'm1' },
       data: { status: 'FAILED' },
     });
+  });
+
+  // ── 每用户小时配额 ──
+
+  it('getUploadUrl 超过每用户小时配额应返回 429', async () => {
+    mockRedis.hincrby.mockResolvedValue(61);
+    try {
+      await service.getUploadUrl({ filename: 'photo.jpg', contentType: 'image/jpeg', size: 100000, userId: 'u1' });
+      throw new Error('should have thrown');
+    } catch (e) {
+      expect(e).toBeInstanceOf(HttpException);
+      expect((e as HttpException).getStatus()).toBe(HttpStatus.TOO_MANY_REQUESTS);
+    }
+    expect(mockPrisma.media.create).not.toHaveBeenCalled();
+  });
+
+  it('getUploadUrl 未超配额时正常放行并计数', async () => {
+    mockPrisma.media.create.mockResolvedValue(makeMedia());
+    const result = await service.getUploadUrl({
+      filename: 'photo.jpg', contentType: 'image/jpeg', size: 100000, userId: 'u1',
+    });
+    expect(result.uploadUrl).toBeDefined();
+    expect(mockRedis.hincrby).toHaveBeenCalledWith(
+      'media:uploads:hour:u1',
+      expect.any(String),
+      1,
+    );
+    expect(mockRedis.expire).toHaveBeenCalled();
+  });
+
+  // ── 孤儿图片回收 ──
+
+  it('cleanupOrphanMedia 应删除无引用的超期 COMPLETED 图片（原图+派生图）', async () => {
+    mockPrisma.user.findMany.mockResolvedValue([{ avatar: null }]);
+    mockPrisma.post.findMany.mockResolvedValue([
+      { id: 'p1', content: '![keep](https://test.cos.com/test-bucket/uploads/keep/a.jpg)' },
+    ]);
+    mockPrisma.draft.findMany.mockResolvedValue([]);
+    mockPrisma.media.findMany.mockResolvedValue([
+      {
+        id: 'm1',
+        key: 'uploads/2099/01/01/u1/photo.jpg',
+        url: 'https://test.cos.com/test-bucket/uploads/2099/01/01/u1/photo.jpg',
+      },
+    ]);
+    mockS3.send.mockResolvedValue({ Errors: undefined });
+    mockPrisma.media.deleteMany.mockResolvedValue({ count: 1 });
+
+    await service.cleanupOrphanMedia();
+
+    expect(mockS3.send).toHaveBeenCalledTimes(1);
+    const deleteCall = mockS3.send.mock.calls[0][0];
+    const keys = deleteCall.Delete.Objects.map((o: any) => o.Key);
+    expect(keys).toEqual([
+      'uploads/2099/01/01/u1/photo.jpg',
+      'uploads/2099/01/01/u1/photo_thumb.webp',
+      'uploads/2099/01/01/u1/photo_md.webp',
+    ]);
+    expect(mockPrisma.media.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ['m1'] } },
+    });
+  });
+
+  it('cleanupOrphanMedia 应保留仍被引用的图片', async () => {
+    mockPrisma.user.findMany.mockResolvedValue([]);
+    mockPrisma.post.findMany.mockResolvedValue([
+      { id: 'p1', content: '![keep](https://test.cos.com/test-bucket/uploads/2099/01/01/u1/photo.jpg)' },
+    ]);
+    mockPrisma.draft.findMany.mockResolvedValue([]);
+    mockPrisma.media.findMany.mockResolvedValue([
+      {
+        id: 'm1',
+        key: 'uploads/2099/01/01/u1/photo.jpg',
+        url: 'https://test.cos.com/test-bucket/uploads/2099/01/01/u1/photo.jpg',
+      },
+    ]);
+
+    await service.cleanupOrphanMedia();
+
+    expect(mockS3.send).not.toHaveBeenCalled();
+    expect(mockPrisma.media.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('cleanupOrphanMedia 应清理僵尸 UPLOADING 与 FAILED 图片', async () => {
+    mockPrisma.user.findMany.mockResolvedValue([]);
+    mockPrisma.post.findMany.mockResolvedValue([
+      { id: 'p1', content: '![keep](https://test.cos.com/test-bucket/uploads/keep/a.jpg)' },
+    ]);
+    mockPrisma.draft.findMany.mockResolvedValue([]);
+    mockPrisma.media.findMany.mockResolvedValue([
+      {
+        id: 'm1',
+        key: 'uploads/2099/01/01/u1/stale.jpg',
+        url: 'https://test.cos.com/test-bucket/uploads/2099/01/01/u1/stale.jpg',
+      },
+      {
+        id: 'm2',
+        key: 'uploads/2099/01/01/u1/failed.svg',
+        url: 'https://test.cos.com/test-bucket/uploads/2099/01/01/u1/failed.svg',
+      },
+    ]);
+    mockS3.send.mockResolvedValue({ Errors: undefined });
+
+    await service.cleanupOrphanMedia();
+
+    expect(mockPrisma.media.deleteMany).toHaveBeenCalled();
+  });
+
+  it('cleanupOrphanMedia SVG 只删除自身，不生成派生图', async () => {
+    mockPrisma.user.findMany.mockResolvedValue([]);
+    mockPrisma.post.findMany.mockResolvedValue([
+      { id: 'p1', content: '![keep](https://test.cos.com/test-bucket/uploads/keep/a.jpg)' },
+    ]);
+    mockPrisma.draft.findMany.mockResolvedValue([]);
+    mockPrisma.media.findMany.mockResolvedValue([
+      {
+        id: 'm1',
+        key: 'uploads/2099/01/01/u1/icon.svg',
+        url: 'https://test.cos.com/test-bucket/uploads/2099/01/01/u1/icon.svg',
+      },
+    ]);
+    mockS3.send.mockResolvedValue({ Errors: undefined });
+
+    await service.cleanupOrphanMedia();
+
+    const deleteCall = mockS3.send.mock.calls[0][0];
+    const keys = deleteCall.Delete.Objects.map((o: any) => o.Key);
+    expect(keys).toEqual(['uploads/2099/01/01/u1/icon.svg']);
+  });
+
+  it('cleanupOrphanMedia 引用集合为空时应跳过清理', async () => {
+    mockPrisma.user.findMany.mockResolvedValue([]);
+    mockPrisma.post.findMany.mockResolvedValue([]);
+    mockPrisma.draft.findMany.mockResolvedValue([]);
+
+    await service.cleanupOrphanMedia();
+
+    expect(mockPrisma.media.findMany).not.toHaveBeenCalled();
+    expect(mockS3.send).not.toHaveBeenCalled();
+  });
+
+  it('cleanupOrphanMedia 原图删除失败时保留 DB 记录待下次重试', async () => {
+    mockPrisma.user.findMany.mockResolvedValue([]);
+    mockPrisma.post.findMany.mockResolvedValue([
+      { id: 'p1', content: '![keep](https://test.cos.com/test-bucket/uploads/keep/a.jpg)' },
+    ]);
+    mockPrisma.draft.findMany.mockResolvedValue([]);
+    const key = 'uploads/2099/01/01/u1/photo.jpg';
+    mockPrisma.media.findMany.mockResolvedValue([
+      { id: 'm1', key, url: `https://test.cos.com/test-bucket/${key}` },
+    ]);
+    mockS3.send.mockResolvedValue({ Errors: [{ Key: key }] });
+
+    await service.cleanupOrphanMedia();
+
+    expect(mockPrisma.media.deleteMany).not.toHaveBeenCalled();
   });
 });

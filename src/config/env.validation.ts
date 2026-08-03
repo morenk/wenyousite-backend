@@ -65,6 +65,10 @@ class EnvironmentVariables {
   @IsOptional()
   COS_SECRET_ACCESS_KEY: string = '';
 
+  @IsNumber()
+  @IsOptional()
+  UPLOAD_RATE_PER_HOUR: number = 60;
+
   @IsString()
   @IsOptional()
   LOG_LEVEL: string = 'info';
