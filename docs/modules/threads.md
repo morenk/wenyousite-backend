@@ -40,6 +40,8 @@
 | POST | `/threads/join-by-link/:token` | Auth | 通过邀请链接加入私密帖（需已发布） |
 | GET | `/threads/:threadId/members` | Public | 参与人列表 |
 | POST | `/threads/:threadId/members/join` | Auth | 自由加入（需已发布，PRIVATE 帖禁止） |
+
+> 主题帖稳定访问链接为 `/threads/{threadId}`，由前端根据详情响应中的 `id` 生成；复制主题帖链接不新增后端端点。
 | PATCH | `/threads/:threadId/members/:userId` | Auth | 修改参与人角色/玩家标记 |
 | DELETE | `/threads/:threadId/members/me` | AuthRead | 主动退出（取消自己的 playerMarked），OWNER 不可退出 |
 | DELETE | `/threads/:threadId/members/:userId` | Auth | 收回该参与人的玩家身份 |
