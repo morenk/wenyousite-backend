@@ -23,8 +23,10 @@ function restorePlaceholders(s: string): string {
 export function truncateMarkdown(md: string, maxLen = 100, minLen = 50): string {
   if (!md) return '';
 
+  // Milkdown 空段落协议标记只在摘要中作为段落分隔，不把标签本身泄漏到通知/列表文案。
+  const withoutEmptyParagraphMarkers = md.replace(/^ {0,3}<br\s*\/?>(?:[\t ]*)$/gim, '\n');
   // 图片只以统一占位进入摘要，避免 Milkdown 的比例 alt（如 1.00）泄漏为正文。
-  const withImagePlaceholders = md.replace(/!\[[^\]]*\]\([^)]*\)/g, '[图片]');
+  const withImagePlaceholders = withoutEmptyParagraphMarkers.replace(/!\[[^\]]*\]\([^)]*\)/g, '[图片]');
   // Milkdown 会把字面 < > * _ ` ~ 等转义为 \< \> \* ...。清理前先替换为私有区占位符，
   // 让 remove-markdown 只清理真正的 Markdown 语法：
   // - 避免转义标点被强调/删除线/行内代码等正则误删后残留孤立反斜杠（如 a\*b\*c 变成 a\b\c）

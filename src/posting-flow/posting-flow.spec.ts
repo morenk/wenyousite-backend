@@ -290,7 +290,7 @@ describe('发帖全流程集成测试', () => {
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
       prisma.thread.findUnique
         .mockResolvedValueOnce({ published: false, title: '测试', category: 'RPG' })     // update() 初次查询
-        .mockResolvedValueOnce({ defaultSubthread: { id: 's1', posts: [{ id: 'p1', kind: 'BODY' }] } }); // validatePublishReadiness
+        .mockResolvedValueOnce({ defaultSubthread: { id: 's1', posts: [{ id: 'p1', kind: 'BODY', content: '正文' }] } }); // validatePublishReadiness
       prisma.thread.update.mockResolvedValue({
         id: 't1', title: '测试', category: 'RPG', published: true, publishedAt: new Date(),
         createdAt: new Date('2025-01-01'), updatedAt: new Date(), viewCount: 0,
@@ -343,7 +343,7 @@ describe('发帖全流程集成测试', () => {
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
       prisma.thread.findUnique
         .mockResolvedValueOnce({ published: false, title: '旧标题', category: 'DEDUCTION' })
-        .mockResolvedValueOnce({ defaultSubthread: { id: 's1', posts: [{ id: 'p1', kind: 'BODY' }] } });
+        .mockResolvedValueOnce({ defaultSubthread: { id: 's1', posts: [{ id: 'p1', kind: 'BODY', content: '正文' }] } });
       prisma.thread.update.mockResolvedValue({
         id: 't1', title: '新标题', category: 'DEDUCTION', published: true, publishedAt: new Date(),
         createdAt: new Date('2025-01-01'), updatedAt: new Date(), viewCount: 0,

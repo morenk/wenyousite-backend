@@ -389,7 +389,7 @@ describe('ThreadsService', () => {
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
       mockPrisma.thread.findUnique
         .mockResolvedValueOnce({ published: false, title: '测试', category: 'RPG' })     // update() 初次查询
-        .mockResolvedValueOnce({ defaultSubthread: { id: 's1', posts: [{ id: 'p1', kind: 'BODY' }] } }); // validatePublishReadiness
+        .mockResolvedValueOnce({ defaultSubthread: { id: 's1', posts: [{ id: 'p1', kind: 'BODY', content: '正文' }] } }); // validatePublishReadiness
       mockPrisma.thread.update.mockResolvedValue({
         id: 't1', title: '测试', category: 'RPG', published: true,
         createdAt: new Date('2025-01-01'), updatedAt: new Date(),

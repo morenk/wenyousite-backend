@@ -16,6 +16,7 @@ import { BusinessException, notFound, forbidden } from '../common/exceptions/bus
 import { paginate } from '../common/dto/paginated-result';
 import { notDeleted, countNonDeletedPosts, includeSubthreads, mapSubthreadBody, authorSelect, countMembersAndPosts, attachPlayerCounts } from '../common/prisma-helpers';
 import { truncateMarkdown } from '../common/markdown-truncate';
+import { hasVisibleMarkdownContent } from '../common/markdown-content';
 
 /** 帖子列表 ZSET 键名 */
 const ZSET_BY_CREATED = 'threads:by:created';
@@ -651,7 +652,8 @@ export class ThreadsService {
     if (!thread?.defaultSubthread) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '请至少创建一个子贴后再发布');
     }
-    if (thread.defaultSubthread.posts.length === 0) {
+    const bodyContent = thread.defaultSubthread.posts[0]?.content ?? '';
+    if (!bodyContent || !hasVisibleMarkdownContent(bodyContent)) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '请将子贴至少填写正文再发布');
     }
   }

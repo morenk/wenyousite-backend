@@ -15,6 +15,7 @@ import { BusinessException, notFound, forbidden } from '../common/exceptions/bus
 import { paginate } from '../common/dto/paginated-result';
 import { notDeleted, authorSelect, countNonDeletedReplies } from '../common/prisma-helpers';
 import { truncateMarkdown } from '../common/markdown-truncate';
+import { hasVisibleMarkdownContent } from '../common/markdown-content';
 
 /** 楼层服务：发帖（事务楼层编号 + FOR UPDATE）、楼中楼、编辑、软删除 */
 @Injectable()
@@ -120,6 +121,9 @@ export class PostsService {
 
   /** 发帖：楼层或楼中楼回复。先校验访问权限与发帖策略，通过后才自动加入为参与人 */
   async create(subthreadId: string, dto: CreatePostDto, userId: string) {
+    if (!hasVisibleMarkdownContent(dto.content)) {
+      throw new BusinessException(ErrorCode.BAD_REQUEST, '正文不能只有空白或分隔线');
+    }
     const subthread = await this.prisma.subthread.findUnique({
       where: { id: subthreadId, ...notDeleted },
       include: { thread: true },
@@ -248,6 +252,9 @@ export class PostsService {
     });
     if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
     await this.threadAccess.assertCanManage(subthread.threadId, userId);
+    if (subthread.thread.published && !hasVisibleMarkdownContent(content)) {
+      throw new BusinessException(ErrorCode.BAD_REQUEST, '正文不能只有空白或分隔线');
+    }
 
     const existing = await this.prisma.post.findFirst({
       where: { subthreadId, kind: 'BODY', ...notDeleted },
@@ -346,6 +353,9 @@ export class PostsService {
 
   /** 编辑帖子 */
   async update(id: string, dto: UpdatePostDto, userId: string) {
+    if (!hasVisibleMarkdownContent(dto.content)) {
+      throw new BusinessException(ErrorCode.BAD_REQUEST, '正文不能只有空白或分隔线');
+    }
     const postLight = await this.prisma.post.findUnique({
       where: { id, ...notDeleted },
       select: { id: true, authorId: true, threadId: true, content: true, subthread: { select: { deletedAt: true } } },
