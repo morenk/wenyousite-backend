@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { VerificationCodeService } from './verification-code.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 
 /** 认证模块：注册 JWT 策略、Passport 守卫，提供注册/登录/刷新 API */
@@ -21,7 +22,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
-  exports: [AuthService, JwtStrategy, PassportModule],
+  providers: [AuthService, VerificationCodeService, JwtStrategy],
+  exports: [AuthService, VerificationCodeService, JwtStrategy, PassportModule],
 })
 export class AuthModule {}

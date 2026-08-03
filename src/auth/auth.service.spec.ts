@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
+import { VerificationCodeService } from './verification-code.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common';
@@ -59,6 +60,7 @@ describe('AuthService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
+        VerificationCodeService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: JwtService, useValue: mockJwt },
         { provide: ConfigService, useValue: mockConfig },
@@ -101,7 +103,7 @@ describe('AuthService', () => {
       expect(result.emailSent).toBe(true);
       expect(result.message).toContain('验证码已发送');
       expect(mockPrisma.emailVerification.create).not.toHaveBeenCalled();
-      expect(mockEmailService.sendVerification).toHaveBeenCalledWith('a@b.com', '123456');
+      expect(mockEmailService.sendVerification).toHaveBeenCalledWith('a@b.com', '123456', 'REGISTRATION');
     });
 
     it('验证码已过期时应该删除旧记录并新建', async () => {

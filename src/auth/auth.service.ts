@@ -12,6 +12,7 @@ import * as crypto from 'crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
+import { VerificationCodeService, VERIFICATION_CODE_TTL } from './verification-code.service';
 import { LoginDto } from './dto/login.dto';
 import { VerifyAndCompleteDto } from './dto/verify-and-complete.dto';
 
@@ -30,9 +31,9 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private emailService: EmailService,
+    private verificationCodeService: VerificationCodeService,
   ) {}
 
-  private readonly CODE_TTL = 15 * 60 * 1000; // 验证码统一有效期 15 分钟
   private readonly REFRESH_WEB_TTL = 7 * 24 * 60 * 60 * 1000; // Web 端 7 天
   private readonly REFRESH_MOBILE_TTL = 30 * 24 * 60 * 60 * 1000; // 移动端 30 天
 
@@ -48,60 +49,14 @@ export class AuthService {
       throw new ConflictException('该邮箱已被注册');
     }
 
-    const now = new Date();
-    const record = await this.prisma.emailVerification.findFirst({
-      where: { email, type: 'REGISTRATION' },
+    const { emailSent } = await this.verificationCodeService.issue({
+      type: 'REGISTRATION',
+      email,
+      label: '注册验证邮件',
+      send: (code) => this.emailService.sendVerification(email, code, 'REGISTRATION'),
     });
 
-    if (record && record.expiresAt > now) {
-      const remaining = Math.floor((record.expiresAt.getTime() - now.getTime()) / 1000);
-      // 有效验证码存在时重发同一验证码，避免首封丢失后用户重试仍收不到
-      let emailSent = true;
-      try {
-        await this.emailService.sendVerification(email, record.token);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        this.logger.error(`注册验证邮件重发失败: ${email} | ${message}`);
-        emailSent = false;
-      }
-      return { emailSent, codeExpiresIn: remaining, message: '验证码已发送，请查收邮箱' };
-    }
-
-    if (record) {
-      await this.prisma.emailVerification.delete({ where: { id: record.id } });
-    }
-
-    const code = this.generateCode();
-    try {
-      await this.prisma.emailVerification.create({
-        data: {
-          email,
-          token: code,
-          type: 'REGISTRATION',
-          expiresAt: new Date(now.getTime() + this.CODE_TTL),
-        },
-      });
-    } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-        // 并发请求已抢先创建记录，视为已有验证码
-        const existing = await this.prisma.emailVerification.findFirst({
-          where: { email, type: 'REGISTRATION' },
-        });
-        return { emailSent: true, codeExpiresIn: this.CODE_TTL / 1000, message: '验证码已发送，请查收邮箱' };
-      }
-      throw e;
-    }
-
-    let emailSent = true;
-    try {
-      await this.emailService.sendVerification(email, code);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.logger.error(`注册验证邮件发送失败: ${email} | ${message}`);
-      emailSent = false;
-    }
-
-    return { emailSent, codeExpiresIn: this.CODE_TTL / 1000 };
+    return { emailSent, codeExpiresIn: VERIFICATION_CODE_TTL / 1000, message: '验证码已发送，请查收邮箱' };
   }
 
   /** 注册第二步：验证邮箱验证码 + 设置用户名密码，一步完成注册 */
@@ -155,10 +110,6 @@ export class AuthService {
       }
       throw e;
     }
-  }
-
-  private generateCode(): string {
-    return String(Math.floor(100000 + Math.random() * 900000));
   }
 
   /** 创建会话：生成 accessToken + refreshToken，写入 RefreshToken 记录 */
@@ -397,49 +348,15 @@ export class AuthService {
     });
     if (!user) return { message: '如果该邮箱已注册，重置邮件已发送' };
 
-    const existing = await this.prisma.emailVerification.findFirst({
-      where: { userId: user.id, type: 'PASSWORD_RESET', expiresAt: { gt: new Date() } },
-    });
-    if (existing) {
-      let emailSent = true;
-      try {
-        await this.emailService.sendPasswordReset(email, existing.token);
-      } catch (err) {
-        this.logger.error(`重置密码邮件发送失败: ${email}`, err);
-        emailSent = false;
-      }
-      return { emailSent, message: '如果该邮箱已注册，重置邮件已发送' };
-    }
-
-    await this.prisma.emailVerification.deleteMany({
-      where: { userId: user.id, type: 'PASSWORD_RESET' },
+    await this.verificationCodeService.issue({
+      type: 'PASSWORD_RESET',
+      userId: user.id,
+      email,
+      label: '重置密码邮件',
+      send: (code) => this.emailService.sendPasswordReset(email, code),
     });
 
-    const code = this.generateCode();
-    try {
-      await this.prisma.emailVerification.create({
-        data: {
-          userId: user.id,
-          token: code,
-          type: 'PASSWORD_RESET',
-          expiresAt: new Date(Date.now() + this.CODE_TTL),
-        },
-      });
-    } catch (e) {
-      if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002')) {
-        throw e;
-      }
-      // 并发请求已抢先创建，复用记录视为成功
-    }
-
-    let emailSent = true;
-    try {
-      await this.emailService.sendPasswordReset(email, code);
-    } catch (err) {
-      this.logger.error(`重置密码邮件发送失败: ${email}`, err);
-      emailSent = false;
-    }
-    return { emailSent, message: '如果该邮箱已注册，重置邮件已发送' };
+    return { message: '如果该邮箱已注册，重置邮件已发送' };
   }
 
   /** 重置密码 + 吊销全部会话（按 email+type 锚定，避免 token 跨用户碰撞） */
@@ -508,42 +425,15 @@ export class AuthService {
     });
     if (existing) throw new ConflictException('该邮箱已被其他用户使用');
 
-    const now = new Date();
-    const record = await this.prisma.emailVerification.findFirst({
-      where: { userId, type: 'CHANGE_EMAIL' },
+    await this.verificationCodeService.issue({
+      type: 'CHANGE_EMAIL',
+      userId,
+      email: normalized,
+      resendIfSameEmail: true,
+      label: '更换邮箱验证码',
+      send: (code) => this.emailService.sendVerification(normalized, code, 'CHANGE_EMAIL'),
     });
 
-    // 同一邮箱且未过期 → 重发同一验证码（重发保护）
-    if (record && record.email === normalized && record.expiresAt > now) {
-      try {
-        await this.emailService.sendVerification(normalized, record.token, 'CHANGE_EMAIL');
-      } catch (err) {
-        this.logger.error(`更换邮箱验证码重发失败: ${normalized}`, err);
-      }
-      return { message: '验证码已发送，请查收新邮箱' };
-    }
-
-    // 换了新邮箱或已过期 → 作废旧记录，为新邮箱生成新验证码
-    if (record) {
-      await this.prisma.emailVerification.delete({ where: { id: record.id } });
-    }
-
-    const code = this.generateCode();
-    await this.prisma.emailVerification.create({
-      data: {
-        userId,
-        email: normalized,
-        token: code,
-        type: 'CHANGE_EMAIL',
-        expiresAt: new Date(now.getTime() + this.CODE_TTL),
-      },
-    });
-
-    try {
-      await this.emailService.sendVerification(normalized, code, 'CHANGE_EMAIL');
-    } catch (err) {
-      this.logger.error(`更换邮箱验证码发送失败: ${normalized}`, err);
-    }
     return { message: '验证码已发送，请查收新邮箱' };
   }
 
@@ -596,55 +486,18 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({
       where: { email, deletedAt: null },
     });
-    if (!user) {
-      return { emailSent: true, message: '如果该邮箱已注册且未验证，验证邮件已发送' };
-    }
-    if (user.emailVerified) {
+    if (!user || user.emailVerified) {
       return { emailSent: true, message: '如果该邮箱已注册且未验证，验证邮件已发送' };
     }
 
-    const existing = await this.prisma.emailVerification.findFirst({
-      where: { userId: user.id, type: 'EMAIL_VERIFY', expiresAt: { gt: new Date() } },
-    });
-    if (existing) {
-      let emailSent = true;
-      try {
-        await this.emailService.sendVerification(user.email, existing.token, 'EMAIL_VERIFY');
-      } catch (err) {
-        this.logger.error(`重发验证邮件失败: ${email}`, err);
-        emailSent = false;
-      }
-      return { emailSent, message: '如果该邮箱已注册且未验证，验证邮件已发送' };
-    }
-
-    await this.prisma.emailVerification.deleteMany({
-      where: { userId: user.id, type: 'EMAIL_VERIFY' },
+    const { emailSent } = await this.verificationCodeService.issue({
+      type: 'EMAIL_VERIFY',
+      userId: user.id,
+      email,
+      label: '重发验证邮件',
+      send: (code) => this.emailService.sendVerification(user.email, code, 'EMAIL_VERIFY'),
     });
 
-    const code = this.generateCode();
-    try {
-      await this.prisma.emailVerification.create({
-        data: {
-          userId: user.id,
-          token: code,
-          type: 'EMAIL_VERIFY',
-          expiresAt: new Date(Date.now() + this.CODE_TTL),
-        },
-      });
-    } catch (e) {
-      if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002')) {
-        throw e;
-      }
-      // 并发请求已抢先创建，复用记录视为成功
-    }
-
-    let emailSent = true;
-    try {
-      await this.emailService.sendVerification(user.email, code, 'EMAIL_VERIFY');
-    } catch (err) {
-      this.logger.error(`重发验证邮件失败: ${email}`, err);
-      emailSent = false;
-    }
     return { emailSent, message: '如果该邮箱已注册且未验证，验证邮件已发送' };
   }
 
