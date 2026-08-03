@@ -227,8 +227,8 @@ GET /subthreads/:id/posts?limit=20
 每个楼层对象包含：
 - 楼层基础字段（floorNumber、content、author、createdAt）
 - `_count.replies`：该楼层总的楼中楼回复数
-- `replies`：前 3 条楼中楼回复的内嵌数组（含 author / replyToPost）
-- 如果 `_count.replies > 3`，前端应显示"查看全部 N 条回复"入口
+- `replies`：前 5 条楼中楼回复的内嵌数组（含 author / replyToPost）
+- 如果 `_count.replies > 5`，前端应显示"查看全部 N 条回复"入口
 
 ### 4.3 楼中楼
 
@@ -394,7 +394,7 @@ POST   /reading-progress                        记录/更新进度
 2. **Token 管理**：封装一个 HTTP 拦截器，自动在 401 时调 `/auth/refresh` 刷新。
 3. **分页**：列表类用 cursor 游标，第一页不传，后续页传 `meta.cursor`。
 4. **乐观锁**：编辑帖子/主题帖时，必须传 `version` 字段（从 GET 详情获得），冲突时 (409) 提示用户刷新。
-5. **楼中楼展开**：列表里显示前 3 条 + "查看全部"按钮，点击进入独立楼中楼界面分页加载。
+5. **楼中楼展开**：列表里显示前 5 条 + "查看全部"按钮，点击进入独立楼中楼界面分页加载。
 6. **图片上传**：等 `status: COMPLETED` 后再插入 Markdown `![](url)`。
 7. **通知轮询**：`GET /notifications/unread` 按业务需要间隔（15-30s 均可），避免过于频繁触发限流。
 8. **内容安全**：帖子/子贴/草稿/简介等 content 字段按 **Markdown 原样存储**（后端不做 HTML 转义）。客户端必须在**渲染层**净化：web 端用 react-markdown（默认剥离原始 HTML 标签、拦截危险 URL）；移动端用 markdown 渲染器，若需渲染原始 HTML 则对渲染输出加净化。**禁止在后端把内容当 HTML 转义后再存**（会破坏 markdown，导致 `>` 变成 `&gt;`）。

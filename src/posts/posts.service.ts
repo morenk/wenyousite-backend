@@ -34,7 +34,7 @@ export class PostsService {
     private cache: CacheService,
   ) {}
 
-  /** 获取子贴的楼层列表（Cursor 分页），内嵌每个楼层的前 3 条楼中楼回复。已软删子贴返回 404 */
+  /** 获取子贴的楼层列表（Cursor 分页），内嵌每个楼层的前 5 条楼中楼回复。已软删子贴返回 404 */
   async findAllBySubthread(subthreadId: string, cursor?: string, limit = 20, userId?: string) {
     const subthread = await this.prisma.subthread.findUnique({
       where: { id: subthreadId, ...notDeleted },
@@ -59,7 +59,7 @@ export class PostsService {
     const hasMore = posts.length > take;
     if (hasMore) posts.pop();
 
-    // 为有回复的楼层批量获取前 3 条楼中楼回复
+    // 为有回复的楼层批量获取前 5 条楼中楼回复
     const floorIdsWithReplies = posts.filter(p => p._count.replies > 0).map(p => p.id);
     if (floorIdsWithReplies.length > 0) {
       const repliesMap = new Map<string, any[]>();
@@ -68,7 +68,7 @@ export class PostsService {
           const replies = await this.prisma.post.findMany({
             where: { parentPostId: floorId, ...notDeleted },
             orderBy: { createdAt: 'asc' },
-            take: 3,
+            take: 5,
             include: {
               author: { select: authorSelect },
               replyToPost: { select: { id: true, authorId: true, author: { select: authorSelect } } },

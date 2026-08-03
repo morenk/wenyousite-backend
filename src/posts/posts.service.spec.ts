@@ -236,7 +236,7 @@ describe('PostsService', () => {
     await expect(service.create('s1', { content: 'test' }, 'u1')).rejects.toThrow(BusinessException);
   });
 
-  it('findAllBySubthread 应该返回楼层及内嵌前 3 条楼中楼回复', async () => {
+  it('findAllBySubthread 应该返回楼层及内嵌前 5 条楼中楼回复', async () => {
     mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1' });
     mockPrisma.post.findMany
       .mockResolvedValueOnce([{ id: 'p1', author: {}, _count: { replies: 2 } }])
@@ -250,6 +250,7 @@ describe('PostsService', () => {
     expect(mockPrisma.post.findMany).toHaveBeenNthCalledWith(1, expect.objectContaining({
       where: expect.objectContaining({ kind: 'FLOOR', parentPostId: null }),
     }));
+    expect(mockPrisma.post.findMany).toHaveBeenNthCalledWith(2, expect.objectContaining({ take: 5 }));
   });
 
   it('findAllBySubthread 无回复楼层应返回空 replies 数组', async () => {
