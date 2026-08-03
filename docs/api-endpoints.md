@@ -8,7 +8,7 @@
 |------|------|------|------|
 | POST | `/auth/register/request-code` | 无 | 注册第一步：请求邮箱验证码（限流 1/min） |
 | POST | `/auth/register/verify-and-complete` | 无 | 注册第二步：验证码+用户名+密码（支持 X-Client-Platform 区分 web/mobile），完成注册（emailVerified=true，立即可用） |
-| POST | `/auth/login` | 无 | 邮箱+密码登录，返回双 Token + 用户信息，创建独立设备会话。5 次失败锁定 15 分钟 |
+| POST | `/auth/login` | 无 | 邮箱或用户名 + 密码登录，返回双 Token + 用户信息，创建独立设备会话。5 次失败锁定 15 分钟 |
 | POST | `/auth/refresh` | 无 | 用 refreshToken 轮转换取新双 Token（含盗用检测） |
 | POST | `/auth/verify-email` | AuthRead | 验证当前登录用户的邮箱（需登录 + 6 位验证码），限流 5/min |
 | POST | `/auth/resend-verification` | 无 | 重发验证邮件（限流 1/min） |

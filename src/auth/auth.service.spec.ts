@@ -12,6 +12,7 @@ import * as argon2 from 'argon2';
 const mockPrisma = {
   user: {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     updateMany: jest.fn(),
@@ -234,73 +235,106 @@ describe('AuthService', () => {
   });
 
   describe('login', () => {
-    it('正确密码应该能登录', async () => {
+    const userRow = {
+      id: 'u1', email: 'a@b.com', password: 'HASH', username: 'tester', avatar: null,
+      role: 'USER', emailVerified: false, deletedAt: null,
+      failedLoginAttempts: 0, lockedUntil: null,
+    };
+
+    it('正确邮箱密码应该能登录', async () => {
       const hashed = await argon2.hash('Test1234!');
-      mockPrisma.user.findUnique.mockResolvedValue({
-        id: 'u1', email: 'a@b.com', password: hashed, username: 'test', avatar: null,
-        role: 'USER', emailVerified: false, deletedAt: null,
-      });
+      mockPrisma.user.findFirst.mockResolvedValue({ ...userRow, password: hashed });
       mockJwt.signAsync.mockResolvedValue('at-token');
       mockPrisma.refreshToken.create.mockResolvedValue({ id: 'rt1' });
 
-      const result = await service.login({ email: 'a@b.com', password: 'Test1234!' });
+      const result = await service.login({ account: 'a@b.com', password: 'Test1234!' });
       expect(result.accessToken).toBe('at-token');
       expect(result.user.email).toBe('a@b.com');
       expect(mockPrisma.refreshToken.create).toHaveBeenCalled();
     });
 
+    it('正确用户名密码应该能登录', async () => {
+      const hashed = await argon2.hash('Test1234!');
+      mockPrisma.user.findFirst.mockResolvedValue({ ...userRow, username: 'zhangsan', password: hashed });
+      mockJwt.signAsync.mockResolvedValue('at-token');
+      mockPrisma.refreshToken.create.mockResolvedValue({ id: 'rt1' });
+
+      const result = await service.login({ account: 'zhangsan', password: 'Test1234!' });
+      expect(result.accessToken).toBe('at-token');
+      expect(result.user.username).toBe('zhangsan');
+      expect(mockPrisma.user.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            OR: [
+              { email: 'zhangsan' },
+              { username: 'zhangsan' },
+            ],
+          },
+        }),
+      );
+    });
+
+    it('用户名登录大小写敏感，与注册唯一约束一致', async () => {
+      const hashed = await argon2.hash('Test1234!');
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.login({ account: 'TESTER', password: 'Test1234!' }),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(mockPrisma.user.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { OR: [{ email: 'tester' }, { username: 'TESTER' }] },
+        }),
+      );
+      // 说明：注册唯一约束区分大小写，'TESTER' 与 'tester' 是两个账号，
+      // 因此精确匹配未命中时不允许用小写用户名登录
+      expect(hashed).toBeTruthy();
+    });
+
     it('密码错误应该返回401', async () => {
       const hashed = await argon2.hash('Test1234!');
-      mockPrisma.user.findUnique.mockResolvedValue({
-        id: 'u1', email: 'a@b.com', password: hashed, deletedAt: null,
-      });
+      mockPrisma.user.findFirst.mockResolvedValue({ ...userRow, password: hashed });
       await expect(
-        service.login({ email: 'a@b.com', password: 'wrong' }),
+        service.login({ account: 'a@b.com', password: 'wrong' }),
       ).rejects.toThrow(UnauthorizedException);
     });
 
     it('用户不存在时登录应该返回401', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.user.findFirst.mockResolvedValue(null);
       await expect(
-        service.login({ email: 'a@b.com', password: 'Test1234!' }),
+        service.login({ account: 'a@b.com', password: 'Test1234!' }),
       ).rejects.toThrow(UnauthorizedException);
     });
 
     it('已注销用户登录应该返回401', async () => {
       const hashed = await argon2.hash('Test1234!');
-      mockPrisma.user.findUnique.mockResolvedValue({
-        id: 'u1', email: 'a@b.com', password: hashed, deletedAt: new Date(),
-      });
+      mockPrisma.user.findFirst.mockResolvedValue({ ...userRow, deletedAt: new Date(), password: hashed });
       await expect(
-        service.login({ email: 'a@b.com', password: 'Test1234!' }),
+        service.login({ account: 'a@b.com', password: 'Test1234!' }),
       ).rejects.toThrow(UnauthorizedException);
     });
 
-    it('邮箱大小写不敏感', async () => {
+    it('邮箱登录大小写不敏感', async () => {
       const hashed = await argon2.hash('Test1234!');
-      mockPrisma.user.findUnique.mockResolvedValue({
-        id: 'u1', email: 'user@case.com', password: hashed, username: 'test', avatar: null,
-        role: 'USER', emailVerified: false, deletedAt: null,
-      });
+      mockPrisma.user.findFirst.mockResolvedValue({ ...userRow, email: 'user@case.com', password: hashed });
       mockJwt.signAsync.mockResolvedValue('at-token');
       mockPrisma.refreshToken.create.mockResolvedValue({ id: 'rt1' });
 
-      await service.login({ email: 'USER@CASE.COM', password: 'Test1234!' });
-      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { email: 'user@case.com' } }),
+      await service.login({ account: 'USER@CASE.COM', password: 'Test1234!' });
+      expect(mockPrisma.user.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { OR: [{ email: 'user@case.com' }, { username: 'USER@CASE.COM' }] },
+        }),
       );
     });
 
     it('移动端登录应使用 30 天 TTL', async () => {
       const hashed = await argon2.hash('Test1234!');
-      mockPrisma.user.findUnique.mockResolvedValue({
-        id: 'u1', email: 'a@b.com', password: hashed, username: 'test', avatar: null,
-        role: 'USER', emailVerified: false, deletedAt: null,
-      });
+      mockPrisma.user.findFirst.mockResolvedValue({ ...userRow, password: hashed });
       mockJwt.signAsync.mockResolvedValue('at-token');
       mockPrisma.refreshToken.create.mockResolvedValue({ id: 'rt1' });
 
-      await service.login({ email: 'a@b.com', password: 'Test1234!' }, undefined, 'mobile');
+      await service.login({ account: 'a@b.com', password: 'Test1234!' }, undefined, 'mobile');
       expect(mockPrisma.refreshToken.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ platform: 'mobile' }),

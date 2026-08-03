@@ -89,7 +89,7 @@ POST /api/v1/auth/login
 Content-Type: application/json
 X-Client-Platform: web
 
-{ "email": "user@example.com", "password": "SecurePass123!" }
+{ "account": "user@example.com 或 zhangsan", "password": "SecurePass123!" }
 ```
 
 **成功响应 (200)**：

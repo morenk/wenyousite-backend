@@ -132,19 +132,25 @@ export class AuthService {
     return { accessToken, refreshToken: rawRefreshToken };
   }
 
-  /** 登录：验证邮箱和密码，创建新会话（含 5 次失败锁定） */
+  /** 登录：验证邮箱或用户名 + 密码，创建新会话（含 5 次失败锁定） */
   async login(dto: LoginDto, deviceInfo?: string, platform = 'web') {
-    const email = dto.email.toLowerCase().trim();
-    const user = await this.prisma.user.findUnique({
-      where: { email },
+    const account = dto.account.trim();
+    const user = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          // 邮箱统一小写匹配；用户名大小写敏感精确匹配（与注册唯一约束一致）
+          { email: account.toLowerCase() },
+          { username: account },
+        ],
+      },
       select: { ...userSelectPublic, password: true, deletedAt: true, failedLoginAttempts: true, lockedUntil: true },
     });
     if (!user) {
-      throw new UnauthorizedException('邮箱或密码错误');
+      throw new UnauthorizedException('账号或密码错误');
     }
 
     if (user.deletedAt) {
-      throw new UnauthorizedException('邮箱或密码错误');
+      throw new UnauthorizedException('账号或密码错误');
     }
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
@@ -165,7 +171,7 @@ export class AuthService {
         where: { id: user.id },
         data: { failedLoginAttempts: attempts },
       });
-      throw new UnauthorizedException('邮箱或密码错误');
+      throw new UnauthorizedException('账号或密码错误');
     }
 
     // 登录成功，重置失败计数

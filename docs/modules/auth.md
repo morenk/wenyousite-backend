@@ -25,7 +25,7 @@
 |--------|------|-------|------|------|
 | POST | `/auth/register/request-code` | Public | 1/min | 注册第一步：请求邮箱验证码 |
 | POST | `/auth/register/verify-and-complete` | Public | 全局 (20/min) | 注册第二步：验证码 + 用户名密码一步完成注册 |
-| POST | `/auth/login` | Public | 全局 (20/min) | 邮箱 + 密码登录，返回双 Token + 用户信息 |
+| POST | `/auth/login` | Public | 全局 (20/min) | 邮箱或用户名 + 密码登录，返回双 Token + 用户信息 |
 | POST | `/auth/refresh` | Public | 全局 (20/min) | 使用 refreshToken 轮转刷新双 Token（含盗用检测） |
 | POST | `/auth/verify-email` | Public | 5/min | 使用 6 位验证码验证邮箱 |
 | POST | `/auth/resend-verification` | Public | 1/min | 重发验证邮件 |
@@ -54,6 +54,16 @@
 
 // 响应（邮件发送失败）
 { "data": { "emailSent": false, "codeExpiresIn": 900, "message": "验证码已发送，请查收邮箱" } }
+```
+
+### 登录
+
+```json
+// 请求：account 支持邮箱或用户名二选一
+{ "account": "user@example.com 或 zhangsan", "password": "SecurePass123!" }
+
+// 响应（同注册第二步，无 message 字段）
+{ "data": { "accessToken": "eyJ...", "refreshToken": "<uuid>", "user": { "id": "clx...", "email": "user@example.com", "username": "zhangsan", "avatar": null, "role": "USER", "emailVerified": true } } }
 ```
 
 ### 注册第二步 / 登录 / 刷新（统一响应）
@@ -176,6 +186,7 @@
 
 ### 通用规则
 
+- **登录账号二选一**：`login` 请求体 `account` 接受邮箱或用户名。邮箱分支统一转小写匹配；用户名分支**大小写敏感精确匹配**（与注册唯一约束一致，注册时 "Test" 与 "test" 是两个独立账号）。用户名不允许包含 `@`，故 OR 查询无歧义
 - 用户名唯一性在第二步校验（try-catch Prisma P2002 转换为 409）
 - 已注销用户（deletedAt 非 null）拒绝登录、刷新和 JWT validate，返回 "该账号已注销"
 - 注销时同时吊销全部 refresh token
@@ -199,6 +210,8 @@
 
 | 场景 | 行动 |
 |------|------|
+| 登录：输入邮箱或用户名 | `POST /auth/login`，body 传 `{ "account": "<邮箱或用户名>", "password": "..." }`，成功返回双 Token + user |
+| 登录返回 401 "账号或密码错误" | 提示用户核对邮箱/用户名和密码，连续 5 次失败锁定 15 分钟 |
 | 注册第一步：输入邮箱 | `POST /auth/register/request-code`，响应含 `emailSent` 标志判断是否发送成功 |
 | 收到 `emailSent: false` | 显示"邮件服务暂不可用，请稍后重试" |
 | 收到 `emailSent: true`, `message` 含"已发送" | 显示"验证码已发送，请查收邮箱"，引导输入已有验证码 |

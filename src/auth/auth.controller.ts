@@ -61,9 +61,9 @@ export class AuthController {
   @Post('login')
   @Public()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: '邮箱 + 密码登录。5 次失败锁定 15 分钟' })
+  @ApiOperation({ summary: '邮箱或用户名 + 密码登录。5 次失败锁定 15 分钟' })
   @ApiResponse({ status: 200, type: AuthResponseDto, description: '登录成功返回双 Token（同时 set-Cookie refreshToken）和 user 信息' })
-  @ApiResponse({ status: 401, description: '邮箱或密码错误 或 账号被锁定' })
+  @ApiResponse({ status: 401, description: '账号或密码错误 或 账号被锁定' })
   @ApiResponse({ status: 404, description: '邮箱未注册' })
   async login(@Body() dto: LoginDto, @Req() req: FastifyRequest, @Res({ passthrough: true }) res: FastifyReply) {
     const deviceInfo = req.headers['user-agent']?.slice(0, 512) ?? undefined;
