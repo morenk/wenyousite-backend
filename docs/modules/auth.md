@@ -32,7 +32,7 @@
 | POST | `/auth/change-password` | AuthRead | 全局 (20/min) | 修改密码（需提供旧密码），成功后吊销全部 refresh token + 发送通知邮件 |
 | POST | `/auth/forgot-password` | Public | 1/min | 发送密码重置邮件 |
 | POST | `/auth/reset-password` | Public | 5/min | 使用验证码重置密码，成功后吊销全部 refresh token |
-| POST | `/auth/change-email/request-code` | AuthRead | 1/min | 更换邮箱第一步：校验当前密码后向新邮箱发验证码 |
+| POST | `/auth/change-email/request-code` | AuthRead | 1/min | 更换邮箱第一步：校验当前密码后向新邮箱发验证码（换新邮箱会作废旧记录，同邮箱未过期则重发） |
 | POST | `/auth/change-email/verify` | Auth | 5/min | 更换邮箱第二步：验证码确认，更新邮箱并发送成功通知 |
 | POST | `/auth/logout` | AuthRead | 全局 (20/min) | 登出，撤销指定设备的 refresh token（Cookie 优先） |
 | GET | `/auth/sessions` | AuthRead | 全局 (20/min) | 获取当前用户所有活跃会话列表 |
@@ -118,8 +118,7 @@
 
 - 第一步 `request-code`：输入邮箱 → 统一转小写 → 检查是否已注册（409）→ 生成 6 位验证码 → 存入 `EmailVerification` 表（type=REGISTRATION, userId=null）→ 发送邮件
 - 第二步 `verify-and-complete`：输入验证码 + 用户名 + 密码 → 查 `EmailVerification`（type=REGISTRATION, email=email）→ 校验验证码 → 创建用户（emailVerified=true）→ 删验证记录 → 创建 RefreshToken → 签发双 Token
-- 验证码未过期时不重发邮件，前端直接提示输入已有验证码
-- 验证码已过期时删旧记录，新建并重发
+- 验证码未过期时**重发同一验证码**（避免首封丢失后重试仍收不到）；验证码已过期时删旧记录，新建并重发
 - 所有邮箱在服务端统一转小写后存储和查询
 - `request-code` 限流 1/min，P2002 并发时复用已有记录
 - `forgotPassword` 仅匹配未注销用户（`deletedAt: null`），已注销走反枚举

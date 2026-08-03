@@ -55,7 +55,16 @@ export class AuthService {
 
     if (record && record.expiresAt > now) {
       const remaining = Math.floor((record.expiresAt.getTime() - now.getTime()) / 1000);
-      return { emailSent: true, codeExpiresIn: remaining, message: '验证码已发送，请查收邮箱' };
+      // 有效验证码存在时重发同一验证码，避免首封丢失后用户重试仍收不到
+      let emailSent = true;
+      try {
+        await this.emailService.sendVerification(email, record.token);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error(`注册验证邮件重发失败: ${email} | ${message}`);
+        emailSent = false;
+      }
+      return { emailSent, codeExpiresIn: remaining, message: '验证码已发送，请查收邮箱' };
     }
 
     if (record) {
@@ -500,30 +509,35 @@ export class AuthService {
     if (existing) throw new ConflictException('该邮箱已被其他用户使用');
 
     const now = new Date();
-    const recent = await this.prisma.emailVerification.findFirst({
-      where: { userId, type: 'CHANGE_EMAIL', expiresAt: { gt: now } },
+    const record = await this.prisma.emailVerification.findFirst({
+      where: { userId, type: 'CHANGE_EMAIL' },
     });
-    if (recent) {
+
+    // 同一邮箱且未过期 → 重发同一验证码（重发保护）
+    if (record && record.email === normalized && record.expiresAt > now) {
+      try {
+        await this.emailService.sendVerification(normalized, record.token, 'CHANGE_EMAIL');
+      } catch (err) {
+        this.logger.error(`更换邮箱验证码重发失败: ${normalized}`, err);
+      }
       return { message: '验证码已发送，请查收新邮箱' };
     }
 
-    const code = this.generateCode();
-    try {
-      await this.prisma.emailVerification.create({
-        data: {
-          userId,
-          email: normalized,
-          token: code,
-          type: 'CHANGE_EMAIL',
-          expiresAt: new Date(Date.now() + this.CODE_TTL),
-        },
-      });
-    } catch (e: any) {
-      if (e.code === 'P2002') {
-        return { message: '验证码已发送，请查收新邮箱' };
-      }
-      throw e;
+    // 换了新邮箱或已过期 → 作废旧记录，为新邮箱生成新验证码
+    if (record) {
+      await this.prisma.emailVerification.delete({ where: { id: record.id } });
     }
+
+    const code = this.generateCode();
+    await this.prisma.emailVerification.create({
+      data: {
+        userId,
+        email: normalized,
+        token: code,
+        type: 'CHANGE_EMAIL',
+        expiresAt: new Date(now.getTime() + this.CODE_TTL),
+      },
+    });
 
     try {
       await this.emailService.sendVerification(normalized, code, 'CHANGE_EMAIL');

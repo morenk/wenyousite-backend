@@ -88,7 +88,7 @@ describe('AuthService', () => {
       expect(result.codeExpiresIn).toBe(900);
     });
 
-    it('验证码未过期时不重发', async () => {
+    it('验证码未过期时重发同一验证码，不新建', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
       const future = new Date(Date.now() + 10 * 60 * 1000);
       mockPrisma.emailVerification.findFirst.mockResolvedValue({
@@ -101,6 +101,7 @@ describe('AuthService', () => {
       expect(result.emailSent).toBe(true);
       expect(result.message).toContain('验证码已发送');
       expect(mockPrisma.emailVerification.create).not.toHaveBeenCalled();
+      expect(mockEmailService.sendVerification).toHaveBeenCalledWith('a@b.com', '123456');
     });
 
     it('验证码已过期时应该删除旧记录并新建', async () => {
@@ -417,6 +418,57 @@ describe('AuthService', () => {
         expect.any(String),
         'CHANGE_EMAIL',
       );
+    });
+
+    it('换新邮箱时作废旧记录并为新邮箱生成验证码', async () => {
+      const hashed = await argon2.hash('CurrentPass123');
+      mockPrisma.user.findUnique
+        .mockResolvedValueOnce({ email: 'a@b.com', password: hashed })
+        .mockResolvedValueOnce(null);
+      const oldRecord = {
+        id: 'old-record', userId: 'u1', email: 'old@x.com',
+        token: '111111', type: 'CHANGE_EMAIL',
+        expiresAt: new Date(Date.now() + 60_000),
+      };
+      mockPrisma.emailVerification.findFirst.mockResolvedValue(oldRecord);
+      mockPrisma.emailVerification.delete.mockResolvedValue(oldRecord);
+      mockPrisma.emailVerification.create.mockResolvedValue({});
+
+      await service.requestChangeEmailCode('u1', 'new@b.com', 'CurrentPass123');
+
+      expect(mockPrisma.emailVerification.delete).toHaveBeenCalledWith({
+        where: { id: 'old-record' },
+      });
+      expect(mockPrisma.emailVerification.create).toHaveBeenCalledWith(
+        { data: expect.objectContaining({ email: 'new@b.com', type: 'CHANGE_EMAIL' }) },
+      );
+      expect(mockEmailService.sendVerification).toHaveBeenCalledWith(
+        'new@b.com',
+        expect.any(String),
+        'CHANGE_EMAIL',
+      );
+    });
+
+    it('同一邮箱有效期内重发同一验证码，不新建', async () => {
+      const hashed = await argon2.hash('CurrentPass123');
+      mockPrisma.user.findUnique
+        .mockResolvedValueOnce({ email: 'a@b.com', password: hashed })
+        .mockResolvedValueOnce(null);
+      const record = {
+        id: 'rec', userId: 'u1', email: 'new@b.com',
+        token: '222222', type: 'CHANGE_EMAIL',
+        expiresAt: new Date(Date.now() + 60_000),
+      };
+      mockPrisma.emailVerification.findFirst.mockResolvedValue(record);
+
+      const result = await service.requestChangeEmailCode('u1', 'new@b.com', 'CurrentPass123');
+
+      expect(result.message).toContain('验证码已发送');
+      expect(mockEmailService.sendVerification).toHaveBeenCalledWith(
+        'new@b.com', '222222', 'CHANGE_EMAIL',
+      );
+      expect(mockPrisma.emailVerification.delete).not.toHaveBeenCalled();
+      expect(mockPrisma.emailVerification.create).not.toHaveBeenCalled();
     });
   });
 
