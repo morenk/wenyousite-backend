@@ -7,7 +7,7 @@ export class MentionCandidateDto {
   @ApiProperty()
   username!: string;
 
-  @ApiProperty({ nullable: true })
+  @ApiProperty({ type: String, nullable: true })
   avatar!: string | null;
 
   @ApiProperty({ enum: ['FOLLOWING', 'PLAYER'] })
