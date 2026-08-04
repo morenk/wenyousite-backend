@@ -81,6 +81,12 @@
 | GET | `/subthreads/:id` | Public | 子贴详情 |
 | PATCH | `/subthreads/:id` | Auth | 修改子贴（仅 OWNER/COLLABORATOR），默认子贴不可修改 sortOrder |
 | DELETE | `/subthreads/:id` | Auth | 软删除（仅 OWNER/COLLABORATOR） |
+| GET | `/subthreads/:subthreadId/tags` | OptionalAuth | 获取子贴标签，遵循主题帖发布状态和私密可见性 |
+| POST | `/subthreads/:subthreadId/tags` | Auth | 添加子贴标签（仅 OWNER/COLLABORATOR） |
+| DELETE | `/subthreads/:subthreadId/tags/:tagId` | Auth | 移除子贴标签（仅 OWNER/COLLABORATOR） |
+| GET | `/subthreads/:id/tags` | OptionalAuth | 子贴标签列表；按主题帖发布状态、可见性和成员身份校验 |
+| POST | `/subthreads/:id/tags` | Auth | 新增并关联子贴标签（仅 OWNER/COLLABORATOR） |
+| DELETE | `/subthreads/:id/tags/:tagId` | Auth | 移除子贴标签关联（仅 OWNER/COLLABORATOR） |
 
 ## 楼层端点 (Posts)
 

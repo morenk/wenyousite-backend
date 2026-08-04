@@ -7,8 +7,7 @@ import { FastifyRequest } from 'fastify';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubthreadsService } from './subthreads.service';
 import { AddSubthreadTagDto } from './dto/add-subthread-tag.dto';
-import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
-import { Public } from '../common/decorators/public.decorator';
+import { Auth, OptionalAuth } from '../auth/decorators/auth.decorator';
 
 /** 子贴标签关联控制器 */
 @ApiTags('Subthreads')
@@ -20,9 +19,14 @@ export class SubthreadTagsController {
   ) {}
 
   @Get()
-  @Public()
+  @OptionalAuth()
   @ApiOperation({ summary: '获取子贴的标签列表' })
-  async findAll(@Param('subthreadId') subthreadId: string) {
+  async findAll(
+    @Param('subthreadId') subthreadId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const user = req['user'] as { id: string } | undefined;
+    await this.subthreadsService.findById(subthreadId, user?.id);
     return this.prisma.subthreadTag.findMany({
       where: { subthreadId },
       include: { tag: true },
@@ -39,7 +43,7 @@ export class SubthreadTagsController {
     @Req() req: FastifyRequest,
   ) {
     const user = req['user'] as { id: string };
-    const subthread = await this.subthreadsService.findById(subthreadId);
+    const subthread = await this.subthreadsService.findById(subthreadId, user.id);
     await this.subthreadsService.assertCanManage(subthread.threadId, user.id);
 
     // 查找或创建子贴标签定义
@@ -72,7 +76,7 @@ export class SubthreadTagsController {
     @Req() req: FastifyRequest,
   ) {
     const user = req['user'] as { id: string };
-    const subthread = await this.subthreadsService.findById(subthreadId);
+    const subthread = await this.subthreadsService.findById(subthreadId, user.id);
     await this.subthreadsService.assertCanManage(subthread.threadId, user.id);
 
     await this.prisma.subthreadTag.deleteMany({

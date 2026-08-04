@@ -28,9 +28,9 @@
 | GET | `/subthreads/:id` | Public | 子贴详情（含所属主题帖信息） |
 | PATCH | `/subthreads/:id` | AuthRead | 修改子贴（OWNER/COLLABORATOR，乐观锁 version。默认子贴 sortOrder 不可改） |
 | DELETE | `/subthreads/:id` | AuthRead | 软删除子贴（OWNER/COLLABORATOR） |
-| GET | `/subthreads/:subthreadId/tags` | Public | 子贴标签列表 |
-| POST | `/subthreads/:subthreadId/tags` | AuthRead | 添加标签（OWNER/COLLABORATOR，支持 name + color） |
-| DELETE | `/subthreads/:subthreadId/tags/:tagId` | AuthRead | 移除标签 |
+| GET | `/subthreads/:subthreadId/tags` | OptionalAuth | 子贴标签列表（按主题帖可见性校验） |
+| POST | `/subthreads/:subthreadId/tags` | Auth | 添加标签（OWNER/COLLABORATOR，支持 name + color） |
+| DELETE | `/subthreads/:subthreadId/tags/:tagId` | Auth | 移除标签 |
 
 ## 核心业务规则
 
@@ -46,7 +46,7 @@
 - sortOrder 控制子贴在主题帖内的显示顺序（按升序排列）
 - 修改使用乐观锁（version 字段），并发冲突返回提示
 - 子贴标签使用 SubthreadTagDef 存储定义（name + color），通过 SubthreadTag 关联
-- 子贴标签的增删操作需通过 SubthreadsService.assertCanManage 校验管理权限
+- 子贴标签读取需通过 `SubthreadsService.findById(subthreadId, userId)` 校验公开/私密、发布状态和成员身份；增删还需通过 `assertCanManage` 校验管理权限
 - 删除子贴需同时检查子贴自身和所属主题帖是否存在及是否已被删除
 
 ## 设计决策
