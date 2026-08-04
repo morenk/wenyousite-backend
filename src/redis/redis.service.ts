@@ -10,6 +10,11 @@ export class RedisService implements OnModuleDestroy {
     await this.redis.quit();
   }
 
+  /** 验证 Redis 连接可用，供 readiness 健康检查使用 */
+  async ping() {
+    return this.redis.ping();
+  }
+
   // ── Hash 计数器 ──
 
   /** 自增 Hash 字段 */
