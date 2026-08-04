@@ -9,6 +9,7 @@ yarn-debug.log*
 yarn-error.log*
 .turbo
 coverage/
+backups/
 .nyc_output/
 .DS_Store
 *.tsbuildinfo
