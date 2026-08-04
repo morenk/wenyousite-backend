@@ -33,7 +33,10 @@ export class MediaResponseDto {
   @ApiProperty({ description: '对象存储 key' })
   key!: string;
 
-  @ApiProperty({ type: Number, nullable: true, description: '实际文件大小（字节）' })
+  @ApiProperty({ type: String, nullable: true, description: '经对象存储确认的 MIME 类型；历史记录可能为空' })
+  contentType!: string | null;
+
+  @ApiProperty({ type: Number, nullable: true, description: '声明或经确认的文件大小（字节）' })
   size!: number | null;
 
   @ApiProperty({ type: Number, nullable: true })
@@ -54,6 +57,6 @@ export class ConfirmUploadResponseDto {
   @ApiProperty({ type: MediaResponseDto })
   media!: MediaResponseDto;
 
-  @ApiProperty({ description: '是否已进入异步图片处理队列；SVG 为 false' })
+  @ApiProperty({ description: '是否处于异步图片处理阶段' })
   processing!: boolean;
 }

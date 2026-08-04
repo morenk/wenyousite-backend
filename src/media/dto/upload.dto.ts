@@ -4,7 +4,7 @@ import { IsString, IsNumber, MinLength, MaxLength, Min, Max, IsIn } from 'class-
 /** 允许上传的图片 MIME 类型 */
 const ALLOWED_MIME = [
   'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-  'image/avif', 'image/svg+xml',
+  'image/avif',
 ] as const;
 
 /** 获取预签名上传 URL 的请求参数 */

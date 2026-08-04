@@ -22,6 +22,7 @@ jest.mock('@aws-sdk/client-s3', () => ({
   S3Client: jest.fn(() => mockS3),
   PutObjectCommand: jest.fn((opts: any) => opts),
   GetObjectCommand: jest.fn((opts: any) => opts),
+  HeadObjectCommand: jest.fn((opts: any) => opts),
   DeleteObjectsCommand: jest.fn((opts: any) => opts),
 }));
 
@@ -41,7 +42,7 @@ const mockConfig = {
 
 const makeMedia = (overrides = {}) => ({
   id: 'm1', userId: 'u1', url: 'https://test.cos.com/test-bucket/...', key: 'uploads/2099/01/01/u1/photo.jpg',
-  status: 'UPLOADING', size: null, width: null, height: null, createdAt: new Date(),
+  status: 'UPLOADING', contentType: 'image/jpeg', size: 100000, width: null, height: null, createdAt: new Date(),
   ...overrides,
 });
 
@@ -49,6 +50,7 @@ const mockPrisma = {
   media: {
     create: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
     findUnique: jest.fn(),
     findMany: jest.fn(),
     deleteMany: jest.fn(),
@@ -88,12 +90,21 @@ describe('MediaService', () => {
     expect(result.mediaId).toBe('m1');
     expect(result.objectKey).toContain('uploads/');
     expect(result.publicUrl).toContain('test-bucket');
-    expect(mockPrisma.media.create).toHaveBeenCalled();
+    expect(mockPrisma.media.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ contentType: 'image/jpeg', size: 100000 }),
+    });
   });
 
   it('非法 MIME 类型应拒绝', async () => {
     await expect(
       service.getUploadUrl({ filename: 'bad.txt', contentType: 'text/plain', size: 100, userId: 'u1' }),
+    ).rejects.toThrow(BadRequestException);
+    expect(mockPrisma.media.create).not.toHaveBeenCalled();
+  });
+
+  it('SVG 应在签发上传凭证前拒绝', async () => {
+    await expect(
+      service.getUploadUrl({ filename: 'unsafe.svg', contentType: 'image/svg+xml', size: 100, userId: 'u1' }),
     ).rejects.toThrow(BadRequestException);
     expect(mockPrisma.media.create).not.toHaveBeenCalled();
   });
@@ -128,9 +139,19 @@ describe('MediaService', () => {
     await expect(service.confirmUpload('m1', 'u1')).rejects.toThrow(ForbiddenException);
   });
 
-  it('confirmUpload 应拒绝非 UPLOADING 状态的记录', async () => {
-    mockPrisma.media.findUnique.mockResolvedValue(makeMedia({ status: 'COMPLETED' }));
-    mockS3.send.mockResolvedValue({ Body: null });
+  it.each([
+    ['PROCESSING', true],
+    ['COMPLETED', false],
+  ])('confirmUpload 对 %s 状态应幂等返回且不重复入队', async (status, processing) => {
+    mockPrisma.media.findUnique.mockResolvedValue(makeMedia({ status }));
+    const result = await service.confirmUpload('m1', 'u1');
+    expect(result).toEqual({ media: expect.objectContaining({ status }), processing });
+    expect(mockS3.send).not.toHaveBeenCalled();
+    expect(mockImageQueue.add).not.toHaveBeenCalled();
+  });
+
+  it('confirmUpload 应拒绝 FAILED 状态的记录', async () => {
+    mockPrisma.media.findUnique.mockResolvedValue(makeMedia({ status: 'FAILED' }));
     await expect(service.confirmUpload('m1', 'u1')).rejects.toThrow(BadRequestException);
   });
 
@@ -142,28 +163,68 @@ describe('MediaService', () => {
 
   it('confirmUpload 应转 PROCESSING 并入队图片处理', async () => {
     mockPrisma.media.findUnique.mockResolvedValue(makeMedia());
-    mockS3.send.mockResolvedValue({ Body: null });
+    mockS3.send.mockResolvedValue({ ContentLength: 100000, ContentType: 'image/jpeg' });
     mockPrisma.media.update.mockResolvedValue(makeMedia({ status: 'PROCESSING' }));
 
     const result = await service.confirmUpload('m1', 'u1');
     expect(mockImageQueue.add).toHaveBeenCalledWith(
       'process',
       expect.objectContaining({ objectKey: 'uploads/2099/01/01/u1/photo.jpg' }),
-      expect.any(Object),
+      expect.objectContaining({ jobId: 'm1' }),
     );
+    expect(mockPrisma.media.update).toHaveBeenCalledWith({
+      where: { id: 'm1', status: 'UPLOADING' },
+      data: { status: 'PROCESSING', size: 100000, contentType: 'image/jpeg' },
+    });
+    expect(mockPrisma.media.update.mock.invocationCallOrder[0])
+      .toBeLessThan(mockImageQueue.add.mock.invocationCallOrder[0]);
     expect(result.processing).toBe(true);
     expect(result.media.status).toBe('PROCESSING');
   });
 
-  it('confirmUpload SVG 不入队处理，直接 COMPLETED', async () => {
-    mockPrisma.media.findUnique.mockResolvedValue(makeMedia({ key: 'uploads/2099/01/01/u1/icon.svg' }));
-    mockS3.send.mockResolvedValue({ Body: null });
-    mockPrisma.media.update.mockResolvedValue(makeMedia({ key: 'uploads/2099/01/01/u1/icon.svg', status: 'COMPLETED' }));
+  it.each([
+    [{ ContentLength: 99999, ContentType: 'image/jpeg' }, '大小不一致'],
+    [{ ContentLength: 100000, ContentType: 'image/png' }, '类型不一致'],
+    [{ ContentLength: undefined, ContentType: 'image/jpeg' }, '大小缺失'],
+    [{ ContentLength: 100000, ContentType: undefined }, '类型缺失'],
+  ])('confirmUpload 对对象元数据%s应标记 FAILED', async (headResult, _reason) => {
+    mockPrisma.media.findUnique.mockResolvedValue(makeMedia());
+    mockS3.send.mockResolvedValue(headResult);
+    mockPrisma.media.updateMany.mockResolvedValue({ count: 1 });
+
+    await expect(service.confirmUpload('m1', 'u1')).rejects.toThrow(BadRequestException);
+    expect(mockPrisma.media.updateMany).toHaveBeenCalledWith({
+      where: { id: 'm1', status: 'UPLOADING' },
+      data: { status: 'FAILED' },
+    });
+    expect(mockImageQueue.add).not.toHaveBeenCalled();
+  });
+
+  it('confirmUpload 并发条件更新失败时应返回另一请求写入的状态', async () => {
+    mockPrisma.media.findUnique
+      .mockResolvedValueOnce(makeMedia())
+      .mockResolvedValueOnce(makeMedia({ status: 'PROCESSING' }));
+    mockS3.send.mockResolvedValue({ ContentLength: 100000, ContentType: 'image/jpeg' });
+    mockPrisma.media.update.mockRejectedValueOnce({ code: 'P2025' });
 
     const result = await service.confirmUpload('m1', 'u1');
-    expect(result.processing).toBe(false);
-    expect(result.media.status).toBe('COMPLETED');
+    expect(result.processing).toBe(true);
+    expect(result.media.status).toBe('PROCESSING');
     expect(mockImageQueue.add).not.toHaveBeenCalled();
+  });
+
+  it('confirmUpload 入队失败时应条件回滚以允许重试', async () => {
+    mockPrisma.media.findUnique.mockResolvedValue(makeMedia());
+    mockS3.send.mockResolvedValue({ ContentLength: 100000, ContentType: 'image/jpeg' });
+    mockPrisma.media.update.mockResolvedValue(makeMedia({ status: 'PROCESSING' }));
+    mockImageQueue.add.mockRejectedValueOnce(new Error('redis unavailable'));
+    mockPrisma.media.updateMany.mockResolvedValue({ count: 1 });
+
+    await expect(service.confirmUpload('m1', 'u1')).rejects.toThrow('redis unavailable');
+    expect(mockPrisma.media.updateMany).toHaveBeenCalledWith({
+      where: { id: 'm1', status: 'PROCESSING' },
+      data: { status: 'UPLOADING' },
+    });
   });
 
   // ── getMedia ──

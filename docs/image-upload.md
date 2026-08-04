@@ -53,7 +53,8 @@
 | `image/gif` | gif | sharp 缩略图 + 中图 |
 | `image/webp` | webp | sharp 缩略图 + 中图 |
 | `image/avif` | avif | sharp 缩略图 + 中图 |
-| `image/svg+xml` | svg | **跳过** sharp 处理 |
+
+> SVG 不在白名单内。未经净化的 SVG 可能携带脚本或外部资源，并绕过 sharp 的位图解码校验；Web/Flutter 都应在文件选择阶段过滤，服务端仍会拒绝绕过客户端的请求。
 
 **文件名消毒**：
 - 只取最后一段作为扩展名：`foo.bar.jpg` → `jpg`
@@ -123,10 +124,10 @@ class ConfirmUploadDto {
 
 **处理流程**：
 1. 根据 `mediaId` 查 Media 记录，校验归属（userId 匹配）
-2. 校验 `status === 'UPLOADING'`，防止重复确认
-3. 向 S3 发送 `GetObjectCommand` 检查对象是否存在
-4. SVG 文件：直接转 `COMPLETED`
-5. 非 SVG 文件：入队 BullMQ `image` 队列，转 `PROCESSING`
+2. `PROCESSING` / `COMPLETED` 直接返回当前结果，使客户端超时重试不会重复入队
+3. 向 S3 发送 `HeadObjectCommand`，核对实际 `Content-Length`、`Content-Type` 与签发凭证时固化的声明值；缺失、超限或不一致时转 `FAILED`
+4. 以条件更新原子执行 `UPLOADING → PROCESSING`，并发请求只有一个能取得入队权
+5. 以 `mediaId` 作为 BullMQ `jobId` 入队；入队失败时条件回滚至 `UPLOADING`，允许客户端重试
 
 **重试策略**：
 - 最多 2 次尝试
@@ -156,10 +157,10 @@ class ConfirmUploadDto {
 **状态机**：
 
 ```
-UPLOADING ──(SVG)──> COMPLETED
+UPLOADING ──(元数据不合法)──────────────────────> FAILED
     │
-    └──(upload-done)──> PROCESSING ──(成功)──> COMPLETED
-                                    └─(失败耗尽)──> FAILED
+    └──(upload-done 原子确认)──> PROCESSING ──(成功)──> COMPLETED
+                                           └─(失败耗尽)──> FAILED
 ```
 
 ---

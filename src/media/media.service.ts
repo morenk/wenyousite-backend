@@ -5,7 +5,9 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectsCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectsCommand,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
@@ -14,7 +16,7 @@ import sharp from 'sharp';
 /** 允许的文件类型白名单 */
 const ALLOWED_MIME = [
   'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-  'image/avif', 'image/svg+xml',
+  'image/avif',
 ];
 
 /** 单文件最大 10MB */
@@ -39,7 +41,7 @@ export interface ImageProcessJob {
 }
 
 /** 允许的文件扩展名（与 MIME 白名单对应） */
-const ALLOWED_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg']);
+const ALLOWED_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif']);
 
 /** 衍生图 Cache-Control：一年强缓存 */
 const DERIVATIVE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
@@ -90,7 +92,13 @@ export class MediaService {
     const publicUrl = this.buildPublicUrl(objectKey);
 
     const media = await this.prisma.media.create({
-      data: { userId: opts.userId, url: publicUrl, key: objectKey },
+      data: {
+        userId: opts.userId,
+        url: publicUrl,
+        key: objectKey,
+        contentType: opts.contentType,
+        size: opts.size,
+      },
     });
 
     const command = new PutObjectCommand({
@@ -110,7 +118,7 @@ export class MediaService {
     };
   }
 
-  /** 客户端上传完成确认：校验归属，转 UPLOADING → PROCESSING 并入队 */
+  /** 客户端上传完成确认：核对对象元数据，幂等转 UPLOADING → PROCESSING 并入队 */
   async confirmUpload(mediaId: string, userId: string) {
     const media = await this.prisma.media.findUnique({ where: { id: mediaId } });
     if (!media) {
@@ -119,42 +127,80 @@ export class MediaService {
     if (media.userId !== userId) {
       throw new ForbiddenException('无权操作');
     }
+    if (media.status === 'PROCESSING' || media.status === 'COMPLETED') {
+      return { media, processing: media.status === 'PROCESSING' };
+    }
     if (media.status !== 'UPLOADING') {
       throw new BadRequestException('无效的上传状态');
     }
 
     const bucket = this.config.get<string>('cos.bucket')!;
+    let head;
 
     try {
-      await this.s3.send(new GetObjectCommand({ Bucket: bucket, Key: media.key }));
+      head = await this.s3.send(new HeadObjectCommand({ Bucket: bucket, Key: media.key }));
     } catch {
       throw new NotFoundException('文件不存在或上传未完成');
     }
 
-    // SVG 矢量图无需缩放加工，直接标记完成
-    if (media.key.toLowerCase().endsWith('.svg')) {
-      const completed = await this.prisma.media.update({
-        where: { id: mediaId },
-        data: { status: 'COMPLETED' },
+    const actualSize = head.ContentLength;
+    const actualContentType = this.normalizeContentType(head.ContentType);
+    const metadataInvalid = !Number.isSafeInteger(actualSize)
+      || actualSize! <= 0
+      || actualSize! > MAX_SIZE
+      || !actualContentType
+      || !ALLOWED_MIME.includes(actualContentType)
+      || (media.size !== null && media.size !== actualSize)
+      || (media.contentType !== null && media.contentType !== actualContentType);
+
+    if (metadataInvalid) {
+      await this.prisma.media.updateMany({
+        where: { id: mediaId, status: 'UPLOADING' },
+        data: { status: 'FAILED' },
       });
-      return { media: completed, processing: false };
+      throw new BadRequestException('上传文件元数据与凭证不一致');
     }
 
-    await this.imageQueue.add('process', {
-      mediaId: media.id,
-      objectKey: media.key,
-      bucket,
-    } as ImageProcessJob, {
-      attempts: 2,
-      backoff: { type: 'fixed', delay: 10000 },
-      removeOnComplete: { age: 3600 * 24 },
-      removeOnFail: { age: 3600 * 24 * 7 },
-    });
+    let processing;
+    try {
+      // 条件更新取得唯一入队权，避免两个确认请求各自创建任务。
+      processing = await this.prisma.media.update({
+        where: { id: mediaId, status: 'UPLOADING' },
+        data: {
+          status: 'PROCESSING',
+          size: actualSize!,
+          contentType: actualContentType!,
+        },
+      });
+    } catch (error: any) {
+      if (error?.code !== 'P2025') throw error;
+      const current = await this.prisma.media.findUnique({ where: { id: mediaId } });
+      if (current?.userId === userId && (current.status === 'PROCESSING' || current.status === 'COMPLETED')) {
+        return { media: current, processing: current.status === 'PROCESSING' };
+      }
+      throw new BadRequestException('无效的上传状态');
+    }
 
-    const processing = await this.prisma.media.update({
-      where: { id: mediaId },
-      data: { status: 'PROCESSING' },
-    });
+    try {
+      await this.imageQueue.add('process', {
+        mediaId: media.id,
+        objectKey: media.key,
+        bucket,
+      } as ImageProcessJob, {
+        jobId: media.id,
+        attempts: 2,
+        backoff: { type: 'fixed', delay: 10000 },
+        removeOnComplete: { age: 3600 * 24 },
+        removeOnFail: { age: 3600 * 24 * 7 },
+      });
+    } catch (error) {
+      // 仅回滚仍在等待队列处理的记录；若消费者已完成则不得倒退状态。
+      await this.prisma.media.updateMany({
+        where: { id: mediaId, status: 'PROCESSING' },
+        data: { status: 'UPLOADING' },
+      });
+      throw error;
+    }
 
     return { media: processing, processing: true };
   }
@@ -245,6 +291,11 @@ export class MediaService {
     if (count > this.uploadRatePerHour) {
       throw new HttpException('图片上传频率超限，请稍后再试', HttpStatus.TOO_MANY_REQUESTS);
     }
+  }
+
+  /** 规范化对象存储返回的 MIME，忽略可选参数并统一小写。 */
+  private normalizeContentType(contentType?: string) {
+    return contentType?.split(';', 1)[0].trim().toLowerCase() || null;
   }
 
   /** 孤儿图片回收：清理未确认上传、处理失败、以及未被任何存活内容引用的图片（S3 + DB） */

@@ -352,7 +352,8 @@
 | userId | String | FK users (Cascade) | 上传者 |
 | url | String | — | 公网访问 URL |
 | key | String | unique | S3 object key，唯一约束防重复 |
-| size | Int? | — | 文件大小（bytes） |
+| contentType | String? | — | 上传凭证签发时声明的 MIME；确认时更新为对象存储返回的规范化 MIME |
+| size | Int? | — | 上传凭证签发时声明的大小；确认和处理时更新为实际文件大小（bytes） |
 | width | Int? | — | 图片宽度（sharp 处理后填入） |
 | height | Int? | — | 图片高度 |
 | status | MediaStatus | default UPLOADING | 处理状态：UPLOADING / PROCESSING / COMPLETED / FAILED |

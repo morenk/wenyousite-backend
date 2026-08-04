@@ -354,6 +354,7 @@ model Media {
   userId    String      @map("user_id")
   url       String
   key       String      @unique
+  contentType String?   @map("content_type")
   size      Int?
   width     Int?
   height    Int?
