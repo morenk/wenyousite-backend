@@ -1,6 +1,6 @@
 import {
   Controller, Get, Post, Put, Patch, Delete,
-  Body, Param, Query, Req, UseGuards,
+  Body, Param, Query, Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery, ApiOkResponse, ApiCreatedResponse, ApiUnauthorizedResponse, ApiForbiddenResponse, ApiNotFoundResponse } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
@@ -9,7 +9,8 @@ import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { UpsertBodyDto } from './dto/upsert-body.dto';
 import { PostQueryDto } from './dto/post-query.dto';
-import { Auth, AuthRead, OptionalAuth } from '../auth/decorators/auth.decorator';
+import { Auth, OptionalAuth } from '../auth/decorators/auth.decorator';
+import { FloorResponseDto, PostDetailResponseDto, PostResponseDto, ReplyResponseDto } from './dto/post-response.dto';
 
 /** 楼层控制器：发帖、楼中楼、编辑、删除 */
 @ApiTags('Posts')
@@ -22,7 +23,7 @@ export class PostsController {
   @ApiOperation({ summary: '获取子贴的楼层列表（Cursor 分页）' })
   @ApiQuery({ name: 'cursor', required: false, description: '分页游标' })
   @ApiQuery({ name: 'limit', required: false, description: '每页条数' })
-  @ApiOkResponse({ description: '楼层列表（含楼中楼内联回复），cursor 分页' })
+  @ApiOkResponse({ type: FloorResponseDto, isArray: true, description: '楼层列表（含楼中楼内联回复），cursor 分页' })
   async findFloors(
     @Param('subthreadId') subthreadId: string,
     @Query() query: PostQueryDto,
@@ -37,7 +38,7 @@ export class PostsController {
   @ApiOperation({ summary: '获取楼中楼回复列表（cursor 分页，无限下拉）' })
   @ApiQuery({ name: 'cursor', required: false, description: '分页游标（上一页最后一条记录 ID）' })
   @ApiQuery({ name: 'limit', required: false, description: '每页条数（默认 20，最大 50）' })
-  @ApiOkResponse({ description: '楼中楼回复列表（平级挂载，含 replyToPostId 追踪回复目标），cursor 分页' })
+  @ApiOkResponse({ type: ReplyResponseDto, isArray: true, description: '楼中楼回复列表（平级挂载，含 replyToPostId 追踪回复目标），cursor 分页' })
   async findReplies(
     @Param('id') id: string,
     @Query() query: PostQueryDto,
@@ -51,7 +52,7 @@ export class PostsController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '写入子贴正文（upsert：无正文创建，有正文乐观锁更新）。仅 OWNER/COLLABORATOR' })
-  @ApiOkResponse({ description: '正文帖子（kind=BODY，不占楼层号）' })
+  @ApiOkResponse({ type: PostResponseDto, description: '正文帖子（kind=BODY，不占楼层号）' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   @ApiForbiddenResponse({ description: '无管理权限' })
   @ApiNotFoundResponse({ description: '子贴不存在' })
@@ -68,7 +69,7 @@ export class PostsController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '发帖（创建新楼层或楼中楼回复）' })
-  @ApiCreatedResponse({ description: '创建的帖子（含楼层号或 parentPostId）' })
+  @ApiCreatedResponse({ type: PostResponseDto, description: '创建的帖子（含楼层号或 parentPostId）' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   @ApiForbiddenResponse({ description: '无发帖权限（未加入子贴或权限不足）' })
   async create(
@@ -83,7 +84,7 @@ export class PostsController {
   @Get('posts/:id')
   @OptionalAuth()
   @ApiOperation({ summary: '获取帖子详情' })
-  @ApiOkResponse({ description: '帖子详情（含作者信息、点赞数、是否已点赞）' })
+  @ApiOkResponse({ type: PostDetailResponseDto, description: '帖子详情（含作者和导航上下文）' })
   @ApiNotFoundResponse({ description: '帖子不存在' })
   async findById(@Param('id') id: string, @Req() req: FastifyRequest) {
     const user = (req as any).user as { id: string } | undefined;
@@ -94,7 +95,7 @@ export class PostsController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '编辑帖子' })
-  @ApiOkResponse({ description: '更新后的帖子' })
+  @ApiOkResponse({ type: PostResponseDto, description: '更新后的帖子' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   @ApiForbiddenResponse({ description: '非本人帖子，无权编辑' })
   @ApiNotFoundResponse({ description: '帖子不存在' })

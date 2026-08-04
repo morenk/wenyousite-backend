@@ -23,6 +23,13 @@
 | PATCH | `/posts/:id` | Auth | 编辑帖子（仅作者，乐观锁 version） |
 | DELETE | `/posts/:id` | Auth | 软删除楼层（仅楼层 kind=FLOOR，正文 kind=BODY 不可删） |
 
+## 响应契约
+
+- 楼层分页接口的 `data` 为 `FloorResponseDto[]`，楼中楼分页接口的 `data` 为 `ReplyResponseDto[]`，游标位于统一 envelope 的 `meta`。
+- 创建楼层、upsert 子贴正文和编辑帖子的 `data` 为 `PostResponseDto`。
+- 帖子详情的 `data` 为 `PostDetailResponseDto`，包含帖、子贴、父楼和回复计数导航上下文。
+- Web/Flutter 必须使用 Swagger 生成类型，不再手写帖子响应结构。
+
 ## 核心业务规则
 
 - 发帖前校验主题帖访问权限（`ThreadAccessService.assertAccessible`）：私密帖非参与人被拒绝，未发布帖非 owner 被拒绝
