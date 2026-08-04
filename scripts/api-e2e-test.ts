@@ -20,7 +20,15 @@ import { execSync } from "child_process";
 
 const BASE = process.env.API_BASE || "http://localhost:3000/api/v1";
 const baseUrl = new URL(BASE);
-const isProduction = baseUrl.protocol === "https:";
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1"]);
+
+if (process.env.API_E2E_ENV !== "test") {
+  throw new Error("API_E2E_ENV 必须显式设为 test");
+}
+if (!LOOPBACK_HOSTS.has(baseUrl.hostname)) {
+  throw new Error("API E2E 会写入并清理测试数据，只允许连接本机测试环境");
+}
+
 const TEST_EMAIL = `e2e-${Date.now()}@wenyou.site`;
 const TEST_PASSWORD = "E2eTest123!";
 const TEST_USERNAME = faker.internet
