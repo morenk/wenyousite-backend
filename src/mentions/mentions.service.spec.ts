@@ -55,6 +55,52 @@ describe('MentionsService', () => {
     expect(names.filter((n) => n === '张三')).toHaveLength(1);
   });
 
+  it('邮箱和单词内部的 @ 不应被解析为历史提及', () => {
+    expect(service.extractUsernames('mail@test.example foo@李四，真正提及 @张三')).toEqual(['张三']);
+  });
+
+  it('围栏代码块和成对行内代码中的提及不应触发解析', async () => {
+    mockPrisma.postMention.deleteMany.mockResolvedValue({ count: 0 });
+    const content = [
+      '````md',
+      '```',
+      '[@围栏用户](/users/u2) @全体玩家',
+      '```',
+      '````',
+      '~~~md',
+      '@波浪用户',
+      '~~~',
+      '正文中的 ``[@行内用户](/users/u3) @全体玩家``',
+    ].join('\n');
+
+    const result = await service.syncMentions('p1', content, 'u1', 't1');
+
+    expect(result).toEqual([]);
+    expect(mockPrisma.user.findMany).not.toHaveBeenCalled();
+    expect(mockPrisma.threadMember.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('稳定链接应按 userId 查找，不依赖显示标签中的旧用户名', async () => {
+    mockPrisma.user.findMany.mockResolvedValue([{ id: 'u2', username: '新名字', avatar: null }]);
+    mockPrisma.postMention.findMany.mockResolvedValue([]);
+    mockPrisma.userFollow.findMany.mockResolvedValue([{ followingId: 'u2' }]);
+    mockPrisma.threadMember.findMany.mockResolvedValue([]);
+    mockPrisma.postMention.createMany.mockResolvedValue({});
+
+    const result = await service.syncMentions(
+      'p1',
+      '你好 [@旧名字](/users/u2)',
+      'u1',
+      't1',
+    );
+
+    expect(result).toEqual([{ userId: 'u2', username: '新名字', source: 'DIRECT' }]);
+    expect(mockPrisma.user.findMany).toHaveBeenCalledWith({
+      where: { OR: [{ id: { in: ['u2'] } }], deletedAt: null },
+      select: { id: true, username: true, avatar: true },
+    });
+  });
+
   it('parseAndCreate 应该创建 PostMention 记录', async () => {
     mockPrisma.user.findMany.mockResolvedValue([
       { id: 'u2', username: '张三' },

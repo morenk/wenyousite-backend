@@ -30,7 +30,7 @@ interface MentionTokens {
 /** @提及解析与候选范围服务。权限规则必须在此处集中校验，不能只依赖编辑器。 */
 @Injectable()
 export class MentionsService {
-  private readonly mentionRegex = /@([a-zA-Z0-9_\u4e00-\u9fff]{1,24})/g;
+  private readonly mentionRegex = /(?:^|[^a-zA-Z0-9_\u4e00-\u9fff])@([a-zA-Z0-9_\u4e00-\u9fff]{1,24})/gu;
   private readonly canonicalMentionRegex = /\[@[^\]]{1,32}\]\(\/users\/([a-zA-Z0-9_-]+)\)/g;
 
   constructor(
@@ -242,13 +242,16 @@ export class MentionsService {
   }
 
   private extractMentionTokens(content: string): MentionTokens {
-    const withoutCode = content.replace(/```[\s\S]*?```|`[^`\n]*`/g, '');
+    const withoutCode = this.stripMarkdownCode(content);
     const userIds: string[] = [];
     const withoutCanonical = withoutCode.replace(this.canonicalMentionRegex, (_, userId: string) => {
       userIds.push(userId);
       return ' ';
     });
-    const allPlayers = new RegExp(`@${ALL_PLAYERS_MENTION}(?![a-zA-Z0-9_\u4e00-\u9fff])`, 'u').test(withoutCanonical);
+    const allPlayers = new RegExp(
+      `(?:^|[^a-zA-Z0-9_\\u4e00-\\u9fff])@${ALL_PLAYERS_MENTION}(?![a-zA-Z0-9_\\u4e00-\\u9fff])`,
+      'u',
+    ).test(withoutCanonical);
     const usernames = [...withoutCanonical.matchAll(this.mentionRegex)]
       .map((match) => match[1])
       .filter((username): username is string => username !== ALL_PLAYERS_MENTION);
@@ -257,6 +260,78 @@ export class MentionsService {
       userIds: [...new Set(userIds)],
       allPlayers,
     };
+  }
+
+  /** 移除 Markdown v1 围栏和成对反引号代码，避免代码示例触发真实通知。 */
+  private stripMarkdownCode(content: string): string {
+    const lines = content.replace(/\r\n?/g, '\n').split('\n');
+    let fence: { marker: '`' | '~'; length: number } | null = null;
+
+    return lines.map((line) => {
+      if (fence) {
+        const closingToken = line.match(/^ {0,3}(`{3,}|~{3,})[\t ]*$/)?.[1];
+        if (
+          closingToken?.[0] === fence.marker
+          && closingToken.length >= fence.length
+        ) {
+          fence = null;
+        }
+        return '';
+      }
+
+      const openingToken = line.match(/^ {0,3}(`{3,}|~{3,})/)?.[1];
+      if (openingToken) {
+        fence = {
+          marker: openingToken[0] as '`' | '~',
+          length: openingToken.length,
+        };
+        return '';
+      }
+
+      return this.stripInlineCode(line);
+    }).join('\n');
+  }
+
+  /** CommonMark 行内代码的关闭反引号必须与开启 run 等长。 */
+  private stripInlineCode(line: string): string {
+    let result = '';
+    let index = 0;
+
+    while (index < line.length) {
+      if (line[index] !== '`') {
+        result += line[index];
+        index += 1;
+        continue;
+      }
+
+      const openingStart = index;
+      while (line[index] === '`') index += 1;
+      const openingLength = index - openingStart;
+      let cursor = index;
+      let closingEnd = -1;
+
+      while (cursor < line.length) {
+        const nextRun = line.indexOf('`', cursor);
+        if (nextRun === -1) break;
+        let runEnd = nextRun;
+        while (line[runEnd] === '`') runEnd += 1;
+        if (runEnd - nextRun === openingLength) {
+          closingEnd = runEnd;
+          break;
+        }
+        cursor = runEnd;
+      }
+
+      if (closingEnd === -1) {
+        result += '`'.repeat(openingLength);
+        continue;
+      }
+
+      result += ' ';
+      index = closingEnd;
+    }
+
+    return result;
   }
 
   extractUsernames(content: string): string[] {
