@@ -9,12 +9,12 @@ export class CreateSubscriptionDto {
   @IsCuid()
   threadId: string;
 
-  @ApiProperty({ example: 'THREAD', enum: ['THREAD', 'USER'], description: 'THREAD=订阅整帖所有动态, USER=仅订阅帖内某用户的发言' })
+  @ApiProperty({ example: 'THREAD', enum: ['THREAD', 'USER'], description: 'THREAD=楼主或协作者发布的官方更新, USER=指定普通玩家在帖内的新发言' })
   @IsString()
   @IsIn(['THREAD', 'USER'])
   type: 'THREAD' | 'USER';
 
-  @ApiPropertyOptional({ example: 'clxuser001...', description: '目标用户 ID（type=USER 时必填，订阅该用户在帖内的发言）' })
+  @ApiPropertyOptional({ example: 'clxuser001...', description: '目标玩家 ID（type=USER 时必填；必须是本帖已标记玩家的普通参与人）' })
   @IsOptional()
   @IsString()
   @IsCuid()

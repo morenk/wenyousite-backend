@@ -40,7 +40,7 @@
 
 1. 排除自己（`managerIds` 由全部 OWNER/COLLABORATOR 中剔除作者生成）
 2. 排除被回复者 = 自己的情况（`if targetPost.authorId !== event.userId`）
-3. **THREAD 订阅者限制**：仅当发帖者是楼主（OWNER）或协作者（COLLABORATOR）时，THREAD 订阅者才进入接收者；USER 订阅者（订阅了该发帖者）不受限制
+3. **角色快照限制**：THREAD 仅在发帖时角色为 OWNER/COLLABORATOR 时触发；USER 仅在发帖时角色为 `PARTICIPANT + playerMarked=true` 时触发
 4. 合并三者到 `Set` → 去重 → 过滤发帖者拉黑的用户（`authorBlockedIds`）
 5. 过滤拉黑发帖者的用户（`blockedAuthorIds`，确保拉黑者也不会收到通知）
 
@@ -76,7 +76,7 @@
 **去重与过滤**：
 
 1. 成员查询已排除发帖者自己
-2. **THREAD 订阅者限制**：仅当发帖者是楼主（OWNER）或协作者（COLLABORATOR）时，THREAD 订阅者才进入接收者；USER 订阅者（订阅了该发帖者）不受限制
+2. **角色快照限制**：THREAD 仅在发帖时角色为 OWNER/COLLABORATOR 时触发；USER 仅在发帖时角色为 `PARTICIPANT + playerMarked=true` 时触发
 3. 合并到 `Set` → 去重
 4. 双向过滤拉黑（`authorBlockedIds` + `blockedAuthorIds`）
 5. 显式 mention 已覆盖的用户从同一 `post.created` 事件的 `new_post` / `reply` 收件人中移除，避免一次发帖产生重复提醒
@@ -189,8 +189,8 @@ const authorBlockedIds = new Set(blocksOfAuthor.map(b => b.blockedId));
 
 | 类型   | 值       | 含义                                        |
 | ------ | -------- | ------------------------------------------- |
-| 帖订阅 | `THREAD` | 订阅整个主题帖，仅楼主/协作者发言时收到通知 |
-| 人订阅 | `USER`   | 订阅帖内某个用户的发言，仅该用户发帖时通知  |
+| 官方更新订阅 | `THREAD` | 仅楼主/协作者发言时收到通知 |
+| 玩家订阅 | `USER` | 仅指定 `PARTICIPANT + playerMarked=true` 的普通玩家发言时通知 |
 
 **调用入口**（`src/jobs/post-events.listener.ts:24`）：
 
@@ -217,7 +217,7 @@ WHERE threadId = {threadId}
 
 返回的订阅者列表被合并到 `reply` 和 `new_post` 通知的接收者集合中。
 
-> **THREAD 订阅限制**：在 `PostEventsListener` 中，仅当发帖者是楼主（OWNER）或协作者（COLLABORATOR）时，`type='THREAD'` 的订阅者才会被保留进接收者；`type='USER'` 的订阅者（订阅了该发帖者）始终保留。普通玩家发言不会触发整帖订阅通知。
+> **角色快照限制**：`PostEventsListener` 使用事件中的 `authorRole` / `authorPlayerMarked`，而非异步处理时的当前成员角色。THREAD 只保留楼主/协作者发言，USER 只保留已标记普通玩家发言。
 
 ---
 

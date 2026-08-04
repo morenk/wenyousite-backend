@@ -56,10 +56,12 @@ const baseEvent: PostCreatedEvent = {
   subthreadTitle: '子贴',
   parentPostId: null,
   replyToPostId: null,
+  authorRole: 'PARTICIPANT',
+  authorPlayerMarked: true,
 };
 
 describe('PostEventsListener 订阅过滤', () => {
-  it('发帖者是楼主时，THREAD 和 USER 订阅者都应收到新帖通知', async () => {
+  it('发帖者是楼主时只触发 THREAD 官方更新订阅', async () => {
     const { listener, notificationProducer, subscriptionsService, prisma } = buildListener();
     subscriptionsService.findSubscribers.mockResolvedValue([
       { userId: 'sub_thread', type: 'THREAD', targetUserId: null },
@@ -67,11 +69,15 @@ describe('PostEventsListener 订阅过滤', () => {
     ]);
     prisma.threadMember.findMany.mockResolvedValue([{ userId: 'author1' }]);
 
-    await listener.handlePostCreated(baseEvent);
+    await listener.handlePostCreated({
+      ...baseEvent,
+      authorRole: 'OWNER',
+      authorPlayerMarked: true,
+    });
 
     expect(notificationProducer.notify).toHaveBeenCalledWith(
       'new_post',
-      expect.arrayContaining(['sub_thread', 'sub_user']),
+      ['sub_thread'],
       expect.any(String),
       expect.any(Object),
     );
@@ -84,7 +90,11 @@ describe('PostEventsListener 订阅过滤', () => {
     ]);
     prisma.threadMember.findMany.mockResolvedValue([{ userId: 'owner1' }, { userId: 'author1' }]);
 
-    await listener.handlePostCreated(baseEvent);
+    await listener.handlePostCreated({
+      ...baseEvent,
+      authorRole: 'COLLABORATOR',
+      authorPlayerMarked: false,
+    });
 
     const args = notificationProducer.notify.mock.calls[0];
     expect(args[0]).toBe('new_post');
@@ -115,6 +125,17 @@ describe('PostEventsListener 订阅过滤', () => {
     prisma.threadMember.findMany.mockResolvedValue([]);
 
     await listener.handlePostCreated(baseEvent);
+
+    expect(notificationProducer.notify).not.toHaveBeenCalled();
+  });
+
+  it('未标记玩家的普通参与人不会触发 USER 订阅', async () => {
+    const { listener, notificationProducer, subscriptionsService } = buildListener();
+    subscriptionsService.findSubscribers.mockResolvedValue([
+      { userId: 'sub_user', type: 'USER', targetUserId: 'author1' },
+    ]);
+
+    await listener.handlePostCreated({ ...baseEvent, authorPlayerMarked: false });
 
     expect(notificationProducer.notify).not.toHaveBeenCalled();
   });

@@ -6,8 +6,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { ThreadMembersService } from './thread-members.service';
 import { UpdateMemberDto } from './dto/update-member.dto';
-import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
-import { Public } from '../common/decorators/public.decorator';
+import { Auth, AuthRead, OptionalAuth } from '../auth/decorators/auth.decorator';
 
 /** 主题帖参与人控制器：候选池加入、身份管理、退出 */
 @ApiTags('Threads')
@@ -16,16 +15,17 @@ export class ThreadMembersController {
   constructor(private membersService: ThreadMembersService) {}
 
   @Get()
-  @Public()
+  @OptionalAuth()
   @ApiOperation({ summary: '获取主题帖参与人列表' })
-  async findAll(@Param('threadId') threadId: string) {
-    return this.membersService.findAll(threadId);
+  async findAll(@Param('threadId') threadId: string, @Req() req: FastifyRequest) {
+    const user = req['user'] as { id: string } | undefined;
+    return this.membersService.findAll(threadId, user?.id);
   }
 
   @Post('join')
   @Auth()
   @ApiBearerAuth()
-  @ApiOperation({ summary: '自由加入主题帖' })
+  @ApiOperation({ summary: '自由加入主题帖（兼容旧客户端，Web 已改为发言时自动参与）', deprecated: true })
   async join(@Param('threadId') threadId: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     return this.membersService.join(threadId, user.id);

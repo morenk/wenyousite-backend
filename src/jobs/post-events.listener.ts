@@ -73,12 +73,13 @@ export class PostEventsListener {
         select: { userId: true },
       }),
     ]);
-    // 发帖者是楼主/协作者时才通知 THREAD 订阅者；USER 订阅者（订阅该用户）不受限制
+    // 角色取发帖时快照，避免异步处理期间的角色变化改变本次通知语义。
     const managerIdSet = new Set(managers.map(m => m.userId));
-    const authorIsManager = managerIdSet.has(event.userId);
+    const authorIsManager = event.authorRole === 'OWNER' || event.authorRole === 'COLLABORATOR';
+    const authorIsEligiblePlayer = event.authorRole === 'PARTICIPANT' && event.authorPlayerMarked;
     const managerIds = [...managerIdSet].filter(id => id !== event.userId);
     const subscriberIds = subscribers
-      .filter(s => authorIsManager || s.type === 'USER')
+      .filter(s => (s.type === 'THREAD' && authorIsManager) || (s.type === 'USER' && authorIsEligiblePlayer))
       .map(s => s.userId);
 
     const username = event.authorUsername ?? '有人';
@@ -185,4 +186,6 @@ export interface PostCreatedEvent {
   parentPostId: string | null;
   replyToPostId: string | null;
   isSubthreadBody?: boolean;
+  authorRole: 'OWNER' | 'COLLABORATOR' | 'PARTICIPANT';
+  authorPlayerMarked: boolean;
 }

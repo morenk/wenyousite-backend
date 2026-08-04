@@ -13,9 +13,8 @@ export class ThreadMembersService {
   ) {}
 
   /** 获取参与人列表 */
-  async findAll(threadId: string) {
-    const thread = await this.prisma.thread.findUnique({ where: { id: threadId, deletedAt: null } });
-    if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
+  async findAll(threadId: string, userId?: string) {
+    await this.threadAccess.assertAccessible(threadId, userId);
 
     return this.prisma.threadMember.findMany({
       where: { threadId },
@@ -53,7 +52,13 @@ export class ThreadMembersService {
    *  - playerMarked: 标记为玩家
    *  不能修改 OWNER 角色 */
   async updateMember(threadId: string, targetUserId: string, dto: { role?: string; playerMarked?: boolean }, actorId: string) {
-    await this.threadAccess.assertCanManage(threadId, actorId);
+    const actor = await this.threadAccess.assertCanManage(threadId, actorId);
+    if (dto.role === undefined && dto.playerMarked === undefined) {
+      throw new BusinessException(ErrorCode.BAD_REQUEST, '请至少提供一项要修改的成员信息');
+    }
+    if (dto.role !== undefined && actor.role !== 'OWNER') {
+      throw forbidden('仅楼主可任免协作者', ErrorCode.NOT_THREAD_OWNER);
+    }
 
     const member = await this.prisma.threadMember.findUnique({
       where: { threadId_userId: { threadId, userId: targetUserId } },
@@ -61,26 +66,50 @@ export class ThreadMembersService {
     if (!member) throw notFound(ErrorCode.USER_NOT_FOUND, '该用户不是此主题帖参与人');
     if (member.role === 'OWNER') throw forbidden('不能修改楼主角色', ErrorCode.CANNOT_MODERATE_OWNER);
 
-    return this.prisma.threadMember.update({
-      where: { threadId_userId: { threadId, userId: targetUserId } },
-      data: dto as any,
-      include: {
-        user: { select: { id: true, username: true, avatar: true } },
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.threadMember.update({
+        where: { threadId_userId: { threadId, userId: targetUserId } },
+        data: dto as any,
+        include: {
+          user: { select: { id: true, username: true, avatar: true } },
+        },
+      });
+
+      if (dto.role === 'COLLABORATOR') {
+        await tx.subscription.deleteMany({
+          where: {
+            threadId,
+            OR: [{ userId: targetUserId }, { type: 'USER', targetUserId }],
+          },
+        });
+      } else if (dto.playerMarked === false) {
+        await tx.subscription.deleteMany({
+          where: { threadId, type: 'USER', targetUserId },
+        });
+      }
+
+      return updated;
     });
   }
 
   /** 主动退出：取消自己的玩家标记，从"我参与的"列表移除 */
   async exitMember(threadId: string, userId: string) {
+    await this.threadAccess.assertAccessible(threadId, userId);
     const member = await this.prisma.threadMember.findUnique({
       where: { threadId_userId: { threadId, userId } },
     });
     if (!member) throw notFound(ErrorCode.USER_NOT_FOUND, '您不是此主题帖参与人');
     if (member.role === 'OWNER') throw forbidden('楼主不能退出', ErrorCode.CANNOT_MODERATE_OWNER);
 
-    return this.prisma.threadMember.update({
-      where: { threadId_userId: { threadId, userId } },
-      data: { playerMarked: false },
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.threadMember.update({
+        where: { threadId_userId: { threadId, userId } },
+        data: { playerMarked: false },
+      });
+      await tx.subscription.deleteMany({
+        where: { threadId, type: 'USER', targetUserId: userId },
+      });
+      return updated;
     });
   }
 }

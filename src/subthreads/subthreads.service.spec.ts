@@ -34,7 +34,11 @@ const mockEventEmitter = { emit: jest.fn() };
 const createTxMock = (overrides: Record<string, any> = {}) => ({
   $queryRaw: jest.fn(),
   $queryRawUnsafe: jest.fn(),
-  post: { create: jest.fn().mockResolvedValue({ id: 'p1', kind: 'BODY', floorNumber: null, content: 'test' }) },
+  post: {
+    create: jest.fn().mockResolvedValue({
+      id: 'p1', kind: 'BODY', floorNumber: null, content: 'test', author: { username: 'owner' },
+    }),
+  },
   subthread: {
     aggregate: jest.fn().mockResolvedValue({ _max: { sortOrder: 0 } }),
     findFirst: jest.fn().mockResolvedValue(null),
@@ -59,6 +63,8 @@ describe('SubthreadsService', () => {
     }).compile();
     service = module.get<SubthreadsService>(SubthreadsService);
     jest.resetAllMocks();
+    mockThreadAccess.assertAccessible.mockResolvedValue(undefined);
+    mockThreadAccess.assertCanManage.mockResolvedValue({ role: 'OWNER', playerMarked: true });
     mockPrisma.thread.findUnique.mockResolvedValue({ visibility: 'PUBLIC', published: true, ownerId: 'u1' });
   });
 

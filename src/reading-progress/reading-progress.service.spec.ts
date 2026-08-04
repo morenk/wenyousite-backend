@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ReadingProgressService } from './reading-progress.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ThreadAccessService } from '../common/services/thread-access.service';
 
 const mockPrisma = {
   userReadProgress: {
@@ -10,9 +11,12 @@ const mockPrisma = {
   },
   post: {
     count: jest.fn(),
-    findUnique: jest.fn(),
+    findFirst: jest.fn(),
   },
+  subthread: { findUnique: jest.fn() },
 };
+
+const mockThreadAccess = { assertAccessible: jest.fn().mockResolvedValue(undefined) };
 
 describe('ReadingProgressService', () => {
   let service: ReadingProgressService;
@@ -22,10 +26,13 @@ describe('ReadingProgressService', () => {
       providers: [
         ReadingProgressService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: ThreadAccessService, useValue: mockThreadAccess },
       ],
     }).compile();
     service = module.get<ReadingProgressService>(ReadingProgressService);
     jest.clearAllMocks();
+    mockPrisma.subthread.findUnique.mockResolvedValue({ threadId: 't1' });
+    mockThreadAccess.assertAccessible.mockResolvedValue(undefined);
   });
 
   // ── findBySubthread ──
@@ -50,7 +57,10 @@ describe('ReadingProgressService', () => {
     expect(result).toEqual(mockProgress);
     expect(mockPrisma.userReadProgress.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ userId: 'u1', subthread: { deletedAt: null } }),
+        where: expect.objectContaining({
+          userId: 'u1',
+          subthread: expect.objectContaining({ deletedAt: null }),
+        }),
       }),
     );
   });
@@ -58,6 +68,7 @@ describe('ReadingProgressService', () => {
   // ── update ──
 
   it('update 应该 upsert 进度', async () => {
+    mockPrisma.post.findFirst.mockResolvedValue({ id: 'p2' });
     mockPrisma.userReadProgress.upsert.mockResolvedValue({ id: 'rp1', postId: 'p2' });
     const result = await service.update('u1', 's1', 'p2');
     expect(result.postId).toBe('p2');
@@ -67,6 +78,18 @@ describe('ReadingProgressService', () => {
     mockPrisma.userReadProgress.upsert.mockResolvedValue({ id: 'rp1' });
     const result = await service.update('u1', 's1');
     expect(result.id).toBe('rp1');
+  });
+
+  it('update 拒绝不属于指定子贴的阅读位置', async () => {
+    mockPrisma.post.findFirst.mockResolvedValue(null);
+    await expect(service.update('u1', 's1', 'other-post')).rejects.toMatchObject({ status: 404 });
+    expect(mockPrisma.userReadProgress.upsert).not.toHaveBeenCalled();
+  });
+
+  it('私密子贴不可访问时不返回阅读进度', async () => {
+    mockThreadAccess.assertAccessible.mockRejectedValue({ status: 404 });
+    await expect(service.findBySubthread('u1', 's1')).rejects.toMatchObject({ status: 404 });
+    expect(mockPrisma.userReadProgress.findUnique).not.toHaveBeenCalled();
   });
 
   // ── newRepliesSince ──
@@ -124,4 +147,3 @@ describe('ReadingProgressService', () => {
     expect(result.continueFrom).toBeNull();
   });
 });
-

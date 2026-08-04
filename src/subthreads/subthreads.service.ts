@@ -48,7 +48,7 @@ export class SubthreadsService {
 
   /** 创建子贴（仅 OWNER/COLLABORATOR）。sortOrder 计算和冲突检查在事务内 FOR UPDATE 锁后执行 */
   async create(threadId: string, dto: CreateSubthreadDto, userId: string) {
-    await this.threadAccess.assertCanManage(threadId, userId);
+    const manager = await this.threadAccess.assertCanManage(threadId, userId);
 
     // 检查线程是否已发布（用于决定是否发射事件）
     const thread = await this.prisma.thread.findUnique({
@@ -59,22 +59,6 @@ export class SubthreadsService {
 
     const hasContent = !!dto.content?.trim();
     const postingPolicy = dto.postingPolicy ?? 'PARTICIPANTS' as any;
-
-    // 子贴附带正文时校验发帖权限（与 PostsService.create 规则一致）
-    if (hasContent) {
-      const member = await this.prisma.threadMember.findUnique({
-        where: { threadId_userId: { threadId, userId } },
-      });
-      if (postingPolicy === 'COLLABORATORS') {
-        if (!member || (member.role !== 'OWNER' && member.role !== 'COLLABORATOR')) {
-          throw new BusinessException(ErrorCode.FORBIDDEN, '该子贴仅限协作者发帖', HttpStatus.FORBIDDEN);
-        }
-      } else if (postingPolicy === 'PLAYERS') {
-        if (!member || !member.playerMarked) {
-          throw new BusinessException(ErrorCode.FORBIDDEN, '该子贴仅限玩家发帖', HttpStatus.FORBIDDEN);
-        }
-      }
-    }
 
     const result = await this.prisma.$transaction(async (tx) => {
       // 锁主题帖行，防止并发创建子贴时 sortOrder 竞态
@@ -111,6 +95,7 @@ export class SubthreadsService {
             kind: 'BODY',
             content: dto.content!,
           },
+          include: { author: { select: { username: true } } },
         });
       }
 
@@ -135,12 +120,15 @@ export class SubthreadsService {
         postId: result.bodyPost.id,
         content: dto.content!,
         userId,
+        authorUsername: result.bodyPost.author.username,
         threadId,
         subthreadId: result.subthread!.id,
         subthreadTitle: dto.title,
         parentPostId: null,
         replyToPostId: null,
         isSubthreadBody: true,
+        authorRole: manager.role,
+        authorPlayerMarked: manager.playerMarked,
       });
     }
 

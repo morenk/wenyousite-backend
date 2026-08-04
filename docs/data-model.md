@@ -40,16 +40,16 @@
 | 值 | 中文 | 定位 |
 |----|------|------|
 | `OWNER` | 楼主 | 帖子的创建者，拥有全部管理权限，唯一 |
-| `COLLABORATOR` | 协作者 | 被楼主指定的共同管理者，可管理子贴和参与人 |
+| `COLLABORATOR` | 协作者 | 可编辑帖子元数据、子贴、正文和玩家标记，可删他人内容；不可改可见性/发布、邀请、任免协作者或删整帖 |
 | `PARTICIPANT` | 参与人 | 在帖内发过言的用户，默认角色。本质是楼主的"玩家候选人池"——曾在帖内发言的用户才有资格被标记为玩家 |
 
 ### PostingPolicy — 子贴发帖权限
 
 | 值 | 说明 | 允许发帖者 |
 |----|------|-----------|
-| `PARTICIPANTS` | 所有参与人 | 全体参与人 |
+| `PARTICIPANTS` | 所有可访问用户 | 已通过主题帖访问校验的登录用户；首次发言自动成为 PARTICIPANT |
 | `COLLABORATORS` | 仅协作者 | OWNER + COLLABORATOR |
-| `PLAYERS` | 仅玩家 | 被标记为 playerMarked 的参与人 |
+| `PLAYERS` | 仅玩家 | 被标记为 playerMarked 的参与人；OWNER/COLLABORATOR 绕过限制 |
 
 ### PostKind — 帖子角色
 
@@ -74,8 +74,8 @@
 
 | 值 | 说明 |
 |----|------|
-| `THREAD` | 订阅整帖，任何新帖子都通知 |
-| `USER` | 订阅帖内某用户，仅该用户发帖时通知 |
+| `THREAD` | 订阅官方更新，仅楼主/协作者的新正文、楼层和楼中楼通知 |
+| `USER` | 订阅帖内普通已标记玩家，仅该玩家发帖时通知 |
 
 ---
 
@@ -299,11 +299,11 @@
 | id | String | PK | — |
 | userId | String | FK users (Cascade) | 订阅者 |
 | threadId | String | FK threads (Cascade) | 目标帖 |
-| targetUserId | String? | — | 订阅的用户（USER 类型用） |
+| targetUserId | String? | FK users (Cascade) | 订阅的普通玩家（USER 类型用） |
 | type | SubscriptionType | default THREAD | 订阅粒度 |
 | createdAt | DateTime | — | — |
 
-`@@unique([userId, threadId, targetUserId])`, `@@index([userId, type])`
+唯一索引为 `(userId, threadId, targetUserId) NULLS NOT DISTINCT`，保证 THREAD 的空目标也唯一；CHECK 约束要求 THREAD 目标为空、USER 目标非空。`@@index([userId, type])` 支撑列表查询。
 
 ### subthread_tag_defs — 子贴标签定义（帖内自定义标签）
 

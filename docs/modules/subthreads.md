@@ -39,9 +39,10 @@
 - **默认子贴**：每个主题帖最早创建（按 createdAt）的子贴为默认子贴，its sortOrder 固定为 0 且不可修改，不可单独删除——需删除整个主题帖。拖拽重排时必须保持默认子贴为第一位
 - 拖拽重排：`PUT /threads/:threadId/subthreads/reorder`，传入目标顺序的 ID 数组，两轮事务更新避免 UNIQUE 冲突
 - `postingPolicy` 控制发帖权限：
-  - PARTICIPANTS：所有参与人均可发帖
+  - PARTICIPANTS：所有已通过主题帖访问校验的登录用户均可发帖，发帖后自动进入参与人候选池
   - COLLABORATORS：仅 OWNER 和 COLLABORATOR 可发帖
-  - PLAYERS：仅拥有玩家身份（playerMarked=true）的参与人可发帖。玩家身份由楼主或协作者通过参与人管理端点授予/收回
+  - PLAYERS：仅拥有玩家身份（playerMarked=true）的参与人可发帖；OWNER/COLLABORATOR 绕过限制。玩家身份由楼主或协作者通过参与人管理端点授予/收回
+- CLOSED、FINISHED 仅展示状态，不会自动禁止发帖；如需限制请调整子贴 postingPolicy
 - 软删除通过 deletedAt 字段实现，列表查询过滤 `deletedAt: null`
 - sortOrder 控制子贴在主题帖内的显示顺序（按升序排列）
 - 修改使用乐观锁（version 字段），并发冲突返回提示

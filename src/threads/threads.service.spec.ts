@@ -396,6 +396,31 @@ describe('ThreadsService', () => {
       await expect(service.update('t1', { version: 1, title: 'x' }, 'u2')).rejects.toThrow(BusinessException);
     });
 
+    it('协作者可以修改内容元数据', async () => {
+      mockThreadAccess.assertCanManage.mockResolvedValueOnce({ role: 'COLLABORATOR' });
+      mockPrisma.thread.update.mockResolvedValue({
+        id: 't1', title: '协作标题', owner: { id: 'u1', username: 'test', avatar: null },
+        subthreads: [], topicTags: [], _count: { members: 2, posts: 0 },
+      });
+      await expect(service.update('t1', { version: 1, title: '协作标题' }, 'u2'))
+        .resolves.toMatchObject({ title: '协作标题' });
+    });
+
+    it.each([
+      [{ visibility: 'PRIVATE' }],
+      [{ published: true }],
+    ])('协作者不能修改楼主专属字段 %#', async (fields) => {
+      mockThreadAccess.assertCanManage.mockResolvedValueOnce({ role: 'COLLABORATOR' });
+      await expect(service.update('t1', { version: 1, ...fields }, 'u2'))
+        .rejects.toMatchObject({ status: 403 });
+      expect(mockPrisma.thread.update).not.toHaveBeenCalled();
+    });
+
+    it('已发布主题帖不能撤回为草稿', async () => {
+      await expect(service.update('t1', { version: 1, published: false }, 'u1'))
+        .rejects.toThrow(BusinessException);
+    });
+
     it('发布时应校验并通知粉丝', async () => {
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
       mockPrisma.thread.findUnique

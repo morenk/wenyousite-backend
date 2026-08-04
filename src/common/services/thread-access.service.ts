@@ -34,6 +34,7 @@ export class ThreadAccessService {
 
   /** 校验管理权限：OWNER 或 COLLABORATOR，否则 403 */
   async assertCanManage(threadId: string, userId: string) {
+    await this.assertAccessible(threadId, userId);
     const member = await this.prisma.threadMember.findUnique({
       where: { threadId_userId: { threadId, userId } },
     });
@@ -41,5 +42,18 @@ export class ThreadAccessService {
       throw forbidden('无管理权限');
     }
     return member;
+  }
+
+  /** 校验楼主专属权限，并隐藏已删除或不可访问的主题帖。 */
+  async assertOwner(threadId: string, userId: string) {
+    await this.assertAccessible(threadId, userId);
+    const thread = await this.prisma.thread.findUnique({
+      where: { id: threadId, deletedAt: null },
+      select: { ownerId: true },
+    });
+    if (!thread || thread.ownerId !== userId) {
+      throw forbidden('仅楼主可执行此操作', ErrorCode.NOT_THREAD_OWNER);
+    }
+    return thread;
   }
 }

@@ -352,6 +352,19 @@ describe('PostsService', () => {
     await expect(service.remove('p1', 'u1')).rejects.toThrow(BusinessException);
   });
 
+  it('管理者可以软删除他人的楼层', async () => {
+    mockPrisma.post.findUnique.mockResolvedValue({
+      id: 'p1', authorId: 'other', kind: 'FLOOR', parentPostId: null,
+      threadId: 't1', subthread: { deletedAt: null },
+    });
+    mockPrisma.post.update.mockResolvedValue({ id: 'p1', deletedAt: new Date() });
+
+    await service.remove('p1', 'manager');
+
+    expect(mockThreadAccess.assertCanManage).toHaveBeenCalledWith('t1', 'manager');
+    expect(mockPrisma.post.update).toHaveBeenCalled();
+  });
+
   it('create PLAYERS 权限非玩家应该返回403', async () => {
     mockPrisma.subthread.findUnique.mockResolvedValue({
       id: 's1', threadId: 't1', postingPolicy: 'PLAYERS',
@@ -359,6 +372,33 @@ describe('PostsService', () => {
     mockPrisma.threadMember.upsert.mockResolvedValue({});
     mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT', playerMarked: false });
     await expect(service.create('s1', { content: 'test' }, 'u1')).rejects.toThrow(BusinessException);
+  });
+
+  it('create PLAYERS 权限允许未标记玩家的协作者发言', async () => {
+    mockPrisma.subthread.findUnique.mockResolvedValue({
+      id: 's1', threadId: 't1', title: '玩家区', postingPolicy: 'PLAYERS',
+      thread: { published: true },
+    });
+    mockPrisma.threadMember.findUnique.mockResolvedValue({
+      role: 'COLLABORATOR', playerMarked: false,
+    });
+    mockPrisma.$transaction.mockImplementation(async (fn) => fn({
+      $queryRaw: jest.fn(),
+      post: {
+        aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 0 } }),
+        create: jest.fn().mockResolvedValue({
+          id: 'p1', floorNumber: 1, author: { username: 'collab' },
+        }),
+      },
+      subthread: { update: jest.fn() },
+    }));
+
+    await expect(service.create('s1', { content: '协作者更新' }, 'collab'))
+      .resolves.toMatchObject({ id: 'p1' });
+    expect(mockEventEmitter.emit).toHaveBeenCalledWith('post.created', expect.objectContaining({
+      authorRole: 'COLLABORATOR',
+      authorPlayerMarked: false,
+    }));
   });
 
   it('findAllBySubthread 应该返回楼层及内嵌前 5 条楼中楼回复', async () => {

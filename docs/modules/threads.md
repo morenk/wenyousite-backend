@@ -31,20 +31,20 @@
 | POST | `/threads` | Auth | 创建主题帖草稿（事务内创建 Thread + OWNER + 默认子贴 + 可选正文 kind=BODY，published=false）。每用户最多 10 条未发布草稿，超限返回 BAD_REQUEST |
 | GET | `/threads` | Public | 主题帖列表（仅已发布帖），每帖含 `preview` 截断纯文本（`truncateMarkdown` 处理默认子贴正文 kind=BODY，~100 字；空段落标记不会泄漏） |
 | GET | `/threads/:id` | OptionalAuth | 详情（含子贴列表和标签）。公开已发布帖允许匿名访问；未发布帖仅 owner 可查看；PRIVATE 帖非成员 404。登录时附加 `isBookmarked`、`bookmarkId`、`isLiked` |
-| PATCH | `/threads/:id` | Auth | 修改/发布（OWNER/COLLABORATOR，乐观锁）。设置 published=true 即发布，校验完整性后通知粉丝 |
+| PATCH | `/threads/:id` | Auth | 修改（OWNER/COLLABORATOR，乐观锁）；visibility、published 仅 OWNER，已发布帖不可撤回草稿 |
 | DELETE | `/threads/:id` | Auth | 删除（仅 OWNER）。草稿帖硬删除（级联），已发布帖软删除 |
 | POST | `/threads/:id/like` | Auth | 点赞主题帖（幂等，不通知自己） |
 | DELETE | `/threads/:id/like` | Auth | 取消点赞主题帖（幂等） |
 | POST | `/threads/:id/invite-link` | Auth | 生成/刷新私密帖邀请链接（需已发布，仅 OWNER） |
 | GET | `/threads/join-by-link/:token` | AuthRead | 预览邀请链接对应的私密帖概要（不创建成员） |
 | POST | `/threads/join-by-link/:token` | Auth | 通过邀请链接加入私密帖（需已发布） |
-| GET | `/threads/:threadId/members` | Public | 参与人列表 |
-| POST | `/threads/:threadId/members/join` | Auth | 自由加入（需已发布，PRIVATE 帖禁止） |
+| GET | `/threads/:threadId/members` | OptionalAuth | 参与人列表；按主题帖可见性校验 |
+| POST | `/threads/:threadId/members/join` | Auth | 自由加入（兼容旧客户端，deprecated；Web 不提供入口） |
 
 > 主题帖稳定访问链接为 `/threads/{threadId}`，由前端根据详情响应中的 `id` 生成；复制主题帖链接不新增后端端点。
-| PATCH | `/threads/:threadId/members/:userId` | Auth | 修改参与人角色/玩家标记 |
+| PATCH | `/threads/:threadId/members/:userId` | Auth | OWNER 可任免协作者；OWNER/COLLABORATOR 可修改玩家标记 |
 | DELETE | `/threads/:threadId/members/me` | AuthRead | 主动退出（取消自己的 playerMarked），OWNER 不可退出 |
-| GET | `/threads/:threadId/tags` | Public | 主题帖标签列表 |
+| GET | `/threads/:threadId/tags` | OptionalAuth | 主题帖标签列表；按主题帖可见性校验 |
 | POST | `/threads/:threadId/tags` | Auth | 添加标签（OWNER/COLLABORATOR） |
 | DELETE | `/threads/:threadId/tags/:tagId` | Auth | 移除标签 |
 
@@ -76,11 +76,13 @@
 
 ### 参与人管理
 
-- 参与人（`PARTICIPANT`）本质是楼主的**玩家候选人池**：用户无需手动加入，发帖时自动 upsert 为参与人（`PostsService.create`），对用户无感
+- 参与人（`PARTICIPANT`）本质是楼主的**玩家候选人池**：用户无需手动加入，发帖时自动 upsert 为参与人（`PostsService.create`），公开帖 Web 不提供手动加入入口
 - `_count.members` 统计候选池总数；`_count.players` 统计被授予玩家身份（`playerMarked=true`）的人数，供前端展示"玩家数"（Prisma `_count` 无法给关系计数别名，由服务层 `attachPlayerCounts()` 单独 `groupBy` 合并）
 - 修改和删除使用乐观锁（version 字段），并发冲突返回 "主题帖已被修改，请刷新后重试"
-- 参与人管理权限：OWNER/COLLABORATOR 可管理（授予/移除协作者身份、授予/收回玩家身份），不能修改/收回 OWNER；不提供删除参与人记录的操作
-- 私密帖禁止自由加入（POST join），仅可通过邀请链接加入
+- 参与人管理权限：OWNER 可任免协作者，OWNER/COLLABORATOR 可授予/收回玩家身份；不能修改/收回 OWNER；不提供删除参与人记录的操作
+- 升为协作者、取消玩家标记或主动退出玩家身份会在同一事务清理失效 USER 订阅；成员资格永久保留
+- 私密帖禁止自由加入，仅可通过邀请链接加入；成员资格不会被移出
+- CLOSED、FINISHED 仅展示状态，不改变访问或发言权限
 - 收回玩家身份：取消该参与人的 playerMarked 标记。参与人记录保留，仍可浏览和在 PARTICIPANTS 策略子贴中发帖
 - 玩家身份决定 PLAYERS 策略子贴的发帖权限，详见子贴文档
 

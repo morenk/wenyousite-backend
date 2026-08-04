@@ -23,10 +23,10 @@ export class SubscriptionsController {
     return this.subscriptionsService.findAll(user.id);
   }
 
-  /** 创建订阅（type=THREAD 整帖 / type=USER 某个用户在该主题帖下的回复） */
+  /** 创建订阅（type=THREAD 官方更新 / type=USER 普通玩家在该主题帖下的新发言） */
   @Post()
   @Auth()
-  @ApiOperation({ summary: '创建订阅' })
+  @ApiOperation({ summary: '创建官方更新或玩家发言订阅' })
   @ApiCreatedResponse({ description: '创建的订阅记录' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async create(@Req() req: FastifyRequest, @Body() dto: CreateSubscriptionDto) {

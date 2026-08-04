@@ -21,7 +21,7 @@
 | PUT | `/subthreads/:subthreadId/body` | Auth | upsert 子贴正文（kind=BODY：无正文创建，有正文乐观锁更新，version 不匹配返回 409；仅 OWNER/COLLABORATOR） |
 | GET | `/posts/:id` | Public | 帖子详情（含导航上下文：帖/子贴/父楼） |
 | PATCH | `/posts/:id` | Auth | 编辑帖子（仅作者，乐观锁 version） |
-| DELETE | `/posts/:id` | Auth | 软删除楼层（仅楼层 kind=FLOOR，正文 kind=BODY 不可删） |
+| DELETE | `/posts/:id` | Auth | 软删除楼层（作者或 OWNER/COLLABORATOR；正文 kind=BODY 不可删） |
 
 ## 响应契约
 
@@ -47,11 +47,13 @@
 - 软删除：设置 deletedAt，列表查询过滤已删除帖子；编辑/删除操作也校验子贴是否已软删
 - 子贴正文（kind=BODY）不可删除，提示"主体正文不可删除。如需修改请编辑帖子；如需移除请删除整个子贴"
 - 权限校验通过后自动将用户加入主题帖（upsert ThreadMember，角色 PARTICIPANT）
-- 发帖权限由子贴的 postingPolicy 控制：
+- 发帖权限由子贴的 postingPolicy 控制；OWNER/COLLABORATOR 可绕过所有子贴策略：
+  - PARTICIPANTS：所有已通过主题帖访问校验的登录用户可发帖，发帖后自动成为 PARTICIPANT
   - COLLABORATORS：仅 OWNER/COLLABORATOR 可发帖
-  - PLAYERS：仅 playerMarked=true 的参与人可发帖
+  - PLAYERS：仅 playerMarked=true 的参与人可发帖，管理者绕过该限制
 - 发帖后通过 EventEmitter 发射 `post.created` 事件，由 PostEventsListener 解耦处理 @提及解析和通知投递
-- 编辑使用乐观锁 version 防止并发编辑冲突
+- 编辑使用乐观锁 version 防止并发编辑冲突，且仅作者可编辑；删除允许作者或 OWNER/COLLABORATOR 软删除他人楼层/回复
+- `post.created` 事件携带发帖时 `authorRole` 与 `authorPlayerMarked` 快照，订阅通知不读取异步处理时的当前角色
 
 ## 创建幂等切片验收
 

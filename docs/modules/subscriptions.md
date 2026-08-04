@@ -1,7 +1,7 @@
 # 订阅
 
 ## 概述
-订阅模块提供玩家关注主题帖回复的能力，支持两种粒度：订阅整帖（THREAD）或订阅帖内某个用户（USER）。
+订阅模块提供玩家关注主题帖官方更新或指定玩家回复的能力，支持两种粒度：官方更新（THREAD）或帖内玩家（USER）。
 
 ## 涉及的模型
 
@@ -13,8 +13,8 @@
 
 | 枚举 | 值 | 说明 |
 |------|----|------|
-| `SubscriptionType` | `THREAD` | 订阅整个主题帖，仅接收楼主/协作者的发言 |
-| `SubscriptionType` | `USER` | 订阅指定用户在该主题帖下的所有回复 |
+| `SubscriptionType` | `THREAD` | 订阅官方更新，仅接收楼主/协作者的新正文、楼层和楼中楼 |
+| `SubscriptionType` | `USER` | 订阅指定普通玩家在该主题帖下的新发言 |
 
 ## API 端点
 
@@ -27,19 +27,21 @@
 ## 核心业务规则
 
 - THREAD 类型不传 `targetUserId`，USER 类型必须传 `targetUserId`
-- 创建前校验主题帖和目标用户是否存在，已订阅则返回 `ConflictException`
-- 不能订阅自己创建的帖子：`type=THREAD` 且 `thread.ownerId=userId` 时返回 400（楼主本就作为管理者收到通知，订阅无意义）
-- 不能订阅自己：`type=USER` 且 `targetUserId=userId` 时返回 400
+- 创建前校验主题帖访问权限和发布状态；私密帖订阅者必须是永久成员
+- OWNER/COLLABORATOR 已自动接收全部帖子动态，不能创建任何帖内订阅
+- THREAD 不得携带 `targetUserId`；USER 必须指定同帖 `PARTICIPANT + playerMarked=true` 的普通玩家，不能订阅自己
 - 取消订阅时校验订阅归属，仅允许取消自己的订阅
-- 同一用户对同一主题帖的同一 targetUserId 唯一（通过 `@@unique([userId, threadId, targetUserId])` 约束）
+- 同一用户对同一主题帖的同一目标唯一；数据库使用 `NULLS NOT DISTINCT` 索引保证 THREAD 空目标也不能重复
+- 取消玩家标记、升为协作者或玩家离开时，自动清理对应 USER 订阅；非法历史数据由迁移清理
+- 列表只返回仍可访问的已发布主题帖
 - `findSubscribers(threadId, excludeUserId?, authorId?)` 是供 `PostEventsListener` 调用的核心接口，用于合并订阅者进入通知接收人列表
 - 当提供 `authorId` 时，查询 WHERE 条件为 OR：`type='THREAD'` 或 `type='USER' AND targetUserId=authorId`，即合并"订阅整帖"与"订阅了发帖者"的用户
-- **THREAD 订阅限制**：只有发帖者是楼主（OWNER）或协作者（COLLABORATOR）时，THREAD 订阅者才会收到 `new_post` / `reply` 通知；普通玩家发言不会打扰整帖订阅者。USER 订阅（订阅了该发帖者）不受此限制，该用户发帖即通知
+- **THREAD 订阅限制**：只有发帖时角色快照是 OWNER/COLLABORATOR 时，THREAD 订阅者才会收到 `new_post` / `reply` 通知；USER 订阅仅在发帖时角色快照为已标记普通玩家时触发
 - 订阅通知在 `new_post` 和 `reply` 两类通知中使用，@提及通知不走订阅逻辑
 
 ## 设计决策
 
 - 订阅粒度分为整帖和特定用户两级，而非仅整帖，允许用户自由控制通知密度
-- 整帖订阅仅推送楼主/协作者的发言，避免订阅者被帖内普通玩家的闲聊刷屏
+- 整帖订阅只推送楼主/协作者的官方更新，避免订阅者被帖内普通玩家的闲聊刷屏；楼主和协作者无需订阅
 - `findSubscribers` 被设计为带灵活过滤条件的查询方法，因为不同通知场景需要不同的订阅者集合
 - 订阅通知不包含 @提及，原因是 @提及已有独立权限规则，重复通知会造成骚扰

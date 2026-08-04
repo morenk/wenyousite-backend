@@ -54,7 +54,7 @@
 | POST | `/threads` | Auth | 创建主题帖草稿（事务内创建 Thread + OWNER + 默认子贴 + 可选正文 kind=BODY，published=false）。参数: title/category/content/subthreadTitle/tagNames/visibility 全部可选。每用户最多 10 条未发布草稿，超限返回 BAD_REQUEST |
 | GET | `/threads/draft` | AuthRead | 我的草稿箱列表（未发布帖） |
 | GET | `/threads/:id` | OptionalAuth | 详情（含子贴列表）。公开已发布帖允许匿名访问；未发布帖仅 owner 可查看；已发布帖浏览量+1，PRIVATE 帖非成员 404；登录时附加 `isBookmarked` / `bookmarkId` / `isLiked` |
-| PATCH | `/threads/:id` | Auth | 修改/发布（仅 OWNER/COLLABORATOR）。设置 published=true 即发布，此时校验 title/category/子贴/楼层完整性，发布后通知粉丝 |
+| PATCH | `/threads/:id` | Auth | OWNER/COLLABORATOR 可修改标题、分区、状态等；visibility、published 仅 OWNER，已发布帖不可撤回草稿 |
 | DELETE | `/threads/:id` | Auth | 删除（仅 OWNER）。未发布帖硬删除（级联），已发布帖软删除 |
 | POST | `/threads/:id/like` | Auth | 点赞主题帖（幂等） |
 | DELETE | `/threads/:id/like` | Auth | 取消点赞（幂等） |
@@ -66,9 +66,9 @@
 
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
-| GET | `/threads/:id/members` | Public | 回复过帖子的人列表 |
-| POST | `/threads/:id/members/join` | Auth | 自由加入（需已发布，PRIVATE 帖禁止） |
-| PATCH | `/threads/:id/members/:userId` | Auth | 授予/移除协作者身份，授予/收回玩家标记（仅 OWNER/COLLABORATOR），需邮箱已验证 |
+| GET | `/threads/:id/members` | OptionalAuth | 回复过帖子的人列表；按主题帖可见性校验 |
+| POST | `/threads/:id/members/join` | Auth | 旧客户端自由加入兼容端点（deprecated；Web 发言即参与） |
+| PATCH | `/threads/:id/members/:userId` | Auth | OWNER 可任免协作者；OWNER/COLLABORATOR 可授予/收回玩家标记，需邮箱已验证 |
 | DELETE | `/threads/:id/members/me` | AuthRead | 主动退出，取消自己的玩家标记（OWNER 不可退出），需邮箱已验证 |
 
 ## 子贴端点 (Subthreads)
@@ -126,7 +126,7 @@
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
 | GET | `/subscriptions` | AuthRead | 我的订阅列表 |
-| POST | `/subscriptions` | Auth | 创建订阅 (type=THREAD/USER, USER 需 targetUserId)，需邮箱已验证 |
+| POST | `/subscriptions` | Auth | 创建官方更新订阅（THREAD）或普通玩家回复订阅（USER）；帖内管理者无需且不可创建，需邮箱已验证 |
 | DELETE | `/subscriptions/:id` | Auth | 取消订阅，需邮箱已验证 |
 
 ## 媒体端点 (Media)

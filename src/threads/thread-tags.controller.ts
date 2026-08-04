@@ -7,8 +7,7 @@ import { FastifyRequest } from 'fastify';
 import { PrismaService } from '../prisma/prisma.service';
 import { TagsService } from '../tags/tags.service';
 import { ThreadAccessService } from '../common/services/thread-access.service';
-import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
-import { Public } from '../common/decorators/public.decorator';
+import { Auth, OptionalAuth } from '../auth/decorators/auth.decorator';
 import { AddThreadTagDto } from './dto/add-thread-tag.dto';
 
 /** 主题帖标签关联控制器 */
@@ -22,9 +21,11 @@ export class ThreadTagsController {
   ) {}
 
   @Get()
-  @Public()
+  @OptionalAuth()
   @ApiOperation({ summary: '获取主题帖关联的标签列表' })
-  async findAll(@Param('threadId') threadId: string) {
+  async findAll(@Param('threadId') threadId: string, @Req() req: FastifyRequest) {
+    const user = req['user'] as { id: string } | undefined;
+    await this.threadAccess.assertAccessible(threadId, user?.id);
     return this.prisma.threadTopicTag.findMany({
       where: { threadId },
       include: { tag: true },

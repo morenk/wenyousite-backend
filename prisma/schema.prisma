@@ -109,7 +109,8 @@ model User {
   following      UserFollow[]    @relation("Following")
   followers      UserFollow[]    @relation("Followers")
   emailVerifications EmailVerification[]
-  subscriptions   Subscription[]
+  subscriptions   Subscription[] @relation("SubscriptionOwner")
+  subscriptionsTargeting Subscription[] @relation("SubscriptionTarget")
   sentNotifications Notification[] @relation("NotificationFromUser")
   reportedReports Report[]        @relation("Reporter")
   bookmarks    UserBookmark[]
@@ -316,7 +317,8 @@ model Subscription {
   type         SubscriptionType @default(THREAD)
   createdAt    DateTime @default(now()) @map("created_at")
 
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation("SubscriptionOwner", fields: [userId], references: [id], onDelete: Cascade)
+  targetUser User? @relation("SubscriptionTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
   thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
 
   @@index([userId, type])

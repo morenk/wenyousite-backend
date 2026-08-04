@@ -155,6 +155,7 @@ export class PostsService {
     const member = await this.prisma.threadMember.findUnique({
       where: { threadId_userId: { threadId: subthread.threadId, userId } },
     });
+    const authorIsManager = member?.role === 'OWNER' || member?.role === 'COLLABORATOR';
 
     // 检查发帖权限（通过后才自动加入，避免被拒时仍写入参与人记录）
     if (subthread.postingPolicy === 'COLLABORATORS') {
@@ -162,7 +163,7 @@ export class PostsService {
         throw forbidden('该子贴仅限协作者发帖', ErrorCode.NOT_COLLABORATOR);
       }
     } else if (subthread.postingPolicy === 'PLAYERS') {
-      if (!member || !member.playerMarked) {
+      if (!authorIsManager && (!member || !member.playerMarked)) {
         throw forbidden('该子贴仅限玩家发帖', ErrorCode.NOT_PLAYER);
       }
     }
@@ -271,6 +272,8 @@ export class PostsService {
         parentPostId: dto.parentPostId ?? null,
         replyToPostId: dto.replyToPostId ?? null,
         isSubthreadBody: false,
+        authorRole: member?.role ?? 'PARTICIPANT',
+        authorPlayerMarked: member?.playerMarked ?? false,
       });
     }
 
@@ -317,7 +320,7 @@ export class PostsService {
       include: { thread: { select: { id: true, published: true, title: true } } },
     });
     if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
-    await this.threadAccess.assertCanManage(subthread.threadId, userId);
+    const manager = await this.threadAccess.assertCanManage(subthread.threadId, userId);
     if (subthread.thread.published && !hasVisibleMarkdownContent(normalizedContent)) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '正文不能只有空白或分隔线');
     }
@@ -355,6 +358,8 @@ export class PostsService {
           parentPostId: null,
           replyToPostId: null,
           isSubthreadBody: true,
+          authorRole: manager.role,
+          authorPlayerMarked: manager.playerMarked,
         });
       }
       this.readingProgressService.update(userId, subthreadId, post.id).catch((err) => {
@@ -425,6 +430,7 @@ export class PostsService {
     });
     if (!postLight) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
     if (postLight.subthread.deletedAt) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
+    await this.threadAccess.assertAccessible(postLight.threadId, userId);
     if (postLight.authorId !== userId) throw forbidden('只能编辑自己的帖子');
 
     const oldContent = postLight.content;
@@ -479,7 +485,10 @@ export class PostsService {
     });
     if (!postLight) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
     if (postLight.subthread.deletedAt) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
-    if (postLight.authorId !== userId) throw forbidden('只能删除自己的帖子');
+    await this.threadAccess.assertAccessible(postLight.threadId, userId);
+    if (postLight.authorId !== userId) {
+      await this.threadAccess.assertCanManage(postLight.threadId, userId);
+    }
 
     // 正文（kind=BODY）不可删除，由子贴生命周期管理
     if (postLight.kind === 'BODY') {

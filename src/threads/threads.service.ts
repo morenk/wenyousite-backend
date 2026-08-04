@@ -485,8 +485,15 @@ export class ThreadsService {
     },
     userId: string,
   ) {
-    await this.threadAccess.assertCanManage(id, userId);
+    const manager = await this.threadAccess.assertCanManage(id, userId);
     const { version, published, ...data } = dto;
+
+    if (manager.role === 'COLLABORATOR' && (dto.visibility !== undefined || published !== undefined)) {
+      throw forbidden('仅楼主可修改可见性或发布主题帖', ErrorCode.NOT_THREAD_OWNER);
+    }
+    if (published === false) {
+      throw new BusinessException(ErrorCode.BAD_REQUEST, '已发布主题帖不能撤回为草稿');
+    }
 
     // 发布校验
     if (published === true) {
@@ -842,6 +849,8 @@ export class ThreadsService {
         parentPostId: post.parentPostId ?? null,
         replyToPostId: post.replyToPostId ?? null,
         isSubthreadBody: post.kind === 'BODY',
+        authorRole: 'OWNER',
+        authorPlayerMarked: true,
       });
     }
   }

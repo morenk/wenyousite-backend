@@ -290,6 +290,7 @@ describe('发帖全流程集成测试', () => {
     it('发布成功：title + category + subthread + post 齐备 → 通知粉丝', async () => {
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
       prisma.thread.findUnique
+        .mockResolvedValueOnce({ visibility: 'PUBLIC', published: false, ownerId: 'u1' }) // assertAccessible
         .mockResolvedValueOnce({ published: false, title: '测试', category: 'RPG' })     // update() 初次查询
         .mockResolvedValueOnce({ defaultSubthread: { id: 's1', posts: [{ id: 'p1', kind: 'BODY', content: '正文' }] } }); // validatePublishReadiness
       prisma.thread.update.mockResolvedValue({
@@ -309,19 +310,25 @@ describe('发帖全流程集成测试', () => {
 
     it('发布失败：无标题', async () => {
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      prisma.thread.findUnique.mockResolvedValue({ published: false, title: '', category: 'DEDUCTION' });
+      prisma.thread.findUnique.mockResolvedValue({
+        visibility: 'PUBLIC', published: false, ownerId: 'u1', title: '', category: 'DEDUCTION',
+      });
       await expect(threadsService.update('t1', { version: 1, published: true }, 'u1')).rejects.toThrow(BusinessException);
     });
 
     it('发布失败：无分区', async () => {
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      prisma.thread.findUnique.mockResolvedValue({ published: false, title: '测试', category: undefined });
+      prisma.thread.findUnique.mockResolvedValue({
+        visibility: 'PUBLIC', published: false, ownerId: 'u1', title: '测试', category: undefined,
+      });
       await expect(threadsService.update('t1', { version: 1, published: true }, 'u1')).rejects.toThrow(BusinessException);
     });
 
     it('发布失败：无子贴', async () => {
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      prisma.thread.findUnique.mockResolvedValue({ published: false, title: '测试', category: 'RPG' });
+      prisma.thread.findUnique.mockResolvedValue({
+        visibility: 'PUBLIC', published: false, ownerId: 'u1', title: '测试', category: 'RPG',
+      });
       prisma.subthread.findFirst.mockResolvedValue(null);
       await expect(threadsService.update('t1', { version: 1, published: true }, 'u1')).rejects.toThrow(BusinessException);
     });
@@ -329,6 +336,7 @@ describe('发帖全流程集成测试', () => {
     it('发布失败：子贴中无正文', async () => {
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
       prisma.thread.findUnique
+        .mockResolvedValueOnce({ visibility: 'PUBLIC', published: false, ownerId: 'u1' })
         .mockResolvedValueOnce({ published: false, title: '测试', category: 'RPG' })
         .mockResolvedValueOnce({ defaultSubthread: { id: 's1', posts: [] } }); // 无 kind=BODY 正文
       await expect(threadsService.update('t1', { version: 1, published: true }, 'u1')).rejects.toThrow(BusinessException);
@@ -336,13 +344,16 @@ describe('发帖全流程集成测试', () => {
 
     it('已发布帖不能再次发布', async () => {
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      prisma.thread.findUnique.mockResolvedValue({ published: true, title: '测试', category: 'RPG' });
+      prisma.thread.findUnique.mockResolvedValue({
+        visibility: 'PUBLIC', published: true, ownerId: 'u1', title: '测试', category: 'RPG',
+      });
       await expect(threadsService.update('t1', { version: 1, published: true }, 'u1')).rejects.toThrow(BusinessException);
     });
 
     it('发布时 title 取自 updateData 而非 thread.title', async () => {
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
       prisma.thread.findUnique
+        .mockResolvedValueOnce({ visibility: 'PUBLIC', published: false, ownerId: 'u1' })
         .mockResolvedValueOnce({ published: false, title: '旧标题', category: 'DEDUCTION' })
         .mockResolvedValueOnce({ defaultSubthread: { id: 's1', posts: [{ id: 'p1', kind: 'BODY', content: '正文' }] } });
       prisma.thread.update.mockResolvedValue({
@@ -373,7 +384,10 @@ describe('发帖全流程集成测试', () => {
             create: jest.fn().mockResolvedValue({ id: 's1', threadId: 't1', sortOrder: 0 }),
             findUnique: jest.fn().mockResolvedValue({ id: 's1', threadId: 't1', tags: [], _count: { posts: 1 } }),
           },
-          post: { create: jest.fn().mockResolvedValue({ id: 'p1', kind: 'BODY', floorNumber: null, content: '正文' }) },
+          post: { create: jest.fn().mockResolvedValue({
+            id: 'p1', kind: 'BODY', floorNumber: null, content: '正文',
+            author: { username: 'test' },
+          }) },
         };
         return fn(tx);
       });
@@ -407,7 +421,9 @@ describe('发帖全流程集成测试', () => {
 
     it('创建子贴：未发布帖创建含正文子贴 → 不发射事件', async () => {
       setupHelpers.mockThreadMember_ownerOrCollab(prisma);
-      prisma.thread.findUnique.mockResolvedValue({ published: false, title: '草稿帖' });
+      prisma.thread.findUnique.mockResolvedValue({
+        visibility: 'PUBLIC', published: false, ownerId: 'u1', title: '草稿帖',
+      });
       prisma.$transaction.mockImplementation(async (fn: any) => {
         const tx = {
           ...basicTx(),
@@ -418,7 +434,10 @@ describe('发帖全流程集成测试', () => {
             create: jest.fn().mockResolvedValue({ id: 's1', threadId: 't1', sortOrder: 1 }),
             findUnique: jest.fn().mockResolvedValue({ id: 's1', threadId: 't1', tags: [], _count: { posts: 1 } }),
           },
-          post: { create: jest.fn().mockResolvedValue({ id: 'p1', kind: 'BODY', floorNumber: null, content: '正文' }) },
+          post: { create: jest.fn().mockResolvedValue({
+            id: 'p1', kind: 'BODY', floorNumber: null, content: '正文',
+            author: { username: 'test' },
+          }) },
         };
         return fn(tx);
       });
@@ -503,7 +522,9 @@ describe('发帖全流程集成测试', () => {
     it('修改：默认子贴不可修改 sortOrder', async () => {
       prisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1' });
       setupHelpers.mockThreadMember_ownerOrCollab(prisma);
-      prisma.thread.findUnique.mockResolvedValue({ defaultSubthreadId: 's1' });
+      prisma.thread.findUnique
+        .mockResolvedValueOnce({ visibility: 'PUBLIC', published: true, ownerId: 'u1' })
+        .mockResolvedValueOnce({ defaultSubthreadId: 's1' });
       await expect(subthreadsService.update('s1', { version: 1, sortOrder: 5 }, 'u1')).rejects.toThrow(BusinessException);
     });
 
@@ -515,14 +536,18 @@ describe('发帖全流程集成测试', () => {
     it('删除：默认子贴不可删除', async () => {
       prisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1', deletedAt: null });
       setupHelpers.mockThreadMember_ownerOrCollab(prisma);
-      prisma.thread.findUnique.mockResolvedValue({ defaultSubthreadId: 's1' });
+      prisma.thread.findUnique
+        .mockResolvedValueOnce({ visibility: 'PUBLIC', published: true, ownerId: 'u1' })
+        .mockResolvedValueOnce({ defaultSubthreadId: 's1' });
       await expect(subthreadsService.remove('s1', 'u1')).rejects.toThrow(BusinessException);
     });
 
     it('删除：非默认子贴应设置 deletedAt', async () => {
       prisma.subthread.findUnique.mockResolvedValue({ id: 's2', threadId: 't1', deletedAt: null });
       setupHelpers.mockThreadMember_ownerOrCollab(prisma);
-      prisma.thread.findUnique.mockResolvedValue({ defaultSubthreadId: 's1' }); // 默认是 s1
+      prisma.thread.findUnique
+        .mockResolvedValueOnce({ visibility: 'PUBLIC', published: true, ownerId: 'u1' })
+        .mockResolvedValueOnce({ defaultSubthreadId: 's1' }); // 默认是 s1
       prisma.subthread.update.mockResolvedValue({ id: 's2', deletedAt: new Date() });
       await subthreadsService.remove('s2', 'u1');
       expect(prisma.subthread.update).toHaveBeenCalledWith(
