@@ -16,12 +16,19 @@
 |--------|------|-------|------|
 | GET | `/drafts` | AuthRead | 获取当前用户全部草稿（按 slot 排序） |
 | GET | `/drafts/slots` | AuthRead | 草稿槽位使用情况（usedSlots / maxSlots=5 / slots[]） |
-| POST | `/drafts` | AuthRead | 保存草稿（可指定 slot，不指定自动分配空闲位） |
+| POST | `/drafts` | Auth | 保存草稿（可指定 slot，不指定自动分配空闲位） |
 | GET | `/drafts/:id` | AuthRead | 获取单条草稿 |
-| PATCH | `/drafts/:id` | AuthRead | 更新草稿内容 |
-| DELETE | `/drafts/:id` | AuthRead | 删除草稿 |
+| PATCH | `/drafts/:id` | Auth | 更新草稿内容 |
+| DELETE | `/drafts/:id` | Auth | 删除草稿 |
 
-所有端点统一使用 `@AuthRead()` 守卫。
+读取端点使用 `@AuthRead()`；写入和删除端点使用 `@Auth()`。
+
+## 响应契约
+
+- 草稿列表的 `data` 为 `DraftResponseDto[]`；创建、查询、更新的 `data` 为 `DraftResponseDto`。
+- 槽位使用情况的 `data` 为 `DraftSlotUsageResponseDto`。
+- 删除结果的 `data` 为 `DeleteDraftResponseDto`。
+- 所有 DTO 均位于统一成功 envelope 的 `data` 字段，Web/Flutter 使用生成类型。
 
 ## 核心业务规则
 
