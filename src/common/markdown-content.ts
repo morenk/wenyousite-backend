@@ -35,7 +35,9 @@ export function hasVisibleMarkdownContent(markdown: string): boolean {
       .replace(EMPTY_LINK_RE, "")
       .replace(LINK_RE, "$1")
       .replace(HTML_RE, "")
-      .replace(/^[#>+\-\d.)\s]+/u, "")
+      // 只移除 Markdown 前缀；不能把正文开头的纯数字（如 123、1.00）当成列表标记。
+      .replace(/^[#>+\-\s]+/u, "")
+      .replace(/^\d+[.)]\s*/u, "")
       .replace(/[*_~`]/g, "")
       .trim();
     if (visible) return true;

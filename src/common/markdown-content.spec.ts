@@ -20,6 +20,16 @@ describe('hasVisibleMarkdownContent', () => {
     expect(hasVisibleMarkdownContent('\n\n**正文**\n<br />')).toBe(true);
   });
 
+  it('accepts pure numeric正文，不把数字误判为有序列表前缀', () => {
+    expect(hasVisibleMarkdownContent('123')).toBe(true);
+    expect(hasVisibleMarkdownContent('1.00')).toBe(true);
+  });
+
+  it('仍然过滤只有列表标记的正文', () => {
+    expect(hasVisibleMarkdownContent('1.')).toBe(false);
+    expect(hasVisibleMarkdownContent('1)')).toBe(false);
+  });
+
   it('rejects empty links and formatting-only text', () => {
     expect(hasVisibleMarkdownContent('[ ]()\n***')).toBe(false);
   });
