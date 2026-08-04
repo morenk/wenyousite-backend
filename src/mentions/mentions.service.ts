@@ -82,7 +82,7 @@ export class MentionsService {
       desired.set(`${user.id}:DIRECT`, { userId: user.id, source: 'DIRECT', username: user.username });
     }
 
-    if (tokens.allPlayers && await this.canMentionAllPlayers(excludeUserId, threadId)) {
+    if (tokens.allPlayers && await this.canMentionAllPlayers(threadId, excludeUserId)) {
       const previousHadGroup = previousContent
         ? this.extractMentionTokens(previousContent).allPlayers
         : false;
@@ -176,7 +176,7 @@ export class MentionsService {
       .slice(0, 20);
   }
 
-  async canMentionAllPlayers(userId: string, threadId: string) {
+  async canMentionAllPlayers(threadId: string, userId: string) {
     const actor = await this.prisma.threadMember.findUnique({
       where: { threadId_userId: { threadId, userId } },
       select: { role: true },

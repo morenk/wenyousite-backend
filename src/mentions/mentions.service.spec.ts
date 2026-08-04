@@ -108,6 +108,16 @@ describe('MentionsService', () => {
     }));
   });
 
+  it('canMentionAllPlayers 应按主题帖和用户判断楼主/协作者权限', async () => {
+    mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
+
+    await expect(service.canMentionAllPlayers('t1', 'u1')).resolves.toBe(true);
+    expect(mockPrisma.threadMember.findUnique).toHaveBeenCalledWith({
+      where: { threadId_userId: { threadId: 't1', userId: 'u1' } },
+      select: { role: true },
+    });
+  });
+
   it('无 @ 的正文应该返回空', async () => {
     const result = await service.parseAndCreate('p1', '普通内容没有提及', 'u1', 't1');
     expect(result).toHaveLength(0);
