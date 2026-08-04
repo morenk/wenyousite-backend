@@ -1071,6 +1071,8 @@ prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', subthread: 
         providers: [
           MentionsService,
           { provide: PrismaService, useValue: prisma },
+          { provide: ThreadAccessService, useValue: { assertAccessible: jest.fn().mockResolvedValue(undefined) } },
+          { provide: BlockFilterService, useValue: mockBlockFilter },
         ],
       }).compile();
       mentionsService = mod.get(MentionsService);

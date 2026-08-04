@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { ThreadAccessService } from '../common/services/thread-access.service';
+import { BlockFilterService, BlockSets } from '../common/services/block-filter.service';
 
 export const ALL_PLAYERS_MENTION = '全体玩家';
 export const MAX_DIRECT_MENTIONS = 10;
@@ -31,7 +33,11 @@ export class MentionsService {
   private readonly mentionRegex = /@([a-zA-Z0-9_\u4e00-\u9fff]{1,24})/g;
   private readonly canonicalMentionRegex = /\[@[^\]]{1,32}\]\(\/users\/([a-zA-Z0-9_-]+)\)/g;
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private threadAccess: ThreadAccessService,
+    private blockFilter: BlockFilterService,
+  ) {}
 
   /** 创建时同步提及快照；返回本次新增的收件人，供通知队列使用。 */
   async parseAndCreate(
@@ -55,13 +61,21 @@ export class MentionsService {
     if (!threadId) return [];
     if (tokens.usernames.length === 0 && tokens.userIds.length === 0 && !tokens.allPlayers) return [];
 
+    await this.threadAccess.assertAccessible(threadId, excludeUserId);
+    const blockSets = await this.blockFilter.loadBlockSets(excludeUserId);
+
     const existing = (await this.prisma.postMention.findMany({
       where: { postId },
       include: { mentionedUser: { select: { id: true, username: true, avatar: true } } },
     })) ?? [];
 
     const directUsers = await this.findDirectUsers(tokens);
-    const directCandidates = await this.filterDirectCandidates(directUsers, excludeUserId, threadId);
+    const directCandidates = await this.filterDirectCandidates(
+      directUsers,
+      excludeUserId,
+      threadId,
+      blockSets,
+    );
     const desired = new Map<string, { userId: string; source: MentionSource; username: string }>();
 
     for (const user of directCandidates.slice(0, MAX_DIRECT_MENTIONS)) {
@@ -75,7 +89,7 @@ export class MentionsService {
       const existingGroup = existing.filter((mention) => mention.source === 'ALL_PLAYERS');
       const groupUsers = previousHadGroup && existingGroup.length > 0
         ? existingGroup.map((mention) => mention.mentionedUser)
-        : await this.findMarkedPlayers(threadId);
+        : await this.findMarkedPlayers(threadId, blockSets);
 
       for (const user of groupUsers) {
         if (user.id === excludeUserId) continue;
@@ -124,6 +138,8 @@ export class MentionsService {
 
   /** 编辑器候选：关注列表与帖内 playerMarked=true 的用户并集。 */
   async findCandidates(threadId: string, userId: string, query?: string) {
+    await this.threadAccess.assertAccessible(threadId, userId);
+    const blockSets = await this.blockFilter.loadBlockSets(userId);
     const normalizedQuery = query?.trim();
     const userFilter = normalizedQuery
       ? { username: { contains: normalizedQuery, mode: 'insensitive' as const } }
@@ -150,8 +166,12 @@ export class MentionsService {
         relation: previous?.relation ?? 'PLAYER',
       });
     }
+    const visibleIds = new Set(
+      this.blockFilter.filterRecipients([...candidates.keys()], blockSets),
+    );
     return [...candidates.values()]
       .filter((candidate) => candidate.id !== userId)
+      .filter((candidate) => visibleIds.has(candidate.id))
       .sort((a, b) => a.username.localeCompare(b.username))
       .slice(0, 20);
   }
@@ -165,7 +185,10 @@ export class MentionsService {
   }
 
   private async findDirectUsers(tokens: MentionTokens) {
-    const or: any[] = [];
+    const or: Array<
+      | { id: { in: string[] } }
+      | { username: { in: string[] } }
+    > = [];
     if (tokens.userIds.length > 0) or.push({ id: { in: tokens.userIds } });
     if (tokens.usernames.length > 0) or.push({ username: { in: tokens.usernames } });
     if (or.length === 0) return [];
@@ -179,6 +202,7 @@ export class MentionsService {
     candidates: { id: string; username: string; avatar?: string | null }[],
     userId: string,
     threadId: string,
+    blockSets: BlockSets,
   ) {
     if (candidates.length === 0) return [];
     const ids = candidates.filter((candidate) => candidate.id !== userId).map((candidate) => candidate.id);
@@ -199,15 +223,19 @@ export class MentionsService {
       ...following.map((item) => item.followingId),
       ...markedMembers.map((item) => item.userId),
     ]);
-    return candidates.filter((candidate) => allowedIds.has(candidate.id));
+    const visibleIds = new Set(this.blockFilter.filterRecipients([...allowedIds], blockSets));
+    return candidates.filter((candidate) => visibleIds.has(candidate.id));
   }
 
-  private async findMarkedPlayers(threadId: string) {
+  private async findMarkedPlayers(threadId: string, blockSets: BlockSets) {
     const members = await this.prisma.threadMember.findMany({
       where: { threadId, playerMarked: true, user: { deletedAt: null } },
       select: { user: { select: { id: true, username: true, avatar: true } } },
     });
-    return members.map((member) => member.user);
+    const visibleIds = new Set(
+      this.blockFilter.filterRecipients(members.map((member) => member.user.id), blockSets),
+    );
+    return members.map((member) => member.user).filter((user) => visibleIds.has(user.id));
   }
 
   private extractMentionTokens(content: string): MentionTokens {

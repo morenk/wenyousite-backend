@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { MentionsService } from './mentions.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ThreadAccessService } from '../common/services/thread-access.service';
+import { BlockFilterService } from '../common/services/block-filter.service';
 
 const mockPrisma = {
   user: {
@@ -22,12 +24,19 @@ const mockPrisma = {
 
 describe('MentionsService', () => {
   let service: MentionsService;
+  const mockThreadAccess = { assertAccessible: jest.fn().mockResolvedValue(undefined) };
+  const mockBlockFilter = {
+    loadBlockSets: jest.fn().mockResolvedValue({ blockedByUser: new Set(), blockedByAuthor: new Set() }),
+    filterRecipients: jest.fn((ids: string[]) => ids),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MentionsService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: ThreadAccessService, useValue: mockThreadAccess },
+        { provide: BlockFilterService, useValue: mockBlockFilter },
       ],
     }).compile();
     service = module.get<MentionsService>(MentionsService);
@@ -102,5 +111,29 @@ describe('MentionsService', () => {
   it('无 @ 的正文应该返回空', async () => {
     const result = await service.parseAndCreate('p1', '普通内容没有提及', 'u1', 't1');
     expect(result).toHaveLength(0);
+  });
+
+  it('私密帖不可访问时不应解析提及', async () => {
+    mockThreadAccess.assertAccessible.mockRejectedValueOnce(new Error('not found'));
+    await expect(service.parseAndCreate('p1', '@张三', 'u1', 'private-thread')).rejects.toThrow('not found');
+    expect(mockPrisma.user.findMany).not.toHaveBeenCalled();
+  });
+
+  it('候选接口应过滤双向拉黑用户', async () => {
+    mockPrisma.userFollow.findMany.mockResolvedValue([
+      { following: { id: 'u2', username: '张三', avatar: null } },
+      { following: { id: 'u3', username: '李四', avatar: null } },
+    ]);
+    mockPrisma.threadMember.findMany.mockResolvedValue([]);
+    mockBlockFilter.loadBlockSets.mockResolvedValueOnce({
+      blockedByUser: new Set(['u2']),
+      blockedByAuthor: new Set(),
+    });
+    mockBlockFilter.filterRecipients.mockImplementationOnce((ids: string[]) =>
+      ids.filter((id) => id !== 'u2'),
+    );
+
+    const result = await service.findCandidates('t1', 'u1');
+    expect(result.map((candidate) => candidate.id)).toEqual(['u3']);
   });
 });

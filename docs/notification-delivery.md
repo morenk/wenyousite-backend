@@ -79,6 +79,8 @@
 5. 显式 mention 已覆盖的用户从同一 `post.created` 事件的 `new_post` / `reply` 收件人中移除，避免一次发帖产生重复提醒
 6. 通知队列使用稳定 `eventKey`，按 `userId + eventKey` 唯一，BullMQ 重试安全
 
+候选接口与正文解析还会校验主题帖访问权限，并在提及记录写入前过滤双向拉黑用户，避免候选菜单和 `PostMention` 留下最终不会投递的目标。
+
 ### 4. thread_created — 新主题帖
 
 **触发条件**：`PATCH /threads/:id { published: true }` 发布草稿时
