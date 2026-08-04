@@ -41,6 +41,18 @@ describe('DraftsService', () => {
     expect(result.content).toBe('updated');
   });
 
+  it('create 应规范化正文后写入草稿', async () => {
+    mockPrisma.draft.findUnique.mockResolvedValue({ id: 'old', slot: 1, userId: 'u1' });
+    mockPrisma.draft.update.mockResolvedValue({ id: 'old', slot: 1, content: '正文\n<br />\n' });
+
+    await service.create({ content: '正文\r\n<br>\r\n![空]()', slot: 1 }, 'u1');
+
+    expect(mockPrisma.draft.update).toHaveBeenCalledWith({
+      where: { id: 'old' },
+      data: { content: '正文\n<br />\n' },
+    });
+  });
+
   it('5 槽满应返回错误', async () => {
     mockPrisma.draft.findMany.mockResolvedValue([
       { slot: 1 }, { slot: 2 }, { slot: 3 }, { slot: 4 }, { slot: 5 },
@@ -64,6 +76,18 @@ describe('DraftsService', () => {
     mockPrisma.draft.update.mockResolvedValue({ id: 'd1', content: 'updated' });
     const result = await service.update('d1', 'updated', 'u1');
     expect(result.content).toBe('updated');
+  });
+
+  it('update 应规范化正文后写入草稿', async () => {
+    mockPrisma.draft.findUnique.mockResolvedValue({ id: 'd1', userId: 'u1' });
+    mockPrisma.draft.update.mockResolvedValue({ id: 'd1', content: '正文\n<br />' });
+
+    await service.update('d1', '正文\r\n<br>', 'u1');
+
+    expect(mockPrisma.draft.update).toHaveBeenCalledWith({
+      where: { id: 'd1' },
+      data: { content: '正文\n<br />' },
+    });
   });
 
   it('remove 应该删除草稿', async () => {

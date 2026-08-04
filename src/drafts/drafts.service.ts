@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { normalizeMarkdownContent } from '../common/markdown-content';
 import { CreateDraftDto } from './dto/create-draft.dto';
 
 /** 草稿服务：用户级 5 槽位全局草稿池 */
@@ -25,6 +26,7 @@ export class DraftsService {
 
   /** 保存草稿：指定 slot 则覆盖，不指定自动选空闲位 */
   async create(dto: CreateDraftDto, userId: string) {
+    const content = normalizeMarkdownContent(dto.content);
     let slot = dto.slot;
 
     if (!slot) {
@@ -49,21 +51,21 @@ export class DraftsService {
     if (existing) {
       return this.prisma.draft.update({
         where: { id: existing.id },
-        data: { content: dto.content },
+        data: { content },
       });
     }
 
     return this.prisma.draft.create({
-      data: { userId, slot, content: dto.content },
+      data: { userId, slot, content },
     });
   }
 
   /** 更新草稿内容 */
   async update(id: string, content: string, userId: string) {
-    const draft = await this.findById(id, userId);
+    await this.findById(id, userId);
     return this.prisma.draft.update({
       where: { id },
-      data: { content },
+      data: { content: normalizeMarkdownContent(content) },
     });
   }
 

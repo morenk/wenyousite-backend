@@ -15,7 +15,7 @@ import { BusinessException, notFound, forbidden } from '../common/exceptions/bus
 import { paginate } from '../common/dto/paginated-result';
 import { notDeleted, authorSelect, countNonDeletedReplies } from '../common/prisma-helpers';
 import { truncateMarkdown } from '../common/markdown-truncate';
-import { hasVisibleMarkdownContent } from '../common/markdown-content';
+import { hasVisibleMarkdownContent, normalizeMarkdownContent } from '../common/markdown-content';
 
 /** 楼层服务：发帖（事务楼层编号 + FOR UPDATE）、楼中楼、编辑、软删除 */
 @Injectable()
@@ -130,7 +130,8 @@ export class PostsService {
 
   /** 发帖：楼层或楼中楼回复。先校验访问权限与发帖策略，通过后才自动加入为参与人 */
   async create(subthreadId: string, dto: CreatePostDto, userId: string) {
-    if (!hasVisibleMarkdownContent(dto.content)) {
+    const content = normalizeMarkdownContent(dto.content);
+    if (!hasVisibleMarkdownContent(content)) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '正文不能只有空白或分隔线');
     }
     const subthread = await this.prisma.subthread.findUnique({
@@ -214,7 +215,7 @@ export class PostsService {
           floorNumber,
           parentPostId: dto.parentPostId ?? null,
           replyToPostId: dto.replyToPostId ?? null,
-          content: dto.content,
+          content,
         },
         include: {
           author: { select: authorSelect },
@@ -233,7 +234,7 @@ export class PostsService {
     if (subthread.thread.published) {
       this.eventEmitter.emit('post.created', {
         postId: post.id,
-        content: dto.content,
+        content,
         userId,
         authorUsername: post.author.username,
         threadId: subthread.threadId,
@@ -255,13 +256,14 @@ export class PostsService {
 
   /** 写入子贴正文（kind=BODY）：无正文则创建，有正文则乐观锁更新。仅 OWNER/COLLABORATOR 可操作 */
   async upsertBody(subthreadId: string, content: string, version: number | undefined, userId: string) {
+    const normalizedContent = normalizeMarkdownContent(content);
     const subthread = await this.prisma.subthread.findUnique({
       where: { id: subthreadId, ...notDeleted },
       include: { thread: { select: { id: true, published: true, title: true } } },
     });
     if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
     await this.threadAccess.assertCanManage(subthread.threadId, userId);
-    if (subthread.thread.published && !hasVisibleMarkdownContent(content)) {
+    if (subthread.thread.published && !hasVisibleMarkdownContent(normalizedContent)) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '正文不能只有空白或分隔线');
     }
 
@@ -278,7 +280,7 @@ export class PostsService {
           subthreadId,
           authorId: userId,
           kind: 'BODY',
-          content,
+          content: normalizedContent,
         },
         include: { author: { select: authorSelect } },
       });
@@ -289,7 +291,7 @@ export class PostsService {
       if (subthread.thread.published) {
         this.eventEmitter.emit('post.created', {
           postId: post.id,
-          content,
+          content: normalizedContent,
           userId,
           authorUsername: post.author.username,
           threadId: subthread.threadId,
@@ -315,7 +317,7 @@ export class PostsService {
     const oldContent = existing.content;
     const updated = await this.prisma.post.update({
       where: { id: existing.id, version, ...notDeleted },
-      data: { content, version: { increment: 1 } },
+      data: { content: normalizedContent, version: { increment: 1 } },
       include: { author: { select: authorSelect } },
     }).catch((err) => {
       if (err?.code === 'P2025') throw new BusinessException(ErrorCode.OPTIMISTIC_LOCK_CONFLICT, '正文已被修改，请刷新后重试', HttpStatus.CONFLICT);
@@ -323,8 +325,8 @@ export class PostsService {
     });
 
     // 编辑同步 @提及快照：新增目标通知，移除目标不再保留；全体玩家沿用首次快照。
-    if (content !== oldContent) {
-      this.mentionsService.syncMentions(updated.id, content, userId, subthread.threadId, oldContent)
+    if (normalizedContent !== oldContent) {
+      this.mentionsService.syncMentions(updated.id, normalizedContent, userId, subthread.threadId, oldContent)
           .then(async (mentioned) => {
             if (mentioned.length > 0) {
               const blockSets = await this.blockFilter.loadBlockSets(userId);
@@ -332,7 +334,7 @@ export class PostsService {
                 mentioned.map(u => u.userId), blockSets,
               );
               if (filteredIds.length === 0) return;
-              const preview = truncateMarkdown(content);
+              const preview = truncateMarkdown(normalizedContent);
               this.notificationProducer.notify(
                 'mention',
                 filteredIds,
@@ -358,7 +360,8 @@ export class PostsService {
 
   /** 编辑帖子 */
   async update(id: string, dto: UpdatePostDto, userId: string) {
-    if (!hasVisibleMarkdownContent(dto.content)) {
+    const content = normalizeMarkdownContent(dto.content);
+    if (!hasVisibleMarkdownContent(content)) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '正文不能只有空白或分隔线');
     }
     const postLight = await this.prisma.post.findUnique({
@@ -373,14 +376,14 @@ export class PostsService {
 
     const updated = await this.prisma.post.update({
       where: { id, version: dto.version, ...notDeleted },
-      data: { content: dto.content, version: { increment: 1 } },
+      data: { content, version: { increment: 1 } },
       include: { author: { select: authorSelect } },
     }).catch((err) => { if (err?.code === 'P2025') throw new BusinessException(ErrorCode.OPTIMISTIC_LOCK_CONFLICT, '帖子已被编辑，请刷新后重试', HttpStatus.CONFLICT); throw err; });
 
     // 编辑同步 @提及快照：新增目标通知，移除目标不再保留；全体玩家沿用首次快照。
-    if (dto.content !== oldContent) {
+    if (content !== oldContent) {
       if (postLight.threadId) {
-        this.mentionsService.syncMentions(updated.id, dto.content, userId, postLight.threadId, oldContent)
+        this.mentionsService.syncMentions(updated.id, content, userId, postLight.threadId, oldContent)
           .then(async (mentioned) => {
             if (mentioned.length > 0) {
               const blockSets = await this.blockFilter.loadBlockSets(userId);
@@ -388,7 +391,7 @@ export class PostsService {
                 mentioned.map(u => u.userId), blockSets,
               );
               if (filteredIds.length === 0) return;
-              const preview = truncateMarkdown(dto.content);
+              const preview = truncateMarkdown(content);
               this.notificationProducer.notify(
                 'mention',
                 filteredIds,

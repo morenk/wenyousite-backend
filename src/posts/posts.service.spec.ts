@@ -92,6 +92,36 @@ describe('PostsService', () => {
     );
   });
 
+  it('create 应规范化正文后再存库并发事件', async () => {
+    const subthread = { id: 's1', threadId: 't1', postingPolicy: 'PARTICIPANTS', thread: { published: true } };
+    mockPrisma.subthread.findUnique.mockResolvedValue(subthread);
+    mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
+    let tx: any;
+    mockPrisma.$transaction.mockImplementation(async (fn) => {
+      tx = {
+        $queryRaw: jest.fn(),
+        post: {
+          aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 0 } }),
+          create: jest.fn().mockResolvedValue({
+            id: 'p1', kind: 'FLOOR', floorNumber: 1, content: '第一段\n<br />\n', author: { username: 'test' },
+          }),
+        },
+        subthread: { update: jest.fn() },
+      };
+      return fn(tx);
+    });
+
+    await service.create('s1', { content: '第一段\r\n<br>\r\n![空]()' }, 'u1');
+
+    expect(tx.post.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ content: '第一段\n<br />\n' }),
+    }));
+    expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+      'post.created',
+      expect.objectContaining({ content: '第一段\n<br />\n' }),
+    );
+  });
+
   it('create 楼中楼回复不应该有 floorNumber', async () => {
     const subthread = { id: 's1', threadId: 't1', postingPolicy: 'PARTICIPANTS', thread: { published: true } };
     mockPrisma.subthread.findUnique.mockResolvedValue(subthread);
@@ -166,6 +196,26 @@ describe('PostsService', () => {
       );
     });
 
+    it('upsertBody 应将规范化正文用于更新和提及同步', async () => {
+      mockPrisma.subthread.findUnique.mockResolvedValue({
+        id: 's1', threadId: 't1', title: 'x',
+        thread: { id: 't1', published: true, title: 'x' },
+      });
+      mockPrisma.post.findFirst.mockResolvedValue({ id: 'b1', content: '旧', version: 2, kind: 'BODY' });
+      mockPrisma.post.update.mockResolvedValue({
+        id: 'b1', content: '新\n<br />', version: 3, kind: 'BODY', parentPostId: null, author: { username: 'u' },
+      });
+
+      await service.upsertBody('s1', '新\r\n<br>', 2, 'u1');
+
+      expect(mockPrisma.post.update).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ content: '新\n<br />' }),
+      }));
+      expect(mockMentions.syncMentions).toHaveBeenCalledWith(
+        'b1', '新\n<br />', 'u1', 't1', '旧',
+      );
+    });
+
     it('version 不匹配应返回 409（OPTIMISTIC_LOCK_CONFLICT）', async () => {
       mockPrisma.subthread.findUnique.mockResolvedValue({
         id: 's1', threadId: 't1', title: 'x',
@@ -210,6 +260,20 @@ describe('PostsService', () => {
     mockPrisma.post.update.mockResolvedValue({ id: 'p1', content: '编辑后', author: { username: 'test' } });
     const result = await service.update('p1', { version: 1, content: '编辑后' }, 'u1');
     expect(result.content).toBe('编辑后');
+  });
+
+  it('update 应将规范化正文用于存库和提及同步', async () => {
+    mockPrisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', threadId: 't1', content: '旧内容', subthread: { deletedAt: null } });
+    mockPrisma.post.update.mockResolvedValue({ id: 'p1', content: '编辑后\n<br />', parentPostId: null, author: { username: 'test' } });
+
+    await service.update('p1', { version: 1, content: '编辑后\r\n<br>' }, 'u1');
+
+    expect(mockPrisma.post.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ content: '编辑后\n<br />' }),
+    }));
+    expect(mockMentions.syncMentions).toHaveBeenCalledWith(
+      'p1', '编辑后\n<br />', 'u1', 't1', '旧内容',
+    );
   });
 
   it('update 编辑他人的帖子应该返回403', async () => {

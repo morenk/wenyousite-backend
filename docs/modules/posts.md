@@ -34,6 +34,7 @@
 
 - 发帖前校验主题帖访问权限（`ThreadAccessService.assertAccessible`）：私密帖非参与人被拒绝，未发布帖非 owner 被拒绝
 - 正文发布校验只过滤空白、空段落和独立分隔线；纯数字正文（如 `123`、`1.00`）属于有效内容
+- 创建、正文 upsert 和编辑在校验及存库前统一执行 Markdown v1 规范化；事件、提及和通知摘要使用同一 canonical 正文
 - 发帖权限校验在自动加入之前：被 PostingPolicy 拒绝时不会写入 ThreadMember 记录
 - 楼层编号 floorNumber 在事务内通过 `MAX(floorNumber) + 1` 分配，永不复用；普通楼层（kind=FLOOR）从 #1 开始
 - 正文帖（kind=BODY）floorNumber = null，不占楼层号
