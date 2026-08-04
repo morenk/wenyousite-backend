@@ -8,7 +8,7 @@ import { ThreadsService } from './threads.service';
 import { CreateThreadDto } from './dto/create-thread.dto';
 import { UpdateThreadDto } from './dto/update-thread.dto';
 import { ThreadQueryDto } from './dto/thread-query.dto';
-import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
+import { Auth, AuthRead, OptionalAuth } from '../auth/decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
 
 /** 主题帖控制器：草稿箱、列表、详情、修改、发布、删除、点赞 */
@@ -49,8 +49,7 @@ export class ThreadsController {
   }
 
   @Get(':id')
-  @AuthRead()
-  @ApiBearerAuth()
+  @OptionalAuth()
   @ApiOperation({ summary: '主题帖详情（含 全部子贴列表 + 楼层数 + 参与人数）' })
   @ApiOkResponse({ description: 'Thread 完整对象（owner / subthreads[]._count.posts / topicTags / _count）。viewCount 异步 +1' })
   @ApiNotFoundResponse({ description: '主题帖不存在或已删除（PRIVATE 帖非成员也返回 404）' })

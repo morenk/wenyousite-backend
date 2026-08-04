@@ -46,6 +46,9 @@ const mockPrisma = {
   userBookmark: {
     findUnique: jest.fn(),
   },
+  threadLike: {
+    findUnique: jest.fn(),
+  },
 };
 
 const mockTags = { findOrCreate: jest.fn() };
@@ -313,17 +316,23 @@ describe('ThreadsService', () => {
       expect(result.id).toBe('t1');
     });
 
-    it('登录态附加 isBookmarked 与 bookmarkId', async () => {
+    it('登录态附加 isBookmarked、bookmarkId 与 isLiked', async () => {
       const thread = { id: 't1', title: '测试', published: true, visibility: 'PUBLIC', owner: { id: 'u1' }, subthreads: [] };
       mockPrisma.thread.findUnique.mockResolvedValue(thread);
       mockPrisma.thread.update.mockResolvedValue({});
       mockPrisma.userBookmark.findUnique.mockResolvedValue({ id: 'bm1' });
+      mockPrisma.threadLike.findUnique.mockResolvedValue({ id: 'like1' });
 
       const result = await service.findById('t1', 'u1') as any;
       expect(result.isBookmarked).toBe(true);
       expect(result.bookmarkId).toBe('bm1');
+      expect(result.isLiked).toBe(true);
       expect(mockPrisma.userBookmark.findUnique).toHaveBeenCalledWith({
         where: { userId_threadId: { userId: 'u1', threadId: 't1' } },
+        select: { id: true },
+      });
+      expect(mockPrisma.threadLike.findUnique).toHaveBeenCalledWith({
+        where: { threadId_userId: { userId: 'u1', threadId: 't1' } },
         select: { id: true },
       });
     });
@@ -335,7 +344,9 @@ describe('ThreadsService', () => {
 
       const result = await service.findById('t1') as any;
       expect(result.isBookmarked).toBeUndefined();
+      expect(result.isLiked).toBeUndefined();
       expect(mockPrisma.userBookmark.findUnique).not.toHaveBeenCalled();
+      expect(mockPrisma.threadLike.findUnique).not.toHaveBeenCalled();
     });
 
     it('未发布帖：非 owner 返回404', async () => {

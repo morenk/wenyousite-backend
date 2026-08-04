@@ -181,16 +181,23 @@ export class ThreadsService {
       this.cache.set(cacheKey, thread, 30000).catch(() => {});
     }
 
-    // 登录态附加收藏状态（浅拷贝返回，不污染共享缓存）
+    // 登录态附加收藏与点赞状态（浅拷贝返回，不污染共享缓存）
     if (userId) {
-      const bookmark = await this.prisma.userBookmark.findUnique({
-        where: { userId_threadId: { userId, threadId: id } },
-        select: { id: true },
-      });
+      const [bookmark, like] = await Promise.all([
+        this.prisma.userBookmark.findUnique({
+          where: { userId_threadId: { userId, threadId: id } },
+          select: { id: true },
+        }),
+        this.prisma.threadLike.findUnique({
+          where: { threadId_userId: { userId, threadId: id } },
+          select: { id: true },
+        }),
+      ]);
       return {
         ...thread,
         isBookmarked: !!bookmark,
         bookmarkId: bookmark?.id ?? null,
+        isLiked: !!like,
       };
     }
 

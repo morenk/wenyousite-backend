@@ -35,6 +35,7 @@ const createMockPrisma = () => ({
   notification: { findMany: jest.fn(), create: jest.fn(), createMany: jest.fn(), count: jest.fn(), updateMany: jest.fn() },
   subscription: { findMany: jest.fn() },
   userBookmark: { findUnique: jest.fn() },
+  threadLike: { findUnique: jest.fn() },
 });
 
 // 最小化的事务模拟函数
