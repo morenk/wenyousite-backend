@@ -6,23 +6,23 @@
 
 ## 涉及的模型
 
-| 模型 | 用途 |
-|------|------|
+| 模型           | 用途                                                                     |
+| -------------- | ------------------------------------------------------------------------ |
 | `Notification` | 通知实体（userId + type + content + payload + 导航字段 + 稳定 eventKey） |
 
-| 枚举 | 值 |
-|------|-----|
+| 枚举               | 值                                                             |
+| ------------------ | -------------------------------------------------------------- |
 | `NotificationType` | reply, mention, new_post, thread_created, follow, like, system |
 
 ## API 端点
 
-| Method | Path | Guard | 描述 |
-|--------|------|-------|------|
-| GET | `/notifications?cursor=&type=` | AuthRead | 通知列表（Cursor 分页，支持按类型过滤，如 type=mention,reply） |
-| GET | `/notifications/unread` | AuthRead | 未读通知数量 |
-| PATCH | `/notifications/:id` | AuthRead | 标记单条通知阅读状态（Body: { isRead: boolean }） |
-| DELETE | `/notifications/:id` | AuthRead | 硬删除单条通知 |
-| POST | `/notifications/read-all` | AuthRead | 一键标记全部未读为已读 |
+| Method | Path                           | Guard    | 描述                                                           |
+| ------ | ------------------------------ | -------- | -------------------------------------------------------------- |
+| GET    | `/notifications?cursor=&type=` | AuthRead | 通知列表（Cursor 分页，支持按类型过滤，如 type=mention,reply） |
+| GET    | `/notifications/unread`        | AuthRead | 未读通知数量                                                   |
+| PATCH  | `/notifications/:id`           | AuthRead | 标记单条通知阅读状态（Body: { isRead: boolean }）              |
+| DELETE | `/notifications/:id`           | AuthRead | 硬删除单条通知                                                 |
+| POST   | `/notifications/read-all`      | AuthRead | 一键标记全部未读为已读                                         |
 
 所有端点统一使用 `@AuthRead()` 守卫。
 
@@ -30,18 +30,19 @@
 
 - 通知列表按 createdAt DESC 排序，Cursor 分页（默认 20 条/页，最大 50）
 - 列表查询 include 关联关系：post（id/floorNumber/parentPostId/deletedAt）、thread（id/title/deletedAt）、fromUser（id/username/avatar/deletedAt），供前端拼接跳转 URL 并识别已删除的跳转对象。系统通知 fromUser 为 null
-- 列表查询自动过滤已软删帖/子贴关联的通知
+- 列表查询自动过滤已软删帖、已软删子贴及其主题帖关联的通知；无目标的系统/关注通知仍保留
 - 支持按类型过滤（`?type=mention,reply` 逗号分隔多个），兼容旧类型 `new_floor` / `subthread_created`（自动映射为 `new_post`）
-- 未读数基于 `isRead: false` 的 count 查询
+- 未读数与列表共用同一组有效性过滤条件，基于 `isRead: false` count，避免角标与列表不一致
 - `setReadStatus` 支持标记已读（isRead: true）和标记未读（isRead: false）
 - `remove` 为硬删除，使用 `deleteMany`（where id + userId），即使不存在也不报错；系统通知同样支持删除
 - 通知创建由 NotificationsService.create / createMany 方法提供，由 NotificationProducer（BullMQ）调用
-- 通知创建由 NotificationsService.create / createMany 方法提供，由 NotificationProducer（BullMQ）调用
 - 通知创建时的结构化导航字段（postId / threadId / fromUserId）在创建时写入，查询时直接关联返回
-- `eventKey` 是同一业务事件的稳定幂等键，实际按 `userId + eventKey` 唯一；队列重试、编辑重试不会重复插入通知
+- `eventKey` 是同一业务事件的稳定幂等键，实际按 `userId + eventKey` 唯一；队列重试、编辑重试、关注/发布/点赞/系统通知重投不会重复插入
 - 同一篇帖子中，已收到显式 `mention` 的用户不会再收到该事件的 `new_post` / `reply` 次级通知
+- 同一条回复的显式 `mention` 优先级高于 `reply`，只保留一次提醒；同一批通知写入使用 `skipDuplicates` 兜底并发重试
+- 点赞通知按主题帖聚合；聚合事务使用 Serializable 隔离级别，并在 payload 中保留最近事件键，避免并发丢计数或重试重复累加
 - 定时清理任务每天凌晨 4 点清理 90 天前已读的通知
-- `payload` JSON 字段携带通知的结构化数据（actorName、action、preview 等），供前端灵活渲染
+- `payload` JSON 字段携带通知的结构化数据（actorName、action、preview 等）；新版前端优先分离展示操作者、动作和正文预览，`content` 继续作为旧数据降级字段
 - 通知摘要先把 Markdown 图片语法替换为 `[图片]`，再剥离其他 Markdown 标记；纯图片回复仍有可识别预览，同时图片 alt（包括 Milkdown 的 `1.00` 比例占位）不会进入通知文案
 - 通知摘要会把顶层空段落协议标记（`<br />` 及历史变体）转换为空白并折叠，避免空行撑高或标签泄漏
 - 摘要把 Milkdown 转义的字面标点（`\<` `\>` `\*` `\_` `` \` `` `\~` 等）统一替换为私有区占位符再交给 remove-markdown，清理后还原：字面字符完整保留、不残留孤立 `\`，且不会被强调/删除线/行内代码等正则误删；普通反斜杠路径（如 `C:\temp`）不受影响

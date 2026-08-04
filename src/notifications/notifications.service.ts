@@ -7,20 +7,46 @@ import { paginate } from '../common/dto/paginated-result';
 export class NotificationsService {
   constructor(private prisma: PrismaService) {}
 
+  /**
+   * 通知只对仍然可见的目标生效：
+   * - 没有关联目标的系统/关注通知始终可见；
+   * - 只关联主题帖的通知要求主题帖未删除；
+   * - 关联帖子的通知同时要求帖子、子贴和主题帖均未删除。
+   *
+   * 列表与未读数必须共用这组条件，否则会出现“角标有未读、列表却没有对应通知”。
+   */
+  private visibleWhere(userId: string, extra: Record<string, unknown> = {}) {
+    return {
+      ...extra,
+      userId,
+      AND: [
+        {
+          OR: [
+            { postId: null, threadId: null },
+            { postId: null, threadId: { not: null }, thread: { deletedAt: null } },
+            {
+              postId: { not: null },
+              post: {
+                deletedAt: null,
+                thread: { deletedAt: null },
+                subthread: { deletedAt: null },
+              },
+            },
+          ],
+        },
+      ],
+    };
+  }
+
   /** 获取用户通知列表（支持按类型过滤，自动排除已软删帖/子贴） */
   async findAll(userId: string, cursor?: string, limit = 20, types?: string[]) {
     const take = Math.min(limit, 50);
-    const where: any = {
-      userId,
-      // 过滤已被软删的主题帖和帖子的通知
-      OR: [
-        { AND: [{ threadId: null }, { postId: null }] },
-        { threadId: { not: null }, thread: { deletedAt: null } },
-        { postId: { not: null }, post: { deletedAt: null } },
-      ],
-    };
+    const where: any = this.visibleWhere(userId);
     if (types && types.length > 0) {
-      where.type = { in: types as any[] };
+      const aliases = types.flatMap((type) =>
+        type === 'new_post' ? ['new_post', 'new_floor', 'subthread_created'] : [type],
+      );
+      where.type = { in: [...new Set(aliases)] as any[] };
     }
     const notifs = await this.prisma.notification.findMany({
       where,
@@ -38,30 +64,51 @@ export class NotificationsService {
     const hasMore = notifs.length > take;
     if (hasMore) notifs.pop();
 
-    return paginate(notifs, {
-      cursor: notifs.length > 0 ? notifs[notifs.length - 1].id : null,
+    // 兼容迁移前已经写入的旧类型，避免前端需要同时维护两套类型分支。
+    const normalizedNotifs = notifs.map((notification) =>
+      notification.type === 'new_floor' || notification.type === 'subthread_created'
+        ? { ...notification, type: 'new_post' }
+        : notification,
+    );
+
+    return paginate(normalizedNotifs, {
+      cursor: normalizedNotifs.length > 0 ? normalizedNotifs[normalizedNotifs.length - 1].id : null,
       hasMore,
     });
   }
 
   /** 创建通知 */
-  async create(userId: string, type: string, content: string, opts?: { postId?: string; threadId?: string; fromUserId?: string }) {
+  async create(
+    userId: string,
+    type: string,
+    content: string,
+    opts?: { postId?: string; threadId?: string; fromUserId?: string },
+  ) {
     return this.prisma.notification.create({
       data: { userId, type: type as any, content, ...opts },
     });
   }
 
-  async createMany(notifications: { userId: string; type: string; content: string; postId?: string; threadId?: string; fromUserId?: string }[]) {
+  async createMany(
+    notifications: {
+      userId: string;
+      type: string;
+      content: string;
+      postId?: string;
+      threadId?: string;
+      fromUserId?: string;
+    }[],
+  ) {
     if (notifications.length === 0) return;
     await this.prisma.notification.createMany({
-      data: notifications.map(n => ({ ...n, type: n.type as any })),
+      data: notifications.map((n) => ({ ...n, type: n.type as any })),
     });
   }
 
   /** 获取未读数 */
   async unreadCount(userId: string) {
     return this.prisma.notification.count({
-      where: { userId, isRead: false },
+      where: this.visibleWhere(userId, { isRead: false }),
     });
   }
 
@@ -84,7 +131,7 @@ export class NotificationsService {
   /** 全部已读 */
   async markAllAsRead(userId: string) {
     return this.prisma.notification.updateMany({
-      where: { userId, isRead: false },
+      where: this.visibleWhere(userId, { isRead: false }),
       data: { isRead: true },
     });
   }

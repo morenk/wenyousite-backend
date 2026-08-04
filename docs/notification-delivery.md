@@ -4,15 +4,15 @@
 
 系统定义 8 类通知（Prisma 枚举 `NotificationType`），各自有独立的触发源和事件。
 
-| 类型 | 枚举值 | 触发事件 | 触发源 | 触发位置 |
-|------|--------|----------|--------|----------|
-| 楼中楼回复 | `reply` | `post.created`（`parentPostId` 非空 + `!isSubthreadBody`） | `PostEventsListener` | `src/jobs/post-events.listener.ts` |
-| @提及 | `mention` | `post.created`（正文含稳定用户链接/历史 `@username`/合法 `@全体玩家`）或编辑同步新增 @ | `PostEventsListener` → `MentionsService.syncMentions()` / `PostsService.update()` | `src/jobs/post-events.listener.ts`、`src/posts/posts.service.ts` |
-| 新帖通知 | `new_post` | `post.created`（`!parentPostId` 或 `isSubthreadBody`） | `PostEventsListener` | `src/jobs/post-events.listener.ts` |
-| 新主题帖 | `thread_created` | 主题帖 PATCH published=true | `ThreadsService.update()` | `src/threads/threads.service.ts` |
-| 被关注 | `follow` | 首次关注关系写入 | `UsersFollowController.follow()` | `src/users/users-follow.controller.ts` |
-| 被点赞 | `like` | 首次点赞 | `PostsService.like()` | `src/posts/posts.service.ts` |
-| 系统通知 | `system` | 管理员 POST /admin/notifications/system | `AdminService.sendSystemNotification()` | `src/admin/admin.service.ts` |
+| 类型       | 枚举值           | 触发事件                                                                               | 触发源                                                                            | 触发位置                                                         |
+| ---------- | ---------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| 楼中楼回复 | `reply`          | `post.created`（`parentPostId` 非空 + `!isSubthreadBody`）                             | `PostEventsListener`                                                              | `src/jobs/post-events.listener.ts`                               |
+| @提及      | `mention`        | `post.created`（正文含稳定用户链接/历史 `@username`/合法 `@全体玩家`）或编辑同步新增 @ | `PostEventsListener` → `MentionsService.syncMentions()` / `PostsService.update()` | `src/jobs/post-events.listener.ts`、`src/posts/posts.service.ts` |
+| 新帖通知   | `new_post`       | `post.created`（`!parentPostId` 或 `isSubthreadBody`）                                 | `PostEventsListener`                                                              | `src/jobs/post-events.listener.ts`                               |
+| 新主题帖   | `thread_created` | 主题帖 PATCH published=true                                                            | `ThreadsService.update()`                                                         | `src/threads/threads.service.ts`                                 |
+| 被关注     | `follow`         | 首次关注关系写入                                                                       | `UsersFollowController.follow()`                                                  | `src/users/users-follow.controller.ts`                           |
+| 被点赞     | `like`           | 首次点赞                                                                               | `PostsService.like()`                                                             | `src/posts/posts.service.ts`                                     |
+| 系统通知   | `system`         | 管理员 POST /admin/notifications/system                                                | `AdminService.sendSystemNotification()`                                           | `src/admin/admin.service.ts`                                     |
 
 > `new_post` 合并了原 `new_floor`（新楼层）和 `subthread_created`（新子贴）两种类型，通过 payload 中的 `subthreadTitle` 字段区分是否为子贴。
 
@@ -30,13 +30,14 @@
 
 **接收者**：
 
-| 角色 | 获取方式 | 来源 |
-|------|----------|------|
-| 被回复者 | 优先取 `replyToPostId` 的作者，未指定时取 `parentPostId` 的作者 | 单个用户 ID |
-| 楼主 + 协作者 | `ThreadMember.findMany({ role: { in: [OWNER, COLLABORATOR] } })` | 成员表查询 |
-| 订阅者 | `SubscriptionsService.findSubscribers(threadId, authorId)`；仅当发帖者是楼主/协作者时包含 THREAD 订阅者 | 订阅表查询 |
+| 角色          | 获取方式                                                                                                | 来源        |
+| ------------- | ------------------------------------------------------------------------------------------------------- | ----------- |
+| 被回复者      | 优先取 `replyToPostId` 的作者，未指定时取 `parentPostId` 的作者                                         | 单个用户 ID |
+| 楼主 + 协作者 | `ThreadMember.findMany({ role: { in: [OWNER, COLLABORATOR] } })`                                        | 成员表查询  |
+| 订阅者        | `SubscriptionsService.findSubscribers(threadId, authorId)`；仅当发帖者是楼主/协作者时包含 THREAD 订阅者 | 订阅表查询  |
 
 **去重与过滤**：
+
 1. 排除自己（`managerIds` 由全部 OWNER/COLLABORATOR 中剔除作者生成）
 2. 排除被回复者 = 自己的情况（`if targetPost.authorId !== event.userId`）
 3. **THREAD 订阅者限制**：仅当发帖者是楼主（OWNER）或协作者（COLLABORATOR）时，THREAD 订阅者才进入接收者；USER 订阅者（订阅了该发帖者）不受限制
@@ -50,6 +51,7 @@
 **接收者**：`MentionsService.parseAndCreate()` 返回的经过权限校验的用户列表
 
 **@提及权限规则**（`src/mentions/mentions.service.ts`）：
+
 1. 所有角色只能 @ 自己关注的人，或当前帖内 `playerMarked=true` 的玩家身份用户
 2. 楼主/协作者额外可使用 `@全体玩家`，展开范围仍然只包含 `playerMarked=true` 的用户
 3. 普通用户使用 `@全体玩家` 会被服务端拒绝
@@ -66,12 +68,13 @@
 
 **接收者**：
 
-| 角色 | 获取方式 |
-|------|----------|
+| 角色          | 获取方式                                                                                        |
+| ------------- | ----------------------------------------------------------------------------------------------- |
 | 楼主 + 协作者 | `ThreadMember.findMany({ role: { in: [OWNER, COLLABORATOR] }, userId: { not: event.userId } })` |
-| 订阅者 | `SubscriptionsService.findSubscribers()`；仅当发帖者是楼主/协作者时包含 THREAD 订阅者 |
+| 订阅者        | `SubscriptionsService.findSubscribers()`；仅当发帖者是楼主/协作者时包含 THREAD 订阅者           |
 
 **去重与过滤**：
+
 1. 成员查询已排除发帖者自己
 2. **THREAD 订阅者限制**：仅当发帖者是楼主（OWNER）或协作者（COLLABORATOR）时，THREAD 订阅者才进入接收者；USER 订阅者（订阅了该发帖者）不受限制
 3. 合并到 `Set` → 去重
@@ -114,11 +117,13 @@ const followers = await this.prisma.userFollow.findMany({
 **接收者**：主题帖楼主（单个用户）
 
 **聚合机制**（X/Twitter 风格）：
+
 - 同帖、同类型、未读 → 更新同一条通知：累加 `likers` 列表（保留最近 3 人）、`aggregationCount += 1`、`createdAt` 刷新推顶
 - 已读后新赞 → 新建一条聚合通知
 - 不通知自己赞自己（判断 `thread.ownerId !== userId`）
 - `content` 文案：1 人 → `张三 赞了你的主题帖「{title}」`；2 人 → `张三、李四 赞了你的主题帖「{title}」`；3+ 人 → `张三、李四等 5 人赞了你的主题帖「{title}」`
 - `payload.likers` 保留最近 3 人 `{ userId, username }`，`payload.totalCount` 累计总人数
+- `eventKey` 使用 `like:{threadId}:{likerId}`；聚合 payload 额外保留最近 100 个已处理事件键，处理器在 Serializable 事务中检查并重试并发冲突
 - 使用 `.catch(() => {})` 吞掉队列异常
 
 ### 7. system — 系统通知
@@ -126,11 +131,13 @@ const followers = await this.prisma.userFollow.findMany({
 **触发条件**：管理员调用 `POST /admin/notifications/system`
 
 **接收者**（三种分发模式，优先级从高到低）：
+
 1. 手动指定：传入 `recipientIds`，自动过滤已注销用户
 2. 条件筛选：传入 `conditions` 对象（role / emailVerified / createdAfter / createdBefore），AND 逻辑组合
 3. 全站广播：不传筛选参数，遍历所有 `deletedAt = null` 的用户，500 条/批分批入队
 
 **配套端点**：
+
 - `POST /admin/notifications/system/preview` — 发送前预览人数
 - `GET /admin/notifications/system/history` — 已发系统通知历史
 - `GET /admin/users/search?q=` — 用户搜索（供手动选择）
@@ -138,6 +145,7 @@ const followers = await this.prisma.userFollow.findMany({
 **审计**：每次发送后写入 `audit_logs` 表（action=SYSTEM_NOTIFICATION，含 adminId、ip、内容摘要、人数、条件）
 
 **数据结构**：
+
 - `fromUserId` 为 null（前端据此区分系统通知，展示系统图标/样式）
 - `content` 为管理员指定的通知文本
 - `payload` 为可选结构化数据（如跳转链接、操作按钮配置）
@@ -163,11 +171,11 @@ const blockedAuthorIds = new Set(blockedByAuthor.map(b => b.blockerId));
 const authorBlockedIds = new Set(blocksOfAuthor.map(b => b.blockedId));
 ```
 
-| 过滤层 | Set 名称 | 含义 | 适用场景 |
-|--------|----------|------|----------|
-| 拉黑发帖人 | `blockedAuthorIds` | 拉黑了发帖人的用户 ID 集合 | mention / reply / new_post：被引用者若拉黑了发帖人则排除 |
-| 被发帖人拉黑 | `authorBlockedIds` | 被发帖人拉黑的用户 ID 集合 | mention / reply / new_post：发帖人拉黑的用户不收到通知 |
-| 去重 | `new Set([...ids])` | JavaScript Set 自动去重 | reply / new_post：合并多来源接收者时消除重复 |
+| 过滤层       | Set 名称            | 含义                       | 适用场景                                                 |
+| ------------ | ------------------- | -------------------------- | -------------------------------------------------------- |
+| 拉黑发帖人   | `blockedAuthorIds`  | 拉黑了发帖人的用户 ID 集合 | mention / reply / new_post：被引用者若拉黑了发帖人则排除 |
+| 被发帖人拉黑 | `authorBlockedIds`  | 被发帖人拉黑的用户 ID 集合 | mention / reply / new_post：发帖人拉黑的用户不收到通知   |
+| 去重         | `new Set([...ids])` | JavaScript Set 自动去重    | reply / new_post：合并多来源接收者时消除重复             |
 
 > **注意**：mention 通知现已同时应用 `blockedAuthorIds` 和 `authorBlockedIds` 双向拉黑过滤，与 reply / new_post 保持一致。
 
@@ -179,19 +187,19 @@ const authorBlockedIds = new Set(blocksOfAuthor.map(b => b.blockedId));
 
 **订阅类型**（Prisma 枚举 `SubscriptionType`）：
 
-| 类型 | 值 | 含义 |
-|------|-----|------|
+| 类型   | 值       | 含义                                        |
+| ------ | -------- | ------------------------------------------- |
 | 帖订阅 | `THREAD` | 订阅整个主题帖，仅楼主/协作者发言时收到通知 |
-| 人订阅 | `USER` | 订阅帖内某个用户的发言，仅该用户发帖时通知 |
+| 人订阅 | `USER`   | 订阅帖内某个用户的发言，仅该用户发帖时通知  |
 
 **调用入口**（`src/jobs/post-events.listener.ts:24`）：
 
 ```typescript
 this.subscriptionsService.findSubscribers(
-  event.threadId,   // 主题帖 ID
-  event.userId,     // 排除该用户（不给自己发通知）
-  event.userId,     // 作者 ID（用于匹配 USER 类型订阅者）
-)
+  event.threadId, // 主题帖 ID
+  event.userId, // 排除该用户（不给自己发通知）
+  event.userId, // 作者 ID（用于匹配 USER 类型订阅者）
+);
 ```
 
 **查询逻辑**（`src/subscriptions/subscriptions.service.ts:50`）：
@@ -217,17 +225,17 @@ WHERE threadId = {threadId}
 
 `Notification` 模型（`prisma/schema.prisma:352`）：
 
-| 字段 | 类型 | 用途 |
-|------|------|------|
-| `id` | `String (cuid)` | 主键 |
-| `userId` | `String` | 接收者 ID（索引键 `[userId, isRead, createdAt]`） |
-| `type` | `NotificationType` | 通知类型枚举 |
-| `content` | `String?` | 通知摘要文本含正文预览（前 100 字），客户端可直接渲染 |
-| `postId` | `String?` | 关联帖子 ID，前端可跳转到具体楼层 |
-| `threadId` | `String?` | 关联主题帖 ID，前端可跳转到帖子列表 |
-| `fromUserId` | `String?` | 操作者 ID，前端可展示"来自 xxx" |
-| `isRead` | `Boolean` | 阅读状态，默认 `false` |
-| `createdAt` | `DateTime` | 创建时间 |
+| 字段         | 类型               | 用途                                                  |
+| ------------ | ------------------ | ----------------------------------------------------- |
+| `id`         | `String (cuid)`    | 主键                                                  |
+| `userId`     | `String`           | 接收者 ID（索引键 `[userId, isRead, createdAt]`）     |
+| `type`       | `NotificationType` | 通知类型枚举                                          |
+| `content`    | `String?`          | 通知摘要文本含正文预览（前 100 字），客户端可直接渲染 |
+| `postId`     | `String?`          | 关联帖子 ID，前端可跳转到具体楼层                     |
+| `threadId`   | `String?`          | 关联主题帖 ID，前端可跳转到帖子列表                   |
+| `fromUserId` | `String?`          | 操作者 ID，前端可展示"来自 xxx"                       |
+| `isRead`     | `Boolean`          | 阅读状态，默认 `false`                                |
+| `createdAt`  | `DateTime`         | 创建时间                                              |
 
 **前端导航支持**：
 
@@ -253,26 +261,30 @@ WHERE threadId = {threadId}
 
 **通知文案格式**：
 
-| 类型 | content 格式 |
-|------|-------------|
-| `new_post` | `{username} 发布了新楼层：{正文智能截断}` 或 `{username} 创建了新子贴「{title}」：{正文智能截断}`（有 subthreadTitle 时） |
-| `reply` | `{username} 回复了：{正文智能截断}` |
-| `mention` | `{username} 在「{subthreadTitle}」提到了你：{正文智能截断}` |
-| `thread_created` | `{username}创建了新主题帖`（无正文预览） |
-| `follow` | `{username}关注了你` |
-| `like` | `{username} 赞了你的主题帖「{title}」`（单人）/ `张三、李四等 5 人赞了你的主题帖「{title}」`（聚合） |
-| `system` | 管理员指定的纯文本内容 |
+| 类型             | content 格式                                                                                                              |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `new_post`       | `{username} 发布了新楼层：{正文智能截断}` 或 `{username} 创建了新子贴「{title}」：{正文智能截断}`（有 subthreadTitle 时） |
+| `reply`          | `{username} 回复了：{正文智能截断}`                                                                                       |
+| `mention`        | `{username} 在「{subthreadTitle}」提到了你：{正文智能截断}`                                                               |
+| `thread_created` | `{username}创建了新主题帖`（无正文预览）                                                                                  |
+| `follow`         | `{username}关注了你`                                                                                                      |
+| `like`           | `{username} 赞了你的主题帖「{title}」`（单人）/ `张三、李四等 5 人赞了你的主题帖「{title}」`（聚合）                      |
+| `system`         | 管理员指定的纯文本内容                                                                                                    |
 
 **正文智能截断**：先把 Markdown 图片语法替换为 `[图片]`（不保留 alt，避免 Milkdown 的 `1.00` 比例占位泄漏），再使用 `remove-markdown` 转纯文本；纯图片正文的预览为 `[图片]`，图文混排保留对应占位；优先在句号/换行/问号/感叹号处截断，最少 50 字，最多 100 字。
 
 **payload 结构化字段**（JSON，可选）：
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `actorName` | string | 操作者用户名（系统通知为空） |
-| `action` | string | 动作类型（mention / reply / new_post / like） |
-| `preview` | string | 正文智能截断纯文本（可选） |
-| `subthreadTitle` | string? | 子贴标题（mention / new_post 时存在） |
+| 字段             | 类型      | 说明                                          |
+| ---------------- | --------- | --------------------------------------------- |
+| `actorName`      | string    | 操作者用户名（系统通知为空）                  |
+| `action`         | string    | 动作类型（mention / reply / new_post / like） |
+| `preview`        | string    | 正文智能截断纯文本（可选）                    |
+| `subthreadTitle` | string?   | 子贴标题（mention / new_post 时存在）         |
+| `threadTitle`    | string?   | 点赞聚合的主题帖标题                          |
+| `eventKeys`      | string[]? | 点赞聚合已处理的事件键，防止队列重试重复累加  |
+
+新版前端优先使用 `actorName`、`action`、`preview` 和 `subthreadTitle` 分段展示；历史通知或结构化字段不完整时回退到 `content`。
 
 ---
 
@@ -280,12 +292,12 @@ WHERE threadId = {threadId}
 
 拉黑是双向阻断机制，通过 `UserBlock` 表的 `[blockerId, blockedId]` 唯一约束实现。
 
-| 影响项 | 说明 | 实现位置 |
-|--------|------|----------|
-| 不通知拉黑者 | mention / reply / new_post 中，被引用者若拉黑了发帖人，排除该用户 | `src/jobs/post-events.listener.ts` |
+| 影响项         | 说明                                                              | 实现位置                           |
+| -------------- | ----------------------------------------------------------------- | ---------------------------------- |
+| 不通知拉黑者   | mention / reply / new_post 中，被引用者若拉黑了发帖人，排除该用户 | `src/jobs/post-events.listener.ts` |
 | 不通知被拉黑者 | mention / reply / new_post 中，发帖人拉黑的用户从接收者集合中移除 | `src/jobs/post-events.listener.ts` |
-| 不发帖 | 拉黑者的帖子对被拉黑者不可见（由 BlockGuard 全局拦截） | `src/common/guards/block.guard.ts` |
-| 不影响关注通知 | thread_created / follow / system 不检查拉黑关系 | — |
+| 不发帖         | 拉黑者的帖子对被拉黑者不可见（由 BlockGuard 全局拦截）            | `src/common/guards/block.guard.ts` |
+| 不影响关注通知 | thread_created / follow / system 不检查拉黑关系                   | —                                  |
 
 > **注意**：拉黑检查在 `queue.add()` 之前完成，而非在 Processor 中再次检查。这意味着接收者列表在入队时已经确定且干净。
 
@@ -338,16 +350,16 @@ private async createNotifications(userIds, type, content, postId?, threadId?, fr
 
 **重试策略**（`src/jobs/jobs.module.ts:16`）：
 
-| 参数 | 值 | 说明 |
-|------|-----|------|
-| `attempts` | 3 | 最多 3 次重试 |
-| `backoff.type` | `exponential` | 指数退避 |
-| `backoff.delay` | 5000ms | 初始延迟 5 秒 |
-| `removeOnComplete.age` | 86400s | 成功任务保留 24 小时用于调试 |
+| 参数                   | 值            | 说明                         |
+| ---------------------- | ------------- | ---------------------------- |
+| `attempts`             | 3             | 最多 3 次重试                |
+| `backoff.type`         | `exponential` | 指数退避                     |
+| `backoff.delay`        | 5000ms        | 初始延迟 5 秒                |
+| `removeOnComplete.age` | 86400s        | 成功任务保留 24 小时用于调试 |
 
 **队列配置两处注册**（与 `image` 队列相同模式）：
 
-| 模块 | 位置 | 用途 |
-|------|------|------|
-| `JobsModule` | `src/jobs/jobs.module.ts:17-23` | 注册队列 + 默认配置 + `NotificationProcessor` 消费 |
-| `app.module.ts` | 根模块 | 全局注册 BullModule.forRoot（Redis 连接），队列由此接入 |
+| 模块            | 位置                            | 用途                                                    |
+| --------------- | ------------------------------- | ------------------------------------------------------- |
+| `JobsModule`    | `src/jobs/jobs.module.ts:17-23` | 注册队列 + 默认配置 + `NotificationProcessor` 消费      |
+| `app.module.ts` | 根模块                          | 全局注册 BullModule.forRoot（Redis 连接），队列由此接入 |

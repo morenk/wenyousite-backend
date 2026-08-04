@@ -1,5 +1,14 @@
 import { Controller, Post, Delete, Get, Param, Req, NotFoundException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse, ApiUnauthorizedResponse, ApiForbiddenResponse, ApiNotFoundResponse } from '@nestjs/swagger';
+import { randomUUID } from 'crypto';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+} from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationProducer } from '../jobs/notification.producer';
@@ -44,12 +53,15 @@ export class UsersFollowController {
     const blockSets = await this.blockFilter.loadBlockSets(user.id);
     const filtered = this.blockFilter.filterRecipients([targetId], blockSets);
     if (filtered.length > 0) {
-      this.notificationProducer.notify(
-        'follow',
-        [targetId],
-        `${user.username ?? '有人'} 关注了你`,
-        { fromUserId: user.id },
-      ).catch(() => {});
+      this.notificationProducer
+        .notify(
+          'follow',
+          filtered,
+          `${user.username ?? '有人'} 关注了你`,
+          // 同一段队列任务重试沿用该键；取消关注后重新关注则生成新的业务事件键。
+          { fromUserId: user.id, eventKey: `follow:${user.id}:${targetId}:${randomUUID()}` },
+        )
+        .catch(() => {});
     }
     return { message: '已关注' };
   }

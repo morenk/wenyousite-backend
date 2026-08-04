@@ -18,10 +18,7 @@ describe('NotificationsService', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        NotificationsService,
-        { provide: PrismaService, useValue: mockPrisma },
-      ],
+      providers: [NotificationsService, { provide: PrismaService, useValue: mockPrisma }],
     }).compile();
     service = module.get<NotificationsService>(NotificationsService);
     jest.clearAllMocks();
@@ -35,17 +32,55 @@ describe('NotificationsService', () => {
         include: {
           post: expect.objectContaining({ select: expect.objectContaining({ deletedAt: true }) }),
           thread: expect.objectContaining({ select: expect.objectContaining({ deletedAt: true }) }),
-          fromUser: expect.objectContaining({ select: expect.objectContaining({ deletedAt: true }) }),
+          fromUser: expect.objectContaining({
+            select: expect.objectContaining({ deletedAt: true }),
+          }),
         },
       }),
     );
+  });
+
+  it('findAll 应同时过滤已删除的帖子、子贴和主题帖', async () => {
+    mockPrisma.notification.findMany.mockResolvedValue([]);
+    await service.findAll('u1', undefined, 20, ['new_post']);
+    const call = mockPrisma.notification.findMany.mock.calls[0][0];
+    expect(call.where.type.in).toEqual(
+      expect.arrayContaining(['new_post', 'new_floor', 'subthread_created']),
+    );
+    expect(call.where.AND[0].OR).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ postId: null, threadId: null }),
+        expect.objectContaining({ postId: null, threadId: expect.objectContaining({ not: null }) }),
+        expect.objectContaining({ postId: expect.objectContaining({ not: null }) }),
+      ]),
+    );
+    expect(call.where.AND[0].OR[2].post).toEqual(
+      expect.objectContaining({
+        deletedAt: null,
+        thread: { deletedAt: null },
+        subthread: { deletedAt: null },
+      }),
+    );
+  });
+
+  it('findAll 应把历史 new_floor 类型归一为 new_post', async () => {
+    mockPrisma.notification.findMany.mockResolvedValue([{ id: 'n-old', type: 'new_floor' }]);
+    const result = await service.findAll('u1');
+    expect(result.items[0].type).toBe('new_post');
   });
 
   it('create 应该传递结构化导航字段', async () => {
     mockPrisma.notification.create.mockResolvedValue({ id: 'n1', userId: 'u1' });
     await service.create('u1', 'reply', '内容', { postId: 'p1', threadId: 't1', fromUserId: 'u2' });
     expect(mockPrisma.notification.create).toHaveBeenCalledWith({
-      data: { userId: 'u1', type: 'reply', content: '内容', postId: 'p1', threadId: 't1', fromUserId: 'u2' },
+      data: {
+        userId: 'u1',
+        type: 'reply',
+        content: '内容',
+        postId: 'p1',
+        threadId: 't1',
+        fromUserId: 'u2',
+      },
     });
   });
 
@@ -74,13 +109,16 @@ describe('NotificationsService', () => {
   it('unreadCount 应该返回未读数', async () => {
     mockPrisma.notification.count.mockResolvedValue(5);
     expect(await service.unreadCount('u1')).toBe(5);
+    expect(mockPrisma.notification.count).toHaveBeenCalledWith({
+      where: expect.objectContaining({ userId: 'u1', isRead: false, AND: expect.any(Array) }),
+    });
   });
 
   it('markAllAsRead 应该标记全部已读', async () => {
     mockPrisma.notification.updateMany.mockResolvedValue({ count: 3 });
     await service.markAllAsRead('u1');
     expect(mockPrisma.notification.updateMany).toHaveBeenCalledWith({
-      where: { userId: 'u1', isRead: false },
+      where: expect.objectContaining({ userId: 'u1', isRead: false, AND: expect.any(Array) }),
       data: { isRead: true },
     });
   });

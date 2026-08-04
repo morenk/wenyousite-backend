@@ -1,5 +1,12 @@
 import { Controller, Get, Post, Patch, Delete, Param, Query, Req, Body } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery, ApiOkResponse, ApiUnauthorizedResponse } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiQuery,
+  ApiOkResponse,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { NotificationsService } from './notifications.service';
 import { AuthRead } from '../auth/decorators/auth.decorator';
@@ -17,10 +24,18 @@ export class NotificationsController {
   @Get()
   @ApiOperation({ summary: '通知列表' })
   @ApiQuery({ name: 'cursor', required: false, description: '分页游标（上一页最后一条通知 ID）' })
-  @ApiQuery({ name: 'type', required: false, description: '按类型过滤，逗号分隔，如 type=mention,reply' })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    description: '按类型过滤，逗号分隔，如 type=mention,reply',
+  })
   @ApiOkResponse({ description: '通知列表（cursor 分页，按时间倒序）' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
-  async findAll(@Req() req: FastifyRequest, @Query('cursor') cursor?: string, @Query('type') type?: string) {
+  async findAll(
+    @Req() req: FastifyRequest,
+    @Query('cursor') cursor?: string,
+    @Query('type') type?: string,
+  ) {
     const user = req['user'] as { id: string };
     const types = type ? this.normalizeTypes(type) : undefined;
     return this.notificationsService.findAll(user.id, cursor, 20, types);
@@ -32,10 +47,12 @@ export class NotificationsController {
       new_floor: 'new_post',
       subthread_created: 'new_post',
     };
-    return raw.split(',')
-      .map(t => t.trim())
+    const normalized = raw
+      .split(',')
+      .map((t) => t.trim())
       .filter(Boolean)
-      .map(t => mapping[t] || t);
+      .map((t) => mapping[t] || t);
+    return [...new Set(normalized)];
   }
 
   /** 未读通知数量 */

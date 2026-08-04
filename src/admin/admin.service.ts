@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationProducer } from '../jobs/notification.producer';
 import { SendSystemNotificationDto } from './dto/send-system-notification.dto';
@@ -48,6 +49,7 @@ export class AdminService {
     // 先统计总数用于审计
     const totalCount = await this.prisma.user.count({ where });
     if (totalCount === 0) return { recipientCount: 0 };
+    const eventKey = `system:${adminId}:${randomUUID()}`;
 
     // 分批获取用户 ID 并入队
     let cursor: string | undefined;
@@ -69,10 +71,11 @@ export class AdminService {
         break;
       }
 
-      const batchIds = users.map(u => u.id);
+      const batchIds = users.map((u) => u.id);
       await this.notificationProducer.notify('system', batchIds, content, {
         threadId,
         payload,
+        eventKey,
       });
 
       sentCount += batchIds.length;
@@ -86,7 +89,11 @@ export class AdminService {
         adminId,
         action: 'SYSTEM_NOTIFICATION',
         targetType: 'USER',
-        detail: JSON.stringify({ content: content.slice(0, 200), recipientCount: sentCount, conditions: dto.conditions ?? null }),
+        detail: JSON.stringify({
+          content: content.slice(0, 200),
+          recipientCount: sentCount,
+          conditions: dto.conditions ?? null,
+        }),
         ip: ip ?? null,
       },
     });
@@ -138,7 +145,14 @@ export class AdminService {
           { email: { contains: query, mode: 'insensitive' } },
         ],
       },
-      select: { id: true, username: true, email: true, role: true, emailVerified: true, createdAt: true },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        role: true,
+        emailVerified: true,
+        createdAt: true,
+      },
       take,
       orderBy: { createdAt: 'desc' },
     });

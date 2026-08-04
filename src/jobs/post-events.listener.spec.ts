@@ -24,9 +24,17 @@ function buildListener(overrides: Partial<Record<string, unknown>> = {}) {
       blockedByAuthor: new Set(),
     } as BlockSets),
     filterRecipients: (ids: string[], sets: BlockSets) =>
-      ids.filter(id => !sets.blockedByUser.has(id) && !sets.blockedByAuthor.has(id)),
+      ids.filter((id) => !sets.blockedByUser.has(id) && !sets.blockedByAuthor.has(id)),
   };
-  const merged = { mentionsService, notificationProducer, subscriptionsService, prisma, redis, blockFilter, ...overrides };
+  const merged = {
+    mentionsService,
+    notificationProducer,
+    subscriptionsService,
+    prisma,
+    redis,
+    blockFilter,
+    ...overrides,
+  };
   const listener = new PostEventsListener(
     merged.mentionsService as any,
     merged.notificationProducer as any,
@@ -35,7 +43,7 @@ function buildListener(overrides: Partial<Record<string, unknown>> = {}) {
     merged.redis as any,
     merged.blockFilter as any,
   );
-  return { listener, notificationProducer, subscriptionsService, prisma };
+  return { listener, notificationProducer, subscriptionsService, prisma, mentionsService };
 }
 
 const baseEvent: PostCreatedEvent = {
@@ -74,10 +82,7 @@ describe('PostEventsListener 订阅过滤', () => {
     subscriptionsService.findSubscribers.mockResolvedValue([
       { userId: 'sub_thread', type: 'THREAD', targetUserId: null },
     ]);
-    prisma.threadMember.findMany.mockResolvedValue([
-      { userId: 'owner1' },
-      { userId: 'author1' },
-    ]);
+    prisma.threadMember.findMany.mockResolvedValue([{ userId: 'owner1' }, { userId: 'author1' }]);
 
     await listener.handlePostCreated(baseEvent);
 
@@ -92,10 +97,7 @@ describe('PostEventsListener 订阅过滤', () => {
       { userId: 'sub_thread', type: 'THREAD', targetUserId: null },
       { userId: 'sub_user', type: 'USER', targetUserId: 'author1' },
     ]);
-    prisma.threadMember.findMany.mockResolvedValue([
-      { userId: 'owner1' },
-      { userId: 'collab1' },
-    ]);
+    prisma.threadMember.findMany.mockResolvedValue([{ userId: 'owner1' }, { userId: 'collab1' }]);
 
     await listener.handlePostCreated(baseEvent);
 
@@ -115,5 +117,29 @@ describe('PostEventsListener 订阅过滤', () => {
     await listener.handlePostCreated(baseEvent);
 
     expect(notificationProducer.notify).not.toHaveBeenCalled();
+  });
+
+  it('同一条回复显式艾特后，不再发送重复的 reply 次级通知', async () => {
+    const { listener, notificationProducer, prisma, mentionsService } = buildListener();
+    mentionsService.parseAndCreate.mockResolvedValue([{ userId: 'replyAuthor' }]);
+    prisma.threadMember.findMany.mockResolvedValue([{ userId: 'owner1' }]);
+    prisma.post.findUnique.mockResolvedValue({ authorId: 'replyAuthor' });
+
+    await listener.handlePostCreated({
+      ...baseEvent,
+      postId: 'reply-post',
+      parentPostId: 'parent-post',
+      replyToPostId: 'parent-post',
+    });
+
+    const mentionCall = notificationProducer.notify.mock.calls.find(
+      (call: unknown[]) => call[0] === 'mention',
+    );
+    const replyCall = notificationProducer.notify.mock.calls.find(
+      (call: unknown[]) => call[0] === 'reply',
+    );
+    expect(mentionCall?.[1]).toEqual(['replyAuthor']);
+    expect(replyCall?.[1]).not.toContain('replyAuthor');
+    expect(replyCall?.[1]).toEqual(expect.arrayContaining(['owner1']));
   });
 });
