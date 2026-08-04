@@ -1,36 +1,43 @@
-/** Markdown 内容规则测试：纯空白/分隔线不可发布，图片和有效正文可发布 */
+/** Markdown v1 契约测试：以后端纯函数执行跨语言黄金语料 */
 
-import { hasVisibleMarkdownContent } from './markdown-content';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { hasVisibleMarkdownContent, normalizeMarkdownContent } from './markdown-content';
 
-describe('hasVisibleMarkdownContent', () => {
-  it('rejects blank lines and Milkdown empty paragraph markers', () => {
-    expect(hasVisibleMarkdownContent('\n\n<br />\n<br/>\n')).toBe(false);
+interface MarkdownFixtureCase {
+  id: string;
+  description: string;
+  input: string;
+  canonical: string;
+  visible: boolean;
+}
+
+interface MarkdownFixtureFile {
+  contract: string;
+  version: number;
+  cases: MarkdownFixtureCase[];
+}
+
+const fixturePath = resolve(__dirname, '../../contracts/markdown-v1-fixtures.json');
+const fixtures = JSON.parse(readFileSync(fixturePath, 'utf8')) as MarkdownFixtureFile;
+
+describe('Markdown v1 黄金语料', () => {
+  it('协议标识、版本和 case id 合法', () => {
+    expect(fixtures.contract).toBe('wenyousite-markdown');
+    expect(fixtures.version).toBe(1);
+    expect(fixtures.cases.length).toBeGreaterThan(0);
+    expect(new Set(fixtures.cases.map((item) => item.id)).size).toBe(fixtures.cases.length);
   });
 
-  it('rejects a thematic break by itself', () => {
-    expect(hasVisibleMarkdownContent('---')).toBe(false);
+  it.each(fixtures.cases)('$id 规范化结果一致：$description', ({ input, canonical }) => {
+    expect(normalizeMarkdownContent(input)).toBe(canonical);
   });
 
-  it('accepts an image by itself', () => {
-    expect(hasVisibleMarkdownContent('![图](https://example.com/a.png)')).toBe(true);
+  it.each(fixtures.cases)('$id 发布可见性一致：$description', ({ canonical, visible }) => {
+    expect(hasVisibleMarkdownContent(canonical)).toBe(visible);
   });
 
-  it('accepts code and text with surrounding blank lines', () => {
-    expect(hasVisibleMarkdownContent('\n\n```\n代码\n```\n')).toBe(true);
-    expect(hasVisibleMarkdownContent('\n\n**正文**\n<br />')).toBe(true);
-  });
-
-  it('accepts pure numeric正文，不把数字误判为有序列表前缀', () => {
-    expect(hasVisibleMarkdownContent('123')).toBe(true);
-    expect(hasVisibleMarkdownContent('1.00')).toBe(true);
-  });
-
-  it('仍然过滤只有列表标记的正文', () => {
-    expect(hasVisibleMarkdownContent('1.')).toBe(false);
-    expect(hasVisibleMarkdownContent('1)')).toBe(false);
-  });
-
-  it('rejects empty links and formatting-only text', () => {
-    expect(hasVisibleMarkdownContent('[ ]()\n***')).toBe(false);
+  it.each(fixtures.cases)('$id 规范化幂等', ({ canonical }) => {
+    expect(normalizeMarkdownContent(canonical)).toBe(canonical);
   });
 });
