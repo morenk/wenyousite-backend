@@ -17,6 +17,13 @@
 | `POST` | `/media/upload-done` | `@Auth()` | 确认上传完成（传入 mediaId），校验 S3 对象存在 + 归属，转 PROCESSING 并入队 |
 | `GET` | `/media/:id` | `@Auth()` | 查询图片处理状态和元信息（UPLOADING / PROCESSING / COMPLETED / FAILED） |
 
+## 响应契约
+
+- `POST /media/upload-url` 的 `data` 为 `UploadUrlResponseDto`：`uploadUrl`、`mediaId`、`objectKey`、`publicUrl`。
+- `POST /media/upload-done` 的 `data` 为 `ConfirmUploadResponseDto`：`media` 与 `processing`。
+- `GET /media/:id` 的 `data` 为 `MediaResponseDto`，包含状态、URL、尺寸及创建时间。
+- Swagger 中以上 DTO 均位于统一成功 envelope 的 `data` 字段，Web/Flutter 必须使用生成类型，不再手写响应结构。
+
 ## 核心业务规则
 
 - 文件类型白名单：`image/jpeg`, `image/png`, `image/gif`, `image/webp`, `image/avif`, `image/svg+xml`
