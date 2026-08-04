@@ -143,6 +143,14 @@ export class PostsService {
     // 校验主题帖访问权限（私密帖非参与人在此被拦截）
     await this.threadAccess.assertAccessible(subthread.threadId, userId);
 
+    if (dto.clientRequestId) {
+      const existingRequest = await this.findByClientRequestId(userId, dto.clientRequestId);
+      if (existingRequest) {
+        this.assertSameCreateRequest(existingRequest, subthreadId, dto, content);
+        return existingRequest;
+      }
+    }
+
     // 先查当前参与人状态（未加入时按未参与处理）
     const member = await this.prisma.threadMember.findUnique({
       where: { threadId_userId: { threadId: subthread.threadId, userId } },
@@ -194,41 +202,61 @@ export class PostsService {
     }
 
     // 事务：SELECT FOR UPDATE 锁子贴行 → 读 MAX → 创建楼层 → 更新 lastPostAt
-    const post = await this.prisma.$transaction(async (tx) => {
-      let floorNumber: number | null = null;
+    let duplicateRequest = false;
+    let post;
+    try {
+      post = await this.prisma.$transaction(async (tx) => {
+        let floorNumber: number | null = null;
 
-      if (!dto.parentPostId) {
-        await tx.$queryRaw`SELECT id FROM subthreads WHERE id = ${subthreadId} FOR UPDATE`;
-        const maxFloor = await tx.post.aggregate({
-          where: { subthreadId, kind: 'FLOOR', parentPostId: null },
-          _max: { floorNumber: true },
+        if (!dto.parentPostId) {
+          await tx.$queryRaw`SELECT id FROM subthreads WHERE id = ${subthreadId} FOR UPDATE`;
+          const maxFloor = await tx.post.aggregate({
+            where: { subthreadId, kind: 'FLOOR', parentPostId: null },
+            _max: { floorNumber: true },
+          });
+          floorNumber = (maxFloor._max.floorNumber ?? 0) + 1;
+        }
+
+        const p = await tx.post.create({
+          data: {
+            threadId: subthread.threadId,
+            subthreadId,
+            authorId: userId,
+            kind: 'FLOOR',
+            floorNumber,
+            parentPostId: dto.parentPostId ?? null,
+            replyToPostId: dto.replyToPostId ?? null,
+            clientRequestId: dto.clientRequestId ?? null,
+            content,
+          },
+          include: {
+            author: { select: authorSelect },
+          },
         });
-        floorNumber = (maxFloor._max.floorNumber ?? 0) + 1;
+
+        await tx.subthread.update({
+          where: { id: subthreadId },
+          data: { lastPostAt: new Date() },
+        });
+
+        return p;
+      });
+    } catch (error) {
+      if (dto.clientRequestId && (error as { code?: string })?.code === 'P2002') {
+        const existingRequest = await this.findByClientRequestId(userId, dto.clientRequestId);
+        if (existingRequest) {
+          this.assertSameCreateRequest(existingRequest, subthreadId, dto, content);
+          post = existingRequest;
+          duplicateRequest = true;
+        } else {
+          throw error;
+        }
+      } else {
+        throw error;
       }
+    }
 
-      const p = await tx.post.create({
-        data: {
-          threadId: subthread.threadId,
-          subthreadId,
-          authorId: userId,
-          kind: 'FLOOR',
-          floorNumber,
-          parentPostId: dto.parentPostId ?? null,
-          replyToPostId: dto.replyToPostId ?? null,
-          content,
-        },
-        include: {
-          author: { select: authorSelect },
-        },
-      });
-
-      await tx.subthread.update({
-        where: { id: subthreadId },
-        data: { lastPostAt: new Date() },
-      });
-
-      return p;
-    });
+    if (duplicateRequest) return post;
 
     // 发帖后通过事件解耦：@提及、通知由 PostEventsListener 处理（仅已发布帖）
     if (subthread.thread.published) {
@@ -252,6 +280,33 @@ export class PostsService {
     });
 
     return post;
+  }
+
+  private findByClientRequestId(userId: string, clientRequestId: string) {
+    return this.prisma.post.findFirst({
+      where: { authorId: userId, clientRequestId },
+      include: { author: { select: authorSelect } },
+    });
+  }
+
+  private assertSameCreateRequest(
+    post: { subthreadId: string; content: string; parentPostId: string | null; replyToPostId: string | null },
+    subthreadId: string,
+    dto: CreatePostDto,
+    content: string,
+  ) {
+    if (
+      post.subthreadId !== subthreadId
+      || post.content !== content
+      || post.parentPostId !== (dto.parentPostId ?? null)
+      || post.replyToPostId !== (dto.replyToPostId ?? null)
+    ) {
+      throw new BusinessException(
+        ErrorCode.CONFLICT,
+        'clientRequestId 已用于另一条发帖请求',
+        HttpStatus.CONFLICT,
+      );
+    }
   }
 
   /** 写入子贴正文（kind=BODY）：无正文则创建，有正文则乐观锁更新。仅 OWNER/COLLABORATOR 可操作 */

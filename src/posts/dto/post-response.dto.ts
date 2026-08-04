@@ -42,6 +42,9 @@ export class PostBaseResponseDto {
   @ApiProperty({ type: String, nullable: true })
   replyToPostId!: string | null;
 
+  @ApiProperty({ type: String, format: 'uuid', nullable: true, description: '客户端创建请求幂等键；正文帖和旧客户端帖子为 null' })
+  clientRequestId!: string | null;
+
   @ApiProperty({ description: 'Markdown 正文' })
   content!: string;
 

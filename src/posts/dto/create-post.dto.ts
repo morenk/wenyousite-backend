@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, MinLength, MaxLength } from 'class-validator';
+import { IsString, IsOptional, MinLength, MaxLength, IsUUID } from 'class-validator';
 import { IsCuid } from '../../common/decorators/is-cuid.decorator';
 
 /** 创建帖子 DTO */
@@ -21,4 +21,9 @@ export class CreatePostDto {
   @IsString()
   @IsCuid()
   replyToPostId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid', description: '客户端创建请求幂等键；同一次用户提交及网络重试必须复用' })
+  @IsOptional()
+  @IsUUID('4')
+  clientRequestId?: string;
 }

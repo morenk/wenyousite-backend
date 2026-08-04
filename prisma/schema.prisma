@@ -375,6 +375,7 @@ model Post {
   floorNumber   Int?      @map("floor_number")
   parentPostId  String?   @map("parent_post_id")
   replyToPostId String?   @map("reply_to_post_id")
+  clientRequestId String? @db.Uuid @map("client_request_id")
   content       String
   version       Int      @default(1) @map("lock_version")
   createdAt     DateTime  @default(now()) @map("created_at")
@@ -396,6 +397,7 @@ model Post {
   @@index([threadId, createdAt])
   @@index([parentPostId, createdAt])
   @@unique([subthreadId, floorNumber])
+  @@unique([authorId, clientRequestId])
   @@map("posts")
 }
 

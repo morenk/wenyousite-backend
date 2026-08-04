@@ -122,6 +122,63 @@ describe('PostsService', () => {
     );
   });
 
+  it('相同 clientRequestId 重试应返回首次帖子且不重复事务和事件', async () => {
+    const subthread = { id: 's1', threadId: 't1', postingPolicy: 'PARTICIPANTS', thread: { published: true } };
+    const existing = {
+      id: 'p1', subthreadId: 's1', authorId: 'u1', content: '相同正文',
+      parentPostId: null, replyToPostId: null, clientRequestId: '6f9619ff-8b86-4e4b-a59b-19a25f6d6f77',
+      author: { username: 'test' },
+    };
+    mockPrisma.subthread.findUnique.mockResolvedValue(subthread);
+    mockPrisma.post.findFirst.mockResolvedValue(existing);
+
+    const result = await service.create('s1', {
+      content: '相同正文',
+      clientRequestId: existing.clientRequestId,
+    }, 'u1');
+
+    expect(result).toBe(existing);
+    expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    expect(mockEventEmitter.emit).not.toHaveBeenCalled();
+  });
+
+  it('同一 clientRequestId 复用为不同正文应返回 409', async () => {
+    mockPrisma.subthread.findUnique.mockResolvedValue({
+      id: 's1', threadId: 't1', postingPolicy: 'PARTICIPANTS', thread: { published: true },
+    });
+    mockPrisma.post.findFirst.mockResolvedValue({
+      id: 'p1', subthreadId: 's1', authorId: 'u1', content: '旧正文',
+      parentPostId: null, replyToPostId: null,
+      author: { username: 'test' },
+    });
+
+    await expect(service.create('s1', {
+      content: '不同正文',
+      clientRequestId: '6f9619ff-8b86-4e4b-a59b-19a25f6d6f77',
+    }, 'u1')).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('并发请求唯一键竞争失败时应读取胜方结果且不重复发事件', async () => {
+    const requestId = '6f9619ff-8b86-4e4b-a59b-19a25f6d6f77';
+    const existing = {
+      id: 'p1', subthreadId: 's1', authorId: 'u1', content: '并发正文',
+      parentPostId: null, replyToPostId: null, clientRequestId: requestId,
+      author: { username: 'test' },
+    };
+    mockPrisma.subthread.findUnique.mockResolvedValue({
+      id: 's1', threadId: 't1', postingPolicy: 'PARTICIPANTS', thread: { published: true },
+    });
+    mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
+    mockPrisma.post.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(existing);
+    mockPrisma.$transaction.mockRejectedValue({ code: 'P2002' });
+
+    const result = await service.create('s1', { content: '并发正文', clientRequestId: requestId }, 'u1');
+
+    expect(result).toBe(existing);
+    expect(mockEventEmitter.emit).not.toHaveBeenCalled();
+    expect(mockReadingProgress.update).not.toHaveBeenCalled();
+  });
+
   it('create 楼中楼回复不应该有 floorNumber', async () => {
     const subthread = { id: 's1', threadId: 't1', postingPolicy: 'PARTICIPANTS', thread: { published: true } };
     mockPrisma.subthread.findUnique.mockResolvedValue(subthread);

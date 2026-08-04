@@ -43,4 +43,8 @@ describe('PostsController Swagger 响应契约', () => {
   it('帖子详情声明 PostDetailResponseDto', () => {
     expect(responseMetadata('findById')[200].type).toBe(PostDetailResponseDto);
   });
+
+  it('创建帖子声明 409 幂等键冲突', () => {
+    expect(responseMetadata('create')[409]).toBeDefined();
+  });
 });

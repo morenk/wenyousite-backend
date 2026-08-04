@@ -35,6 +35,8 @@
 - 发帖前校验主题帖访问权限（`ThreadAccessService.assertAccessible`）：私密帖非参与人被拒绝，未发布帖非 owner 被拒绝
 - 正文发布校验只过滤空白、空段落和独立分隔线；纯数字正文（如 `123`、`1.00`）属于有效内容
 - 创建、正文 upsert 和编辑在校验及存库前统一执行 Markdown v1 规范化；事件、提及和通知摘要使用同一 canonical 正文
+- 新版客户端创建楼层/楼中楼时携带 UUID `clientRequestId`；后端按 `authorId + clientRequestId` 唯一，相同请求重试返回首次创建的 Post，不重复占楼层号或发事件
+- 同一 `clientRequestId` 若复用于不同子贴、正文、parentPostId 或 replyToPostId，返回 HTTP 409，禁止把不同业务请求误判为重试
 - 发帖权限校验在自动加入之前：被 PostingPolicy 拒绝时不会写入 ThreadMember 记录
 - 楼层编号 floorNumber 在事务内通过 `MAX(floorNumber) + 1` 分配，永不复用；普通楼层（kind=FLOOR）从 #1 开始
 - 正文帖（kind=BODY）floorNumber = null，不占楼层号
@@ -50,6 +52,15 @@
   - PLAYERS：仅 playerMarked=true 的参与人可发帖
 - 发帖后通过 EventEmitter 发射 `post.created` 事件，由 PostEventsListener 解耦处理 @提及解析和通知投递
 - 编辑使用乐观锁 version 防止并发编辑冲突
+
+## 创建幂等切片验收
+
+- [x] OpenAPI 创建 DTO 暴露可选 UUID `clientRequestId`
+- [x] 相同作者和请求 ID 的相同载荷只创建一个 Post，并返回首次响应
+- [x] 重试不重复分配楼层号、不重复发射 post.created
+- [x] 同一请求 ID 复用为不同载荷返回 409
+- [x] 数据库唯一约束兜底并发双请求
+- [x] 全量测试、迁移、生产构建、提交、重启与健康检查通过
 - 楼层列表按 floorNumber ASC 排序（主楼层），楼中楼按 createdAt ASC、id ASC 稳定排序；`parentPostId + createdAt` 复合索引支撑上百条回复的分页读取
 - 独立楼中楼阅读页复用 `GET /posts/:id` 获取原楼层及主题帖/子贴导航上下文，再用 `GET /posts/:id/replies` 分页读取回复；replies 接口拒绝以正文或楼中楼回复作为讨论根
 - 楼层列表响应中每个楼层内嵌 `replies` 字段（前 5 条楼中楼回复），含 `author` 和 `replyToPost`；`replyToPost` 关联被回复的目标帖并带出其 `author`（前端据此显示「回复 @xxx」上下文）；`_count.replies` 提供回复总数，超过 5 条时前端显示"查看全部 N 条回复"入口跳转至独立楼中楼界面

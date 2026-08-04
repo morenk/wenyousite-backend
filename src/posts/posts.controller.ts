@@ -2,7 +2,7 @@ import {
   Controller, Get, Post, Put, Patch, Delete,
   Body, Param, Query, Req,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery, ApiOkResponse, ApiCreatedResponse, ApiUnauthorizedResponse, ApiForbiddenResponse, ApiNotFoundResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery, ApiOkResponse, ApiCreatedResponse, ApiUnauthorizedResponse, ApiForbiddenResponse, ApiNotFoundResponse, ApiConflictResponse } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
@@ -72,6 +72,7 @@ export class PostsController {
   @ApiCreatedResponse({ type: PostResponseDto, description: '创建的帖子（含楼层号或 parentPostId）' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   @ApiForbiddenResponse({ description: '无发帖权限（未加入子贴或权限不足）' })
+  @ApiConflictResponse({ description: 'clientRequestId 已用于不同发帖载荷' })
   async create(
     @Param('subthreadId') subthreadId: string,
     @Body() dto: CreatePostDto,
