@@ -8,7 +8,7 @@
 
 | 模型 | 用途 |
 |------|------|
-| `Notification` | 通知实体（userId + type + content + payload + 导航字段） |
+| `Notification` | 通知实体（userId + type + content + payload + 导航字段 + 稳定 eventKey） |
 
 | 枚举 | 值 |
 |------|-----|
@@ -38,6 +38,8 @@
 - 通知创建由 NotificationsService.create / createMany 方法提供，由 NotificationProducer（BullMQ）调用
 - 通知创建由 NotificationsService.create / createMany 方法提供，由 NotificationProducer（BullMQ）调用
 - 通知创建时的结构化导航字段（postId / threadId / fromUserId）在创建时写入，查询时直接关联返回
+- `eventKey` 是同一业务事件的稳定幂等键，实际按 `userId + eventKey` 唯一；队列重试、编辑重试不会重复插入通知
+- 同一篇帖子中，已收到显式 `mention` 的用户不会再收到该事件的 `new_post` / `reply` 次级通知
 - 定时清理任务每天凌晨 4 点清理 90 天前已读的通知
 - `payload` JSON 字段携带通知的结构化数据（actorName、action、preview 等），供前端灵活渲染
 - 通知摘要先把 Markdown 图片语法替换为 `[图片]`，再剥离其他 Markdown 标记；纯图片回复仍有可识别预览，同时图片 alt（包括 Milkdown 的 `1.00` 比例占位）不会进入通知文案

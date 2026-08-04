@@ -9,9 +9,11 @@ const mockPrisma = {
   postMention: {
     createMany: jest.fn(),
     findMany: jest.fn(),
+    deleteMany: jest.fn(),
   },
   threadMember: {
     findUnique: jest.fn(),
+    findMany: jest.fn(),
   },
   userFollow: {
     findMany: jest.fn(),
@@ -51,6 +53,8 @@ describe('MentionsService', () => {
     ]);
     mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
     mockPrisma.userFollow.findMany.mockResolvedValue([]);
+    mockPrisma.threadMember.findMany.mockResolvedValue([{ userId: 'u2' }, { userId: 'u3' }]);
+    mockPrisma.postMention.findMany.mockResolvedValue([]);
     mockPrisma.postMention.createMany.mockResolvedValue({});
     const result = await service.parseAndCreate('p1', '你好 @张三 和 @李四', 'u1', 't1');
     expect(result).toHaveLength(2);
@@ -60,6 +64,39 @@ describe('MentionsService', () => {
     mockPrisma.user.findMany.mockResolvedValue([{ id: 'u1', username: '张三' }]);
     const result = await service.parseAndCreate('p1', '你好 @张三', 'u1', 't1');
     expect(result).toHaveLength(0);
+  });
+
+  it('普通角色不能越过关注和 playerMarked 范围', async () => {
+    mockPrisma.user.findMany.mockResolvedValue([
+      { id: 'u2', username: '张三' },
+      { id: 'u3', username: '李四' },
+    ]);
+    mockPrisma.postMention.findMany.mockResolvedValue([]);
+    mockPrisma.userFollow.findMany.mockResolvedValue([{ followingId: 'u2' }]);
+    mockPrisma.threadMember.findMany.mockResolvedValue([]);
+    mockPrisma.postMention.createMany.mockResolvedValue({});
+
+    const result = await service.parseAndCreate('p1', '@张三 @李四', 'u1', 't1');
+    expect(result.map((item) => item.userId)).toEqual(['u2']);
+  });
+
+  it('只有楼主/协作者可以用 @全体玩家，且只快照 playerMarked 用户', async () => {
+    mockPrisma.user.findMany.mockResolvedValue([]);
+    mockPrisma.postMention.findMany.mockResolvedValue([]);
+    mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'COLLABORATOR' });
+    mockPrisma.threadMember.findMany.mockResolvedValue([
+      { user: { id: 'u2', username: '张三', avatar: null } },
+      { user: { id: 'u3', username: '李四', avatar: null } },
+    ]);
+    mockPrisma.postMention.createMany.mockResolvedValue({});
+
+    const result = await service.parseAndCreate('p1', '@全体玩家', 'u1', 't1');
+    expect(result.map((item) => item.userId)).toEqual(['u2', 'u3']);
+    expect(mockPrisma.postMention.createMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.arrayContaining([
+        expect.objectContaining({ source: 'ALL_PLAYERS' }),
+      ]),
+    }));
   });
 
   it('无 @ 的正文应该返回空', async () => {

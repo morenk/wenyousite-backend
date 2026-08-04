@@ -24,7 +24,11 @@ const mockPrisma = {
 const mockEventEmitter = { emit: jest.fn() };
 const mockThreadAccess = { assertAccessible: jest.fn(), assertCanManage: jest.fn().mockResolvedValue({ role: 'OWNER' }) };
 const mockNotificationProducer = { notify: jest.fn().mockResolvedValue(undefined) };
-const mockMentions = { extractUsernames: jest.fn().mockReturnValue([]), parseAndCreate: jest.fn().mockResolvedValue([]) };
+const mockMentions = {
+  extractUsernames: jest.fn().mockReturnValue([]),
+  parseAndCreate: jest.fn().mockResolvedValue([]),
+  syncMentions: jest.fn().mockResolvedValue([]),
+};
 const mockReadingProgress = { update: jest.fn().mockResolvedValue(undefined) };
 const mockRedis = { hincrby: jest.fn().mockResolvedValue(1), hgetall: jest.fn().mockResolvedValue({}), hset: jest.fn().mockResolvedValue(1), zadd: jest.fn().mockResolvedValue(1) };
 const mockCache = { buildKey: jest.fn((...parts: string[]) => parts.join(':')), get: jest.fn().mockResolvedValue(undefined), set: jest.fn().mockResolvedValue(undefined), del: jest.fn().mockResolvedValue(undefined), delByPattern: jest.fn().mockResolvedValue(undefined) };

@@ -83,6 +83,7 @@ export class PostEventsListener {
 
     const username = event.authorUsername ?? '有人';
     const preview = truncateMarkdown(event.content);
+    const explicitMentionRecipientIds = new Set<string>();
 
     // 1. @提及：解析正文中的 @用户名，验证权限规则，双向过滤拉黑，入队通知
     try {
@@ -94,11 +95,13 @@ export class PostEventsListener {
           mentionedUsers.map(u => u.userId), blockSets,
         );
         if (filteredIds.length > 0) {
+          filteredIds.forEach((id) => explicitMentionRecipientIds.add(id));
           await this.notificationProducer.notify(
             'mention',
             filteredIds,
             `${username} 在「${event.subthreadTitle}」提到了你：${preview}`,
             { postId: event.postId, threadId: event.threadId, fromUserId: event.userId,
+              eventKey: `mention:${event.postId}`,
               payload: { actorName: username, action: 'mention', preview, subthreadTitle: event.subthreadTitle } },
           );
         }
@@ -109,7 +112,7 @@ export class PostEventsListener {
     if (!event.parentPostId || event.isSubthreadBody) {
       try {
         const recipients = this.blockFilter.filterRecipients(
-          [...new Set([...managerIds, ...subscriberIds])], blockSets,
+          [...new Set([...managerIds, ...subscriberIds])].filter((id) => !explicitMentionRecipientIds.has(id)), blockSets,
         );
         if (recipients.length > 0) {
           const isSubthread = event.isSubthreadBody === true;
@@ -121,6 +124,7 @@ export class PostEventsListener {
             recipients,
             content,
             { postId: event.postId, threadId: event.threadId, fromUserId: event.userId,
+              eventKey: `new-post:${event.postId}`,
               payload: { actorName: username, action: 'new_post', preview, ...(isSubthread ? { subthreadTitle: event.subthreadTitle } : {}) } },
           );
         }
@@ -138,7 +142,7 @@ export class PostEventsListener {
         if (targetPost && targetPost.authorId !== event.userId) {
           const replyTargetId = targetPost.authorId;
           const recipients = this.blockFilter.filterRecipients(
-            [...new Set([replyTargetId, ...managerIds, ...subscriberIds])], blockSets,
+            [...new Set([replyTargetId, ...managerIds, ...subscriberIds])].filter((id) => !explicitMentionRecipientIds.has(id)), blockSets,
           );
           if (recipients.length > 0) {
             await this.notificationProducer.notify(
@@ -146,6 +150,7 @@ export class PostEventsListener {
               recipients,
               `${username} 回复了：${preview}`,
               { postId: event.postId, threadId: event.threadId, fromUserId: event.userId,
+                eventKey: `reply:${event.postId}`,
                 payload: { actorName: username, action: 'reply', preview } },
             );
           }

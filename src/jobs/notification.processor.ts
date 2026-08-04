@@ -13,7 +13,7 @@ export class NotificationProcessor extends WorkerHost {
   }
 
   async process(job: Job): Promise<void> {
-    const { type, recipients, content, postId, threadId, fromUserId, payload } = job.data;
+    const { type, recipients, content, postId, threadId, fromUserId, payload, eventKey } = job.data;
 
     switch (type) {
       case 'reply':
@@ -22,7 +22,7 @@ export class NotificationProcessor extends WorkerHost {
       case 'thread_created':
       case 'follow':
       case 'system':
-        await this.createNotifications(recipients, type, content, postId, threadId, fromUserId, payload);
+        await this.createNotifications(recipients, type, content, postId, threadId, fromUserId, payload, eventKey);
         break;
       case 'like':
         await this.createOrUpdateLikeNotifications(recipients, content, threadId, fromUserId, payload);
@@ -84,35 +84,43 @@ export class NotificationProcessor extends WorkerHost {
     threadId?: string,
     fromUserId?: string,
     payload?: any,
+    eventKey?: string,
   ) {
     if (userIds.length === 0) return;
 
-    const data = userIds.map((userId) => ({ userId, type: type as any, content, postId, threadId, fromUserId, payload }));
+    const data = userIds.map((userId) => ({
+      userId,
+      type: type as any,
+      content,
+      postId,
+      threadId,
+      fromUserId,
+      payload,
+      ...(eventKey ? { eventKey: `${eventKey}:${userId}` } : {}),
+    }));
 
     // 防止 BullMQ retry 时重复插入：过滤已存在记录，不整批跳过
-    const dedupWhere: any = { userId: { in: userIds }, type: type as any, postId, threadId };
-    if (fromUserId !== undefined) {
-      dedupWhere.fromUserId = fromUserId;
-    }
+    const dedupWhere: any = eventKey
+      ? { OR: userIds.map((userId) => ({ userId, eventKey: `${eventKey}:${userId}` })) }
+      : { userId: { in: userIds }, type: type as any, postId, threadId };
+    if (!eventKey && fromUserId !== undefined) dedupWhere.fromUserId = fromUserId;
     const existing = await this.prisma.notification.findMany({
       where: dedupWhere,
-      select: { userId: true },
+      select: { userId: true, eventKey: true },
     });
     if (existing.length > 0) {
-      const existingIds = new Set(existing.map(n => n.userId));
-      const newIds = userIds.filter(id => !existingIds.has(id));
-      if (newIds.length === 0) {
+      const existingKeys = new Set(existing.map((n) => eventKey ? n.eventKey : n.userId));
+      const newData = data.filter((item) => !existingKeys.has(eventKey ? (item as any).eventKey : item.userId));
+      if (newData.length === 0) {
         this.logger.warn(`All ${userIds.length} notifications of type '${type}' already exist (retry guard)`);
         return;
       }
-      await this.prisma.notification.createMany({
-        data: newIds.map((userId) => ({ userId, type: type as any, content, postId, threadId, fromUserId, payload })),
-      });
-      this.logger.log(`Created ${newIds.length} notifications of type '${type}' (${existing.length} duplicates skipped)`);
+      await this.prisma.notification.createMany({ data: newData as any });
+      this.logger.log(`Created ${newData.length} notifications of type '${type}' (${existing.length} duplicates skipped)`);
       return;
     }
 
-    await this.prisma.notification.createMany({ data });
+    await this.prisma.notification.createMany({ data: data as any });
     this.logger.log(`Created ${userIds.length} notifications of type '${type}'`);
   }
 }

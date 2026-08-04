@@ -7,7 +7,7 @@
 | 类型 | 枚举值 | 触发事件 | 触发源 | 触发位置 |
 |------|--------|----------|--------|----------|
 | 楼中楼回复 | `reply` | `post.created`（`parentPostId` 非空 + `!isSubthreadBody`） | `PostEventsListener` | `src/jobs/post-events.listener.ts` |
-| @提及 | `mention` | `post.created`（正文含 `@username`）or 编辑新增 @ | `PostEventsListener` → `MentionsService.parseAndCreate()` or `PostsService.update()` | `src/jobs/post-events.listener.ts`、`src/posts/posts.service.ts` |
+| @提及 | `mention` | `post.created`（正文含稳定用户链接/历史 `@username`/合法 `@全体玩家`）或编辑同步新增 @ | `PostEventsListener` → `MentionsService.syncMentions()` / `PostsService.update()` | `src/jobs/post-events.listener.ts`、`src/posts/posts.service.ts` |
 | 新帖通知 | `new_post` | `post.created`（`!parentPostId` 或 `isSubthreadBody`） | `PostEventsListener` | `src/jobs/post-events.listener.ts` |
 | 新主题帖 | `thread_created` | 主题帖 PATCH published=true | `ThreadsService.update()` | `src/threads/threads.service.ts` |
 | 被关注 | `follow` | 首次关注关系写入 | `UsersFollowController.follow()` | `src/users/users-follow.controller.ts` |
@@ -45,16 +45,16 @@
 
 ### 2. mention — @提及
 
-**触发条件**：帖子正文中包含 `@username` 模式
+**触发条件**：帖子正文中包含新版稳定用户链接、历史 `@username`，或合法角色使用 `@全体玩家`
 
 **接收者**：`MentionsService.parseAndCreate()` 返回的经过权限校验的用户列表
 
-**@提及权限规则**（`src/mentions/mentions.service.ts:filterByRules`）：
-1. 楼主可 @ 任何人（`isOwner → return true`）
-2. 已关注 → 可 @（`followingIds.has(u.id) → return true`）
-3. 帖内有身份 → 可 @ 该帖**发言过的人**（查询 `Post` 表 distinct authorId，单批上限 100 候选）
-4. 帖内无身份且无关注 → 全部拒绝
-5. @ 自己 → 不创建提及记录，不发送通知
+**@提及权限规则**（`src/mentions/mentions.service.ts`）：
+1. 所有角色只能 @ 自己关注的人，或当前帖内 `playerMarked=true` 的玩家身份用户
+2. 楼主/协作者额外可使用 `@全体玩家`，展开范围仍然只包含 `playerMarked=true` 的用户
+3. 普通用户使用 `@全体玩家` 会被服务端拒绝
+4. @ 自己、注销用户、超出单篇单人上限的目标不创建提及记录
+5. 编辑会同步提及快照，首次出现的 `@全体玩家` 不因后续新玩家加入而追溯发送
 
 **过滤**：双向拉黑过滤 — 被 @ 的用户如果拉黑了发帖人（`blockedAuthorIds`）或被发帖人拉黑（`authorBlockedIds`），均从通知接收者中移除。
 
@@ -76,6 +76,8 @@
 2. **THREAD 订阅者限制**：仅当发帖者是楼主（OWNER）或协作者（COLLABORATOR）时，THREAD 订阅者才进入接收者；USER 订阅者（订阅了该发帖者）不受限制
 3. 合并到 `Set` → 去重
 4. 双向过滤拉黑（`authorBlockedIds` + `blockedAuthorIds`）
+5. 显式 mention 已覆盖的用户从同一 `post.created` 事件的 `new_post` / `reply` 收件人中移除，避免一次发帖产生重复提醒
+6. 通知队列使用稳定 `eventKey`，按 `userId + eventKey` 唯一，BullMQ 重试安全
 
 ### 4. thread_created — 新主题帖
 

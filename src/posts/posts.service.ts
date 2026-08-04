@@ -322,13 +322,9 @@ export class PostsService {
       throw err;
     });
 
-    // 编辑新增 @提及通知：对比新旧正文，仅对新增的 @用户名创建提及和通知
+    // 编辑同步 @提及快照：新增目标通知，移除目标不再保留；全体玩家沿用首次快照。
     if (content !== oldContent) {
-      const oldNames = new Set(this.mentionsService.extractUsernames(oldContent));
-      const newNames = this.mentionsService.extractUsernames(content).filter(n => !oldNames.has(n));
-      if (newNames.length > 0) {
-        const fakeContent = newNames.map(n => `@${n}`).join(' ');
-        this.mentionsService.parseAndCreate(updated.id, fakeContent, userId, subthread.threadId)
+      this.mentionsService.syncMentions(updated.id, content, userId, subthread.threadId, oldContent)
           .then(async (mentioned) => {
             if (mentioned.length > 0) {
               const blockSets = await this.blockFilter.loadBlockSets(userId);
@@ -342,12 +338,12 @@ export class PostsService {
                 filteredIds,
                 `${updated.author.username} 在编辑后的正文里提到了你：${preview}`,
                 { postId: updated.id, threadId: subthread.threadId, fromUserId: userId,
+                  eventKey: `mention:${updated.id}`,
                   payload: { actorName: updated.author.username, action: 'mention', preview } },
               ).catch(() => {});
             }
           })
           .catch(() => {});
-      }
     }
 
     // 缓存失效事件
@@ -381,14 +377,10 @@ export class PostsService {
       include: { author: { select: authorSelect } },
     }).catch((err) => { if (err?.code === 'P2025') throw new BusinessException(ErrorCode.OPTIMISTIC_LOCK_CONFLICT, '帖子已被编辑，请刷新后重试', HttpStatus.CONFLICT); throw err; });
 
-    // 编辑新增 @提及通知：对比新旧正文，仅对新增的 @用户名创建提及和通知
+    // 编辑同步 @提及快照：新增目标通知，移除目标不再保留；全体玩家沿用首次快照。
     if (dto.content !== oldContent) {
-      const oldNames = new Set(this.mentionsService.extractUsernames(oldContent));
-      const newNames = this.mentionsService.extractUsernames(dto.content).filter(n => !oldNames.has(n));
-      if (newNames.length > 0 && postLight.threadId) {
-        // 构造仅含新增 @用户名 的正文片段以复用 parseAndCreate 逻辑
-        const fakeContent = newNames.map(n => `@${n}`).join(' ');
-        this.mentionsService.parseAndCreate(updated.id, fakeContent, userId, postLight.threadId)
+      if (postLight.threadId) {
+        this.mentionsService.syncMentions(updated.id, dto.content, userId, postLight.threadId, oldContent)
           .then(async (mentioned) => {
             if (mentioned.length > 0) {
               const blockSets = await this.blockFilter.loadBlockSets(userId);
@@ -402,6 +394,7 @@ export class PostsService {
                 filteredIds,
                 `${updated.author.username} 在编辑后的帖子里提到了你：${preview}`,
                 { postId: updated.id, threadId: postLight.threadId, fromUserId: userId,
+                  eventKey: `mention:${updated.id}`,
                   payload: { actorName: updated.author.username, action: 'mention', preview } },
               ).catch(() => {});
             }

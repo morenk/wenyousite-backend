@@ -59,6 +59,11 @@ enum NotificationType {
   system
 }
 
+enum MentionSource {
+  DIRECT
+  ALL_PLAYERS
+}
+
 enum SubscriptionType {
   THREAD
   USER
@@ -398,12 +403,13 @@ model PostMention {
   id              String   @id @default(cuid())
   postId          String   @map("post_id")
   mentionedUserId String   @map("mentioned_user_id")
+  source          MentionSource @default(DIRECT)
   createdAt       DateTime @default(now()) @map("created_at")
 
   post          Post @relation(fields: [postId], references: [id], onDelete: Cascade)
   mentionedUser User @relation("mentionedUser", fields: [mentionedUserId], references: [id], onDelete: Cascade)
 
-  @@unique([postId, mentionedUserId])
+  @@unique([postId, mentionedUserId, source])
   @@map("post_mentions")
 }
 
@@ -430,6 +436,7 @@ model Notification {
   postId      String?  @map("post_id")
   threadId    String?  @map("thread_id")
   fromUserId  String?  @map("from_user_id")
+  eventKey    String   @default(cuid()) @map("event_key")
   isRead      Boolean  @default(false) @map("is_read")
   createdAt   DateTime @default(now()) @map("created_at")
 
@@ -439,6 +446,7 @@ model Notification {
   fromUser User? @relation("NotificationFromUser", fields: [fromUserId], references: [id], onDelete: SetNull)
 
   @@index([userId, isRead, createdAt])
+  @@unique([userId, eventKey])
   @@map("notifications")
 }
 

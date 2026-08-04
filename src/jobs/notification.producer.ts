@@ -12,7 +12,14 @@ export class NotificationProducer {
     type: string,
     recipients: string[],
     content: string,
-    opts?: { postId?: string; threadId?: string; fromUserId?: string; payload?: Record<string, any> },
+    opts?: {
+      postId?: string;
+      threadId?: string;
+      fromUserId?: string;
+      payload?: Record<string, any>;
+      /** 同一业务事件的稳定键；处理器会按收件人拼接，保证队列重试幂等。 */
+      eventKey?: string;
+    },
   ) {
     if (recipients.length === 0) return;
     await this.notificationQueue.add(

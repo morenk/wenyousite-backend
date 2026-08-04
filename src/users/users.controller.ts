@@ -10,6 +10,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BookmarksService } from '../bookmarks/bookmarks.service';
 import { ThreadsService } from '../threads/threads.service';
 import { truncateMarkdown } from '../common/markdown-truncate';
+import { MentionsService } from '../mentions/mentions.service';
+import { MentionCandidatesResponseDto } from './dto/mention-candidate.dto';
 
 /** 用户控制器：查询和修改个人资料 */
 @ApiTags('Users')
@@ -20,6 +22,7 @@ export class UsersController {
     private prisma: PrismaService,
     private bookmarksService: BookmarksService,
     private threadsService: ThreadsService,
+    private mentionsService: MentionsService,
   ) {}
 
   @Get('search')
@@ -37,6 +40,28 @@ export class UsersController {
       take: 10,
       orderBy: { username: 'asc' },
     });
+  }
+
+  @Get('mention-candidates')
+  @AuthRead()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '获取当前主题帖可艾特候选（关注的人 + 帖内标记玩家）' })
+  @ApiQuery({ name: 'threadId', required: true, description: '主题帖 ID' })
+  @ApiQuery({ name: 'q', required: false, description: '用户名搜索关键词' })
+  @ApiOkResponse({ type: MentionCandidatesResponseDto, description: '最多返回 20 个可艾特用户，并返回是否允许 @全体玩家' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
+  async mentionCandidates(
+    @Query('threadId') threadId: string,
+    @Query('q') q: string | undefined,
+    @Req() req: FastifyRequest,
+  ) {
+    const user = req['user'] as { id: string };
+    if (!threadId) return { users: [], canMentionAllPlayers: false };
+    const [users, canMentionAllPlayers] = await Promise.all([
+      this.mentionsService.findCandidates(threadId, user.id, q),
+      this.mentionsService.canMentionAllPlayers(threadId, user.id),
+    ]);
+    return { users, canMentionAllPlayers };
   }
 
   @Get('me')

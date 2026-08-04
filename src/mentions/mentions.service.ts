@@ -1,93 +1,237 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
-/** @提及解析服务：从正文提取 @用户名 并创建关联记录 */
+export const ALL_PLAYERS_MENTION = '全体玩家';
+export const MAX_DIRECT_MENTIONS = 10;
+
+type MentionSource = 'DIRECT' | 'ALL_PLAYERS';
+
+export interface MentionedUser {
+  userId: string;
+  username: string;
+  source: MentionSource;
+}
+
+export interface MentionCandidate {
+  id: string;
+  username: string;
+  avatar: string | null;
+  relation: 'FOLLOWING' | 'PLAYER';
+}
+
+interface MentionTokens {
+  usernames: string[];
+  userIds: string[];
+  allPlayers: boolean;
+}
+
+/** @提及解析与候选范围服务。权限规则必须在此处集中校验，不能只依赖编辑器。 */
 @Injectable()
 export class MentionsService {
-  // 匹配 @用户名 的正则（支持字母、数字、下划线、中文）
-  private readonly MENTION_REGEX = /@([a-zA-Z0-9_\u4e00-\u9fff]{2,24})/g;
+  private readonly mentionRegex = /@([a-zA-Z0-9_\u4e00-\u9fff]{1,24})/g;
+  private readonly canonicalMentionRegex = /\[@[^\]]{1,32}\]\(\/users\/([a-zA-Z0-9_-]+)\)/g;
 
   constructor(private prisma: PrismaService) {}
 
-  /** 从帖子正文提取 @提及并创建 PostMention 记录
-   *  规则：1. 关注对方→可@  2. 同帖内玩家之间可@
-   *  3. 玩家可@楼主  4. 楼主可@任何人  5. @自己不记录 */
-  async parseAndCreate(postId: string, content: string, excludeUserId: string, threadId?: string) {
-    const usernames = this.extractUsernames(content);
-    if (usernames.length === 0) return [];
-
-    const users = await this.prisma.user.findMany({
-      where: { username: { in: usernames } },
-      select: { id: true, username: true },
-    });
-    if (users.length === 0) return [];
-
-    // @自己的跳过
-    let candidates = users.filter((u) => u.id !== excludeUserId);
-    if (candidates.length === 0) return [];
-
-    // 有主题帖上下文时，按规则过滤
-    if (threadId) {
-      candidates = await this.filterByRules(candidates, excludeUserId, threadId);
-    }
-
-    if (candidates.length === 0) return [];
-
-    await this.prisma.postMention.createMany({
-      data: candidates.map((u) => ({ postId, mentionedUserId: u.id })),
-      skipDuplicates: true,
-    });
-
-    return candidates.map((u) => ({ userId: u.id, username: u.username }));
+  /** 创建时同步提及快照；返回本次新增的收件人，供通知队列使用。 */
+  async parseAndCreate(
+    postId: string,
+    content: string,
+    excludeUserId: string,
+    threadId?: string,
+    previousContent?: string,
+  ) {
+    return this.syncMentions(postId, content, excludeUserId, threadId, previousContent);
   }
 
-  /** 在主题帖上下文，按关注/帖内发言者/楼主规则过滤可 @ 用户 */
-  private async filterByRules(
-    candidates: { id: string; username: string }[],
+  async syncMentions(
+    postId: string,
+    content: string,
+    excludeUserId: string,
+    threadId?: string,
+    previousContent?: string,
+  ): Promise<MentionedUser[]> {
+    const tokens = this.extractMentionTokens(content);
+    if (!threadId) return [];
+    if (tokens.usernames.length === 0 && tokens.userIds.length === 0 && !tokens.allPlayers) return [];
+
+    const existing = (await this.prisma.postMention.findMany({
+      where: { postId },
+      include: { mentionedUser: { select: { id: true, username: true, avatar: true } } },
+    })) ?? [];
+
+    const directUsers = await this.findDirectUsers(tokens);
+    const directCandidates = await this.filterDirectCandidates(directUsers, excludeUserId, threadId);
+    const desired = new Map<string, { userId: string; source: MentionSource; username: string }>();
+
+    for (const user of directCandidates.slice(0, MAX_DIRECT_MENTIONS)) {
+      desired.set(`${user.id}:DIRECT`, { userId: user.id, source: 'DIRECT', username: user.username });
+    }
+
+    if (tokens.allPlayers && await this.canMentionAllPlayers(excludeUserId, threadId)) {
+      const previousHadGroup = previousContent
+        ? this.extractMentionTokens(previousContent).allPlayers
+        : false;
+      const existingGroup = existing.filter((mention) => mention.source === 'ALL_PLAYERS');
+      const groupUsers = previousHadGroup && existingGroup.length > 0
+        ? existingGroup.map((mention) => mention.mentionedUser)
+        : await this.findMarkedPlayers(threadId);
+
+      for (const user of groupUsers) {
+        if (user.id === excludeUserId) continue;
+        desired.set(`${user.id}:ALL_PLAYERS`, {
+          userId: user.id,
+          source: 'ALL_PLAYERS',
+          username: user.username,
+        });
+      }
+    }
+
+    const existingByKey = new Map(
+      existing.map((mention) => [`${mention.mentionedUserId}:${mention.source}`, mention]),
+    );
+    const desiredKeys = new Set(desired.keys());
+    const staleIds = existing
+      .filter((mention) => !desiredKeys.has(`${mention.mentionedUserId}:${mention.source}`))
+      .map((mention) => mention.id);
+    if (staleIds.length > 0) {
+      await this.prisma.postMention.deleteMany({ where: { id: { in: staleIds } } });
+    }
+
+    const added = [...desired.values()].filter(
+      (mention) => !existingByKey.has(`${mention.userId}:${mention.source}`),
+    );
+    if (added.length > 0) {
+      await this.prisma.postMention.createMany({
+        data: added.map((mention) => ({
+          postId,
+          mentionedUserId: mention.userId,
+          source: mention.source,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    // 同一用户同时被单人和全体命中时只发一条通知；记录层仍保留两个来源。
+    const uniqueUsers = new Map<string, MentionedUser>();
+    for (const mention of added) {
+      if (!uniqueUsers.has(mention.userId)) {
+        uniqueUsers.set(mention.userId, mention);
+      }
+    }
+    return [...uniqueUsers.values()];
+  }
+
+  /** 编辑器候选：关注列表与帖内 playerMarked=true 的用户并集。 */
+  async findCandidates(threadId: string, userId: string, query?: string) {
+    const normalizedQuery = query?.trim();
+    const userFilter = normalizedQuery
+      ? { username: { contains: normalizedQuery, mode: 'insensitive' as const } }
+      : {};
+    const [following, players] = await Promise.all([
+      this.prisma.userFollow.findMany({
+        where: { followerId: userId, following: { deletedAt: null, ...userFilter } },
+        select: { following: { select: { id: true, username: true, avatar: true } } },
+      }),
+      this.prisma.threadMember.findMany({
+        where: { threadId, playerMarked: true, user: { deletedAt: null, ...userFilter } },
+        select: { user: { select: { id: true, username: true, avatar: true } } },
+      }),
+    ]);
+
+    const candidates = new Map<string, MentionCandidate>();
+    for (const item of following) {
+      candidates.set(item.following.id, { ...item.following, relation: 'FOLLOWING' });
+    }
+    for (const item of players) {
+      const previous = candidates.get(item.user.id);
+      candidates.set(item.user.id, {
+        ...item.user,
+        relation: previous?.relation ?? 'PLAYER',
+      });
+    }
+    return [...candidates.values()]
+      .filter((candidate) => candidate.id !== userId)
+      .sort((a, b) => a.username.localeCompare(b.username))
+      .slice(0, 20);
+  }
+
+  async canMentionAllPlayers(userId: string, threadId: string) {
+    const actor = await this.prisma.threadMember.findUnique({
+      where: { threadId_userId: { threadId, userId } },
+      select: { role: true },
+    });
+    return actor?.role === 'OWNER' || actor?.role === 'COLLABORATOR';
+  }
+
+  private async findDirectUsers(tokens: MentionTokens) {
+    const or: any[] = [];
+    if (tokens.userIds.length > 0) or.push({ id: { in: tokens.userIds } });
+    if (tokens.usernames.length > 0) or.push({ username: { in: tokens.usernames } });
+    if (or.length === 0) return [];
+    return this.prisma.user.findMany({
+      where: { OR: or, deletedAt: null },
+      select: { id: true, username: true, avatar: true },
+    });
+  }
+
+  private async filterDirectCandidates(
+    candidates: { id: string; username: string; avatar?: string | null }[],
     userId: string,
     threadId: string,
   ) {
-    const actor = await this.prisma.threadMember.findUnique({
-      where: { threadId_userId: { threadId, userId } },
-    });
-    const isOwner = actor?.role === 'OWNER';
-
-    const following = await this.prisma.userFollow.findMany({
-      where: { followerId: userId, followingId: { in: candidates.map((u) => u.id) } },
-      select: { followingId: true },
-    });
-    const followingIds = new Set(following.map((f) => f.followingId));
-
-    if (!actor && followingIds.size === 0) return [];
-
-    // 帖内非楼主角色：仅可 @ 该帖内发言过的人（分批查询，单批最多 100 个）
-    const candidateIds = candidates.map((u) => u.id);
-    let posterIds: Set<string> | null = null;
-    if (actor && !isOwner) {
-      const posters = await this.prisma.post.findMany({
-        where: { threadId, deletedAt: null, authorId: { in: candidateIds.slice(0, 100) } },
-        select: { authorId: true },
-        distinct: ['authorId'],
-      });
-      posterIds = new Set(posters.map((p) => p.authorId));
-    }
-
-    return candidates.filter((u) => {
-      if (isOwner) return true;
-      if (followingIds.has(u.id)) return true;
-      if (posterIds && posterIds.has(u.id)) return true;
-      return false;
-    });
+    if (candidates.length === 0) return [];
+    const ids = candidates.filter((candidate) => candidate.id !== userId).map((candidate) => candidate.id);
+    if (ids.length === 0) return [];
+    const [followingResult, markedMembersResult] = await Promise.all([
+      this.prisma.userFollow.findMany({
+        where: { followerId: userId, followingId: { in: ids } },
+        select: { followingId: true },
+      }),
+      this.prisma.threadMember.findMany({
+        where: { threadId, playerMarked: true, userId: { in: ids } },
+        select: { userId: true },
+      }),
+    ]);
+    const following = followingResult ?? [];
+    const markedMembers = markedMembersResult ?? [];
+    const allowedIds = new Set([
+      ...following.map((item) => item.followingId),
+      ...markedMembers.map((item) => item.userId),
+    ]);
+    return candidates.filter((candidate) => allowedIds.has(candidate.id));
   }
 
-  /** 从正文提取所有 @用户名 */
+  private async findMarkedPlayers(threadId: string) {
+    const members = await this.prisma.threadMember.findMany({
+      where: { threadId, playerMarked: true, user: { deletedAt: null } },
+      select: { user: { select: { id: true, username: true, avatar: true } } },
+    });
+    return members.map((member) => member.user);
+  }
+
+  private extractMentionTokens(content: string): MentionTokens {
+    const withoutCode = content.replace(/```[\s\S]*?```|`[^`\n]*`/g, '');
+    const userIds: string[] = [];
+    const withoutCanonical = withoutCode.replace(this.canonicalMentionRegex, (_, userId: string) => {
+      userIds.push(userId);
+      return ' ';
+    });
+    const allPlayers = new RegExp(`@${ALL_PLAYERS_MENTION}(?![a-zA-Z0-9_\u4e00-\u9fff])`, 'u').test(withoutCanonical);
+    const usernames = [...withoutCanonical.matchAll(this.mentionRegex)]
+      .map((match) => match[1])
+      .filter((username): username is string => username !== ALL_PLAYERS_MENTION);
+    return {
+      usernames: [...new Set(usernames)],
+      userIds: [...new Set(userIds)],
+      allPlayers,
+    };
+  }
+
   extractUsernames(content: string): string[] {
-    const matches = content.match(this.MENTION_REGEX);
-    if (!matches) return [];
-    return [...new Set(matches.map((m) => m.slice(1)))]; // 去重
+    return this.extractMentionTokens(content).usernames;
   }
 
-  /** 获取某个帖子的所有 @提及 */
   async findByPost(postId: string) {
     return this.prisma.postMention.findMany({
       where: { postId },

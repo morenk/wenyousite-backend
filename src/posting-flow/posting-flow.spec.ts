@@ -28,7 +28,7 @@ const createMockPrisma = () => ({
   threadTopicTag: { createMany: jest.fn() },
   subthread: { findMany: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn(), aggregate: jest.fn(), create: jest.fn(), update: jest.fn() },
   post: { findUnique: jest.fn(), findMany: jest.fn(), findFirst: jest.fn(), aggregate: jest.fn(), create: jest.fn(), update: jest.fn() },
-  postMention: { createMany: jest.fn(), findMany: jest.fn() },
+  postMention: { createMany: jest.fn(), findMany: jest.fn(), deleteMany: jest.fn() },
   userFollow: { findMany: jest.fn() },
   userBlock: { findMany: jest.fn() },
   draft: { findMany: jest.fn(), findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() },
@@ -1106,6 +1106,8 @@ prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', subthread: 
       ]);
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
       prisma.userFollow.findMany.mockResolvedValue([]);
+      prisma.threadMember.findMany.mockResolvedValue([{ userId: 'u2' }, { userId: 'u3' }]);
+      prisma.postMention.findMany.mockResolvedValue([]);
       prisma.postMention.createMany.mockResolvedValue({ count: 2 });
       const result = await mentionsService.parseAndCreate('p1', '你好 @张三 和 @李四', 'u1', 't1');
       expect(result).toHaveLength(2);
