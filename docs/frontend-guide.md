@@ -20,6 +20,8 @@
 
 所有成功和失败响应均为 `{ code, message, data, meta? }` 结构：
 
+Swagger `/api/docs-json` 同样输出这一真实 envelope，可直接用于 Web/Flutter 客户端生成；生成模型中的业务对象位于 `data`，分页信息位于 `meta`。
+
 **成功（单对象）**
 ```json
 { "code": 0, "message": "ok", "data": { ... } }

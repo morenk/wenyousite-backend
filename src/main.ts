@@ -10,6 +10,7 @@ import fastifyHelmet from '@fastify/helmet';
 import fastifyCookie from '@fastify/cookie';
 import * as Sentry from '@sentry/node';
 import { AppModule } from './app.module';
+import { applySuccessResponseEnvelope } from './common/swagger/success-response-envelope';
 
 async function bootstrap() {
   // Sentry 错误监控：配置 DSN 时启用
@@ -69,7 +70,9 @@ async function bootstrap() {
       .addTag('Health', '健康检查 — 数据库连通')
       .addTag('Admin', '管理后台 — 系统通知、用户搜索')
       .build();
-    const document = SwaggerModule.createDocument(app, config);
+    const document = applySuccessResponseEnvelope(
+      SwaggerModule.createDocument(app, config),
+    );
     SwaggerModule.setup('api/docs', app, document, {
       swaggerOptions: { persistAuthorization: true },
     });
