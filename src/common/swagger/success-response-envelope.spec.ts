@@ -101,7 +101,15 @@ describe('applySuccessResponseEnvelope', () => {
       properties: {
         code: { type: 'integer', enum: [0], example: 0 },
         message: { type: 'string', example: 'ok' },
-        meta: { type: 'object', additionalProperties: true },
+        meta: { $ref: '#/components/schemas/ApiPaginationMeta' },
+      },
+    });
+    expect(document.components?.schemas?.ApiPaginationMeta).toEqual({
+      type: 'object',
+      required: ['cursor', 'hasMore'],
+      properties: {
+        cursor: { type: 'string', nullable: true },
+        hasMore: { type: 'boolean' },
       },
     });
     expect(document.paths['/candidates'].get?.responses['401']).toEqual({ description: '未登录' });

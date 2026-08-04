@@ -11,6 +11,8 @@ type SchemaObject = NonNullable<JsonContent['schema']>;
 
 const ENVELOPE_SCHEMA_NAME = 'ApiSuccessEnvelope';
 const ENVELOPE_SCHEMA_REF = `#/components/schemas/${ENVELOPE_SCHEMA_NAME}`;
+const PAGINATION_META_SCHEMA_NAME = 'ApiPaginationMeta';
+const PAGINATION_META_SCHEMA_REF = `#/components/schemas/${PAGINATION_META_SCHEMA_NAME}`;
 const HTTP_METHODS = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'] as const;
 
 function isReferenceObject(value: object): value is ReferenceObject {
@@ -64,13 +66,21 @@ function wrapOperation(operation: OperationObject): void {
 export function applySuccessResponseEnvelope(document: OpenAPIObject): OpenAPIObject {
   document.components ??= {};
   document.components.schemas ??= {};
+  document.components.schemas[PAGINATION_META_SCHEMA_NAME] = {
+    type: 'object',
+    required: ['cursor', 'hasMore'],
+    properties: {
+      cursor: { type: 'string', nullable: true },
+      hasMore: { type: 'boolean' },
+    },
+  };
   document.components.schemas[ENVELOPE_SCHEMA_NAME] = {
     type: 'object',
     required: ['code', 'message'],
     properties: {
       code: { type: 'integer', enum: [0], example: 0 },
       message: { type: 'string', example: 'ok' },
-      meta: { type: 'object', additionalProperties: true },
+      meta: { $ref: PAGINATION_META_SCHEMA_REF },
     },
   };
 

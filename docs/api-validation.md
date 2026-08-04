@@ -250,6 +250,7 @@ export class XxxQueryDto extends CursorPaginationDto {
 - Swagger 中的所有 2xx JSON 响应必须与运行时一致，顶层固定为 `code`、`message`、`data`，分页响应额外包含 `meta`。
 - 控制器上的 `@ApiOkResponse`、`@ApiCreatedResponse` 等装饰器描述的是拦截器包装前的业务数据；创建 OpenAPI 文档后，由公共转换器统一补上成功响应 envelope，避免每个控制器重复声明。
 - 已声明业务响应 DTO 的端点，`data` 保留该 DTO/数组类型；尚未声明响应 DTO 的端点，`data` 暂记为任意值，但 envelope 结构仍必须准确。
+- `meta` 使用统一 `ApiPaginationMeta` schema：`cursor: string | null`、`hasMore: boolean`；非分页响应不返回该可选字段。
 - Flutter、Web 等生成式客户端必须直接消费 Swagger 中的 envelope 类型，不得再假设成功响应是业务 DTO 顶层对象。
 
 **分页成功**（服务返回 `PaginatedResult` 实例时，`items` 提取到 `data`，`pagination` 提取到 `meta`）：
