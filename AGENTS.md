@@ -25,7 +25,7 @@ NestJS + Fastify + PostgreSQL + Prisma + Redis + BullMQ，模块化单体架构�
 | 邮件 | nodemailer | 阿里云邮件推送 DirectMail SMTP（smtpdm.aliyun.com） |
 | 文档 | @nestjs/swagger | /api/docs (仅 dev) |
 | 健康检查 | @nestjs/terminus | /api/v1/health |
-| 测试 | Jest + ts-jest | 16 套件 255 用例 |
+| 测试 | Jest + ts-jest | 单元、服务和控制器测试；数量由测试运行器统计，不在文档手写 |
 
 ## 项目结构
 
@@ -120,22 +120,33 @@ scripts/
 | `pnpm install` | 安装依赖 |
 | `pnpm build` | 编译 |
 | `pnpm start:dev` | 开发服务器 |
-| `pnpm test` | 单元测试 (16 套件 255 用例) |
+| `pnpm lint` | ESLint 只检查，不改文件 |
+| `pnpm lint:fix` | ESLint 自动修复 |
+| `pnpm typecheck` | TypeScript 类型检查 |
+| `pnpm test` | Jest 单元/服务/控制器测试 |
+| `pnpm test:e2e` | 本机测试环境 API E2E（需 `API_E2E_ENV=test`） |
+| `pnpm check` | 唯一质量门禁：lint + typecheck + test + build |
+| `pnpm check:full` | 发布前完整门禁：check + API E2E |
 | `pnpm prisma:studio` | 数据库 GUI |
 | `npx tsx scripts/set-admin.ts <email>` | 升级管理员 |
 | `bash scripts/deploy.sh` | 生产部署 |
 | `bash scripts/backup.sh` | 数据库备份 |
 
+当前 ESLint 历史基线为 158 个 warning，`pnpm lint` 通过 `--max-warnings 158` 执行债务棘轮：新改动不得增加 warning；清理后应同步下调该数字，最终降为 0。
+
 ## 部署
 
 ```bash
-echo "DOMAIN=xxx.com" > .env
+cp .env.example .env.prod
+# 编辑 .env.prod，填入生产配置
 bash scripts/deploy.sh
 ```
 
 ### 本地 VPS 生产模式运行（改代码需重启）
 
-VPS 上手动迭代用**生产模式**（`node dist/main`），比 `start:dev`（watch + ts 编译）省内存、RSS 稳定不涨。**生产模式没有热更新**：改代码必须 `pnpm build` 后重启进程。
+VPS 上手动迭代用**生产模式**（`node dist/main`），比 `start:dev`（watch + ts 编译）省内存、RSS 稳定不涨。**生产模式没有热更新**：改代码必须重新构建后重启进程。完整发布优先使用 `scripts/deploy.sh`；下方仅适用于不含 Schema 变更的单服务手动重启。
+
+生产部署与普通代码提交解耦。只有用户明确要求发布，或当前任务本身就是部署时，才允许执行生产迁移、重启或外部状态变更。一个发布批次可以包含多个原子提交，但只部署和验证一次；纯文档变更不重启服务。
 
 ```bash
 cd /root/wenyousite/wenyousite-backend
@@ -149,18 +160,27 @@ setsid nohup env NODE_ENV=production node dist/main </dev/null \
 - 日志：`/tmp/opencode/wenyousite-backend.log`
 - 前端对应的生产模式迭代流程见前端 `AGENTS.md` 第 11 节
 
+### 数据库迁移与发布兼容
+
+- Schema 变更默认采用 **expand → migrate/backfill → contract**：先增加兼容字段/表并双读写，再迁移数据和客户端，最后在后续发布移除旧结构。
+- 禁止在同一发布中直接删除仍可能被上一版本前后端读取的字段、枚举值或索引。
+- 回填脚本必须幂等、可重入、可观察进度，并在模块文档写明预估数据量、锁表风险和失败恢复方式。
+- 发布前执行备份确认、`prisma migrate status`、`pnpm check`；迁移后再切换依赖新结构的应用版本。部署脚本不得让新代码在旧 Schema 上运行。
+- Prisma 生产迁移原则上前滚修复；确需应用回滚时，必须确认数据可逆并记录恢复步骤。
+- 发布后验证数据库、Redis、队列以及本次改动涉及的关键 API，并观察日志；持续 5xx、健康检查或关键路径失败时停止发布并回到上一已验证版本。
+
 ## 代码规范
 
-### 中文注释（强制）
+### 注释规范
 
 | 元素 | 要求 | 示例 |
 |------|------|------|
-| 每个 `.ts` 文件头部 | 文件用途说明（1 行） | `/** 用户服务：查询、更新、关注、拉黑 */` |
-| 每个 `class` | 类职责说明（1-2 行） | `/** 认证服务：注册、登录、Token 刷新 */` |
-| 每个 `public` 方法 | 功能说明（1 行） | `/** 注册新用户 */` |
-| 关键逻辑段 | 行内注释 | `// 过滤掉被拉黑的用户，不发送通知` |
+| 文件/class | 仅职责无法从路径和名称判断时说明 | `/** 认证服务：注册、登录、Token 刷新 */` |
+| public 方法 | 仅存在权限、副作用、事务或兼容约束时说明 | `/** 注册用户并在同一事务创建初始会话 */` |
+| 关键逻辑段 | 解释原因、约束和不变量，不复述代码 | `// 拉黑双向生效，因此查询和通知都必须过滤` |
 | DTO 字段 | `@ApiProperty({ description: '中文描述' })` | — |
-| 模块文件 | 模块用途说明 | `/** 主题帖模块：CRUD、成员管理 */` |
+
+不要求为机械 getter、显然的 CRUD 或框架样板补叙述性注释。公共 API 的 Swagger 描述、复杂权限规则和数据迁移说明仍为强制项。
 
 ### 守卫使用规范
 
@@ -185,14 +205,17 @@ setsid nohup env NODE_ENV=production node dist/main </dev/null \
 | 完成一批文档更新 | 某模块 .md 同步更新 |
 
 **必须**遵守：
-- 每次提交的代码改动，必须同步更新对应模块的 `docs/modules/<module>.md` 文档：端点表、业务规则、请求/响应格式、前端指引等章节如有变更，一并在同一个提交中反映
+- 一个提交按完整行为划分，可以同时包含 DTO、服务、控制器、迁移、测试和文档；不得按文件类型机械拆分
+- 公共 API、业务规则、权限、数据模型、架构或运维行为变化时，必须同步更新对应 `docs/modules/<module>.md`
+- 纯内部重构且外部行为不变时不强制制造文档改动，但提交说明必须写清验证范围
 - 如果改动涉及 API 端点表，同步更新 `docs/api-endpoints.md`
 - 如果涉及数据库 Schema，确保 `docs/data-model.md` 与 `prisma/schema.prisma` 一致（迁移文件已由 Prisma 自动管理）
 
 **禁止**的做法：
 - 攒一堆不相关改动做一次大提交
 - 提交包含未完成或未编译的代码
-- 把 Schema 迁移和业务逻辑拆分到不同提交（迁移和适配代码必须在同一个提交里）
+- 提交只含迁移却没有使当前版本继续可运行的适配代码
+- 把前后兼容需要分阶段发布的迁移强行压进一次部署
 
 ### 提交信息格式
 
@@ -213,10 +236,57 @@ setsid nohup env NODE_ENV=production node dist/main </dev/null \
 
 ### 提交前检查
 
-- [ ] `npx tsc --noEmit` 编译通过
-- [ ] `pnpm test` 全部通过
+- [ ] `pnpm check` 通过
+- [ ] bug 修复包含能复现旧问题的回归测试
+- [ ] API/权限/迁移/队列等高风险变更完成相应集成或 E2E 验证
 - [ ] `git diff --cached` 确认包含所有相关文件（迁移 + 代码 + 文档）
 - [ ] 确认没有混入无关文件或 secrets
+
+## 迭代流程（Contract-First + Risk-Based Testing）
+
+### 阶段一：范围与风险
+
+1. 写清目标、非目标、验收标准和受影响模块；小型内部修复可更新现有模块文档，不强制新建文档。
+2. 标记认证/权限、数据写入、API 契约、数据库迁移、Redis/队列、上传、定时任务和生产配置风险。
+3. 按完整行为拆分切片，每个切片应可验证、可回滚，并保持仓库可编译。
+4. API 变更先更新 DTO 与 Swagger，明确是向后兼容新增还是破坏性变更。
+
+### 阶段二：实现与验证
+
+1. bug 先写回归测试；权限、事务、幂等、并发、队列重试和迁移逻辑优先测试先行。
+2. 实现时复用守卫、`ThreadAccessService`、Prisma helpers、统一异常和响应 envelope，避免模块自行复制规则。
+3. 公共行为变化同步模块文档、API 端点表和数据模型；运行时样例不得替代 Swagger 契约。
+4. 每个行为切片执行相关测试，迭代完成统一执行 `pnpm check`。
+5. 需要发布时，再执行迁移审查、`pnpm check:full` 或等价 API 烟雾测试、部署和观察。
+
+### 测试映射
+
+| 变更类型 | 最低验证要求 |
+|----------|--------------|
+| bug 修复 | 能复现旧问题的回归测试 |
+| DTO/参数校验 | 正常、边界、错误输入测试 |
+| Service 业务规则 | 成功、拒绝、资源不存在和事务失败测试 |
+| Controller/API | Guard、HTTP 状态、响应 envelope 和错误码测试 |
+| 权限/私密/拉黑 | 允许与拒绝矩阵，防止越权和信息泄露 |
+| 队列/事件 | 重试、幂等、重复投递和依赖失败恢复测试 |
+| 数据库迁移 | migration SQL 审查、真实 PostgreSQL 验证、回填幂等性 |
+| 跨端核心旅程 | 本机测试环境 API E2E；禁止连接生产环境 |
+
+### 跨端契约与部署顺序
+
+- OpenAPI 是 Web 与 Flutter 的结构契约唯一事实源；真实响应快照只用于发现实现偏差。
+- 新字段优先可选并提供兼容默认值，通常先部署后端，再部署客户端。
+- 重命名或删除采用“新增 → 客户端迁移 → 移除旧项”的分阶段流程。
+- 前后端分仓提交时，在模块文档记录对应 commit SHA 或发布批次标识。
+- 破坏性变更必须写明兼容窗口、部署顺序和回滚方案。
+
+### Definition of Done
+
+- 验收标准满足，无已知 P0/P1 缺陷。
+- `pnpm check` 通过；高风险或发布任务完成相应集成/E2E 验证。
+- Swagger、DTO、运行时响应和客户端生成类型一致。
+- 公共行为文档已同步，提交中没有 secrets、测试账号凭据或临时调试代码。
+- 若发布：迁移、备份、部署顺序、健康检查、关键路径验证、日志观察和回滚点均已确认。
 
 ## 详细文档
 

@@ -10,11 +10,10 @@
 
 | 文档 | 内容 |
 |------|------|
-| [**前端文档中心**](./frontend/README.md) | **面向 Flutter / Next.js 前端开发者的全模块指南，可直接交给 AI 阅读** |
-| [前端接入指南（旧版）](./frontend-guide.md) | 认证流程、分页约定、核心业务示例、错误码速查 |
-| [API 端点表](./api-endpoints.md) | 全部 48 个端点的方法、路径、守卫、参数说明 |
+| [前端接入指南](./frontend-guide.md) | 认证流程、分页约定、核心业务示例、错误码速查 |
+| [API 端点表](./api-endpoints.md) | API 方法、路径、守卫和参数说明 |
 | [API 参数校验规范](./api-validation.md) | 全局校验管道、DTO 编写规范、参数类型约束细则 |
-| [数据模型](./data-model.md) | 22 张表 + 8 个枚举，含字段说明和关系 |
+| [数据模型](./data-model.md) | 表、枚举、字段说明和关系 |
 | [图片上传管线](./image-upload.md) | 预签名上传 → S3 直传 → 确认 → sharp 缩略图 |
 | [通知投递规则](./notification-delivery.md) | 5 类通知的触发条件和接收者矩阵 |
 
