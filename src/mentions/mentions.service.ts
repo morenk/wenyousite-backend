@@ -59,7 +59,10 @@ export class MentionsService {
   ): Promise<MentionedUser[]> {
     const tokens = this.extractMentionTokens(content);
     if (!threadId) return [];
-    if (tokens.usernames.length === 0 && tokens.userIds.length === 0 && !tokens.allPlayers) return [];
+    if (tokens.usernames.length === 0 && tokens.userIds.length === 0 && !tokens.allPlayers) {
+      await this.prisma.postMention.deleteMany({ where: { postId } });
+      return [];
+    }
 
     await this.threadAccess.assertAccessible(threadId, excludeUserId);
     const blockSets = await this.blockFilter.loadBlockSets(excludeUserId);

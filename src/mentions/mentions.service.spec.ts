@@ -123,6 +123,31 @@ describe('MentionsService', () => {
     expect(result).toHaveLength(0);
   });
 
+  it('编辑删除最后一个提及时应清空该帖全部提及快照', async () => {
+    mockPrisma.postMention.deleteMany.mockResolvedValue({ count: 2 });
+
+    const result = await service.syncMentions(
+      'p1',
+      '已经没有任何提及',
+      'u1',
+      't1',
+      '[@张三](/users/u2) @全体玩家',
+    );
+
+    expect(result).toEqual([]);
+    expect(mockPrisma.postMention.deleteMany).toHaveBeenCalledWith({
+      where: { postId: 'p1' },
+    });
+    expect(mockPrisma.postMention.findMany).not.toHaveBeenCalled();
+  });
+
+  it('缺少 threadId 时不应清空提及快照', async () => {
+    const result = await service.syncMentions('p1', '已经没有任何提及', 'u1');
+
+    expect(result).toEqual([]);
+    expect(mockPrisma.postMention.deleteMany).not.toHaveBeenCalled();
+  });
+
   it('私密帖不可访问时不应解析提及', async () => {
     mockThreadAccess.assertAccessible.mockRejectedValueOnce(new Error('not found'));
     await expect(service.parseAndCreate('p1', '@张三', 'u1', 'private-thread')).rejects.toThrow('not found');
