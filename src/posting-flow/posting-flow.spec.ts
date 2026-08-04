@@ -914,9 +914,9 @@ prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', subthread: 
     });
 
     it('指定 slot 覆盖旧草稿', async () => {
-      prisma.draft.findUnique.mockResolvedValue({ id: 'old', slot: 3, userId: 'u1' });
-      prisma.draft.update.mockResolvedValue({ id: 'old', slot: 3, content: 'updated' });
-      const result = await draftsService.create({ content: 'updated', slot: 3 }, 'u1');
+      prisma.draft.findUnique.mockResolvedValue({ id: 'old', slot: 3, userId: 'u1', version: 1 });
+      prisma.draft.update.mockResolvedValue({ id: 'old', slot: 3, content: 'updated', version: 2 });
+      const result = await draftsService.create({ content: 'updated', slot: 3, version: 1 }, 'u1');
       expect(result.content).toBe('updated');
     });
 
@@ -931,9 +931,9 @@ prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', subthread: 
     });
 
     it('update：更新内容', async () => {
-      prisma.draft.findUnique.mockResolvedValue({ id: 'd1', userId: 'u1' });
-      prisma.draft.update.mockResolvedValue({ id: 'd1', content: 'updated' });
-      const result = await draftsService.update('d1', 'updated', 'u1');
+      prisma.draft.findUnique.mockResolvedValue({ id: 'd1', userId: 'u1', version: 1 });
+      prisma.draft.update.mockResolvedValue({ id: 'd1', content: 'updated', version: 2 });
+      const result = await draftsService.update('d1', 'updated', 1, 'u1');
       expect(result.content).toBe('updated');
     });
 

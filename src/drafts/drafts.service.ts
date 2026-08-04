@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { normalizeMarkdownContent } from '../common/markdown-content';
+import { BusinessException } from '../common/exceptions/business.exception';
+import { ErrorCode } from '../common/exceptions/error-codes';
 import { CreateDraftDto } from './dto/create-draft.dto';
 
 /** 草稿服务：用户级 5 槽位全局草稿池 */
@@ -49,9 +51,15 @@ export class DraftsService {
     });
 
     if (existing) {
+      if (dto.version === undefined || dto.version !== existing.version) {
+        throw this.optimisticLockConflict();
+      }
       return this.prisma.draft.update({
-        where: { id: existing.id },
-        data: { content },
+        where: { id: existing.id, version: dto.version },
+        data: { content, version: { increment: 1 } },
+      }).catch((error) => {
+        if (error?.code === 'P2025') throw this.optimisticLockConflict();
+        throw error;
       });
     }
 
@@ -61,11 +69,18 @@ export class DraftsService {
   }
 
   /** 更新草稿内容 */
-  async update(id: string, content: string, userId: string) {
-    await this.findById(id, userId);
+  async update(id: string, content: string, version: number, userId: string) {
+    const draft = await this.findById(id, userId);
+    if (version !== draft.version) throw this.optimisticLockConflict();
     return this.prisma.draft.update({
-      where: { id },
-      data: { content: normalizeMarkdownContent(content) },
+      where: { id, version },
+      data: {
+        content: normalizeMarkdownContent(content),
+        version: { increment: 1 },
+      },
+    }).catch((error) => {
+      if (error?.code === 'P2025') throw this.optimisticLockConflict();
+      throw error;
     });
   }
 
@@ -86,5 +101,13 @@ export class DraftsService {
       maxSlots: 5,
       slots: drafts.map((d) => d.slot),
     };
+  }
+
+  private optimisticLockConflict() {
+    return new BusinessException(
+      ErrorCode.OPTIMISTIC_LOCK_CONFLICT,
+      '草稿已在其他位置修改，请刷新后重试',
+      HttpStatus.CONFLICT,
+    );
   }
 }

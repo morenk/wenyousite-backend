@@ -418,6 +418,7 @@ model Draft {
   userId    String   @map("user_id")
   slot      Int      @default(1)
   content   String
+  version   Int      @default(1)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

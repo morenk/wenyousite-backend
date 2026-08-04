@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, MinLength, MaxLength, IsIn } from 'class-validator';
+import { IsString, IsOptional, MinLength, MaxLength, IsIn, IsInt, Min } from 'class-validator';
 
 /** 保存草稿 DTO */
 export class CreateDraftDto {
@@ -13,4 +13,10 @@ export class CreateDraftDto {
   @IsOptional()
   @IsIn([1, 2, 3, 4, 5])
   slot?: number;
+
+  @ApiPropertyOptional({ example: 2, minimum: 1, description: '覆盖已有槽位时必填的当前乐观锁版本；创建空槽位时省略' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  version?: number;
 }

@@ -39,4 +39,8 @@ describe('DraftsController Swagger 响应契约', () => {
   it('删除声明 DeleteDraftResponseDto', () => {
     expect(responseMetadata('remove')[200].type).toBe(DeleteDraftResponseDto);
   });
+
+  it.each(['create', 'update'] as const)('%s 声明 409 并发冲突', (method) => {
+    expect(responseMetadata(method)[409]).toBeDefined();
+  });
 });

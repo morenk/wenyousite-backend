@@ -2,7 +2,7 @@ import {
   Controller, Get, Post, Patch, Delete,
   Body, Param, Req,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse, ApiCreatedResponse, ApiUnauthorizedResponse, ApiNotFoundResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse, ApiCreatedResponse, ApiUnauthorizedResponse, ApiNotFoundResponse, ApiConflictResponse } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { DraftsService } from './drafts.service';
 import { CreateDraftDto } from './dto/create-draft.dto';
@@ -41,6 +41,7 @@ export class DraftsController {
   @Auth()
   @ApiOperation({ summary: '保存草稿（不传 slot 自动选空闲位）' })
   @ApiCreatedResponse({ type: DraftResponseDto, description: '创建的草稿' })
+  @ApiConflictResponse({ description: '覆盖已有槽位时 version 缺失或已过期' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async create(@Body() dto: CreateDraftDto, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
@@ -64,13 +65,14 @@ export class DraftsController {
   @ApiOkResponse({ type: DraftResponseDto, description: '更新后的草稿' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   @ApiNotFoundResponse({ description: '草稿不存在' })
+  @ApiConflictResponse({ description: 'version 已过期' })
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateDraftDto,
     @Req() req: FastifyRequest,
   ) {
     const user = req['user'] as { id: string };
-    return this.draftsService.update(id, dto.content, user.id);
+    return this.draftsService.update(id, dto.content, dto.version, user.id);
   }
 
   @Delete(':id')

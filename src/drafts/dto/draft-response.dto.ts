@@ -16,6 +16,9 @@ export class DraftResponseDto {
   @ApiProperty({ description: 'Markdown 正文' })
   content!: string;
 
+  @ApiProperty({ minimum: 1, description: '乐观锁版本，每次覆盖后递增' })
+  version!: number;
+
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date;
 
