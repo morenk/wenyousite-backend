@@ -102,6 +102,20 @@
       "visible": true
     },
     {
+      "id": "bare-http-link",
+      "description": "裸 HTTP 链接可单独发布",
+      "input": "https://wenyou.site/threads/example",
+      "canonical": "https://wenyou.site/threads/example",
+      "visible": true
+    },
+    {
+      "id": "commonmark-http-autolink",
+      "description": "CommonMark HTTP 自动链接可单独发布",
+      "input": "<https://wenyou.site/threads/example>",
+      "canonical": "<https://wenyou.site/threads/example>",
+      "visible": true
+    },
+    {
       "id": "empty-fenced-code",
       "description": "空围栏代码块不可发布",
       "input": "```\n\n```",

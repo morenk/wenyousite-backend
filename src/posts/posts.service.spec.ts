@@ -122,6 +122,29 @@ describe('PostsService', () => {
     );
   });
 
+  it('create 应允许只包含 CommonMark 自动链接的回复', async () => {
+    const content = '<https://wenyou.site/threads/example>';
+    mockPrisma.subthread.findUnique.mockResolvedValue({
+      id: 's1',
+      threadId: 't1',
+      postingPolicy: 'PARTICIPANTS',
+      thread: { published: true },
+    });
+    mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
+    mockPrisma.$transaction.mockImplementation(async (fn) => fn({
+      $queryRaw: jest.fn(),
+      post: {
+        aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 0 } }),
+        create: jest.fn().mockResolvedValue({
+          id: 'p1', kind: 'FLOOR', floorNumber: 1, content, author: { username: 'test' },
+        }),
+      },
+      subthread: { update: jest.fn() },
+    }));
+
+    await expect(service.create('s1', { content }, 'u1')).resolves.toMatchObject({ content });
+  });
+
   it('相同 clientRequestId 重试应返回首次帖子且不重复事务和事件', async () => {
     const subthread = { id: 's1', threadId: 't1', postingPolicy: 'PARTICIPANTS', thread: { published: true } };
     const existing = {

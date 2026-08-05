@@ -33,7 +33,7 @@
 ## 核心业务规则
 
 - 发帖前校验主题帖访问权限（`ThreadAccessService.assertAccessible`）：私密帖非参与人被拒绝，未发布帖非 owner 被拒绝
-- 正文发布校验只过滤空白、空段落和独立分隔线；纯数字正文（如 `123`、`1.00`）属于有效内容
+- 正文发布校验只过滤空白、空段落和独立分隔线；纯数字正文、裸 HTTP(S) URL 和 CommonMark 自动链接均属于有效内容
 - 创建、正文 upsert 和编辑在校验及存库前统一执行 Markdown v1 规范化；事件、提及和通知摘要使用同一 canonical 正文
 - 新版客户端创建楼层/楼中楼时携带 UUID `clientRequestId`；后端按 `authorId + clientRequestId` 唯一，相同请求重试返回首次创建的 Post，不重复占楼层号或发事件
 - 同一 `clientRequestId` 若复用于不同子贴、正文、parentPostId 或 replyToPostId，返回 HTTP 409，禁止把不同业务请求误判为重试

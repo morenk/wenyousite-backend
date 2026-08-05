@@ -4,6 +4,7 @@ const EMPTY_IMAGE_RE = /!\[[^\]]*\]\(\s*\)/g;
 const EMPTY_LINK_RE = /\[[^\]]*\]\(\s*\)/g;
 const IMAGE_RE = /!\[[^\]]*\]\(\s*[^)\s]+[^)]*\)/;
 const LINK_RE = /\[([^\]]+)\]\(\s*[^)\s]+[^)]*\)/g;
+const HTTP_AUTOLINK_RE = /<https?:\/\/[^\s<>]+>/iu;
 const HTML_RE = /<[^>]*>/g;
 const THEMATIC_BREAK_RE = /^ {0,3}(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$/;
 /** 仅用于可见性判断；保留原文，避免破坏 ZWJ Emoji 和变体选择符。 */
@@ -84,6 +85,8 @@ export function hasVisibleMarkdownContent(markdown: string): boolean {
 
     if (!line || THEMATIC_BREAK_RE.test(rawLine)) continue;
     if (IMAGE_RE.test(line)) return true;
+    // Milkdown 会把独占 URL 序列化为 CommonMark 自动链接；它不是 HTML 标签。
+    if (HTTP_AUTOLINK_RE.test(line)) return true;
 
     const visible = line
       .replace(EMPTY_IMAGE_RE, "")
