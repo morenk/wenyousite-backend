@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /** 用户公开信息（不含密码等敏感字段） */
 export class UserProfile {
@@ -11,8 +11,8 @@ export class UserProfile {
   @ApiProperty({ example: 'zhangsan', description: '用户名' })
   username: string;
 
-  @ApiProperty({ example: 'https://cdn.example.com/avatars/abc.jpg', required: false, nullable: true, description: '头像 URL' })
-  avatar?: string | null;
+  @ApiProperty({ type: String, example: 'https://cdn.example.com/avatars/abc.jpg', nullable: true, description: '头像 URL' })
+  avatar: string | null;
 
   @ApiProperty({ example: 'USER', description: '用户角色（USER / ADMIN / SUPER_ADMIN）' })
   role: string;
@@ -21,14 +21,17 @@ export class UserProfile {
   emailVerified: boolean;
 }
 
-/** 认证响应 DTO：双 Token + 用户基本信息 */
+/** 认证响应 DTO：Web 使用 httpOnly Cookie，移动客户端从响应体取得 refresh token。 */
 export class AuthResponseDto {
   @ApiProperty({ example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbHhhYmMxMjMiLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6MTcwMDAwMDkwMH0.abc123def456', description: '访问令牌（15 分钟有效期），后续请求放在 Authorization: Bearer <token> 头' })
   accessToken: string;
 
-  @ApiProperty({ example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', description: '刷新令牌（web 7 天 / mobile 30 天有效期），用于 /auth/refresh 刷新 accessToken' })
-  refreshToken: string;
+  @ApiPropertyOptional({ example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', description: '仅移动客户端返回；Web 端通过 httpOnly Cookie 接收（mobile 30 天有效期）' })
+  refreshToken?: string;
 
   @ApiProperty({ description: '当前登录用户信息' })
   user: UserProfile;
+
+  @ApiPropertyOptional({ example: '注册成功', description: '仅完成注册时返回的提示文案' })
+  message?: string;
 }

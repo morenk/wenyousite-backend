@@ -4,7 +4,7 @@
 
 用户注册（两步：请求验证码 → 验证码+用户名密码完成注册）、登录、Token 刷新、邮箱验证、修改密码、忘记/重置密码、登出的全流程实现。
 
-**多设备会话**：每个登录设备独立管理 refresh token，登出一个设备不影响其他设备。改密码/重置密码时全部设备登出。
+**双端登录**：每个账号最多同时保留一个 Web 登录终端和一个原生移动端登录终端。PC 浏览器与手机浏览器都属于 Web 端；同端再次登录会替换该端原有终端，另一端不受影响。改密码、重置密码或注销账号时退出全部登录终端。
 
 ## 涉及的模型
 
@@ -12,7 +12,7 @@
 |------|------|
 | `User` | 用户实体（邮箱、用户名、密码哈希、邮箱验证状态、注销时间） |
 | `EmailVerification` | 统一的验证码记录（注册/邮箱验证/密码重置三种类型），含尝试次数限制 |
-| `RefreshToken` | 多设备会话记录（SHA-256 哈希存 token、family 标识设备、revokedAt 管理生命周期） |
+| `RefreshToken` | 登录终端记录（SHA-256 哈希存 token、`family` 作为稳定终端 ID、`revokedAt` 管理生命周期） |
 
 | 枚举 | 值 |
 |------|-----|
@@ -25,7 +25,7 @@
 |--------|------|-------|------|------|
 | POST | `/auth/register/request-code` | Public | 1/min | 注册第一步：请求邮箱验证码 |
 | POST | `/auth/register/verify-and-complete` | Public | 全局 (20/min) | 注册第二步：验证码 + 用户名密码一步完成注册 |
-| POST | `/auth/login` | Public | 全局 (20/min) | 邮箱或用户名 + 密码登录，返回双 Token + 用户信息 |
+| POST | `/auth/login` | Public | 全局 (20/min) | 邮箱或用户名 + 密码登录；创建对应端的登录终端 |
 | POST | `/auth/refresh` | Public | 全局 (20/min) | 使用 refreshToken 轮转刷新双 Token（含盗用检测） |
 | POST | `/auth/verify-email` | Public | 5/min | 使用 6 位验证码验证邮箱 |
 | POST | `/auth/resend-verification` | Public | 1/min | 重发验证邮件 |
@@ -34,9 +34,9 @@
 | POST | `/auth/reset-password` | Public | 5/min | 使用验证码重置密码，成功后吊销全部 refresh token |
 | POST | `/auth/change-email/request-code` | AuthRead | 1/min | 更换邮箱第一步：校验当前密码后向新邮箱发验证码（换新邮箱会作废旧记录，同邮箱未过期则重发） |
 | POST | `/auth/change-email/verify` | Auth | 5/min | 更换邮箱第二步：验证码确认，更新邮箱并发送成功通知 |
-| POST | `/auth/logout` | AuthRead | 全局 (20/min) | 登出，撤销指定设备的 refresh token（Cookie 优先） |
-| GET | `/auth/sessions` | AuthRead | 独立 (60/min) | 获取当前用户所有未撤销且未过期的活跃会话列表 |
-| DELETE | `/auth/sessions/:id` | AuthRead | 独立 (60/min) | 撤销指定会话（远程登出某设备） |
+| POST | `/auth/logout` | AuthRead | 全局 (20/min) | 退出当前登录终端（Cookie 优先） |
+| GET | `/auth/sessions` | AuthRead | 独立 (60/min) | 获取 Web / 移动端活跃登录终端 |
+| DELETE | `/auth/sessions/:id` | AuthRead | 独立 (60/min) | 退出指定登录终端 |
 
 ## 请求/响应格式
 
@@ -56,17 +56,32 @@
 { "data": { "emailSent": false, "codeExpiresIn": 900, "message": "验证码已发送，请查收邮箱" } }
 ```
 
-### 登录
+### 登录与注册完成后的认证响应
 
 ```json
-// 请求：account 支持邮箱或用户名二选一
+// 登录请求：account 支持邮箱或用户名二选一
 { "account": "user@example.com 或 zhangsan", "password": "SecurePass123!" }
-
-// 响应（同注册第二步，无 message 字段）
-{ "data": { "accessToken": "eyJ...", "refreshToken": "<uuid>", "user": { "id": "clx...", "email": "user@example.com", "username": "zhangsan", "avatar": null, "role": "USER", "emailVerified": true } } }
 ```
 
-### 注册第二步 / 登录 / 刷新（统一响应）
+Web 端响应体不暴露 refresh token；服务端通过 `Set-Cookie` 写入 httpOnly Cookie：
+
+```json
+{
+  "data": {
+    "accessToken": "eyJ...",
+    "user": {
+      "id": "clx...",
+      "email": "user@example.com",
+      "username": "zhangsan",
+      "avatar": null,
+      "role": "USER",
+      "emailVerified": true
+    }
+  }
+}
+```
+
+原生移动端在请求头声明 `X-Client-Platform: mobile`，refresh token 随响应体返回且不设置 Web Cookie：
 
 ```json
 {
@@ -80,11 +95,12 @@
       "avatar": null,
       "role": "USER",
       "emailVerified": true
-    },
-    "message": "注册成功"
+    }
   }
 }
 ```
+
+注册第二步的响应规则相同，并额外返回 `message: "注册成功"`。`POST /auth/refresh` 沿用 refresh token 记录中的平台，不接受请求头改变终端平台。
 
 ### 登出
 
@@ -96,31 +112,37 @@
 { "data": { "message": "已登出" } }
 ```
 
-### 会话列表
+### 登录终端列表
 
 ```json
 // GET /auth/sessions
 {
   "data": [
     {
-      "id": "clx...",
+      "id": "6dbd2c1e-...",
       "platform": "web",
-      "deviceInfo": "Chrome 132 / Windows",
+      "deviceInfo": "Mozilla/5.0 (...) Chrome/149.0.0.0 Safari/537.36",
       "isCurrent": true,
-      "createdAt": "2026-07-28T...",
-      "expiresAt": "2026-08-04T..."
+      "signedInAt": "2026-08-05T09:00:00.000Z",
+      "lastActiveAt": "2026-08-05T09:15:00.000Z",
+      "expiresAt": "2026-08-12T09:15:00.000Z",
+      "createdAt": "2026-08-05T09:00:00.000Z"
     },
     {
-      "id": "clx...",
+      "id": "e70b419f-...",
       "platform": "mobile",
-      "deviceInfo": "iOS App 1.2",
+      "deviceInfo": "Dart/3.x (...)",
       "isCurrent": false,
-      "createdAt": "2026-07-25T...",
-      "expiresAt": "2026-08-24T..."
+      "signedInAt": "2026-08-02T10:00:00.000Z",
+      "lastActiveAt": "2026-08-05T08:30:00.000Z",
+      "expiresAt": "2026-09-04T08:30:00.000Z",
+      "createdAt": "2026-08-02T10:00:00.000Z"
     }
   ]
 }
 ```
+
+`id` 是 refresh token 轮转期间保持不变的登录终端 ID。`deviceInfo` 是已废弃的原始诊断字段，不稳定也不适合用户阅读；客户端不得直接展示，应仅按 `platform` 映射为“Web 端登录”或“移动端登录”。`createdAt` 是兼容旧客户端的 `signedInAt` 别名。
 
 ## 核心业务规则
 
@@ -164,26 +186,81 @@
 ### Cookie 与平台适配
 
 - Web 端使用 httpOnly Cookie 存储 refreshToken，防 XSS 窃取（`HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth`）
-- 同时 JSON 响应体中返回 `refreshToken` 字段，移动端不依赖 Cookie 可直接获取
-- 客户端通过 `X-Client-Platform: web|mobile` 请求头声明平台类型
+- Web 注册、登录和刷新响应体不返回 `refreshToken`；原生移动端不依赖 Cookie，才从响应体获取该字段
+- 注册、登录时客户端通过 `X-Client-Platform: web|mobile` 声明平台；未知或缺失值一律归为 `web`。该请求头只是客户端生命周期声明，不是可信的设备指纹或安全凭据
+- 刷新时平台取自服务端已有登录终端记录，忽略请求头，避免把 Web 终端升级成 30 天移动端终端
 - Web 端 refresh token 有效期 7 天，移动端 30 天，登录和轮转时自动按平台计算
 - `/auth/refresh` 和 `/auth/logout` 优先从 Cookie 读取 token，Cookie 缺失时回退到请求体
 
-### 会话管理
+### 登录终端管理
 
-- `GET /auth/sessions` 列出当前用户所有未撤销且未过期的活跃会话，含 `isCurrent` 标记、平台类型、设备信息、创建/过期时间；接口独立限流 60 次/分钟
-- `DELETE /auth/sessions/:id` 撤销指定会话，用于远程登出某设备（如在 Web 端看到异常移动端登录可远程踢除）
-- `POST /auth/logout` 撤销当前设备的 refresh token 并清除 Cookie
+- `GET /auth/sessions` 最多返回 Web 与移动端各一个活跃登录终端，含 `isCurrent`、`platform`、稳定登录时间、最近轮转时间和过期时间；接口独立限流 60 次/分钟
+- `DELETE /auth/sessions/:id` 按稳定终端 ID 退出整个终端；暂时兼容旧客户端传 refresh token 记录 ID
+- `POST /auth/logout` 退出当前登录终端并清除 Cookie
+- access token 包含稳定终端 ID `sid`。JWT 守卫会在每次受保护请求中检查该终端仍活跃，因此被远程退出或被同端新登录替换后，尚未自然过期的 access token 也会立即失效
+- `signedInAt` 在 refresh token 轮转时保持不变；`lastActiveAt` 代表最近一次登录或刷新时间，不代表每次 API 请求活动时间
 
-### 多设备会话
+### 双端登录与 Token 轮转
 
-- 登录时每个设备生成唯一 `family`（UUID），创建 `RefreshToken` 记录
-- 每次显式登录都会创建新的独立会话；重启 API 服务不会撤销数据库中的未过期会话
+- 每次显式登录生成唯一 `family`（UUID），它也是对外稳定的登录终端 ID；重启 API 服务不会退出数据库中的有效终端
+- 数据库部分唯一索引保证同一用户同一平台最多一条未撤销记录。PC 浏览器和手机浏览器都属于 `web`，后登录者会立即替换先登录者；原生 `mobile` 端可与 Web 端同时在线
 - refresh token 原文为随机 UUID，数据库中仅存 SHA-256 哈希
-- 调用 `/auth/refresh` 轮转：撤销旧 token → 签发新 token（同 family、同 platform），返回新的原文字符串
-- **盗用检测**：若已撤销的 token 被重放，吊销该 family 下全部 token（整个设备强制登出）
-- 登出时传入当前 refresh token，仅撤销该条记录（其他设备不受影响）
-- 改密码 / 重置密码：吊销用户全部未撤销的 refresh token（所有设备强制登出）
+- 调用 `/auth/refresh` 轮转：原子撤销旧 token → 签发同 `family`、同 `platform`、同 `sessionStartedAt` 的新 token
+- **并发宽限**：旧 token 撤销后 10 秒内被重复提交时拒绝该请求，但不误伤同 family 的新 token，用于容忍浏览器标签页竞态
+- **盗用检测**：宽限期之外重放已撤销 token 时，先提交该 family 全部活跃 token 的吊销，再返回 401
+- 已撤销记录保留到自身过期后再清理，确保盗用检测有历史依据
+- 改密码、重置密码或注销账号会退出全部登录终端；退出某一终端不影响另一端
+
+### 数据迁移与兼容
+
+- 前后端共同发布批次标识：`auth-login-terminal-2026-08-05`
+- 上线双端约束的迁移会把未知平台归为 `web`、撤销已过期记录，并对每个用户/平台只保留最新活跃记录；已有同端重复登录会被退出
+- `sessionStartedAt` 从同一用户、同一 `family` 的最早 `createdAt` 回填；旧客户端可继续读取 `createdAt`，新客户端应改用 `signedInAt`
+- 数据库继续保留 `deviceInfo`、`createdAt` 等旧字段，认证响应的 `refreshToken` 改为可选：旧客户端可在兼容窗口内继续工作，Web 客户端必须只依赖 httpOnly Cookie，原生移动端继续从响应体读取 refresh token
+- 新版 access token 带 `sid`；部署前签发的无 `sid` access token 最多兼容其剩余 15 分钟
+
+#### 数据量与锁风险
+
+- 迁移只扫描 `refresh_tokens`。设发布前记录总量为 `N`：平台清洗、过期撤销和登录时间回填均为 `O(N)`，同端去重和 family 聚合会排序/聚合，成本取决于 `N` 与数据库可用内存；发布前必须用下列 SQL 记录实际总量、活跃量、异常平台量和重复槽位数，不以开发库数据代替生产估算
+
+```sql
+SELECT
+  COUNT(*) AS total_rows,
+  COUNT(*) FILTER (WHERE revoked_at IS NULL) AS active_rows,
+  COUNT(*) FILTER (WHERE platform IS NULL OR platform NOT IN ('web', 'mobile')) AS invalid_platform_rows
+FROM refresh_tokens;
+
+SELECT user_id, COALESCE(platform, '<null>') AS platform, COUNT(*) AS active_count
+FROM refresh_tokens
+WHERE revoked_at IS NULL
+GROUP BY user_id, platform
+HAVING COUNT(*) > 1
+ORDER BY active_count DESC;
+```
+
+- `UPDATE` 会锁定命中的 token 行；`ALTER COLUMN ... SET NOT NULL`、检查约束校验和非并发 `CREATE UNIQUE INDEX` 会扫描表并可能短暂阻塞登录、刷新、登出等写入。若 `N` 已达到十万级、查询存在长事务或预演耗时超过维护窗口，应先停止发布并改为分批回填、`NOT VALID`/后续校验和 `CREATE INDEX CONCURRENTLY` 的独立发布方案
+- `20260805143000_add_session_started_at` 与 `20260805150000_scope_refresh_token_platform_check` 显式使用事务；较早的双端去重迁移由幂等清洗语句组成，但不是整文件原子事务，失败时必须检查已执行到哪一步
+
+#### 发布顺序与兼容窗口
+
+1. 确认数据库备份可恢复，记录上述预检结果，执行 `prisma migrate status`、`pnpm check` 和 `pnpm test:e2e:auth-terminal`
+2. 临时排空登录、刷新、登出和登录终端管理写流量，避免旧后端在唯一索引创建前后继续制造同端重复记录
+3. 执行 `prisma migrate deploy`，确认三条登录终端迁移成功，再启动新后端；不得让新后端运行在旧 Schema 上
+4. 烟雾验证 Web 登录、移动端登录、双端并存、同端替换、refresh、登录终端列表和远程退出；观察认证 401/409/5xx 与数据库锁等待
+5. 先发布 Web，再通知原生移动端升级；移动端必须发送 `X-Client-Platform: mobile`，且只在移动端响应体读取 refresh token
+
+兼容窗口至少覆盖旧 access token 的最长剩余 15 分钟，并建议覆盖一个 Web refresh 周期。窗口内不删除 `deviceInfo`、`createdAt` 或移动端响应体的 `refreshToken`；未来删除必须另开 contract 阶段。
+
+#### 失败恢复与回滚
+
+- 迁移失败时保持旧应用版本，不继续客户端发布；检查 `_prisma_migrations`、表约束和重复活跃记录。只有核对数据库实际状态后才可使用 `prisma migrate resolve`，默认以前滚修复为主，禁止直接标记成功或盲目执行下迁移
+- 显式事务内失败会自动回滚该迁移；较早去重迁移若部分完成，可在修复锁等待/数据异常后重试其幂等 SQL并以前滚迁移补齐。若出现不可接受的数据偏差，使用发布前备份恢复
+- 新增列和旧字段共存，因此应用可以回滚到上一后端/Web 构建，Schema 保持向前版本即可；迁移已经撤销的过期或同端重复 token 不做反向恢复，受影响用户重新登录
+
+#### 验证记录
+
+- 2026-08-05：`pnpm test:e2e:auth-terminal` 已在本机 PostgreSQL 的临时 Schema 中完成旧数据注入、全迁移链回放、约束验证和真实 Nest/Fastify 双端 API 流程；测试结束自动删除临时 Schema，未触碰 `public` 数据
+- 同一测试运行时生成 OpenAPI，确认 `SessionResponseDto.signedInAt/lastActiveAt` 为必填、`AuthResponseDto.refreshToken` 为可选
 
 ### 通用规则
 
@@ -198,8 +275,8 @@
 
 - **Argon2 而非 bcrypt**：Argon2 是 PHC 竞赛获胜者，内存硬函数抗 GPU/ASIC 暴力破解能力更强
 - **双 Token 设计**：accessToken 短期（15 分钟）降低泄露风险，refreshToken 长期（7 天）避免频繁登录
-- **Refresh Token 储值表 + 轮转**：相比 tokenVersion 方案，支持多设备独立管理，每个设备可单独登出；SHA-256 哈希存储保护原始 token 不泄露；轮转时撤销旧 token 确保一次性使用
-- **Token 盗用检测**：若已撤销的 refresh token 被重复使用，说明 token 可能被盗，吊销整个 family 所有 token，必须重新登录
+- **Refresh Token 储值表 + 轮转**：相比 tokenVersion 方案，可按 Web / 移动端独立退出；SHA-256 哈希存储保护原始 token，稳定 `family` 避免轮转后终端 ID 和登录时间漂移
+- **Token 盗用检测**：若已撤销的 refresh token 在 10 秒并发宽限期外被重复使用，吊销整个 family，要求该登录终端重新登录
 - **6 位数字验证码**：比 JWT 链接更简单，客户端可直接输入数字码；通过 `type` 字段在 EmailVerification 表中区分注册/验证/重置，防止互串
 - **两步注册 + 邮箱验证**：第一步发验证码到邮箱，第二步输入验证码 + 设用户名密码完成注册。验证码已证明邮箱所有权，注册时直接设 `emailVerified: true`，无需二次验证。
  - **统一 EmailVerification 表**：废弃 `RegistrationDraft` 表，注册/验证/重置三类验证码共用一张表，code 和 session 概念合一，简化维护
@@ -211,7 +288,8 @@
 
 | 场景 | 行动 |
 |------|------|
-| 登录：输入邮箱或用户名 | `POST /auth/login`，body 传 `{ "account": "<邮箱或用户名>", "password": "..." }`，成功返回双 Token + user |
+| Web 登录：输入邮箱或用户名 | `POST /auth/login`，请求头声明 `web`；响应体保存 access token 和 user，refresh token 由 httpOnly Cookie 管理 |
+| 原生移动端登录 | `POST /auth/login`，请求头声明 `mobile`；响应体保存 access token、refresh token 和 user |
 | 登录返回 401 "账号或密码错误" | 提示用户核对邮箱/用户名和密码，连续 5 次失败锁定 15 分钟 |
 | 注册第一步：输入邮箱 | `POST /auth/register/request-code`，响应含 `emailSent` 标志判断是否发送成功 |
 | 收到 `emailSent: false` | 显示"邮件服务暂不可用，请稍后重试" |
@@ -221,7 +299,8 @@
 | 输入验证码返回 "验证码错误" | 提示用户核对数字，超过 5 次需重新获取 |
 | 输入验证码返回 "验证码已过期，请重新获取" | 引导重新调用 `request-code` 或 `resend-verification` 获取新码 |
 | 邮箱验证 | `POST /auth/resend-verification` 获取验证码 → `POST /auth/verify-email` 完成验证 |
-| 改密码/重置密码后 | 所有设备 refresh token 被吊销，前端需引导用户重新登录 |
-| 登出 | 调用 `POST /auth/logout` 传入当前 refreshToken，同时清除本地存储 |
-| 收到 401 "令牌已失效，请重新登录" | 可能是 token 盗用检测触发（整个设备被登出），清除本地 Token 并跳转登录页 |
-| refresh 轮转 | 每次 `/auth/refresh` 返回新 refreshToken，前端需替换本地存储中的旧值 |
+| 改密码/重置密码后 | 全部登录终端被退出，前端清除本地认证状态并引导重新登录 |
+| Web 登出 | 调用 `POST /auth/logout`；仅服务端成功后清除本地状态，避免 Cookie 未撤销却显示已退出 |
+| 收到 401 "登录终端已失效，请重新登录" | 当前终端被远程退出或被同端新登录替换，清除本地认证状态并跳转登录页 |
+| Web refresh 轮转 | 浏览器自动接收新 httpOnly Cookie；响应体只更新 access token 和 user，不读取 refresh token |
+| 登录终端列表 | 只展示 `platform` 对应的“Web 端登录/移动端登录”，不要展示 `deviceInfo` 原始标识符 |

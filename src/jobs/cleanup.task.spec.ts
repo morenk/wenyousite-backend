@@ -36,6 +36,9 @@ describe('CleanupTask', () => {
   it('cleanup 应调用孤儿图片清理', async () => {
     await task.cleanup();
     expect(mockMediaService.cleanupOrphanMedia).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.refreshToken.deleteMany).toHaveBeenCalledWith({
+      where: { expiresAt: { lt: expect.any(Date) } },
+    });
   });
 
   it('孤儿图片清理抛错不应影响其他清理任务', async () => {

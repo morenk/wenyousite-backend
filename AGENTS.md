@@ -42,10 +42,11 @@ src/
 │   ├── services/thread-access.service.ts # 主题帖访问权限 + 管理权限校验
 │   ├── filters/all-exceptions.filter.ts # 统一异常格式
 │   ├── interceptors/response.interceptor.ts
+│   ├── swagger/openapi-document.ts       # 运行时与离线导出共用的 OpenAPI 构建
 │   ├── prisma-helpers.ts                # 软删除/计数查询共享 helper
 │   └── dto/pagination.dto.ts            # cursor 分页
 ├── prisma/                    # PrismaService (全局提供)
-├── auth/                      # 注册/登录/刷新/验证/改密码/找回密码
+├── auth/                      # 注册/登录/刷新/双端登录终端/密码管理
 │   ├── decorators/auth.decorator.ts  # @Auth() 和 @AuthRead()
 │   ├── strategies/jwt.strategy.ts
 │   └── guards/jwt-auth.guard.ts
@@ -70,6 +71,7 @@ src/
 └── health/                    # 健康检查端点
 scripts/
 ├── set-admin.ts               # 管理员初始化
+├── export-openapi.ts          # 从源码离线导出 OpenAPI（不监听端口）
 ├── deploy.sh                  # 一键部署
 └── backup.sh                  # 数据库备份
 ```
@@ -124,6 +126,8 @@ scripts/
 | `pnpm lint:fix` | ESLint 自动修复 |
 | `pnpm typecheck` | TypeScript 类型检查 |
 | `pnpm test` | Jest 单元/服务/控制器测试 |
+| `pnpm openapi:export [path]` | 从源码离线导出 OpenAPI JSON；未传路径时写入 `/tmp/wenyousite-openapi.json` |
+| `pnpm test:e2e:auth-terminal` | 在本机 PostgreSQL 临时 Schema 中验证登录终端迁移与双端 API，不触碰 `public` 数据 |
 | `pnpm test:e2e` | 本机测试环境 API E2E（需 `API_E2E_ENV=test`） |
 | `pnpm check` | 唯一质量门禁：lint + typecheck + test + build |
 | `pnpm check:full` | 发布前完整门禁：check + API E2E |

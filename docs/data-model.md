@@ -120,24 +120,32 @@
 > 已废弃 `registration_drafts` 表，统一使用本表承载注册/验证/重置三类用途。  
 > `@@unique([email, type])` 防止同一邮箱同时存在多条 REGISTRATION 记录。
 
-### refresh_tokens — 多设备会话
+### refresh_tokens — 双端登录终端
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | String | PK | — |
 | userId | String | FK users (Cascade) | — |
 | tokenHash | String | indexed | refresh token 的 SHA-256 哈希（不存原文） |
-| family | String | — | 设备会话标识（UUID，同设备轮转保持相同） |
-| platform | String? | default web | 平台类型：web（7天）或 mobile（30天） |
-| deviceInfo | String? | — | User-Agent 摘要 |
+| family | String | — | 稳定登录终端 ID（UUID，同终端轮转保持相同） |
+| platform | String | NOT NULL, default web | 平台类型：web（PC/手机浏览器，7天）或 mobile（原生移动端，30天） |
+| deviceInfo | String? | — | 原始 User-Agent 诊断信息（API 已废弃，前端不得直接展示） |
+| sessionStartedAt | DateTime | default now() | 该登录终端的首次登录时间，轮转时保持不变 |
 | expiresAt | DateTime | — | 过期时间（web 7 天 / mobile 30 天） |
 | revokedAt | DateTime? | — | 撤销时间（登出/改密码/盗用检测触发） |
-| createdAt | DateTime | — | — |
+| createdAt | DateTime | — | 当前 refresh token 记录创建时间，可作为最近登录/刷新时间 |
 
-> 每个登录设备一个 `family`，refresh 轮转时签发新 token 并撤销旧 token。  
-> 检测到已撤销 token 被重放时，吊销该 family 下全部 token（防盗用）。  
-> 改密码/重置密码时，吊销用户全部 `revokedAt = null` 的记录。  
+> `platform` 由数据库检查约束限制为 `web | mobile`；每个用户每个平台最多一条 `revoked_at IS NULL` 记录（数据库部分唯一索引）。PC/手机浏览器共用 `web` 槽位，原生客户端使用 `mobile` 槽位。同端新登录会退出旧终端，Web 与移动端可同时在线。
+>
+> 每个登录终端一个 `family`。refresh 轮转时先撤销旧记录，再以同一 `family`、`platform`、`sessionStartedAt` 签发新记录；API 对外使用 `family` 作为稳定 ID。
+>
+> access token 携带 `sid=family`，受保护请求会查询该终端是否仍活跃，使远程退出立即生效。10 秒内的旧 token 并发重放只拒绝请求；超过宽限期则吊销该 family。
+>
+> 已撤销记录保留到 `expiresAt` 后再由清理任务删除，以保留盗用检测依据。改密码/重置密码时吊销用户全部 `revokedAt = null` 记录。
+>
 > Web 端通过 httpOnly Cookie 存储 refreshToken；移动端通过响应体获取。
+>
+> 发布批次 `auth-login-terminal-2026-08-05` 的迁移数据量、锁风险、部署顺序和失败恢复步骤见 `docs/modules/auth.md` 的“数据迁移与兼容”。
 
 ### user_blocks — 拉黑
 

@@ -7,9 +7,9 @@
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
 | POST | `/auth/register/request-code` | 无 | 注册第一步：请求邮箱验证码（限流 1/min） |
-| POST | `/auth/register/verify-and-complete` | 无 | 注册第二步：验证码+用户名+密码（支持 X-Client-Platform 区分 web/mobile），完成注册（emailVerified=true，立即可用） |
-| POST | `/auth/login` | 无 | 邮箱或用户名 + 密码登录，返回双 Token + 用户信息，创建独立设备会话。5 次失败锁定 15 分钟 |
-| POST | `/auth/refresh` | 无 | 用 refreshToken 轮转换取新双 Token（含盗用检测） |
+| POST | `/auth/register/verify-and-complete` | 无 | 注册第二步：验证码+用户名+密码；按 `X-Client-Platform` 创建 Web 或移动端登录终端（emailVerified=true） |
+| POST | `/auth/login` | 无 | 邮箱或用户名 + 密码登录并创建对应端登录终端；同端旧终端会被替换。5 次失败锁定 15 分钟 |
+| POST | `/auth/refresh` | 无 | 轮转 refresh token；平台沿用服务端记录，含并发宽限与盗用检测 |
 | POST | `/auth/verify-email` | AuthRead | 验证当前登录用户的邮箱（需登录 + 6 位验证码），限流 5/min |
 | POST | `/auth/resend-verification` | 无 | 重发验证邮件（限流 1/min） |
 | POST | `/auth/change-password` | AuthRead | 修改密码（需旧密码），成功后吊销全部 refresh token + 发送通知邮件 |
@@ -17,9 +17,9 @@
 | POST | `/auth/change-email/request-code` | AuthRead | 更换邮箱第一步：校验当前密码后向新邮箱发验证码（限流 1/min） |
 | POST | `/auth/change-email/verify` | Auth | 更换邮箱第二步：验证码确认，更新邮箱（限流 5/min） |
 | POST | `/auth/reset-password` | 无 | 用邮件 + 验证码重置密码（需提供邮箱锚定身份），成功后吊销全部 refresh token（限流 5/min） |
-| POST | `/auth/logout` | AuthRead | 登出，传入 refreshToken 撤销指定设备会话（Cookie 优先） |
-| GET | `/auth/sessions` | AuthRead | 获取当前用户所有未撤销且未过期的活跃会话列表（独立限流 60/min） |
-| DELETE | `/auth/sessions/:id` | AuthRead | 撤销指定会话（远程登出设备，独立限流 60/min） |
+| POST | `/auth/logout` | AuthRead | 退出当前登录终端（refresh Cookie 优先） |
+| GET | `/auth/sessions` | AuthRead | 获取 Web / 移动端活跃登录终端，最多各一个（独立限流 60/min） |
+| DELETE | `/auth/sessions/:id` | AuthRead | 按稳定终端 ID 退出指定登录终端（独立限流 60/min） |
 
 ## 用户端点 (Users)
 

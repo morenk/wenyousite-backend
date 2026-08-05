@@ -1,5 +1,5 @@
 import { Controller, Post, Get, Delete, Body, Param, HttpCode, HttpStatus, Req, Res, UnauthorizedException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiOkResponse, ApiUnauthorizedResponse, ApiNotFoundResponse, ApiConflictResponse, ApiBadRequestResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiOkResponse, ApiUnauthorizedResponse, ApiConflictResponse, ApiBadRequestResponse, ApiHeader } from '@nestjs/swagger';
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
@@ -15,8 +15,10 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { LogoutDto } from './dto/logout.dto';
 import { ChangeEmailRequestDto, ChangeEmailVerifyDto } from './dto/change-email.dto';
+import { RevokeSessionResponseDto, SessionResponseDto } from './dto/session-response.dto';
 import { AuthRead, Auth } from './decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
+import { CLIENT_PLATFORMS, normalizeClientPlatform, refreshTtlSeconds } from './client-platform';
 
 const COOKIE_BASE = {
   httpOnly: true,
@@ -25,7 +27,23 @@ const COOKIE_BASE = {
   path: '/api/v1/auth',
 };
 
-/** 认证控制器：注册、登录、Token 刷新、会话管理 */
+function authResultForClient<T extends { refreshToken: string }>(
+  result: T,
+  platform: 'web' | 'mobile',
+  res: FastifyReply,
+) {
+  if (platform === 'mobile') return result;
+
+  res.setCookie('refreshToken', result.refreshToken, {
+    ...COOKIE_BASE,
+    maxAge: refreshTtlSeconds(platform),
+  });
+  const webResult = { ...result } as Partial<T>;
+  delete webResult.refreshToken;
+  return webResult as Omit<T, 'refreshToken'>;
+}
+
+/** 认证控制器：注册、登录、Token 刷新、双端登录终端管理 */
 @ApiTags('Auth')
 @Controller('auth')
 @Throttle({ default: { ttl: 60000, limit: 20 } })
@@ -45,50 +63,43 @@ export class AuthController {
 
   @Post('register/verify-and-complete')
   @Public()
+  @ApiHeader({ name: 'X-Client-Platform', required: false, enum: CLIENT_PLATFORMS, description: '客户端类型：web（PC/手机浏览器）或 mobile（原生移动端）' })
   @ApiOperation({ summary: '注册第二步：验证邮箱 + 设置用户名密码。完成后 emailVerified=true 立即可用' })
-  @ApiResponse({ status: 200, type: AuthResponseDto, description: '注册成功返回双 Token（同时 set-Cookie refreshToken）和 user 信息' })
+  @ApiResponse({ status: 200, type: AuthResponseDto, description: '注册成功；Web 通过 httpOnly Cookie 接收 refresh token，移动客户端从响应体接收' })
   @ApiResponse({ status: 400, description: '验证码错误或过期' })
   @ApiResponse({ status: 409, description: '用户名已被占用' })
   async verifyAndComplete(@Body() dto: VerifyAndCompleteDto, @Req() req: FastifyRequest, @Res({ passthrough: true }) res: FastifyReply) {
     const deviceInfo = req.headers['user-agent']?.slice(0, 512) ?? undefined;
-    const platform = (req.headers['x-client-platform'] as string) || 'web';
+    const platform = normalizeClientPlatform(req.headers['x-client-platform']);
     const result = await this.authService.verifyAndComplete(dto, deviceInfo, platform);
-    const ttl = platform === 'mobile' ? 30 * 24 * 60 * 60 : 7 * 24 * 60 * 60;
-    res.setCookie('refreshToken', result.refreshToken, { ...COOKIE_BASE, maxAge: ttl });
-    return result;
+    return authResultForClient(result, platform, res);
   }
 
   @Post('login')
   @Public()
   @HttpCode(HttpStatus.OK)
+  @ApiHeader({ name: 'X-Client-Platform', required: false, enum: CLIENT_PLATFORMS, description: '客户端类型：web（PC/手机浏览器）或 mobile（原生移动端）' })
   @ApiOperation({ summary: '邮箱或用户名 + 密码登录。5 次失败锁定 15 分钟' })
-  @ApiResponse({ status: 200, type: AuthResponseDto, description: '登录成功返回双 Token（同时 set-Cookie refreshToken）和 user 信息' })
+  @ApiResponse({ status: 200, type: AuthResponseDto, description: '登录成功；Web 通过 httpOnly Cookie 接收 refresh token，移动客户端从响应体接收' })
   @ApiResponse({ status: 401, description: '账号或密码错误 或 账号被锁定' })
-  @ApiResponse({ status: 404, description: '邮箱未注册' })
   async login(@Body() dto: LoginDto, @Req() req: FastifyRequest, @Res({ passthrough: true }) res: FastifyReply) {
     const deviceInfo = req.headers['user-agent']?.slice(0, 512) ?? undefined;
-    const platform = (req.headers['x-client-platform'] as string) || 'web';
+    const platform = normalizeClientPlatform(req.headers['x-client-platform']);
     const result = await this.authService.login(dto, deviceInfo, platform);
-    const ttl = platform === 'mobile' ? 30 * 24 * 60 * 60 : 7 * 24 * 60 * 60;
-    res.setCookie('refreshToken', result.refreshToken, { ...COOKIE_BASE, maxAge: ttl });
-    return result;
+    return authResultForClient(result, platform, res);
   }
 
   @Post('refresh')
   @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '用 refreshToken 轮转换取新双 Token（Cookie 优先，含盗用检测）' })
-  @ApiResponse({ status: 200, type: AuthResponseDto, description: '刷新成功，旧 token 注销，签发新双 Token（set-Cookie 新 refreshToken）' })
-  @ApiResponse({ status: 401, description: 'refreshToken 无效/过期/已被盗用（盗用时全设备强制登出）' })
+  @ApiResponse({ status: 200, type: AuthResponseDto, description: '刷新成功；平台沿用服务端会话记录，不信任请求头' })
+  @ApiResponse({ status: 401, description: 'refreshToken 无效/过期/已被盗用（确认重放时对应登录终端退出）' })
   async refresh(@Body() dto: RefreshDto, @Req() req: FastifyRequest, @Res({ passthrough: true }) res: FastifyReply) {
     const token = req.cookies?.refreshToken ?? dto.refreshToken;
     if (!token) throw new UnauthorizedException('缺少刷新令牌');
-    const result = await this.authService.refresh(token);
-    // 沿用请求中的 platform cookie TTL（无法从结果反向推算，取 web 默认值，mobile 端轮转时会刷新为 30 天）
-    const platform = (req.headers['x-client-platform'] as string) || 'web';
-    const ttl = platform === 'mobile' ? 30 * 24 * 60 * 60 : 7 * 24 * 60 * 60;
-    res.setCookie('refreshToken', result.refreshToken, { ...COOKIE_BASE, maxAge: ttl });
-    return result;
+    const { platform, ...result } = await this.authService.refresh(token);
+    return authResultForClient(result, platform, res);
   }
 
   @Post('verify-email')
@@ -119,7 +130,7 @@ export class AuthController {
   @AuthRead()
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '修改密码（需旧密码），成功后吊销全部 refresh token 强制所有设备重新登录' })
+  @ApiOperation({ summary: '修改密码（需旧密码），成功后退出全部登录终端' })
   @ApiOkResponse({ description: '密码修改成功 { message }' })
   @ApiUnauthorizedResponse({ description: '未登录或旧密码错误' })
   async changePassword(
@@ -136,7 +147,6 @@ export class AuthController {
   @Throttle({ default: { ttl: 60000, limit: 1 } })
   @ApiOperation({ summary: '忘记密码 — 发送重置邮件（限流 1次/分钟）' })
   @ApiOkResponse({ description: '密码重置邮件已发送 { message }' })
-  @ApiNotFoundResponse({ description: '邮箱未注册' })
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgotPassword(dto.email);
   }
@@ -184,7 +194,7 @@ export class AuthController {
   @AuthRead()
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '登出：撤销指定设备的 refresh token（Cookie 优先），同时清除客户端 Cookie' })
+  @ApiOperation({ summary: '登出：撤销当前登录终端的 refresh token（Cookie 优先），同时清除客户端 Cookie' })
   @ApiOkResponse({ description: '登出成功 { message: "已登出" }，refreshToken 被撤销，Cookie 被清除' })
   async logout(@Req() req: FastifyRequest, @Body() dto: LogoutDto, @Res({ passthrough: true }) res: FastifyReply) {
     const user = req['user'] as { id: string };
@@ -200,13 +210,13 @@ export class AuthController {
   @AuthRead()
   @ApiBearerAuth()
   @Throttle({ default: { ttl: 60000, limit: 60 } })
-  @ApiOperation({ summary: '获取当前用户所有活跃会话列表（限流 60 次/分钟）' })
-  @ApiOkResponse({ description: '当前用户所有未撤销且未过期的活跃会话列表' })
-  @ApiResponse({ status: 429, description: '请求频繁，请稍后重试（会话列表独立限流 60 次/分钟）' })
+  @ApiOperation({ summary: '获取当前用户的 Web / 移动客户端活跃登录终端（限流 60 次/分钟）' })
+  @ApiOkResponse({ type: SessionResponseDto, isArray: true, description: '最多返回 Web 与移动客户端各一个活跃登录终端' })
+  @ApiResponse({ status: 429, description: '请求频繁，请稍后重试（登录终端列表独立限流 60 次/分钟）' })
   async listSessions(@Req() req: FastifyRequest) {
-    const user = req['user'] as { id: string };
+    const user = req['user'] as { id: string; sessionId?: string };
     const token = req.cookies?.refreshToken ?? '';
-    return this.authService.listSessions(user.id, token);
+    return this.authService.listSessions(user.id, user.sessionId, token);
   }
 
   @Delete('sessions/:id')
@@ -214,9 +224,10 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
   @Throttle({ default: { ttl: 60000, limit: 60 } })
-  @ApiOperation({ summary: '撤销指定会话（远程登出设备，限流 60 次/分钟）' })
-  @ApiOkResponse({ description: '会话已撤销' })
-  @ApiResponse({ status: 429, description: '请求频繁，请稍后重试（远程撤销独立限流 60 次/分钟）' })
+  @ApiOperation({ summary: '退出指定登录终端（限流 60 次/分钟）' })
+  @ApiOkResponse({ type: RevokeSessionResponseDto, description: '指定登录终端已退出' })
+  @ApiBadRequestResponse({ description: '登录终端不存在或已失效' })
+  @ApiResponse({ status: 429, description: '请求频繁，请稍后重试（退出登录终端独立限流 60 次/分钟）' })
   async revokeSession(@Req() req: FastifyRequest, @Param('id') id: string) {
     const user = req['user'] as { id: string };
     return this.authService.revokeSession(user.id, id);

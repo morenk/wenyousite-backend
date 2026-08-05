@@ -31,7 +31,10 @@ const mockPrisma = {
     update: jest.fn(),
     updateMany: jest.fn(),
   },
-  $transaction: jest.fn((ops: any[]) => Promise.all(ops)),
+  $queryRaw: jest.fn(),
+  $transaction: jest.fn((input: any) =>
+    typeof input === 'function' ? input(mockPrisma) : Promise.all(input),
+  ),
 };
 
 const mockJwt = { signAsync: jest.fn() };
@@ -250,7 +253,15 @@ describe('AuthService', () => {
       const result = await service.login({ account: 'a@b.com', password: 'Test1234!' });
       expect(result.accessToken).toBe('at-token');
       expect(result.user.email).toBe('a@b.com');
+      expect(mockJwt.signAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ sub: 'u1', sid: expect.any(String) }),
+        expect.any(Object),
+      );
       expect(mockPrisma.refreshToken.create).toHaveBeenCalled();
+      expect(mockPrisma.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'u1', platform: 'web', revokedAt: null },
+        data: { revokedAt: expect.any(Date) },
+      });
     });
 
     it('正确用户名密码应该能登录', async () => {
@@ -348,7 +359,7 @@ describe('AuthService', () => {
       mockPrisma.refreshToken.findFirst.mockResolvedValue({
         id: 'rt1', userId: 'u1', tokenHash: expect.any(String), family: 'f1',
         deviceInfo: null, expiresAt: new Date(Date.now() + 86400000),
-        revokedAt: null, createdAt: new Date(),
+        revokedAt: null, createdAt: new Date(), sessionStartedAt: new Date(Date.now() - 3600000),
         user: {
           id: 'u1', email: 'a@b.com', username: 'test', avatar: null,
           role: 'USER', emailVerified: false, deletedAt: null,
@@ -361,6 +372,12 @@ describe('AuthService', () => {
       const result = await service.refresh('valid-rt');
       expect(result.accessToken).toBe('new-at');
       expect(result.refreshToken).toBeDefined();
+      expect(result.platform).toBe('web');
+      expect(mockJwt.signAsync).toHaveBeenCalledWith(
+        { sub: 'u1', sid: 'f1' },
+        expect.any(Object),
+      );
+      expect(mockPrisma.$queryRaw).toHaveBeenCalled();
       // 旧 token 应被原子撤销（with revokedAt: null 条件）
       expect(mockPrisma.refreshToken.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -375,18 +392,30 @@ describe('AuthService', () => {
       await expect(service.refresh('bad-rt')).rejects.toThrow(UnauthorizedException);
     });
 
-    it('refresh token 已撤销时应吊销整个 family', async () => {
+    it('超过并发宽限期的已撤销 refresh token 重放会吊销整个 family', async () => {
       mockPrisma.refreshToken.findFirst.mockResolvedValue({
         id: 'rt1', userId: 'u1', tokenHash: expect.any(String), family: 'f1',
         deviceInfo: null, expiresAt: new Date(Date.now() + 86400000),
-        revokedAt: new Date(), createdAt: new Date(),
+        revokedAt: new Date(Date.now() - 11_000), createdAt: new Date(), sessionStartedAt: new Date(),
         user: { deletedAt: null },
       });
 
       await expect(service.refresh('stolen-rt')).rejects.toThrow(UnauthorizedException);
       expect(mockPrisma.refreshToken.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { family: 'f1' } }),
+        expect.objectContaining({ where: { userId: 'u1', family: 'f1', revokedAt: null } }),
       );
+    });
+
+    it('刚轮转的旧 token 并发重放只拒绝请求，不误伤新 token', async () => {
+      mockPrisma.refreshToken.findFirst.mockResolvedValue({
+        id: 'rt1', userId: 'u1', tokenHash: expect.any(String), family: 'f1',
+        deviceInfo: null, expiresAt: new Date(Date.now() + 86400000),
+        revokedAt: new Date(), createdAt: new Date(), sessionStartedAt: new Date(),
+        user: { deletedAt: null },
+      });
+
+      await expect(service.refresh('concurrent-old-rt')).rejects.toThrow(UnauthorizedException);
+      expect(mockPrisma.refreshToken.updateMany).not.toHaveBeenCalled();
     });
   });
 
@@ -509,28 +538,32 @@ describe('AuthService', () => {
   });
 
   describe('listSessions', () => {
-    it('应该返回用户活跃会话列表', async () => {
+    it('应该返回用户活跃登录终端列表', async () => {
       const crypto = await import('crypto');
       const currentHash = crypto.createHash('sha256').update('token2').digest('hex');
 
       mockPrisma.refreshToken.findMany.mockResolvedValue([
         {
-          id: 's1', platform: 'web', deviceInfo: 'Chrome',
+          family: 'f1', platform: 'web', deviceInfo: 'Chrome',
+          sessionStartedAt: new Date(Date.now() - 3600000),
           createdAt: new Date(), expiresAt: new Date(Date.now() + 86400000),
           tokenHash: 'other-hash',
         },
         {
-          id: 's2', platform: 'mobile', deviceInfo: 'iOS App',
+          family: 'f2', platform: 'mobile', deviceInfo: 'iOS App',
+          sessionStartedAt: new Date(Date.now() - 7200000),
           createdAt: new Date(), expiresAt: new Date(Date.now() + 2592000000),
           tokenHash: currentHash,
         },
       ]);
 
-      const sessions = await service.listSessions('u1', 'token2');
+      const sessions = await service.listSessions('u1', 'f2', 'token2');
       expect(sessions).toHaveLength(2);
       expect(sessions[0].isCurrent).toBe(false);
       expect(sessions[1].isCurrent).toBe(true);
+      expect(sessions[1].id).toBe('f2');
       expect(sessions[1].platform).toBe('mobile');
+      expect(sessions[1].createdAt).toBe(sessions[1].signedInAt);
       expect(mockPrisma.refreshToken.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
@@ -544,14 +577,19 @@ describe('AuthService', () => {
   });
 
   describe('revokeSession', () => {
-    it('应该撤销指定会话', async () => {
+    it('应该退出指定登录终端', async () => {
+      mockPrisma.refreshToken.findFirst.mockResolvedValue({ family: 'f1' });
       mockPrisma.refreshToken.updateMany.mockResolvedValue({ count: 1 });
       const result = await service.revokeSession('u1', 's1');
-      expect(result.message).toBe('已撤销');
+      expect(result.message).toBe('登录终端已退出');
+      expect(mockPrisma.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'u1', family: 'f1', revokedAt: null },
+        data: { revokedAt: expect.any(Date) },
+      });
     });
 
     it('会话不存在时应该返回400', async () => {
-      mockPrisma.refreshToken.updateMany.mockResolvedValue({ count: 0 });
+      mockPrisma.refreshToken.findFirst.mockResolvedValue(null);
       await expect(
         service.revokeSession('u1', 'nonexistent'),
       ).rejects.toThrow(BadRequestException);

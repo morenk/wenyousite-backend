@@ -141,19 +141,21 @@ model EmailVerification {
 }
 
 model RefreshToken {
-  id         String    @id @default(cuid())
-  userId     String    @map("user_id")
-  tokenHash  String    @map("token_hash")
-  family     String
-  platform   String?   @default("web")
-  deviceInfo String?   @map("device_info")
-  expiresAt  DateTime  @map("expires_at")
-  revokedAt  DateTime? @map("revoked_at")
-  createdAt  DateTime  @default(now()) @map("created_at")
+  id               String    @id @default(cuid())
+  userId           String    @map("user_id")
+  tokenHash        String    @map("token_hash")
+  family           String
+  platform         String    @default("web")
+  deviceInfo       String?   @map("device_info")
+  sessionStartedAt DateTime  @default(now()) @map("session_started_at")
+  expiresAt        DateTime  @map("expires_at")
+  revokedAt        DateTime? @map("revoked_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, revokedAt])
+  @@index([userId, family, revokedAt])
   @@index([tokenHash])
   @@map("refresh_tokens")
 }

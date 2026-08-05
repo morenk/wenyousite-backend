@@ -19,18 +19,35 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     });
   }
 
-  /** 验证通过后，将用户信息挂载到 request.user */
-  async validate(payload: { sub: string }) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: payload.sub },
-      select: { id: true, email: true, username: true, avatar: true, role: true, emailVerified: true, deletedAt: true },
-    });
+  /** 验证通过后，将用户和稳定登录终端 ID 挂载到 request.user。 */
+  async validate(payload: { sub: string; sid?: string }) {
+    const [user, activeTerminal] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { id: true, email: true, username: true, avatar: true, role: true, emailVerified: true, deletedAt: true },
+      }),
+      payload.sid
+        ? this.prisma.refreshToken.findFirst({
+          where: {
+            userId: payload.sub,
+            family: payload.sid,
+            revokedAt: null,
+            expiresAt: { gt: new Date() },
+          },
+          select: { id: true },
+        })
+        : Promise.resolve(null),
+    ]);
     if (!user) {
       throw new UnauthorizedException();
     }
     if (user.deletedAt) {
       throw new UnauthorizedException('账号已注销');
     }
-    return user;
+    // 兼容部署前签发、最长仅存活 15 分钟的无 sid access token。
+    if (payload.sid && !activeTerminal) {
+      throw new UnauthorizedException('登录终端已失效，请重新登录');
+    }
+    return { ...user, sessionId: payload.sid };
   }
 }

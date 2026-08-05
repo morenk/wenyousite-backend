@@ -68,11 +68,11 @@ Swagger `/api/docs-json` 同样输出这一真实 envelope，可直接用于 Web
 ### 2.1 认证流程
 
 ```
-注册: request-code → verify-and-complete → 获得双 Token
-登录: login → 获得双 Token
+注册: request-code → verify-and-complete → 建立对应端登录终端
+登录: login → 建立对应端登录终端
 使用: 所有请求带 Authorization: Bearer <accessToken>
-刷新: accessToken 过期 → refresh → 获得新双 Token
-登出: logout（撤销 refreshToken）
+刷新: accessToken 过期 → refresh → 轮转 Token
+登出: logout（退出当前登录终端）
 ```
 
 ### 2.2 Token 说明
@@ -80,9 +80,9 @@ Swagger `/api/docs-json` 同样输出这一真实 envelope，可直接用于 Web
 | Token | 有效期 | 存储方式 | 用途 |
 |-------|--------|----------|------|
 | `accessToken` | 15 分钟 | 前端内存/localStorage | 请求时放 `Authorization: Bearer <token>` |
-| `refreshToken` | web 7 天 / mobile 30 天 | httpOnly Cookie（自动） + 响应体中 | 刷新 accessToken |
+| `refreshToken` | web 7 天 / mobile 30 天 | Web：仅 httpOnly Cookie；原生移动端：仅响应体 | 刷新 accessToken |
 
-**Cookie 优先**：refresh 和 logout 时会自动从 Cookie 读取 refreshToken，RequestBody 中的 `refreshToken` 为备选。前端无需手动管理 refreshToken 的发送。
+**双端登录**：每个账号最多一个 Web 登录终端和一个原生移动端登录终端。PC 与手机浏览器均属 Web 端；同端再次登录会替换旧终端。Web 的 refresh 和 logout 自动从 Cookie 读取 refreshToken，RequestBody 仅作兼容备选。
 
 ### 2.3 登录示例
 
@@ -100,7 +100,6 @@ X-Client-Platform: web
   "code": 0, "message": "ok",
   "data": {
     "accessToken": "eyJhbGciOiJIUzI1NiIs...",
-    "refreshToken": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "user": {
       "id": "clxabc123...",
       "email": "user@example.com",
@@ -122,7 +121,7 @@ Content-Type: application/json
 { "refreshToken": "a1b2c3d4-..." }   // Cookie 中有则可不传
 ```
 
-成功返回同登录格式的新双 Token。旧 refreshToken 立即失效。
+Web 成功响应只返回新的 access token 与 user，新 refresh token 通过 httpOnly Cookie 写入；原生移动端响应体还会返回新 refresh token。平台沿用服务端登录终端记录，旧 refresh token 立即失效。
 
 ---
 

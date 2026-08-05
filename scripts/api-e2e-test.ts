@@ -12,7 +12,7 @@
 import pc from "picocolors";
 import { z } from "zod";
 import { faker } from "@faker-js/faker";
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 
 // ═══════════════════════════════════════════════════════════════
 // 配置
@@ -63,7 +63,7 @@ const userSchema = z.object({
 
 const authResponseSchema = z.object({
   accessToken: z.string(),
-  refreshToken: z.string(),
+  refreshToken: z.string().optional(),
   user: userSchema,
 });
 
@@ -294,12 +294,44 @@ let subscriptionId = "";
 let tagId = "";
 let useTestuserId = "cms5zycb900017q0azar1nag2";
 
+function resolvePostgresContainer(): string {
+  const configured = process.env.API_E2E_POSTGRES_CONTAINER?.trim();
+  if (configured) return configured;
+
+  const rows = execFileSync("docker", ["ps", "--format", "{{.Names}}\t{{.Image}}"], {
+    encoding: "utf-8",
+    timeout: 5000,
+  })
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((row) => row.split("\t"))
+    .filter(([, image]) => image?.startsWith("postgres:"));
+  if (rows.length !== 1 || !rows[0][0]) {
+    throw new Error("无法唯一识别本机 PostgreSQL 容器，请设置 API_E2E_POSTGRES_CONTAINER");
+  }
+  return rows[0][0];
+}
+
 /** 从 email_verifications 表中读取最新验证码 */
 function fetchCodeFromDB(email: string): string | null {
   try {
-    const result = execSync(
-      `docker exec wenyousite-postgres psql -U wenyou -d wenyousite -t -c "SELECT token FROM email_verifications WHERE email='${email}' ORDER BY created_at DESC LIMIT 1;"`,
-      { encoding: "utf-8", timeout: 5000 }
+    const safeEmail = email.replaceAll("'", "''");
+    const result = execFileSync(
+      "docker",
+      [
+        "exec",
+        resolvePostgresContainer(),
+        "psql",
+        "-U",
+        process.env.API_E2E_DB_USER ?? "wenyou",
+        "-d",
+        process.env.API_E2E_DB_NAME ?? "wenyousite",
+        "-tA",
+        "-c",
+        `SELECT token FROM email_verifications WHERE email='${safeEmail}' ORDER BY created_at DESC LIMIT 1;`,
+      ],
+      { encoding: "utf-8", timeout: 5000 },
     );
     return result.trim();
   } catch {
@@ -373,10 +405,11 @@ test(s2, "POST /auth/login 登录", async () => {
   await api.post("/auth/logout");
   const r = await api.post(
     "/auth/login",
-    { email: TEST_EMAIL, password: TEST_PASSWORD },
+    { account: TEST_EMAIL, password: TEST_PASSWORD },
     apiResponse(authResponseSchema)
   );
   assert(r.data.accessToken.length > 10, "accessToken 应有效");
+  assert(r.data.refreshToken === undefined, "Web 登录响应体不应包含 refreshToken");
   api.token = r.data.accessToken;
 });
 
@@ -395,12 +428,13 @@ test(s2, "POST /auth/refresh 刷新 token", async () => {
     apiResponse(authResponseSchema)
   );
   assert(r.data.accessToken.length > 10, "新 accessToken 应有效");
+  assert(r.data.refreshToken === undefined, "Web 刷新响应体不应包含 refreshToken");
   api.token = r.data.accessToken;
 });
 
 test(s2, "POST /auth/login 错误密码 → 401", async () => {
   const { status } = await api.expectStatus("/auth/login", "POST", {
-    email: TEST_EMAIL,
+    account: TEST_EMAIL,
     password: "WrongPass1!",
   });
   assert(status === 401, `期望 401, 实际 ${status}`);
@@ -825,7 +859,7 @@ const s13 = suite("参数校验 & 错误码");
 
 test(s13, "POST /auth/login 短密码 → 400", async () => {
   const { status } = await api.expectStatus("/auth/login", "POST", {
-    email: TEST_EMAIL,
+    account: TEST_EMAIL,
     password: "12",
   });
   assert(status === 400, `期望 400, 实际 ${status}`);

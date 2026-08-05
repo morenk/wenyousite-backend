@@ -15,6 +15,7 @@ import { EmailService } from '../email/email.service';
 import { VerificationCodeService, VERIFICATION_CODE_TTL } from './verification-code.service';
 import { LoginDto } from './dto/login.dto';
 import { VerifyAndCompleteDto } from './dto/verify-and-complete.dto';
+import { ClientPlatform, normalizeClientPlatform } from './client-platform';
 
 const userSelectPublic = {
   id: true, email: true, username: true, avatar: true,
@@ -22,7 +23,7 @@ const userSelectPublic = {
 } as const;
 
 @Injectable()
-/** 认证服务：注册、登录、Token 刷新、邮箱验证、密码管理、多设备会话 */
+/** 认证服务：注册、登录、Token 刷新、邮箱验证、密码管理、双端登录终端 */
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
@@ -36,6 +37,7 @@ export class AuthService {
 
   private readonly REFRESH_WEB_TTL = 7 * 24 * 60 * 60 * 1000; // Web 端 7 天
   private readonly REFRESH_MOBILE_TTL = 30 * 24 * 60 * 60 * 1000; // 移动端 30 天
+  private readonly REFRESH_REPLAY_GRACE = 10 * 1000;
 
   private hashToken(token: string): string {
     return crypto.createHash('sha256').update(token).digest('hex');
@@ -60,7 +62,7 @@ export class AuthService {
   }
 
   /** 注册第二步：验证邮箱验证码 + 设置用户名密码，一步完成注册 */
-  async verifyAndComplete(dto: VerifyAndCompleteDto, deviceInfo?: string, platform = 'web') {
+  async verifyAndComplete(dto: VerifyAndCompleteDto, deviceInfo?: string, platform: ClientPlatform = 'web') {
     const email = dto.email.toLowerCase().trim();
     const record = await this.prisma.emailVerification.findFirst({
       where: { email, type: 'REGISTRATION' },
@@ -112,28 +114,45 @@ export class AuthService {
     }
   }
 
-  /** 创建会话：生成 accessToken + refreshToken，写入 RefreshToken 记录 */
-  private async createSession(userId: string, deviceInfo: string | null, platform = 'web') {
+  /** 创建登录终端：同一用户同一平台只保留最新终端。用户行锁保证并发登录不会产生重复槽位。 */
+  private async createSession(userId: string, deviceInfo: string | null, platform: ClientPlatform = 'web') {
+    const normalizedPlatform = normalizeClientPlatform(platform);
+    const family = crypto.randomUUID();
+    const sessionStartedAt = new Date();
     const accessToken = await this.jwtService.signAsync(
-      { sub: userId },
+      { sub: userId, sid: family },
       { secret: this.configService.get<string>('jwt.accessSecret')!, expiresIn: '15m' as const },
     );
 
     const rawRefreshToken = crypto.randomUUID();
     const tokenHash = this.hashToken(rawRefreshToken);
-    const family = crypto.randomUUID();
-    const ttl = platform === 'mobile' ? this.REFRESH_MOBILE_TTL : this.REFRESH_WEB_TTL;
+    const ttl = normalizedPlatform === 'mobile' ? this.REFRESH_MOBILE_TTL : this.REFRESH_WEB_TTL;
     const expiresAt = new Date(Date.now() + ttl);
 
-    await this.prisma.refreshToken.create({
-      data: { userId, tokenHash, family, platform, deviceInfo, expiresAt },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`;
+      await tx.refreshToken.updateMany({
+        where: { userId, platform: normalizedPlatform, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      await tx.refreshToken.create({
+        data: {
+          userId,
+          tokenHash,
+          family,
+          platform: normalizedPlatform,
+          deviceInfo,
+          sessionStartedAt,
+          expiresAt,
+        },
+      });
     });
 
     return { accessToken, refreshToken: rawRefreshToken };
   }
 
   /** 登录：验证邮箱或用户名 + 密码，创建新会话（含 5 次失败锁定） */
-  async login(dto: LoginDto, deviceInfo?: string, platform = 'web') {
+  async login(dto: LoginDto, deviceInfo?: string, platform: ClientPlatform = 'web') {
     const account = dto.account.trim();
     const user = await this.prisma.user.findFirst({
       where: {
@@ -202,78 +221,121 @@ export class AuthService {
     };
   }
 
-  /** 刷新 Token：refresh token 轮转 + 盗用检测 */
+  /** 刷新 Token：在用户行锁内轮转，和同平台新登录串行化。 */
   async refresh(rawRefreshToken: string) {
     const tokenHash = this.hashToken(rawRefreshToken);
-    const record = await this.prisma.refreshToken.findFirst({
+    const initial = await this.prisma.refreshToken.findFirst({
       where: { tokenHash },
-      include: {
-        user: { select: { ...userSelectPublic, deletedAt: true } },
-      },
+      select: { userId: true },
     });
-
-    if (!record) {
+    if (!initial) {
       throw new UnauthorizedException('刷新令牌无效');
     }
 
-    if (record.revokedAt) {
-      // 盗用检测：已撤销的 token 被重复使用 → 整个 family 吊销
-      await this.prisma.refreshToken.updateMany({
-        where: { family: record.family },
+    const rotated = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM users WHERE id = ${initial.userId} FOR UPDATE`;
+      const record = await tx.refreshToken.findFirst({
+        where: { tokenHash },
+        include: {
+          user: { select: { ...userSelectPublic, deletedAt: true } },
+        },
+      });
+
+      if (!record) {
+        return { ok: false as const, message: '刷新令牌无效' };
+      }
+
+      if (record.revokedAt) {
+        const outsideGrace = Date.now() - record.revokedAt.getTime() > this.REFRESH_REPLAY_GRACE;
+        if (outsideGrace) {
+          // 必须先提交吊销，再在事务外抛错；事务内抛错会回滚安全操作。
+          await tx.refreshToken.updateMany({
+            where: { userId: record.userId, family: record.family, revokedAt: null },
+            data: { revokedAt: new Date() },
+          });
+        }
+        return { ok: false as const, message: '令牌已失效，请重新登录' };
+      }
+
+      if (record.expiresAt <= new Date()) {
+        await tx.refreshToken.updateMany({
+          where: { id: record.id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        return { ok: false as const, message: '刷新令牌已过期，请重新登录' };
+      }
+
+      if (record.user.deletedAt) {
+        await tx.refreshToken.updateMany({
+          where: { userId: record.userId, family: record.family, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        return { ok: false as const, message: '刷新令牌无效' };
+      }
+
+      // 原子撤销：用 updateMany({ id, revokedAt: null }) 防并发竞争
+      const revokeResult = await tx.refreshToken.updateMany({
+        where: { id: record.id, revokedAt: null },
         data: { revokedAt: new Date() },
       });
-      throw new UnauthorizedException('令牌已失效，请重新登录');
-    }
 
-    if (record.expiresAt <= new Date()) {
-      throw new UnauthorizedException('刷新令牌已过期，请重新登录');
-    }
+      if (revokeResult.count === 0) {
+        await tx.refreshToken.updateMany({
+          where: { userId: record.userId, family: record.family, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        return { ok: false as const, message: '令牌已失效，请重新登录' };
+      }
 
-    if (record.user.deletedAt) {
-      throw new UnauthorizedException('刷新令牌无效');
-    }
+      const newRawToken = crypto.randomUUID();
+      const newHash = this.hashToken(newRawToken);
+      const platform = normalizeClientPlatform(record.platform);
+      const ttl = platform === 'mobile' ? this.REFRESH_MOBILE_TTL : this.REFRESH_WEB_TTL;
+      const expiresAt = new Date(Date.now() + ttl);
 
-    // 原子撤销：用 updateMany({ id, revokedAt: null }) 防并发竞争
-    const revokeResult = await this.prisma.refreshToken.updateMany({
-      where: { id: record.id, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
-
-    if (revokeResult.count === 0) {
-      // 并发请求已抢先撤销 → 盗用检测
-      await this.prisma.refreshToken.updateMany({
-        where: { family: record.family },
-        data: { revokedAt: new Date() },
+      await tx.refreshToken.create({
+        data: {
+          userId: record.userId,
+          tokenHash: newHash,
+          family: record.family,
+          platform,
+          deviceInfo: record.deviceInfo,
+          sessionStartedAt: record.sessionStartedAt,
+          expiresAt,
+        },
       });
-      throw new UnauthorizedException('令牌已失效，请重新登录');
-    }
 
-    const newRawToken = crypto.randomUUID();
-    const newHash = this.hashToken(newRawToken);
-    const platform = (record.platform as string) || 'web';
-    const ttl = platform === 'mobile' ? this.REFRESH_MOBILE_TTL : this.REFRESH_WEB_TTL;
-    const expiresAt = new Date(Date.now() + ttl);
-
-    await this.prisma.refreshToken.create({
-      data: {
-        userId: record.userId,
-        tokenHash: newHash,
-        family: record.family,
+      return {
+        ok: true as const,
+        newRawToken,
         platform,
-        deviceInfo: record.deviceInfo,
-        expiresAt,
-      },
+        sessionId: record.family,
+        userId: record.userId,
+        user: record.user,
+      };
     });
+
+    if (!rotated.ok) {
+      throw new UnauthorizedException(rotated.message);
+    }
 
     const accessToken = await this.jwtService.signAsync(
-      { sub: record.userId },
+      { sub: rotated.userId, sid: rotated.sessionId },
       { secret: this.configService.get<string>('jwt.accessSecret')!, expiresIn: '15m' as const },
     );
 
     return {
       accessToken,
-      refreshToken: newRawToken,
-      user: record.user,
+      refreshToken: rotated.newRawToken,
+      platform: rotated.platform,
+      user: {
+        id: rotated.user.id,
+        email: rotated.user.email,
+        username: rotated.user.username,
+        avatar: rotated.user.avatar,
+        role: rotated.user.role,
+        emailVerified: rotated.user.emailVerified,
+      },
     };
   }
 
@@ -507,7 +569,7 @@ export class AuthService {
     return { emailSent, message: '如果该邮箱已注册且未验证，验证邮件已发送' };
   }
 
-  /** 登出：撤销指定设备的 refresh token */
+  /** 登出：撤销当前登录终端的 refresh token */
   async logout(userId: string, rawRefreshToken: string) {
     const tokenHash = this.hashToken(rawRefreshToken);
     await this.prisma.refreshToken.updateMany({
@@ -517,38 +579,52 @@ export class AuthService {
     return { message: '已登出' };
   }
 
-  /** 列出当前用户的所有活跃会话 */
-  async listSessions(userId: string, currentRefreshToken: string) {
-    const currentHash = this.hashToken(currentRefreshToken);
+  /** 列出当前用户的 Web / 移动客户端活跃登录终端。 */
+  async listSessions(userId: string, currentSessionId?: string, currentRefreshToken?: string) {
+    const currentHash = currentRefreshToken ? this.hashToken(currentRefreshToken) : null;
     const now = new Date();
     const sessions = await this.prisma.refreshToken.findMany({
       where: { userId, revokedAt: null, expiresAt: { gt: now } },
       select: {
-        id: true, platform: true, deviceInfo: true,
+        family: true, platform: true, deviceInfo: true, sessionStartedAt: true,
         createdAt: true, expiresAt: true, tokenHash: true,
       },
       orderBy: { createdAt: 'desc' },
     });
 
     return sessions.map(s => ({
-      id: s.id,
-      platform: s.platform || 'web',
+      id: s.family,
+      platform: normalizeClientPlatform(s.platform),
       deviceInfo: s.deviceInfo,
-      isCurrent: s.tokenHash === currentHash,
-      createdAt: s.createdAt,
+      isCurrent: s.family === currentSessionId || (currentHash !== null && s.tokenHash === currentHash),
+      signedInAt: s.sessionStartedAt,
+      lastActiveAt: s.createdAt,
       expiresAt: s.expiresAt,
+      createdAt: s.sessionStartedAt,
     }));
   }
 
-  /** 撤销指定会话（远程登出某设备） */
+  /** 退出指定登录终端；兼容旧客户端传 refresh token 记录 ID。 */
   async revokeSession(userId: string, sessionId: string) {
+    const terminal = await this.prisma.refreshToken.findFirst({
+      where: {
+        userId,
+        OR: [{ family: sessionId }, { id: sessionId }],
+      },
+      select: { family: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!terminal) {
+      throw new BadRequestException('登录终端不存在或已失效');
+    }
+
     const result = await this.prisma.refreshToken.updateMany({
-      where: { id: sessionId, userId, revokedAt: null },
+      where: { userId, family: terminal.family, revokedAt: null },
       data: { revokedAt: new Date() },
     });
     if (result.count === 0) {
-      throw new BadRequestException('会话不存在或已失效');
+      throw new BadRequestException('登录终端不存在或已失效');
     }
-    return { message: '已撤销' };
+    return { message: '登录终端已退出' };
   }
 }

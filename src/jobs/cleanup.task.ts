@@ -7,7 +7,7 @@ import { MediaService } from '../media/media.service';
 /** ZSET 键名 */
 const ZSET_BY_SMART = 'threads:by:smart';
 
-/** 定时清理任务：清理过期验证 token、未验证的僵尸用户、过期/已撤销的 refresh token、废弃草稿帖、已读旧通知、孤儿图片 + 智能排序分全量重算 */
+/** 定时清理任务：清理过期验证/refresh token、未验证的僵尸用户、废弃草稿帖、已读旧通知、孤儿图片 + 智能排序分全量重算 */
 @Injectable()
 export class CleanupTask {
   private readonly logger = new Logger(CleanupTask.name);
@@ -29,17 +29,12 @@ export class CleanupTask {
       this.logger.log(`清理过期验证记录: ${deletedTokens.count} 条`);
     }
 
-    // 清理过期或已撤销的 refresh token
+    // 已撤销 token 必须保留到自身过期，以便检测旧 token 重放。
     const deletedRefresh = await this.prisma.refreshToken.deleteMany({
-      where: {
-        OR: [
-          { expiresAt: { lt: new Date() } },
-          { revokedAt: { not: null } },
-        ],
-      },
+      where: { expiresAt: { lt: new Date() } },
     });
     if (deletedRefresh.count > 0) {
-      this.logger.log(`清理过期/已撤销 refresh token: ${deletedRefresh.count} 条`);
+      this.logger.log(`清理已过期 refresh token: ${deletedRefresh.count} 条`);
     }
 
     // 清理 7 天未验证的僵尸用户（软删除 + 撤销 refresh token）

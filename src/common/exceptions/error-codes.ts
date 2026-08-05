@@ -21,7 +21,7 @@ export const ErrorCode = {
   TOKEN_INVALID: 40102,
   /** Token 已被撤销（refresh token 轮转盗用检测） */
   TOKEN_REVOKED: 40103,
-  /** Token 盗用检测触发，整个设备登出 */
+  /** Token 盗用检测触发，对应登录终端退出 */
   TOKEN_THEFT_DETECTED: 40104,
   /** 账号已锁定（登录失败超限） */
   ACCOUNT_LOCKED: 40105,
