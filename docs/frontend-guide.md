@@ -270,7 +270,7 @@ POST   /threads/join-by-link/:token   通过 16 位 token 幂等加入私密帖
 
 私密帖 `visibility=PRIVATE` 不在公开列表/搜索中出现。非成员访问详情返回 404。
 
-用户主页 `GET /users/:id/played-threads`：本人可看到全部实际加入的非自建帖子并使用 `visibility=PUBLIC|PRIVATE` 分类；查看他人时仍只返回 PUBLIC 且 `playerMarked=true` 的帖子。
+用户主页 `GET /users/:id/played-threads`：仅返回用户已被授予玩家身份（`playerMarked=true`）的非自建帖子，回复生成的普通成员关系不计入；本人可用 `visibility=PUBLIC|PRIVATE` 分类，查看他人时只返回 PUBLIC 帖。
 
 ### 4.6 通知
 

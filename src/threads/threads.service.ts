@@ -389,7 +389,7 @@ export class ThreadsService {
     });
   }
 
-  /** 本人查看全部实际参与帖；他人仅可查看公开且已标记为玩家的帖子。 */
+  /** 参与帖仅指已被授予玩家身份的帖子；他人只能查看其中的公开帖。 */
   async findByPlayedUser(
     targetId: string,
     viewerId?: string,
@@ -406,6 +406,7 @@ export class ThreadsService {
 
     const where: any = {
       userId: targetId,
+      playerMarked: true,
       thread: { ...notDeleted, published: true },
     };
     // 参与列表排除自己创建的帖（自建帖在「创建的帖子」中展示）
@@ -414,7 +415,6 @@ export class ThreadsService {
     if (isSelf) {
       if (visibility) where.thread.visibility = visibility;
     } else {
-      where.playerMarked = true;
       where.thread.visibility = 'PUBLIC';
     }
 

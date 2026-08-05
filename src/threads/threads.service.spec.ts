@@ -674,13 +674,13 @@ describe('ThreadsService', () => {
       mockPrisma.threadMember.groupBy.mockResolvedValue([]);
     });
 
-    it('本人列表包含全部实际加入的非自建帖，不要求玩家标记', async () => {
+    it('本人列表也只包含已被授予玩家身份的非自建帖', async () => {
       mockPrisma.threadMember.findMany.mockResolvedValue([
         { id: 'm1', thread: { id: 't1' } },
       ]);
       await service.findByPlayedUser('u1', 'u1');
       const args = mockPrisma.threadMember.findMany.mock.calls[0][0];
-      expect(args.where.playerMarked).toBeUndefined();
+      expect(args.where.playerMarked).toBe(true);
       expect(args.where.thread.visibility).toBeUndefined();
       expect(args.where.thread.ownerId).toEqual({ not: 'u1' });
     });

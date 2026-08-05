@@ -142,7 +142,7 @@ export class UsersController {
 
   @Get(':id/played-threads')
   @OptionalAuth()
-  @ApiOperation({ summary: '查看用户参与的帖子（本人含全部实际参与帖；他人仅公开玩家帖）' })
+  @ApiOperation({ summary: '查看用户参与的帖子（仅已被授予玩家身份的帖子；他人仅可见公开帖）' })
   @ApiOkResponse({ description: '用户参与的帖子列表（cursor 分页）' })
   @ApiNotFoundResponse({ description: '用户不存在或未公开参与的帖子' })
   async getUserPlayedThreads(

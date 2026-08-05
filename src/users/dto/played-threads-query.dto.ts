@@ -6,7 +6,7 @@ import { CursorPaginationDto } from '../../common/dto/pagination.dto';
 export class PlayedThreadsQueryDto extends CursorPaginationDto {
   @ApiPropertyOptional({
     enum: ['PUBLIC', 'PRIVATE'],
-    description: '按公开帖或私密帖筛选。本人可筛选全部实际参与帖；他人请求 PRIVATE 返回空列表',
+    description: '按公开帖或私密帖筛选已获得玩家身份的帖子。他人请求 PRIVATE 返回空列表',
   })
   @IsOptional()
   @IsString()

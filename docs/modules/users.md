@@ -31,7 +31,7 @@
 | DELETE | `/users/me` | Auth | 注销当前账号（软删除，设置 deletedAt），需邮箱已验证 |
 | GET | `/users/:id` | OptionalAuth | 获取指定用户的公开资料（不含邮箱）。登录后额外返回 isFollowing / isFollowedBy / isBlocked / isBlockedBy |
 | GET | `/users/:id/bookmarks` | OptionalAuth | 查看用户的公开收藏，Cursor 分页。受 showBookmarks 控制 |
-| GET | `/users/:id/played-threads` | OptionalAuth | 查看用户参与的非自建主题帖，支持 `visibility=PUBLIC\|PRIVATE` 分类和 Cursor 分页。本人含全部实际成员关系；他人仅见公开且已标记玩家的帖子，并受 showPlayerBadges 控制 |
+| GET | `/users/:id/played-threads` | OptionalAuth | 查看用户获得玩家身份的非自建主题帖，支持 `visibility=PUBLIC\|PRIVATE` 分类和 Cursor 分页。本人可见公开帖和私密帖；他人仅见公开帖，并受 showPlayerBadges 控制 |
 | GET | `/users/:id/created-threads` | OptionalAuth | 查看用户创建的主题帖（本人可见全部含私密帖，他人仅见 PUBLIC 已发布帖），按创建时间倒序，Cursor 分页 |
 | GET | `/users/:id/recent-replies` | OptionalAuth | 查看用户最近 10 条回复（仅 PUBLIC 帖）。受 showRecentReplies 控制 |
 | POST | `/users/follow/:id` | Auth | 关注指定用户 |
@@ -99,7 +99,7 @@
 - 拉黑使用 upsert 保证幂等，拉黑自己返回提示消息
 - 用户搜索返回最多 10 条结果，按用户名字母序排列，排除已注销用户
 - 公开收藏 (`GET /users/:id/bookmarks`)：受 `showBookmarks` 控制，关闭时返回 404；未发布帖不显示；私密帖仅对其参与人可见；本人始终可见；Cursor 分页
-- 参与帖子 (`GET /users/:id/played-threads`)：始终排除自己创建的帖（`ownerId = targetId`），按加入时间倒序并使用 Cursor 分页。本人查看时返回全部实际成员关系（包括邀请加入但尚未被标记为玩家的私密帖），可用 `visibility=PUBLIC|PRIVATE` 在数据库查询层分类；他人查看时仍要求 `playerMarked=true` 且只返回 PUBLIC 帖，并受 `showPlayerBadges` 控制。非本人请求 PRIVATE 分类固定返回空列表
+- 参与帖子 (`GET /users/:id/played-threads`)：只有被帖子管理者授予玩家身份（`playerMarked=true`）才算参与，仅回复过而生成的候选成员关系不计入。列表始终排除自己创建的帖（`ownerId = targetId`），按加入时间倒序并使用 Cursor 分页。本人可用 `visibility=PUBLIC|PRIVATE` 分类查看已获玩家身份的公开帖或私密帖；他人查看时只返回 PUBLIC 帖，并受 `showPlayerBadges` 控制。非本人请求 PRIVATE 分类固定返回空列表
 - 创建帖子 (`GET /users/:id/created-threads`)：无隐私开关，由帖本身 visibility 控制——本人可见全部已发布帖（含 PRIVATE），他人仅见 PUBLIC 帖；按创建时间倒序排列；Cursor 分页
 - 最近动态 (`GET /users/:id/recent-replies`)：受 `showRecentReplies` 控制，关闭时返回 404；仅返回 PUBLIC 帖中的回复；本人始终可见自己的动态；固定返回最近 10 条不分页。每条含 `preview`（Markdown 剥离后的纯文本截断，使用 `truncateMarkdown`）和 `parentPostId`（为 null 则为楼层回复，非 null 则为楼中楼）
 
@@ -115,7 +115,7 @@
 
 - **双查询方法（findMe / findById）**：分离本人信息和公开信息，避免敏感字段泄露。`findById` 接受可选 `viewerId` 供 optional auth 场景
 - **OptionalAuth 守卫**：不同于 `@Public()` 完全跳过 JWT 解析，`@OptionalAuth()` 会尝试解析 token 但不强制，使公开接口能在登录态下返回个性化数据
-- **参与/创建分离**：自建帖归入创建列表，参与列表只含其他楼主的帖子；本人以实际成员关系保证私密帖有稳定入口，他人仍只能看到公开玩家关系
+- **参与/创建分离**：自建帖归入创建列表，参与列表只含其他楼主的帖子，且统一以 `playerMarked=true` 表示已获授玩家身份；本人可见其中的私密帖，他人只能看到公开玩家关系
 - **已注销用户屏蔽**：保留记录不物理删除（外键关联完整性），但在公开接口中替换为兜底显示名，不暴露注销时间
 - **关注/拉黑/资料修改/注销使用 @Auth()**：这些写操作涉及通知推送和信息公开，要求邮箱已验证以减少滥用
 - **UserFollow 联合唯一键**：upsert 保证同一关注关系唯一，避免重复关注记录
