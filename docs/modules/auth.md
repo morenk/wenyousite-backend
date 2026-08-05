@@ -35,8 +35,8 @@
 | POST | `/auth/change-email/request-code` | AuthRead | 1/min | 更换邮箱第一步：校验当前密码后向新邮箱发验证码（换新邮箱会作废旧记录，同邮箱未过期则重发） |
 | POST | `/auth/change-email/verify` | Auth | 5/min | 更换邮箱第二步：验证码确认，更新邮箱并发送成功通知 |
 | POST | `/auth/logout` | AuthRead | 全局 (20/min) | 登出，撤销指定设备的 refresh token（Cookie 优先） |
-| GET | `/auth/sessions` | AuthRead | 全局 (20/min) | 获取当前用户所有活跃会话列表 |
-| DELETE | `/auth/sessions/:id` | AuthRead | 全局 (20/min) | 撤销指定会话（远程登出某设备） |
+| GET | `/auth/sessions` | AuthRead | 独立 (60/min) | 获取当前用户所有未撤销且未过期的活跃会话列表 |
+| DELETE | `/auth/sessions/:id` | AuthRead | 独立 (60/min) | 撤销指定会话（远程登出某设备） |
 
 ## 请求/响应格式
 
@@ -171,13 +171,14 @@
 
 ### 会话管理
 
-- `GET /auth/sessions` 列出当前用户所有活跃会话，含 `isCurrent` 标记、平台类型、设备信息、创建/过期时间
+- `GET /auth/sessions` 列出当前用户所有未撤销且未过期的活跃会话，含 `isCurrent` 标记、平台类型、设备信息、创建/过期时间；接口独立限流 60 次/分钟
 - `DELETE /auth/sessions/:id` 撤销指定会话，用于远程登出某设备（如在 Web 端看到异常移动端登录可远程踢除）
 - `POST /auth/logout` 撤销当前设备的 refresh token 并清除 Cookie
 
 ### 多设备会话
 
 - 登录时每个设备生成唯一 `family`（UUID），创建 `RefreshToken` 记录
+- 每次显式登录都会创建新的独立会话；重启 API 服务不会撤销数据库中的未过期会话
 - refresh token 原文为随机 UUID，数据库中仅存 SHA-256 哈希
 - 调用 `/auth/refresh` 轮转：撤销旧 token → 签发新 token（同 family、同 platform），返回新的原文字符串
 - **盗用检测**：若已撤销的 token 被重放，吊销该 family 下全部 token（整个设备强制登出）

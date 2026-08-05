@@ -531,6 +531,15 @@ describe('AuthService', () => {
       expect(sessions[0].isCurrent).toBe(false);
       expect(sessions[1].isCurrent).toBe(true);
       expect(sessions[1].platform).toBe('mobile');
+      expect(mockPrisma.refreshToken.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            userId: 'u1',
+            revokedAt: null,
+            expiresAt: { gt: expect.any(Date) },
+          }),
+        }),
+      );
     });
   });
 

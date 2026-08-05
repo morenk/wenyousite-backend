@@ -520,8 +520,9 @@ export class AuthService {
   /** 列出当前用户的所有活跃会话 */
   async listSessions(userId: string, currentRefreshToken: string) {
     const currentHash = this.hashToken(currentRefreshToken);
+    const now = new Date();
     const sessions = await this.prisma.refreshToken.findMany({
-      where: { userId, revokedAt: null },
+      where: { userId, revokedAt: null, expiresAt: { gt: now } },
       select: {
         id: true, platform: true, deviceInfo: true,
         createdAt: true, expiresAt: true, tokenHash: true,

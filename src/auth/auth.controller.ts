@@ -199,7 +199,10 @@ export class AuthController {
   @Get('sessions')
   @AuthRead()
   @ApiBearerAuth()
-  @ApiOperation({ summary: '获取当前用户所有活跃会话列表' })
+  @Throttle({ default: { ttl: 60000, limit: 60 } })
+  @ApiOperation({ summary: '获取当前用户所有活跃会话列表（限流 60 次/分钟）' })
+  @ApiOkResponse({ description: '当前用户所有未撤销且未过期的活跃会话列表' })
+  @ApiResponse({ status: 429, description: '请求频繁，请稍后重试（会话列表独立限流 60 次/分钟）' })
   async listSessions(@Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     const token = req.cookies?.refreshToken ?? '';
@@ -210,7 +213,10 @@ export class AuthController {
   @AuthRead()
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '撤销指定会话（远程登出设备）' })
+  @Throttle({ default: { ttl: 60000, limit: 60 } })
+  @ApiOperation({ summary: '撤销指定会话（远程登出设备，限流 60 次/分钟）' })
+  @ApiOkResponse({ description: '会话已撤销' })
+  @ApiResponse({ status: 429, description: '请求频繁，请稍后重试（远程撤销独立限流 60 次/分钟）' })
   async revokeSession(@Req() req: FastifyRequest, @Param('id') id: string) {
     const user = req['user'] as { id: string };
     return this.authService.revokeSession(user.id, id);

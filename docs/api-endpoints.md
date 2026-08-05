@@ -18,8 +18,8 @@
 | POST | `/auth/change-email/verify` | Auth | 更换邮箱第二步：验证码确认，更新邮箱（限流 5/min） |
 | POST | `/auth/reset-password` | 无 | 用邮件 + 验证码重置密码（需提供邮箱锚定身份），成功后吊销全部 refresh token（限流 5/min） |
 | POST | `/auth/logout` | AuthRead | 登出，传入 refreshToken 撤销指定设备会话（Cookie 优先） |
-| GET | `/auth/sessions` | AuthRead | 获取当前用户所有活跃会话列表 |
-| DELETE | `/auth/sessions/:id` | AuthRead | 撤销指定会话（远程登出设备） |
+| GET | `/auth/sessions` | AuthRead | 获取当前用户所有未撤销且未过期的活跃会话列表（独立限流 60/min） |
+| DELETE | `/auth/sessions/:id` | AuthRead | 撤销指定会话（远程登出设备，独立限流 60/min） |
 
 ## 用户端点 (Users)
 
