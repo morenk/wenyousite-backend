@@ -149,7 +149,10 @@
 
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
-| GET | `/search?q=xxx` | Public | 全站搜索（User 用户名 + Thread 标题 + Post 正文，ILIKE；排除注销用户和私密帖内容） |
+| GET | `/search/threads?q=xxx` | Public | 按需搜索公开主题帖标题，最多 50 条 |
+| GET | `/search/users?q=xxx` | Public | 按需搜索未注销用户名，最多 20 条 |
+| GET | `/search/posts?q=xxx&cursor=&limit=20` | Public | 按需搜索公开楼层正文（至少 2 字符，相关度游标分页，每帖最多 3 条） |
+| GET | `/search?q=xxx` | Public | 兼容旧客户端的聚合搜索；单字符不扫描楼层正文 |
 | GET | `/tags` | Public | 搜索标签 |
 | POST | `/tags` | Auth | 创建标签，需邮箱已验证 |
 | GET | `/reading-progress` | AuthRead | 所有子贴阅读进度 |

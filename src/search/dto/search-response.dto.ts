@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-class SearchUserResponseDto {
+export class SearchUserResponseDto {
   @ApiProperty({ description: '用户 ID' })
   id: string;
 
@@ -38,7 +38,7 @@ class SearchThreadCountResponseDto {
   players: number;
 }
 
-class SearchThreadResponseDto {
+export class SearchThreadResponseDto {
   @ApiProperty({ description: '主题帖 ID' })
   id: string;
 
@@ -74,11 +74,11 @@ class SearchSubthreadReferenceResponseDto {
   title: string;
 }
 
-class SearchPostResponseDto {
+export class SearchPostResponseDto {
   @ApiProperty({ description: '帖子 ID' })
   id: string;
 
-  @ApiProperty({ type: Number, nullable: true, description: '楼层号；正文或楼中楼为 null' })
+  @ApiProperty({ type: Number, nullable: true, description: '楼层号；楼中楼为 null' })
   floorNumber: number | null;
 
   @ApiProperty({ description: 'Markdown 正文' })
@@ -104,6 +104,6 @@ export class SearchResultResponseDto {
   @ApiProperty({ type: [SearchThreadResponseDto], description: '公开主题帖标题匹配结果，最多 50 条' })
   threads: SearchThreadResponseDto[];
 
-  @ApiProperty({ type: [SearchPostResponseDto], description: '公开帖子正文匹配结果，最多 50 条' })
+  @ApiProperty({ type: [SearchPostResponseDto], description: '公开楼层正文兼容匹配结果，最多 20 条' })
   posts: SearchPostResponseDto[];
 }

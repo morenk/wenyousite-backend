@@ -103,6 +103,8 @@
 | createdAt | DateTime | default now() | — |
 | updatedAt | DateTime | @updatedAt | — |
 
+搜索索引：`users_username_trgm_idx`（GIN + `gin_trgm_ops`），用于用户名子串搜索。
+
 ### email_verifications — 邮箱验证码（统一注册/验证/重置）
 
 | 字段 | 类型 | 约束 | 说明 |
@@ -191,6 +193,8 @@
 | updatedAt | DateTime | @updatedAt | — |
 | deletedAt | DateTime? | — | 软删除时间 |
 
+搜索索引：`threads_title_trgm_idx`（GIN + `gin_trgm_ops`），用于主题帖标题子串搜索。
+
 ### thread_invites — 私密帖邀请链接
 
 | 字段 | 类型 | 约束 | 说明 |
@@ -245,7 +249,7 @@
 | createdAt | DateTime | — | — |
 | updatedAt | DateTime | @updatedAt | — |
 
-索引：`@@index([subthreadId, kind])`, `@@index([subthreadId, createdAt])`, `@@index([threadId, createdAt])`, `@@index([parentPostId, createdAt])`（楼中楼分页）
+索引：`@@index([subthreadId, kind])`, `@@index([subthreadId, createdAt])`, `@@index([threadId, createdAt])`, `@@index([parentPostId, createdAt])`（楼中楼分页），以及 `posts_content_trgm_idx`（GIN + `gin_trgm_ops`，正文子串搜索）。三类 trigram 索引由迁移启用 PostgreSQL `pg_trgm` 扩展。
 
 > 子贴正文不单独建表：每子贴至多一个 `kind=BODY` 的帖子，通过 `PUT /subthreads/:id/body` upsert 维护；楼层接口只返回 `kind=FLOOR`。
 

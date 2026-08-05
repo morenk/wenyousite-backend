@@ -119,6 +119,7 @@ model User {
   media           Media[]
   refreshTokens   RefreshToken[]
 
+  @@index([username(ops: raw("gin_trgm_ops"))], type: Gin, map: "users_username_trgm_idx")
   @@map("users")
 }
 
@@ -210,6 +211,7 @@ model Thread {
   bookmarks    UserBookmark[]
   likes        ThreadLike[]
 
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "threads_title_trgm_idx")
   @@map("threads")
 }
 
@@ -401,6 +403,7 @@ model Post {
   @@index([subthreadId, createdAt])
   @@index([threadId, createdAt])
   @@index([parentPostId, createdAt])
+  @@index([content(ops: raw("gin_trgm_ops"))], type: Gin, map: "posts_content_trgm_idx")
   @@unique([subthreadId, floorNumber])
   @@unique([authorId, clientRequestId])
   @@map("posts")

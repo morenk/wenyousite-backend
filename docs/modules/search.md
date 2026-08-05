@@ -1,7 +1,9 @@
 # 搜索
 
+跨端发布批次：`search-scale-20260805`
+
 ## 概述
-搜索模块提供基于 PostgreSQL ILIKE 的全站搜索，同时搜索用户名、主题帖标题和帖子内容。
+搜索模块提供基于 PostgreSQL `ILIKE` + `pg_trgm` 的全站搜索。用户名、主题帖和楼层内容使用独立端点，供客户端按分类惰性加载；聚合端点保留用于旧客户端兼容。
 
 ## 涉及的模型
 
@@ -15,21 +17,27 @@
 
 | 方法 | 路径 | 认证 | 说明 |
 |------|------|------|------|
-| `GET` | `/search?q=` | `@Public()` | 搜索用户名、主题帖标题和楼层内容 |
+| `GET` | `/search/threads?q=` | `@Public()` | 搜索公开主题帖标题，最多 50 条 |
+| `GET` | `/search/users?q=` | `@Public()` | 搜索未注销用户名，最多 20 条 |
+| `GET` | `/search/posts?q=&cursor=&limit=20` | `@Public()` | 搜索公开楼层与楼中楼正文，游标分页 |
+| `GET` | `/search?q=` | `@Public()` | 旧客户端兼容聚合搜索；单字符不扫描楼层正文 |
 
 ## 核心业务规则
 
-- 基于 PostgreSQL `ILIKE`（`contains + mode: 'insensitive'`）实现大小写不敏感搜索
+- 关键词统一 trim，最长 100 个字符；用户名和主题帖允许单字符查询
 - 用户搜索：仅匹配用户名，过滤 `deletedAt: null`，只返回 id / username / avatar / bio，最多 20 条并按用户名升序
-- 主题帖搜索：仅匹配标题，过滤 `deletedAt: null` 和 `visibility: 'PUBLIC'`
-- 帖子搜索：匹配正文内容，过滤已删除帖子以及未发布、已删除或 PRIVATE 主题帖
-- 主题帖与帖子结果各最多 50 条
-- 主题帖结果按 `updatedAt` 降序，帖子结果按 `createdAt` 降序
-- 空关键词返回 `{ users: [], threads: [], posts: [] }`
+- 主题帖搜索：仅匹配标题，过滤未发布、已删除和 PRIVATE 主题帖，最多 50 条并按 `updatedAt` 降序
+- 楼层正文至少需要 2 个 Unicode 字符；限制由服务端执行，短词返回 400，避免低选择度正文扫描
+- 楼层只搜索 `kind=FLOOR`，同时过滤已删除子贴以及未发布、已删除或 PRIVATE 主题帖
+- 楼层每页最多 20 条，按 trigram 相关度、创建时间、ID 依次降序；游标编码三者以保持稳定翻页
+- SQL 窗口函数按 `threadId` 分组，每个主题帖在整个结果集中最多保留 3 条匹配楼层，避免单一长帖霸屏
+- 兼容聚合端点空关键词返回 `{ users: [], threads: [], posts: [] }`；单字符仍返回用户和主题帖，但 `posts=[]`
 
 ## 设计决策
 
-- 使用 PostgreSQL 内置 ILIKE 而非 Elasticsearch，降低运维复杂度，适合当前数据规模
+- 使用 PostgreSQL `pg_trgm` GIN 索引加速 username / title / content 的大小写不敏感子串匹配，暂不引入 Elasticsearch
+- 客户端按 Tab 分别请求分类端点；默认主题帖不会触发楼层正文查询
 - 用户结果来自公开资料，不返回 email、角色、隐私开关等字段；已注销用户不会被搜索到
 - 主题帖结果仅包含 PUBLIC 可见性的帖子，确保私密帖不外泄
-- 限制 50 条上限，防止通配搜索对数据库造成压力并控制响应体积
+- 不做精确总数 `COUNT`；楼层端点通过 `meta.hasMore` 和不透明 `meta.cursor` 表示更多结果
+- SQL 原始查询只负责筛选、分组和排序帖子 ID，展示字段仍由 Prisma `select` 获取，避免手写敏感字段投影

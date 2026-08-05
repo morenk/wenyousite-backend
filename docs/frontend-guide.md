@@ -360,22 +360,23 @@ DELETE /users/me/block/:id    取消拉黑
 ## 9. 搜索
 
 ```
-GET /search?q=关键词
+GET /search/threads?q=关键词
+GET /search/users?q=关键词
+GET /search/posts?q=关键词&cursor=&limit=20
 ```
 
 返回：
 ```json
 {
   "code": 0,
-  "data": {
-    "users": [ ... ],     // 用户名匹配，最多 20 条；仅 id/username/avatar/bio
-    "threads": [ ... ],   // 标题匹配，最多 50 条
-    "posts": [ ... ]      // 正文匹配，最多 50 条
-  }
+  "data": [ ... ],
+  "meta": { "cursor": "...", "hasMore": true } // 仅楼层分页端点
 }
 ```
 
-基于 PostgreSQL `ILIKE` 模糊匹配。用户结果排除已注销账号，不返回邮箱等敏感资料；主题帖与正文结果仅搜索已发布的公开帖内容。
+三个分类端点供 Tab 按需请求，避免默认执行正文搜索。楼层关键词至少 2 个字符，每页最多 20 条、每个主题帖最多 3 条，按相关度优先排序；继续加载时透传 `meta.cursor`。用户结果排除已注销账号且不返回邮箱等敏感资料；主题帖与正文结果仅搜索已发布的公开帖内容。
+
+`GET /search?q=` 聚合响应仍保留用于旧客户端兼容；新客户端不要使用它实现分类 Tab。
 
 ---
 

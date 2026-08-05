@@ -1,65 +1,203 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { attachPlayerCounts } from '../common/prisma-helpers';
+import { paginate } from '../common/dto/paginated-result';
 
-/**
- * 全站搜索服务：基于 PostgreSQL ILIKE 搜索用户名、主题帖和楼层。
- */
+const SEARCH_POST_LIMIT = 20;
+const SEARCH_POSTS_PER_THREAD = 3;
+const MIN_POST_SEARCH_LENGTH = 2;
+
+const postSearchSelect = {
+  id: true,
+  floorNumber: true,
+  content: true,
+  createdAt: true,
+  author: { select: { id: true, username: true } },
+  thread: { select: { id: true, title: true } },
+  subthread: { select: { id: true, title: true } },
+} satisfies Prisma.PostSelect;
+
+interface RankedPostRow {
+  id: string;
+  relevance: number;
+  createdAt: Date;
+}
+
+interface SearchPostCursor {
+  relevance: number;
+  createdAt: string;
+  id: string;
+}
+
+const keywordLength = (keyword: string) => Array.from(keyword.trim()).length;
+
+function escapeLikePattern(keyword: string): string {
+  return keyword.replace(/[\\%_]/g, '\\$&');
+}
+
+function encodePostCursor(row: RankedPostRow): string {
+  return Buffer.from(JSON.stringify({
+    relevance: row.relevance,
+    createdAt: row.createdAt.toISOString(),
+    id: row.id,
+  } satisfies SearchPostCursor)).toString('base64url');
+}
+
+function decodePostCursor(cursor: string): SearchPostCursor {
+  try {
+    const value = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as Partial<SearchPostCursor>;
+    if (
+      typeof value.relevance !== 'number'
+      || !Number.isFinite(value.relevance)
+      || typeof value.createdAt !== 'string'
+      || Number.isNaN(Date.parse(value.createdAt))
+      || typeof value.id !== 'string'
+      || value.id.length === 0
+    ) {
+      throw new Error('invalid cursor shape');
+    }
+    return value as SearchPostCursor;
+  } catch {
+    throw new BadRequestException('无效的搜索游标');
+  }
+}
+
+/** 全站搜索服务：分类查询用户名、公开主题帖与公开楼层内容。 */
 @Injectable()
 export class SearchService {
   constructor(private prisma: PrismaService) {}
 
+  /** 兼容旧客户端的一次性聚合搜索；短词不会触发楼层正文扫描。 */
   async search(q: string) {
-    if (!q || q.trim().length === 0) return { users: [], threads: [], posts: [] };
+    const keyword = q?.trim() ?? '';
+    if (!keyword) return { users: [], threads: [], posts: [] };
 
-    const keyword = q.trim();
-
+    const postsPromise = keywordLength(keyword) >= MIN_POST_SEARCH_LENGTH
+      ? this.searchPosts(keyword).then((page) => page.items)
+      : Promise.resolve([]);
     const [users, threads, posts] = await Promise.all([
-      this.prisma.user.findMany({
-        where: {
-          deletedAt: null,
-          username: { contains: keyword, mode: 'insensitive' },
-        },
-        select: { id: true, username: true, avatar: true, bio: true },
-        take: 20,
-        orderBy: { username: 'asc' },
-      }),
-      this.prisma.thread.findMany({
-        where: {
-          deletedAt: null,
-          published: true,
-          visibility: 'PUBLIC',
-          OR: [
-            { title: { contains: keyword, mode: 'insensitive' } },
-          ],
-        },
-        select: {
-          id: true, title: true, category: true, createdAt: true,
-          owner: { select: { id: true, username: true, avatar: true } },
-          _count: { select: { members: true, posts: true } },
-        },
-        take: 50,
-        orderBy: { updatedAt: 'desc' },
-      }),
-      this.prisma.post.findMany({
-        where: {
-          deletedAt: null,
-          content: { contains: keyword, mode: 'insensitive' },
-          thread: { published: true, visibility: 'PUBLIC', deletedAt: null },
-        },
-        select: {
-          id: true, floorNumber: true, content: true, createdAt: true,
-          author: { select: { id: true, username: true } },
-          thread: { select: { id: true, title: true } },
-          subthread: { select: { id: true, title: true } },
-        },
-        take: 50,
-        orderBy: { createdAt: 'desc' },
-      }),
+      this.searchUsers(keyword),
+      this.searchThreads(keyword),
+      postsPromise,
     ]);
-
-    await attachPlayerCounts(this.prisma, threads);
-
     return { users, threads, posts };
+  }
+
+  async searchUsers(q: string) {
+    const keyword = q?.trim() ?? '';
+    if (!keyword) return [];
+    return this.prisma.user.findMany({
+      where: {
+        deletedAt: null,
+        username: { contains: keyword, mode: 'insensitive' },
+      },
+      select: { id: true, username: true, avatar: true, bio: true },
+      take: 20,
+      orderBy: { username: 'asc' },
+    });
+  }
+
+  async searchThreads(q: string) {
+    const keyword = q?.trim() ?? '';
+    if (!keyword) return [];
+    const threads = await this.prisma.thread.findMany({
+      where: {
+        deletedAt: null,
+        published: true,
+        visibility: 'PUBLIC',
+        title: { contains: keyword, mode: 'insensitive' },
+      },
+      select: {
+        id: true,
+        title: true,
+        category: true,
+        createdAt: true,
+        owner: { select: { id: true, username: true, avatar: true } },
+        _count: { select: { members: true, posts: true } },
+      },
+      take: 50,
+      orderBy: { updatedAt: 'desc' },
+    });
+    await attachPlayerCounts(this.prisma, threads);
+    return threads;
+  }
+
+  /**
+   * 搜索公开楼层与楼中楼。相关度优先，时间与 ID 作为稳定次序；
+   * 数据库窗口函数限制每个主题帖最多出现三条，避免单帖霸屏。
+   */
+  async searchPosts(q: string, cursor?: string, limit = SEARCH_POST_LIMIT) {
+    const keyword = q?.trim() ?? '';
+    if (keywordLength(keyword) < MIN_POST_SEARCH_LENGTH) {
+      throw new BadRequestException('楼层内容搜索至少需要 2 个字符');
+    }
+
+    const take = Math.max(1, Math.min(limit, SEARCH_POST_LIMIT));
+    const decodedCursor = cursor ? decodePostCursor(cursor) : undefined;
+    const cursorDate = decodedCursor ? new Date(decodedCursor.createdAt) : undefined;
+    const cursorCondition = decodedCursor && cursorDate
+      ? Prisma.sql`
+          AND (
+            ranked.relevance < ${decodedCursor.relevance}
+            OR (ranked.relevance = ${decodedCursor.relevance} AND ranked."createdAt" < ${cursorDate})
+            OR (
+              ranked.relevance = ${decodedCursor.relevance}
+              AND ranked."createdAt" = ${cursorDate}
+              AND ranked.id < ${decodedCursor.id}
+            )
+          )`
+      : Prisma.empty;
+    const likePattern = `%${escapeLikePattern(keyword)}%`;
+
+    const rankedRows = await this.prisma.$queryRaw<RankedPostRow[]>(Prisma.sql`
+      WITH ranked AS (
+        SELECT
+          p."id" AS id,
+          similarity(p."content", ${keyword})::double precision AS relevance,
+          p."created_at" AS "createdAt",
+          ROW_NUMBER() OVER (
+            PARTITION BY p."thread_id"
+            ORDER BY similarity(p."content", ${keyword}) DESC, p."created_at" DESC, p."id" DESC
+          ) AS "threadRank"
+        FROM "posts" p
+        INNER JOIN "threads" t ON t."id" = p."thread_id"
+        INNER JOIN "subthreads" s ON s."id" = p."subthread_id"
+        WHERE p."deleted_at" IS NULL
+          AND p."kind" = 'FLOOR'
+          AND p."content" ILIKE ${likePattern} ESCAPE '\\'
+          AND t."deleted_at" IS NULL
+          AND t."published" = true
+          AND t."visibility" = 'PUBLIC'
+          AND s."deleted_at" IS NULL
+      )
+      SELECT ranked.id, ranked.relevance, ranked."createdAt"
+      FROM ranked
+      WHERE ranked."threadRank" <= ${SEARCH_POSTS_PER_THREAD}
+      ${cursorCondition}
+      ORDER BY ranked.relevance DESC, ranked."createdAt" DESC, ranked.id DESC
+      LIMIT ${take + 1}
+    `);
+
+    const hasMore = rankedRows.length > take;
+    const pageRows = rankedRows.slice(0, take);
+    const ids = pageRows.map((row) => row.id);
+    const unorderedPosts = ids.length > 0
+      ? await this.prisma.post.findMany({
+          where: { id: { in: ids } },
+          select: postSearchSelect,
+        })
+      : [];
+    const postById = new Map(unorderedPosts.map((post) => [post.id, post]));
+    const posts = ids.flatMap((id) => {
+      const post = postById.get(id);
+      return post ? [post] : [];
+    });
+    const lastRow = pageRows.at(-1);
+
+    return paginate(posts, {
+      cursor: lastRow ? encodePostCursor(lastRow) : null,
+      hasMore,
+    });
   }
 }
