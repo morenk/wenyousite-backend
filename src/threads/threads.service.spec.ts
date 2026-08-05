@@ -23,6 +23,7 @@ const mockPrisma = {
   threadMember: {
     findUnique: jest.fn(),
     create: jest.fn(),
+    upsert: jest.fn(),
     count: jest.fn(),
     groupBy: jest.fn().mockResolvedValue([]),
     findMany: jest.fn(),
@@ -568,13 +569,28 @@ describe('ThreadsService', () => {
         thread: { id: 't1', title: '奇幻大陆', category: 'RPG', status: 'RECRUITING', visibility: 'PRIVATE', published: true, deletedAt: null, createdAt: new Date(), owner: { id: 'u1', username: '张三', avatar: null } },
       });
       mockPrisma.threadMember.count.mockResolvedValue(5);
-      const result = await service.previewInviteLink('token123');
+      mockPrisma.threadMember.findUnique.mockResolvedValue(null);
+      const result = await service.previewInviteLink('token123', 'u2');
       expect(result.thread.id).toBe('t1');
       expect(result.thread.title).toBe('奇幻大陆');
       expect(result.thread.category).toBe('RPG');
       expect(result.thread.status).toBe('RECRUITING');
       expect(result.thread.owner.username).toBe('张三');
       expect(result.thread.memberCount).toBe(5);
+      expect(result.alreadyJoined).toBe(false);
+    });
+
+    it('已加入用户预览邀请时返回可直接进入的状态', async () => {
+      mockPrisma.threadInvite.findUnique.mockResolvedValue({
+        threadId: 't1',
+        thread: { id: 't1', title: '奇幻大陆', category: 'RPG', status: 'RECRUITING', visibility: 'PRIVATE', published: true, deletedAt: null, createdAt: new Date(), owner: { id: 'u1', username: '张三', avatar: null } },
+      });
+      mockPrisma.threadMember.count.mockResolvedValue(5);
+      mockPrisma.threadMember.findUnique.mockResolvedValue({ id: 'm2' });
+
+      const result = await service.previewInviteLink('token123', 'u2');
+
+      expect(result.alreadyJoined).toBe(true);
     });
   });
 
@@ -590,10 +606,23 @@ describe('ThreadsService', () => {
       mockPrisma.threadInvite.findUnique.mockResolvedValue({
         threadId: 't1', thread: { id: 't1', visibility: 'PRIVATE', published: true },
       });
-      mockPrisma.threadMember.findUnique.mockResolvedValue(null);
-      mockPrisma.threadMember.create.mockResolvedValue({ id: 'm1', thread: {}, user: {} });
+      mockPrisma.threadMember.upsert.mockResolvedValue({ id: 'm1', thread: {}, user: {} });
       const result = await service.joinByInviteLink('token123', 'u2');
       expect(result.id).toBe('m1');
+    });
+
+    it('重复加入时幂等返回已有成员记录', async () => {
+      const existing = { id: 'm-existing', thread: { id: 't1', title: '私密帖' }, user: { id: 'u2' } };
+      mockPrisma.threadInvite.findUnique.mockResolvedValue({
+        threadId: 't1', thread: { id: 't1', visibility: 'PRIVATE', published: true },
+      });
+      mockPrisma.threadMember.upsert.mockResolvedValue(existing);
+
+      await expect(service.joinByInviteLink('token123', 'u2')).resolves.toBe(existing);
+      expect(mockPrisma.threadMember.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        where: { threadId_userId: { threadId: 't1', userId: 'u2' } },
+        update: {},
+      }));
     });
   });
 
@@ -640,15 +669,46 @@ describe('ThreadsService', () => {
   });
 
   describe('findByPlayedUser', () => {
-    it('参与列表排除自己创建的帖（ownerId = targetId）', async () => {
+    beforeEach(() => {
+      mockPrisma.threadMember.findMany.mockReset();
+      mockPrisma.threadMember.groupBy.mockResolvedValue([]);
+    });
+
+    it('本人列表包含全部实际加入的非自建帖，不要求玩家标记', async () => {
       mockPrisma.threadMember.findMany.mockResolvedValue([
         { id: 'm1', thread: { id: 't1' } },
       ]);
-      mockPrisma.threadMember.groupBy.mockResolvedValue([]);
       await service.findByPlayedUser('u1', 'u1');
       const args = mockPrisma.threadMember.findMany.mock.calls[0][0];
-      expect(args.where.playerMarked).toBe(true);
+      expect(args.where.playerMarked).toBeUndefined();
+      expect(args.where.thread.visibility).toBeUndefined();
       expect(args.where.thread.ownerId).toEqual({ not: 'u1' });
+    });
+
+    it('本人可按私密帖分类筛选且筛选发生在分页查询前', async () => {
+      mockPrisma.threadMember.findMany.mockResolvedValue([]);
+
+      await service.findByPlayedUser('u1', 'u1', undefined, 20, 'PRIVATE');
+
+      const args = mockPrisma.threadMember.findMany.mock.calls[0][0];
+      expect(args.where.thread.visibility).toBe('PRIVATE');
+    });
+
+    it('他人列表仍只显示公开且已标记为玩家的帖子', async () => {
+      mockPrisma.threadMember.findMany.mockResolvedValue([]);
+
+      await service.findByPlayedUser('u1', 'viewer');
+
+      const args = mockPrisma.threadMember.findMany.mock.calls[0][0];
+      expect(args.where.playerMarked).toBe(true);
+      expect(args.where.thread.visibility).toBe('PUBLIC');
+    });
+
+    it('他人请求私密分类时返回空列表且不查询成员数据', async () => {
+      const page = await service.findByPlayedUser('u1', 'viewer', undefined, 20, 'PRIVATE');
+
+      expect(page.items).toEqual([]);
+      expect(mockPrisma.threadMember.findMany).not.toHaveBeenCalled();
     });
   });
 });

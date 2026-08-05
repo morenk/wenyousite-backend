@@ -1,5 +1,7 @@
 # 主题帖模块
 
+> 本轮跨端发布批次：`private-thread-access-2026-08-05`。
+
 ## 概述
 
 主题帖的草稿创建、沙盒迭代、发布、列表、详情、修改、删除，参与人候选池管理（授予/移除协作者身份、授予/收回玩家身份），私密帖邀请链接，置顶排序，标签管理。
@@ -36,8 +38,8 @@
 | POST | `/threads/:id/like` | Auth | 点赞主题帖（幂等，不通知自己） |
 | DELETE | `/threads/:id/like` | Auth | 取消点赞主题帖（幂等） |
 | POST | `/threads/:id/invite-link` | Auth | 生成/刷新私密帖邀请链接（需已发布，仅 OWNER） |
-| GET | `/threads/join-by-link/:token` | AuthRead | 预览邀请链接对应的私密帖概要（不创建成员） |
-| POST | `/threads/join-by-link/:token` | Auth | 通过邀请链接加入私密帖（需已发布） |
+| GET | `/threads/join-by-link/:token` | AuthRead | 预览邀请链接对应的私密帖概要并返回 `alreadyJoined`（不创建成员） |
+| POST | `/threads/join-by-link/:token` | Auth | 幂等地通过邀请链接加入私密帖（需已发布） |
 | GET | `/threads/:threadId/members` | OptionalAuth | 参与人列表；按主题帖可见性校验 |
 | POST | `/threads/:threadId/members/join` | Auth | 自由加入（兼容旧客户端，deprecated；Web 不提供入口） |
 
@@ -89,8 +91,8 @@
 ### 邀请链接
 
 - 仅已发布的私密帖可生成邀请链接（未发布或公开帖均禁止）
-- `GET /threads/join-by-link/:token`：预览端点（`@AuthRead()`），返回帖子概要（title / category / owner / memberCount），不创建成员记录，供前端实现预览页
-- `POST /threads/join-by-link/:token`：正式加入（`@Auth()`），角色为 PARTICIPANT（参与人）
+- `GET /threads/join-by-link/:token`：预览端点（`@AuthRead()`），返回帖子概要（title / category / owner / memberCount）和当前用户的 `alreadyJoined`；前端对已加入用户直接跳转主题帖，不停留在接受邀请页
+- `POST /threads/join-by-link/:token`：正式加入（`@Auth()`），角色为 PARTICIPANT（参与人）；使用唯一键 upsert 保证重复点击和并发请求幂等，已加入时直接返回现有成员记录
 - 邀请链接使用 ThreadInvite 表 upsert，token 为随机 16 位小写字母+数字
 
 ### 点赞

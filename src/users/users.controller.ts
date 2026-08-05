@@ -12,6 +12,7 @@ import { ThreadsService } from '../threads/threads.service';
 import { truncateMarkdown } from '../common/markdown-truncate';
 import { MentionsService } from '../mentions/mentions.service';
 import { MentionCandidatesResponseDto } from './dto/mention-candidate.dto';
+import { PlayedThreadsQueryDto } from './dto/played-threads-query.dto';
 
 /** 用户控制器：查询和修改个人资料 */
 @ApiTags('Users')
@@ -141,15 +142,12 @@ export class UsersController {
 
   @Get(':id/played-threads')
   @OptionalAuth()
-  @ApiOperation({ summary: '查看用户参与的帖子（被标记为玩家，受 showPlayerBadges 隐私开关控制）' })
-  @ApiQuery({ name: 'cursor', required: false, description: '分页游标（上一页最后一条记录 ID）' })
-  @ApiQuery({ name: 'limit', required: false, description: '每页条数（默认 20，最大 50）' })
+  @ApiOperation({ summary: '查看用户参与的帖子（本人含全部实际参与帖；他人仅公开玩家帖）' })
   @ApiOkResponse({ description: '用户参与的帖子列表（cursor 分页）' })
   @ApiNotFoundResponse({ description: '用户不存在或未公开参与的帖子' })
   async getUserPlayedThreads(
     @Param('id') id: string,
-    @Query('cursor') cursor: string | undefined,
-    @Query('limit') limit: string | undefined,
+    @Query() query: PlayedThreadsQueryDto,
     @Req() req: FastifyRequest,
   ) {
     const viewer = req['user'] as { id: string } | undefined;
@@ -163,7 +161,13 @@ export class UsersController {
       throw new NotFoundException('该用户未公开参与的帖子');
     }
 
-    return this.threadsService.findByPlayedUser(id, viewer?.id, cursor, limit ? parseInt(limit) : undefined);
+    return this.threadsService.findByPlayedUser(
+      id,
+      viewer?.id,
+      query.cursor,
+      query.limit,
+      query.visibility,
+    );
   }
 
   @Get(':id/created-threads')

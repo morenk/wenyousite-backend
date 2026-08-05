@@ -262,13 +262,15 @@ DELETE /posts/:id/like     取消点赞
 
 ```
 POST   /threads/:id/invite-link   生成邀请链接 → 返回 { threadId, token }
-GET    /threads/join-by-link/:token   预览邀请链接 → 返回 { thread: { id, title, category, status, owner, memberCount, createdAt } }
-POST   /threads/join-by-link/:token   通过 16 位 token 加入私密帖
+GET    /threads/join-by-link/:token   预览邀请链接 → 返回 { thread: { id, title, category, status, owner, memberCount, createdAt }, alreadyJoined }
+POST   /threads/join-by-link/:token   通过 16 位 token 幂等加入私密帖
 ```
 
-前端收到邀请链接后，先调 `GET` 预览帖名、分类、已有成员数，展示确认页面；用户确认后再调 `POST` 正式加入。
+前端收到邀请链接后，先调 `GET` 预览。`alreadyJoined=true` 时直接进入 `/threads/{id}`；否则展示确认页面，用户确认后再调 `POST` 正式加入。POST 使用唯一键 upsert，重复或并发提交都返回现有成员记录。
 
 私密帖 `visibility=PRIVATE` 不在公开列表/搜索中出现。非成员访问详情返回 404。
+
+用户主页 `GET /users/:id/played-threads`：本人可看到全部实际加入的非自建帖子并使用 `visibility=PUBLIC|PRIVATE` 分类；查看他人时仍只返回 PUBLIC 且 `playerMarked=true` 的帖子。
 
 ### 4.6 通知
 

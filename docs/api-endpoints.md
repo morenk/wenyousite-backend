@@ -33,7 +33,7 @@
 | GET | `/users/search?q=xxx` | AuthRead | 搜索用户（@提及用），排除已注销 |
 | GET | `/users/:id` | OptionalAuth | 用户公开资料（不含 email）。登录后附加 isFollowing / isFollowedBy / isBlocked / isBlockedBy |
 | GET | `/users/:id/bookmarks` | OptionalAuth | 用户公开收藏，Cursor 分页（受 showBookmarks 控制） |
-| GET | `/users/:id/played-threads` | OptionalAuth | 用户参与的帖子（被其他楼主标记为玩家，不含自建帖），按加入时间倒序，Cursor 分页（受 showPlayerBadges 控制） |
+| GET | `/users/:id/played-threads` | OptionalAuth | 用户参与的非自建帖子，支持 `visibility=PUBLIC\|PRIVATE` 和 Cursor 分页；本人含全部实际参与帖，他人仅公开玩家帖（受 showPlayerBadges 控制） |
 | GET | `/users/:id/created-threads` | OptionalAuth | 用户创建的帖子（本人可见全部含私密帖，他人仅见 PUBLIC），按创建时间倒序，Cursor 分页 |
 | GET | `/users/:id/recent-replies` | OptionalAuth | 用户最近 10 条回复（含 content、preview、parentPostId），固定返回不分页（受 showRecentReplies 控制） |
 | POST | `/users/follow/:id` | Auth | 关注用户，发送 follow 通知 |
@@ -59,8 +59,8 @@
 | POST | `/threads/:id/like` | Auth | 点赞主题帖（幂等） |
 | DELETE | `/threads/:id/like` | Auth | 取消点赞（幂等） |
 | POST | `/threads/:id/invite-link` | Auth | 生成/刷新私密帖邀请链接（需已发布，仅 OWNER） |
-| GET | `/threads/join-by-link/:token` | AuthRead | 预览邀请链接对应的私密帖概要（title / category / owner / memberCount，不创建成员） |
-| POST | `/threads/join-by-link/:token` | Auth | 通过邀请链接加入私密帖（需已发布） |
+| GET | `/threads/join-by-link/:token` | AuthRead | 预览邀请链接对应的私密帖概要并返回 `alreadyJoined`（不创建成员） |
+| POST | `/threads/join-by-link/:token` | Auth | 幂等地通过邀请链接加入私密帖（需已发布，已加入时返回现有成员） |
 
 ## 成员端点 (Thread Members)
 

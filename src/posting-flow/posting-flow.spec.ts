@@ -1024,8 +1024,7 @@ prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', subthread: 
 
     it('通过邀请链接加入：成功', async () => {
       prisma.threadInvite.findUnique.mockResolvedValue({ threadId: 't1', thread: { id: 't1', visibility: 'PRIVATE', published: true } });
-      prisma.threadMember.findUnique.mockResolvedValue(null);
-      prisma.threadMember.create.mockResolvedValue({ id: 'm1', thread: {}, user: {} });
+      prisma.threadMember.upsert.mockResolvedValue({ id: 'm1', thread: {}, user: {} });
       const result = await threadsService.joinByInviteLink('token123', 'u2');
       expect(result.id).toBe('m1');
     });
@@ -1035,10 +1034,11 @@ prisma.post.findUnique.mockResolvedValue({ id: 'p1', authorId: 'u1', subthread: 
       await expect(threadsService.joinByInviteLink('token123', 'u2')).rejects.toThrow(BusinessException);
     });
 
-    it('通过邀请链接加入：已是成员拒绝', async () => {
+    it('通过邀请链接加入：已是成员时幂等返回已有记录', async () => {
       prisma.threadInvite.findUnique.mockResolvedValue({ threadId: 't1', thread: { id: 't1', visibility: 'PRIVATE', published: true } });
-      prisma.threadMember.findUnique.mockResolvedValue({ id: 'existing' });
-      await expect(threadsService.joinByInviteLink('token123', 'u2')).rejects.toThrow(BusinessException);
+      prisma.threadMember.upsert.mockResolvedValue({ id: 'existing', thread: { id: 't1' }, user: { id: 'u2' } });
+      await expect(threadsService.joinByInviteLink('token123', 'u2')).resolves.toMatchObject({ id: 'existing' });
+      expect(prisma.threadMember.upsert).toHaveBeenCalledWith(expect.objectContaining({ update: {} }));
     });
 
     it('通过邀请链接加入：无效token → 404', async () => {

@@ -389,18 +389,32 @@ export class ThreadsService {
     });
   }
 
-  /** 查看指定用户参与的主题帖（被其他楼主标记为玩家，受 showPlayerBadges 隐私开关控制） */
-  async findByPlayedUser(targetId: string, viewerId?: string, cursor?: string, limit = 20) {
+  /** 本人查看全部实际参与帖；他人仅可查看公开且已标记为玩家的帖子。 */
+  async findByPlayedUser(
+    targetId: string,
+    viewerId?: string,
+    cursor?: string,
+    limit = 20,
+    visibility?: 'PUBLIC' | 'PRIVATE',
+  ) {
     const take = Math.min(limit, 50);
+    const isSelf = targetId === viewerId;
+
+    if (!isSelf && visibility === 'PRIVATE') {
+      return paginate([], { cursor: null, hasMore: false });
+    }
+
     const where: any = {
       userId: targetId,
-      playerMarked: true,
       thread: { ...notDeleted, published: true },
     };
     // 参与列表排除自己创建的帖（自建帖在「创建的帖子」中展示）
     where.thread.ownerId = { not: targetId };
 
-    if (targetId !== viewerId) {
+    if (isSelf) {
+      if (visibility) where.thread.visibility = visibility;
+    } else {
+      where.playerMarked = true;
       where.thread.visibility = 'PUBLIC';
     }
 
@@ -742,7 +756,7 @@ export class ThreadsService {
   }
 
   /** 预览邀请链接对应的私密帖信息（不创建成员） */
-  async previewInviteLink(token: string) {
+  async previewInviteLink(token: string, userId?: string) {
     const invite = await this.prisma.threadInvite.findUnique({
       where: { token },
       include: {
@@ -769,6 +783,12 @@ export class ThreadsService {
     const memberCount = await this.prisma.threadMember.count({
       where: { threadId: invite.threadId },
     });
+    const existingMember = userId
+      ? await this.prisma.threadMember.findUnique({
+          where: { threadId_userId: { threadId: invite.threadId, userId } },
+          select: { id: true },
+        })
+      : null;
 
     return {
       thread: {
@@ -780,6 +800,7 @@ export class ThreadsService {
         memberCount,
         createdAt: invite.thread.createdAt,
       },
+      alreadyJoined: !!existingMember,
     };
   }
 
@@ -796,18 +817,10 @@ export class ThreadsService {
     if (!invite.thread.published) throw forbidden('该主题帖尚未发布');
     if (invite.thread.visibility !== 'PRIVATE') throw forbidden('该主题帖为公开帖，可直接加入');
 
-    const existing = await this.prisma.threadMember.findUnique({
+    return this.prisma.threadMember.upsert({
       where: { threadId_userId: { threadId: invite.threadId, userId } },
-    });
-    if (existing)
-      throw new BusinessException(
-        ErrorCode.ALREADY_MEMBER,
-        '已是该主题帖参与人',
-        HttpStatus.CONFLICT,
-      );
-
-    return this.prisma.threadMember.create({
-      data: { threadId: invite.threadId, userId, role: 'PARTICIPANT' },
+      create: { threadId: invite.threadId, userId, role: 'PARTICIPANT' },
+      update: {},
       include: {
         thread: { select: { id: true, title: true } },
         user: { select: { id: true, username: true, avatar: true } },

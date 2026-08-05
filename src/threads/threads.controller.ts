@@ -10,6 +10,7 @@ import { UpdateThreadDto } from './dto/update-thread.dto';
 import { ThreadQueryDto } from './dto/thread-query.dto';
 import { Auth, AuthRead, OptionalAuth } from '../auth/decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
+import { InvitePreviewResponseDto } from './dto/invite-response.dto';
 
 /** 主题帖控制器：草稿箱、列表、详情、修改、发布、删除、点赞 */
 @ApiTags('Threads')
@@ -125,22 +126,22 @@ export class ThreadsController {
   @Get('join-by-link/:token')
   @AuthRead()
   @ApiBearerAuth()
-  @ApiOperation({ summary: '预览邀请链接对应的私密帖信息（需已发布 + 私密帖，不创建成员记录）' })
-  @ApiOkResponse({ description: '帖子概要（title / category / owner / memberCount）' })
+  @ApiOperation({ summary: '预览邀请链接对应的私密帖信息，并判断当前用户是否已加入' })
+  @ApiOkResponse({ type: InvitePreviewResponseDto, description: '帖子概要和 alreadyJoined 状态' })
   @ApiUnauthorizedResponse({ description: '未登录' })
   @ApiNotFoundResponse({ description: '邀请链接无效或已失效' })
-  async previewInviteLink(@Param('token') token: string) {
-    return this.threadsService.previewInviteLink(token);
+  async previewInviteLink(@Param('token') token: string, @Req() req: FastifyRequest) {
+    const user = req['user'] as { id: string };
+    return this.threadsService.previewInviteLink(token, user.id);
   }
 
   @Post('join-by-link/:token')
   @Auth()
   @ApiBearerAuth()
-  @ApiOperation({ summary: '通过 16 位邀请 token 加入私密帖（需已发布）' })
-  @ApiOkResponse({ description: '加入成功返回成员记录（thread.title / user 基本信息）' })
+  @ApiOperation({ summary: '通过 16 位邀请 token 幂等加入私密帖（需已发布）' })
+  @ApiOkResponse({ description: '加入成功或已加入时返回成员记录（thread.title / user 基本信息）' })
   @ApiUnauthorizedResponse({ description: '未登录或邮箱未验证' })
   @ApiNotFoundResponse({ description: '邀请链接无效或已失效' })
-  @ApiConflictResponse({ description: '已是该帖参与人' })
   async joinByInviteLink(@Param('token') token: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     return this.threadsService.joinByInviteLink(token, user.id);
