@@ -442,7 +442,7 @@ model Notification {
   postId      String?  @map("post_id")
   threadId    String?  @map("thread_id")
   fromUserId  String?  @map("from_user_id")
-  eventKey    String   @default(cuid()) @map("event_key")
+  eventKey    String   @default(dbgenerated("(gen_random_uuid())::text")) @map("event_key")
   isRead      Boolean  @default(false) @map("is_read")
   createdAt   DateTime @default(now()) @map("created_at")
 

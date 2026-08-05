@@ -241,6 +241,14 @@
 
 > 子贴正文不单独建表：每子贴至多一个 `kind=BODY` 的帖子，通过 `PUT /subthreads/:id/body` upsert 维护；楼层接口只返回 `kind=FLOOR`。
 
+#### 历史迁移重放兼容
+
+早期迁移 `add_subthread_body_post` 没有时间戳前缀：它在既有环境中按创建顺序先于 `20260801160000_post_kind_drop_body_post_id` 应用，但空库重放时会按目录名排到时间戳迁移之后。为保持已应用迁移的名称和 checksum 不变，迁移链使用两段前滚兼容桥：`20260801155959_restore_body_post_id_replay_prerequisite` 在旧模型收缩前临时恢复字段、索引和外键，`zz_20260805100000_cleanup_body_post_id_replay_bridge` 在无时间戳迁移之后幂等清理。既有数据库和空库完整重放最终都不得保留 `subthreads.body_post_id`。
+
+点赞从楼层迁移到主题帖时曾直接执行 `prisma db push`，对应代码提交没有迁移文件。`zzz_20260805110000_reconcile_unmigrated_schema_changes` 为迁移链补齐等价前滚：旧 `post_likes` 按 `(threadId, userId)` 去重迁入 `thread_likes`，据此重算 `threads.like_count`，最后移除旧表和 `posts.like_count`。已通过 db push 对齐的数据库执行该迁移时不会重复写入点赞记录。
+
+兼容桥会先检查 `_prisma_migrations` 和旧表是否存在：已对齐数据库跳过临时字段回填和点赞全表重算。需要修复的旧库中，耗时与 `subthreads/posts` 或 `post_likes/threads` 行数线性相关；`ALTER TABLE` 和最终 `DROP` 会短暂取得表锁，应在发布维护窗口内执行。本轮三条迁移均显式使用 PostgreSQL 事务，失败时回滚整条迁移并可在排除锁等待等原因后重试；回填使用唯一索引、`ON CONFLICT DO NOTHING` 和派生计数，可重复执行。
+
 ### thread_likes — 点赞记录
 
 | 字段 | 类型 | 约束 | 说明 |
