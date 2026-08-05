@@ -149,7 +149,7 @@
 
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
-| GET | `/search?q=xxx` | Public | 全文搜索（POST 正文 + Thread 标题，ILIKE） |
+| GET | `/search?q=xxx` | Public | 全站搜索（User 用户名 + Thread 标题 + Post 正文，ILIKE；排除注销用户和私密帖内容） |
 | GET | `/tags` | Public | 搜索标签 |
 | POST | `/tags` | Auth | 创建标签，需邮箱已验证 |
 | GET | `/reading-progress` | AuthRead | 所有子贴阅读进度 |
