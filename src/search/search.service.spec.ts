@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { SearchService } from './search.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ThreadAccessService } from '../common/services/thread-access.service';
 
 const mockPrisma = {
   thread: { findMany: jest.fn() },
@@ -11,9 +12,14 @@ const mockPrisma = {
   $queryRaw: jest.fn(),
 };
 
+const mockThreadAccess = {
+  assertAccessible: jest.fn(),
+};
+
 const postDetail = (id: string) => ({
   id,
   floorNumber: 1,
+  parentPostId: null,
   content: `内容 ${id}`,
   createdAt: new Date('2026-08-01T00:00:00.000Z'),
   author: { id: 'u1', username: '测试用户' },
@@ -39,6 +45,7 @@ describe('SearchService', () => {
       providers: [
         SearchService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: ThreadAccessService, useValue: mockThreadAccess },
       ],
     }).compile();
     service = module.get<SearchService>(SearchService);
@@ -48,6 +55,7 @@ describe('SearchService', () => {
     mockPrisma.post.findMany.mockResolvedValue([]);
     mockPrisma.threadMember.groupBy.mockResolvedValue([]);
     mockPrisma.$queryRaw.mockResolvedValue([]);
+    mockThreadAccess.assertAccessible.mockResolvedValue(undefined);
   });
 
   it('空关键词应返回兼容空结果', async () => {
@@ -164,6 +172,49 @@ describe('SearchService', () => {
     expect(sql).toContain('ranked.relevance <');
     expect(sql).toContain('ranked."createdAt" <');
     expect(sql).toContain('ranked.id <');
+  });
+
+  it('帖内楼层搜索应先校验访问权限并复用相关度游标分页', async () => {
+    const rankedRows = [{
+      id: 'p1',
+      relevance: 0.8,
+      createdAt: new Date('2026-08-01T00:00:00.000Z'),
+    }];
+    mockPrisma.$queryRaw.mockResolvedValue(rankedRows);
+    mockPrisma.post.findMany.mockResolvedValue([postDetail('p1')]);
+
+    const page = await service.searchThreadPosts(
+      't-private',
+      '测试',
+      undefined,
+      20,
+      'u1',
+    );
+
+    expect(mockThreadAccess.assertAccessible).toHaveBeenCalledWith(
+      't-private',
+      'u1',
+    );
+    expect(page.items).toHaveLength(1);
+    expect(page.pagination.hasMore).toBe(false);
+
+    const sql = lastRawSql();
+    expect(sql).toContain('t."id" =');
+    expect(lastRawValues()).toContain('t-private');
+    expect(sql).not.toContain('t."visibility" = \'PUBLIC\'');
+    expect(sql).not.toContain('"threadRank" <=');
+    expect(sql).not.toContain('ROW_NUMBER() OVER');
+  });
+
+  it('帖内搜索无访问权限时不得执行正文查询', async () => {
+    mockThreadAccess.assertAccessible.mockRejectedValueOnce(new Error('主题帖不存在'));
+
+    await expect(
+      service.searchThreadPosts('t-private', '测试', undefined, 20, 'outsider'),
+    ).rejects.toThrow('主题帖不存在');
+
+    expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
+    expect(mockPrisma.post.findMany).not.toHaveBeenCalled();
   });
 
   it('非法楼层搜索游标应返回 400', async () => {

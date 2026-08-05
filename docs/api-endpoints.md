@@ -152,6 +152,7 @@
 | GET | `/search/threads?q=xxx` | Public | 按需搜索公开主题帖标题，最多 50 条 |
 | GET | `/search/users?q=xxx` | Public | 按需搜索未注销用户名，最多 20 条 |
 | GET | `/search/posts?q=xxx&cursor=&limit=20` | Public | 按需搜索公开楼层正文（至少 2 字符，相关度游标分页，每帖最多 3 条） |
+| GET | `/threads/:threadId/search/posts?q=xxx&cursor=&limit=20` | OptionalAuth | 搜索本帖全部子贴的楼层与楼中楼（至少 2 字符，继承主题帖访问权限） |
 | GET | `/search?q=xxx` | Public | 兼容旧客户端的聚合搜索；单字符不扫描楼层正文 |
 | GET | `/tags` | Public | 搜索标签 |
 | POST | `/tags` | Auth | 创建标签，需邮箱已验证 |

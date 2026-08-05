@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { attachPlayerCounts } from '../common/prisma-helpers';
 import { paginate } from '../common/dto/paginated-result';
+import { ThreadAccessService } from '../common/services/thread-access.service';
 
 const SEARCH_POST_LIMIT = 20;
 const SEARCH_POSTS_PER_THREAD = 3;
@@ -11,6 +12,7 @@ const MIN_POST_SEARCH_LENGTH = 2;
 const postSearchSelect = {
   id: true,
   floorNumber: true,
+  parentPostId: true,
   content: true,
   createdAt: true,
   author: { select: { id: true, username: true } },
@@ -29,6 +31,10 @@ interface SearchPostCursor {
   createdAt: string;
   id: string;
 }
+
+type PostSearchScope =
+  | { type: 'global' }
+  | { type: 'thread'; threadId: string };
 
 const keywordLength = (keyword: string) => Array.from(keyword.trim()).length;
 
@@ -63,10 +69,13 @@ function decodePostCursor(cursor: string): SearchPostCursor {
   }
 }
 
-/** 全站搜索服务：分类查询用户名、公开主题帖与公开楼层内容。 */
+/** 搜索服务：分类查询用户、公开主题帖，以及全站或单帖楼层内容。 */
 @Injectable()
 export class SearchService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private threadAccess: ThreadAccessService,
+  ) {}
 
   /** 兼容旧客户端的一次性聚合搜索；短词不会触发楼层正文扫描。 */
   async search(q: string) {
@@ -128,6 +137,28 @@ export class SearchService {
    * 数据库窗口函数限制每个主题帖最多出现三条，避免单帖霸屏。
    */
   async searchPosts(q: string, cursor?: string, limit = SEARCH_POST_LIMIT) {
+    return this.searchPostPage(q, cursor, limit, { type: 'global' });
+  }
+
+  /** 搜索单个主题帖内的全部楼层；可见性由统一主题访问规则控制。 */
+  async searchThreadPosts(
+    threadId: string,
+    q: string,
+    cursor?: string,
+    limit = SEARCH_POST_LIMIT,
+    userId?: string,
+  ) {
+    await this.threadAccess.assertAccessible(threadId, userId);
+    return this.searchPostPage(q, cursor, limit, { type: 'thread', threadId });
+  }
+
+  /** 全站与帖内查询共享短词校验、相关度排序、游标和展示字段。 */
+  private async searchPostPage(
+    q: string,
+    cursor: string | undefined,
+    limit: number,
+    scope: PostSearchScope,
+  ) {
     const keyword = q?.trim() ?? '';
     if (keywordLength(keyword) < MIN_POST_SEARCH_LENGTH) {
       throw new BadRequestException('楼层内容搜索至少需要 2 个字符');
@@ -149,17 +180,29 @@ export class SearchService {
           )`
       : Prisma.empty;
     const likePattern = `%${escapeLikePattern(keyword)}%`;
+    const threadRankSelect = scope.type === 'global'
+      ? Prisma.sql`,
+          ROW_NUMBER() OVER (
+            PARTITION BY p."thread_id"
+            ORDER BY similarity(p."content", ${keyword}) DESC, p."created_at" DESC, p."id" DESC
+          ) AS "threadRank"`
+      : Prisma.empty;
+    const threadScopeCondition = scope.type === 'global'
+      ? Prisma.sql`
+          AND t."published" = true
+          AND t."visibility" = 'PUBLIC'`
+      : Prisma.sql`AND t."id" = ${scope.threadId}`;
+    const threadRankCondition = scope.type === 'global'
+      ? Prisma.sql`AND ranked."threadRank" <= ${SEARCH_POSTS_PER_THREAD}`
+      : Prisma.empty;
 
     const rankedRows = await this.prisma.$queryRaw<RankedPostRow[]>(Prisma.sql`
       WITH ranked AS (
         SELECT
           p."id" AS id,
           similarity(p."content", ${keyword})::double precision AS relevance,
-          p."created_at" AS "createdAt",
-          ROW_NUMBER() OVER (
-            PARTITION BY p."thread_id"
-            ORDER BY similarity(p."content", ${keyword}) DESC, p."created_at" DESC, p."id" DESC
-          ) AS "threadRank"
+          p."created_at" AS "createdAt"
+          ${threadRankSelect}
         FROM "posts" p
         INNER JOIN "threads" t ON t."id" = p."thread_id"
         INNER JOIN "subthreads" s ON s."id" = p."subthread_id"
@@ -167,13 +210,13 @@ export class SearchService {
           AND p."kind" = 'FLOOR'
           AND p."content" ILIKE ${likePattern} ESCAPE '\\'
           AND t."deleted_at" IS NULL
-          AND t."published" = true
-          AND t."visibility" = 'PUBLIC'
+          ${threadScopeCondition}
           AND s."deleted_at" IS NULL
       )
       SELECT ranked.id, ranked.relevance, ranked."createdAt"
       FROM ranked
-      WHERE ranked."threadRank" <= ${SEARCH_POSTS_PER_THREAD}
+      WHERE true
+      ${threadRankCondition}
       ${cursorCondition}
       ORDER BY ranked.relevance DESC, ranked."createdAt" DESC, ranked.id DESC
       LIMIT ${take + 1}

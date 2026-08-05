@@ -81,6 +81,9 @@ export class SearchPostResponseDto {
   @ApiProperty({ type: Number, nullable: true, description: '楼层号；楼中楼为 null' })
   floorNumber: number | null;
 
+  @ApiProperty({ type: String, nullable: true, description: '父楼层 ID；主楼层为 null' })
+  parentPostId: string | null;
+
   @ApiProperty({ description: 'Markdown 正文' })
   content: string;
 

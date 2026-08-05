@@ -1,9 +1,9 @@
 # 搜索
 
-跨端发布批次：`search-scale-20260805`
+跨端发布批次：`thread-post-search-20260805`
 
 ## 概述
-搜索模块提供基于 PostgreSQL `ILIKE` + `pg_trgm` 的全站搜索。用户名、主题帖和楼层内容使用独立端点，供客户端按分类惰性加载；聚合端点保留用于旧客户端兼容。
+搜索模块提供基于 PostgreSQL `ILIKE` + `pg_trgm` 的全站与帖内搜索。用户名、主题帖和楼层内容使用独立端点，供客户端按分类惰性加载；帖内端点复用楼层查询核心并继承主题帖访问权限，聚合端点保留用于旧客户端兼容。
 
 ## 涉及的模型
 
@@ -20,6 +20,7 @@
 | `GET` | `/search/threads?q=` | `@Public()` | 搜索公开主题帖标题，最多 50 条 |
 | `GET` | `/search/users?q=` | `@Public()` | 搜索未注销用户名，最多 20 条 |
 | `GET` | `/search/posts?q=&cursor=&limit=20` | `@Public()` | 搜索公开楼层与楼中楼正文，游标分页 |
+| `GET` | `/threads/:threadId/search/posts?q=&cursor=&limit=20` | `@OptionalAuth()` | 搜索当前主题帖全部子贴中的楼层与楼中楼，游标分页 |
 | `GET` | `/search?q=` | `@Public()` | 旧客户端兼容聚合搜索；单字符不扫描楼层正文 |
 
 ## 核心业务规则
@@ -28,15 +29,19 @@
 - 用户搜索：仅匹配用户名，过滤 `deletedAt: null`，只返回 id / username / avatar / bio，最多 20 条并按用户名升序
 - 主题帖搜索：仅匹配标题，过滤未发布、已删除和 PRIVATE 主题帖，最多 50 条并按 `updatedAt` 降序
 - 楼层正文至少需要 2 个 Unicode 字符；限制由服务端执行，短词返回 400，避免低选择度正文扫描
-- 楼层只搜索 `kind=FLOOR`，同时过滤已删除子贴以及未发布、已删除或 PRIVATE 主题帖
+- 全站楼层只搜索 `kind=FLOOR`，同时过滤已删除子贴以及未发布、已删除或 PRIVATE 主题帖
 - 楼层每页最多 20 条，按 trigram 相关度、创建时间、ID 依次降序；游标编码三者以保持稳定翻页
 - SQL 窗口函数按 `threadId` 分组，每个主题帖在整个结果集中最多保留 3 条匹配楼层，避免单一长帖霸屏
+- 帖内搜索先调用 `ThreadAccessService.assertAccessible()`：公开帖允许匿名，PRIVATE 帖仅成员可搜，未发布帖仅楼主可搜；无权访问统一返回 404
+- 帖内搜索覆盖主题帖的全部未删除子贴与楼中楼，不使用全站“每帖最多 3 条”限制，但仍保持每页最多 20 条和相同的不透明游标
+- 楼层结果返回 `parentPostId`；客户端可据此让主楼层直达详情页、楼中楼直达独立讨论页，无需先进入主题帖再探测父楼层
 - 兼容聚合端点空关键词返回 `{ users: [], threads: [], posts: [] }`；单字符仍返回用户和主题帖，但 `posts=[]`
 
 ## 设计决策
 
 - 使用 PostgreSQL `pg_trgm` GIN 索引加速 username / title / content 的大小写不敏感子串匹配，暂不引入 Elasticsearch
 - 客户端按 Tab 分别请求分类端点；默认主题帖不会触发楼层正文查询
+- 全站和帖内正文搜索共享短词校验、trigram 相关度、稳定游标及 Prisma 展示字段投影；只有可见性范围和单帖去重策略不同
 - 用户结果来自公开资料，不返回 email、角色、隐私开关等字段；已注销用户不会被搜索到
 - 主题帖结果仅包含 PUBLIC 可见性的帖子，确保私密帖不外泄
 - 不做精确总数 `COUNT`；楼层端点通过 `meta.hasMore` 和不透明 `meta.cursor` 表示更多结果
