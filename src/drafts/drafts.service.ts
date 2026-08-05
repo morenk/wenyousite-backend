@@ -4,11 +4,16 @@ import { normalizeMarkdownContent } from '../common/markdown-content';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { CreateDraftDto } from './dto/create-draft.dto';
+import { DiceService } from '../dice/dice.service';
+import { hasVisibleMarkdownContent } from '../common/markdown-content';
 
 /** 草稿服务：用户级 5 槽位全局草稿池 */
 @Injectable()
 export class DraftsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private diceService: DiceService,
+  ) {}
 
   /** 获取当前用户所有草稿 */
   async findAll(userId: string) {
@@ -29,6 +34,10 @@ export class DraftsService {
   /** 保存草稿：指定 slot 则覆盖，不指定自动选空闲位 */
   async create(dto: CreateDraftDto, userId: string) {
     const content = normalizeMarkdownContent(dto.content);
+    const pendingDiceNotations = this.diceService.canonicalizeNotations(
+      dto.pendingDiceNotations ?? [],
+    );
+    this.assertSnapshotNotEmpty(content, pendingDiceNotations);
     let slot = dto.slot;
 
     if (!slot) {
@@ -54,34 +63,50 @@ export class DraftsService {
       if (dto.version === undefined || dto.version !== existing.version) {
         throw this.optimisticLockConflict();
       }
-      return this.prisma.draft.update({
-        where: { id: existing.id, version: dto.version },
-        data: { content, version: { increment: 1 } },
-      }).catch((error) => {
-        if (error?.code === 'P2025') throw this.optimisticLockConflict();
-        throw error;
-      });
+      return this.prisma.draft
+        .update({
+          where: { id: existing.id, version: dto.version },
+          data: { content, pendingDiceNotations, version: { increment: 1 } },
+        })
+        .catch((error) => {
+          if (error?.code === 'P2025') throw this.optimisticLockConflict();
+          throw error;
+        });
     }
 
     return this.prisma.draft.create({
-      data: { userId, slot, content },
+      data: { userId, slot, content, pendingDiceNotations },
     });
   }
 
   /** 更新草稿内容 */
-  async update(id: string, content: string, version: number, userId: string) {
+  async update(
+    id: string,
+    content: string,
+    version: number,
+    userId: string,
+    pendingDiceNotationsInput?: string[],
+  ) {
     const draft = await this.findById(id, userId);
     if (version !== draft.version) throw this.optimisticLockConflict();
-    return this.prisma.draft.update({
-      where: { id, version },
-      data: {
-        content: normalizeMarkdownContent(content),
-        version: { increment: 1 },
-      },
-    }).catch((error) => {
-      if (error?.code === 'P2025') throw this.optimisticLockConflict();
-      throw error;
-    });
+    const normalizedContent = normalizeMarkdownContent(content);
+    const pendingDiceNotations = this.diceService.canonicalizeNotations(
+      pendingDiceNotationsInput ?? [],
+    );
+    this.assertSnapshotNotEmpty(normalizedContent, pendingDiceNotations);
+    return this.prisma.draft
+      .update({
+        where: { id, version },
+        data: {
+          content: normalizedContent,
+          pendingDiceNotations,
+          version: { increment: 1 },
+        },
+      })
+      .catch((error) => {
+        if (error?.code === 'P2025') throw this.optimisticLockConflict();
+        throw error;
+      });
   }
 
   /** 删除草稿 */
@@ -109,5 +134,15 @@ export class DraftsService {
       '草稿已在其他位置修改，请刷新后重试',
       HttpStatus.CONFLICT,
     );
+  }
+
+  private assertSnapshotNotEmpty(content: string, pendingDiceNotations: string[]) {
+    if (!hasVisibleMarkdownContent(content) && pendingDiceNotations.length === 0) {
+      throw new BusinessException(
+        ErrorCode.BAD_REQUEST,
+        '草稿正文和待掷骰子不能同时为空',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
   }
 }

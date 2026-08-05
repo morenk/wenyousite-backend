@@ -6,7 +6,7 @@ import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { BlockFilterService } from '../common/services/block-filter.service';
-import { truncateMarkdown } from '../common/markdown-truncate';
+import { buildPostPreview } from '../common/post-preview';
 
 /** ZSET 键名 */
 const ZSET_BY_ACTIVITY = 'threads:by:activity';
@@ -61,9 +61,7 @@ export class PostEventsListener {
 
     // 预加载拉黑关系、订阅者、管理者（多类通知共用，一次 DB 查询）
     const [subscribers, blockSets, managers] = await Promise.all([
-      this.subscriptionsService.findSubscribers(
-        event.threadId, event.userId, event.userId,
-      ),
+      this.subscriptionsService.findSubscribers(event.threadId, event.userId, event.userId),
       this.blockFilter.loadBlockSets(event.userId),
       this.prisma.threadMember.findMany({
         where: {
@@ -74,26 +72,33 @@ export class PostEventsListener {
       }),
     ]);
     // 角色取发帖时快照，避免异步处理期间的角色变化改变本次通知语义。
-    const managerIdSet = new Set(managers.map(m => m.userId));
+    const managerIdSet = new Set(managers.map((m) => m.userId));
     const authorIsManager = event.authorRole === 'OWNER' || event.authorRole === 'COLLABORATOR';
     const authorIsEligiblePlayer = event.authorRole === 'PARTICIPANT' && event.authorPlayerMarked;
-    const managerIds = [...managerIdSet].filter(id => id !== event.userId);
+    const managerIds = [...managerIdSet].filter((id) => id !== event.userId);
     const subscriberIds = subscribers
-      .filter(s => (s.type === 'THREAD' && authorIsManager) || (s.type === 'USER' && authorIsEligiblePlayer))
-      .map(s => s.userId);
+      .filter(
+        (s) =>
+          (s.type === 'THREAD' && authorIsManager) || (s.type === 'USER' && authorIsEligiblePlayer),
+      )
+      .map((s) => s.userId);
 
     const username = event.authorUsername ?? '有人';
-    const preview = truncateMarkdown(event.content);
+    const preview = buildPostPreview(event.content, event.diceRolls);
     const explicitMentionRecipientIds = new Set<string>();
 
     // 1. @提及：解析正文中的 @用户名，验证权限规则，双向过滤拉黑，入队通知
     try {
       const mentionedUsers = await this.mentionsService.parseAndCreate(
-        event.postId, event.content, event.userId, event.threadId,
+        event.postId,
+        event.content,
+        event.userId,
+        event.threadId,
       );
       if (mentionedUsers.length > 0) {
         const filteredIds = this.blockFilter.filterRecipients(
-          mentionedUsers.map(u => u.userId), blockSets,
+          mentionedUsers.map((u) => u.userId),
+          blockSets,
         );
         if (filteredIds.length > 0) {
           filteredIds.forEach((id) => explicitMentionRecipientIds.add(id));
@@ -101,35 +106,55 @@ export class PostEventsListener {
             'mention',
             filteredIds,
             `${username} 在「${event.subthreadTitle}」提到了你：${preview}`,
-            { postId: event.postId, threadId: event.threadId, fromUserId: event.userId,
+            {
+              postId: event.postId,
+              threadId: event.threadId,
+              fromUserId: event.userId,
               eventKey: `mention:${event.postId}`,
-              payload: { actorName: username, action: 'mention', preview, subthreadTitle: event.subthreadTitle } },
+              payload: {
+                actorName: username,
+                action: 'mention',
+                preview,
+                subthreadTitle: event.subthreadTitle,
+              },
+            },
           );
         }
       }
-    } catch (e) { this.logger.error('mention processing failed', e); }
+    } catch (e) {
+      this.logger.error('mention processing failed', e);
+    }
 
     // 2. 新帖通知（子贴正文 / 新楼层）：通知楼主 + 协作者 + 订阅者（排除自己，过滤拉黑）
     if (!event.parentPostId || event.isSubthreadBody) {
       try {
         const recipients = this.blockFilter.filterRecipients(
-          [...new Set([...managerIds, ...subscriberIds])].filter((id) => !explicitMentionRecipientIds.has(id)), blockSets,
+          [...new Set([...managerIds, ...subscriberIds])].filter(
+            (id) => !explicitMentionRecipientIds.has(id),
+          ),
+          blockSets,
         );
         if (recipients.length > 0) {
           const isSubthread = event.isSubthreadBody === true;
           const content = isSubthread
             ? `${username} 创建了新子贴「${event.subthreadTitle}」：${preview}`
             : `${username} 发布了新楼层：${preview}`;
-          await this.notificationProducer.notify(
-            'new_post',
-            recipients,
-            content,
-            { postId: event.postId, threadId: event.threadId, fromUserId: event.userId,
-              eventKey: `new-post:${event.postId}`,
-              payload: { actorName: username, action: 'new_post', preview, ...(isSubthread ? { subthreadTitle: event.subthreadTitle } : {}) } },
-          );
+          await this.notificationProducer.notify('new_post', recipients, content, {
+            postId: event.postId,
+            threadId: event.threadId,
+            fromUserId: event.userId,
+            eventKey: `new-post:${event.postId}`,
+            payload: {
+              actorName: username,
+              action: 'new_post',
+              preview,
+              ...(isSubthread ? { subthreadTitle: event.subthreadTitle } : {}),
+            },
+          });
         }
-      } catch (e) { this.logger.error('new_post notification failed', e); }
+      } catch (e) {
+        this.logger.error('new_post notification failed', e);
+      }
     }
 
     // 3. 楼中楼回复：通知被回复者 + 楼主协作者 + 订阅者（排除自己，过滤拉黑）
@@ -143,21 +168,30 @@ export class PostEventsListener {
         if (targetPost && targetPost.authorId !== event.userId) {
           const replyTargetId = targetPost.authorId;
           const recipients = this.blockFilter.filterRecipients(
-            [...new Set([replyTargetId, ...managerIds, ...subscriberIds])].filter((id) => !explicitMentionRecipientIds.has(id)), blockSets,
+            [...new Set([replyTargetId, ...managerIds, ...subscriberIds])].filter(
+              (id) => !explicitMentionRecipientIds.has(id),
+            ),
+            blockSets,
           );
           if (recipients.length > 0) {
             await this.notificationProducer.notify(
               'reply',
               recipients,
               `${username} 回复了：${preview}`,
-              { postId: event.postId, threadId: event.threadId, fromUserId: event.userId,
+              {
+                postId: event.postId,
+                threadId: event.threadId,
+                fromUserId: event.userId,
                 eventKey: `reply:${event.postId}`,
-                payload: { actorName: username, action: 'reply', preview } },
+                payload: { actorName: username, action: 'reply', preview },
+              },
             );
           }
         }
       }
-    } catch (e) { this.logger.error('reply notification failed', e); }
+    } catch (e) {
+      this.logger.error('reply notification failed', e);
+    }
   }
 
   /** 主题帖点赞后更新计数 + 智能排序分 */
@@ -188,4 +222,5 @@ export interface PostCreatedEvent {
   isSubthreadBody?: boolean;
   authorRole: 'OWNER' | 'COLLABORATOR' | 'PARTICIPANT';
   authorPlayerMarked: boolean;
+  diceRolls?: { notation: string; total: number }[];
 }

@@ -1,8 +1,16 @@
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Req } from '@nestjs/common';
 import {
-  Controller, Get, Post, Put, Patch, Delete,
-  Body, Param, Query, Req,
-} from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery, ApiOkResponse, ApiCreatedResponse, ApiUnauthorizedResponse, ApiForbiddenResponse, ApiNotFoundResponse, ApiConflictResponse } from '@nestjs/swagger';
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiQuery,
+  ApiOkResponse,
+  ApiCreatedResponse,
+  ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiConflictResponse,
+} from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
@@ -10,7 +18,12 @@ import { UpdatePostDto } from './dto/update-post.dto';
 import { UpsertBodyDto } from './dto/upsert-body.dto';
 import { PostQueryDto } from './dto/post-query.dto';
 import { Auth, OptionalAuth } from '../auth/decorators/auth.decorator';
-import { FloorResponseDto, PostDetailResponseDto, PostResponseDto, ReplyResponseDto } from './dto/post-response.dto';
+import {
+  FloorResponseDto,
+  PostDetailResponseDto,
+  PostResponseDto,
+  ReplyResponseDto,
+} from './dto/post-response.dto';
 
 /** 楼层控制器：发帖、楼中楼、编辑、删除 */
 @ApiTags('Posts')
@@ -23,7 +36,11 @@ export class PostsController {
   @ApiOperation({ summary: '获取子贴的楼层列表（Cursor 分页）' })
   @ApiQuery({ name: 'cursor', required: false, description: '分页游标' })
   @ApiQuery({ name: 'limit', required: false, description: '每页条数' })
-  @ApiOkResponse({ type: FloorResponseDto, isArray: true, description: '楼层列表（含楼中楼内联回复），cursor 分页' })
+  @ApiOkResponse({
+    type: FloorResponseDto,
+    isArray: true,
+    description: '楼层列表（含楼中楼内联回复），cursor 分页',
+  })
   async findFloors(
     @Param('subthreadId') subthreadId: string,
     @Query() query: PostQueryDto,
@@ -38,7 +55,11 @@ export class PostsController {
   @ApiOperation({ summary: '获取楼中楼回复列表（cursor 分页，无限下拉）' })
   @ApiQuery({ name: 'cursor', required: false, description: '分页游标（上一页最后一条记录 ID）' })
   @ApiQuery({ name: 'limit', required: false, description: '每页条数（默认 20，最大 50）' })
-  @ApiOkResponse({ type: ReplyResponseDto, isArray: true, description: '楼中楼回复列表（平级挂载，含 replyToPostId 追踪回复目标），cursor 分页' })
+  @ApiOkResponse({
+    type: ReplyResponseDto,
+    isArray: true,
+    description: '楼中楼回复列表（平级挂载，含 replyToPostId 追踪回复目标），cursor 分页',
+  })
   async findReplies(
     @Param('id') id: string,
     @Query() query: PostQueryDto,
@@ -51,7 +72,9 @@ export class PostsController {
   @Put('subthreads/:subthreadId/body')
   @Auth()
   @ApiBearerAuth()
-  @ApiOperation({ summary: '写入子贴正文（upsert：无正文创建，有正文乐观锁更新）。仅 OWNER/COLLABORATOR' })
+  @ApiOperation({
+    summary: '写入子贴正文（upsert：无正文创建，有正文乐观锁更新）。仅 OWNER/COLLABORATOR',
+  })
   @ApiOkResponse({ type: PostResponseDto, description: '正文帖子（kind=BODY，不占楼层号）' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   @ApiForbiddenResponse({ description: '无管理权限' })
@@ -62,14 +85,23 @@ export class PostsController {
     @Req() req: FastifyRequest,
   ) {
     const user = req['user'] as { id: string };
-    return this.postsService.upsertBody(subthreadId, dto.content, dto.version, user.id);
+    return this.postsService.upsertBody(
+      subthreadId,
+      dto.content,
+      dto.version,
+      user.id,
+      dto.diceNotations,
+    );
   }
 
   @Post('subthreads/:subthreadId/posts')
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '发帖（创建新楼层或楼中楼回复）' })
-  @ApiCreatedResponse({ type: PostResponseDto, description: '创建的帖子（含楼层号或 parentPostId）' })
+  @ApiCreatedResponse({
+    type: PostResponseDto,
+    description: '创建的帖子（含楼层号或 parentPostId）',
+  })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   @ApiForbiddenResponse({ description: '无发帖权限（未加入子贴或权限不足）' })
   @ApiConflictResponse({ description: 'clientRequestId 已用于不同发帖载荷' })
@@ -100,11 +132,7 @@ export class PostsController {
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   @ApiForbiddenResponse({ description: '非本人帖子，无权编辑' })
   @ApiNotFoundResponse({ description: '帖子不存在' })
-  async update(
-    @Param('id') id: string,
-    @Body() dto: UpdatePostDto,
-    @Req() req: FastifyRequest,
-  ) {
+  async update(@Param('id') id: string, @Body() dto: UpdatePostDto, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     return this.postsService.update(id, dto, user.id);
   }

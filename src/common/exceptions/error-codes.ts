@@ -11,6 +11,10 @@ export const ErrorCode = {
   BAD_REQUEST: 40001,
   /** 乐观锁冲突 */
   OPTIMISTIC_LOCK_CONFLICT: 40002,
+  /** 骰子表达式不合法 */
+  INVALID_DICE_NOTATION: 40003,
+  /** 单帖骰子次数超限 */
+  DICE_ROLL_LIMIT_EXCEEDED: 40004,
 
   // ── 认证 401xx ──
   /** 未认证 */
@@ -108,13 +112,21 @@ export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
 /** 根据 HTTP 状态码映射默认业务错误码 */
 export function httpStatusToCode(status: number): number {
   switch (status) {
-    case 400: return ErrorCode.BAD_REQUEST;
-    case 401: return ErrorCode.UNAUTHORIZED;
-    case 403: return ErrorCode.FORBIDDEN;
-    case 404: return ErrorCode.NOT_FOUND;
-    case 409: return ErrorCode.CONFLICT;
-    case 429: return ErrorCode.RATE_LIMITED;
-    case 500: return ErrorCode.INTERNAL_ERROR;
-    default: return status;
+    case 400:
+      return ErrorCode.BAD_REQUEST;
+    case 401:
+      return ErrorCode.UNAUTHORIZED;
+    case 403:
+      return ErrorCode.FORBIDDEN;
+    case 404:
+      return ErrorCode.NOT_FOUND;
+    case 409:
+      return ErrorCode.CONFLICT;
+    case 429:
+      return ErrorCode.RATE_LIMITED;
+    case 500:
+      return ErrorCode.INTERNAL_ERROR;
+    default:
+      return status;
   }
 }

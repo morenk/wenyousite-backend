@@ -16,6 +16,9 @@ export class DraftResponseDto {
   @ApiProperty({ description: 'Markdown 正文' })
   content!: string;
 
+  @ApiProperty({ type: [String], description: '规范化后的待掷骰子表达式，不包含正式结果' })
+  pendingDiceNotations!: string[];
+
   @ApiProperty({ minimum: 1, description: '乐观锁版本，每次覆盖后递增' })
   version!: number;
 

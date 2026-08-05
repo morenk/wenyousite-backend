@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotFoundException, BadRequestException, HttpStatus } from '@nestjs/common';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
+import { DiceService } from '../dice/dice.service';
 
 const mockPrisma = {
   draft: {
@@ -20,10 +21,7 @@ describe('DraftsService', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        DraftsService,
-        { provide: PrismaService, useValue: mockPrisma },
-      ],
+      providers: [DraftsService, DiceService, { provide: PrismaService, useValue: mockPrisma }],
     }).compile();
     service = module.get<DraftsService>(DraftsService);
     jest.clearAllMocks();
@@ -38,12 +36,17 @@ describe('DraftsService', () => {
 
   it('指定 slot 应该覆盖旧草稿', async () => {
     mockPrisma.draft.findUnique.mockResolvedValue({ id: 'old', slot: 3, userId: 'u1', version: 2 });
-    mockPrisma.draft.update.mockResolvedValue({ id: 'old', slot: 3, content: 'updated', version: 3 });
+    mockPrisma.draft.update.mockResolvedValue({
+      id: 'old',
+      slot: 3,
+      content: 'updated',
+      version: 3,
+    });
     const result = await service.create({ content: 'updated', slot: 3, version: 2 }, 'u1');
     expect(result.content).toBe('updated');
     expect(mockPrisma.draft.update).toHaveBeenCalledWith({
       where: { id: 'old', version: 2 },
-      data: { content: 'updated', version: { increment: 1 } },
+      data: { content: 'updated', pendingDiceNotations: [], version: { increment: 1 } },
     });
   });
 
@@ -55,8 +58,45 @@ describe('DraftsService', () => {
 
     expect(mockPrisma.draft.update).toHaveBeenCalledWith({
       where: { id: 'old', version: 1 },
-      data: { content: '正文\n<br />\n', version: { increment: 1 } },
+      data: { content: '正文\n<br />\n', pendingDiceNotations: [], version: { increment: 1 } },
     });
+  });
+
+  it('允许纯骰子云草稿，并将正文与待掷列表作为同一版本快照写入', async () => {
+    mockPrisma.draft.findUnique.mockResolvedValue(null);
+    mockPrisma.draft.create.mockResolvedValue({
+      id: 'd-dice',
+      slot: 2,
+      content: '',
+      pendingDiceNotations: ['1d20', '2d6+3'],
+      version: 1,
+    });
+
+    await service.create(
+      {
+        content: '',
+        slot: 2,
+        pendingDiceNotations: [' d20 ', '2D6 + 3'],
+      },
+      'u1',
+    );
+
+    expect(mockPrisma.draft.create).toHaveBeenCalledWith({
+      data: {
+        userId: 'u1',
+        slot: 2,
+        content: '',
+        pendingDiceNotations: ['1d20', '2d6+3'],
+      },
+    });
+  });
+
+  it('正文与待掷骰子同时为空时拒绝保存', async () => {
+    await expect(
+      service.create({ content: '', pendingDiceNotations: [] }, 'u1'),
+    ).rejects.toMatchObject({ errorCode: ErrorCode.BAD_REQUEST });
+    expect(mockPrisma.draft.create).not.toHaveBeenCalled();
+    expect(mockPrisma.draft.update).not.toHaveBeenCalled();
   });
 
   it('覆盖已有 slot 缺少或不匹配 version 应返回 409', async () => {
@@ -76,7 +116,11 @@ describe('DraftsService', () => {
 
   it('5 槽满应返回错误', async () => {
     mockPrisma.draft.findMany.mockResolvedValue([
-      { slot: 1 }, { slot: 2 }, { slot: 3 }, { slot: 4 }, { slot: 5 },
+      { slot: 1 },
+      { slot: 2 },
+      { slot: 3 },
+      { slot: 4 },
+      { slot: 5 },
     ]);
     await expect(service.create({ content: 'test' }, 'u1')).rejects.toThrow(BadRequestException);
   });
@@ -107,7 +151,7 @@ describe('DraftsService', () => {
 
     expect(mockPrisma.draft.update).toHaveBeenCalledWith({
       where: { id: 'd1', version: 1 },
-      data: { content: '正文\n<br />', version: { increment: 1 } },
+      data: { content: '正文\n<br />', pendingDiceNotations: [], version: { increment: 1 } },
     });
   });
 

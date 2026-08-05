@@ -10,6 +10,7 @@ import { RedisService } from '../redis/redis.service';
 import { CacheService } from '../redis/cache.service';
 import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
+import { DiceService } from '../dice/dice.service';
 
 const mockPrisma = {
   $transaction: jest.fn(),
@@ -43,7 +44,9 @@ const mockPrisma = {
   },
   post: {
     findMany: jest.fn().mockResolvedValue([]),
+    update: jest.fn(),
   },
+  diceRoll: { createMany: jest.fn() },
   userBookmark: {
     findUnique: jest.fn(),
   },
@@ -53,23 +56,44 @@ const mockPrisma = {
 };
 
 const mockTags = { findOrCreate: jest.fn() };
-const mockThreadAccess = { assertAccessible: jest.fn(), assertCanManage: jest.fn().mockResolvedValue({ role: 'OWNER' }) };
+const mockThreadAccess = {
+  assertAccessible: jest.fn(),
+  assertCanManage: jest.fn().mockResolvedValue({ role: 'OWNER' }),
+};
 const mockBlockFilter = {
-  loadBlockSets: jest.fn().mockResolvedValue({ blockedByUser: new Set(), blockedByAuthor: new Set() }),
+  loadBlockSets: jest
+    .fn()
+    .mockResolvedValue({ blockedByUser: new Set(), blockedByAuthor: new Set() }),
   filterRecipients: jest.fn((ids: string[]) => ids),
 };
 const mockNotificationProducer = { notify: jest.fn().mockResolvedValue(undefined) };
 const mockEventEmitter = { emit: jest.fn() };
-const mockRedis = { hincrby: jest.fn().mockResolvedValue(1), hset: jest.fn().mockResolvedValue(1), hdelAll: jest.fn().mockResolvedValue(1), zadd: jest.fn().mockResolvedValue(1), zrem: jest.fn().mockResolvedValue(1), zrevrange: jest.fn().mockResolvedValue([]), zcard: jest.fn().mockResolvedValue(100) };
-const mockCache = { buildKey: jest.fn((...parts: string[]) => parts.join(':')), get: jest.fn().mockResolvedValue(undefined), set: jest.fn().mockResolvedValue(undefined), del: jest.fn().mockResolvedValue(undefined), delByPattern: jest.fn().mockResolvedValue(undefined) };
+const mockRedis = {
+  hincrby: jest.fn().mockResolvedValue(1),
+  hset: jest.fn().mockResolvedValue(1),
+  hdelAll: jest.fn().mockResolvedValue(1),
+  zadd: jest.fn().mockResolvedValue(1),
+  zrem: jest.fn().mockResolvedValue(1),
+  zrevrange: jest.fn().mockResolvedValue([]),
+  zcard: jest.fn().mockResolvedValue(100),
+};
+const mockCache = {
+  buildKey: jest.fn((...parts: string[]) => parts.join(':')),
+  get: jest.fn().mockResolvedValue(undefined),
+  set: jest.fn().mockResolvedValue(undefined),
+  del: jest.fn().mockResolvedValue(undefined),
+  delByPattern: jest.fn().mockResolvedValue(undefined),
+};
 
 describe('ThreadsService', () => {
   let service: ThreadsService;
+  let diceService: DiceService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ThreadsService,
+        DiceService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: TagsService, useValue: mockTags },
         { provide: ThreadAccessService, useValue: mockThreadAccess },
@@ -81,29 +105,47 @@ describe('ThreadsService', () => {
       ],
     }).compile();
     service = module.get<ThreadsService>(ThreadsService);
+    diceService = module.get<DiceService>(DiceService);
     jest.clearAllMocks();
+    mockPrisma.post.findMany.mockResolvedValue([]);
+    mockPrisma.$transaction.mockImplementation(async (fn) =>
+      fn({
+        $queryRaw: jest.fn(),
+        thread: mockPrisma.thread,
+        post: mockPrisma.post,
+        diceRoll: mockPrisma.diceRoll,
+      }),
+    );
   });
 
   describe('create', () => {
     it('创建草稿帖，不通知粉丝', async () => {
       const threadId = 't1';
-      mockPrisma.$transaction.mockImplementation(async (fn) => fn({
-        thread: {
-          count: jest.fn().mockResolvedValue(0),
-          create: jest.fn().mockResolvedValue({ id: threadId }),
-          update: jest.fn().mockResolvedValue({}),
-        },
-        threadMember: { create: jest.fn().mockResolvedValue({ id: 'm1' }) },
-        subthread: {
-          create: jest.fn().mockResolvedValue({ id: 's1', threadId }),
-          update: jest.fn().mockResolvedValue({}),
-        },
-        post: { create: jest.fn().mockResolvedValue({ id: 'p1' }) },
-      }));
+      mockPrisma.$transaction.mockImplementation(async (fn) =>
+        fn({
+          thread: {
+            count: jest.fn().mockResolvedValue(0),
+            create: jest.fn().mockResolvedValue({ id: threadId }),
+            update: jest.fn().mockResolvedValue({}),
+          },
+          threadMember: { create: jest.fn().mockResolvedValue({ id: 'm1' }) },
+          subthread: {
+            create: jest.fn().mockResolvedValue({ id: 's1', threadId }),
+            update: jest.fn().mockResolvedValue({}),
+          },
+          post: { create: jest.fn().mockResolvedValue({ id: 'p1' }) },
+        }),
+      );
       mockPrisma.thread.findUnique.mockResolvedValue({
-        id: threadId, title: '测试', category: 'RPG', ownerId: 'u1', published: false,
+        id: threadId,
+        title: '测试',
+        category: 'RPG',
+        ownerId: 'u1',
+        published: false,
         owner: { id: 'u1', username: 'test', avatar: null },
-        subthreads: [], topicTags: [], _count: { members: 1, posts: 0 },
+        subthreads: [],
+        topicTags: [],
+        _count: { members: 1, posts: 0 },
       });
 
       const result = await service.create({ title: '测试', category: 'RPG' }, 'u1');
@@ -114,23 +156,33 @@ describe('ThreadsService', () => {
     it('无标题时 title 默认为未命名草稿', async () => {
       const threadId = 't1';
       let capturedThreadData: any;
-      mockPrisma.$transaction.mockImplementation(async (fn) => fn({
-        thread: {
-          count: jest.fn().mockResolvedValue(0),
-          create: jest.fn().mockImplementation((args: any) => { capturedThreadData = args; return { id: threadId }; }),
-          update: jest.fn().mockResolvedValue({}),
-        },
-        threadMember: { create: jest.fn().mockResolvedValue({ id: 'm1' }) },
-        subthread: {
-          create: jest.fn().mockResolvedValue({ id: 's1', threadId }),
-          update: jest.fn().mockResolvedValue({}),
-        },
-        post: { create: jest.fn().mockResolvedValue({ id: 'p1' }) },
-      }));
+      mockPrisma.$transaction.mockImplementation(async (fn) =>
+        fn({
+          thread: {
+            count: jest.fn().mockResolvedValue(0),
+            create: jest.fn().mockImplementation((args: any) => {
+              capturedThreadData = args;
+              return { id: threadId };
+            }),
+            update: jest.fn().mockResolvedValue({}),
+          },
+          threadMember: { create: jest.fn().mockResolvedValue({ id: 'm1' }) },
+          subthread: {
+            create: jest.fn().mockResolvedValue({ id: 's1', threadId }),
+            update: jest.fn().mockResolvedValue({}),
+          },
+          post: { create: jest.fn().mockResolvedValue({ id: 'p1' }) },
+        }),
+      );
       mockPrisma.thread.findUnique.mockResolvedValue({
-        id: threadId, title: '未命名草稿', category: 'DEDUCTION', published: false,
+        id: threadId,
+        title: '未命名草稿',
+        category: 'DEDUCTION',
+        published: false,
         owner: { id: 'u1', username: 'test', avatar: null },
-        subthreads: [], topicTags: [], _count: { members: 1, posts: 0 },
+        subthreads: [],
+        topicTags: [],
+        _count: { members: 1, posts: 0 },
       });
 
       await service.create({}, 'u1');
@@ -139,16 +191,18 @@ describe('ThreadsService', () => {
 
     it('超过草稿上限（10）时拒绝创建', async () => {
       const threadCreate = jest.fn();
-      mockPrisma.$transaction.mockImplementation(async (fn) => fn({
-        thread: {
-          count: jest.fn().mockResolvedValue(10),
-          create: threadCreate,
-          update: jest.fn(),
-        },
-        threadMember: { create: jest.fn() },
-        subthread: { create: jest.fn(), update: jest.fn() },
-        post: { create: jest.fn() },
-      }));
+      mockPrisma.$transaction.mockImplementation(async (fn) =>
+        fn({
+          thread: {
+            count: jest.fn().mockResolvedValue(10),
+            create: threadCreate,
+            update: jest.fn(),
+          },
+          threadMember: { create: jest.fn() },
+          subthread: { create: jest.fn(), update: jest.fn() },
+          post: { create: jest.fn() },
+        }),
+      );
 
       await expect(service.create({ title: '测试' }, 'u1')).rejects.toThrow(BusinessException);
       expect(threadCreate).not.toHaveBeenCalled();
@@ -185,10 +239,15 @@ describe('ThreadsService', () => {
 
     describe('recommended（智能排序）', () => {
       const mkThread = (id: string) => ({
-        id, title: id, category: 'RPG', published: true, visibility: 'PUBLIC',
+        id,
+        title: id,
+        category: 'RPG',
+        published: true,
+        visibility: 'PUBLIC',
         owner: { id: 'u1', username: 'u', avatar: null },
         defaultSubthread: { id: `s-${id}`, title: id, posts: [] },
-        topicTags: [], _count: { members: 1, posts: 0 },
+        topicTags: [],
+        _count: { members: 1, posts: 0 },
       });
 
       beforeEach(() => {
@@ -203,25 +262,45 @@ describe('ThreadsService', () => {
       it('ZSET 前缀 + 可见帖累进切片，相邻页不重复', async () => {
         // 模拟：ZSET 前缀（混合分类），SQL 过滤后仅 3 篇 RPG 可见，且分散在 ZSET 中
         const rpgIds = ['r1', 'r2', 'r3'];
-        mockRedis.zrevrange.mockResolvedValue([...rpgIds, 'x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7']);
+        mockRedis.zrevrange.mockResolvedValue([
+          ...rpgIds,
+          'x1',
+          'x2',
+          'x3',
+          'x4',
+          'x5',
+          'x6',
+          'x7',
+        ]);
         mockPrisma.thread.findMany.mockResolvedValue([
-          mkThread('r1'), mkThread('r2'), mkThread('r3'),
+          mkThread('r1'),
+          mkThread('r2'),
+          mkThread('r3'),
         ]);
 
         // 第 1 页：consumed=0，切片前 2 个
-        const page1 = await service.findAll({ sort: 'recommended', category: 'RPG', limit: 2 } as any);
-        expect(page1.items.map(t => t.id)).toEqual(['r1', 'r2']);
+        const page1 = await service.findAll({
+          sort: 'recommended',
+          category: 'RPG',
+          limit: 2,
+        } as any);
+        expect(page1.items.map((t) => t.id)).toEqual(['r1', 'r2']);
         expect(page1.pagination.hasMore).toBe(true);
         expect(page1.pagination.cursor).toBe('2');
 
         // 第 2 页：consumed=2，切片 [2,4)，只返回 r3，不重复
-        const page2 = await service.findAll({ sort: 'recommended', category: 'RPG', limit: 2, cursor: '2' } as any);
-        expect(page2.items.map(t => t.id)).toEqual(['r3']);
+        const page2 = await service.findAll({
+          sort: 'recommended',
+          category: 'RPG',
+          limit: 2,
+          cursor: '2',
+        } as any);
+        expect(page2.items.map((t) => t.id)).toEqual(['r3']);
         expect(page2.pagination.hasMore).toBe(false);
         expect(page2.pagination.cursor).toBeNull();
 
         // 两页合并无重复
-        const merged = [...page1.items, ...page2.items].map(t => t.id);
+        const merged = [...page1.items, ...page2.items].map((t) => t.id);
         expect(new Set(merged).size).toBe(merged.length);
       });
 
@@ -235,9 +314,13 @@ describe('ThreadsService', () => {
           .mockResolvedValueOnce([mkThread('r1')])
           .mockResolvedValueOnce([mkThread('r1'), mkThread('r2'), mkThread('r3')]);
 
-        const page = await service.findAll({ sort: 'recommended', category: 'RPG', limit: 2 } as any);
+        const page = await service.findAll({
+          sort: 'recommended',
+          category: 'RPG',
+          limit: 2,
+        } as any);
         expect(mockRedis.zrevrange).toHaveBeenCalledTimes(2);
-        expect(page.items.map(t => t.id)).toEqual(['r1', 'r2']);
+        expect(page.items.map((t) => t.id)).toEqual(['r1', 'r2']);
         expect(page.pagination.cursor).toBe('2');
       });
 
@@ -268,7 +351,14 @@ describe('ThreadsService', () => {
 
   describe('findById', () => {
     it('已发布公开帖正常返回并递增 viewCount', async () => {
-      const thread = { id: 't1', title: '测试', published: true, visibility: 'PUBLIC', owner: { id: 'u1' }, subthreads: [] };
+      const thread = {
+        id: 't1',
+        title: '测试',
+        published: true,
+        visibility: 'PUBLIC',
+        owner: { id: 'u1' },
+        subthreads: [],
+      };
       mockPrisma.thread.findUnique.mockResolvedValue(thread);
       mockPrisma.thread.update.mockResolvedValue({});
       const result = await service.findById('t1');
@@ -280,7 +370,15 @@ describe('ThreadsService', () => {
     });
 
     it('详情合并玩家计数 _count.players（playerMarked=true）', async () => {
-      const thread = { id: 't1', title: '测试', published: true, visibility: 'PUBLIC', owner: { id: 'u1' }, subthreads: [], _count: { members: 5, posts: 3 } as any };
+      const thread = {
+        id: 't1',
+        title: '测试',
+        published: true,
+        visibility: 'PUBLIC',
+        owner: { id: 'u1' },
+        subthreads: [],
+        _count: { members: 5, posts: 3 } as any,
+      };
       mockPrisma.thread.findUnique.mockResolvedValue(thread);
       mockPrisma.thread.update.mockResolvedValue({});
       mockPrisma.threadMember.groupBy.mockResolvedValue([{ threadId: 't1', _count: 2 }]);
@@ -296,7 +394,15 @@ describe('ThreadsService', () => {
     });
 
     it('无玩家标记成员时 _count.players 为 0', async () => {
-      const thread = { id: 't1', title: '测试', published: true, visibility: 'PUBLIC', owner: { id: 'u1' }, subthreads: [], _count: { members: 5, posts: 3 } as any };
+      const thread = {
+        id: 't1',
+        title: '测试',
+        published: true,
+        visibility: 'PUBLIC',
+        owner: { id: 'u1' },
+        subthreads: [],
+        _count: { members: 5, posts: 3 } as any,
+      };
       mockPrisma.thread.findUnique.mockResolvedValue(thread);
       mockPrisma.thread.update.mockResolvedValue({});
       mockPrisma.threadMember.groupBy.mockResolvedValue([]);
@@ -311,20 +417,35 @@ describe('ThreadsService', () => {
     });
 
     it('未发布帖：owner 可查看', async () => {
-      const thread = { id: 't1', title: '草稿', published: false, ownerId: 'u1', visibility: 'PUBLIC', owner: { id: 'u1' }, subthreads: [] };
+      const thread = {
+        id: 't1',
+        title: '草稿',
+        published: false,
+        ownerId: 'u1',
+        visibility: 'PUBLIC',
+        owner: { id: 'u1' },
+        subthreads: [],
+      };
       mockPrisma.thread.findUnique.mockResolvedValue(thread);
       const result = await service.findById('t1', 'u1');
       expect(result.id).toBe('t1');
     });
 
     it('登录态附加 isBookmarked、bookmarkId 与 isLiked', async () => {
-      const thread = { id: 't1', title: '测试', published: true, visibility: 'PUBLIC', owner: { id: 'u1' }, subthreads: [] };
+      const thread = {
+        id: 't1',
+        title: '测试',
+        published: true,
+        visibility: 'PUBLIC',
+        owner: { id: 'u1' },
+        subthreads: [],
+      };
       mockPrisma.thread.findUnique.mockResolvedValue(thread);
       mockPrisma.thread.update.mockResolvedValue({});
       mockPrisma.userBookmark.findUnique.mockResolvedValue({ id: 'bm1' });
       mockPrisma.threadLike.findUnique.mockResolvedValue({ id: 'like1' });
 
-      const result = await service.findById('t1', 'u1') as any;
+      const result = (await service.findById('t1', 'u1')) as any;
       expect(result.isBookmarked).toBe(true);
       expect(result.bookmarkId).toBe('bm1');
       expect(result.isLiked).toBe(true);
@@ -339,11 +460,18 @@ describe('ThreadsService', () => {
     });
 
     it('未登录不附加收藏字段', async () => {
-      const thread = { id: 't1', title: '测试', published: true, visibility: 'PUBLIC', owner: { id: 'u1' }, subthreads: [] };
+      const thread = {
+        id: 't1',
+        title: '测试',
+        published: true,
+        visibility: 'PUBLIC',
+        owner: { id: 'u1' },
+        subthreads: [],
+      };
       mockPrisma.thread.findUnique.mockResolvedValue(thread);
       mockPrisma.thread.update.mockResolvedValue({});
 
-      const result = await service.findById('t1') as any;
+      const result = (await service.findById('t1')) as any;
       expect(result.isBookmarked).toBeUndefined();
       expect(result.isLiked).toBeUndefined();
       expect(mockPrisma.userBookmark.findUnique).not.toHaveBeenCalled();
@@ -351,27 +479,54 @@ describe('ThreadsService', () => {
     });
 
     it('未发布帖：非 owner 返回404', async () => {
-      mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', published: false, ownerId: 'u1', visibility: 'PUBLIC' });
-      mockThreadAccess.assertAccessible.mockRejectedValueOnce(new BusinessException(ErrorCode.FORBIDDEN, ''));
+      mockPrisma.thread.findUnique.mockResolvedValue({
+        id: 't1',
+        published: false,
+        ownerId: 'u1',
+        visibility: 'PUBLIC',
+      });
+      mockThreadAccess.assertAccessible.mockRejectedValueOnce(
+        new BusinessException(ErrorCode.FORBIDDEN, ''),
+      );
       await expect(service.findById('t1', 'u2')).rejects.toThrow(BusinessException);
     });
 
     it('未发布帖：未登录返回404', async () => {
-      mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', published: false, ownerId: 'u1', visibility: 'PUBLIC' });
-      mockThreadAccess.assertAccessible.mockRejectedValueOnce(new BusinessException(ErrorCode.FORBIDDEN, ''));
+      mockPrisma.thread.findUnique.mockResolvedValue({
+        id: 't1',
+        published: false,
+        ownerId: 'u1',
+        visibility: 'PUBLIC',
+      });
+      mockThreadAccess.assertAccessible.mockRejectedValueOnce(
+        new BusinessException(ErrorCode.FORBIDDEN, ''),
+      );
       await expect(service.findById('t1')).rejects.toThrow(BusinessException);
     });
 
     it('已发布私密帖非成员应返回404', async () => {
-      mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', published: true, visibility: 'PRIVATE' });
+      mockPrisma.thread.findUnique.mockResolvedValue({
+        id: 't1',
+        published: true,
+        visibility: 'PRIVATE',
+      });
       mockPrisma.threadMember.findUnique.mockResolvedValue(null);
       mockPrisma.thread.update.mockResolvedValue({});
-      mockThreadAccess.assertAccessible.mockRejectedValueOnce(new BusinessException(ErrorCode.FORBIDDEN, ''));
+      mockThreadAccess.assertAccessible.mockRejectedValueOnce(
+        new BusinessException(ErrorCode.FORBIDDEN, ''),
+      );
       await expect(service.findById('t1', 'u2')).rejects.toThrow(BusinessException);
     });
 
     it('已发布私密帖成员应正常返回', async () => {
-      const thread = { id: 't1', title: '私密帖', published: true, visibility: 'PRIVATE', owner: { id: 'u1' }, subthreads: [] };
+      const thread = {
+        id: 't1',
+        title: '私密帖',
+        published: true,
+        visibility: 'PRIVATE',
+        owner: { id: 'u1' },
+        subthreads: [],
+      };
       mockPrisma.thread.findUnique.mockResolvedValue(thread);
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
       mockPrisma.thread.update.mockResolvedValue({});
@@ -384,8 +539,12 @@ describe('ThreadsService', () => {
     it('修改标题应正常', async () => {
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
       mockPrisma.thread.update.mockResolvedValue({
-        id: 't1', title: '新标题', owner: { id: 'u1', username: 'test', avatar: null },
-        subthreads: [], topicTags: [], _count: { members: 1, posts: 0 },
+        id: 't1',
+        title: '新标题',
+        owner: { id: 'u1', username: 'test', avatar: null },
+        subthreads: [],
+        topicTags: [],
+        _count: { members: 1, posts: 0 },
       });
       const result = await service.update('t1', { version: 1, title: '新标题' }, 'u1');
       expect(result.title).toBe('新标题');
@@ -393,45 +552,65 @@ describe('ThreadsService', () => {
 
     it('无权限返回403', async () => {
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
-      mockThreadAccess.assertCanManage.mockRejectedValueOnce(new BusinessException(ErrorCode.FORBIDDEN, ''));
-      await expect(service.update('t1', { version: 1, title: 'x' }, 'u2')).rejects.toThrow(BusinessException);
+      mockThreadAccess.assertCanManage.mockRejectedValueOnce(
+        new BusinessException(ErrorCode.FORBIDDEN, ''),
+      );
+      await expect(service.update('t1', { version: 1, title: 'x' }, 'u2')).rejects.toThrow(
+        BusinessException,
+      );
     });
 
     it('协作者可以修改内容元数据', async () => {
       mockThreadAccess.assertCanManage.mockResolvedValueOnce({ role: 'COLLABORATOR' });
       mockPrisma.thread.update.mockResolvedValue({
-        id: 't1', title: '协作标题', owner: { id: 'u1', username: 'test', avatar: null },
-        subthreads: [], topicTags: [], _count: { members: 2, posts: 0 },
+        id: 't1',
+        title: '协作标题',
+        owner: { id: 'u1', username: 'test', avatar: null },
+        subthreads: [],
+        topicTags: [],
+        _count: { members: 2, posts: 0 },
       });
-      await expect(service.update('t1', { version: 1, title: '协作标题' }, 'u2'))
-        .resolves.toMatchObject({ title: '协作标题' });
+      await expect(
+        service.update('t1', { version: 1, title: '协作标题' }, 'u2'),
+      ).resolves.toMatchObject({ title: '协作标题' });
     });
 
-    it.each([
-      [{ visibility: 'PRIVATE' }],
-      [{ published: true }],
-    ])('协作者不能修改楼主专属字段 %#', async (fields) => {
-      mockThreadAccess.assertCanManage.mockResolvedValueOnce({ role: 'COLLABORATOR' });
-      await expect(service.update('t1', { version: 1, ...fields }, 'u2'))
-        .rejects.toMatchObject({ status: 403 });
-      expect(mockPrisma.thread.update).not.toHaveBeenCalled();
-    });
+    it.each([[{ visibility: 'PRIVATE' }], [{ published: true }]])(
+      '协作者不能修改楼主专属字段 %#',
+      async (fields) => {
+        mockThreadAccess.assertCanManage.mockResolvedValueOnce({ role: 'COLLABORATOR' });
+        await expect(service.update('t1', { version: 1, ...fields }, 'u2')).rejects.toMatchObject({
+          status: 403,
+        });
+        expect(mockPrisma.thread.update).not.toHaveBeenCalled();
+      },
+    );
 
     it('已发布主题帖不能撤回为草稿', async () => {
-      await expect(service.update('t1', { version: 1, published: false }, 'u1'))
-        .rejects.toThrow(BusinessException);
+      await expect(service.update('t1', { version: 1, published: false }, 'u1')).rejects.toThrow(
+        BusinessException,
+      );
     });
 
     it('发布时应校验并通知粉丝', async () => {
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      mockPrisma.thread.findUnique
-        .mockResolvedValueOnce({ published: false, title: '测试', category: 'RPG' })     // update() 初次查询
-        .mockResolvedValueOnce({ defaultSubthread: { id: 's1', posts: [{ id: 'p1', kind: 'BODY', content: '正文' }] } }); // validatePublishReadiness
+      mockPrisma.thread.findUnique.mockResolvedValue({
+        published: false,
+        title: '测试',
+        category: 'RPG',
+        defaultSubthread: { id: 's1', posts: [{ content: '正文' }] },
+      });
       mockPrisma.thread.update.mockResolvedValue({
-        id: 't1', title: '测试', category: 'RPG', published: true,
-        createdAt: new Date('2025-01-01'), updatedAt: new Date(),
+        id: 't1',
+        title: '测试',
+        category: 'RPG',
+        published: true,
+        createdAt: new Date('2025-01-01'),
+        updatedAt: new Date(),
         owner: { id: 'u1', username: 'test', avatar: null },
-        subthreads: [], topicTags: [], _count: { members: 1, posts: 1 },
+        subthreads: [],
+        topicTags: [],
+        _count: { members: 1, posts: 1 },
       });
       mockPrisma.userFollow.findMany.mockResolvedValue([{ followerId: 'f1' }]);
 
@@ -445,32 +624,178 @@ describe('ThreadsService', () => {
       );
     });
 
+    it('发布时在同一事务结算全部待掷骰子并清空意图', async () => {
+      const tx = {
+        $queryRaw: jest.fn(),
+        thread: {
+          findUnique: jest.fn().mockResolvedValue({
+            published: false,
+            title: '测试',
+            category: 'RPG',
+            defaultSubthread: { id: 's1', posts: [{ content: '正文' }] },
+          }),
+          update: jest.fn().mockResolvedValue({
+            id: 't1',
+            title: '测试',
+            category: 'RPG',
+            published: true,
+            createdAt: new Date('2025-01-01'),
+            updatedAt: new Date(),
+            owner: { id: 'u1', username: 'test', avatar: null },
+            subthreads: [],
+            topicTags: [],
+            _count: { members: 1, posts: 2 },
+          }),
+        },
+        post: {
+          findMany: jest.fn().mockResolvedValue([
+            { id: 'p1', pendingDiceNotations: ['1d20'], diceRolls: [] },
+            { id: 'p2', pendingDiceNotations: ['2d6+3'], diceRolls: [{ id: 'old' }] },
+          ]),
+          update: jest.fn().mockResolvedValue({}),
+        },
+        diceRoll: { createMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      };
+      mockPrisma.$transaction.mockImplementation(async (fn) => fn(tx));
+      mockPrisma.post.findMany.mockResolvedValue([]);
+      mockPrisma.userFollow.findMany.mockResolvedValue([]);
+      jest
+        .spyOn(diceService, 'rollAll')
+        .mockReturnValueOnce([
+          {
+            notation: '1d20',
+            quantity: 1,
+            sides: 20,
+            modifier: 0,
+            protocolVersion: 1,
+            results: [14],
+            total: 14,
+          },
+        ])
+        .mockReturnValueOnce([
+          {
+            notation: '2d6+3',
+            quantity: 2,
+            sides: 6,
+            modifier: 3,
+            protocolVersion: 1,
+            results: [2, 5],
+            total: 10,
+          },
+        ]);
+
+      await service.update('t1', { version: 1, published: true }, 'u1');
+
+      expect(tx.diceRoll.createMany).toHaveBeenNthCalledWith(1, {
+        data: [expect.objectContaining({ postId: 'p1', sequence: 1, total: 14 })],
+      });
+      expect(tx.diceRoll.createMany).toHaveBeenNthCalledWith(2, {
+        data: [expect.objectContaining({ postId: 'p2', sequence: 2, total: 10 })],
+      });
+      expect(tx.post.update).toHaveBeenCalledTimes(2);
+      expect(tx.post.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { pendingDiceNotations: [], version: { increment: 1 } },
+        }),
+      );
+      expect(tx.thread.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ published: true, version: { increment: 1 } }),
+        }),
+      );
+    });
+
+    it('任一骰子写入失败时不得提交发布状态', async () => {
+      const threadUpdate = jest.fn();
+      const tx = {
+        $queryRaw: jest.fn(),
+        thread: {
+          findUnique: jest.fn().mockResolvedValue({
+            published: false,
+            title: '测试',
+            category: 'RPG',
+            defaultSubthread: { id: 's1', posts: [{ content: '正文' }] },
+          }),
+          update: threadUpdate,
+        },
+        post: {
+          findMany: jest
+            .fn()
+            .mockResolvedValue([{ id: 'p1', pendingDiceNotations: ['1d20'], diceRolls: [] }]),
+          update: jest.fn(),
+        },
+        diceRoll: { createMany: jest.fn().mockRejectedValue(new Error('db write failed')) },
+      };
+      mockPrisma.$transaction.mockImplementation(async (fn) => fn(tx));
+      jest.spyOn(diceService, 'rollAll').mockReturnValue([
+        {
+          notation: '1d20',
+          quantity: 1,
+          sides: 20,
+          modifier: 0,
+          protocolVersion: 1,
+          results: [14],
+          total: 14,
+        },
+      ]);
+
+      await expect(service.update('t1', { version: 1, published: true }, 'u1')).rejects.toThrow(
+        'db write failed',
+      );
+      expect(threadUpdate).not.toHaveBeenCalled();
+      expect(mockEventEmitter.emit).not.toHaveBeenCalledWith('thread.published', expect.anything());
+    });
+
     it('发布时无标题应拒绝', async () => {
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      mockPrisma.thread.findUnique.mockResolvedValue({ published: false, title: '', category: 'DEDUCTION' });
-      await expect(service.update('t1', { version: 1, published: true }, 'u1')).rejects.toThrow(BusinessException);
+      mockPrisma.thread.findUnique.mockResolvedValue({
+        published: false,
+        title: '',
+        category: 'DEDUCTION',
+        defaultSubthread: null,
+      });
+      await expect(service.update('t1', { version: 1, published: true }, 'u1')).rejects.toThrow(
+        BusinessException,
+      );
     });
 
     it('发布时无子贴应拒绝', async () => {
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      mockPrisma.thread.findUnique
-        .mockResolvedValueOnce({ published: false, title: '测试', category: 'RPG' })
-        .mockResolvedValueOnce(null); // validatePublishReadiness 查不到默认子贴
-      await expect(service.update('t1', { version: 1, published: true }, 'u1')).rejects.toThrow(BusinessException);
+      mockPrisma.thread.findUnique.mockResolvedValue({
+        published: false,
+        title: '测试',
+        category: 'RPG',
+        defaultSubthread: null,
+      });
+      await expect(service.update('t1', { version: 1, published: true }, 'u1')).rejects.toThrow(
+        BusinessException,
+      );
     });
 
     it('发布时默认子贴无正文（kind=BODY posts 为空）应拒绝', async () => {
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      mockPrisma.thread.findUnique
-        .mockResolvedValueOnce({ published: false, title: '测试', category: 'RPG' })
-        .mockResolvedValueOnce({ defaultSubthread: { id: 's1', posts: [] } }); // validatePublishReadiness：无 BODY 正文
-      await expect(service.update('t1', { version: 1, published: true }, 'u1')).rejects.toThrow(BusinessException);
+      mockPrisma.thread.findUnique.mockResolvedValue({
+        published: false,
+        title: '测试',
+        category: 'RPG',
+        defaultSubthread: { id: 's1', posts: [] },
+      });
+      await expect(service.update('t1', { version: 1, published: true }, 'u1')).rejects.toThrow(
+        BusinessException,
+      );
     });
 
     it('已发布的帖不能再发布', async () => {
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      mockPrisma.thread.findUnique.mockResolvedValue({ published: true, title: '测试', category: 'RPG' });
-      await expect(service.update('t1', { version: 1, published: true }, 'u1')).rejects.toThrow(BusinessException);
+      mockPrisma.thread.findUnique.mockResolvedValue({
+        published: true,
+        title: '测试',
+        category: 'RPG',
+        defaultSubthread: null,
+      });
+      await expect(service.update('t1', { version: 1, published: true }, 'u1')).rejects.toThrow(
+        BusinessException,
+      );
     });
   });
 
@@ -509,25 +834,46 @@ describe('ThreadsService', () => {
 
     it('PARTICIPANT 应该返回403', async () => {
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
-      mockThreadAccess.assertCanManage.mockRejectedValueOnce(new BusinessException(ErrorCode.FORBIDDEN, ''));
+      mockThreadAccess.assertCanManage.mockRejectedValueOnce(
+        new BusinessException(ErrorCode.FORBIDDEN, ''),
+      );
       await expect(service.assertCanManage('t1', 'u1')).rejects.toThrow(BusinessException);
     });
   });
 
   describe('createInviteLink', () => {
     it('未发布帖禁止生成邀请链接', async () => {
-      mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', ownerId: 'u1', published: false, visibility: 'PRIVATE' });
+      mockPrisma.thread.findUnique.mockResolvedValue({
+        id: 't1',
+        ownerId: 'u1',
+        published: false,
+        visibility: 'PRIVATE',
+      });
       await expect(service.createInviteLink('t1', 'u1')).rejects.toThrow(BusinessException);
     });
 
     it('公开帖禁止生成邀请链接', async () => {
-      mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', ownerId: 'u1', published: true, visibility: 'PUBLIC' });
+      mockPrisma.thread.findUnique.mockResolvedValue({
+        id: 't1',
+        ownerId: 'u1',
+        published: true,
+        visibility: 'PUBLIC',
+      });
       await expect(service.createInviteLink('t1', 'u1')).rejects.toThrow(BusinessException);
     });
 
     it('私密已发布帖正常生成', async () => {
-      mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', ownerId: 'u1', published: true, visibility: 'PRIVATE' });
-      mockPrisma.threadInvite.upsert.mockResolvedValue({ id: 'inv1', threadId: 't1', token: 'abc123' });
+      mockPrisma.thread.findUnique.mockResolvedValue({
+        id: 't1',
+        ownerId: 'u1',
+        published: true,
+        visibility: 'PRIVATE',
+      });
+      mockPrisma.threadInvite.upsert.mockResolvedValue({
+        id: 'inv1',
+        threadId: 't1',
+        token: 'abc123',
+      });
       const result = await service.createInviteLink('t1', 'u1');
       expect(result.token).toBeDefined();
     });
@@ -542,7 +888,17 @@ describe('ThreadsService', () => {
     it('未发布帖禁止预览', async () => {
       mockPrisma.threadInvite.findUnique.mockResolvedValue({
         threadId: 't1',
-        thread: { id: 't1', title: 'test', category: 'RPG', status: 'RECRUITING', visibility: 'PRIVATE', published: false, deletedAt: null, createdAt: new Date(), owner: { id: 'u1', username: 'a', avatar: null } },
+        thread: {
+          id: 't1',
+          title: 'test',
+          category: 'RPG',
+          status: 'RECRUITING',
+          visibility: 'PRIVATE',
+          published: false,
+          deletedAt: null,
+          createdAt: new Date(),
+          owner: { id: 'u1', username: 'a', avatar: null },
+        },
       });
       await expect(service.previewInviteLink('token123')).rejects.toThrow(BusinessException);
     });
@@ -550,7 +906,17 @@ describe('ThreadsService', () => {
     it('公开帖禁止通过邀请预览', async () => {
       mockPrisma.threadInvite.findUnique.mockResolvedValue({
         threadId: 't1',
-        thread: { id: 't1', title: 'test', category: 'RPG', status: 'RECRUITING', visibility: 'PUBLIC', published: true, deletedAt: null, createdAt: new Date(), owner: { id: 'u1', username: 'a', avatar: null } },
+        thread: {
+          id: 't1',
+          title: 'test',
+          category: 'RPG',
+          status: 'RECRUITING',
+          visibility: 'PUBLIC',
+          published: true,
+          deletedAt: null,
+          createdAt: new Date(),
+          owner: { id: 'u1', username: 'a', avatar: null },
+        },
       });
       await expect(service.previewInviteLink('token123')).rejects.toThrow(BusinessException);
     });
@@ -558,7 +924,17 @@ describe('ThreadsService', () => {
     it('软删除帖禁止预览', async () => {
       mockPrisma.threadInvite.findUnique.mockResolvedValue({
         threadId: 't1',
-        thread: { id: 't1', title: 'test', category: 'RPG', status: 'RECRUITING', visibility: 'PRIVATE', published: true, deletedAt: new Date(), createdAt: new Date(), owner: { id: 'u1', username: 'a', avatar: null } },
+        thread: {
+          id: 't1',
+          title: 'test',
+          category: 'RPG',
+          status: 'RECRUITING',
+          visibility: 'PRIVATE',
+          published: true,
+          deletedAt: new Date(),
+          createdAt: new Date(),
+          owner: { id: 'u1', username: 'a', avatar: null },
+        },
       });
       await expect(service.previewInviteLink('token123')).rejects.toThrow(BusinessException);
     });
@@ -566,7 +942,17 @@ describe('ThreadsService', () => {
     it('正常预览私密帖', async () => {
       mockPrisma.threadInvite.findUnique.mockResolvedValue({
         threadId: 't1',
-        thread: { id: 't1', title: '奇幻大陆', category: 'RPG', status: 'RECRUITING', visibility: 'PRIVATE', published: true, deletedAt: null, createdAt: new Date(), owner: { id: 'u1', username: '张三', avatar: null } },
+        thread: {
+          id: 't1',
+          title: '奇幻大陆',
+          category: 'RPG',
+          status: 'RECRUITING',
+          visibility: 'PRIVATE',
+          published: true,
+          deletedAt: null,
+          createdAt: new Date(),
+          owner: { id: 'u1', username: '张三', avatar: null },
+        },
       });
       mockPrisma.threadMember.count.mockResolvedValue(5);
       mockPrisma.threadMember.findUnique.mockResolvedValue(null);
@@ -583,7 +969,17 @@ describe('ThreadsService', () => {
     it('已加入用户预览邀请时返回可直接进入的状态', async () => {
       mockPrisma.threadInvite.findUnique.mockResolvedValue({
         threadId: 't1',
-        thread: { id: 't1', title: '奇幻大陆', category: 'RPG', status: 'RECRUITING', visibility: 'PRIVATE', published: true, deletedAt: null, createdAt: new Date(), owner: { id: 'u1', username: '张三', avatar: null } },
+        thread: {
+          id: 't1',
+          title: '奇幻大陆',
+          category: 'RPG',
+          status: 'RECRUITING',
+          visibility: 'PRIVATE',
+          published: true,
+          deletedAt: null,
+          createdAt: new Date(),
+          owner: { id: 'u1', username: '张三', avatar: null },
+        },
       });
       mockPrisma.threadMember.count.mockResolvedValue(5);
       mockPrisma.threadMember.findUnique.mockResolvedValue({ id: 'm2' });
@@ -597,14 +993,16 @@ describe('ThreadsService', () => {
   describe('joinByInviteLink', () => {
     it('未发布帖禁止通过邀请加入', async () => {
       mockPrisma.threadInvite.findUnique.mockResolvedValue({
-        threadId: 't1', thread: { id: 't1', visibility: 'PRIVATE', published: false },
+        threadId: 't1',
+        thread: { id: 't1', visibility: 'PRIVATE', published: false },
       });
       await expect(service.joinByInviteLink('token123', 'u2')).rejects.toThrow(BusinessException);
     });
 
     it('已发布私密帖正常加入', async () => {
       mockPrisma.threadInvite.findUnique.mockResolvedValue({
-        threadId: 't1', thread: { id: 't1', visibility: 'PRIVATE', published: true },
+        threadId: 't1',
+        thread: { id: 't1', visibility: 'PRIVATE', published: true },
       });
       mockPrisma.threadMember.upsert.mockResolvedValue({ id: 'm1', thread: {}, user: {} });
       const result = await service.joinByInviteLink('token123', 'u2');
@@ -612,26 +1010,38 @@ describe('ThreadsService', () => {
     });
 
     it('重复加入时幂等返回已有成员记录', async () => {
-      const existing = { id: 'm-existing', thread: { id: 't1', title: '私密帖' }, user: { id: 'u2' } };
+      const existing = {
+        id: 'm-existing',
+        thread: { id: 't1', title: '私密帖' },
+        user: { id: 'u2' },
+      };
       mockPrisma.threadInvite.findUnique.mockResolvedValue({
-        threadId: 't1', thread: { id: 't1', visibility: 'PRIVATE', published: true },
+        threadId: 't1',
+        thread: { id: 't1', visibility: 'PRIVATE', published: true },
       });
       mockPrisma.threadMember.upsert.mockResolvedValue(existing);
 
       await expect(service.joinByInviteLink('token123', 'u2')).resolves.toBe(existing);
-      expect(mockPrisma.threadMember.upsert).toHaveBeenCalledWith(expect.objectContaining({
-        where: { threadId_userId: { threadId: 't1', userId: 'u2' } },
-        update: {},
-      }));
+      expect(mockPrisma.threadMember.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { threadId_userId: { threadId: 't1', userId: 'u2' } },
+          update: {},
+        }),
+      );
     });
   });
 
   describe('findByCreatedUser', () => {
     const mkThread = (id: string, visibility = 'PUBLIC') => ({
-      id, title: id, category: 'RPG', published: true, visibility,
+      id,
+      title: id,
+      category: 'RPG',
+      published: true,
+      visibility,
       owner: { id: 'u1', username: 'u', avatar: null },
       defaultSubthread: { id: `s-${id}`, title: id, lastPostAt: null },
-      topicTags: [], _count: { members: 1, posts: 0 },
+      topicTags: [],
+      _count: { members: 1, posts: 0 },
     });
 
     beforeEach(() => {
@@ -641,14 +1051,15 @@ describe('ThreadsService', () => {
 
     it('本人查看返回全部已发布帖（含私密帖）', async () => {
       mockPrisma.thread.findMany.mockResolvedValue([
-        mkThread('t1', 'PUBLIC'), mkThread('t2', 'PRIVATE'),
+        mkThread('t1', 'PUBLIC'),
+        mkThread('t2', 'PRIVATE'),
       ]);
       const page = await service.findByCreatedUser('u1', 'u1');
       const args = mockPrisma.thread.findMany.mock.calls[0][0];
       expect(args.where.ownerId).toBe('u1');
       expect(args.where.published).toBe(true);
       expect(args.where.visibility).toBeUndefined();
-      expect(page.items.map(t => t.id)).toEqual(['t1', 't2']);
+      expect(page.items.map((t) => t.id)).toEqual(['t1', 't2']);
     });
 
     it('他人查看仅返回 PUBLIC 已发布帖', async () => {
@@ -656,13 +1067,17 @@ describe('ThreadsService', () => {
       const page = await service.findByCreatedUser('u1', 'viewer');
       const args = mockPrisma.thread.findMany.mock.calls[0][0];
       expect(args.where.visibility).toBe('PUBLIC');
-      expect(page.items.map(t => t.id)).toEqual(['t1']);
+      expect(page.items.map((t) => t.id)).toEqual(['t1']);
     });
 
     it('cursor 分页返回 hasMore 与下一页游标', async () => {
-      mockPrisma.thread.findMany.mockResolvedValue([mkThread('t1'), mkThread('t2'), mkThread('t3')]);
+      mockPrisma.thread.findMany.mockResolvedValue([
+        mkThread('t1'),
+        mkThread('t2'),
+        mkThread('t3'),
+      ]);
       const page = await service.findByCreatedUser('u1', 'u1', undefined, 2);
-      expect(page.items.map(t => t.id)).toEqual(['t1', 't2']);
+      expect(page.items.map((t) => t.id)).toEqual(['t1', 't2']);
       expect(page.pagination.hasMore).toBe(true);
       expect(page.pagination.cursor).toBe('t2');
     });
@@ -675,9 +1090,7 @@ describe('ThreadsService', () => {
     });
 
     it('本人列表也只包含已被授予玩家身份的非自建帖', async () => {
-      mockPrisma.threadMember.findMany.mockResolvedValue([
-        { id: 'm1', thread: { id: 't1' } },
-      ]);
+      mockPrisma.threadMember.findMany.mockResolvedValue([{ id: 'm1', thread: { id: 't1' } }]);
       await service.findByPlayedUser('u1', 'u1');
       const args = mockPrisma.threadMember.findMany.mock.calls[0][0];
       expect(args.where.playerMarked).toBe(true);

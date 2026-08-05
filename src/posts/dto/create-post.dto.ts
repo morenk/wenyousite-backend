@@ -1,28 +1,53 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, MinLength, MaxLength, IsUUID } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsString, IsOptional, MaxLength, IsUUID } from 'class-validator';
 import { IsCuid } from '../../common/decorators/is-cuid.decorator';
 
 /** 创建帖子 DTO */
 export class CreatePostDto {
-  @ApiProperty({ example: '这是一段正文内容，支持 Markdown 格式。', description: '帖子正文（支持 Markdown，前后端不渲染）', minLength: 1, maxLength: 10000 })
+  @ApiProperty({
+    example: '这是一段正文内容，支持 Markdown 格式。',
+    description: '帖子正文；允许为空，但此时必须至少提交一个骰子表达式',
+    maxLength: 10000,
+  })
   @IsString()
-  @MinLength(1)
   @MaxLength(10000)
   content: string;
 
-  @ApiPropertyOptional({ example: 'clxfloor001...', description: '父楼层 ID（楼中楼回复时指定，平级挂载，无嵌套深度限制）' })
+  @ApiPropertyOptional({
+    type: [String],
+    example: ['1d20', '2d6+3'],
+    maxItems: 20,
+    description: '待掷骰子表达式；服务端仅接受 NdM±K 并生成正式结果',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  @MaxLength(32, { each: true })
+  diceNotations?: string[];
+
+  @ApiPropertyOptional({
+    example: 'clxfloor001...',
+    description: '父楼层 ID（楼中楼回复时指定，平级挂载，无嵌套深度限制）',
+  })
   @IsOptional()
   @IsString()
   @IsCuid()
   parentPostId?: string;
 
-  @ApiPropertyOptional({ example: 'clxreply001...', description: '回复目标帖 ID（追踪具体回复哪个帖子，可为同楼层其他回复）' })
+  @ApiPropertyOptional({
+    example: 'clxreply001...',
+    description: '回复目标帖 ID（追踪具体回复哪个帖子，可为同楼层其他回复）',
+  })
   @IsOptional()
   @IsString()
   @IsCuid()
   replyToPostId?: string;
 
-  @ApiPropertyOptional({ format: 'uuid', description: '客户端创建请求幂等键；同一次用户提交及网络重试必须复用' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: '客户端创建请求幂等键；同一次用户提交及网络重试必须复用',
+  })
   @IsOptional()
   @IsUUID('4')
   clientRequestId?: string;

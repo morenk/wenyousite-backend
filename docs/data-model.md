@@ -244,6 +244,7 @@
 | parentPostId | String? | FK posts | 父楼层（楼中楼用） |
 | replyToPostId | String? | FK posts | 被回复的帖子 ID |
 | content | String | — | 正文（Markdown，含图片 URL） |
+| pendingDiceNotations | String[] | default [] | 未发布主题帖中的待掷表达式；发布事务结算后清空 |
 | version | Int | default 1 | 乐观锁 |
 | deletedAt | DateTime? | — | 软删除时间 |
 | createdAt | DateTime | — | — |
@@ -252,6 +253,22 @@
 索引：`@@index([subthreadId, kind])`, `@@index([subthreadId, createdAt])`, `@@index([threadId, createdAt])`, `@@index([parentPostId, createdAt])`（楼中楼分页），以及 `posts_content_trgm_idx`（GIN + `gin_trgm_ops`，正文子串搜索）。三类 trigram 索引由迁移启用 PostgreSQL `pg_trgm` 扩展。
 
 > 子贴正文不单独建表：每子贴至多一个 `kind=BODY` 的帖子，通过 `PUT /subthreads/:id/body` upsert 维护；楼层接口只返回 `kind=FLOOR`。
+
+### dice_rolls — 正式骰子结果
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| id | String | PK | — |
+| postId | String | FK posts (Cascade) | 所属帖子 |
+| sequence | Int | unique per post | 帖子内稳定序号，从 1 开始 |
+| protocolVersion | Int | default 1 | 骰子协议版本 |
+| notation | String | — | 规范化表达式 |
+| quantity / sides / modifier | Int | — | 表达式结构化字段 |
+| results | Int[] | — | 每枚骰子的服务端原始点数 |
+| total | Int | — | 逐骰之和加修正值 |
+| createdAt | DateTime | — | 正式结果生成时间 |
+
+`@@unique([postId, sequence])`。迁移另用 CHECK 约束保护序号、数量、面数、修正值和结果数组长度；结果创建后不提供更新或重掷路径，帖子软删除时查询层隐藏，硬删除时级联清理。
 
 #### 历史迁移重放兼容
 
@@ -291,6 +308,8 @@
 | userId | String | FK users (Cascade) | — |
 | slot | Int | default 1 | 草稿位编号（1-5） |
 | content | String | — | 草稿内容（Markdown） |
+| pendingDiceNotations | String[] | default [] | 与 content 同版本保存的待掷骰子表达式 |
+| version | Int | default 1 | 跨设备乐观锁版本 |
 | createdAt | DateTime | — | — |
 | updatedAt | DateTime | @updatedAt | — |
 

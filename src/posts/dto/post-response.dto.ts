@@ -4,6 +4,42 @@ import { ApiProperty } from '@nestjs/swagger';
 
 const POST_KINDS = ['BODY', 'FLOOR'] as const;
 
+/** 服务端生成并持久化的不可变骰子结果。 */
+export class DiceRollResponseDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  postId!: string;
+
+  @ApiProperty({ minimum: 1, maximum: 20 })
+  sequence!: number;
+
+  @ApiProperty({ example: 1, description: '骰子结果协议版本' })
+  protocolVersion!: number;
+
+  @ApiProperty({ example: '2d6+3', description: '规范化后的基础骰子表达式' })
+  notation!: string;
+
+  @ApiProperty({ minimum: 1, maximum: 100 })
+  quantity!: number;
+
+  @ApiProperty({ minimum: 2, maximum: 1000 })
+  sides!: number;
+
+  @ApiProperty({ minimum: -10000, maximum: 10000 })
+  modifier!: number;
+
+  @ApiProperty({ type: [Number], description: '每一枚骰子的原始点数' })
+  results!: number[];
+
+  @ApiProperty({ description: '逐骰点数之和加修正值' })
+  total!: number;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  createdAt!: Date;
+}
+
 /** 帖子作者摘要 */
 export class PostAuthorResponseDto {
   @ApiProperty()
@@ -42,11 +78,25 @@ export class PostBaseResponseDto {
   @ApiProperty({ type: String, nullable: true })
   replyToPostId!: string | null;
 
-  @ApiProperty({ type: String, format: 'uuid', nullable: true, description: '客户端创建请求幂等键；正文帖和旧客户端帖子为 null' })
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: '客户端创建请求幂等键；正文帖和旧客户端帖子为 null',
+  })
   clientRequestId!: string | null;
 
   @ApiProperty({ description: 'Markdown 正文' })
   content!: string;
+
+  @ApiProperty({ type: [String], description: '未发布主题内尚未结算的规范化骰子表达式' })
+  pendingDiceNotations!: string[];
+
+  @ApiProperty({
+    type: [DiceRollResponseDto],
+    description: '服务端生成的正式骰子结果，按 sequence 排序',
+  })
+  diceRolls!: DiceRollResponseDto[];
 
   @ApiProperty({ minimum: 1, description: '乐观锁版本' })
   version!: number;

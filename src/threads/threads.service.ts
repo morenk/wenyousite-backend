@@ -25,6 +25,7 @@ import {
 } from '../common/prisma-helpers';
 import { truncateMarkdown } from '../common/markdown-truncate';
 import { hasVisibleMarkdownContent } from '../common/markdown-content';
+import { DiceService } from '../dice/dice.service';
 
 /** 帖子列表 ZSET 键名 */
 const ZSET_BY_CREATED = 'threads:by:created';
@@ -46,6 +47,7 @@ export class ThreadsService {
     private eventEmitter: EventEmitter2,
     private redis: RedisService,
     private cache: CacheService,
+    private diceService: DiceService,
   ) {}
 
   /** 创建主题帖草稿：事务内创建 Thread + Owner + 默认子贴 + 可选子贴正文，一次请求完成 */
@@ -54,7 +56,8 @@ export class ThreadsService {
     const subthreadTitle = dto.subthreadTitle ?? title;
     const category = dto.category ?? 'DEDUCTION';
     const visibility = dto.visibility ?? 'PUBLIC';
-    const hasContent = !!dto.content?.trim();
+    const canonicalDice = this.diceService.canonicalizeNotations(dto.diceNotations ?? []);
+    const hasBody = !!dto.content?.trim() || canonicalDice.length > 0;
 
     const result = await this.prisma.$transaction(async (tx) => {
       // 0. 草稿数上限校验：未发布草稿超过上限则拒绝创建
@@ -84,14 +87,15 @@ export class ThreadsService {
       });
 
       // 4. 若有正文则创建正文帖（kind=BODY，不占楼层号）
-      if (hasContent) {
+      if (hasBody) {
         await tx.post.create({
           data: {
             threadId: thread.id,
             subthreadId: subthread.id,
             authorId: userId,
             kind: 'BODY',
-            content: dto.content!,
+            content: dto.content ?? '',
+            pendingDiceNotations: canonicalDice,
           },
         });
       }
@@ -502,25 +506,14 @@ export class ThreadsService {
     const manager = await this.threadAccess.assertCanManage(id, userId);
     const { version, published, ...data } = dto;
 
-    if (manager.role === 'COLLABORATOR' && (dto.visibility !== undefined || published !== undefined)) {
+    if (
+      manager.role === 'COLLABORATOR' &&
+      (dto.visibility !== undefined || published !== undefined)
+    ) {
       throw forbidden('仅楼主可修改可见性或发布主题帖', ErrorCode.NOT_THREAD_OWNER);
     }
     if (published === false) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '已发布主题帖不能撤回为草稿');
-    }
-
-    // 发布校验
-    if (published === true) {
-      const thread = await this.prisma.thread.findUnique({
-        where: { id, ...notDeleted },
-        select: { published: true, title: true, category: true },
-      });
-      if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
-      if (thread.published) throw new BusinessException(ErrorCode.BAD_REQUEST, '主题帖已发布');
-
-      const effectiveTitle = (data as any).title ?? thread.title;
-      const effectiveCategory = (data as any).category ?? thread.category;
-      await this.validatePublishReadiness(id, effectiveTitle, effectiveCategory);
     }
 
     const updateData: any = { ...data, version: { increment: 1 } };
@@ -529,26 +522,28 @@ export class ThreadsService {
       updateData.publishedAt = new Date();
     }
 
-    const updated = await this.prisma.thread
-      .update({
-        where: { id, version, ...notDeleted },
-        data: updateData,
-        include: {
-          owner: { select: authorSelect },
-          ...includeSubthreads(),
-          topicTags: { include: { tag: true } },
-          ...countMembersAndPosts(),
-        },
-      })
-      .catch((err) => {
-        if (err?.code === 'P2025')
-          throw new BusinessException(
-            ErrorCode.OPTIMISTIC_LOCK_CONFLICT,
-            '主题帖已被修改，请刷新后重试',
-            HttpStatus.CONFLICT,
-          );
-        throw err;
-      });
+    const updated = await (
+      published === true
+        ? this.publishThreadTransaction(id, version, data)
+        : this.prisma.thread.update({
+            where: { id, version, ...notDeleted },
+            data: updateData,
+            include: {
+              owner: { select: authorSelect },
+              ...includeSubthreads(),
+              topicTags: { include: { tag: true } },
+              ...countMembersAndPosts(),
+            },
+          })
+    ).catch((err) => {
+      if (err?.code === 'P2025')
+        throw new BusinessException(
+          ErrorCode.OPTIMISTIC_LOCK_CONFLICT,
+          '主题帖已被修改，请刷新后重试',
+          HttpStatus.CONFLICT,
+        );
+      throw err;
+    });
 
     updated.subthreads = mapSubthreadBody(updated.subthreads);
     await attachPlayerCounts(this.prisma, [updated]);
@@ -703,16 +698,97 @@ export class ThreadsService {
     return updated;
   }
 
+  /** 发布事务：锁主题帖，结算全部待掷骰子，并与 published 状态原子提交。 */
+  private async publishThreadTransaction(
+    id: string,
+    version: number,
+    data: Record<string, unknown>,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM threads WHERE id = ${id} FOR UPDATE`;
+      const thread = await tx.thread.findUnique({
+        where: { id, ...notDeleted },
+        select: {
+          published: true,
+          title: true,
+          category: true,
+          defaultSubthread: {
+            select: {
+              id: true,
+              posts: {
+                where: { ...notDeleted, kind: 'BODY' },
+                take: 1,
+                select: { content: true },
+              },
+            },
+          },
+        },
+      });
+      if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
+      if (thread.published) {
+        throw new BusinessException(ErrorCode.BAD_REQUEST, '主题帖已发布');
+      }
+
+      const effectiveTitle = (data.title as string | undefined) ?? thread.title ?? '';
+      const effectiveCategory = (data.category as string | undefined) ?? thread.category;
+      this.assertPublishReadiness(effectiveTitle, effectiveCategory, thread.defaultSubthread);
+
+      const posts = await tx.post.findMany({
+        where: { threadId: id, ...notDeleted, subthread: { deletedAt: null } },
+        select: {
+          id: true,
+          pendingDiceNotations: true,
+          diceRolls: { select: { id: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      const validated = posts.map((post) => ({
+        post,
+        parsed: this.diceService.validateNotations(
+          post.pendingDiceNotations,
+          post.diceRolls.length,
+        ),
+      }));
+      const generated = validated.map(({ post, parsed }) => ({
+        post,
+        rolls: this.diceService.rollAll(parsed),
+      }));
+
+      for (const { post, rolls } of generated) {
+        if (rolls.length === 0) continue;
+        await tx.diceRoll.createMany({
+          data: this.diceService.buildCreateData(post.id, rolls, post.diceRolls.length),
+        });
+        await tx.post.update({
+          where: { id: post.id },
+          data: {
+            pendingDiceNotations: [],
+            version: { increment: 1 },
+          },
+        });
+      }
+
+      return tx.thread.update({
+        where: { id, version, ...notDeleted },
+        data: {
+          ...data,
+          published: true,
+          publishedAt: new Date(),
+          version: { increment: 1 },
+        },
+        include: {
+          owner: { select: authorSelect },
+          ...includeSubthreads(),
+          topicTags: { include: { tag: true } },
+          ...countMembersAndPosts(),
+        },
+      });
+    });
+  }
+
   /** 校验发布前完整性 */
   async validatePublishReadiness(threadId: string, title: string, category: string) {
-    if (!title || !title.trim() || title === '未命名草稿') {
-      throw new BusinessException(ErrorCode.BAD_REQUEST, '请填写主题帖标题后再发布');
-    }
-    if (!category) {
-      throw new BusinessException(ErrorCode.BAD_REQUEST, '请选择分区后再发布');
-    }
-
-    // 检查默认子贴是否存在且有正文
     const thread = await this.prisma.thread.findUnique({
       where: { id: threadId, ...notDeleted },
       select: {
@@ -725,11 +801,25 @@ export class ThreadsService {
       },
     });
 
-    if (!thread?.defaultSubthread) {
+    this.assertPublishReadiness(title, category, thread?.defaultSubthread ?? null);
+  }
+
+  private assertPublishReadiness(
+    title: string,
+    category: string,
+    defaultSubthread: { posts: { content: string }[] } | null,
+  ) {
+    if (!title || !title.trim() || title === '未命名草稿') {
+      throw new BusinessException(ErrorCode.BAD_REQUEST, '请填写主题帖标题后再发布');
+    }
+    if (!category) {
+      throw new BusinessException(ErrorCode.BAD_REQUEST, '请选择分区后再发布');
+    }
+    if (!defaultSubthread) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '请至少创建一个子贴后再发布');
     }
-    const bodyContent = thread.defaultSubthread.posts[0]?.content ?? '';
-    if (!bodyContent || !hasVisibleMarkdownContent(bodyContent)) {
+    const bodyContent = defaultSubthread.posts[0]?.content ?? '';
+    if (!hasVisibleMarkdownContent(bodyContent)) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '请将子贴至少填写正文再发布');
     }
   }
@@ -846,6 +936,7 @@ export class ThreadsService {
         subthread: { select: { title: true } },
         parentPostId: true,
         replyToPostId: true,
+        diceRolls: { orderBy: { sequence: 'asc' } },
       },
       orderBy: { createdAt: 'asc' },
     });
@@ -864,6 +955,7 @@ export class ThreadsService {
         isSubthreadBody: post.kind === 'BODY',
         authorRole: 'OWNER',
         authorPlayerMarked: true,
+        diceRolls: post.diceRolls,
       });
     }
   }

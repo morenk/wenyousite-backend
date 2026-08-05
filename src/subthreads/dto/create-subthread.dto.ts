@@ -1,5 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, MinLength, MaxLength, IsIn, IsNumber } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsString,
+  IsOptional,
+  MinLength,
+  MaxLength,
+  IsIn,
+  IsNumber,
+} from 'class-validator';
 
 /** 创建子贴 DTO */
 export class CreateSubthreadDto {
@@ -9,18 +18,41 @@ export class CreateSubthreadDto {
   @MaxLength(100)
   title: string;
 
-  @ApiPropertyOptional({ example: '这里是世界观设定...', description: '子贴正文（kind=BODY，可选，留空仅创建空子贴）', maxLength: 10000 })
+  @ApiPropertyOptional({
+    example: '这里是世界观设定...',
+    description: '子贴正文（kind=BODY，可选，留空仅创建空子贴）',
+    maxLength: 10000,
+  })
   @IsOptional()
   @IsString()
   @MaxLength(10000)
   content?: string;
+
+  @ApiPropertyOptional({
+    type: [String],
+    example: ['1d20'],
+    maxItems: 20,
+    description: '子贴正文的骰子表达式；草稿阶段仅保存待掷意图',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  @MaxLength(32, { each: true })
+  diceNotations?: string[];
 
   @ApiPropertyOptional({ example: 1, description: '排序序号，越小越靠前' })
   @IsOptional()
   @IsNumber()
   sortOrder?: number;
 
-  @ApiPropertyOptional({ example: 'PLAYERS', enum: ['PARTICIPANTS', 'COLLABORATORS', 'PLAYERS'], default: 'PARTICIPANTS', description: 'PARTICIPANTS=所有参与人可发帖, COLLABORATORS=仅协作者可发帖, PLAYERS=仅被标记为玩家的参与人可发帖' })
+  @ApiPropertyOptional({
+    example: 'PLAYERS',
+    enum: ['PARTICIPANTS', 'COLLABORATORS', 'PLAYERS'],
+    default: 'PARTICIPANTS',
+    description:
+      'PARTICIPANTS=所有参与人可发帖, COLLABORATORS=仅协作者可发帖, PLAYERS=仅被标记为玩家的参与人可发帖',
+  })
   @IsOptional()
   @IsString()
   @IsIn(['PARTICIPANTS', 'COLLABORATORS', 'PLAYERS'])

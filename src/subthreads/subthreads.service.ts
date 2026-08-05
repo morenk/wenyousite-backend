@@ -7,6 +7,8 @@ import { UpdateSubthreadDto } from './dto/update-subthread.dto';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { notDeleted, countNonDeletedPosts } from '../common/prisma-helpers';
+import { DiceService } from '../dice/dice.service';
+import { hasVisibleMarkdownContent, normalizeMarkdownContent } from '../common/markdown-content';
 
 /** 子贴服务：CRUD、排序、权限校验 */
 @Injectable()
@@ -15,6 +17,7 @@ export class SubthreadsService {
     private prisma: PrismaService,
     private threadAccess: ThreadAccessService,
     private eventEmitter: EventEmitter2,
+    private diceService: DiceService,
   ) {}
 
   /** 获取主题帖下的子贴列表 */
@@ -57,68 +60,100 @@ export class SubthreadsService {
     });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
 
-    const hasContent = !!dto.content?.trim();
-    const postingPolicy = dto.postingPolicy ?? 'PARTICIPANTS' as any;
+    const content = normalizeMarkdownContent(dto.content ?? '');
+    const parsedDice = this.diceService.validateNotations(dto.diceNotations ?? []);
+    const canonicalDice = parsedDice.map((dice) => dice.notation);
+    if (thread.published && canonicalDice.length > 0 && !hasVisibleMarkdownContent(content)) {
+      throw new BusinessException(ErrorCode.BAD_REQUEST, '子贴正文必须包含可见文字');
+    }
+    const hasBody = hasVisibleMarkdownContent(content) || canonicalDice.length > 0;
+    const generatedDice = thread.published ? this.diceService.rollAll(parsedDice) : [];
+    const postingPolicy = dto.postingPolicy ?? ('PARTICIPANTS' as any);
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      // 锁主题帖行，防止并发创建子贴时 sortOrder 竞态
-      await tx.$queryRaw`SELECT id FROM threads WHERE id = ${threadId} FOR UPDATE`;
+    const result = await this.prisma
+      .$transaction(async (tx) => {
+        // 锁主题帖行，防止并发创建子贴时 sortOrder 竞态
+        await tx.$queryRaw`SELECT id FROM threads WHERE id = ${threadId} FOR UPDATE`;
 
-      // 事务内计算 sortOrder
-      let sortOrder = dto.sortOrder;
-      if (sortOrder === undefined) {
-        const max = await tx.subthread.aggregate({
-          where: { threadId, ...notDeleted },
-          _max: { sortOrder: true },
-        });
-        sortOrder = (max._max.sortOrder ?? -1) + 1;
-      } else {
-        const existing = await tx.subthread.findFirst({
-          where: { threadId, sortOrder, ...notDeleted },
-        });
-        if (existing) {
-          throw new BusinessException(ErrorCode.CONFLICT, `排序序号 ${sortOrder} 已被占用`, HttpStatus.CONFLICT);
+        // 事务内计算 sortOrder
+        let sortOrder = dto.sortOrder;
+        if (sortOrder === undefined) {
+          const max = await tx.subthread.aggregate({
+            where: { threadId, ...notDeleted },
+            _max: { sortOrder: true },
+          });
+          sortOrder = (max._max.sortOrder ?? -1) + 1;
+        } else {
+          const existing = await tx.subthread.findFirst({
+            where: { threadId, sortOrder, ...notDeleted },
+          });
+          if (existing) {
+            throw new BusinessException(
+              ErrorCode.CONFLICT,
+              `排序序号 ${sortOrder} 已被占用`,
+              HttpStatus.CONFLICT,
+            );
+          }
         }
-      }
 
-      const subthread = await tx.subthread.create({
-        data: { threadId, title: dto.title, sortOrder, postingPolicy },
-      });
-
-      let bodyPost: any = null;
-      if (hasContent) {
-        bodyPost = await tx.post.create({
-          data: {
-            threadId,
-            subthreadId: subthread.id,
-            authorId: userId,
-            kind: 'BODY',
-            content: dto.content!,
-          },
-          include: { author: { select: { username: true } } },
+        const subthread = await tx.subthread.create({
+          data: { threadId, title: dto.title, sortOrder, postingPolicy },
         });
-      }
 
-      const full = await tx.subthread.findUnique({
-        where: { id: subthread.id },
-        include: {
-          tags: { include: { tag: true } },
-          ...countNonDeletedPosts(),
-        },
+        let bodyPost: any = null;
+        if (hasBody) {
+          bodyPost = await tx.post.create({
+            data: {
+              threadId,
+              subthreadId: subthread.id,
+              authorId: userId,
+              kind: 'BODY',
+              content,
+              pendingDiceNotations: thread.published ? [] : canonicalDice,
+            },
+            include: { author: { select: { username: true } } },
+          });
+          if (generatedDice.length > 0) {
+            await tx.diceRoll.createMany({
+              data: this.diceService.buildCreateData(bodyPost.id, generatedDice),
+            });
+            bodyPost = await tx.post.findUniqueOrThrow({
+              where: { id: bodyPost.id },
+              include: {
+                author: { select: { username: true } },
+                diceRolls: { orderBy: { sequence: 'asc' } },
+              },
+            });
+          } else {
+            bodyPost.diceRolls = [];
+          }
+        }
+
+        const full = await tx.subthread.findUnique({
+          where: { id: subthread.id },
+          include: {
+            tags: { include: { tag: true } },
+            ...countNonDeletedPosts(),
+          },
+        });
+
+        return { subthread: full, bodyPost };
+      })
+      .catch((err) => {
+        if (err instanceof BusinessException) throw err;
+        // Prisma UNIQUE 约束冲突（并发创建撞 sortOrder）
+        throw new BusinessException(
+          ErrorCode.CONFLICT,
+          '排序序号冲突，请刷新后重试',
+          HttpStatus.CONFLICT,
+        );
       });
-
-      return { subthread: full, bodyPost };
-    }).catch((err) => {
-      if (err instanceof BusinessException) throw err;
-      // Prisma UNIQUE 约束冲突（并发创建撞 sortOrder）
-      throw new BusinessException(ErrorCode.CONFLICT, '排序序号冲突，请刷新后重试', HttpStatus.CONFLICT);
-    });
 
     // 已发布帖创建子贴时发射事件（正文不为空时）
     if (thread.published && result.bodyPost) {
       this.eventEmitter.emit('post.created', {
         postId: result.bodyPost.id,
-        content: dto.content!,
+        content,
         userId,
         authorUsername: result.bodyPost.author.username,
         threadId,
@@ -129,6 +164,7 @@ export class SubthreadsService {
         isSubthreadBody: true,
         authorRole: manager.role,
         authorPlayerMarked: manager.playerMarked,
+        diceRolls: result.bodyPost.diceRolls,
       });
     }
 
@@ -205,7 +241,11 @@ export class SubthreadsService {
   }
 
   /** 修改子贴（仅 OWNER/COLLABORATOR）。默认子贴不可修改 sortOrder */
-  async update(id: string, dto: { title?: string; sortOrder?: number; postingPolicy?: string; version: number }, userId: string) {
+  async update(
+    id: string,
+    dto: { title?: string; sortOrder?: number; postingPolicy?: string; version: number },
+    userId: string,
+  ) {
     const subthread = await this.prisma.subthread.findUnique({ where: { id, ...notDeleted } });
     if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
     await this.threadAccess.assertCanManage(subthread.threadId, userId);
@@ -219,28 +259,46 @@ export class SubthreadsService {
         select: { defaultSubthreadId: true },
       });
       if (thread?.defaultSubthreadId === id) {
-        throw new BusinessException(ErrorCode.BAD_REQUEST, '默认子贴不可修改排序', HttpStatus.BAD_REQUEST);
+        throw new BusinessException(
+          ErrorCode.BAD_REQUEST,
+          '默认子贴不可修改排序',
+          HttpStatus.BAD_REQUEST,
+        );
       }
       // 检查是否冲突
       const conflict = await this.prisma.subthread.findFirst({
         where: { threadId: subthread.threadId, sortOrder, ...notDeleted, id: { not: id } },
       });
       if (conflict) {
-        throw new BusinessException(ErrorCode.CONFLICT, `排序序号 ${sortOrder} 已被占用`, HttpStatus.CONFLICT);
+        throw new BusinessException(
+          ErrorCode.CONFLICT,
+          `排序序号 ${sortOrder} 已被占用`,
+          HttpStatus.CONFLICT,
+        );
       }
     }
 
     const updateData: any = { ...data, version: { increment: 1 } };
     if (sortOrder !== undefined) updateData.sortOrder = sortOrder;
 
-    const updated = await this.prisma.subthread.update({
-      where: { id, version, ...notDeleted },
-      data: updateData,
-      include: {
-        tags: { include: { tag: true } },
-        ...countNonDeletedPosts(),
-      },
-    }).catch((err) => { if (err?.code === 'P2025') throw new BusinessException(ErrorCode.OPTIMISTIC_LOCK_CONFLICT, '子贴已被修改，请刷新后重试', HttpStatus.CONFLICT); throw err; });
+    const updated = await this.prisma.subthread
+      .update({
+        where: { id, version, ...notDeleted },
+        data: updateData,
+        include: {
+          tags: { include: { tag: true } },
+          ...countNonDeletedPosts(),
+        },
+      })
+      .catch((err) => {
+        if (err?.code === 'P2025')
+          throw new BusinessException(
+            ErrorCode.OPTIMISTIC_LOCK_CONFLICT,
+            '子贴已被修改，请刷新后重试',
+            HttpStatus.CONFLICT,
+          );
+        throw err;
+      });
 
     // 缓存失效事件
     this.eventEmitter.emit('subthread.updated', {

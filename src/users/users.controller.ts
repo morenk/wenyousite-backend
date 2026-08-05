@@ -1,5 +1,25 @@
-import { Controller, Get, Patch, Delete, Body, Param, Query, Req, NotFoundException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery, ApiOkResponse, ApiUnauthorizedResponse, ApiForbiddenResponse, ApiNotFoundResponse, ApiConflictResponse } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Query,
+  Req,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiQuery,
+  ApiOkResponse,
+  ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiConflictResponse,
+} from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { FastifyRequest } from 'fastify';
 import { UsersService } from './users.service';
@@ -9,7 +29,7 @@ import { Auth, AuthRead, OptionalAuth } from '../auth/decorators/auth.decorator'
 import { PrismaService } from '../prisma/prisma.service';
 import { BookmarksService } from '../bookmarks/bookmarks.service';
 import { ThreadsService } from '../threads/threads.service';
-import { truncateMarkdown } from '../common/markdown-truncate';
+import { buildPostPreview } from '../common/post-preview';
 import { MentionsService } from '../mentions/mentions.service';
 import { MentionCandidatesResponseDto } from './dto/mention-candidate.dto';
 import { PlayedThreadsQueryDto } from './dto/played-threads-query.dto';
@@ -49,7 +69,10 @@ export class UsersController {
   @ApiOperation({ summary: '获取当前主题帖可艾特候选（关注的人 + 帖内标记玩家）' })
   @ApiQuery({ name: 'threadId', required: true, description: '主题帖 ID' })
   @ApiQuery({ name: 'q', required: false, type: String, description: '用户名搜索关键词' })
-  @ApiOkResponse({ type: MentionCandidatesResponseDto, description: '最多返回 20 个可艾特用户，并返回是否允许 @全体玩家' })
+  @ApiOkResponse({
+    type: MentionCandidatesResponseDto,
+    description: '最多返回 20 个可艾特用户，并返回是否允许 @全体玩家',
+  })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async mentionCandidates(
     @Query('threadId') threadId: string,
@@ -137,7 +160,12 @@ export class UsersController {
     @Req() req: FastifyRequest,
   ) {
     const viewer = req['user'] as { id: string } | undefined;
-    return this.bookmarksService.findByUserId(id, viewer?.id, cursor, limit ? parseInt(limit) : undefined);
+    return this.bookmarksService.findByUserId(
+      id,
+      viewer?.id,
+      cursor,
+      limit ? parseInt(limit) : undefined,
+    );
   }
 
   @Get(':id/played-threads')
@@ -172,7 +200,9 @@ export class UsersController {
 
   @Get(':id/created-threads')
   @OptionalAuth()
-  @ApiOperation({ summary: '查看用户创建的主题帖（本人可见全部含私密帖，他人仅见 PUBLIC 已发布帖）' })
+  @ApiOperation({
+    summary: '查看用户创建的主题帖（本人可见全部含私密帖，他人仅见 PUBLIC 已发布帖）',
+  })
   @ApiQuery({ name: 'cursor', required: false, description: '分页游标（上一页最后一条记录 ID）' })
   @ApiQuery({ name: 'limit', required: false, description: '每页条数（默认 20，最大 50）' })
   @ApiOkResponse({ description: '用户创建的主题帖列表（cursor 分页）' })
@@ -191,7 +221,12 @@ export class UsersController {
     });
     if (!targetUser) throw new NotFoundException('用户不存在');
 
-    return this.threadsService.findByCreatedUser(id, viewer?.id, cursor, limit ? parseInt(limit) : undefined);
+    return this.threadsService.findByCreatedUser(
+      id,
+      viewer?.id,
+      cursor,
+      limit ? parseInt(limit) : undefined,
+    );
   }
 
   @Get(':id/recent-replies')
@@ -233,6 +268,10 @@ export class UsersController {
         thread: { select: { title: true } },
         subthreadId: true,
         subthread: { select: { title: true } },
+        diceRolls: {
+          orderBy: { sequence: 'asc' },
+          select: { notation: true, total: true },
+        },
       },
       orderBy: { createdAt: 'desc' },
       take: 10,
@@ -240,14 +279,16 @@ export class UsersController {
 
     return replies.map((r) => ({
       ...r,
-      preview: truncateMarkdown(r.content),
+      preview: buildPostPreview(r.content, r.diceRolls),
     }));
   }
 
   @Get(':id')
   @OptionalAuth()
   @ApiOperation({ summary: '获取指定用户的公开资料。登录后额外返回关注/拉黑关系' })
-  @ApiOkResponse({ description: '公开资料。登录后附加 isFollowing/isFollowedBy/isBlocked/isBlockedBy' })
+  @ApiOkResponse({
+    description: '公开资料。登录后附加 isFollowing/isFollowedBy/isBlocked/isBlockedBy',
+  })
   @ApiNotFoundResponse({ description: '用户不存在' })
   async getUser(@Param('id') id: string, @Req() req: FastifyRequest) {
     const viewer = req['user'] as { id: string } | undefined;

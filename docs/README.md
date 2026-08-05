@@ -26,6 +26,7 @@
 | [threads](./modules/threads.md) | 主题帖 | CRUD、成员管理、私密帖、邀请链接、置顶 |
 | [subthreads](./modules/subthreads.md) | 子贴 | CRUD、排序、发帖权限策略 |
 | [posts](./modules/posts.md) | 楼层 | 发帖、楼中楼、编辑、软删除、点赞、@提及 |
+| [dice](./modules/dice.md) | 骰子 | 表达式协议、服务端投掷、结果不可变、草稿发布结算 |
 | [drafts](./modules/drafts.md) | 草稿 | 用户级全局 5 槽位草稿池 |
 | [notifications](./modules/notifications.md) | 通知 | 列表、未读数、已读 |
 | [subscriptions](./modules/subscriptions.md) | 订阅 | THREAD/USER 订阅 + 通知投递 |

@@ -30,6 +30,7 @@ import { JobsModule } from './jobs/jobs.module';
 import { BookmarksModule } from './bookmarks/bookmarks.module';
 import { CommonModule } from './common/common.module';
 import { RedisModule } from './redis/redis.module';
+import { DiceModule } from './dice/dice.module';
 import { ThrottlerRedisStorage } from './redis/throttler-redis.storage';
 import configuration from './config/configuration';
 import { validate } from './config/env.validation';
@@ -43,7 +44,11 @@ function buildPinoTransport(logLevel: string, logFileDir?: string) {
   }
 
   const targets: any[] = [
-    { target: 'pino-pretty', options: { colorize: false, destination: 1, singleLine: true }, level: logLevel },
+    {
+      target: 'pino-pretty',
+      options: { colorize: false, destination: 1, singleLine: true },
+      level: logLevel,
+    },
   ];
   if (logFileDir) {
     targets.push({
@@ -76,7 +81,11 @@ function buildPinoTransport(logLevel: string, logFileDir?: string) {
             level: logLevel,
             genReqId: (req: any) => req.headers['x-request-id'] ?? randomUUID(),
             transport: buildPinoTransport(logLevel, logFileDir),
-            redact: ['req.headers.authorization', 'req.headers.cookie', `req.headers['x-refresh-token']`],
+            redact: [
+              'req.headers.authorization',
+              'req.headers.cookie',
+              `req.headers['x-refresh-token']`,
+            ],
             serializers: {
               req: (req: any) => ({ id: req.id, method: req.method, url: req.url }),
               res: (res: any) => ({ statusCode: res.statusCode }),
@@ -113,6 +122,7 @@ function buildPinoTransport(logLevel: string, logFileDir?: string) {
     PrismaModule,
     HealthModule,
     CommonModule,
+    DiceModule,
     // 业务模块
     AuthModule,
     UsersModule,

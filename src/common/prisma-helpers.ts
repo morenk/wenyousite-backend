@@ -13,6 +13,11 @@ export const countNonDeletedReplies = () => ({
   _count: { select: { replies: { where: notDeleted } } },
 });
 
+/** 骰子结果始终按帖子内稳定序号返回。 */
+export const includeDiceRolls = () => ({
+  diceRolls: { orderBy: { sequence: 'asc' as const } },
+});
+
 /** 主题帖 include: 非删子贴列表，按 sortOrder 升序，含楼层计数、标签与正文（kind=BODY）回填 */
 export const includeSubthreads = (select?: Record<string, boolean>) => ({
   subthreads: {
@@ -25,7 +30,13 @@ export const includeSubthreads = (select?: Record<string, boolean>) => ({
         where: { kind: 'BODY' as const, ...notDeleted },
         take: 1,
         orderBy: { createdAt: 'asc' as const },
-        select: { id: true, content: true, version: true },
+        select: {
+          id: true,
+          content: true,
+          version: true,
+          pendingDiceNotations: true,
+          diceRolls: { orderBy: { sequence: 'asc' as const } },
+        },
       },
       ...(select ? { select } : {}),
     },
@@ -42,7 +53,9 @@ export function mapSubthreadBody<T extends { posts?: unknown[] | null }>(subthre
 
 /** 帖子 include: 作者基本信息 */
 export const authorSelect = {
-  id: true, username: true, avatar: true,
+  id: true,
+  username: true,
+  avatar: true,
 } as const;
 
 /** 计数用户和帖子总数（帖子只计楼层，正文不占楼层号） */
@@ -53,7 +66,9 @@ export const countMembersAndPosts = () => ({
 /** 批量补全 _count.players：统计各主题帖 playerMarked=true（被授予玩家身份）的参与人数。
  *  Prisma 的 _count 输出键名只能跟关系名（members），无法直接别名 players，故单独 groupBy 后合并 */
 export async function attachPlayerCounts(
-  prisma: { threadMember: { groupBy: (args: any) => Promise<{ threadId: string; _count: number }[]> } },
+  prisma: {
+    threadMember: { groupBy: (args: any) => Promise<{ threadId: string; _count: number }[]> };
+  },
   threads: { id: string; _count?: Record<string, number> }[],
 ) {
   const ids = threads.map((t) => t.id);

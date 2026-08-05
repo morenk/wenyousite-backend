@@ -1,8 +1,26 @@
 import {
-  Controller, Get, Post, Patch, Delete,
-  Body, Param, Query, Req, UseGuards,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Query,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse, ApiCreatedResponse, ApiUnauthorizedResponse, ApiForbiddenResponse, ApiNotFoundResponse, ApiConflictResponse } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiCreatedResponse,
+  ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiConflictResponse,
+} from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { ThreadsService } from './threads.service';
 import { CreateThreadDto } from './dto/create-thread.dto';
@@ -11,6 +29,7 @@ import { ThreadQueryDto } from './dto/thread-query.dto';
 import { Auth, AuthRead, OptionalAuth } from '../auth/decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { InvitePreviewResponseDto } from './dto/invite-response.dto';
+import { ThreadDetailResponseDto } from './dto/thread-detail-response.dto';
 
 /** 主题帖控制器：草稿箱、列表、详情、修改、发布、删除、点赞 */
 @ApiTags('Threads')
@@ -32,7 +51,10 @@ export class ThreadsController {
   @Get()
   @Public()
   @ApiOperation({ summary: '主题帖列表（仅已发布帖），支持 sort=recommended|newest|active' })
-  @ApiOkResponse({ description: '分页列表，meta 含 cursor/hasMore。每个帖含 owner/subthreads/bodyPost.content(正文预览)/topicTags/_count' })
+  @ApiOkResponse({
+    description:
+      '分页列表，meta 含 cursor/hasMore。每个帖含 owner/subthreads/bodyPost.content(正文预览)/topicTags/_count',
+  })
   async findAll(@Query() query: ThreadQueryDto, @Req() req: FastifyRequest) {
     const user = (req as any).user as { id: string } | undefined;
     return this.threadsService.findAll(query, user?.id);
@@ -41,8 +63,13 @@ export class ThreadsController {
   @Post()
   @Auth()
   @ApiBearerAuth()
-  @ApiOperation({ summary: '创建主题帖草稿（published=false）。在沙盒内逐步添加子贴/楼层后通过 PATCH 发布' })
-  @ApiCreatedResponse({ description: '草稿创建成功，返回完整 Thread 对象（含 owner/subthreads/tags/_count）' })
+  @ApiOperation({
+    summary: '创建主题帖草稿（published=false）。在沙盒内逐步添加子贴/楼层后通过 PATCH 发布',
+  })
+  @ApiCreatedResponse({
+    type: ThreadDetailResponseDto,
+    description: '草稿创建成功，返回完整 Thread 对象（含正文待掷骰子）',
+  })
   @ApiUnauthorizedResponse({ description: '未登录或邮箱未验证' })
   async create(@Body() dto: CreateThreadDto, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
@@ -52,7 +79,10 @@ export class ThreadsController {
   @Get(':id')
   @OptionalAuth()
   @ApiOperation({ summary: '主题帖详情（含 全部子贴列表 + 楼层数 + 参与人数）' })
-  @ApiOkResponse({ description: 'Thread 完整对象（owner / subthreads[]._count.posts / topicTags / _count）。viewCount 异步 +1' })
+  @ApiOkResponse({
+    type: ThreadDetailResponseDto,
+    description: 'Thread 完整对象（含 bodyPost 的待掷与正式骰子结果）。viewCount 异步 +1',
+  })
   @ApiNotFoundResponse({ description: '主题帖不存在或已删除（PRIVATE 帖非成员也返回 404）' })
   async findById(@Param('id') id: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string } | undefined;
@@ -62,17 +92,18 @@ export class ThreadsController {
   @Patch(':id')
   @Auth()
   @ApiBearerAuth()
-  @ApiOperation({ summary: '修改/发布主题帖（仅 OWNER/COLLABORATOR）。设置 published=true 发布，带乐观锁 version' })
-  @ApiOkResponse({ description: '更新成功返回 Thread 完整对象。发布时会校验 title/category/子贴楼层完整性，成功后通知粉丝' })
+  @ApiOperation({
+    summary: '修改/发布主题帖（仅 OWNER/COLLABORATOR）。设置 published=true 发布，带乐观锁 version',
+  })
+  @ApiOkResponse({
+    type: ThreadDetailResponseDto,
+    description: '更新成功返回 Thread 完整对象。发布时原子结算全部待掷骰子',
+  })
   @ApiUnauthorizedResponse({ description: '未登录或邮箱未验证' })
   @ApiForbiddenResponse({ description: '无管理权限（非 OWNER/COLLABORATOR）' })
   @ApiNotFoundResponse({ description: '主题帖不存在' })
   @ApiConflictResponse({ description: '乐观锁冲突（version 过期）或已发布帖重复发布' })
-  async update(
-    @Param('id') id: string,
-    @Body() dto: UpdateThreadDto,
-    @Req() req: FastifyRequest,
-  ) {
+  async update(@Param('id') id: string, @Body() dto: UpdateThreadDto, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     return this.threadsService.update(id, dto, user.id);
   }
