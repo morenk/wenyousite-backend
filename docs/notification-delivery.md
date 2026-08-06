@@ -86,7 +86,7 @@
 
 ### 4. thread_created — 新主题帖
 
-**触发条件**：`PATCH /threads/:id { published: true }` 发布草稿时
+**触发条件**：`PATCH /threads/:id/aggregate { published: true }`（Web 聚合保存）或兼容的细粒度 PATCH 发布草稿时
 
 **接收者**：创建者的所有粉丝
 

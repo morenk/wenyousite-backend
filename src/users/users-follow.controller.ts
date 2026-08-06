@@ -14,6 +14,10 @@ import {
 } from '../auth/decorators/current-user.decorator';
 import { UserRelationsService } from './user-relations.service';
 import { MessageResponseDto } from '../common/dto/message-response.dto';
+import {
+  BlockedUserRecordResponseDto,
+  UserFollowRecordResponseDto,
+} from './dto/user-response.dto';
 
 /** 关注与拉黑 HTTP 适配器；业务规则由 UserRelationsService 负责。 */
 @ApiTags('Users')
@@ -45,7 +49,7 @@ export class UsersFollowController {
   @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '我的关注列表' })
-  @ApiOkResponse({ description: '我的关注用户列表' })
+  @ApiOkResponse({ type: UserFollowRecordResponseDto, isArray: true, description: '我的关注用户列表' })
   following(@CurrentUser() user: CurrentUserPayload) {
     return this.relations.following(user.id);
   }
@@ -54,7 +58,7 @@ export class UsersFollowController {
   @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '我的粉丝列表' })
-  @ApiOkResponse({ description: '我的粉丝列表' })
+  @ApiOkResponse({ type: UserFollowRecordResponseDto, isArray: true, description: '我的粉丝列表' })
   followers(@CurrentUser() user: CurrentUserPayload) {
     return this.relations.followers(user.id);
   }
@@ -62,7 +66,7 @@ export class UsersFollowController {
   @Get(':id/following')
   @OptionalAuth()
   @ApiOperation({ summary: '指定用户的关注列表' })
-  @ApiOkResponse({ description: '指定用户的关注列表' })
+  @ApiOkResponse({ type: UserFollowRecordResponseDto, isArray: true, description: '指定用户的关注列表' })
   userFollowing(@Param('id') id: string) {
     return this.relations.userFollowing(id);
   }
@@ -70,7 +74,7 @@ export class UsersFollowController {
   @Get(':id/followers')
   @OptionalAuth()
   @ApiOperation({ summary: '指定用户的粉丝列表' })
-  @ApiOkResponse({ description: '指定用户的粉丝列表' })
+  @ApiOkResponse({ type: UserFollowRecordResponseDto, isArray: true, description: '指定用户的粉丝列表' })
   userFollowers(@Param('id') id: string) {
     return this.relations.userFollowers(id);
   }
@@ -97,7 +101,7 @@ export class UsersFollowController {
   @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '我的黑名单' })
-  @ApiOkResponse({ description: '我的黑名单列表' })
+  @ApiOkResponse({ type: BlockedUserRecordResponseDto, isArray: true, description: '我的黑名单列表' })
   blocks(@CurrentUser() user: CurrentUserPayload) {
     return this.relations.blocks(user.id);
   }

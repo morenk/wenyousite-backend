@@ -1,5 +1,19 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+export class InviteLinkResponseDto {
+  @ApiProperty()
+  id: string;
+
+  @ApiProperty()
+  threadId: string;
+
+  @ApiProperty()
+  token: string;
+
+  @ApiProperty({ format: 'date-time' })
+  createdAt: Date;
+}
+
 class InviteOwnerResponseDto {
   @ApiProperty({ description: '楼主用户 ID' })
   id: string;

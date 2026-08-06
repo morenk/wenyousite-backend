@@ -35,3 +35,14 @@ export class AuthResponseDto {
   @ApiPropertyOptional({ example: '注册成功', description: '仅完成注册时返回的提示文案' })
   message?: string;
 }
+
+export class RegisterCodeResponseDto {
+  @ApiProperty()
+  emailSent!: boolean;
+
+  @ApiProperty({ example: 900, description: '验证码有效秒数' })
+  codeExpiresIn!: number;
+
+  @ApiProperty()
+  message!: string;
+}

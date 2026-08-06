@@ -2,12 +2,13 @@ import {
   Controller, Get, Post, Patch, Delete,
   Body, Param, Req,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody, ApiOkResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody, ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { ThreadMembersService } from './thread-members.service';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { Auth, AuthRead, OptionalAuth } from '../auth/decorators/auth.decorator';
 import { MessageResponseDto } from '../common/dto/message-response.dto';
+import { ThreadMemberResponseDto } from './dto/thread-member-response.dto';
 
 /** 主题帖参与人控制器：候选池加入、身份管理、退出 */
 @ApiTags('Threads')
@@ -18,6 +19,7 @@ export class ThreadMembersController {
   @Get()
   @OptionalAuth()
   @ApiOperation({ summary: '获取主题帖参与人列表' })
+  @ApiOkResponse({ type: ThreadMemberResponseDto, isArray: true })
   async findAll(@Param('threadId') threadId: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string } | undefined;
     return this.membersService.findAll(threadId, user?.id);
@@ -27,6 +29,7 @@ export class ThreadMembersController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '自由加入主题帖（兼容旧客户端，Web 已改为发言时自动参与）', deprecated: true })
+  @ApiCreatedResponse({ type: ThreadMemberResponseDto })
   async join(@Param('threadId') threadId: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     return this.membersService.join(threadId, user.id);
@@ -36,6 +39,7 @@ export class ThreadMembersController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '修改参与人角色或玩家标记（仅 OWNER/COLLABORATOR）' })
+  @ApiOkResponse({ type: ThreadMemberResponseDto })
   @ApiBody({
     schema: {
       properties: {

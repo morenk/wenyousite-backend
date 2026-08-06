@@ -185,13 +185,12 @@ GET /threads?sort=recommended&limit=20&cursor=20 → meta.cursor: "40"
 ### 4.1 创建并发布主题帖
 
 ```
-1. POST /threads               创建草稿（published=false）
-   → 返回 threadId
-2. POST /threads/:id/subthreads  创建子贴（含正文 content）
-   → 自动创建 floorNumber=1 的楼层
-3. POST /subthreads/:id/posts   追加楼层（可选，在子贴下）
-4. PATCH /threads/:id          设置 published=true 发布
-   → 校验 title/category/含正文子贴，通知粉丝
+1. POST /threads                    创建草稿、OWNER 与默认子贴（published=false）
+   → 返回 threadId/defaultSubthreadId/三层 version
+2. PATCH /threads/:id/aggregate     原子保存标题/分区/默认正文/标签
+3. PATCH /threads/:id/aggregate     同一端点传 published=true 发布
+   → 校验 title/category/默认正文，事务内结算骰子并写通知 Outbox
+4. POST /threads/:id/subthreads     发布后按需创建其他子贴
 ```
 
 **创建草稿请求**：

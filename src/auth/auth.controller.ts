@@ -7,7 +7,7 @@ import { RequestCodeDto } from './dto/request-code.dto';
 import { VerifyAndCompleteDto } from './dto/verify-and-complete.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
-import { AuthResponseDto } from './dto/auth-response.dto';
+import { AuthResponseDto, RegisterCodeResponseDto } from './dto/auth-response.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -57,7 +57,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: 60000, limit: 1 } })
   @ApiOperation({ summary: '注册第一步：请求邮箱验证码（限流 1次/分钟）' })
-  @ApiOkResponse({ description: '验证码已发送 { emailSent, codeExpiresIn: 900 }' })
+  @ApiOkResponse({ type: RegisterCodeResponseDto, description: '验证码已发送 { emailSent, codeExpiresIn: 900 }' })
   @ApiResponse({ status: 429, description: '请求频繁，请稍后重试（1 分钟 1 次）' })
   async requestCode(@Body() dto: RequestCodeDto) {
     return this.authService.requestCode(dto.email);

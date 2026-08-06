@@ -9,6 +9,7 @@ import { CreateBookmarkDto } from './dto/create-bookmark.dto';
 import { CursorPaginationDto } from '../common/dto/pagination.dto';
 import { AuthRead } from '../auth/decorators/auth.decorator';
 import { MessageResponseDto } from '../common/dto/message-response.dto';
+import { OwnBookmarkThreadResponseDto } from '../threads/dto/thread-list-response.dto';
 
 /** 收藏控制器：列表、添加、取消 */
 @ApiTags('Bookmarks')
@@ -20,7 +21,7 @@ export class BookmarksController {
 
   @Get()
   @ApiOperation({ summary: '我的收藏列表（Cursor 分页）' })
-  @ApiOkResponse({ description: '我的收藏列表（cursor 分页，含帖子摘要）' })
+  @ApiOkResponse({ type: OwnBookmarkThreadResponseDto, isArray: true, description: '我的收藏列表（cursor 分页，含帖子摘要）' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async findAll(@Req() req: FastifyRequest, @Query() query: CursorPaginationDto) {
     const user = req['user'] as { id: string };

@@ -140,7 +140,7 @@ scripts/
 | `bash scripts/deploy.sh` | 生产部署 |
 | `bash scripts/backup.sh` | 数据库备份 |
 
-当前 ESLint 历史基线为 137 个 warning，`pnpm lint` 通过 `--max-warnings 137` 执行债务棘轮：新改动不得增加 warning；清理后应同步下调该数字，最终降为 0。
+当前 ESLint 历史基线为 136 个 warning，`pnpm lint` 通过 `--max-warnings 136` 执行债务棘轮：新改动不得增加 warning；清理后应同步下调该数字，最终降为 0。
 
 `tsconfig.json` 已开启 `strictNullChecks`、`noImplicitAny`、`strictBindCallApply` 和 `noFallthroughCasesInSwitch`。新增代码不得通过关闭严格选项规避类型问题。
 

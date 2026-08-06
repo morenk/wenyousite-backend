@@ -1,8 +1,12 @@
-import { Controller, Get, Post, Body, Query, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { ReadingProgressService } from './reading-progress.service';
 import { UpdateReadingProgressDto } from './dto/update-reading-progress.dto';
+import {
+  NewRepliesResponseDto,
+  ThreadNewRepliesResponseDto,
+} from './dto/reading-progress-response.dto';
 import { AuthRead } from '../auth/decorators/auth.decorator';
 
 /** 阅读进度控制器：记录和查询用户的阅读位置 */
@@ -27,11 +31,21 @@ export class ReadingProgressController {
   /** 自上次阅读后新增回复数（按子贴） */
   @Get('new-replies')
   @ApiOperation({ summary: '自上次阅读后子贴新增回复数' })
-  @ApiOkResponse({ description: '新增回复数' })
+  @ApiOkResponse({ type: NewRepliesResponseDto, description: '新增回复数' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async newReplies(@Req() req: FastifyRequest, @Query('subthreadId') subthreadId: string) {
     const user = req['user'] as { id: string };
     return this.readingProgressService.newRepliesSince(user.id, subthreadId);
+  }
+
+  /** 一次查询主题帖下全部子贴的新增回复数 */
+  @Get('threads/:threadId/new-replies')
+  @ApiOperation({ summary: '查询主题帖全部子贴的新增回复数' })
+  @ApiOkResponse({ type: ThreadNewRepliesResponseDto, description: '按子贴汇总的新增回复数' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
+  async threadNewReplies(@Req() req: FastifyRequest, @Param('threadId') threadId: string) {
+    const user = req['user'] as { id: string };
+    return this.readingProgressService.newRepliesForThread(user.id, threadId);
   }
 
   /** 记录阅读进度（精确到楼层/楼中楼） */

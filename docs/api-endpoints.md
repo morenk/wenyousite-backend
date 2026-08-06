@@ -53,8 +53,9 @@
 | GET | `/threads` | Public | 主题帖列表（仅已发布帖），支持分区/排序/状态/标签/Cursor，每帖含 `preview` 截断纯文本（源自默认子贴正文 kind=BODY） |
 | POST | `/threads` | Auth | 创建主题帖草稿（事务内创建 Thread + OWNER + 默认子贴 + 可选正文 kind=BODY，published=false）。参数: title/category/content/subthreadTitle/tagNames/visibility 全部可选。每用户最多 10 条未发布草稿，超限返回 BAD_REQUEST |
 | GET | `/threads/draft` | AuthRead | 我的草稿箱列表（未发布帖） |
-| GET | `/threads/:id` | OptionalAuth | 详情（含子贴列表）。公开已发布帖允许匿名访问；未发布帖仅 owner 可查看；已发布帖浏览量+1，PRIVATE 帖非成员 404；登录时附加 `isBookmarked` / `bookmarkId` / `isLiked` |
+| GET | `/threads/:id` | OptionalAuth | 详情（含子贴列表）。公开已发布帖允许匿名访问；未发布帖仅 owner 可查看；已发布帖浏览量+1，PRIVATE 帖非成员 404；登录时附加收藏/点赞、`currentMembership` 与 `capabilities` |
 | PATCH | `/threads/:id` | Auth | OWNER/COLLABORATOR 可修改标题、分区、状态等；visibility、published 仅 OWNER，已发布帖不可撤回草稿 |
+| PATCH | `/threads/:id/aggregate` | Auth | 原子保存元数据、默认子贴标题/正文、标签及发布状态，统一校验乐观锁并结算发布骰子 |
 | DELETE | `/threads/:id` | Auth | 删除（仅 OWNER）。未发布帖硬删除（级联），已发布帖软删除 |
 | POST | `/threads/:id/like` | Auth | 点赞主题帖（幂等） |
 | DELETE | `/threads/:id/like` | Auth | 取消点赞（幂等） |
@@ -158,6 +159,7 @@
 | POST | `/tags` | Auth | 创建标签，需邮箱已验证 |
 | GET | `/reading-progress` | AuthRead | 所有子贴阅读进度 |
 | GET | `/reading-progress/new-replies?subthreadId=` | AuthRead | 某子贴新增回复数 |
+| GET | `/reading-progress/threads/:threadId/new-replies` | AuthRead | 主题帖全部子贴新增回复摘要（批量） |
 | POST | `/reading-progress` | AuthRead | 记录/更新阅读进度 |
 | POST | `/reports` | Auth | 提交举报（已搁置），需邮箱已验证 |
 | GET | `/reports` | AuthRead | 举报列表（管理员，已搁置） |

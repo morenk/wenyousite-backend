@@ -90,7 +90,7 @@ export class ThreadQueryService {
 
     // 登录态附加收藏与点赞状态（浅拷贝返回，不污染共享缓存）
     if (userId) {
-      const [bookmark, like] = await Promise.all([
+      const [bookmark, like, currentMembership] = await Promise.all([
         this.prisma.userBookmark.findUnique({
           where: { userId_threadId: { userId, threadId: id } },
           select: { id: true },
@@ -99,16 +99,36 @@ export class ThreadQueryService {
           where: { threadId_userId: { userId, threadId: id } },
           select: { id: true },
         }),
+        this.prisma.threadMember.findUnique({
+          where: { threadId_userId: { userId, threadId: id } },
+          select: { id: true, userId: true, role: true, playerMarked: true },
+        }),
       ]);
+      const isOwner = currentMembership?.role === 'OWNER' || responseThread.ownerId === userId;
+      const canManageThread = isOwner || currentMembership?.role === 'COLLABORATOR';
       return {
         ...responseThread,
         isBookmarked: !!bookmark,
         bookmarkId: bookmark?.id ?? null,
         isLiked: !!like,
+        currentMembership,
+        capabilities: {
+          isOwner,
+          canManageThread,
+          canManageMembers: canManageThread,
+        },
       };
     }
 
-    return responseThread;
+    return {
+      ...responseThread,
+      currentMembership: null,
+      capabilities: {
+        isOwner: false,
+        canManageThread: false,
+        canManageMembers: false,
+      },
+    };
   }
 
   /** 分区列表：仅返回已发布帖。首页缓存 5 秒防击穿。recommended 排序使用 Redis ZSET */

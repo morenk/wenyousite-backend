@@ -68,7 +68,7 @@ for (const [route, pathItem] of Object.entries(document.paths ?? {})) {
 visit(document, 'openapi');
 
 // 历史匿名成功响应基线。新增/修改端点必须声明 DTO，存量清理后同步下调。
-const anonymousSchemaBudget = 54;
+const anonymousSchemaBudget = 19;
 if (anonymousSuccessSchemas > anonymousSchemaBudget) {
   failures.push(
     `匿名成功响应为 ${anonymousSuccessSchemas}，超过基线 ${anonymousSchemaBudget}；请为端点补充 Swagger DTO`,

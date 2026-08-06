@@ -11,10 +11,12 @@ import { ThreadQueryService } from './thread-query.service';
 import { AccessPolicyModule } from '../access/access-policy.module';
 import { OutboxModule } from '../outbox/outbox.module';
 import { ThreadEventsListener } from './thread-events.listener';
+import { ThreadAggregateService } from './thread-aggregate.service';
+import { MentionsModule } from '../mentions/mentions.module';
 
 /** 主题帖模块：CRUD、参与人管理、标签关联 */
 @Module({
-  imports: [AccessPolicyModule, TagsModule, NotificationsModule, OutboxModule],
+  imports: [AccessPolicyModule, TagsModule, NotificationsModule, OutboxModule, MentionsModule],
   controllers: [ThreadsController, ThreadMembersController, ThreadTagsController],
   providers: [
     ThreadsService,
@@ -22,6 +24,7 @@ import { ThreadEventsListener } from './thread-events.listener';
     ThreadTagsService,
     ThreadQueryService,
     ThreadEventsListener,
+    ThreadAggregateService,
   ],
   exports: [ThreadsService],
 })

@@ -2,7 +2,7 @@ import {
   Controller, Get, Post, Patch, Delete, Put,
   Body, Param, Req,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { SubthreadsService } from './subthreads.service';
 import { CreateSubthreadDto } from './dto/create-subthread.dto';
@@ -10,6 +10,7 @@ import { UpdateSubthreadDto } from './dto/update-subthread.dto';
 import { ReorderSubthreadsDto } from './dto/reorder-subthreads.dto';
 import { Auth, OptionalAuth } from '../auth/decorators/auth.decorator';
 import { MessageResponseDto } from '../common/dto/message-response.dto';
+import { SubthreadResponseDto } from './dto/subthread-response.dto';
 
 /** 子贴控制器：列表、创建、详情、修改、删除、重排 */
 @ApiTags('Subthreads')
@@ -20,6 +21,7 @@ export class SubthreadsController {
   @Get('threads/:threadId/subthreads')
   @OptionalAuth()
   @ApiOperation({ summary: '获取主题帖下的子贴列表' })
+  @ApiOkResponse({ type: SubthreadResponseDto, isArray: true })
   async findAll(@Param('threadId') threadId: string, @Req() req: FastifyRequest) {
     const user = req.user as { id: string } | undefined;
     return this.subthreadsService.findAll(threadId, user?.id);
@@ -29,6 +31,7 @@ export class SubthreadsController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '创建子贴（仅 OWNER/COLLABORATOR）' })
+  @ApiCreatedResponse({ type: SubthreadResponseDto })
   async create(
     @Param('threadId') threadId: string,
     @Body() dto: CreateSubthreadDto,
@@ -41,6 +44,7 @@ export class SubthreadsController {
   @Get('subthreads/:id')
   @OptionalAuth()
   @ApiOperation({ summary: '获取子贴详情' })
+  @ApiOkResponse({ type: SubthreadResponseDto })
   async findById(@Param('id') id: string, @Req() req: FastifyRequest) {
     const user = req.user as { id: string } | undefined;
     return this.subthreadsService.findById(id, user?.id);
@@ -63,6 +67,7 @@ export class SubthreadsController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '修改子贴（仅 OWNER/COLLABORATOR）' })
+  @ApiOkResponse({ type: SubthreadResponseDto })
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateSubthreadDto,

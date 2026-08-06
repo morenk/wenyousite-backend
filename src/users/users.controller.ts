@@ -30,6 +30,17 @@ import {
   CurrentUserPayload,
 } from '../auth/decorators/current-user.decorator';
 import { MessageResponseDto } from '../common/dto/message-response.dto';
+import {
+  BookmarkThreadResponseDto,
+  ThreadListItemResponseDto,
+} from '../threads/dto/thread-list-response.dto';
+import {
+  CurrentUserResponseDto,
+  PrivateUserResponseDto,
+  PublicUserResponseDto,
+  RecentReplyResponseDto,
+} from './dto/user-response.dto';
+import { PostAuthorResponseDto } from '../posts/dto/post-response.dto';
 
 /** 用户控制器：查询和修改个人资料 */
 @ApiTags('Users')
@@ -45,7 +56,7 @@ export class UsersController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '搜索用户（@提及用）' })
   @ApiQuery({ name: 'q', description: '用户名搜索关键词' })
-  @ApiOkResponse({ description: '匹配的用户列表（最多 10 条），含 id/username/avatar' })
+  @ApiOkResponse({ type: PostAuthorResponseDto, isArray: true, description: '匹配的用户列表（最多 10 条），含 id/username/avatar' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async search(@Query('q') q: string) {
     return this.activity.searchUsers(q);
@@ -74,7 +85,7 @@ export class UsersController {
   @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '获取当前登录用户资料' })
-  @ApiOkResponse({ description: '含 email / 隐私设置 / _count.following / _count.followers' })
+  @ApiOkResponse({ type: CurrentUserResponseDto, description: '含 email / 隐私设置 / _count.following / _count.followers' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async getMe(@CurrentUser() user: CurrentUserPayload) {
     return this.usersService.findMe(user.id);
@@ -85,7 +96,7 @@ export class UsersController {
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiBearerAuth()
   @ApiOperation({ summary: '修改当前登录用户资料（5 次/分钟）' })
-  @ApiOkResponse({ description: '更新后的用户资料' })
+  @ApiOkResponse({ type: PrivateUserResponseDto, description: '更新后的用户资料' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   @ApiConflictResponse({ description: '用户名已被占用' })
   async updateMe(@CurrentUser() user: CurrentUserPayload, @Body() dto: UpdateUserDto) {
@@ -96,7 +107,7 @@ export class UsersController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '设置头像（传入 mediaId，校验归属和 COMPLETED 状态）' })
-  @ApiOkResponse({ description: '更新后的用户资料（含新头像）' })
+  @ApiOkResponse({ type: PrivateUserResponseDto, description: '更新后的用户资料（含新头像）' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   @ApiNotFoundResponse({ description: 'mediaId 不存在或未完成处理' })
   async setAvatar(@CurrentUser() user: CurrentUserPayload, @Body() dto: SetAvatarDto) {
@@ -107,7 +118,7 @@ export class UsersController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '移除头像（置空 user.avatar，回到首字母占位）' })
-  @ApiOkResponse({ description: '更新后的用户资料（avatar 为 null）' })
+  @ApiOkResponse({ type: PrivateUserResponseDto, description: '更新后的用户资料（avatar 为 null）' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async removeAvatar(@CurrentUser() user: CurrentUserPayload) {
     return this.usersService.setAvatar(user.id, null);
@@ -128,7 +139,7 @@ export class UsersController {
   @ApiOperation({ summary: '查看用户的收藏列表（受 showBookmarks 隐私开关控制）' })
   @ApiQuery({ name: 'cursor', required: false, description: '分页游标（上一页最后一条记录 ID）' })
   @ApiQuery({ name: 'limit', required: false, description: '每页条数（默认 20，最大 50）' })
-  @ApiOkResponse({ description: '用户的收藏列表（cursor 分页，含帖子摘要）' })
+  @ApiOkResponse({ type: BookmarkThreadResponseDto, isArray: true, description: '用户的收藏列表（cursor 分页，含帖子摘要）' })
   @ApiNotFoundResponse({ description: '用户不存在或未公开收藏' })
   async getUserBookmarks(
     @Param('id') id: string,
@@ -147,7 +158,7 @@ export class UsersController {
   @Get(':id/played-threads')
   @OptionalAuth()
   @ApiOperation({ summary: '查看用户参与的帖子（仅已被授予玩家身份的帖子；他人仅可见公开帖）' })
-  @ApiOkResponse({ description: '用户参与的帖子列表（cursor 分页）' })
+  @ApiOkResponse({ type: ThreadListItemResponseDto, isArray: true, description: '用户参与的帖子列表（cursor 分页）' })
   @ApiNotFoundResponse({ description: '用户不存在或未公开参与的帖子' })
   async getUserPlayedThreads(
     @Param('id') id: string,
@@ -170,7 +181,7 @@ export class UsersController {
   })
   @ApiQuery({ name: 'cursor', required: false, description: '分页游标（上一页最后一条记录 ID）' })
   @ApiQuery({ name: 'limit', required: false, description: '每页条数（默认 20，最大 50）' })
-  @ApiOkResponse({ description: '用户创建的主题帖列表（cursor 分页）' })
+  @ApiOkResponse({ type: ThreadListItemResponseDto, isArray: true, description: '用户创建的主题帖列表（cursor 分页）' })
   @ApiNotFoundResponse({ description: '用户不存在' })
   async getUserCreatedThreads(
     @Param('id') id: string,
@@ -189,7 +200,7 @@ export class UsersController {
   @Get(':id/recent-replies')
   @OptionalAuth()
   @ApiOperation({ summary: '查看用户最近 10 条回复（受 showRecentReplies 隐私开关控制）' })
-  @ApiOkResponse({ description: '用户最近 10 条回复（含预览截断、所属帖子/子贴信息）' })
+  @ApiOkResponse({ type: RecentReplyResponseDto, isArray: true, description: '用户最近 10 条回复（含预览截断、所属帖子/子贴信息）' })
   @ApiNotFoundResponse({ description: '用户不存在或未公开最近动态' })
   async getUserRecentReplies(
     @Param('id') id: string,
@@ -202,6 +213,7 @@ export class UsersController {
   @OptionalAuth()
   @ApiOperation({ summary: '获取指定用户的公开资料。登录后额外返回关注/拉黑关系' })
   @ApiOkResponse({
+    type: PublicUserResponseDto,
     description: '公开资料。登录后附加 isFollowing/isFollowedBy/isBlocked/isBlockedBy',
   })
   @ApiNotFoundResponse({ description: '用户不存在' })

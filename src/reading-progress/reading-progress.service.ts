@@ -90,7 +90,14 @@ export class ReadingProgressService {
     });
 
     if (!progress) {
-      return { newReplies: totalPosts, totalPosts, lastReadPostId: null, lastReadTime: null, continueFrom: null };
+      return {
+        subthreadId,
+        newReplies: totalPosts,
+        totalPosts,
+        lastReadPostId: null,
+        lastReadTime: null,
+        continueFrom: null,
+      };
     }
 
     // 锚点：优先用上次读到的那条帖子的 createdAt，首次进入无 postId 时用 updatedAt
@@ -105,6 +112,7 @@ export class ReadingProgressService {
     });
 
     return {
+      subthreadId,
       newReplies: newPosts,
       totalPosts,
       lastReadPostId: progress.postId,
@@ -112,6 +120,89 @@ export class ReadingProgressService {
       continueFrom: progress.post
         ? { id: progress.post.id, floorNumber: progress.post.floorNumber, parentPostId: progress.post.parentPostId }
         : null,
+    };
+  }
+
+  /** 批量查询主题帖下全部子贴的新回复，避免详情页按子贴发起 N 次 HTTP 请求。 */
+  async newRepliesForThread(userId: string, threadId: string) {
+    await this.threadAccess.assertAccessible(threadId, userId);
+
+    const subthreads = await this.prisma.subthread.findMany({
+      where: { threadId, deletedAt: null },
+      select: { id: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+    if (subthreads.length === 0) return { items: [] };
+
+    const subthreadIds = subthreads.map((subthread) => subthread.id);
+    const [progresses, totalRows] = await Promise.all([
+      this.prisma.userReadProgress.findMany({
+        where: { userId, subthreadId: { in: subthreadIds } },
+        select: {
+          subthreadId: true,
+          postId: true,
+          updatedAt: true,
+          post: {
+            select: {
+              id: true,
+              createdAt: true,
+              floorNumber: true,
+              parentPostId: true,
+            },
+          },
+        },
+      }),
+      this.prisma.post.groupBy({
+        by: ['subthreadId'],
+        where: { subthreadId: { in: subthreadIds }, deletedAt: null },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const progressBySubthread = new Map(
+      progresses.map((progress) => [progress.subthreadId, progress]),
+    );
+    const totalBySubthread = new Map(
+      totalRows.map((row) => [row.subthreadId, row._count._all]),
+    );
+
+    const newRows = await this.prisma.post.groupBy({
+      by: ['subthreadId'],
+      where: {
+        deletedAt: null,
+        OR: subthreads.map(({ id }) => {
+          const progress = progressBySubthread.get(id);
+          const anchor = progress?.post?.createdAt ?? progress?.updatedAt;
+          return {
+            subthreadId: id,
+            ...(anchor ? { createdAt: { gt: anchor } } : {}),
+          };
+        }),
+      },
+      _count: { _all: true },
+    });
+    const newBySubthread = new Map(
+      newRows.map((row) => [row.subthreadId, row._count._all]),
+    );
+
+    return {
+      items: subthreads.map(({ id }) => {
+        const progress = progressBySubthread.get(id);
+        return {
+          subthreadId: id,
+          newReplies: newBySubthread.get(id) ?? 0,
+          totalPosts: totalBySubthread.get(id) ?? 0,
+          lastReadPostId: progress?.postId ?? null,
+          lastReadTime: progress?.updatedAt ?? null,
+          continueFrom: progress?.post
+            ? {
+                id: progress.post.id,
+                floorNumber: progress.post.floorNumber,
+                parentPostId: progress.post.parentPostId,
+              }
+            : null,
+        };
+      }),
     };
   }
 }

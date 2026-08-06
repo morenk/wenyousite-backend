@@ -5,6 +5,7 @@ import { SubscriptionsService } from './subscriptions.service';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 import { MessageResponseDto } from '../common/dto/message-response.dto';
+import { SubscriptionResponseDto } from './dto/subscription-response.dto';
 
 /** 订阅控制器：玩家订阅主题帖或特定用户回复 */
 @ApiTags('Subscriptions')
@@ -17,7 +18,7 @@ export class SubscriptionsController {
   @Get()
   @AuthRead()
   @ApiOperation({ summary: '我的订阅列表' })
-  @ApiOkResponse({ description: '我的订阅列表（含订阅类型和关联信息）' })
+  @ApiOkResponse({ type: SubscriptionResponseDto, isArray: true, description: '我的订阅列表（含订阅类型和关联信息）' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async findAll(@Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
@@ -28,7 +29,7 @@ export class SubscriptionsController {
   @Post()
   @Auth()
   @ApiOperation({ summary: '创建官方更新或玩家发言订阅' })
-  @ApiCreatedResponse({ description: '创建的订阅记录' })
+  @ApiCreatedResponse({ type: SubscriptionResponseDto, description: '创建的订阅记录' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async create(@Req() req: FastifyRequest, @Body() dto: CreateSubscriptionDto) {
     const user = req['user'] as { id: string };

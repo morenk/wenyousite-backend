@@ -26,21 +26,30 @@ import { CreateThreadDto } from './dto/create-thread.dto';
 import { UpdateThreadDto } from './dto/update-thread.dto';
 import { ThreadQueryDto } from './dto/thread-query.dto';
 import { Auth, AuthRead, OptionalAuth } from '../auth/decorators/auth.decorator';
-import { InvitePreviewResponseDto } from './dto/invite-response.dto';
+import { InviteLinkResponseDto, InvitePreviewResponseDto } from './dto/invite-response.dto';
 import { ThreadDetailResponseDto } from './dto/thread-detail-response.dto';
+import {
+  DraftThreadResponseDto,
+  HomeThreadListItemResponseDto,
+} from './dto/thread-list-response.dto';
 import { MessageResponseDto } from '../common/dto/message-response.dto';
+import { SaveThreadAggregateDto } from './dto/save-thread-aggregate.dto';
+import { ThreadAggregateService } from './thread-aggregate.service';
 
 /** 主题帖控制器：草稿箱、列表、详情、修改、发布、删除、点赞 */
 @ApiTags('Threads')
 @Controller('threads')
 export class ThreadsController {
-  constructor(private threadsService: ThreadsService) {}
+  constructor(
+    private threadsService: ThreadsService,
+    private threadAggregateService: ThreadAggregateService,
+  ) {}
 
   @Get('draft')
   @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '我的草稿箱列表（未发布帖，仅自己可见）' })
-  @ApiOkResponse({ description: '草稿列表，每个含子贴标题和标签' })
+  @ApiOkResponse({ type: DraftThreadResponseDto, isArray: true, description: '草稿列表，每个含子贴标题和标签' })
   @ApiUnauthorizedResponse({ description: '未登录' })
   async findDrafts(@Req() req: FastifyRequest) {
     const user = req.user as { id: string };
@@ -51,6 +60,8 @@ export class ThreadsController {
   @OptionalAuth()
   @ApiOperation({ summary: '主题帖列表（仅已发布帖），支持 sort=recommended|newest|active' })
   @ApiOkResponse({
+    type: HomeThreadListItemResponseDto,
+    isArray: true,
     description:
       '分页列表，meta 含 cursor/hasMore。每个帖含 owner/subthreads/bodyPost.content(正文预览)/topicTags/_count',
   })
@@ -107,6 +118,29 @@ export class ThreadsController {
     return this.threadsService.update(id, dto, user.id);
   }
 
+  @Patch(':id/aggregate')
+  @Auth()
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: '原子保存主题帖元数据、默认子贴标题/正文和标签，可同时发布草稿',
+  })
+  @ApiOkResponse({
+    type: ThreadDetailResponseDto,
+    description: '全部字段在同一事务内保存，返回最新完整主题帖',
+  })
+  @ApiUnauthorizedResponse({ description: '未登录或邮箱未验证' })
+  @ApiForbiddenResponse({ description: '无管理权限或协作者尝试修改楼主专属字段' })
+  @ApiNotFoundResponse({ description: '主题帖或默认子贴不存在' })
+  @ApiConflictResponse({ description: '主题帖、默认子贴或正文乐观锁冲突' })
+  async saveAggregate(
+    @Param('id') id: string,
+    @Body() dto: SaveThreadAggregateDto,
+    @Req() req: FastifyRequest,
+  ) {
+    const user = req.user as { id: string };
+    return this.threadAggregateService.save(id, dto, user.id);
+  }
+
   @Delete(':id')
   @Auth()
   @ApiBearerAuth()
@@ -145,7 +179,7 @@ export class ThreadsController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '生成或刷新私密帖邀请链接（仅 OWNER，需已发布 + 私密帖）' })
-  @ApiOkResponse({ description: '邀请链接对象（threadId / token）。已存在则刷新 token' })
+  @ApiOkResponse({ type: InviteLinkResponseDto, description: '邀请链接对象（threadId / token）。已存在则刷新 token' })
   @ApiUnauthorizedResponse({ description: '未登录或邮箱未验证' })
   @ApiForbiddenResponse({ description: '仅 OWNER / 未发布 / 非私密帖' })
   async createInviteLink(@Param('id') id: string, @Req() req: FastifyRequest) {

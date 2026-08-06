@@ -20,6 +20,22 @@ class ThreadSubthreadCountResponseDto {
   posts!: number;
 }
 
+export class ThreadTagResponseDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  color!: string | null;
+}
+
+export class ThreadTagRelationResponseDto {
+  @ApiProperty({ type: ThreadTagResponseDto })
+  tag!: ThreadTagResponseDto;
+}
+
 class ThreadSubthreadResponseDto {
   @ApiProperty()
   id!: string;
@@ -42,14 +58,20 @@ class ThreadSubthreadResponseDto {
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   lastPostAt!: Date | null;
 
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  deletedAt!: Date | null;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  createdAt!: Date;
+
   @ApiProperty({ type: ThreadBodyPostResponseDto, nullable: true })
   bodyPost!: ThreadBodyPostResponseDto | null;
 
   @ApiProperty({ type: ThreadSubthreadCountResponseDto })
   _count!: ThreadSubthreadCountResponseDto;
 
-  @ApiProperty({ type: [Object], description: '子贴标签关联' })
-  tags!: object[];
+  @ApiProperty({ type: [ThreadTagRelationResponseDto], description: '子贴标签关联' })
+  tags!: ThreadTagRelationResponseDto[];
 }
 
 class ThreadCountResponseDto {
@@ -61,6 +83,31 @@ class ThreadCountResponseDto {
 
   @ApiProperty({ minimum: 0 })
   players!: number;
+}
+
+class CurrentThreadMembershipResponseDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  userId!: string;
+
+  @ApiProperty({ enum: ['OWNER', 'COLLABORATOR', 'PARTICIPANT'] })
+  role!: 'OWNER' | 'COLLABORATOR' | 'PARTICIPANT';
+
+  @ApiProperty()
+  playerMarked!: boolean;
+}
+
+class ThreadCapabilitiesResponseDto {
+  @ApiProperty()
+  canManageThread!: boolean;
+
+  @ApiProperty()
+  canManageMembers!: boolean;
+
+  @ApiProperty()
+  isOwner!: boolean;
 }
 
 /** 主题详情显式契约，供 Web 与 Flutter 获取正文骰子状态。 */
@@ -92,6 +139,9 @@ export class ThreadDetailResponseDto {
   @ApiProperty()
   pinned!: boolean;
 
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  pinnedAt!: Date | null;
+
   @ApiProperty()
   viewCount!: number;
 
@@ -110,14 +160,17 @@ export class ThreadDetailResponseDto {
   @ApiProperty({ type: String, format: 'date-time' })
   updatedAt!: Date;
 
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  deletedAt!: Date | null;
+
   @ApiProperty({ type: PostAuthorResponseDto })
   owner!: PostAuthorResponseDto;
 
   @ApiProperty({ type: [ThreadSubthreadResponseDto] })
   subthreads!: ThreadSubthreadResponseDto[];
 
-  @ApiProperty({ type: [Object], description: '平台主题标签关联' })
-  topicTags!: object[];
+  @ApiProperty({ type: [ThreadTagRelationResponseDto], description: '平台主题标签关联' })
+  topicTags!: ThreadTagRelationResponseDto[];
 
   @ApiProperty({ type: ThreadCountResponseDto })
   _count!: ThreadCountResponseDto;
@@ -130,4 +183,10 @@ export class ThreadDetailResponseDto {
 
   @ApiPropertyOptional()
   isLiked?: boolean;
+
+  @ApiPropertyOptional({ type: CurrentThreadMembershipResponseDto, nullable: true })
+  currentMembership?: CurrentThreadMembershipResponseDto | null;
+
+  @ApiPropertyOptional({ type: ThreadCapabilitiesResponseDto })
+  capabilities?: ThreadCapabilitiesResponseDto;
 }

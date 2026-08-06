@@ -6,7 +6,7 @@
 
 主题帖的草稿创建、沙盒迭代、发布、列表、详情、修改、删除，参与人候选池管理（授予/移除协作者身份、授予/收回玩家身份），私密帖邀请链接，置顶排序，标签管理。
 
-**核心流程**：所有主题帖创建统一走"草稿 → 发布"两阶段 —— `POST /threads` 事务内创建 Thread + OWNER + 默认子贴（可选正文，kind=BODY），在沙盒内逐步完善标题/子贴/楼层，最后通过 `PATCH /threads/:id { published: true }` 发布。发布前帖子不出现在列表/搜索中，仅楼主本人可访问。
+**核心流程**：所有主题帖创建统一走"草稿 → 发布"两阶段 —— `POST /threads` 事务内创建 Thread + OWNER + 默认子贴（可选正文，kind=BODY），Web 编辑器随后通过 `PATCH /threads/:id/aggregate` 在单个事务内保存元数据、默认子贴标题/正文、标签与发布状态。发布前帖子不出现在列表/搜索中，仅楼主本人可访问。
 
 ## 涉及的模型
 
@@ -32,8 +32,9 @@
 | GET | `/threads/draft` | AuthRead | 我的草稿箱列表（published=false 的帖） |
 | POST | `/threads` | Auth | 创建主题帖草稿（事务内创建 Thread + OWNER + 默认子贴 + 可选正文 kind=BODY，published=false）。每用户最多 10 条未发布草稿，超限返回 BAD_REQUEST |
 | GET | `/threads` | Public | 主题帖列表（仅已发布帖），支持分区/排序/状态/标签筛选；每帖含 `preview` 截断纯文本（`truncateMarkdown` 处理默认子贴正文 kind=BODY，~100 字；空段落标记不会泄漏） |
-| GET | `/threads/:id` | OptionalAuth | 详情（含子贴列表和标签）。公开已发布帖允许匿名访问；未发布帖仅 owner 可查看；PRIVATE 帖非成员 404。登录时附加 `isBookmarked`、`bookmarkId`、`isLiked` |
+| GET | `/threads/:id` | OptionalAuth | 详情（含子贴列表和标签）。公开已发布帖允许匿名访问；未发布帖仅 owner 可查看；PRIVATE 帖非成员 404。登录时附加收藏/点赞、当前用户成员关系和 capability 投影，不查询全量成员 |
 | PATCH | `/threads/:id` | Auth | 修改（OWNER/COLLABORATOR，乐观锁）；visibility、published 仅 OWNER，已发布帖不可撤回草稿 |
+| PATCH | `/threads/:id/aggregate` | Auth | 原子保存主题帖编辑器聚合：Thread 元数据、默认子贴标题/正文、主题标签及可选发布；校验三层 version，发布时同事务结算骰子和 Outbox |
 | DELETE | `/threads/:id` | Auth | 删除（仅 OWNER）。草稿帖硬删除（级联），已发布帖软删除 |
 | POST | `/threads/:id/like` | Auth | 点赞主题帖（幂等，不通知自己） |
 | DELETE | `/threads/:id/like` | Auth | 取消点赞主题帖（幂等） |
@@ -58,7 +59,8 @@
 - 草稿上限：每用户最多持有 **10 条**未发布草稿（`published=false` 且未删除）。超限时 `POST /threads` 返回 `BAD_REQUEST`（"草稿数量已达上限（10/10）"），须先发布或删除旧草稿；已有超出上限的历史草稿不受影响，清理后自动恢复。配合定时任务每天清理 7 天未发布草稿作为兜底
 - 沙盒迭代：楼主可在草稿内自由创建更多子贴（`POST subthreads`）、撰写楼层（`POST posts`），所有端点自动保存
 - 草稿列表：`GET /threads/draft` 返回当前用户所有未发布帖，按 createdAt DESC 排序
-- 发布校验：`PATCH /threads/:id { published: true }` 时校验 —— ① title 非空且非默认值"未命名草稿" ② category 已设置 ③ 默认子贴存在且有正文（存在 kind=BODY 的正文帖）
+- 发布校验：细粒度 PATCH 与聚合保存发布都校验 —— ① title 非空且非默认值"未命名草稿" ② category 已设置 ③ 默认子贴存在且有可见正文（kind=BODY）
+- 聚合保存：按 Thread → 默认 Subthread → BODY 的 version 顺序校验后，在同一事务更新元数据、标题/正文、标签和发布状态；任一冲突返回 `OPTIMISTIC_LOCK_CONFLICT(40002)` 且不产生部分写入。COLLABORATOR 不得修改 visibility 或 published
 - 草稿期各 Post 的内联骰子节点只保存在 `content` 中；发布事务会锁定 Thread，校验并结算全部帖子节点后才翻转 `published=true`，任一步失败整体回滚
 - 发布可靠事件：发布事务为草稿期全部帖子写入 `post.created` Outbox，并写入 `thread.published`；提交后依次补解析 @提及/通知，并通知通过双向拉黑过滤的粉丝
 - 草稿内发帖不立即触发 @提及解析和通知；发布事务统一生成事件，失败由 Outbox 重试
@@ -69,7 +71,7 @@
 
 - 列表接口 `findAll`：仅返回 published=true 的帖；`filter=all`(默认)仅 PUBLIC 帖；`filter=playing`返回被其他楼主标记为玩家（playerMarked=true）的帖（含私密帖，排除自己创建的帖），需登录。支持 `status=RECRUITING|CLOSED|FINISHED` 状态筛选；状态可与分区、排序和标签组合使用。每帖含 `preview` 字段（truncateMarkdown 截断默认子贴正文 kind=BODY，纯文本，~100 字），不再返回 `bodyPost.content` 全文
 - 发布校验会拒绝纯空白、仅顶层空段落或仅分隔线正文；图片、代码块等非空 Markdown 可发布。草稿正文仍可暂存为空，数据库字段与 Markdown 存储格式不变。
-- 详情接口 `findById`：未发布帖仅 owner 可查看且不递增 viewCount；已发布帖在 Redis 原子 +1，每 10 分钟批量落库，PRIVATE 帖非参与人返回 404；只有公开已发布详情可进入 30 秒共享缓存，登录态附加 `isBookmarked` / `bookmarkId`（浅拷贝返回，不写入共享缓存）
+- 详情接口 `findById`：未发布帖仅 owner 可查看且不递增 viewCount；已发布帖在 Redis 原子 +1，每 10 分钟批量落库，PRIVATE 帖非参与人返回 404；只有公开已发布详情可进入 30 秒共享缓存。登录态浅拷贝附加 `isBookmarked` / `bookmarkId` / `isLiked`、`currentMembership` 和 `capabilities`，身份数据不写入共享缓存
 - 排序规则：
   - `sort=newest`：置顶优先，其次按 createdAt DESC
   - `sort=active`：置顶优先，其次按 updatedAt DESC
@@ -155,11 +157,11 @@ POST subthreads        → Subthread + 可选正文帖（kind=BODY，正文为�
 POST posts             → 在子贴下新增楼层，自动记入该子贴
   ↑ published=true 时同事务写 post.created Outbox
 
-PATCH published=true   → 发布前校验：
+PATCH /threads/:id/aggregate → 原子保存并可发布：
                          ① title 非空
                          ② category 已选
                          ③ 默认子贴有正文
-                         → 同事务写草稿帖事件 + 发布事件
+                         → 同事务写元数据/正文/标签、结算骰子、写草稿帖事件 + 发布事件
                          → 提交后可靠投递 @提及/通知/粉丝通知
 ```
 

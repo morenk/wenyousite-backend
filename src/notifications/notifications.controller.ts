@@ -12,6 +12,10 @@ import { NotificationsService } from './notifications.service';
 import { AuthRead } from '../auth/decorators/auth.decorator';
 import { SetReadStatusDto } from './dto/set-read-status.dto';
 import { MessageResponseDto } from '../common/dto/message-response.dto';
+import {
+  NotificationResponseDto,
+  UnreadNotificationCountResponseDto,
+} from './dto/notification-response.dto';
 
 /** 通知控制器：站内通知的查询、标记已读/未读、删除 */
 @ApiTags('Notifications')
@@ -30,7 +34,7 @@ export class NotificationsController {
     required: false,
     description: '按类型过滤，逗号分隔，如 type=mention,reply',
   })
-  @ApiOkResponse({ description: '通知列表（cursor 分页，按时间倒序）' })
+  @ApiOkResponse({ type: NotificationResponseDto, isArray: true, description: '通知列表（cursor 分页，按时间倒序）' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async findAll(
     @Req() req: FastifyRequest,
@@ -59,7 +63,7 @@ export class NotificationsController {
   /** 未读通知数量 */
   @Get('unread')
   @ApiOperation({ summary: '未读通知数' })
-  @ApiOkResponse({ description: '{ unreadCount: number }' })
+  @ApiOkResponse({ type: UnreadNotificationCountResponseDto, description: '{ unreadCount: number }' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async unreadCount(@Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };

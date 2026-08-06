@@ -12,8 +12,9 @@ const mockPrisma = {
   post: {
     count: jest.fn(),
     findFirst: jest.fn(),
+    groupBy: jest.fn(),
   },
-  subthread: { findUnique: jest.fn() },
+  subthread: { findUnique: jest.fn(), findMany: jest.fn() },
 };
 
 const mockThreadAccess = { assertAccessible: jest.fn().mockResolvedValue(undefined) };
@@ -99,6 +100,7 @@ describe('ReadingProgressService', () => {
     mockPrisma.post.count.mockResolvedValue(42);
     const result = await service.newRepliesSince('u1', 's1');
     expect(result.newReplies).toBe(42);
+    expect(result.subthreadId).toBe('s1');
     expect(result.totalPosts).toBe(42);
     expect(result.continueFrom).toBeNull();
   });
@@ -145,5 +147,45 @@ describe('ReadingProgressService', () => {
     }));
     expect(result.newReplies).toBe(10);
     expect(result.continueFrom).toBeNull();
+  });
+
+  it('newRepliesForThread 一次返回全部子贴的新回复摘要', async () => {
+    const anchor = new Date('2026-07-28T12:00:00Z');
+    mockPrisma.subthread.findMany.mockResolvedValue([{ id: 's1' }, { id: 's2' }]);
+    mockPrisma.userReadProgress.findMany.mockResolvedValue([
+      {
+        subthreadId: 's1',
+        postId: 'p1',
+        updatedAt: new Date('2026-07-29T12:00:00Z'),
+        post: { id: 'p1', createdAt: anchor, floorNumber: 3, parentPostId: null },
+      },
+    ]);
+    mockPrisma.post.groupBy
+      .mockResolvedValueOnce([
+        { subthreadId: 's1', _count: { _all: 8 } },
+        { subthreadId: 's2', _count: { _all: 4 } },
+      ])
+      .mockResolvedValueOnce([
+        { subthreadId: 's1', _count: { _all: 2 } },
+        { subthreadId: 's2', _count: { _all: 4 } },
+      ]);
+
+    const result = await service.newRepliesForThread('u1', 't1');
+
+    expect(mockThreadAccess.assertAccessible).toHaveBeenCalledWith('t1', 'u1');
+    expect(mockPrisma.post.groupBy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: [
+            { subthreadId: 's1', createdAt: { gt: anchor } },
+            { subthreadId: 's2' },
+          ],
+        }),
+      }),
+    );
+    expect(result.items).toEqual([
+      expect.objectContaining({ subthreadId: 's1', newReplies: 2, totalPosts: 8 }),
+      expect.objectContaining({ subthreadId: 's2', newReplies: 4, totalPosts: 4 }),
+    ]);
   });
 });

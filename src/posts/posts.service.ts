@@ -22,6 +22,7 @@ import { PostingPolicyService } from './posting-policy.service';
 import { PostQueryService } from './post-query.service';
 import { Prisma } from '@prisma/client';
 import { OutboxService } from '../outbox/outbox.service';
+import { reconcilePublishedDice } from '../dice/reconcile-published-dice';
 
 /** 楼层服务：发帖（事务楼层编号 + FOR UPDATE）、楼中楼、编辑、软删除 */
 @Injectable()
@@ -264,41 +265,6 @@ export class PostsService {
     }
   }
 
-  private async reconcilePublishedDice(
-    client: any,
-    postId: string,
-    nodes: ReturnType<DiceService['parseContent']>['nodes'],
-    existingRolls: { id: string; nodeId: string; notation: string }[] = [],
-  ) {
-    const incoming = new Map(nodes.map((node) => [node.nodeId, node]));
-    for (const roll of existingRolls) {
-      const node = incoming.get(roll.nodeId);
-      if (node && node.notation !== roll.notation) {
-        throw new BusinessException(
-          ErrorCode.BAD_REQUEST,
-          '已结算骰子不能修改表达式；请删除后插入新的骰子节点',
-        );
-      }
-    }
-
-    const deletedIds = existingRolls
-      .filter((roll) => !incoming.has(roll.nodeId))
-      .map((roll) => roll.id);
-    if (deletedIds.length > 0) {
-      await client.diceRoll.deleteMany({ where: { id: { in: deletedIds }, postId } });
-    }
-
-    const existingNodeIds = new Set(existingRolls.map((roll) => roll.nodeId));
-    const generated = this.diceService.rollNodes(
-      nodes.filter((node) => !existingNodeIds.has(node.nodeId)),
-    );
-    if (generated.length > 0) {
-      await client.diceRoll.createMany({
-        data: this.diceService.buildCreateData(postId, generated),
-      });
-    }
-  }
-
   /** 写入子贴正文；未发布节点保持待掷，已发布节点在同一事务内增删结果。 */
   async upsertBody(
     subthreadId: string,
@@ -340,7 +306,7 @@ export class PostsService {
           include: { author: { select: authorSelect } },
         });
         if (subthread.thread.published) {
-          await this.reconcilePublishedDice(tx, created.id, parsedContent.nodes, []);
+          await reconcilePublishedDice(tx, this.diceService, created.id, parsedContent.nodes, []);
         }
         const activityAt = new Date();
         await tx.subthread.update({
@@ -407,8 +373,9 @@ export class PostsService {
           data: { content: normalizedContent, version: { increment: 1 } },
         });
         if (subthread.thread.published) {
-          await this.reconcilePublishedDice(
+          await reconcilePublishedDice(
             tx,
+            this.diceService,
             post.id,
             parsedContent.nodes,
             existing.diceRolls ?? [],
@@ -506,7 +473,13 @@ export class PostsService {
           data: { content, version: { increment: 1 } },
         });
         if (threadPublished) {
-          await this.reconcilePublishedDice(tx, id, parsedContent.nodes, postLight.diceRolls ?? []);
+          await reconcilePublishedDice(
+            tx,
+            this.diceService,
+            id,
+            parsedContent.nodes,
+            postLight.diceRolls ?? [],
+          );
         }
         return tx.post.findUniqueOrThrow({
           where: { id: post.id },
