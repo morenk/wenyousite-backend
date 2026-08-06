@@ -145,10 +145,9 @@ export class PostsService {
 
   /** 发帖：楼层或楼中楼回复。先校验访问权限与发帖策略，通过后才自动加入为参与人 */
   async create(subthreadId: string, dto: CreatePostDto, userId: string) {
-    const content = normalizeMarkdownContent(dto.content);
-    const parsedDice = this.diceService.validateNotations(dto.diceNotations ?? []);
-    const canonicalDice = parsedDice.map((dice) => dice.notation);
-    if (!hasVisibleMarkdownContent(content) && canonicalDice.length === 0) {
+    const parsedContent = this.diceService.parseContent(normalizeMarkdownContent(dto.content));
+    const content = parsedContent.content;
+    if (!hasVisibleMarkdownContent(parsedContent.contentWithoutDice) && parsedContent.nodes.length === 0) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '正文和骰子不能同时为空');
     }
     const subthread = await this.prisma.subthread.findUnique({
@@ -163,7 +162,7 @@ export class PostsService {
     if (dto.clientRequestId) {
       const existingRequest = await this.findByClientRequestId(userId, dto.clientRequestId);
       if (existingRequest) {
-        this.assertSameCreateRequest(existingRequest, subthreadId, dto, content, canonicalDice);
+        this.assertSameCreateRequest(existingRequest, subthreadId, dto, content);
         return existingRequest;
       }
     }
@@ -219,8 +218,6 @@ export class PostsService {
       }
     }
 
-    const generatedDice = subthread.thread.published ? this.diceService.rollAll(parsedDice) : [];
-
     // 事务：SELECT FOR UPDATE 锁子贴行 → 读 MAX → 创建楼层 → 更新 lastPostAt
     let duplicateRequest = false;
     let post;
@@ -248,13 +245,15 @@ export class PostsService {
             replyToPostId: dto.replyToPostId ?? null,
             clientRequestId: dto.clientRequestId ?? null,
             content,
-            pendingDiceNotations: subthread.thread.published ? [] : canonicalDice,
           },
           include: {
             author: { select: authorSelect },
           },
         });
 
+        const generatedDice = subthread.thread.published
+          ? this.diceService.rollNodes(parsedContent.nodes)
+          : [];
         if (generatedDice.length > 0) {
           await tx.diceRoll.createMany({
             data: this.diceService.buildCreateData(p.id, generatedDice),
@@ -276,7 +275,7 @@ export class PostsService {
       if (dto.clientRequestId && (error as { code?: string })?.code === 'P2002') {
         const existingRequest = await this.findByClientRequestId(userId, dto.clientRequestId);
         if (existingRequest) {
-          this.assertSameCreateRequest(existingRequest, subthreadId, dto, content, canonicalDice);
+          this.assertSameCreateRequest(existingRequest, subthreadId, dto, content);
           post = existingRequest;
           duplicateRequest = true;
         } else {
@@ -329,24 +328,16 @@ export class PostsService {
       content: string;
       parentPostId: string | null;
       replyToPostId: string | null;
-      pendingDiceNotations?: string[];
-      diceRolls?: { notation: string }[];
     },
     subthreadId: string,
     dto: CreatePostDto,
     content: string,
-    canonicalDice: string[],
   ) {
-    const storedDice = post.diceRolls?.length
-      ? post.diceRolls.map((roll) => roll.notation)
-      : (post.pendingDiceNotations ?? []);
     if (
       post.subthreadId !== subthreadId ||
       post.content !== content ||
       post.parentPostId !== (dto.parentPostId ?? null) ||
-      post.replyToPostId !== (dto.replyToPostId ?? null) ||
-      storedDice.length !== canonicalDice.length ||
-      storedDice.some((notation, index) => notation !== canonicalDice[index])
+      post.replyToPostId !== (dto.replyToPostId ?? null)
     ) {
       throw new BusinessException(
         ErrorCode.CONFLICT,
@@ -356,22 +347,60 @@ export class PostsService {
     }
   }
 
-  /** 写入子贴正文；草稿保存待掷意图，已发布正文只追加服务端结果。 */
+  private async reconcilePublishedDice(
+    client: any,
+    postId: string,
+    nodes: ReturnType<DiceService['parseContent']>['nodes'],
+    existingRolls: { id: string; nodeId: string; notation: string }[] = [],
+  ) {
+    const incoming = new Map(nodes.map((node) => [node.nodeId, node]));
+    for (const roll of existingRolls) {
+      const node = incoming.get(roll.nodeId);
+      if (node && node.notation !== roll.notation) {
+        throw new BusinessException(
+          ErrorCode.BAD_REQUEST,
+          '已结算骰子不能修改表达式；请删除后插入新的骰子节点',
+        );
+      }
+    }
+
+    const deletedIds = existingRolls
+      .filter((roll) => !incoming.has(roll.nodeId))
+      .map((roll) => roll.id);
+    if (deletedIds.length > 0) {
+      await client.diceRoll.deleteMany({ where: { id: { in: deletedIds }, postId } });
+    }
+
+    const existingNodeIds = new Set(existingRolls.map((roll) => roll.nodeId));
+    const generated = this.diceService.rollNodes(
+      nodes.filter((node) => !existingNodeIds.has(node.nodeId)),
+    );
+    if (generated.length > 0) {
+      await client.diceRoll.createMany({
+        data: this.diceService.buildCreateData(postId, generated),
+      });
+    }
+  }
+
+  /** 写入子贴正文；未发布节点保持待掷，已发布节点在同一事务内增删结果。 */
   async upsertBody(
     subthreadId: string,
     content: string,
     version: number | undefined,
     userId: string,
-    diceNotations?: string[],
   ) {
-    const normalizedContent = normalizeMarkdownContent(content);
+    const parsedContent = this.diceService.parseContent(normalizeMarkdownContent(content));
+    const normalizedContent = parsedContent.content;
     const subthread = await this.prisma.subthread.findUnique({
       where: { id: subthreadId, ...notDeleted },
       include: { thread: { select: { id: true, published: true, title: true } } },
     });
     if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
     const manager = await this.threadAccess.assertCanManage(subthread.threadId, userId);
-    if (subthread.thread.published && !hasVisibleMarkdownContent(normalizedContent)) {
+    if (
+      subthread.thread.published &&
+      !hasVisibleMarkdownContent(parsedContent.contentWithoutDice)
+    ) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '子贴正文必须包含可见文字');
     }
 
@@ -380,54 +409,31 @@ export class PostsService {
       orderBy: { createdAt: 'asc' },
       include: { ...includeDiceRolls() },
     });
-    const existingRollCount = existing?.diceRolls?.length ?? 0;
-    const parsedDice = this.diceService.validateNotations(
-      diceNotations ?? [],
-      subthread.thread.published ? existingRollCount : 0,
-    );
-    const canonicalDice = parsedDice.map((dice) => dice.notation);
-    const generatedDice = subthread.thread.published ? this.diceService.rollAll(parsedDice) : [];
 
     if (!existing) {
-      const createPost = async (client: any) =>
-        client.post.create({
+      const post = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.post.create({
           data: {
             threadId: subthread.threadId,
             subthreadId,
             authorId: userId,
             kind: 'BODY',
             content: normalizedContent,
-            pendingDiceNotations: subthread.thread.published ? [] : canonicalDice,
           },
-          include:
-            generatedDice.length === 0
-              ? { author: { select: authorSelect }, ...includeDiceRolls() }
-              : undefined,
+          include: { author: { select: authorSelect } },
         });
-      const post =
-        generatedDice.length === 0
-          ? await (async () => {
-              const created = await createPost(this.prisma);
-              await this.prisma.subthread.update({
-                where: { id: subthreadId },
-                data: { lastPostAt: new Date() },
-              });
-              return created;
-            })()
-          : await this.prisma.$transaction(async (tx) => {
-              const created = await createPost(tx);
-              await tx.diceRoll.createMany({
-                data: this.diceService.buildCreateData(created.id, generatedDice),
-              });
-              await tx.subthread.update({
-                where: { id: subthreadId },
-                data: { lastPostAt: new Date() },
-              });
-              return tx.post.findUniqueOrThrow({
-                where: { id: created.id },
-                include: { author: { select: authorSelect }, ...includeDiceRolls() },
-              });
-            });
+        if (subthread.thread.published) {
+          await this.reconcilePublishedDice(tx, created.id, parsedContent.nodes, []);
+        }
+        await tx.subthread.update({
+          where: { id: subthreadId },
+          data: { lastPostAt: new Date() },
+        });
+        return tx.post.findUniqueOrThrow({
+          where: { id: created.id },
+          include: { author: { select: authorSelect }, ...includeDiceRolls() },
+        });
+      });
 
       if (subthread.thread.published) {
         this.eventEmitter.emit('post.created', {
@@ -463,44 +469,35 @@ export class PostsService {
       );
     }
     const oldContent = existing.content;
-    const updatePost = async (client: any) =>
-      client.post.update({
-        where: { id: existing.id, version, ...notDeleted },
-        data: {
-          content: normalizedContent,
-          version: { increment: 1 },
-          ...(!subthread.thread.published && diceNotations !== undefined
-            ? { pendingDiceNotations: canonicalDice }
-            : {}),
-        },
-        include:
-          generatedDice.length === 0
-            ? { author: { select: authorSelect }, ...includeDiceRolls() }
-            : undefined,
+    const updated = await this.prisma
+      .$transaction(async (tx) => {
+        const post = await tx.post.update({
+          where: { id: existing.id, version, ...notDeleted },
+          data: { content: normalizedContent, version: { increment: 1 } },
+        });
+        if (subthread.thread.published) {
+          await this.reconcilePublishedDice(
+            tx,
+            post.id,
+            parsedContent.nodes,
+            existing.diceRolls ?? [],
+          );
+        }
+        return tx.post.findUniqueOrThrow({
+          where: { id: post.id },
+          include: { author: { select: authorSelect }, ...includeDiceRolls() },
+        });
+      })
+      .catch((err) => {
+        if (err?.code === 'P2025') {
+          throw new BusinessException(
+            ErrorCode.OPTIMISTIC_LOCK_CONFLICT,
+            '正文已被修改，请刷新后重试',
+            HttpStatus.CONFLICT,
+          );
+        }
+        throw err;
       });
-    const updated = await (
-      generatedDice.length === 0
-        ? updatePost(this.prisma)
-        : this.prisma.$transaction(async (tx) => {
-            const post = await updatePost(tx);
-            await tx.diceRoll.createMany({
-              data: this.diceService.buildCreateData(post.id, generatedDice, existingRollCount),
-            });
-            return tx.post.findUniqueOrThrow({
-              where: { id: post.id },
-              include: { author: { select: authorSelect }, ...includeDiceRolls() },
-            });
-          })
-    ).catch((err) => {
-      if (err?.code === 'P2025') {
-        throw new BusinessException(
-          ErrorCode.OPTIMISTIC_LOCK_CONFLICT,
-          '正文已被修改，请刷新后重试',
-          HttpStatus.CONFLICT,
-        );
-      }
-      throw err;
-    });
 
     if (normalizedContent !== oldContent) {
       this.mentionsService
@@ -542,7 +539,8 @@ export class PostsService {
 
   /** 编辑帖子 */
   async update(id: string, dto: UpdatePostDto, userId: string) {
-    const content = normalizeMarkdownContent(dto.content);
+    const parsedContent = this.diceService.parseContent(normalizeMarkdownContent(dto.content));
+    const content = parsedContent.content;
     const postLight = await this.prisma.post.findUnique({
       where: { id, ...notDeleted },
       select: {
@@ -550,10 +548,9 @@ export class PostsService {
         authorId: true,
         threadId: true,
         content: true,
-        pendingDiceNotations: true,
         version: true,
         thread: { select: { published: true } },
-        diceRolls: { select: { id: true } },
+        diceRolls: { select: { id: true, nodeId: true, notation: true } },
         subthread: { select: { deletedAt: true } },
       },
     });
@@ -562,67 +559,39 @@ export class PostsService {
     await this.threadAccess.assertAccessible(postLight.threadId, userId);
     if (postLight.authorId !== userId) throw forbidden('只能编辑自己的帖子');
 
-    const existingRollCount = postLight.diceRolls?.length ?? 0;
     const threadPublished = postLight.thread?.published ?? true;
-    const parsedDice = this.diceService.validateNotations(
-      dto.diceNotations ?? [],
-      threadPublished ? existingRollCount : 0,
-    );
-    const canonicalDice = parsedDice.map((dice) => dice.notation);
-    const effectivePending = threadPublished
-      ? []
-      : dto.diceNotations === undefined
-        ? (postLight.pendingDiceNotations ?? [])
-        : canonicalDice;
     if (
-      !hasVisibleMarkdownContent(content) &&
-      existingRollCount === 0 &&
-      effectivePending.length === 0 &&
-      parsedDice.length === 0
+      !hasVisibleMarkdownContent(parsedContent.contentWithoutDice) &&
+      parsedContent.nodes.length === 0
     ) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '正文和骰子不能同时为空');
     }
-    const generatedDice = threadPublished ? this.diceService.rollAll(parsedDice) : [];
 
     const oldContent = postLight.content;
-    const updatePost = async (client: any) =>
-      client.post.update({
-        where: { id, version: dto.version, ...notDeleted },
-        data: {
-          content,
-          version: { increment: 1 },
-          ...(!threadPublished && dto.diceNotations !== undefined
-            ? { pendingDiceNotations: canonicalDice }
-            : {}),
-        },
-        include:
-          generatedDice.length === 0
-            ? { author: { select: authorSelect }, ...includeDiceRolls() }
-            : undefined,
+    const updated = await this.prisma
+      .$transaction(async (tx) => {
+        const post = await tx.post.update({
+          where: { id, version: dto.version, ...notDeleted },
+          data: { content, version: { increment: 1 } },
+        });
+        if (threadPublished) {
+          await this.reconcilePublishedDice(tx, id, parsedContent.nodes, postLight.diceRolls ?? []);
+        }
+        return tx.post.findUniqueOrThrow({
+          where: { id: post.id },
+          include: { author: { select: authorSelect }, ...includeDiceRolls() },
+        });
+      })
+      .catch((err) => {
+        if (err?.code === 'P2025') {
+          throw new BusinessException(
+            ErrorCode.OPTIMISTIC_LOCK_CONFLICT,
+            '帖子已被编辑，请刷新后重试',
+            HttpStatus.CONFLICT,
+          );
+        }
+        throw err;
       });
-    const updated = await (
-      generatedDice.length === 0
-        ? updatePost(this.prisma)
-        : this.prisma.$transaction(async (tx) => {
-            const post = await updatePost(tx);
-            await tx.diceRoll.createMany({
-              data: this.diceService.buildCreateData(id, generatedDice, existingRollCount),
-            });
-            return tx.post.findUniqueOrThrow({
-              where: { id: post.id },
-              include: { author: { select: authorSelect }, ...includeDiceRolls() },
-            });
-          })
-    ).catch((err) => {
-      if (err?.code === 'P2025') {
-        throw new BusinessException(
-          ErrorCode.OPTIMISTIC_LOCK_CONFLICT,
-          '帖子已被编辑，请刷新后重试',
-          HttpStatus.CONFLICT,
-        );
-      }
-      throw err;
-    });
 
     // 编辑同步 @提及快照：新增目标通知，移除目标不再保留；全体玩家沿用首次快照。
     if (content !== oldContent) {

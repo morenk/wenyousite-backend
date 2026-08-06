@@ -9,7 +9,7 @@
 | 模型 | 用途 |
 |------|------|
 | `Post` | 帖子实体（正文 kind=BODY / 楼层 kind=FLOOR / 楼中楼回复） |
-| `DiceRoll` | 帖子的服务端正式骰子结果（按 sequence 排序且不可变） |
+| `DiceRoll` | 由正文内联节点 `nodeId` 关联的服务端正式骰子结果 |
 | `PostMention` | @提及记录（归属帖子，由 PostEventsListener 写入） |
 
 ## API 端点
@@ -30,17 +30,17 @@
 - 创建楼层、upsert 子贴正文和编辑帖子的 `data` 为 `PostResponseDto`。
 - 帖子详情的 `data` 为 `PostDetailResponseDto`，包含帖、子贴、父楼和回复计数导航上下文。
 - Web/Flutter 必须使用 Swagger 生成类型，不再手写帖子响应结构。
-- Post 响应包含 `pendingDiceNotations` 与 `diceRolls`；前者只用于未发布草稿，后者是服务端正式结果。
+- Post 响应的 `content` 包含内联骰子节点，`diceRolls` 按 `nodeId` 提供服务端正式结果；未发布节点没有对应结果。
 
 ## 核心业务规则
 
 - 发帖前校验主题帖访问权限（`ThreadAccessService.assertAccessible`）：私密帖非参与人被拒绝，未发布帖非 owner 被拒绝
 - 正文发布校验只过滤空白、空段落和独立分隔线；纯数字正文、裸 HTTP(S) URL 和 CommonMark 自动链接均属于有效内容
-- 楼层和楼中楼允许正文为空但至少有一个 `diceNotations`；BODY 发布时必须保留可见正文
-- 客户端只提交 `diceNotations: string[]`，正式点数由服务端生成。已发布帖子编辑只追加骰子，历史结果不可修改；单帖累计最多 20 次
+- 楼层和楼中楼允许正文只包含内联骰子节点；BODY 发布时必须保留节点之外的可见正文
+- 客户端只提交含 `[[dice:v1:<nodeId>:<notation>]]` 节点的正文，正式点数由服务端生成。已发布帖移动节点复用结果，删除节点物理删除结果，同一 nodeId 不得改写表达式；单帖最多 20 个节点
 - 创建、正文 upsert 和编辑在校验及存库前统一执行 Markdown v1 规范化；事件、提及和通知摘要使用同一 canonical 正文
 - 新版客户端创建楼层/楼中楼时携带 UUID `clientRequestId`；后端按 `authorId + clientRequestId` 唯一，相同请求重试返回首次创建的 Post，不重复占楼层号或发事件
-- 同一 `clientRequestId` 若复用于不同子贴、正文、骰子表达式、parentPostId 或 replyToPostId，返回 HTTP 409，禁止把不同业务请求误判为重试
+- 同一 `clientRequestId` 若复用于不同子贴、正文（包括内联骰子节点）、parentPostId 或 replyToPostId，返回 HTTP 409，禁止把不同业务请求误判为重试
 - 发帖权限校验在自动加入之前：被 PostingPolicy 拒绝时不会写入 ThreadMember 记录
 - 楼层编号 floorNumber 在事务内通过 `MAX(floorNumber) + 1` 分配，永不复用；普通楼层（kind=FLOOR）从 #1 开始
 - 正文帖（kind=BODY）floorNumber = null，不占楼层号
@@ -58,7 +58,7 @@
 - 发帖后通过 EventEmitter 发射 `post.created` 事件，由 PostEventsListener 解耦处理 @提及解析和通知投递
 - 编辑使用乐观锁 version 防止并发编辑冲突，且仅作者可编辑；删除允许作者或 OWNER/COLLABORATOR 软删除他人楼层/回复
 - `post.created` 事件携带发帖时 `authorRole` 与 `authorPlayerMarked` 快照，订阅通知不读取异步处理时的当前角色
-- 通知和最近动态摘要会附上最多 3 个 `表达式=总计`；纯骰子帖也能生成摘要。编辑追加骰子不发射 `post.created`
+- 通知和最近动态摘要会在原文位置显示 `表达式=总计`；纯骰子帖也能生成摘要。编辑骰子节点不发射 `post.created`
 
 ## 创建幂等切片验收
 

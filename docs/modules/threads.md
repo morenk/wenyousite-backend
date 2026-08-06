@@ -59,7 +59,7 @@
 - 沙盒迭代：楼主可在草稿内自由创建更多子贴（`POST subthreads`）、撰写楼层（`POST posts`），所有端点自动保存
 - 草稿列表：`GET /threads/draft` 返回当前用户所有未发布帖，按 createdAt DESC 排序
 - 发布校验：`PATCH /threads/:id { published: true }` 时校验 —— ① title 非空且非默认值"未命名草稿" ② category 已设置 ③ 默认子贴存在且有正文（存在 kind=BODY 的正文帖）
-- 草稿期各 Post 的 `pendingDiceNotations` 只保存投掷意图；发布事务会锁定 Thread，校验并结算全部帖子骰子、清空意图后才翻转 `published=true`，任一步失败整体回滚
+- 草稿期各 Post 的内联骰子节点只保存在 `content` 中；发布事务会锁定 Thread，校验并结算全部帖子节点后才翻转 `published=true`，任一步失败整体回滚
 - 发布后通知：校验通过后先回放草稿期内全部帖子的 post.created 事件（补解析 @提及和通知），再通知创建者的所有粉丝（thread_created 类型）
 - 草稿内发帖不触发 @提及解析和通知（`post.created` 事件仅在已发布帖下发帖时发射）
 - 草稿仅 owner 可查看和操作，非 owner 访问返回 404

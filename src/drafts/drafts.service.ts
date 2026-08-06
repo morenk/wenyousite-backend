@@ -33,11 +33,8 @@ export class DraftsService {
 
   /** 保存草稿：指定 slot 则覆盖，不指定自动选空闲位 */
   async create(dto: CreateDraftDto, userId: string) {
-    const content = normalizeMarkdownContent(dto.content);
-    const pendingDiceNotations = this.diceService.canonicalizeNotations(
-      dto.pendingDiceNotations ?? [],
-    );
-    this.assertSnapshotNotEmpty(content, pendingDiceNotations);
+    const parsedContent = this.diceService.parseContent(normalizeMarkdownContent(dto.content));
+    this.assertSnapshotNotEmpty(parsedContent.contentWithoutDice, parsedContent.nodes.length);
     let slot = dto.slot;
 
     if (!slot) {
@@ -66,7 +63,7 @@ export class DraftsService {
       return this.prisma.draft
         .update({
           where: { id: existing.id, version: dto.version },
-          data: { content, pendingDiceNotations, version: { increment: 1 } },
+          data: { content: parsedContent.content, version: { increment: 1 } },
         })
         .catch((error) => {
           if (error?.code === 'P2025') throw this.optimisticLockConflict();
@@ -75,7 +72,7 @@ export class DraftsService {
     }
 
     return this.prisma.draft.create({
-      data: { userId, slot, content, pendingDiceNotations },
+      data: { userId, slot, content: parsedContent.content },
     });
   }
 
@@ -85,21 +82,16 @@ export class DraftsService {
     content: string,
     version: number,
     userId: string,
-    pendingDiceNotationsInput?: string[],
   ) {
     const draft = await this.findById(id, userId);
     if (version !== draft.version) throw this.optimisticLockConflict();
-    const normalizedContent = normalizeMarkdownContent(content);
-    const pendingDiceNotations = this.diceService.canonicalizeNotations(
-      pendingDiceNotationsInput ?? [],
-    );
-    this.assertSnapshotNotEmpty(normalizedContent, pendingDiceNotations);
+    const parsedContent = this.diceService.parseContent(normalizeMarkdownContent(content));
+    this.assertSnapshotNotEmpty(parsedContent.contentWithoutDice, parsedContent.nodes.length);
     return this.prisma.draft
       .update({
         where: { id, version },
         data: {
-          content: normalizedContent,
-          pendingDiceNotations,
+          content: parsedContent.content,
           version: { increment: 1 },
         },
       })
@@ -136,8 +128,8 @@ export class DraftsService {
     );
   }
 
-  private assertSnapshotNotEmpty(content: string, pendingDiceNotations: string[]) {
-    if (!hasVisibleMarkdownContent(content) && pendingDiceNotations.length === 0) {
+  private assertSnapshotNotEmpty(contentWithoutDice: string, diceNodeCount: number) {
+    if (!hasVisibleMarkdownContent(contentWithoutDice) && diceNodeCount === 0) {
       throw new BusinessException(
         ErrorCode.BAD_REQUEST,
         '草稿正文和待掷骰子不能同时为空',

@@ -269,8 +269,8 @@ export class UsersController {
         subthreadId: true,
         subthread: { select: { title: true } },
         diceRolls: {
-          orderBy: { sequence: 'asc' },
-          select: { notation: true, total: true },
+          orderBy: { createdAt: 'asc' },
+          select: { nodeId: true, notation: true, total: true },
         },
       },
       orderBy: { createdAt: 'desc' },

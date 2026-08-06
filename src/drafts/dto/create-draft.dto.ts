@@ -1,7 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  ArrayMaxSize,
-  IsArray,
   IsString,
   IsOptional,
   MaxLength,
@@ -14,25 +12,12 @@ import {
 export class CreateDraftDto {
   @ApiProperty({
     example: '这是一段草稿内容...',
-    description: '草稿正文；允许为空，但必须至少包含一个待掷骰子',
+    description: '草稿正文；待掷骰子作为内联节点包含在正文中',
     maxLength: 10000,
   })
   @IsString()
   @MaxLength(10000)
   content: string;
-
-  @ApiPropertyOptional({
-    type: [String],
-    example: ['1d20'],
-    maxItems: 20,
-    description: '待掷骰子表达式，与正文作为同一版本快照保存',
-  })
-  @IsOptional()
-  @IsArray()
-  @ArrayMaxSize(20)
-  @IsString({ each: true })
-  @MaxLength(32, { each: true })
-  pendingDiceNotations?: string[];
 
   @ApiPropertyOptional({ example: 1, description: '草稿位（1-5），不传则自动选择空闲位' })
   @IsOptional()

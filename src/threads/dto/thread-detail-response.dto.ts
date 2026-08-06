@@ -11,9 +11,6 @@ class ThreadBodyPostResponseDto {
   @ApiProperty({ minimum: 1 })
   version!: number;
 
-  @ApiProperty({ type: [String] })
-  pendingDiceNotations!: string[];
-
   @ApiProperty({ type: [DiceRollResponseDto] })
   diceRolls!: DiceRollResponseDto[];
 }

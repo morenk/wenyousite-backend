@@ -5,6 +5,14 @@ import { ErrorCode } from '../common/exceptions/error-codes';
 
 export const MAX_DICE_ROLLS_PER_POST = 20;
 export const DICE_PROTOCOL_VERSION = 1;
+export const DICE_NODE_PREFIX = '[[dice:v1:';
+
+const UUID_V4_SOURCE =
+  '[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
+const DICE_NODE_AT_START_RE = new RegExp(
+  `^\\[\\[dice:v1:(${UUID_V4_SOURCE}):([^\\]\\r\\n]{1,32})\\]\\]`,
+  'iu',
+);
 
 export interface ParsedDiceNotation {
   notation: string;
@@ -13,18 +21,31 @@ export interface ParsedDiceNotation {
   modifier: number;
 }
 
+export interface DiceNodeIntent extends ParsedDiceNotation {
+  nodeId: string;
+}
+
+export interface ParsedDiceContent {
+  content: string;
+  contentWithoutDice: string;
+  nodes: DiceNodeIntent[];
+}
+
 export interface GeneratedDiceRoll extends ParsedDiceNotation {
   protocolVersion: number;
   results: number[];
   total: number;
 }
 
-export interface DiceRollCreateData extends GeneratedDiceRoll {
-  postId: string;
-  sequence: number;
+export interface GeneratedDiceNodeRoll extends GeneratedDiceRoll {
+  nodeId: string;
 }
 
-/** 基础骰子协议：白名单解析 NdM±K，并由服务端密码学随机源生成正式结果。 */
+export interface DiceRollCreateData extends GeneratedDiceNodeRoll {
+  postId: string;
+}
+
+/** 基础骰子协议：正文保存位置节点，正式结果仅由服务端密码学随机源生成。 */
 @Injectable()
 export class DiceService {
   private readonly logger = new Logger(DiceService.name);
@@ -64,19 +85,98 @@ export class DiceService {
     };
   }
 
-  validateNotations(notations: string[] = [], existingCount = 0): ParsedDiceNotation[] {
-    if (existingCount + notations.length > MAX_DICE_ROLLS_PER_POST) {
+  /** 解析并规范化正文中的骰子节点；代码、围栏代码和反斜杠转义中的标记保持为普通文字。 */
+  parseContent(markdown: string): ParsedDiceContent {
+    const lines = markdown.split('\n');
+    const nodes: DiceNodeIntent[] = [];
+    const nodeIds = new Set<string>();
+    const canonicalLines: string[] = [];
+    const withoutDiceLines: string[] = [];
+    let fence: { marker: '`' | '~'; length: number } | null = null;
+
+    for (const line of lines) {
+      const fenceToken = line.match(/^ {0,3}(`{3,}|~{3,})/)?.[1];
+      if (fence) {
+        canonicalLines.push(line);
+        withoutDiceLines.push(line);
+        const closing = line.match(/^ {0,3}(`{3,}|~{3,})[\t ]*$/)?.[1];
+        if (closing?.[0] === fence.marker && closing.length >= fence.length) fence = null;
+        continue;
+      }
+      if (fenceToken) {
+        fence = { marker: fenceToken[0] as '`' | '~', length: fenceToken.length };
+        canonicalLines.push(line);
+        withoutDiceLines.push(line);
+        continue;
+      }
+
+      let canonical = '';
+      let withoutDice = '';
+      let index = 0;
+      while (index < line.length) {
+        if (line[index] === '\\') {
+          const escaped = line.slice(index, Math.min(index + 2, line.length));
+          canonical += escaped;
+          withoutDice += escaped;
+          index += escaped.length;
+          continue;
+        }
+
+        if (line[index] === '`') {
+          let runLength = 1;
+          while (line[index + runLength] === '`') runLength++;
+          const delimiter = '`'.repeat(runLength);
+          const closingIndex = line.indexOf(delimiter, index + runLength);
+          if (closingIndex >= 0) {
+            const code = line.slice(index, closingIndex + runLength);
+            canonical += code;
+            withoutDice += code;
+            index = closingIndex + runLength;
+            continue;
+          }
+        }
+
+        if (
+          line.slice(index, index + DICE_NODE_PREFIX.length).toLowerCase() === DICE_NODE_PREFIX
+        ) {
+          const match = DICE_NODE_AT_START_RE.exec(line.slice(index));
+          if (!match) this.invalidNode('骰子节点格式不合法');
+          const nodeId = match![1].toLowerCase();
+          if (nodeIds.has(nodeId)) this.invalidNode('同一正文中不能重复使用骰子节点');
+          const parsed = this.parse(match![2]);
+          const marker = this.serializeNode(nodeId, parsed.notation);
+          nodeIds.add(nodeId);
+          nodes.push({ nodeId, ...parsed });
+          canonical += marker;
+          index += match![0].length;
+          continue;
+        }
+
+        canonical += line[index];
+        withoutDice += line[index];
+        index++;
+      }
+      canonicalLines.push(canonical);
+      withoutDiceLines.push(withoutDice);
+    }
+
+    if (nodes.length > MAX_DICE_ROLLS_PER_POST) {
       throw new BusinessException(
         ErrorCode.DICE_ROLL_LIMIT_EXCEEDED,
-        `每个帖子最多包含 ${MAX_DICE_ROLLS_PER_POST} 次骰子结果`,
+        `每个帖子最多包含 ${MAX_DICE_ROLLS_PER_POST} 个骰子节点`,
         HttpStatus.BAD_REQUEST,
       );
     }
-    return notations.map((notation) => this.parse(notation));
+
+    return {
+      content: canonicalLines.join('\n'),
+      contentWithoutDice: withoutDiceLines.join('\n'),
+      nodes,
+    };
   }
 
-  canonicalizeNotations(notations: string[] = [], existingCount = 0): string[] {
-    return this.validateNotations(notations, existingCount).map((parsed) => parsed.notation);
+  serializeNode(nodeId: string, notation: string): string {
+    return `${DICE_NODE_PREFIX}${nodeId}:${notation}]]`;
   }
 
   roll(parsed: ParsedDiceNotation): GeneratedDiceRoll {
@@ -106,26 +206,26 @@ export class DiceService {
     }
   }
 
-  rollAll(parsed: ParsedDiceNotation[]): GeneratedDiceRoll[] {
-    return parsed.map((notation) => this.roll(notation));
+  rollNodes(nodes: DiceNodeIntent[]): GeneratedDiceNodeRoll[] {
+    return nodes.map((node) => ({ nodeId: node.nodeId, ...this.roll(node) }));
   }
 
-  buildCreateData(
-    postId: string,
-    rolls: GeneratedDiceRoll[],
-    existingCount = 0,
-  ): DiceRollCreateData[] {
-    return rolls.map((roll, index) => ({
-      postId,
-      sequence: existingCount + index + 1,
-      ...roll,
-    }));
+  buildCreateData(postId: string, rolls: GeneratedDiceNodeRoll[]): DiceRollCreateData[] {
+    return rolls.map((roll) => ({ postId, ...roll }));
   }
 
   private invalidNotation(): never {
     throw new BusinessException(
       ErrorCode.INVALID_DICE_NOTATION,
       '骰子表达式不合法，请使用 NdM、NdM+K 或 NdM-K',
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  private invalidNode(message: string): never {
+    throw new BusinessException(
+      ErrorCode.INVALID_DICE_NOTATION,
+      message,
       HttpStatus.BAD_REQUEST,
     );
   }

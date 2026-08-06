@@ -93,11 +93,11 @@
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
 | GET | `/subthreads/:id/posts` | Public | 楼层列表（Cursor 分页），只返回 kind=FLOOR（不含正文），主楼层 parentPostId=null，内嵌每个楼层前 3 条楼中楼回复 |
-| POST | `/subthreads/:id/posts` | Auth | 发帖（可带 `diceNotations`；楼层/楼中楼允许纯骰子），需邮箱已验证，事务分配 floorNumber 和正式骰子结果 |
-| PUT | `/subthreads/:id/body` | Auth | upsert 子贴正文（可带 `diceNotations`；仅 OWNER/COLLABORATOR；已发布 BODY 必须有正文） |
+| POST | `/subthreads/:id/posts` | Auth | 发帖（骰子节点内联在 content；楼层/楼中楼允许纯骰子），需邮箱已验证，事务分配 floorNumber 和正式骰子结果 |
+| PUT | `/subthreads/:id/body` | Auth | upsert 子贴正文（骰子节点内联在 content；仅 OWNER/COLLABORATOR；已发布 BODY 必须有节点之外的正文） |
 | GET | `/posts/:id` | Public | 帖子详情 |
 | GET | `/posts/:id/replies` | Public | 主楼层的楼中楼回复列表（Cursor 分页，createdAt + id 稳定正序；正文或回复 ID 返回 404） |
-| PATCH | `/posts/:id` | Auth | 编辑（仅作者自己；可追加骰子且历史结果不可变），需邮箱已验证，乐观锁 |
+| PATCH | `/posts/:id` | Auth | 编辑（仅作者自己；骰子节点移动保留、删除清理、同 ID 禁止改表达式），需邮箱已验证，乐观锁 |
 | DELETE | `/posts/:id` | Auth | 软删除楼层（仅作者，正文 kind=BODY 不可删），需邮箱已验证 |
 
 ## 草稿端点 (Drafts)
@@ -106,8 +106,8 @@
 |------|------|------|------|
 | GET | `/drafts` | AuthRead | 当前用户草稿列表 |
 | GET | `/drafts/:id` | AuthRead | 获取单条草稿 |
-| POST | `/drafts` | Auth | 原子保存 `content + pendingDiceNotations` 快照（不传 slot 自动选空位），需邮箱已验证 |
-| PATCH | `/drafts/:id` | Auth | 原子更新正文与待掷骰子快照，需邮箱已验证和 version |
+| POST | `/drafts` | Auth | 原子保存完整 `content` 快照（含内联骰子节点；不传 slot 自动选空位），需邮箱已验证 |
+| PATCH | `/drafts/:id` | Auth | 原子更新完整 content 快照，需邮箱已验证和 version |
 | DELETE | `/drafts/:id` | Auth | 删除草稿，需邮箱已验证 |
 | GET | `/drafts/slots` | AuthRead | 槽位使用情况（usedSlots / maxSlots） |
 

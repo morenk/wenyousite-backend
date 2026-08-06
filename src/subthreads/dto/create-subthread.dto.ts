@@ -1,7 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  ArrayMaxSize,
-  IsArray,
   IsString,
   IsOptional,
   MinLength,
@@ -27,19 +25,6 @@ export class CreateSubthreadDto {
   @IsString()
   @MaxLength(10000)
   content?: string;
-
-  @ApiPropertyOptional({
-    type: [String],
-    example: ['1d20'],
-    maxItems: 20,
-    description: '子贴正文的骰子表达式；草稿阶段仅保存待掷意图',
-  })
-  @IsOptional()
-  @IsArray()
-  @ArrayMaxSize(20)
-  @IsString({ each: true })
-  @MaxLength(32, { each: true })
-  diceNotations?: string[];
 
   @ApiPropertyOptional({ example: 1, description: '排序序号，越小越靠前' })
   @IsOptional()

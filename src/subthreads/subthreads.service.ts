@@ -60,14 +60,18 @@ export class SubthreadsService {
     });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
 
-    const content = normalizeMarkdownContent(dto.content ?? '');
-    const parsedDice = this.diceService.validateNotations(dto.diceNotations ?? []);
-    const canonicalDice = parsedDice.map((dice) => dice.notation);
-    if (thread.published && canonicalDice.length > 0 && !hasVisibleMarkdownContent(content)) {
+    const parsedContent = this.diceService.parseContent(
+      normalizeMarkdownContent(dto.content ?? ''),
+    );
+    const content = parsedContent.content;
+    const hasText = hasVisibleMarkdownContent(parsedContent.contentWithoutDice);
+    if (thread.published && parsedContent.nodes.length > 0 && !hasText) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '子贴正文必须包含可见文字');
     }
-    const hasBody = hasVisibleMarkdownContent(content) || canonicalDice.length > 0;
-    const generatedDice = thread.published ? this.diceService.rollAll(parsedDice) : [];
+    const hasBody = hasText || parsedContent.nodes.length > 0;
+    const generatedDice = thread.published
+      ? this.diceService.rollNodes(parsedContent.nodes)
+      : [];
     const postingPolicy = dto.postingPolicy ?? ('PARTICIPANTS' as any);
 
     const result = await this.prisma
@@ -109,7 +113,6 @@ export class SubthreadsService {
               authorId: userId,
               kind: 'BODY',
               content,
-              pendingDiceNotations: thread.published ? [] : canonicalDice,
             },
             include: { author: { select: { username: true } } },
           });
@@ -121,7 +124,7 @@ export class SubthreadsService {
               where: { id: bodyPost.id },
               include: {
                 author: { select: { username: true } },
-                diceRolls: { orderBy: { sequence: 'asc' } },
+                diceRolls: { orderBy: { createdAt: 'asc' } },
               },
             });
           } else {

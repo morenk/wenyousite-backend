@@ -1,37 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  ArrayMaxSize,
-  IsArray,
-  IsString,
-  IsOptional,
-  IsInt,
-  MaxLength,
-  Min,
-} from 'class-validator';
+import { IsString, IsOptional, IsInt, MaxLength, Min } from 'class-validator';
 
 /** 写入子贴正文 DTO（upsert：无正文创建，有正文乐观锁更新） */
 export class UpsertBodyDto {
   @ApiProperty({
     example: '这里是子贴正文…',
-    description: '正文（Markdown）；发布时必须包含可见文字',
+    description: '正文（Markdown）；骰子使用内联节点，发布时仍必须包含非骰子可见文字',
     maxLength: 10000,
   })
   @IsString()
   @MaxLength(10000)
   content: string;
-
-  @ApiPropertyOptional({
-    type: [String],
-    example: ['1d20'],
-    maxItems: 20,
-    description: '正文关联的待掷表达式；发布后只能追加，不能修改已有结果',
-  })
-  @IsOptional()
-  @IsArray()
-  @ArrayMaxSize(20)
-  @IsString({ each: true })
-  @MaxLength(32, { each: true })
-  diceNotations?: string[];
 
   @ApiPropertyOptional({
     example: 1,

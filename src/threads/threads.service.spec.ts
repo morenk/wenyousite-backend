@@ -649,8 +649,16 @@ describe('ThreadsService', () => {
         },
         post: {
           findMany: jest.fn().mockResolvedValue([
-            { id: 'p1', pendingDiceNotations: ['1d20'], diceRolls: [] },
-            { id: 'p2', pendingDiceNotations: ['2d6+3'], diceRolls: [{ id: 'old' }] },
+            {
+              id: 'p1',
+              content:
+                '[[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20]]',
+            },
+            {
+              id: 'p2',
+              content:
+                '[[dice:v1:550e8400-e29b-41d4-a716-446655440001:2d6+3]]',
+            },
           ]),
           update: jest.fn().mockResolvedValue({}),
         },
@@ -660,9 +668,10 @@ describe('ThreadsService', () => {
       mockPrisma.post.findMany.mockResolvedValue([]);
       mockPrisma.userFollow.findMany.mockResolvedValue([]);
       jest
-        .spyOn(diceService, 'rollAll')
+        .spyOn(diceService, 'rollNodes')
         .mockReturnValueOnce([
           {
+            nodeId: '550e8400-e29b-41d4-a716-446655440000',
             notation: '1d20',
             quantity: 1,
             sides: 20,
@@ -674,6 +683,7 @@ describe('ThreadsService', () => {
         ])
         .mockReturnValueOnce([
           {
+            nodeId: '550e8400-e29b-41d4-a716-446655440001',
             notation: '2d6+3',
             quantity: 2,
             sides: 6,
@@ -687,15 +697,27 @@ describe('ThreadsService', () => {
       await service.update('t1', { version: 1, published: true }, 'u1');
 
       expect(tx.diceRoll.createMany).toHaveBeenNthCalledWith(1, {
-        data: [expect.objectContaining({ postId: 'p1', sequence: 1, total: 14 })],
+        data: [
+          expect.objectContaining({
+            postId: 'p1',
+            nodeId: '550e8400-e29b-41d4-a716-446655440000',
+            total: 14,
+          }),
+        ],
       });
       expect(tx.diceRoll.createMany).toHaveBeenNthCalledWith(2, {
-        data: [expect.objectContaining({ postId: 'p2', sequence: 2, total: 10 })],
+        data: [
+          expect.objectContaining({
+            postId: 'p2',
+            nodeId: '550e8400-e29b-41d4-a716-446655440001',
+            total: 10,
+          }),
+        ],
       });
       expect(tx.post.update).toHaveBeenCalledTimes(2);
       expect(tx.post.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: { pendingDiceNotations: [], version: { increment: 1 } },
+          data: { version: { increment: 1 } },
         }),
       );
       expect(tx.thread.update).toHaveBeenCalledWith(
@@ -721,14 +743,21 @@ describe('ThreadsService', () => {
         post: {
           findMany: jest
             .fn()
-            .mockResolvedValue([{ id: 'p1', pendingDiceNotations: ['1d20'], diceRolls: [] }]),
+            .mockResolvedValue([
+              {
+                id: 'p1',
+                content:
+                  '[[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20]]',
+              },
+            ]),
           update: jest.fn(),
         },
         diceRoll: { createMany: jest.fn().mockRejectedValue(new Error('db write failed')) },
       };
       mockPrisma.$transaction.mockImplementation(async (fn) => fn(tx));
-      jest.spyOn(diceService, 'rollAll').mockReturnValue([
+      jest.spyOn(diceService, 'rollNodes').mockReturnValue([
         {
+          nodeId: '550e8400-e29b-41d4-a716-446655440000',
           notation: '1d20',
           quantity: 1,
           sides: 20,

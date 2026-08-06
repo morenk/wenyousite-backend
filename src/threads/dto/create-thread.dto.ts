@@ -1,6 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  ArrayMaxSize,
   IsString,
   IsOptional,
   MinLength,
@@ -42,19 +41,6 @@ export class CreateThreadDto {
   @IsString()
   @MaxLength(10000)
   content?: string;
-
-  @ApiPropertyOptional({
-    type: [String],
-    example: ['1d20'],
-    maxItems: 20,
-    description: '默认子贴正文的待掷表达式，保存草稿时不生成结果',
-  })
-  @IsOptional()
-  @IsArray()
-  @ArrayMaxSize(20)
-  @IsString({ each: true })
-  @MaxLength(32, { each: true })
-  diceNotations?: string[];
 
   @ApiPropertyOptional({
     example: '主帖',

@@ -243,8 +243,7 @@
 | floorNumber | Int? | unique per subthread | 楼层号（正文与楼中楼为 null） |
 | parentPostId | String? | FK posts | 父楼层（楼中楼用） |
 | replyToPostId | String? | FK posts | 被回复的帖子 ID |
-| content | String | — | 正文（Markdown，含图片 URL） |
-| pendingDiceNotations | String[] | default [] | 未发布主题帖中的待掷表达式；发布事务结算后清空 |
+| content | String | — | 正文（Markdown，含图片 URL 与内联骰子节点） |
 | version | Int | default 1 | 乐观锁 |
 | deletedAt | DateTime? | — | 软删除时间 |
 | createdAt | DateTime | — | — |
@@ -260,7 +259,7 @@
 |------|------|------|------|
 | id | String | PK | — |
 | postId | String | FK posts (Cascade) | 所属帖子 |
-| sequence | Int | unique per post | 帖子内稳定序号，从 1 开始 |
+| nodeId | UUID | unique per post | 正文内联节点 ID，用于关联显示位置与结果 |
 | protocolVersion | Int | default 1 | 骰子协议版本 |
 | notation | String | — | 规范化表达式 |
 | quantity / sides / modifier | Int | — | 表达式结构化字段 |
@@ -268,7 +267,7 @@
 | total | Int | — | 逐骰之和加修正值 |
 | createdAt | DateTime | — | 正式结果生成时间 |
 
-`@@unique([postId, sequence])`。迁移另用 CHECK 约束保护序号、数量、面数、修正值和结果数组长度；结果创建后不提供更新或重掷路径，帖子软删除时查询层隐藏，硬删除时级联清理。
+`@@unique([postId, nodeId])`。迁移另用 CHECK 约束保护数量、面数、修正值和结果数组长度；已发布编辑按 nodeId 对账，移动保留结果、删除物理清理、同 ID 改表达式拒绝。帖子软删除时查询层隐藏，硬删除时级联清理。
 
 #### 历史迁移重放兼容
 
@@ -307,8 +306,7 @@
 | id | String | PK | — |
 | userId | String | FK users (Cascade) | — |
 | slot | Int | default 1 | 草稿位编号（1-5） |
-| content | String | — | 草稿内容（Markdown） |
-| pendingDiceNotations | String[] | default [] | 与 content 同版本保存的待掷骰子表达式 |
+| content | String | — | 完整草稿内容（Markdown，内联骰子节点与正文同版本保存） |
 | version | Int | default 1 | 跨设备乐观锁版本 |
 | createdAt | DateTime | — | — |
 | updatedAt | DateTime | @updatedAt | — |

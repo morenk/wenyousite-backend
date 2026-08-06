@@ -1125,6 +1125,12 @@ describe('发帖全流程集成测试', () => {
         content: '编辑后',
         author: { username: 'test' },
       });
+      prisma.post.findUniqueOrThrow.mockResolvedValue({
+        id: 'p1',
+        content: '编辑后',
+        author: { username: 'test' },
+        diceRolls: [],
+      });
       const result = await postsService.update('p1', { version: 1, content: '编辑后' }, 'u1');
       expect(result.content).toBe('编辑后');
     });

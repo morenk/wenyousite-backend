@@ -46,7 +46,7 @@ describe('DraftsService', () => {
     expect(result.content).toBe('updated');
     expect(mockPrisma.draft.update).toHaveBeenCalledWith({
       where: { id: 'old', version: 2 },
-      data: { content: 'updated', pendingDiceNotations: [], version: { increment: 1 } },
+      data: { content: 'updated', version: { increment: 1 } },
     });
   });
 
@@ -58,42 +58,34 @@ describe('DraftsService', () => {
 
     expect(mockPrisma.draft.update).toHaveBeenCalledWith({
       where: { id: 'old', version: 1 },
-      data: { content: '正文\n<br />\n', pendingDiceNotations: [], version: { increment: 1 } },
+      data: { content: '正文\n<br />\n', version: { increment: 1 } },
     });
   });
 
-  it('允许纯骰子云草稿，并将正文与待掷列表作为同一版本快照写入', async () => {
+  it('允许纯骰子云草稿，并把节点位置作为正文快照写入', async () => {
+    const node = '[[dice:v1:550e8400-e29b-41d4-a716-446655440000:2D6 + 03]]';
     mockPrisma.draft.findUnique.mockResolvedValue(null);
     mockPrisma.draft.create.mockResolvedValue({
       id: 'd-dice',
       slot: 2,
-      content: '',
-      pendingDiceNotations: ['1d20', '2d6+3'],
+      content: node,
       version: 1,
     });
 
-    await service.create(
-      {
-        content: '',
-        slot: 2,
-        pendingDiceNotations: [' d20 ', '2D6 + 3'],
-      },
-      'u1',
-    );
+    await service.create({ content: node, slot: 2 }, 'u1');
 
     expect(mockPrisma.draft.create).toHaveBeenCalledWith({
       data: {
         userId: 'u1',
         slot: 2,
-        content: '',
-        pendingDiceNotations: ['1d20', '2d6+3'],
+        content: '[[dice:v1:550e8400-e29b-41d4-a716-446655440000:2d6+3]]',
       },
     });
   });
 
   it('正文与待掷骰子同时为空时拒绝保存', async () => {
     await expect(
-      service.create({ content: '', pendingDiceNotations: [] }, 'u1'),
+      service.create({ content: '' }, 'u1'),
     ).rejects.toMatchObject({ errorCode: ErrorCode.BAD_REQUEST });
     expect(mockPrisma.draft.create).not.toHaveBeenCalled();
     expect(mockPrisma.draft.update).not.toHaveBeenCalled();
@@ -151,7 +143,7 @@ describe('DraftsService', () => {
 
     expect(mockPrisma.draft.update).toHaveBeenCalledWith({
       where: { id: 'd1', version: 1 },
-      data: { content: '正文\n<br />', pendingDiceNotations: [], version: { increment: 1 } },
+      data: { content: '正文\n<br />', version: { increment: 1 } },
     });
   });
 

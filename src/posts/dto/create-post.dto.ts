@@ -1,30 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ArrayMaxSize, IsArray, IsString, IsOptional, MaxLength, IsUUID } from 'class-validator';
+import { IsString, IsOptional, MaxLength, IsUUID } from 'class-validator';
 import { IsCuid } from '../../common/decorators/is-cuid.decorator';
 
 /** 创建帖子 DTO */
 export class CreatePostDto {
   @ApiProperty({
     example: '这是一段正文内容，支持 Markdown 格式。',
-    description: '帖子正文；允许为空，但此时必须至少提交一个骰子表达式',
+    description: '帖子正文；骰子使用 [[dice:v1:<UUID>:<NdM±K>]] 内联节点',
     maxLength: 10000,
   })
   @IsString()
   @MaxLength(10000)
   content: string;
-
-  @ApiPropertyOptional({
-    type: [String],
-    example: ['1d20', '2d6+3'],
-    maxItems: 20,
-    description: '待掷骰子表达式；服务端仅接受 NdM±K 并生成正式结果',
-  })
-  @IsOptional()
-  @IsArray()
-  @ArrayMaxSize(20)
-  @IsString({ each: true })
-  @MaxLength(32, { each: true })
-  diceNotations?: string[];
 
   @ApiPropertyOptional({
     example: 'clxfloor001...',

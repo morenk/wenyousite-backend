@@ -78,13 +78,7 @@ export class DraftsController {
   @ApiConflictResponse({ description: 'version 已过期' })
   async update(@Param('id') id: string, @Body() dto: UpdateDraftDto, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
-    return this.draftsService.update(
-      id,
-      dto.content,
-      dto.version,
-      user.id,
-      dto.pendingDiceNotations,
-    );
+    return this.draftsService.update(id, dto.content, dto.version, user.id);
   }
 
   @Delete(':id')

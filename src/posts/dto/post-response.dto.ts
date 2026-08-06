@@ -12,8 +12,8 @@ export class DiceRollResponseDto {
   @ApiProperty()
   postId!: string;
 
-  @ApiProperty({ minimum: 1, maximum: 20 })
-  sequence!: number;
+  @ApiProperty({ format: 'uuid', description: '正文内联节点 ID' })
+  nodeId!: string;
 
   @ApiProperty({ example: 1, description: '骰子结果协议版本' })
   protocolVersion!: number;
@@ -89,12 +89,9 @@ export class PostBaseResponseDto {
   @ApiProperty({ description: 'Markdown 正文' })
   content!: string;
 
-  @ApiProperty({ type: [String], description: '未发布主题内尚未结算的规范化骰子表达式' })
-  pendingDiceNotations!: string[];
-
   @ApiProperty({
     type: [DiceRollResponseDto],
-    description: '服务端生成的正式骰子结果，按 sequence 排序',
+    description: '服务端生成的正式骰子结果；客户端按 nodeId 映射到正文位置',
   })
   diceRolls!: DiceRollResponseDto[];
 

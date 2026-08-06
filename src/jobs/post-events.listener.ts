@@ -222,5 +222,5 @@ export interface PostCreatedEvent {
   isSubthreadBody?: boolean;
   authorRole: 'OWNER' | 'COLLABORATOR' | 'PARTICIPANT';
   authorPlayerMarked: boolean;
-  diceRolls?: { notation: string; total: number }[];
+  diceRolls?: { nodeId: string; notation: string; total: number }[];
 }

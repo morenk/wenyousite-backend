@@ -24,7 +24,7 @@ import {
   attachPlayerCounts,
 } from '../common/prisma-helpers';
 import { truncateMarkdown } from '../common/markdown-truncate';
-import { hasVisibleMarkdownContent } from '../common/markdown-content';
+import { hasVisibleMarkdownContent, normalizeMarkdownContent } from '../common/markdown-content';
 import { DiceService } from '../dice/dice.service';
 
 /** 帖子列表 ZSET 键名 */
@@ -56,8 +56,11 @@ export class ThreadsService {
     const subthreadTitle = dto.subthreadTitle ?? title;
     const category = dto.category ?? 'DEDUCTION';
     const visibility = dto.visibility ?? 'PUBLIC';
-    const canonicalDice = this.diceService.canonicalizeNotations(dto.diceNotations ?? []);
-    const hasBody = !!dto.content?.trim() || canonicalDice.length > 0;
+    const parsedContent = this.diceService.parseContent(
+      normalizeMarkdownContent(dto.content ?? ''),
+    );
+    const hasBody =
+      hasVisibleMarkdownContent(parsedContent.contentWithoutDice) || parsedContent.nodes.length > 0;
 
     const result = await this.prisma.$transaction(async (tx) => {
       // 0. 草稿数上限校验：未发布草稿超过上限则拒绝创建
@@ -94,8 +97,7 @@ export class ThreadsService {
             subthreadId: subthread.id,
             authorId: userId,
             kind: 'BODY',
-            content: dto.content ?? '',
-            pendingDiceNotations: canonicalDice,
+            content: parsedContent.content,
           },
         });
       }
@@ -737,35 +739,24 @@ export class ThreadsService {
         where: { threadId: id, ...notDeleted, subthread: { deletedAt: null } },
         select: {
           id: true,
-          pendingDiceNotations: true,
-          diceRolls: { select: { id: true } },
+          content: true,
         },
         orderBy: { createdAt: 'asc' },
       });
 
-      const validated = posts.map((post) => ({
+      const generated = posts.map((post) => ({
         post,
-        parsed: this.diceService.validateNotations(
-          post.pendingDiceNotations,
-          post.diceRolls.length,
-        ),
-      }));
-      const generated = validated.map(({ post, parsed }) => ({
-        post,
-        rolls: this.diceService.rollAll(parsed),
+        rolls: this.diceService.rollNodes(this.diceService.parseContent(post.content).nodes),
       }));
 
       for (const { post, rolls } of generated) {
         if (rolls.length === 0) continue;
         await tx.diceRoll.createMany({
-          data: this.diceService.buildCreateData(post.id, rolls, post.diceRolls.length),
+          data: this.diceService.buildCreateData(post.id, rolls),
         });
         await tx.post.update({
           where: { id: post.id },
-          data: {
-            pendingDiceNotations: [],
-            version: { increment: 1 },
-          },
+          data: { version: { increment: 1 } },
         });
       }
 
@@ -819,7 +810,8 @@ export class ThreadsService {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '请至少创建一个子贴后再发布');
     }
     const bodyContent = defaultSubthread.posts[0]?.content ?? '';
-    if (!hasVisibleMarkdownContent(bodyContent)) {
+    const parsedBody = this.diceService.parseContent(bodyContent);
+    if (!hasVisibleMarkdownContent(parsedBody.contentWithoutDice)) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '请将子贴至少填写正文再发布');
     }
   }
@@ -936,7 +928,7 @@ export class ThreadsService {
         subthread: { select: { title: true } },
         parentPostId: true,
         replyToPostId: true,
-        diceRolls: { orderBy: { sequence: 'asc' } },
+        diceRolls: { orderBy: { createdAt: 'asc' } },
       },
       orderBy: { createdAt: 'asc' },
     });

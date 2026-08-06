@@ -41,8 +41,52 @@ describe('DiceService', () => {
     }
   });
 
-  it('限制每帖最多二十次结果', () => {
-    expect(() => service.validateNotations(['1d6'], 20)).toThrow(
+  it('解析正文节点并规范化表达式，同时忽略代码和转义文本', () => {
+    const id = '550e8400-e29b-41d4-a716-446655440000';
+    const result = service.parseContent(
+      `检定 [[dice:v1:${id}:2D6 + 03]] 完成\n\`[[dice:v1:${id}:1d20]]\`\n\\[[dice:v1:${id}:1d8]]`,
+    );
+    expect(result.nodes).toEqual([
+      { nodeId: id, notation: '2d6+3', quantity: 2, sides: 6, modifier: 3 },
+    ]);
+    expect(result.content).toContain(`[[dice:v1:${id}:2d6+3]]`);
+    expect(result.contentWithoutDice).toContain('检定  完成');
+  });
+
+  it('大小写不同的协议前缀也会规范化为 canonical 节点', () => {
+    const id = '550E8400-E29B-41D4-A716-446655440000';
+    const result = service.parseContent(`[[DICE:V1:${id}:D20]]`);
+
+    expect(result.nodes).toEqual([
+      {
+        nodeId: id.toLowerCase(),
+        notation: '1d20',
+        quantity: 1,
+        sides: 20,
+        modifier: 0,
+      },
+    ]);
+    expect(result.content).toBe(`[[dice:v1:${id.toLowerCase()}:1d20]]`);
+  });
+
+  it('拒绝重复节点、非法 UUID 和超过二十个节点', () => {
+    const id = '550e8400-e29b-41d4-a716-446655440000';
+    expect(() =>
+      service.parseContent(`[[dice:v1:${id}:1d6]] [[dice:v1:${id}:1d8]]`),
+    ).toThrow(BusinessException);
+    expect(() => service.parseContent('[[dice:v1:not-a-uuid:1d6]]')).toThrow(
+      BusinessException,
+    );
+    try {
+      service.parseContent('[[dice:v1:not-a-uuid:1d6]]');
+    } catch (error) {
+      expect(error).toMatchObject({ errorCode: ErrorCode.INVALID_DICE_NOTATION });
+    }
+    const markers = Array.from({ length: 21 }, (_, index) => {
+      const suffix = index.toString(16).padStart(12, '0');
+      return `[[dice:v1:550e8400-e29b-41d4-a716-${suffix}:1d6]]`;
+    }).join(' ');
+    expect(() => service.parseContent(markers)).toThrow(
       expect.objectContaining({ errorCode: ErrorCode.DICE_ROLL_LIMIT_EXCEEDED }),
     );
   });

@@ -13,9 +13,9 @@ export const countNonDeletedReplies = () => ({
   _count: { select: { replies: { where: notDeleted } } },
 });
 
-/** 骰子结果始终按帖子内稳定序号返回。 */
+/** 结果顺序不承载正文位置语义；客户端按 nodeId 映射到正文节点。 */
 export const includeDiceRolls = () => ({
-  diceRolls: { orderBy: { sequence: 'asc' as const } },
+  diceRolls: { orderBy: { createdAt: 'asc' as const } },
 });
 
 /** 主题帖 include: 非删子贴列表，按 sortOrder 升序，含楼层计数、标签与正文（kind=BODY）回填 */
@@ -34,8 +34,7 @@ export const includeSubthreads = (select?: Record<string, boolean>) => ({
           id: true,
           content: true,
           version: true,
-          pendingDiceNotations: true,
-          diceRolls: { orderBy: { sequence: 'asc' as const } },
+          diceRolls: { orderBy: { createdAt: 'asc' as const } },
         },
       },
       ...(select ? { select } : {}),

@@ -384,7 +384,6 @@ model Post {
   replyToPostId        String?   @map("reply_to_post_id")
   clientRequestId      String?   @map("client_request_id") @db.Uuid
   content              String
-  pendingDiceNotations String[]  @default([]) @map("pending_dice_notations")
   version              Int       @default(1) @map("lock_version")
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
@@ -415,7 +414,7 @@ model Post {
 model DiceRoll {
   id              String   @id @default(cuid())
   postId          String   @map("post_id")
-  sequence        Int
+  nodeId          String   @map("node_id") @db.Uuid
   protocolVersion Int      @default(1) @map("protocol_version")
   notation        String
   quantity        Int
@@ -427,7 +426,7 @@ model DiceRoll {
 
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 
-  @@unique([postId, sequence])
+  @@unique([postId, nodeId])
   @@index([postId, createdAt])
   @@map("dice_rolls")
 }
@@ -451,7 +450,6 @@ model Draft {
   userId               String   @map("user_id")
   slot                 Int      @default(1)
   content              String
-  pendingDiceNotations String[] @default([]) @map("pending_dice_notations")
   version              Int      @default(1)
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")

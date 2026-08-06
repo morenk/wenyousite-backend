@@ -15,6 +15,7 @@ import { DiceService } from '../dice/dice.service';
 
 const mockPrisma = {
   $transaction: jest.fn(),
+  $queryRaw: jest.fn(),
   user: { findUnique: jest.fn() },
   thread: { findUnique: jest.fn() },
   subthread: { findUnique: jest.fn(), update: jest.fn() },
@@ -26,8 +27,9 @@ const mockPrisma = {
     findMany: jest.fn(),
     update: jest.fn(),
     findFirst: jest.fn(),
+    findUniqueOrThrow: jest.fn(),
   },
-  diceRoll: { createMany: jest.fn() },
+  diceRoll: { createMany: jest.fn(), deleteMany: jest.fn() },
 };
 
 const mockEventEmitter = { emit: jest.fn() };
@@ -84,6 +86,12 @@ describe('PostsService', () => {
     }).compile();
     service = module.get<PostsService>(PostsService);
     jest.clearAllMocks();
+    mockPrisma.$transaction.mockImplementation(async (fn) => fn(mockPrisma));
+    mockPrisma.post.findUniqueOrThrow.mockImplementation(async () => {
+      const updateResult = mockPrisma.post.update.mock.results.at(-1)?.value;
+      if (updateResult) return updateResult;
+      return mockPrisma.post.create.mock.results.at(-1)?.value;
+    });
     mockPrisma.user.findUnique.mockResolvedValue({ emailVerified: true });
     mockPrisma.thread.findUnique.mockResolvedValue({
       visibility: 'PUBLIC',
@@ -210,6 +218,8 @@ describe('PostsService', () => {
   });
 
   it('已发布楼层可只提交骰子，并在同一事务保存服务端正式结果', async () => {
+    const nodeId = '550e8400-e29b-41d4-a716-446655440000';
+    const content = `[[dice:v1:${nodeId}:2D6 + 3]]`;
     mockPrisma.subthread.findUnique.mockResolvedValue({
       id: 's1',
       threadId: 't1',
@@ -222,12 +232,12 @@ describe('PostsService', () => {
       id: 'p-dice',
       kind: 'FLOOR',
       floorNumber: 1,
-      content: '',
+      content: `[[dice:v1:${nodeId}:2d6+3]]`,
       author: { username: 'test' },
     };
     const official = {
       ...created,
-      diceRolls: [{ id: 'r1', notation: '2d6+3', results: [2, 5], modifier: 3, total: 10 }],
+      diceRolls: [{ id: 'r1', nodeId, notation: '2d6+3', results: [2, 5], modifier: 3, total: 10 }],
     };
     const tx = {
       $queryRaw: jest.fn(),
@@ -241,18 +251,18 @@ describe('PostsService', () => {
     };
     mockPrisma.$transaction.mockImplementation(async (fn) => fn(tx));
 
-    const result = await service.create('s1', { content: '', diceNotations: [' 2D6 + 3 '] }, 'u1');
+    const result = await service.create('s1', { content }, 'u1');
 
     expect(tx.post.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ content: '', pendingDiceNotations: [] }),
+        data: expect.objectContaining({ content: `[[dice:v1:${nodeId}:2d6+3]]` }),
       }),
     );
     expect(tx.diceRoll.createMany).toHaveBeenCalledWith({
       data: [
         expect.objectContaining({
           postId: 'p-dice',
-          sequence: 1,
+          nodeId,
           notation: '2d6+3',
           quantity: 2,
           sides: 6,
@@ -584,6 +594,86 @@ describe('PostsService', () => {
     });
     const result = await service.update('p1', { version: 1, content: '编辑后' }, 'u1');
     expect(result.content).toBe('编辑后');
+  });
+
+  it('update 移动已结算骰子节点时保留原结果，不重掷', async () => {
+    const nodeId = '550e8400-e29b-41d4-a716-446655440000';
+    const marker = `[[dice:v1:${nodeId}:1d20]]`;
+    mockPrisma.post.findUnique.mockResolvedValue({
+      id: 'p1',
+      authorId: 'u1',
+      threadId: 't1',
+      content: `旧位置 ${marker}`,
+      version: 1,
+      thread: { published: true },
+      diceRolls: [{ id: 'r1', nodeId, notation: '1d20' }],
+      subthread: { deletedAt: null },
+    });
+    mockPrisma.post.update.mockResolvedValue({
+      id: 'p1',
+      content: `${marker} 新位置`,
+      parentPostId: null,
+      author: { username: 'test' },
+    });
+
+    await service.update('p1', { version: 1, content: `${marker} 新位置` }, 'u1');
+
+    expect(mockPrisma.diceRoll.deleteMany).not.toHaveBeenCalled();
+    expect(mockPrisma.diceRoll.createMany).not.toHaveBeenCalled();
+  });
+
+  it('update 删除已结算骰子节点时物理删除对应结果', async () => {
+    const nodeId = '550e8400-e29b-41d4-a716-446655440000';
+    const marker = `[[dice:v1:${nodeId}:1d20]]`;
+    mockPrisma.post.findUnique.mockResolvedValue({
+      id: 'p1',
+      authorId: 'u1',
+      threadId: 't1',
+      content: `正文 ${marker}`,
+      version: 1,
+      thread: { published: true },
+      diceRolls: [{ id: 'r1', nodeId, notation: '1d20' }],
+      subthread: { deletedAt: null },
+    });
+    mockPrisma.post.update.mockResolvedValue({
+      id: 'p1',
+      content: '只保留正文',
+      parentPostId: null,
+      author: { username: 'test' },
+    });
+
+    await service.update('p1', { version: 1, content: '只保留正文' }, 'u1');
+
+    expect(mockPrisma.diceRoll.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ['r1'] }, postId: 'p1' },
+    });
+    expect(mockPrisma.diceRoll.createMany).not.toHaveBeenCalled();
+  });
+
+  it('update 不允许用同一 nodeId 篡改已结算骰子的表达式', async () => {
+    const nodeId = '550e8400-e29b-41d4-a716-446655440000';
+    mockPrisma.post.findUnique.mockResolvedValue({
+      id: 'p1',
+      authorId: 'u1',
+      threadId: 't1',
+      content: `[[dice:v1:${nodeId}:1d20]]`,
+      version: 1,
+      thread: { published: true },
+      diceRolls: [{ id: 'r1', nodeId, notation: '1d20' }],
+      subthread: { deletedAt: null },
+    });
+    mockPrisma.post.update.mockResolvedValue({ id: 'p1' });
+
+    await expect(
+      service.update('p1', { version: 1, content: `[[dice:v1:${nodeId}:1d100]]` }, 'u1'),
+    ).rejects.toThrow('已结算骰子不能修改表达式');
+
+    expect(mockPrisma.diceRoll.deleteMany).not.toHaveBeenCalled();
+    expect(mockPrisma.diceRoll.createMany).not.toHaveBeenCalled();
+    expect(mockEventEmitter.emit).not.toHaveBeenCalledWith(
+      'post.updated',
+      expect.anything(),
+    );
   });
 
   it('update 应将规范化正文用于存库和提及同步', async () => {
