@@ -384,20 +384,9 @@ GET /threads/:threadId/search/posts?q=关键词&cursor=&limit=20
 
 ---
 
-## 10. 阅读进度
+## 10. 前端开发建议
 
-```
-GET    /reading-progress                         所有子贴的阅读进度列表
-GET    /reading-progress/new-replies?subthreadId=  某子贴的新增回复数
-POST   /reading-progress                        记录/更新进度
-       { "subthreadId": "...", "postId": "..." }
-```
-
-`new-replies` 返回的是**发帖时间晚于你上次访问**的回复数，可作红点/气泡展示。
-
----
-
-## 11. 前端开发建议
+OpenAPI 契约版本为 `1.0.0-dev.20260806`。Web 与 Flutter 都应从同一份 OpenAPI 生成类型；成功响应读取 `data`，错误响应统一按 `{ code, message, data: null }` 处理，业务分支使用生成的 `BusinessErrorCode`，不要依赖提示文案。
 
 1. **先看 Swagger**：`/api/docs` 有每个端点的请求 Schema（含 example 值）和响应描述，Try it out 可直接调试。
 2. **Token 管理**：封装一个 HTTP 拦截器，自动在 401 时调 `/auth/refresh` 刷新。
@@ -410,7 +399,7 @@ POST   /reading-progress                        记录/更新进度
 
 ---
 
-## 12. 废弃/搁置的功能
+## 11. 废弃/搁置的功能
 
 | 模块 | 状态 | 说明 |
 |------|------|------|

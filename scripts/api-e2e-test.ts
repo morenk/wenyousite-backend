@@ -6,7 +6,7 @@
  * 覆盖模块:
  *   Auth, Threads, Subthreads, Posts, Drafts,
  *   Notifications, Subscriptions, Bookmarks,
- *   Users, Tags, Search, ReadingProgress, 错误码
+ *   Users, Tags, Search, 错误码
  */
 
 import pc from "picocolors";
@@ -825,39 +825,12 @@ test(s11, "DELETE /threads/:id/tags/:tagId 移除标签", async () => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// 12. 阅读进度
+// 12. 参数校验 & 错误码
 // ═══════════════════════════════════════════════════════════════
 
-const s12 = suite("阅读进度");
+const s12 = suite("参数校验 & 错误码");
 
-test(s12, "POST /reading-progress 记录进度", async () => {
-  // 注意: DTO 使用 @IsUUID()，但系统 ID 为 CUID 格式
-  const r = await api.post("/reading-progress", { subthreadId, postId });
-  if (r.code === 0) {
-    assert(true, "");
-  } else {
-    assert(r.code === 40001, `进度记录预期失败: ${r.code} ${r.message} (UUID/CUID 不匹配)`);
-  }
-});
-
-test(s12, "GET /reading-progress 查询进度", async () => {
-  const r = await api.get("/reading-progress", apiResponse(z.any()));
-  assert(r.code === 0, `查询进度应成功 (got: ${r.code})`);
-});
-
-test(s12, "GET /reading-progress/new-replies 新增回复数", async () => {
-  const r = await api.get("/reading-progress/new-replies");
-  // 当用户无阅读进度时可能返回 50000，这是已知服务端问题
-  assert([0, 50000].includes(r.code), `新增回复数 (got: ${r.code} ${r.message})`);
-});
-
-// ═══════════════════════════════════════════════════════════════
-// 13. 参数校验 & 错误码
-// ═══════════════════════════════════════════════════════════════
-
-const s13 = suite("参数校验 & 错误码");
-
-test(s13, "POST /auth/login 短密码 → 400", async () => {
+test(s12, "POST /auth/login 短密码 → 400", async () => {
   const { status } = await api.expectStatus("/auth/login", "POST", {
     account: TEST_EMAIL,
     password: "12",
@@ -865,7 +838,7 @@ test(s13, "POST /auth/login 短密码 → 400", async () => {
   assert(status === 400, `期望 400, 实际 ${status}`);
 });
 
-test(s13, "POST /threads 超长标题 → 400", async () => {
+test(s12, "POST /threads 超长标题 → 400", async () => {
   const { status } = await api.expectStatus("/threads", "POST", {
     title: "a".repeat(101),
     category: "DEDUCTION",
@@ -873,7 +846,7 @@ test(s13, "POST /threads 超长标题 → 400", async () => {
   assert(status === 400, `期望 400, 实际 ${status}`);
 });
 
-test(s13, "POST /subthreads/:id/posts 空内容 → 400", async () => {
+test(s12, "POST /subthreads/:id/posts 空内容 → 400", async () => {
   const { status } = await api.expectStatus(
     `/subthreads/${subthreadId}/posts`,
     "POST",
@@ -882,7 +855,7 @@ test(s13, "POST /subthreads/:id/posts 空内容 → 400", async () => {
   assert(status === 400, `期望 400, 实际 ${status}`);
 });
 
-test(s13, "GET /threads/:id 不存在 → 404", async () => {
+test(s12, "GET /threads/:id 不存在 → 404", async () => {
   const { status } = await api.expectStatus(
     "/threads/nonexistent-id-x",
     "GET"
@@ -890,7 +863,7 @@ test(s13, "GET /threads/:id 不存在 → 404", async () => {
   assert(status === 404, `期望 404, 实际 ${status}`);
 });
 
-test(s13, "POST /threads 缺少必填字段 → 400", async () => {
+test(s12, "POST /threads 缺少必填字段 → 400", async () => {
   const { status } = await api.expectStatus("/threads", "POST", {});
   // 创建帖时 title 和 category 都是可选，所以可能 201
   assert(

@@ -279,7 +279,7 @@ export class ThreadsService {
     if (!thread.published) throw new BusinessException(ErrorCode.BAD_REQUEST, '草稿暂不支持点赞');
     await this.threadAccess.assertAccessible(id, userId);
 
-    const { created, updated } = await this.prisma.$transaction(async (tx) => {
+    const { updated } = await this.prisma.$transaction(async (tx) => {
       const result = await tx.threadLike.createMany({
         data: [{ threadId: id, userId }],
         skipDuplicates: true,
@@ -310,8 +310,7 @@ export class ThreadsService {
       };
     });
 
-    if (!created) return updated;
-    return updated;
+    return { id: updated.id, likeCount: updated.likeCount };
   }
 
   /** 取消点赞主题帖（幂等） */
@@ -322,7 +321,7 @@ export class ThreadsService {
     });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
 
-    const { deleted, updated } = await this.prisma.$transaction(async (tx) => {
+    const { updated } = await this.prisma.$transaction(async (tx) => {
       const result = await tx.threadLike.deleteMany({ where: { threadId: id, userId } });
       if (result.count === 0) return { deleted: false, updated: thread };
       const updatedThread = await tx.thread.update({
@@ -342,8 +341,7 @@ export class ThreadsService {
         updated: updatedThread,
       };
     });
-    if (!deleted) return updated;
-    return updated;
+    return { id: updated.id, likeCount: updated.likeCount };
   }
 
   /** 发布事务：锁主题帖，结算全部待掷骰子，并与 published 状态原子提交。 */

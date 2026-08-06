@@ -13,7 +13,6 @@ import { ThreadAccessService } from '../access/thread-access.service';
 import { BlockFilterService } from '../access/block-filter.service';
 import { TagsService } from '../tags/tags.service';
 import { NotificationProducer } from '../notifications/notification.producer';
-import { ReadingProgressService } from '../reading-progress/reading-progress.service';
 import { RedisService } from '../redis/redis.service';
 import { CacheService } from '../redis/cache.service';
 import { BusinessException } from '../common/exceptions/business.exception';
@@ -129,7 +128,6 @@ const mockBlockFilter = {
     .mockResolvedValue({ blockedByUser: new Set(), blockedByAuthor: new Set() }),
   filterRecipients: jest.fn((ids: string[]) => ids),
 };
-const mockReadingProgressService = { update: jest.fn().mockResolvedValue(undefined) };
 const mockTags = { findOrCreate: jest.fn() };
 const mockNotificationProducer = { notify: jest.fn().mockResolvedValue(undefined) };
 const mockRedis = {
@@ -245,7 +243,6 @@ describe('发帖全流程集成测试', () => {
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: TagsService, useValue: mockTags },
         { provide: NotificationProducer, useValue: mockNotificationProducer },
-        { provide: ReadingProgressService, useValue: mockReadingProgressService },
         { provide: RedisService, useValue: mockRedis },
         { provide: CacheService, useValue: mockCache },
         { provide: OutboxService, useValue: mockOutbox },

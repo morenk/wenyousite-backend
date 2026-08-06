@@ -970,7 +970,10 @@ describe('ThreadsService', () => {
         }),
       );
 
-      await service.like('t1', 'u1', '用户');
+      await expect(service.like('t1', 'u1', '用户')).resolves.toEqual({
+        id: 't1',
+        likeCount: 1,
+      });
 
       expect(mockRedis.hincrby).not.toHaveBeenCalled();
       expect(mockOutbox.enqueue).toHaveBeenCalledWith(
@@ -991,7 +994,10 @@ describe('ThreadsService', () => {
         }),
       );
 
-      await service.unlike('t1', 'u1');
+      await expect(service.unlike('t1', 'u1')).resolves.toEqual({
+        id: 't1',
+        likeCount: 0,
+      });
 
       expect(mockRedis.hincrby).not.toHaveBeenCalled();
       expect(mockOutbox.enqueue).toHaveBeenCalledWith(

@@ -7,6 +7,11 @@ const failures: string[] = [];
 const operationIds = new Set<string>();
 const methods = new Set(['get', 'put', 'post', 'delete', 'patch', 'options', 'head']);
 let anonymousSuccessSchemas = 0;
+const errorEnvelopeRef = '#/components/schemas/ApiErrorEnvelope';
+
+function responseUsesErrorEnvelope(response: any): boolean {
+  return response?.content?.['application/json']?.schema?.$ref === errorEnvelopeRef;
+}
 
 function resolveReference(reference: string): unknown {
   if (!reference.startsWith('#/')) return undefined;
@@ -43,7 +48,14 @@ for (const [route, pathItem] of Object.entries(document.paths ?? {})) {
     else if (operationIds.has(operationId)) failures.push(`${label}: operationId 重复 (${operationId})`);
     else operationIds.add(operationId);
 
+    if (!responseUsesErrorEnvelope(operation.responses?.default)) {
+      failures.push(`${label}: 缺少统一 default 错误响应`);
+    }
+
     for (const [status, response] of Object.entries(operation.responses ?? {}) as [string, any][]) {
+      if (/^[45]\d\d$/.test(status) && !responseUsesErrorEnvelope(response)) {
+        failures.push(`${label} ${status}: 错误响应未引用 ApiErrorEnvelope`);
+      }
       if (!/^2\d\d$/.test(status) || status === '204' || status === '205') continue;
       const schema = response?.content?.['application/json']?.schema;
       const allOf = schema?.allOf;
@@ -68,7 +80,7 @@ for (const [route, pathItem] of Object.entries(document.paths ?? {})) {
 visit(document, 'openapi');
 
 // 历史匿名成功响应基线。新增/修改端点必须声明 DTO，存量清理后同步下调。
-const anonymousSchemaBudget = 19;
+const anonymousSchemaBudget = 8;
 if (anonymousSuccessSchemas > anonymousSchemaBudget) {
   failures.push(
     `匿名成功响应为 ${anonymousSuccessSchemas}，超过基线 ${anonymousSchemaBudget}；请为端点补充 Swagger DTO`,

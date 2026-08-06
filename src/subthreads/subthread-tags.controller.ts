@@ -1,10 +1,20 @@
 import { Body, Controller, Delete, Get, Param, Post, Req } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { Auth, OptionalAuth } from '../auth/decorators/auth.decorator';
 import { AddSubthreadTagDto } from './dto/add-subthread-tag.dto';
 import { SubthreadTagsService } from './subthread-tags.service';
 import { MessageResponseDto } from '../common/dto/message-response.dto';
+import {
+  SubthreadTagDefinitionResponseDto,
+  SubthreadTagRelationResponseDto,
+} from './dto/subthread-tag-response.dto';
 
 @ApiTags('Subthreads')
 @Controller('subthreads/:subthreadId/tags')
@@ -14,6 +24,7 @@ export class SubthreadTagsController {
   @Get()
   @OptionalAuth()
   @ApiOperation({ summary: '获取子贴的标签列表' })
+  @ApiOkResponse({ type: SubthreadTagRelationResponseDto, isArray: true })
   findAll(@Param('subthreadId') subthreadId: string, @Req() req: FastifyRequest) {
     return this.tags.findAll(subthreadId, (req['user'] as { id: string } | undefined)?.id);
   }
@@ -22,6 +33,7 @@ export class SubthreadTagsController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '为子贴添加标签（仅 OWNER/COLLABORATOR）' })
+  @ApiCreatedResponse({ type: SubthreadTagDefinitionResponseDto })
   add(
     @Param('subthreadId') subthreadId: string,
     @Body() dto: AddSubthreadTagDto,

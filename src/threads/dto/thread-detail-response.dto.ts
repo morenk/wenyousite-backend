@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { DiceRollResponseDto, PostAuthorResponseDto } from '../../posts/dto/post-response.dto';
+import { SubthreadTagRelationResponseDto } from '../../subthreads/dto/subthread-tag-response.dto';
 
 class ThreadBodyPostResponseDto {
   @ApiProperty()
@@ -32,6 +33,15 @@ export class ThreadTagResponseDto {
 }
 
 export class ThreadTagRelationResponseDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  threadId!: string;
+
+  @ApiProperty()
+  tagId!: string;
+
   @ApiProperty({ type: ThreadTagResponseDto })
   tag!: ThreadTagResponseDto;
 }
@@ -70,8 +80,8 @@ class ThreadSubthreadResponseDto {
   @ApiProperty({ type: ThreadSubthreadCountResponseDto })
   _count!: ThreadSubthreadCountResponseDto;
 
-  @ApiProperty({ type: [ThreadTagRelationResponseDto], description: '子贴标签关联' })
-  tags!: ThreadTagRelationResponseDto[];
+  @ApiProperty({ type: [SubthreadTagRelationResponseDto], description: '子贴标签关联' })
+  tags!: SubthreadTagRelationResponseDto[];
 }
 
 class ThreadCountResponseDto {

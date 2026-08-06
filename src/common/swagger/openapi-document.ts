@@ -1,13 +1,17 @@
 import { INestApplication } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { applySuccessResponseEnvelope } from './success-response-envelope';
+import { applyErrorResponseEnvelope } from './error-response-envelope';
+
+/** 破坏性 API 变更时递增；Web 与 Flutter 生成客户端均记录该版本。 */
+export const API_CONTRACT_VERSION = '1.0.0-dev.20260806';
 
 /** 构建 OpenAPI 文档；既供运行时 Swagger，也供无需连接数据库的离线类型生成。 */
 export function createOpenApiDocument(app: INestApplication) {
   const config = new DocumentBuilder()
     .setTitle('温油站 API')
     .setDescription('温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)')
-    .setVersion('0.1.0')
+    .setVersion(API_CONTRACT_VERSION)
     .addBearerAuth()
     .addTag('Auth', '认证 — 注册、登录、Token 刷新、登录终端管理')
     .addTag('Users', '用户 — 资料、关注、拉黑')
@@ -21,13 +25,11 @@ export function createOpenApiDocument(app: INestApplication) {
     .addTag('Media', '媒体 — 预签名上传、缩略图')
     .addTag('Tags', '标签 — 全局标签搜索/创建')
     .addTag('Search', '搜索 — PostgreSQL ILIKE 全文')
-    .addTag('ReadingProgress', '阅读进度 — 记录/新增回复数')
     .addTag('Reports', '举报 — 已搁置')
     .addTag('Health', '健康检查 — 数据库连通')
     .addTag('Admin', '管理后台 — 系统通知、用户搜索')
     .build();
 
-  return applySuccessResponseEnvelope(
-    SwaggerModule.createDocument(app, config),
-  );
+  const document = SwaggerModule.createDocument(app, config);
+  return applyErrorResponseEnvelope(applySuccessResponseEnvelope(document));
 }

@@ -157,10 +157,6 @@
 | GET | `/search?q=xxx` | Public | 兼容旧客户端的聚合搜索；单字符不扫描楼层正文 |
 | GET | `/tags` | Public | 搜索标签 |
 | POST | `/tags` | Auth | 创建标签，需邮箱已验证 |
-| GET | `/reading-progress` | AuthRead | 所有子贴阅读进度 |
-| GET | `/reading-progress/new-replies?subthreadId=` | AuthRead | 某子贴新增回复数 |
-| GET | `/reading-progress/threads/:threadId/new-replies` | AuthRead | 主题帖全部子贴新增回复摘要（批量） |
-| POST | `/reading-progress` | AuthRead | 记录/更新阅读进度 |
 | POST | `/reports` | Auth | 提交举报（已搁置），需邮箱已验证 |
 | GET | `/reports` | AuthRead | 举报列表（管理员，已搁置） |
 | PATCH | `/reports/:id/handle` | Auth | 处理举报（管理员，已搁置），需邮箱已验证 |

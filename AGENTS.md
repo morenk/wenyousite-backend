@@ -11,7 +11,7 @@ NestJS + Fastify + PostgreSQL + Prisma + Redis + BullMQ，模块化单体架构�
 |------|------|------|
 | 运行时 | Node.js 24 LTS + TypeScript | — |
 | 框架 | NestJS + Fastify | Fastify 性能优于 Express |
-| 数据库 | PostgreSQL 17 + Prisma ORM | 26 张表，11 个枚举，类型安全 |
+| 数据库 | PostgreSQL 17 + Prisma ORM | 25 张表，11 个枚举，类型安全 |
 | 缓存/队列 | Redis 7 + BullMQ | 通知队列 (notification) + 图片处理队列 (image) |
 | 认证 | Passport JWT + Argon2 | 双 Token (access 15m / refresh 7d) |
 | 校验 | class-validator + class-transformer | DTO 自动校验 |
@@ -60,7 +60,6 @@ src/
 ├── drafts/                    # 用户级全局 5 槽位草稿池
 ├── notifications/             # 站内通知 API + BullMQ 生产者/消费者
 ├── subscriptions/             # 订阅(整帖 THREAD / 某用户 USER) + 通知投递
-├── reading-progress/          # 阅读进度 + 新增回复数
 ├── reports/                   # 举报（已搁置，待后期重构）
 ├── search/                    # 全文搜索 (PostgreSQL ILIKE)
 ├── email/                     # SMTP 邮件服务
@@ -96,7 +95,7 @@ scripts/
 | `UserRole` | USER, ADMIN, SUPER_ADMIN | 用户权限等级 |
 | `MemberRole` | OWNER, COLLABORATOR, PARTICIPANT | 帖内成员角色 |
 | `PostingPolicy` | PARTICIPANTS, COLLABORATORS, PLAYERS | 子贴发帖权限 |
-| `NotificationType` | reply, mention, new_floor, thread_created, follow | 通知类型 |
+| `NotificationType` | reply, mention, new_floor, subthread_created, new_post, thread_created, follow, like, system | 通知类型 |
 | `SubscriptionType` | THREAD, USER | 订阅粒度 |
 
 ## 核心设计决策
@@ -107,7 +106,7 @@ scripts/
 4. **楼中楼**：平级挂载，无嵌套深度限制，所有回复共享 `parentPostId`。回复目标通过 `replyToPostId` 追踪。
 5. **楼层编号**：事务内 `MAX+1`，永不复用。楼中楼帖子 `floorNumber = null`。
 6. **草稿**：用户级全局 5 槽位池，不与子贴绑定。满时返回错误，不自动覆盖。编辑器全局浮动，不绑定子贴。
-7. **通知投递**：站内通知走 BullMQ `notification` 队列异步投递。6 类通知类型 (reply / mention / new_floor / subthread_created / thread_created / follow)。邮件仅用于注册验证和密码重置。
+7. **通知投递**：站内通知走 BullMQ `notification` 队列异步投递。通知类型以 Prisma/OpenAPI 枚举为准，包含回复、提及、订阅动态、建帖、关注、点赞和系统通知；`new_floor` 仅作为历史存储值，对外读取时归一为 `new_post`。邮件仅用于注册验证和密码重置。
 8. **私密帖**：`visibility=PRIVATE`，不在列表/搜索中显示，仅成员可访问。加入方式仅限邀请链接 (`ThreadInvite`)，踢出仅取消玩家标记。
 9. **订阅推送**：普通用户可订阅官方更新 (THREAD) 或帖内普通已标记玩家 (USER)；楼主/协作者自动接收全部帖子动态且不能创建冗余订阅。发帖时通过 `PostEventsListener` + `SubscriptionsService.findSubscribers()` 按发帖时角色快照合并通知。
 10. **图片上传**：客户端通过预签名 URL 直传 S3，完成后调 `upload-done` 确认。服务端写入 Media 表，入队 `image` 队列用 sharp 生成 300×300 缩略图 + 800px 中图 (WebP)。

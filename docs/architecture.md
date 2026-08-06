@@ -51,14 +51,17 @@ OutboxDispatcher（FOR UPDATE SKIP LOCKED）
 
 ## API 与类型契约
 
-运行时成功响应统一为 `{ code, message, data, meta? }`。Swagger 构建阶段使用同一 envelope 包装 2xx JSON schema；命令型空结果使用 `MessageResponseDto`。
+运行时成功响应统一为 `{ code, message, data, meta? }`，错误响应统一为 `{ code, message, data: null }`。Swagger 构建阶段使用同一 envelope 包装 2xx JSON schema，并为所有操作补充 `ApiErrorEnvelope` 兜底响应；命令型空结果使用 `MessageResponseDto`。
+
+当前开发契约版本为 `1.0.0-dev.20260806`。破坏性接口变更必须递增 `API_CONTRACT_VERSION`，重新导出 OpenAPI，并同步生成 Web/Flutter 客户端。`BusinessErrorCode` 由后端 `ErrorCode` 自动写入 OpenAPI，客户端不得复制一份无校验的错误码表。
 
 `pnpm openapi:check` 校验：
 
 - 每个操作都有唯一 `operationId`；
 - 2xx JSON 响应与运行时 envelope 一致；
 - 本地 `$ref` 均可解析；
-- 未声明业务 DTO 的存量响应不超过当前基线，新端点不得增加债务。
+- 用户端成功响应必须使用具名 DTO；当前仅允许已搁置的 Reports/Admin 8 个操作保留匿名响应债务；
+- 每个操作的兜底错误以及已声明的 4xx/5xx 响应都必须引用 `ApiErrorEnvelope`。
 
 TypeScript 开启 `noImplicitAny` 等严格增量选项。Fastify 的 Passport `request.user` 通过模块声明统一建模，新的控制器优先使用 `@CurrentUser()`。
 

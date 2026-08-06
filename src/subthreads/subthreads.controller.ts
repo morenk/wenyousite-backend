@@ -11,6 +11,7 @@ import { ReorderSubthreadsDto } from './dto/reorder-subthreads.dto';
 import { Auth, OptionalAuth } from '../auth/decorators/auth.decorator';
 import { MessageResponseDto } from '../common/dto/message-response.dto';
 import { SubthreadResponseDto } from './dto/subthread-response.dto';
+import { ReorderedSubthreadResponseDto } from './dto/reordered-subthread-response.dto';
 
 /** 子贴控制器：列表、创建、详情、修改、删除、重排 */
 @ApiTags('Subthreads')
@@ -54,6 +55,7 @@ export class SubthreadsController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '批量重排子贴（拖拽排序）。默认子贴必须在第一位' })
+  @ApiOkResponse({ type: ReorderedSubthreadResponseDto, isArray: true })
   async reorder(
     @Param('threadId') threadId: string,
     @Body() dto: ReorderSubthreadsDto,

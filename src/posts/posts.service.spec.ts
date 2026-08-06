@@ -6,7 +6,6 @@ import { ThreadAccessService } from '../access/thread-access.service';
 import { BlockFilterService } from '../access/block-filter.service';
 import { NotificationProducer } from '../notifications/notification.producer';
 import { MentionsService } from '../mentions/mentions.service';
-import { ReadingProgressService } from '../reading-progress/reading-progress.service';
 import { RedisService } from '../redis/redis.service';
 import { CacheService } from '../redis/cache.service';
 import { BusinessException } from '../common/exceptions/business.exception';
@@ -47,7 +46,6 @@ const mockMentions = {
   parseAndCreate: jest.fn().mockResolvedValue([]),
   syncMentions: jest.fn().mockResolvedValue([]),
 };
-const mockReadingProgress = { update: jest.fn().mockResolvedValue(undefined) };
 const mockRedis = {
   hincrby: jest.fn().mockResolvedValue(1),
   hgetall: jest.fn().mockResolvedValue({}),
@@ -85,7 +83,6 @@ describe('PostsService', () => {
         { provide: BlockFilterService, useValue: mockBlockFilter },
         { provide: NotificationProducer, useValue: mockNotificationProducer },
         { provide: MentionsService, useValue: mockMentions },
-        { provide: ReadingProgressService, useValue: mockReadingProgress },
         { provide: RedisService, useValue: mockRedis },
         { provide: CacheService, useValue: mockCache },
         PostingPolicyService,
@@ -397,7 +394,6 @@ describe('PostsService', () => {
 
     expect(result).toBe(existing);
     expect(mockEventEmitter.emit).not.toHaveBeenCalled();
-    expect(mockReadingProgress.update).not.toHaveBeenCalled();
   });
 
   it('create 楼中楼回复不应该有 floorNumber', async () => {

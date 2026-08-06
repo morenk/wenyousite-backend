@@ -20,7 +20,6 @@ import { MentionsModule } from './mentions/mentions.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { ReportsModule } from './reports/reports.module';
-import { ReadingProgressModule } from './reading-progress/reading-progress.module';
 import { AdminModule } from './admin/admin.module';
 import { SearchModule } from './search/search.module';
 import { EmailModule } from './email/email.module';
@@ -136,7 +135,6 @@ function buildPinoTransport(logLevel: string, nodeEnv: string, logFileDir?: stri
     MentionsModule,
     NotificationsModule,
     SubscriptionsModule,
-    ReadingProgressModule,
     ReportsModule,
     AdminModule,
     SearchModule,

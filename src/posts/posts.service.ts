@@ -1,11 +1,10 @@
-import { Injectable, HttpStatus, Logger } from '@nestjs/common';
+import { Injectable, HttpStatus } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../access/thread-access.service';
 import { BlockFilterService } from '../access/block-filter.service';
 import { NotificationProducer } from '../notifications/notification.producer';
 import { MentionsService } from '../mentions/mentions.service';
-import { ReadingProgressService } from '../reading-progress/reading-progress.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { ErrorCode } from '../common/exceptions/error-codes';
@@ -27,8 +26,6 @@ import { reconcilePublishedDice } from '../dice/reconcile-published-dice';
 /** 楼层服务：发帖（事务楼层编号 + FOR UPDATE）、楼中楼、编辑、软删除 */
 @Injectable()
 export class PostsService {
-  private readonly logger = new Logger(PostsService.name);
-
   constructor(
     private prisma: PrismaService,
     private eventEmitter: EventEmitter2,
@@ -36,7 +33,6 @@ export class PostsService {
     private blockFilter: BlockFilterService,
     private notificationProducer: NotificationProducer,
     private mentionsService: MentionsService,
-    private readingProgressService: ReadingProgressService,
     private diceService: DiceService,
     private postingPolicy: PostingPolicyService,
     private queries: PostQueryService,
@@ -225,11 +221,6 @@ export class PostsService {
 
     if (duplicateRequest) return post;
 
-    // 发帖人自己的阅读进度自动推进到此处（发帖即证明读到这里）
-    this.readingProgressService.update(userId, subthreadId, post.id).catch((err) => {
-      this.logger.error(`发帖后进度更新失败 userId=${userId} subthreadId=${subthreadId}`, err);
-    });
-
     return post;
   }
 
@@ -348,12 +339,6 @@ export class PostsService {
           });
         }
         return post;
-      });
-      this.readingProgressService.update(userId, subthreadId, post.id).catch((err) => {
-        this.logger.error(
-          `正文创建后进度更新失败 userId=${userId} subthreadId=${subthreadId}`,
-          err,
-        );
       });
       return post;
     }

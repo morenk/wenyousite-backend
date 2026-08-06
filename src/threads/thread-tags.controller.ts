@@ -1,10 +1,20 @@
 import { Body, Controller, Delete, Get, Param, Post, Req } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { Auth, OptionalAuth } from '../auth/decorators/auth.decorator';
 import { AddThreadTagDto } from './dto/add-thread-tag.dto';
 import { ThreadTagsService } from './thread-tags.service';
 import { MessageResponseDto } from '../common/dto/message-response.dto';
+import {
+  ThreadTagRelationResponseDto,
+  ThreadTagResponseDto,
+} from './dto/thread-detail-response.dto';
 
 @ApiTags('Threads')
 @Controller('threads/:threadId/tags')
@@ -14,6 +24,7 @@ export class ThreadTagsController {
   @Get()
   @OptionalAuth()
   @ApiOperation({ summary: '获取主题帖关联的标签列表' })
+  @ApiOkResponse({ type: ThreadTagRelationResponseDto, isArray: true })
   findAll(@Param('threadId') threadId: string, @Req() req: FastifyRequest) {
     return this.tags.findAll(threadId, (req['user'] as { id: string } | undefined)?.id);
   }
@@ -22,6 +33,7 @@ export class ThreadTagsController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '为主题帖添加标签（仅 OWNER/COLLABORATOR）' })
+  @ApiCreatedResponse({ type: ThreadTagResponseDto })
   add(@Param('threadId') threadId: string, @Body() dto: AddThreadTagDto, @Req() req: FastifyRequest) {
     return this.tags.add(threadId, dto.name, (req['user'] as { id: string }).id);
   }

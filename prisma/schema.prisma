@@ -95,14 +95,13 @@ model User {
   createdAt           DateTime  @default(now()) @map("created_at")
   updatedAt           DateTime  @updatedAt @map("updated_at")
 
-  ownedThreads  Thread[]           @relation("ThreadOwner")
+  ownedThreads  Thread[]       @relation("ThreadOwner")
   threads       ThreadMember[]
   posts         Post[]
   drafts        Draft[]
   likedThreads  ThreadLike[]
-  mentions      PostMention[]      @relation("mentionedUser")
+  mentions      PostMention[]  @relation("mentionedUser")
   notifications Notification[]
-  readProgress  UserReadProgress[]
 
   userBlocks             UserBlock[]         @relation("Blocker")
   blockedBy              UserBlock[]         @relation("Blocked")
@@ -258,11 +257,10 @@ model Subthread {
   deletedAt     DateTime?     @map("deleted_at")
   createdAt     DateTime      @default(now()) @map("created_at")
 
-  thread           Thread             @relation("ThreadSubthreads", fields: [threadId], references: [id], onDelete: Cascade)
-  defaultForThread Thread?            @relation("DefaultSubthread")
+  thread           Thread         @relation("ThreadSubthreads", fields: [threadId], references: [id], onDelete: Cascade)
+  defaultForThread Thread?        @relation("DefaultSubthread")
   tags             SubthreadTag[]
   posts            Post[]
-  readProgress     UserReadProgress[]
 
   @@unique([threadId, sortOrder])
   @@map("subthreads")
@@ -378,32 +376,31 @@ model Media {
 }
 
 model Post {
-  id                   String    @id @default(cuid())
-  threadId             String    @map("thread_id")
-  subthreadId          String    @map("subthread_id")
-  authorId             String    @map("author_id")
-  kind                 PostKind  @default(FLOOR) @map("kind")
-  floorNumber          Int?      @map("floor_number")
-  parentPostId         String?   @map("parent_post_id")
-  replyToPostId        String?   @map("reply_to_post_id")
-  clientRequestId      String?   @map("client_request_id") @db.Uuid
-  content              String
-  version              Int       @default(1) @map("lock_version")
-  createdAt            DateTime  @default(now()) @map("created_at")
-  updatedAt            DateTime  @updatedAt @map("updated_at")
-  deletedAt            DateTime? @map("deleted_at")
+  id              String    @id @default(cuid())
+  threadId        String    @map("thread_id")
+  subthreadId     String    @map("subthread_id")
+  authorId        String    @map("author_id")
+  kind            PostKind  @default(FLOOR) @map("kind")
+  floorNumber     Int?      @map("floor_number")
+  parentPostId    String?   @map("parent_post_id")
+  replyToPostId   String?   @map("reply_to_post_id")
+  clientRequestId String?   @map("client_request_id") @db.Uuid
+  content         String
+  version         Int       @default(1) @map("lock_version")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
 
-  thread         Thread             @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  subthread      Subthread          @relation(fields: [subthreadId], references: [id], onDelete: Cascade)
-  author         User               @relation(fields: [authorId], references: [id])
-  parentPost     Post?              @relation("PostReplies", fields: [parentPostId], references: [id])
-  replyToPost    Post?              @relation("ReplyTo", fields: [replyToPostId], references: [id])
-  replies        Post[]             @relation("PostReplies")
-  repliedBy      Post[]             @relation("ReplyTo")
-  readProgressBy UserReadProgress[]
-  mentions       PostMention[]
-  notifications  Notification[]
-  diceRolls      DiceRoll[]
+  thread        Thread         @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  subthread     Subthread      @relation(fields: [subthreadId], references: [id], onDelete: Cascade)
+  author        User           @relation(fields: [authorId], references: [id])
+  parentPost    Post?          @relation("PostReplies", fields: [parentPostId], references: [id])
+  replyToPost   Post?          @relation("ReplyTo", fields: [replyToPostId], references: [id])
+  replies       Post[]         @relation("PostReplies")
+  repliedBy     Post[]         @relation("ReplyTo")
+  mentions      PostMention[]
+  notifications Notification[]
+  diceRolls     DiceRoll[]
 
   @@unique([subthreadId, floorNumber])
   @@unique([authorId, clientRequestId])
@@ -451,13 +448,13 @@ model PostMention {
 }
 
 model Draft {
-  id                   String   @id @default(cuid())
-  userId               String   @map("user_id")
-  slot                 Int      @default(1)
-  content              String
-  version              Int      @default(1)
-  createdAt            DateTime @default(now()) @map("created_at")
-  updatedAt            DateTime @updatedAt @map("updated_at")
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  slot      Int      @default(1)
+  content   String
+  version   Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -518,21 +515,6 @@ model AuditLog {
   admin User @relation("AuditAdmin", fields: [adminId], references: [id], onDelete: SetNull)
 
   @@map("audit_logs")
-}
-
-model UserReadProgress {
-  id          String   @id @default(cuid())
-  userId      String   @map("user_id")
-  subthreadId String   @map("subthread_id")
-  postId      String?  @map("post_id")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  subthread Subthread @relation(fields: [subthreadId], references: [id], onDelete: Cascade)
-  post      Post?     @relation(fields: [postId], references: [id], onDelete: SetNull)
-
-  @@unique([userId, subthreadId])
-  @@map("user_read_progress")
 }
 
 model UserFollow {

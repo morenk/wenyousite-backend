@@ -1,5 +1,19 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+export const NOTIFICATION_TYPES = [
+  'reply',
+  'mention',
+  'new_floor',
+  'subthread_created',
+  'new_post',
+  'thread_created',
+  'follow',
+  'like',
+  'system',
+] as const;
+
+export type NotificationResponseType = (typeof NOTIFICATION_TYPES)[number];
+
 class NotificationPostResponseDto {
   @ApiProperty()
   id!: string;
@@ -46,8 +60,8 @@ export class NotificationResponseDto {
   @ApiProperty()
   userId!: string;
 
-  @ApiProperty()
-  type!: string;
+  @ApiProperty({ enum: NOTIFICATION_TYPES })
+  type!: NotificationResponseType;
 
   @ApiProperty({ type: String, nullable: true })
   content!: string | null;

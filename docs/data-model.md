@@ -1,6 +1,6 @@
 # 数据模型
 
-> 26 张表，11 个 Prisma 枚举。所有 ID 使用 `cuid()` 生成，时间戳使用 `DateTime`。
+> 25 张表，11 个 Prisma 枚举。所有 ID 使用 `cuid()` 生成，时间戳使用 `DateTime`。
 
 ## 枚举定义
 
@@ -446,15 +446,3 @@
 | detail | String? | — | 操作详情 |
 | ip | String? | — | 操作 IP |
 | createdAt | DateTime | — | — |
-
-### user_read_progress — 阅读进度
-
-| 字段 | 类型 | 约束 | 说明 |
-|------|------|------|------|
-| id | String | PK | — |
-| userId | String | FK users (Cascade) | — |
-| subthreadId | String | FK subthreads (Cascade) | — |
-| postId | String? | FK posts (SetNull) | 最后阅读位置 |
-| updatedAt | DateTime | @updatedAt | — |
-
-`@@unique([userId, subthreadId])`

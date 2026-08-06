@@ -35,6 +35,10 @@ import {
 import { MessageResponseDto } from '../common/dto/message-response.dto';
 import { SaveThreadAggregateDto } from './dto/save-thread-aggregate.dto';
 import { ThreadAggregateService } from './thread-aggregate.service';
+import {
+  JoinedThreadMemberResponseDto,
+  ThreadLikeResponseDto,
+} from './dto/thread-action-response.dto';
 
 /** 主题帖控制器：草稿箱、列表、详情、修改、发布、删除、点赞 */
 @ApiTags('Threads')
@@ -160,6 +164,7 @@ export class ThreadsController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '点赞主题帖（幂等，不通知自己）' })
+  @ApiCreatedResponse({ type: ThreadLikeResponseDto, description: '主题帖 ID 与最新点赞数' })
   async like(@Param('id') id: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string; username: string };
     return this.threadsService.like(id, user.id, user.username);
@@ -170,6 +175,7 @@ export class ThreadsController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '取消点赞主题帖（幂等）' })
+  @ApiOkResponse({ type: ThreadLikeResponseDto, description: '主题帖 ID 与最新点赞数' })
   async unlike(@Param('id') id: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     return this.threadsService.unlike(id, user.id);
@@ -203,7 +209,10 @@ export class ThreadsController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '通过 16 位邀请 token 幂等加入私密帖（需已发布）' })
-  @ApiOkResponse({ description: '加入成功或已加入时返回成员记录（thread.title / user 基本信息）' })
+  @ApiOkResponse({
+    type: JoinedThreadMemberResponseDto,
+    description: '加入成功或已加入时返回成员记录（thread.title / user 基本信息）',
+  })
   @ApiUnauthorizedResponse({ description: '未登录或邮箱未验证' })
   @ApiNotFoundResponse({ description: '邀请链接无效或已失效' })
   async joinByInviteLink(@Param('token') token: string, @Req() req: FastifyRequest) {
