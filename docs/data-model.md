@@ -89,7 +89,7 @@
 | email | String | unique, 统一小写存储 | 登录邮箱 |
 | username | String | unique | 用户名（唯一，用于登录和展示，字母+数字+中文） |
 | password | String | — | Argon2 哈希 |
-| avatar | String? | — | 头像 URL |
+| avatar | String? | — | 头像 URL；账号注销时置空，后续进入孤儿媒体回收 |
 | bio | String? | — | 个人简介 |
 | role | UserRole | default USER | 权限等级 |
 | emailVerified | Boolean | default false | 邮箱是否已验证（已验证后才可发帖/关注/加入） |

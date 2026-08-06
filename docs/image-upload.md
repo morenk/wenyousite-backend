@@ -255,7 +255,7 @@ UPLOADING ──(元数据不合法)──────────────�
 
 对象存储无原生引用管理，删除帖子/楼层/头像不会自动删图。每天凌晨 4 点 `CleanupTask` 调用 `MediaService.cleanupOrphanMedia()` 回收：
 
-1. **收集存活引用**：`users.avatar` + 未删除帖子的 Markdown 正文 + 草稿正文中的图片 URL
+1. **收集存活引用**：未注销用户的 `users.avatar` + 未删除帖子的 Markdown 正文 + 草稿正文中的图片 URL；账号注销时头像字段立即置空
 2. **候选**：`UPLOADING` 超 24h、`FAILED` 超 7 天、`COMPLETED` 超 7 天且无引用
 3. **删除**：批量删除原图 + `_thumb.webp` + `_md.webp`（SVG 仅自身），再删 DB 记录；原图删除失败的记录留待下次重试
 

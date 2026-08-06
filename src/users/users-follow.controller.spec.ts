@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { UsersFollowController } from './users-follow.controller';
+import { publicUserSummarySelect } from '../common/user-summary';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationProducer } from '../jobs/notification.producer';
 import { BlockFilterService } from '../common/services/block-filter.service';
@@ -36,7 +37,7 @@ describe('UsersFollowController（公开关注/粉丝列表）', () => {
 
     expect(mockPrisma.userFollow.findMany).toHaveBeenCalledWith({
       where: { followerId: 'u1' },
-      include: { following: { select: { id: true, username: true, avatar: true } } },
+      include: { following: { select: publicUserSummarySelect } },
     });
     expect(result).toEqual(follow);
   });
@@ -50,7 +51,7 @@ describe('UsersFollowController（公开关注/粉丝列表）', () => {
 
     expect(mockPrisma.userFollow.findMany).toHaveBeenCalledWith({
       where: { followingId: 'u1' },
-      include: { follower: { select: { id: true, username: true, avatar: true } } },
+      include: { follower: { select: publicUserSummarySelect } },
     });
     expect(result).toEqual(follow);
   });

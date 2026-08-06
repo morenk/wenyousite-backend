@@ -80,8 +80,9 @@
 
 - `findMe` 返回完整字段（email、emailVerified、隐私开关等），另附 `_count.following` / `_count.followers`
 - `findById` 排除 email / emailVerified / updatedAt / deletedAt 字段，仅返回公开信息。登录后额外返回 4 个关系字段
-- 已注销用户（deletedAt 非 null）的公开资料被屏蔽为 `{ id, username: '已注销用户', isDeactivated: true }`
-- 注销时释放 username 和 email 唯一性（追加 `_deleted_{timestamp}` 后缀），允许原用户或他人日后复用
+- 已注销用户（deletedAt 非 null）的公开资料被屏蔽为 `{ id, username: '已注销用户', isDeactivated: true }`；帖子作者、楼主、成员、关注关系、收藏、搜索与通知中的用户摘要同样统一输出 `username: '已注销用户', avatar: null`
+- 注销时使用不含原用户名/邮箱的内部墓碑值释放两个唯一键，允许原用户或他人日后复用；墓碑值不得进入公开 API
+- 注销事务同时将 `users.avatar` 置空；如该 URL 未被正文或草稿引用，将按媒体孤儿回收规则删除原图和派生图
 - `GET /users/:id` 返回 `_count.following` 和 `_count.followers`，供前端展示社交数据
 - 更新用户名时检查唯一性（过滤 deletedAt），冲突返回 409；DB 层 P2002 同样转 409 防竞态
 - 用户名修改需间隔 7 天以上，不足时返回剩余天数提示
@@ -116,7 +117,7 @@
 - **双查询方法（findMe / findById）**：分离本人信息和公开信息，避免敏感字段泄露。`findById` 接受可选 `viewerId` 供 optional auth 场景
 - **OptionalAuth 守卫**：不同于 `@Public()` 完全跳过 JWT 解析，`@OptionalAuth()` 会尝试解析 token 但不强制，使公开接口能在登录态下返回个性化数据
 - **参与/创建分离**：自建帖归入创建列表，参与列表只含其他楼主的帖子，且统一以 `playerMarked=true` 表示已获授玩家身份；本人可见其中的私密帖，他人只能看到公开玩家关系
-- **已注销用户屏蔽**：保留记录不物理删除（外键关联完整性），但在公开接口中替换为兜底显示名，不暴露注销时间
+- **已注销用户屏蔽**：保留记录不物理删除（外键关联完整性），所有面向客户端的用户摘要查询携带 `deletedAt` 供统一响应层转换，仅输出兜底显示名和空头像，不暴露内部墓碑值或注销时间（通知为兼容既有跳转判断保留 `fromUser.deletedAt`）
 - **关注/拉黑/资料修改/注销使用 @Auth()**：这些写操作涉及通知推送和信息公开，要求邮箱已验证以减少滥用
 - **UserFollow 联合唯一键**：upsert 保证同一关注关系唯一，避免重复关注记录
 - **通知推送异步 fire-and-forget**：通知发送失败不影响关注操作的成功返回

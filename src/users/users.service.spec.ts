@@ -114,10 +114,23 @@ describe('UsersService', () => {
   });
 
   it('deactivate 应该成功注销', async () => {
-    mockPrisma.user.findUnique.mockResolvedValue({ ...userFixture });
+    mockPrisma.user.findUnique.mockResolvedValue({
+      ...userFixture,
+      id: 'user_abcdefghijklmnop',
+      avatar: 'https://example.com/avatar.webp',
+    });
     mockPrisma.user.update.mockResolvedValue({});
-    const result = await service.deactivate('u1');
+    const result = await service.deactivate('user_abcdefghijklmnop');
     expect(result.message).toBe('账号已注销');
+    expect(mockPrisma.user.update).toHaveBeenCalledWith({
+      where: { id: 'user_abcdefghijklmnop' },
+      data: expect.objectContaining({
+        username: 'deleted_abcdefghijklmnop',
+        email: 'deleted_user_abcdefghijklmnop@deleted.invalid',
+        avatar: null,
+        deletedAt: expect.any(Date),
+      }),
+    });
   });
 
   it('deactivate 已注销再次调用应该返回404', async () => {

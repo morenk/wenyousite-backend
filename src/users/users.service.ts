@@ -3,6 +3,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { CacheService } from '../redis/cache.service';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { DEACTIVATED_USER_NAME } from '../common/user-summary';
 
 const userSelectPrivate = {
   id: true, email: true, username: true, avatar: true, bio: true,
@@ -21,7 +22,7 @@ const maskDeactivated = (user: Record<string, any>) => {
     const { deletedAt, ...rest } = user;
     return rest;
   }
-  return { id: user.id, username: '已注销用户', isDeactivated: true };
+  return { id: user.id, username: DEACTIVATED_USER_NAME, isDeactivated: true };
 };
 
 /** 用户服务：用户资料查询与更新 */
@@ -200,11 +201,10 @@ export class UsersService {
     if (!user) throw new NotFoundException('用户不存在');
     if (user.deletedAt) throw new NotFoundException('用户不存在');
 
-    // 释放 username 和 email 的唯一性约束，允许他人或原用户日后复用
-    const ts = Math.floor(Date.now() / 1000);
-    const releasedUsername = `${user.username}_deleted_${ts}`.slice(0, 24);
-    const emailParts = user.email.split('@');
-    const releasedEmail = `${emailParts[0]}_deleted_${ts}@${emailParts[1]}`;
+    // 释放唯一键同时移除原始账号标识；内部墓碑值不得用于对外展示。
+    const tombstone = user.id.slice(-16);
+    const releasedUsername = `deleted_${tombstone}`;
+    const releasedEmail = `deleted_${user.id}@deleted.invalid`;
 
     await this.prisma.$transaction([
       this.prisma.user.update({
@@ -213,6 +213,7 @@ export class UsersService {
           deletedAt: new Date(),
           username: releasedUsername,
           email: releasedEmail,
+          avatar: null,
         },
       }),
       this.prisma.refreshToken.updateMany({

@@ -907,7 +907,7 @@ export class ThreadsService {
       update: {},
       include: {
         thread: { select: { id: true, title: true } },
-        user: { select: { id: true, username: true, avatar: true } },
+        user: { select: authorSelect },
       },
     });
   }

@@ -14,6 +14,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationProducer } from '../jobs/notification.producer';
 import { BlockFilterService } from '../common/services/block-filter.service';
 import { Auth, AuthRead, OptionalAuth } from '../auth/decorators/auth.decorator';
+import { publicUserSummarySelect } from '../common/user-summary';
 
 /** 关注与拉黑控制器 */
 @ApiTags('Users')
@@ -93,7 +94,7 @@ export class UsersFollowController {
     const user = req['user'] as { id: string };
     return this.prisma.userFollow.findMany({
       where: { followerId: user.id },
-      include: { following: { select: { id: true, username: true, avatar: true } } },
+      include: { following: { select: publicUserSummarySelect } },
     });
   }
 
@@ -108,7 +109,7 @@ export class UsersFollowController {
     const user = req['user'] as { id: string };
     return this.prisma.userFollow.findMany({
       where: { followingId: user.id },
-      include: { follower: { select: { id: true, username: true, avatar: true } } },
+      include: { follower: { select: publicUserSummarySelect } },
     });
   }
 
@@ -125,7 +126,7 @@ export class UsersFollowController {
     await this.assertUserExists(id);
     return this.prisma.userFollow.findMany({
       where: { followerId: id },
-      include: { following: { select: { id: true, username: true, avatar: true } } },
+      include: { following: { select: publicUserSummarySelect } },
     });
   }
 
@@ -140,7 +141,7 @@ export class UsersFollowController {
     await this.assertUserExists(id);
     return this.prisma.userFollow.findMany({
       where: { followingId: id },
-      include: { follower: { select: { id: true, username: true, avatar: true } } },
+      include: { follower: { select: publicUserSummarySelect } },
     });
   }
 
@@ -199,7 +200,7 @@ export class UsersFollowController {
     const user = req['user'] as { id: string };
     return this.prisma.userBlock.findMany({
       where: { blockerId: user.id },
-      include: { blocked: { select: { id: true, username: true, avatar: true } } },
+      include: { blocked: { select: publicUserSummarySelect } },
     });
   }
 }

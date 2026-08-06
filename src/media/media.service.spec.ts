@@ -305,6 +305,10 @@ describe('MediaService', () => {
 
     await service.cleanupOrphanMedia();
 
+    expect(mockPrisma.user.findMany).toHaveBeenCalledWith({
+      where: { avatar: { not: null }, deletedAt: null },
+      select: { avatar: true },
+    });
     expect(mockS3.send).toHaveBeenCalledTimes(1);
     const deleteCall = mockS3.send.mock.calls[0][0];
     const keys = deleteCall.Delete.Objects.map((o: any) => o.Key);

@@ -7,6 +7,7 @@ import {
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { PaginatedResult } from '../dto/paginated-result';
+import { sanitizePublicUserSummaries } from '../user-summary';
 
 /** 统一成功响应体 */
 export interface ApiResponse<T = unknown> {
@@ -36,7 +37,7 @@ export class TransformInterceptor<T>
           return {
             code: 0,
             message: 'ok',
-            data: rawData.items as unknown as T,
+            data: sanitizePublicUserSummaries(rawData.items) as unknown as T,
             meta: rawData.pagination as unknown as Record<string, unknown>,
           };
         }
@@ -45,7 +46,7 @@ export class TransformInterceptor<T>
         return {
           code: 0,
           message: 'ok',
-          data: rawData as T,
+          data: sanitizePublicUserSummaries(rawData) as T,
         };
       }),
     );

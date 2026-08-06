@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { PaginatedResult, paginate } from '../common/dto/paginated-result';
+import { publicUserSummarySelect } from '../common/user-summary';
 
 /** 收藏服务：CRUD + 可见性过滤 */
 @Injectable()
@@ -21,7 +22,7 @@ export class BookmarksService {
       include: {
         thread: {
           include: {
-            owner: { select: { id: true, username: true, avatar: true } },
+            owner: { select: publicUserSummarySelect },
             _count: { select: { members: true, posts: true } },
           },
         },
@@ -67,7 +68,7 @@ export class BookmarksService {
       include: {
         thread: {
           include: {
-            owner: { select: { id: true, username: true, avatar: true } },
+            owner: { select: publicUserSummarySelect },
             _count: { select: { members: true, posts: true } },
           },
         },

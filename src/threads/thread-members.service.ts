@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../common/services/thread-access.service';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound, forbidden } from '../common/exceptions/business.exception';
+import { publicUserSummarySelect } from '../common/user-summary';
 
 /** 主题帖参与人服务：候选池加入、角色修改、玩家标记 */
 @Injectable()
@@ -19,7 +20,7 @@ export class ThreadMembersService {
     return this.prisma.threadMember.findMany({
       where: { threadId },
       include: {
-        user: { select: { id: true, username: true, avatar: true } },
+        user: { select: publicUserSummarySelect },
       },
       orderBy: { joinedAt: 'asc' },
     });
@@ -42,7 +43,7 @@ export class ThreadMembersService {
     return this.prisma.threadMember.create({
       data: { threadId, userId, role: 'PARTICIPANT' },
       include: {
-        user: { select: { id: true, username: true, avatar: true } },
+        user: { select: publicUserSummarySelect },
       },
     });
   }
@@ -71,7 +72,7 @@ export class ThreadMembersService {
         where: { threadId_userId: { threadId, userId: targetUserId } },
         data: dto as any,
         include: {
-          user: { select: { id: true, username: true, avatar: true } },
+          user: { select: publicUserSummarySelect },
         },
       });
 

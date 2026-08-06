@@ -304,7 +304,7 @@ export class MediaService {
     const referenced = new Set<string>();
 
     const avatars = await this.prisma.user.findMany({
-      where: { avatar: { not: null } },
+      where: { avatar: { not: null }, deletedAt: null },
       select: { avatar: true },
     });
     for (const u of avatars) {

@@ -1,5 +1,7 @@
 /** Prisma 查询辅助：消除软删除过滤、子贴/楼层计数等重复模式 */
 
+import { publicUserSummarySelect } from './user-summary';
+
 /** 展开到 where 子句，过滤已软删除记录 */
 export const notDeleted = { deletedAt: null } as const;
 
@@ -51,11 +53,7 @@ export function mapSubthreadBody<T extends { posts?: unknown[] | null }>(subthre
 }
 
 /** 帖子 include: 作者基本信息 */
-export const authorSelect = {
-  id: true,
-  username: true,
-  avatar: true,
-} as const;
+export const authorSelect = publicUserSummarySelect;
 
 /** 计数用户和帖子总数（帖子只计楼层，正文不占楼层号） */
 export const countMembersAndPosts = () => ({

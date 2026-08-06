@@ -80,6 +80,9 @@ export class CacheInvalidationListener {
   async handleUserChange(event: { userId: string }) {
     await this.cache.del(this.cache.buildKey('user', event.userId));
     await this.cache.del(this.cache.buildKey('user', 'me', event.userId));
+    // 用户名、头像和注销状态会嵌入主题详情与列表，不能继续返回旧摘要。
+    await this.cache.delByPattern(this.cache.buildKey('thread', '*'));
+    await this.cache.delByPattern(this.cache.buildKey('threads', 'list', '*'));
   }
 
   // ── 标签变更 ──

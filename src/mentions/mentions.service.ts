@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../common/services/thread-access.service';
 import { BlockFilterService, BlockSets } from '../common/services/block-filter.service';
+import { publicUserSummarySelect } from '../common/user-summary';
 
 export const ALL_PLAYERS_MENTION = '全体玩家';
 export const MAX_DIRECT_MENTIONS = 10;
@@ -69,7 +70,7 @@ export class MentionsService {
 
     const existing = (await this.prisma.postMention.findMany({
       where: { postId },
-      include: { mentionedUser: { select: { id: true, username: true, avatar: true } } },
+      include: { mentionedUser: { select: publicUserSummarySelect } },
     })) ?? [];
 
     const directUsers = await this.findDirectUsers(tokens);
@@ -342,7 +343,7 @@ export class MentionsService {
     return this.prisma.postMention.findMany({
       where: { postId },
       include: {
-        mentionedUser: { select: { id: true, username: true, avatar: true } },
+        mentionedUser: { select: publicUserSummarySelect },
       },
     });
   }

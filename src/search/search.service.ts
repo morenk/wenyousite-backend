@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { attachPlayerCounts } from '../common/prisma-helpers';
+import { attachPlayerCounts, authorSelect } from '../common/prisma-helpers';
 import { paginate } from '../common/dto/paginated-result';
 import { ThreadAccessService } from '../common/services/thread-access.service';
 
@@ -15,7 +15,7 @@ const postSearchSelect = {
   parentPostId: true,
   content: true,
   createdAt: true,
-  author: { select: { id: true, username: true } },
+  author: { select: authorSelect },
   thread: { select: { id: true, title: true } },
   subthread: { select: { id: true, title: true } },
 } satisfies Prisma.PostSelect;
@@ -122,7 +122,7 @@ export class SearchService {
         title: true,
         category: true,
         createdAt: true,
-        owner: { select: { id: true, username: true, avatar: true } },
+        owner: { select: authorSelect },
         _count: { select: { members: true, posts: true } },
       },
       take: 50,

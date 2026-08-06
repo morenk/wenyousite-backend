@@ -116,7 +116,7 @@ export class AdminService {
         threadId: true,
         isRead: true,
         createdAt: true,
-        user: { select: { id: true, username: true } },
+        user: { select: { id: true, username: true, deletedAt: true } },
       },
       orderBy: { createdAt: 'desc' },
       take: take + 1,

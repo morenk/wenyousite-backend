@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { paginate } from '../common/dto/paginated-result';
+import { publicUserSummarySelect } from '../common/user-summary';
 
 /** 站内通知服务：CRUD、未读数、硬删除、标记未读 */
 @Injectable()
@@ -57,7 +58,7 @@ export class NotificationsService {
       include: {
         post: { select: { id: true, floorNumber: true, parentPostId: true, deletedAt: true } },
         thread: { select: { id: true, title: true, deletedAt: true } },
-        fromUser: { select: { id: true, username: true, avatar: true, deletedAt: true } },
+        fromUser: { select: publicUserSummarySelect },
       },
     });
 

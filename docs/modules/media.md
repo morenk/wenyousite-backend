@@ -60,7 +60,7 @@ UPLOADING ──(元数据不合法)──────────────�
 每天凌晨 4 点由 `CleanupTask.cleanup()` 调用 `MediaService.cleanupOrphanMedia()`，防止对象存储只增不减：
 
 1. **构建存活引用集合**（内存 Set，匹配 `media.url`）：
-   - `users.avatar`（非 null）
+   - 未注销用户的 `users.avatar`（非 null）；注销事务会立即置空该引用
    - 未删除帖子的 `posts.content`（`deletedAt: null`）中正则提取 `![...](url)`
    - `drafts.content`（避免误删正在编辑的草稿图）
    - 引用集合为空时**跳过本次清理**（安全阀）
