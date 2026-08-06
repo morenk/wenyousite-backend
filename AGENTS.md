@@ -305,11 +305,21 @@ setsid nohup env NODE_ENV=production node dist/main </dev/null \
 - 前后端分仓提交时，在模块文档记录对应 commit SHA 或发布批次标识。
 - 破坏性变更必须写明兼容窗口、部署顺序和回滚方案。
 
+### 移动端合同维护（API 变更强制）
+
+- Flutter 移动端在异地独立开发，本仓库不维护 Flutter 页面代码；后端必须保证移动端仅依赖本仓库的 DTO、Swagger/OpenAPI 和相关模块文档即可完成对接。
+- 任何对外 API 变更都必须在同一个提交中维护移动端合同：包括路由与 HTTP 方法、认证/权限、请求参数、响应字段、枚举、错误码、分页、响应 envelope，以及通知 payload/跳转语义、Markdown/媒体等跨端协议。至少同步 DTO 装饰器、Swagger 描述、对应 `docs/modules/*.md` 和回归测试，禁止只改运行时实现。
+- 合同版本由 `src/common/swagger/openapi-document.ts` 中的 `API_CONTRACT_VERSION` 统一维护，遵循 SemVer：破坏兼容性升 major，向后兼容的新能力升 minor，兼容修正升 patch；开发阶段可保留 `-dev.<date>[.<n>]` 预发布后缀。所有可被客户端观测的合同变化都必须同步更新该版本。
+- 向后兼容新增字段必须优先设为可选或有稳定默认值；新增枚举值也要在变更说明中提醒移动端保留 unknown/fallback 分支。字段删除、重命名、类型或必填性变化、语义变化、路由/状态码/鉴权收紧均视为破坏性变更。
+- 破坏性变更不得静默覆盖：必须在对应模块文档写明旧/新合同映射、兼容窗口、后端与 Web/移动端的切换顺序和回退策略，并在移动端完成迁移前保留旧合同。
+- 交付 API 变更时，必须给异地移动端提供可定位的参考：合同版本、后端 commit SHA、变更分类（兼容/破坏性）、变更摘要，以及可访问的 Swagger/OpenAPI 地址或 `pnpm openapi:export` 产物。提交前至少运行 `pnpm openapi:check` 和相关 API 测试。
+
 ### Definition of Done
 
 - 验收标准满足，无已知 P0/P1 缺陷。
 - `pnpm check` 通过；高风险或发布任务完成相应集成/E2E 验证。
 - Swagger、DTO、运行时响应和客户端生成类型一致。
+- API 变更已同步移动端合同、`API_CONTRACT_VERSION` 和兼容/迁移说明，异地客户端可通过版本与 commit SHA 精确对齐。
 - 公共行为文档已同步，提交中没有 secrets、测试账号凭据或临时调试代码。
 - 公网开发环境已按影响范围完成提交、推送、迁移/重启和最小烟雾验证；纯文档变更无需重启。
 
