@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ReadingProgressService } from './reading-progress.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { ThreadAccessService } from '../common/services/thread-access.service';
+import { ThreadAccessService } from '../access/thread-access.service';
 
 const mockPrisma = {
   userReadProgress: {

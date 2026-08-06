@@ -8,6 +8,7 @@ import { BookmarksService } from './bookmarks.service';
 import { CreateBookmarkDto } from './dto/create-bookmark.dto';
 import { CursorPaginationDto } from '../common/dto/pagination.dto';
 import { AuthRead } from '../auth/decorators/auth.decorator';
+import { MessageResponseDto } from '../common/dto/message-response.dto';
 
 /** 收藏控制器：列表、添加、取消 */
 @ApiTags('Bookmarks')
@@ -39,7 +40,7 @@ export class BookmarksController {
 
   @Delete(':id')
   @ApiOperation({ summary: '取消收藏' })
-  @ApiOkResponse({ description: '已取消收藏' })
+  @ApiOkResponse({ type: MessageResponseDto, description: '已取消收藏' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   @ApiNotFoundResponse({ description: '收藏不存在' })
   async remove(@Req() req: FastifyRequest, @Param('id') id: string) {

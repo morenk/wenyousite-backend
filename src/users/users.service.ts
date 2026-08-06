@@ -19,7 +19,8 @@ const userSelectPublic = {
 
 const maskDeactivated = (user: Record<string, any>) => {
   if (!user.deletedAt) {
-    const { deletedAt, ...rest } = user;
+    const rest = { ...user };
+    delete rest.deletedAt;
     return rest;
   }
   return { id: user.id, username: DEACTIVATED_USER_NAME, isDeactivated: true };

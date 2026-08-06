@@ -2,9 +2,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PostsService } from './posts.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { ThreadAccessService } from '../common/services/thread-access.service';
-import { BlockFilterService } from '../common/services/block-filter.service';
-import { NotificationProducer } from '../jobs/notification.producer';
+import { ThreadAccessService } from '../access/thread-access.service';
+import { BlockFilterService } from '../access/block-filter.service';
+import { NotificationProducer } from '../notifications/notification.producer';
 import { MentionsService } from '../mentions/mentions.service';
 import { ReadingProgressService } from '../reading-progress/reading-progress.service';
 import { RedisService } from '../redis/redis.service';
@@ -12,6 +12,9 @@ import { CacheService } from '../redis/cache.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { DiceService } from '../dice/dice.service';
+import { PostingPolicyService } from './posting-policy.service';
+import { PostQueryService } from './post-query.service';
+import { OutboxService } from '../outbox/outbox.service';
 
 const mockPrisma = {
   $transaction: jest.fn(),
@@ -20,6 +23,7 @@ const mockPrisma = {
   thread: { findUnique: jest.fn() },
   subthread: { findUnique: jest.fn(), update: jest.fn() },
   threadMember: { findUnique: jest.fn(), upsert: jest.fn() },
+  userBlock: { findFirst: jest.fn().mockResolvedValue(null) },
   post: {
     findUnique: jest.fn(),
     aggregate: jest.fn(),
@@ -64,6 +68,7 @@ const mockBlockFilter = {
     .mockResolvedValue({ blockedByUser: new Set(), blockedByAuthor: new Set() }),
   filterRecipients: jest.fn((ids: string[]) => ids),
 };
+const mockOutbox = { enqueue: jest.fn().mockResolvedValue(undefined) };
 
 describe('PostsService', () => {
   let service: PostsService;
@@ -72,6 +77,7 @@ describe('PostsService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PostsService,
+        PostQueryService,
         DiceService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: EventEmitter2, useValue: mockEventEmitter },
@@ -82,6 +88,8 @@ describe('PostsService', () => {
         { provide: ReadingProgressService, useValue: mockReadingProgress },
         { provide: RedisService, useValue: mockRedis },
         { provide: CacheService, useValue: mockCache },
+        PostingPolicyService,
+        { provide: OutboxService, useValue: mockOutbox },
       ],
     }).compile();
     service = module.get<PostsService>(PostsService);
@@ -122,6 +130,7 @@ describe('PostsService', () => {
     mockPrisma.$transaction.mockImplementation(async (fn) => {
       tx = {
         $queryRaw: jest.fn(),
+        threadMember: { upsert: jest.fn() },
         post: {
           aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 5 } }),
           create: jest
@@ -167,6 +176,7 @@ describe('PostsService', () => {
     mockPrisma.$transaction.mockImplementation(async (fn) => {
       tx = {
         $queryRaw: jest.fn(),
+        threadMember: { upsert: jest.fn() },
         post: {
           aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 0 } }),
           create: jest.fn().mockResolvedValue({
@@ -189,9 +199,12 @@ describe('PostsService', () => {
         data: expect.objectContaining({ content: '第一段\n<br />\n' }),
       }),
     );
-    expect(mockEventEmitter.emit).toHaveBeenCalledWith(
-      'post.created',
-      expect.objectContaining({ content: '第一段\n<br />\n' }),
+    expect(mockOutbox.enqueue).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        eventType: 'post.created',
+        payload: expect.objectContaining({ content: '第一段\n<br />\n' }),
+      }),
     );
   });
 
@@ -207,6 +220,7 @@ describe('PostsService', () => {
     mockPrisma.$transaction.mockImplementation(async (fn) =>
       fn({
         $queryRaw: jest.fn(),
+        threadMember: { upsert: jest.fn() },
         post: {
           aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 0 } }),
           create: jest.fn().mockResolvedValue({
@@ -248,6 +262,7 @@ describe('PostsService', () => {
     };
     const tx = {
       $queryRaw: jest.fn(),
+      threadMember: { upsert: jest.fn() },
       post: {
         aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 0 } }),
         create: jest.fn().mockResolvedValue(created),
@@ -278,9 +293,14 @@ describe('PostsService', () => {
       ],
     });
     expect(result.diceRolls).toEqual(official.diceRolls);
-    expect(mockEventEmitter.emit).toHaveBeenCalledWith(
-      'post.created',
-      expect.objectContaining({ diceRolls: official.diceRolls }),
+    expect(mockOutbox.enqueue).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        eventType: 'post.created',
+        payload: expect.objectContaining({
+          diceRolls: [expect.objectContaining({ nodeId, notation: '2d6+3', total: 10 })],
+        }),
+      }),
     );
   });
 
@@ -404,6 +424,7 @@ describe('PostsService', () => {
     mockPrisma.$transaction.mockImplementation(async (fn) => {
       const tx = {
         $queryRaw: jest.fn(),
+        threadMember: { upsert: jest.fn() },
         post: {
           aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 5 } }),
           create: jest
@@ -460,9 +481,12 @@ describe('PostsService', () => {
           }),
         }),
       );
-      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
-        'post.created',
-        expect.objectContaining({ postId: 'b1', isSubthreadBody: true }),
+      expect(mockOutbox.enqueue).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          eventType: 'post.created',
+          payload: expect.objectContaining({ postId: 'b1', isSubthreadBody: true }),
+        }),
       );
     });
 
@@ -575,6 +599,7 @@ describe('PostsService', () => {
       id: 's1',
       threadId: 't1',
       postingPolicy: 'COLLABORATORS',
+      thread: { published: true, ownerId: 'owner' },
     });
     mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
     await expect(service.create('s1', { content: 'test' }, 'u1')).rejects.toThrow(
@@ -587,6 +612,7 @@ describe('PostsService', () => {
       id: 's1',
       threadId: 't1',
       postingPolicy: 'PARTICIPANTS',
+      thread: { published: true, ownerId: 'owner' },
     });
     mockPrisma.post.findUnique.mockResolvedValue(null);
     await expect(
@@ -783,6 +809,7 @@ describe('PostsService', () => {
       id: 's1',
       threadId: 't1',
       postingPolicy: 'PLAYERS',
+      thread: { published: true, ownerId: 'owner' },
     });
     mockPrisma.threadMember.upsert.mockResolvedValue({});
     mockPrisma.threadMember.findUnique.mockResolvedValue({
@@ -809,6 +836,7 @@ describe('PostsService', () => {
     mockPrisma.$transaction.mockImplementation(async (fn) =>
       fn({
         $queryRaw: jest.fn(),
+        threadMember: { upsert: jest.fn() },
         post: {
           aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 0 } }),
           create: jest.fn().mockResolvedValue({
@@ -824,11 +852,14 @@ describe('PostsService', () => {
     await expect(service.create('s1', { content: '协作者更新' }, 'collab')).resolves.toMatchObject({
       id: 'p1',
     });
-    expect(mockEventEmitter.emit).toHaveBeenCalledWith(
-      'post.created',
+    expect(mockOutbox.enqueue).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({
-        authorRole: 'COLLABORATOR',
-        authorPlayerMarked: false,
+        eventType: 'post.created',
+        payload: expect.objectContaining({
+          authorRole: 'COLLABORATOR',
+          authorPlayerMarked: false,
+        }),
       }),
     );
   });

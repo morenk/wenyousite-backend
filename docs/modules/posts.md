@@ -55,7 +55,7 @@
   - PARTICIPANTS：所有已通过主题帖访问校验的登录用户可发帖，发帖后自动成为 PARTICIPANT
   - COLLABORATORS：仅 OWNER/COLLABORATOR 可发帖
   - PLAYERS：仅 playerMarked=true 的参与人可发帖，管理者绕过该限制
-- 发帖后通过 EventEmitter 发射 `post.created` 事件，由 PostEventsListener 解耦处理 @提及解析和通知投递
+- 已发布帖在创建帖子同一事务中写入 `post.created` Outbox，由 PostEventsListener 解耦处理 @提及、通知和 Redis 投影
 - 编辑使用乐观锁 version 防止并发编辑冲突，且仅作者可编辑；删除允许作者或 OWNER/COLLABORATOR 软删除他人楼层/回复
 - `post.created` 事件携带发帖时 `authorRole` 与 `authorPlayerMarked` 快照，订阅通知不读取异步处理时的当前角色
 - 通知和最近动态摘要会在原文位置显示 `表达式=总计`；纯骰子帖也能生成摘要。编辑骰子节点不发射 `post.created`
@@ -64,7 +64,7 @@
 
 - [x] OpenAPI 创建 DTO 暴露可选 UUID `clientRequestId`
 - [x] 相同作者和请求 ID 的相同载荷只创建一个 Post，并返回首次响应
-- [x] 重试不重复分配楼层号、不重复发射 post.created
+- [x] 重试不重复分配楼层号；`eventKey=post-created:{postId}` 保证 Outbox 事件幂等
 - [x] 同一请求 ID 复用为不同载荷返回 409
 - [x] 数据库唯一约束兜底并发双请求
 - [x] 全量测试、迁移、生产构建、提交、重启与健康检查通过
@@ -83,5 +83,5 @@
 - **楼层编号事务内分配**：`SELECT MAX + 1` 在事务内执行，防止并发发帖导致的编号冲突和空洞
 - **楼中楼平级设计**：所有回复共享 parentPostId，通过 replyToPostId 区分回复目标，避免无限嵌套的 UI 复杂度和查询复杂度
 - **独立阅读页不新增数据模型**：原楼层只在视觉上充当讨论正文，存储语义仍为 FLOOR；其下回复继续通过 parentPostId 平级关联
-- **事件解耦 @提及和通知**：发帖服务不直接处理 @提及解析（涉用户匹配逻辑）和通知投递（涉订阅查询逻辑），通过 EventEmitter 发射事件到 PostEventsListener 异步处理，单一职责
+- **可靠事件解耦 @提及和通知**：发帖服务不直接处理用户匹配和通知接收者计算，只在写事务记录 Outbox；PostEventsListener 异步处理且失败可重试，通知事件键和数据库权威计数覆盖保证幂等
 - **主体正文保护**：子贴正文（kind=BODY）不可删除，删除它等同于删除子贴；通过 kind=BODY 判断阻止误删。如需移除正文请删除整个子贴

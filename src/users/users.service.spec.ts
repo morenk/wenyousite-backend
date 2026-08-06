@@ -149,7 +149,8 @@ describe('UsersService', () => {
   });
 
   it('findById 不应暴露 email', async () => {
-    const { email, ...noEmail } = { ...userFixture };
+    const noEmail: Partial<typeof userFixture> = { ...userFixture };
+    delete noEmail.email;
     mockPrisma.user.findUnique.mockResolvedValue(noEmail);
     const result = await service.findById('u1');
     expect(result.email).toBeUndefined();

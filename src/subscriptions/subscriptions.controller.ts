@@ -4,6 +4,7 @@ import { FastifyRequest } from 'fastify';
 import { SubscriptionsService } from './subscriptions.service';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
+import { MessageResponseDto } from '../common/dto/message-response.dto';
 
 /** 订阅控制器：玩家订阅主题帖或特定用户回复 */
 @ApiTags('Subscriptions')
@@ -38,7 +39,7 @@ export class SubscriptionsController {
   @Delete(':id')
   @Auth()
   @ApiOperation({ summary: '取消订阅' })
-  @ApiOkResponse({ description: '已取消订阅' })
+  @ApiOkResponse({ type: MessageResponseDto, description: '已取消订阅' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   @ApiNotFoundResponse({ description: '订阅不存在' })
   async remove(@Param('id') id: string, @Req() req: FastifyRequest) {

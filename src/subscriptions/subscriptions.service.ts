@@ -2,7 +2,7 @@ import { Injectable, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
-import { ThreadAccessService } from '../common/services/thread-access.service';
+import { ThreadAccessService } from '../access/thread-access.service';
 
 /** 订阅服务：玩家可订阅特定用户或整个主题帖 */
 @Injectable()

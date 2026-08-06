@@ -548,3 +548,22 @@ model UserFollow {
   @@index([followingId, createdAt(sort: Desc)], map: "user_follows_followers_idx")
   @@map("user_follows")
 }
+
+/// 与业务写入同事务提交的领域事件；由后台分发器可靠投递到进程内监听器和 BullMQ。
+model DomainOutbox {
+  id            String    @id @default(cuid())
+  eventType     String    @map("event_type")
+  aggregateType String    @map("aggregate_type")
+  aggregateId   String?   @map("aggregate_id")
+  eventKey      String    @unique @map("event_key")
+  payload       Json
+  attempts      Int       @default(0)
+  availableAt   DateTime  @default(now()) @map("available_at")
+  processedAt   DateTime? @map("processed_at")
+  lastError     String?   @map("last_error")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@index([processedAt, availableAt, createdAt], map: "domain_outbox_pending_idx")
+  @@map("domain_outbox")
+}

@@ -24,6 +24,7 @@ import {
   PostResponseDto,
   ReplyResponseDto,
 } from './dto/post-response.dto';
+import { MessageResponseDto } from '../common/dto/message-response.dto';
 
 /** 楼层控制器：发帖、楼中楼、编辑、删除 */
 @ApiTags('Posts')
@@ -46,7 +47,7 @@ export class PostsController {
     @Query() query: PostQueryDto,
     @Req() req: FastifyRequest,
   ) {
-    const user = (req as any).user as { id: string } | undefined;
+    const user = req.user as { id: string } | undefined;
     return this.postsService.findAllBySubthread(subthreadId, query.cursor, query.limit, user?.id);
   }
 
@@ -65,7 +66,7 @@ export class PostsController {
     @Query() query: PostQueryDto,
     @Req() req: FastifyRequest,
   ) {
-    const user = (req as any).user as { id: string } | undefined;
+    const user = req.user as { id: string } | undefined;
     return this.postsService.findReplies(id, query.cursor, query.limit, user?.id);
   }
 
@@ -114,7 +115,7 @@ export class PostsController {
   @ApiOkResponse({ type: PostDetailResponseDto, description: '帖子详情（含作者和导航上下文）' })
   @ApiNotFoundResponse({ description: '帖子不存在' })
   async findById(@Param('id') id: string, @Req() req: FastifyRequest) {
-    const user = (req as any).user as { id: string } | undefined;
+    const user = req.user as { id: string } | undefined;
     return this.postsService.findById(id, user?.id);
   }
 
@@ -135,7 +136,7 @@ export class PostsController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '软删除楼层（子贴正文 kind=BODY 不可删除）' })
-  @ApiOkResponse({ description: '帖子已删除' })
+  @ApiOkResponse({ type: MessageResponseDto, description: '帖子已删除' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   @ApiForbiddenResponse({ description: '非本人帖子，无权删除' })
   @ApiNotFoundResponse({ description: '帖子不存在' })

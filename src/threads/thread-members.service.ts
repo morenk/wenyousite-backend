@@ -1,6 +1,6 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { ThreadAccessService } from '../common/services/thread-access.service';
+import { ThreadAccessService } from '../access/thread-access.service';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound, forbidden } from '../common/exceptions/business.exception';
 import { publicUserSummarySelect } from '../common/user-summary';

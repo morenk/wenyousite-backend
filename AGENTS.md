@@ -11,14 +11,14 @@ NestJS + Fastify + PostgreSQL + Prisma + Redis + BullMQ，模块化单体架构�
 |------|------|------|
 | 运行时 | Node.js 24 LTS + TypeScript | — |
 | 框架 | NestJS + Fastify | Fastify 性能优于 Express |
-| 数据库 | PostgreSQL 17 + Prisma ORM | 22 张表，8 个枚举，类型安全 |
+| 数据库 | PostgreSQL 17 + Prisma ORM | 26 张表，11 个枚举，类型安全 |
 | 缓存/队列 | Redis 7 + BullMQ | 通知队列 (notification) + 图片处理队列 (image) |
 | 认证 | Passport JWT + Argon2 | 双 Token (access 15m / refresh 7d) |
 | 校验 | class-validator + class-transformer | DTO 自动校验 |
 | 日志 | nestjs-pino + pino-pretty + pino-roll | 结构化日志，dev 彩色控制台，prod JSON + 可选日滚动文件 |
 | 错误监控 | @sentry/nestjs + @sentry/node | 有 DSN 时启用 |
 | 限流 | @nestjs/throttler | 全局 + auth 端点加强 |
-| 事件 | @nestjs/event-emitter | 发帖后事件解耦 mentions/notifications |
+| 事件 | Transactional Outbox + @nestjs/event-emitter | 业务状态与事件原子提交，重试投递 mentions/notifications/Redis 投影 |
 | 定时 | @nestjs/schedule | 每天凌晨 4 点清理过期 token 和僵尸用户 |
 | 安全 | helmet | HTTP 安全头 |
 | 图片 | @aws-sdk/client-s3 + sharp | 预签名直传 + 异步缩略图（300x300 + 800px） |
@@ -38,35 +38,34 @@ src/
 ├── common/                    # 全局复用
 │   ├── decorators/public.decorator.ts    # @Public() 跳过 JWT
 │   ├── guards/verified.guard.ts         # 邮箱验证守卫
-│   ├── guards/block.guard.ts            # 拉黑拦截守卫
-│   ├── services/thread-access.service.ts # 主题帖访问权限 + 管理权限校验
 │   ├── filters/all-exceptions.filter.ts # 统一异常格式
 │   ├── interceptors/response.interceptor.ts
 │   ├── swagger/openapi-document.ts       # 运行时与离线导出共用的 OpenAPI 构建
 │   ├── prisma-helpers.ts                # 软删除/计数查询共享 helper
 │   └── dto/pagination.dto.ts            # cursor 分页
 ├── prisma/                    # PrismaService (全局提供)
+├── access/                    # 主题访问与双向拉黑策略（显式 AccessPolicyModule）
+├── outbox/                    # 事务 Outbox 写入 + SKIP LOCKED 后台分发
+├── post-activity/             # post/thread 事件监听：提及、通知、Redis 投影
 ├── auth/                      # 注册/登录/刷新/双端登录终端/密码管理
 │   ├── decorators/auth.decorator.ts  # @Auth() 和 @AuthRead()
 │   ├── strategies/jwt.strategy.ts
 │   └── guards/jwt-auth.guard.ts
-├── users/                     # 资料 + 关注 + 拉黑
-│   ├── users.controller.ts    # me, search, :id
-│   └── users-follow.controller.ts  # follow, block
-├── threads/                   # 主题帖(事务创建/私密帖/置顶) + 成员(角色/玩家) + 邀请链接 + 标签
+├── users/                     # 资料 + UserActivityService + UserRelationsService
+├── threads/                   # 命令服务 + ThreadQueryService + 成员/邀请/标签
 ├── subthreads/                # 子贴 + 软删除 + 发帖权限(PARTICIPANTS/COLLABORATORS/PLAYERS)
 ├── tags/                      # 平台级 TopicTag
-├── posts/                     # 楼层 + 楼中楼(平级) + 编辑 + 软删除 + 点赞
+├── posts/                     # 命令服务 + PostQueryService + PostingPolicyService
 ├── mentions/                  # @提及解析 + 权限规则
 ├── drafts/                    # 用户级全局 5 槽位草稿池
-├── notifications/             # 站内通知(列表/未读数/已读) — 含结构化导航字段
+├── notifications/             # 站内通知 API + BullMQ 生产者/消费者
 ├── subscriptions/             # 订阅(整帖 THREAD / 某用户 USER) + 通知投递
 ├── reading-progress/          # 阅读进度 + 新增回复数
 ├── reports/                   # 举报（已搁置，待后期重构）
 ├── search/                    # 全文搜索 (PostgreSQL ILIKE)
 ├── email/                     # SMTP 邮件服务
-├── media/                     # S3 预签名上传 + upload-done 确认 + 异步 sharp 缩略图
-├── jobs/                      # BullMQ: notification 队列 + image 队列 + 事件监听 + 定时清理
+├── media/                     # S3 上传 + image 队列消费者 + sharp 衍生图
+├── jobs/                      # 仅后台维护任务（过期数据、Outbox、孤儿媒体、排序投影）
 ├── admin/                     # 管理后台 API
 └── health/                    # 健康检查端点
 scripts/
@@ -80,11 +79,12 @@ scripts/
 
 | 装饰器 | 守卫链 | 用途 |
 |--------|--------|------|
-| `@Public()` | 无 | 公开端点 (GET /threads 列表) |
+| `@Public()` | 无 | 完全不解析身份的公开端点 |
+| `@OptionalAuth()` | OptionalJwtAuthGuard | 公开读取；携带有效 Token 时注入用户上下文 |
 | `@AuthRead()` | JwtAuthGuard | 需登录的读/写操作（当前所有写端点均使用此级别） |
 | `@Auth()` | JwtAuthGuard + VerifiedGuard | 需登录+邮箱验证（仅关注/拉黑端点使用） |
 
-- 全局守卫 (app.module.ts APP_GUARD): ThrottlerGuard（限流）、BlockGuard（拉黑拦截）
+- 全局守卫仅注册 `ThrottlerGuard`。拉黑属于需要明确 actor/target 的领域策略，由 `PostingPolicyService`、`BlockFilterService` 等应用服务执行，禁止放回全局守卫。
 
 ## Prisma 枚举速查
 
@@ -113,6 +113,8 @@ scripts/
 10. **图片上传**：客户端通过预签名 URL 直传 S3，完成后调 `upload-done` 确认。服务端写入 Media 表，入队 `image` 队列用 sharp 生成 300×300 缩略图 + 800px 中图 (WebP)。
 11. **软删除可访问性**：Thread/Subthread/Post 均采用软删除 (`deletedAt`)。所有面向用户的查询必须在 WHERE 子句中包含 `deletedAt: null`。`src/common/prisma-helpers.ts` 提供 `notDeleted` 常量及 `countNonDeletedPosts()`、`includeSubthreads()` 等组合 helper 消除重复。
 12. **访问权限复用**：`ThreadAccessService` 统一定义 `assertAccessible()`（软删除/未发布/私密帖访问校验）和 `assertCanManage()`（OWNER/COLLABORATOR 管理权限校验），供 `ThreadsService`、`SubthreadsService`、`ThreadMembersService` 及标签控制器共用。
+13. **可靠领域事件**：`post.created`、发布、点赞/取消点赞、关注事件必须在业务事务内写入 `domain_outbox`。分发器用 `FOR UPDATE SKIP LOCKED` 领取，等待异步监听器完成后确认；通知使用稳定事件键，Redis 计数投影按数据库权威值覆盖，保证重试幂等。
+14. **层级边界**：Controller 只做 HTTP 适配，不得直接访问 Prisma；查询、命令、策略可在同一特性模块内拆分。`common` 只放无业务归属的横切能力，权限策略放 `access`，队列消费者归所属特性模块。
 
 ## 常用命令
 
@@ -125,6 +127,8 @@ scripts/
 | `pnpm lint` | ESLint 只检查，不改文件 |
 | `pnpm lint:fix` | ESLint 自动修复 |
 | `pnpm typecheck` | TypeScript 类型检查 |
+| `pnpm arch:check` | 控制器、配置、事件与服务体积边界检查 |
+| `pnpm openapi:check` | OpenAPI envelope、引用、operationId 与匿名响应 DTO 棘轮 |
 | `pnpm test` | Jest 单元/服务/控制器测试 |
 | `pnpm openapi:export [path]` | 从源码离线导出 OpenAPI JSON；未传路径时写入 `/tmp/wenyousite-openapi.json` |
 | `pnpm test:e2e:auth-terminal` | 在本机 PostgreSQL 临时 Schema 中验证登录终端迁移与双端 API，不触碰 `public` 数据 |
@@ -136,7 +140,9 @@ scripts/
 | `bash scripts/deploy.sh` | 生产部署 |
 | `bash scripts/backup.sh` | 数据库备份 |
 
-当前 ESLint 历史基线为 158 个 warning，`pnpm lint` 通过 `--max-warnings 158` 执行债务棘轮：新改动不得增加 warning；清理后应同步下调该数字，最终降为 0。
+当前 ESLint 历史基线为 137 个 warning，`pnpm lint` 通过 `--max-warnings 137` 执行债务棘轮：新改动不得增加 warning；清理后应同步下调该数字，最终降为 0。
+
+`tsconfig.json` 已开启 `strictNullChecks`、`noImplicitAny`、`strictBindCallApply` 和 `noFallthroughCasesInSwitch`。新增代码不得通过关闭严格选项规避类型问题。
 
 ## 部署
 

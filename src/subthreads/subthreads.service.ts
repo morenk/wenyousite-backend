@@ -1,14 +1,15 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
-import { ThreadAccessService } from '../common/services/thread-access.service';
+import { ThreadAccessService } from '../access/thread-access.service';
 import { CreateSubthreadDto } from './dto/create-subthread.dto';
-import { UpdateSubthreadDto } from './dto/update-subthread.dto';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { notDeleted, countNonDeletedPosts } from '../common/prisma-helpers';
 import { DiceService } from '../dice/dice.service';
 import { hasVisibleMarkdownContent, normalizeMarkdownContent } from '../common/markdown-content';
+import { Prisma } from '@prisma/client';
+import { OutboxService } from '../outbox/outbox.service';
 
 /** 子贴服务：CRUD、排序、权限校验 */
 @Injectable()
@@ -18,6 +19,7 @@ export class SubthreadsService {
     private threadAccess: ThreadAccessService,
     private eventEmitter: EventEmitter2,
     private diceService: DiceService,
+    private outbox: OutboxService,
   ) {}
 
   /** 获取主题帖下的子贴列表 */
@@ -140,54 +142,60 @@ export class SubthreadsService {
           },
         });
 
+        // 默认子贴指针与子贴创建原子提交；并发创建时仅首个成功写入。
+        await tx.thread.updateMany({
+          where: { id: threadId, defaultSubthreadId: null, ...notDeleted },
+          data: { defaultSubthreadId: subthread.id },
+        });
+
+        if (thread.published && bodyPost) {
+          await this.outbox.enqueue(tx, {
+            eventType: 'post.created',
+            aggregateType: 'Post',
+            aggregateId: bodyPost.id,
+            eventKey: `post-created:${bodyPost.id}`,
+            payload: {
+              postId: bodyPost.id,
+              content,
+              userId,
+              authorUsername: bodyPost.author.username,
+              threadId,
+              subthreadId: subthread.id,
+              subthreadTitle: dto.title,
+              parentPostId: null,
+              replyToPostId: null,
+              isSubthreadBody: true,
+              authorRole: manager.role,
+              authorPlayerMarked: manager.playerMarked,
+              diceRolls: bodyPost.diceRolls.map((roll: { nodeId: string; notation: string; total: number }) => ({
+                nodeId: roll.nodeId,
+                notation: roll.notation,
+                total: roll.total,
+              })),
+            } as Prisma.InputJsonValue,
+          });
+        }
+
         return { subthread: full, bodyPost };
       })
       .catch((err) => {
         if (err instanceof BusinessException) throw err;
-        // Prisma UNIQUE 约束冲突（并发创建撞 sortOrder）
-        throw new BusinessException(
-          ErrorCode.CONFLICT,
-          '排序序号冲突，请刷新后重试',
-          HttpStatus.CONFLICT,
-        );
+        if (err?.code === 'P2002') {
+          // Prisma UNIQUE 约束冲突（并发创建撞 sortOrder）
+          throw new BusinessException(
+            ErrorCode.CONFLICT,
+            '排序序号冲突，请刷新后重试',
+            HttpStatus.CONFLICT,
+          );
+        }
+        throw err;
       });
-
-    // 已发布帖创建子贴时发射事件（正文不为空时）
-    if (thread.published && result.bodyPost) {
-      this.eventEmitter.emit('post.created', {
-        postId: result.bodyPost.id,
-        content,
-        userId,
-        authorUsername: result.bodyPost.author.username,
-        threadId,
-        subthreadId: result.subthread!.id,
-        subthreadTitle: dto.title,
-        parentPostId: null,
-        replyToPostId: null,
-        isSubthreadBody: true,
-        authorRole: manager.role,
-        authorPlayerMarked: manager.playerMarked,
-        diceRolls: result.bodyPost.diceRolls,
-      });
-    }
 
     // 缓存失效事件（仅已发布帖）
     if (thread.published && result.subthread) {
       this.eventEmitter.emit('subthread.created', {
         threadId: result.subthread.threadId,
         subthreadId: result.subthread.id,
-      });
-    }
-
-    // 若该帖尚无默认子贴，自动设置为此子贴
-    const current = await this.prisma.thread.findUnique({
-      where: { id: threadId, ...notDeleted },
-      select: { defaultSubthreadId: true },
-    });
-    if (!current?.defaultSubthreadId && result.subthread) {
-      await this.prisma.thread.update({
-        where: { id: threadId },
-        data: { defaultSubthreadId: result.subthread.id },
       });
     }
 

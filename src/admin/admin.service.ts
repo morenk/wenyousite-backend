@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { NotificationProducer } from '../jobs/notification.producer';
+import { NotificationProducer } from '../notifications/notification.producer';
 import { SendSystemNotificationDto } from './dto/send-system-notification.dto';
 
 /** 管理后台服务：系统通知发送、预览、历史、用户搜索 */

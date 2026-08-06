@@ -6,11 +6,11 @@
 
 | 类型       | 枚举值           | 触发事件                                                                               | 触发源                                                                            | 触发位置                                                         |
 | ---------- | ---------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| 楼中楼回复 | `reply`          | `post.created`（`parentPostId` 非空 + `!isSubthreadBody`）                             | `PostEventsListener`                                                              | `src/jobs/post-events.listener.ts`                               |
-| @提及      | `mention`        | `post.created`（正文含稳定用户链接/历史 `@username`/合法 `@全体玩家`）或编辑同步新增 @ | `PostEventsListener` → `MentionsService.syncMentions()` / `PostsService.update()` | `src/jobs/post-events.listener.ts`、`src/posts/posts.service.ts` |
-| 新帖通知   | `new_post`       | `post.created`（`!parentPostId` 或 `isSubthreadBody`）                                 | `PostEventsListener`                                                              | `src/jobs/post-events.listener.ts`                               |
-| 新主题帖   | `thread_created` | 主题帖 PATCH published=true                                                            | `ThreadsService.update()`                                                         | `src/threads/threads.service.ts`                                 |
-| 被关注     | `follow`         | 首次关注关系写入                                                                       | `UsersFollowController.follow()`                                                  | `src/users/users-follow.controller.ts`                           |
+| 楼中楼回复 | `reply`          | `post.created`（`parentPostId` 非空 + `!isSubthreadBody`）                             | `PostEventsListener`                                                              | `src/post-activity/post-events.listener.ts`                      |
+| @提及      | `mention`        | `post.created`（正文含稳定用户链接/历史 `@username`/合法 `@全体玩家`）或编辑同步新增 @ | `PostEventsListener` → `MentionsService.syncMentions()` / `PostsService.update()` | `src/post-activity/post-events.listener.ts`、`src/posts/posts.service.ts` |
+| 新帖通知   | `new_post`       | `post.created`（`!parentPostId` 或 `isSubthreadBody`）                                 | `PostEventsListener`                                                              | `src/post-activity/post-events.listener.ts`                      |
+| 新主题帖   | `thread_created` | 主题帖 PATCH published=true                                                            | `ThreadEventsListener`                                                            | `src/threads/thread-events.listener.ts`                          |
+| 被关注     | `follow`         | 首次关注关系写入                                                                       | `UserRelationEventsListener`                                                      | `src/users/user-relation-events.listener.ts`                     |
 | 被点赞     | `like`           | 首次点赞                                                                               | `PostsService.like()`                                                             | `src/posts/posts.service.ts`                                     |
 | 系统通知   | `system`         | 管理员 POST /admin/notifications/system                                                | `AdminService.sendSystemNotification()`                                           | `src/admin/admin.service.ts`                                     |
 
@@ -18,7 +18,7 @@
 
 **事件驱动模型**：
 
-`post.created` 事件由 PostsService / SubthreadsService 在帖子写入后通过 `@nestjs/event-emitter` 发出，`PostEventsListener` 使用 `@OnEvent('post.created')` 监听。同一个事件可能同时触发 `mention`、`new_post`、`reply` 多种通知。
+`post.created` 由 PostsService / SubthreadsService 在写帖子同一事务中写入 `domain_outbox`，`OutboxDispatcher` 提交后使用 `emitAsync` 投递给 `PostEventsListener`。同一个事件可能触发 `mention`、`new_post`、`reply` 多种通知；任一可靠副作用失败都会使事件退避重试。
 
 ---
 
@@ -98,17 +98,18 @@ const followers = await this.prisma.userFollow.findMany({
 ```
 
 - 无去重需求（粉丝集合天然唯一）
-- 不检查拉黑关系（用户无法阻止被关注者发帖的通知）
-- 使用 `.catch(() => {})` 吞掉队列异常，不影响主流程
+- 使用 `BlockFilterService` 双向过滤拉黑关系
+- Outbox 重试队列异常，不丢失已提交的发布事件
 
 ### 5. follow — 被关注
 
-**触发条件**：首次关注关系写入（先查后建，已关注则跳过）
+**触发条件**：首次关注关系写入（唯一约束 + `createMany(skipDuplicates)` 幂等）
 
 **接收者**：被关注者（单个用户）
 
 - 不通知自己关注自己（前置判断 `if user.id === targetId return`）
-- 使用 `.catch(() => {})` 吞掉队列异常
+- 使用 `BlockFilterService` 双向过滤拉黑关系
+- 每次“关注 → 取消 → 再关注”使用新的关系周期事件键；同一周期重试幂等
 
 ### 6. like — 被点赞
 
@@ -123,8 +124,8 @@ const followers = await this.prisma.userFollow.findMany({
 - 不通知自己赞自己（判断 `thread.ownerId !== userId`）
 - `content` 文案：1 人 → `张三 赞了你的主题帖「{title}」`；2 人 → `张三、李四 赞了你的主题帖「{title}」`；3+ 人 → `张三、李四等 5 人赞了你的主题帖「{title}」`
 - `payload.likers` 保留最近 3 人 `{ userId, username }`，`payload.totalCount` 累计总人数
-- `eventKey` 使用 `like:{threadId}:{likerId}`；聚合 payload 额外保留最近 100 个已处理事件键，处理器在 Serializable 事务中检查并重试并发冲突
-- 使用 `.catch(() => {})` 吞掉队列异常
+- `eventKey` 使用本次点赞关系周期 ID；同一周期重试幂等，取消后再次点赞可产生新通知
+- 点赞/取消点赞状态和 Outbox 事件原子提交，监听器失败由 Outbox 重试
 
 ### 7. system — 系统通知
 
@@ -158,7 +159,7 @@ const followers = await this.prisma.userFollow.findMany({
 
 ## 去重与过滤机制
 
-所有通知类型共享以下 3 层过滤（`src/jobs/post-events.listener.ts:23-39`）：
+发帖通知共享三层过滤（实现位于 `src/post-activity/post-events.listener.ts`）：
 
 ```typescript
 // 预加载：订阅者、拉黑关系（三类通知共用，一次 DB 查询）
@@ -192,7 +193,7 @@ const authorBlockedIds = new Set(blocksOfAuthor.map(b => b.blockedId));
 | 官方更新订阅 | `THREAD` | 仅楼主/协作者发言时收到通知 |
 | 玩家订阅 | `USER` | 仅指定 `PARTICIPANT + playerMarked=true` 的普通玩家发言时通知 |
 
-**调用入口**（`src/jobs/post-events.listener.ts:24`）：
+**调用入口**（`src/post-activity/post-events.listener.ts`）：
 
 ```typescript
 this.subscriptionsService.findSubscribers(
@@ -294,10 +295,10 @@ WHERE threadId = {threadId}
 
 | 影响项         | 说明                                                              | 实现位置                           |
 | -------------- | ----------------------------------------------------------------- | ---------------------------------- |
-| 不通知拉黑者   | mention / reply / new_post 中，被引用者若拉黑了发帖人，排除该用户 | `src/jobs/post-events.listener.ts` |
-| 不通知被拉黑者 | mention / reply / new_post 中，发帖人拉黑的用户从接收者集合中移除 | `src/jobs/post-events.listener.ts` |
-| 不发帖         | 拉黑者的帖子对被拉黑者不可见（由 BlockGuard 全局拦截）            | `src/common/guards/block.guard.ts` |
-| 不影响关注通知 | thread_created / follow / system 不检查拉黑关系                   | —                                  |
+| 不通知拉黑者   | mention / reply / new_post 中，被引用者若拉黑了发帖人，排除该用户 | `src/post-activity/post-events.listener.ts` |
+| 不通知被拉黑者 | mention / reply / new_post 中，发帖人拉黑的用户从接收者集合中移除 | `src/post-activity/post-events.listener.ts` |
+| 不发帖         | 双向存在拉黑关系时拒绝发帖                                        | `src/posts/posting-policy.service.ts` |
+| 关系类通知     | thread_created / follow / like 同样执行双向拉黑过滤                | 对应 thread/user 事件监听器 |
 
 > **注意**：拉黑检查在 `queue.add()` 之前完成，而非在 Processor 中再次检查。这意味着接收者列表在入队时已经确定且干净。
 
@@ -321,7 +322,7 @@ NotificationProducer.notify()         BullMQ 'notification'        NotificationP
      └───────────────────────────────────────────────────  Prisma.notification
 ```
 
-**生产者**（`src/jobs/notification.producer.ts:10`）：
+**生产者**（`src/notifications/notification.producer.ts`）：
 
 ```typescript
 async notify(type: string, recipients: string[], content: string, opts?) {
@@ -336,7 +337,7 @@ async notify(type: string, recipients: string[], content: string, opts?) {
 }
 ```
 
-**消费者**（`src/jobs/notification.processor.ts:31`）：
+**消费者**（`src/notifications/notification.processor.ts`）：
 
 ```typescript
 private async createNotifications(userIds, type, content, postId?, threadId?, fromUserId?) {
@@ -348,7 +349,7 @@ private async createNotifications(userIds, type, content, postId?, threadId?, fr
 }
 ```
 
-**重试策略**（`src/jobs/jobs.module.ts:16`）：
+**重试策略**（`src/notifications/notifications.module.ts`）：
 
 | 参数                   | 值            | 说明                         |
 | ---------------------- | ------------- | ---------------------------- |
@@ -357,9 +358,9 @@ private async createNotifications(userIds, type, content, postId?, threadId?, fr
 | `backoff.delay`        | 5000ms        | 初始延迟 5 秒                |
 | `removeOnComplete.age` | 86400s        | 成功任务保留 24 小时用于调试 |
 
-**队列配置两处注册**（与 `image` 队列相同模式）：
+**队列配置**：
 
 | 模块            | 位置                            | 用途                                                    |
 | --------------- | ------------------------------- | ------------------------------------------------------- |
-| `JobsModule`    | `src/jobs/jobs.module.ts:17-23` | 注册队列 + 默认配置 + `NotificationProcessor` 消费      |
+| `NotificationsModule` | `src/notifications/notifications.module.ts` | 注册队列、默认重试配置、生产者与消费者 |
 | `app.module.ts` | 根模块                          | 全局注册 BullModule.forRoot（Redis 连接），队列由此接入 |

@@ -1,206 +1,104 @@
-import { Controller, Post, Delete, Get, Param, Req, NotFoundException } from '@nestjs/common';
-import { randomUUID } from 'crypto';
+import { Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import {
-  ApiTags,
-  ApiOperation,
   ApiBearerAuth,
-  ApiOkResponse,
-  ApiUnauthorizedResponse,
-  ApiForbiddenResponse,
   ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { FastifyRequest } from 'fastify';
-import { PrismaService } from '../prisma/prisma.service';
-import { NotificationProducer } from '../jobs/notification.producer';
-import { BlockFilterService } from '../common/services/block-filter.service';
 import { Auth, AuthRead, OptionalAuth } from '../auth/decorators/auth.decorator';
-import { publicUserSummarySelect } from '../common/user-summary';
+import {
+  CurrentUser,
+  CurrentUserPayload,
+} from '../auth/decorators/current-user.decorator';
+import { UserRelationsService } from './user-relations.service';
+import { MessageResponseDto } from '../common/dto/message-response.dto';
 
-/** 关注与拉黑控制器 */
+/** 关注与拉黑 HTTP 适配器；业务规则由 UserRelationsService 负责。 */
 @ApiTags('Users')
 @Controller('users')
 export class UsersFollowController {
-  constructor(
-    private prisma: PrismaService,
-    private notificationProducer: NotificationProducer,
-    private blockFilter: BlockFilterService,
-  ) {}
+  constructor(private readonly relations: UserRelationsService) {}
 
-  // ====== 关注 ======
-
-  /** 关注指定用户，仅在首次关注时发送通知 */
   @Post('follow/:id')
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '关注用户' })
-  @ApiOkResponse({ description: '关注结果（成功 / 已关注 / 不能关注自己）' })
+  @ApiOkResponse({ type: MessageResponseDto, description: '关注结果（成功 / 已关注 / 不能关注自己）' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   @ApiNotFoundResponse({ description: '目标用户不存在' })
-  async follow(@Param('id') targetId: string, @Req() req: FastifyRequest) {
-    const user = req['user'] as { id: string; username: string };
-    if (user.id === targetId) return { message: '不能关注自己' };
-
-    // 检查是否已关注，仅在首次关注时发送通知，避免重复通知
-    const existing = await this.prisma.userFollow.findUnique({
-      where: { followerId_followingId: { followerId: user.id, followingId: targetId } },
-    });
-    if (existing) return { message: '已关注' };
-
-    await this.prisma.userFollow.create({
-      data: { followerId: user.id, followingId: targetId },
-    });
-
-    // 关注通知：排除拉黑关系
-    const blockSets = await this.blockFilter.loadBlockSets(user.id);
-    const filtered = this.blockFilter.filterRecipients([targetId], blockSets);
-    if (filtered.length > 0) {
-      this.notificationProducer
-        .notify(
-          'follow',
-          filtered,
-          `${user.username ?? '有人'} 关注了你`,
-          // 同一段队列任务重试沿用该键；取消关注后重新关注则生成新的业务事件键。
-          { fromUserId: user.id, eventKey: `follow:${user.id}:${targetId}:${randomUUID()}` },
-        )
-        .catch(() => {});
-    }
-    return { message: '已关注' };
+  follow(@Param('id') targetId: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.relations.follow(user, targetId);
   }
 
-  /** 取消关注 */
   @Delete('follow/:id')
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '取消关注' })
-  @ApiOkResponse({ description: '已取消关注' })
-  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
-  @ApiNotFoundResponse({ description: '目标用户不存在' })
-  async unfollow(@Param('id') targetId: string, @Req() req: FastifyRequest) {
-    const user = req['user'] as { id: string };
-    await this.prisma.userFollow.deleteMany({
-      where: { followerId: user.id, followingId: targetId },
-    });
-    return { message: '已取消关注' };
+  @ApiOkResponse({ type: MessageResponseDto, description: '已取消关注' })
+  unfollow(@Param('id') targetId: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.relations.unfollow(user.id, targetId);
   }
 
-  /** 我的关注列表 */
   @Get('following')
   @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '我的关注列表' })
-  @ApiOkResponse({ description: '我的关注用户列表（含 id/username/avatar）' })
-  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
-  async following(@Req() req: FastifyRequest) {
-    const user = req['user'] as { id: string };
-    return this.prisma.userFollow.findMany({
-      where: { followerId: user.id },
-      include: { following: { select: publicUserSummarySelect } },
-    });
+  @ApiOkResponse({ description: '我的关注用户列表' })
+  following(@CurrentUser() user: CurrentUserPayload) {
+    return this.relations.following(user.id);
   }
 
-  /** 我的粉丝列表 */
   @Get('followers')
   @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '我的粉丝列表' })
-  @ApiOkResponse({ description: '我的粉丝列表（含 id/username/avatar）' })
-  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
-  async followers(@Req() req: FastifyRequest) {
-    const user = req['user'] as { id: string };
-    return this.prisma.userFollow.findMany({
-      where: { followingId: user.id },
-      include: { follower: { select: publicUserSummarySelect } },
-    });
+  @ApiOkResponse({ description: '我的粉丝列表' })
+  followers(@CurrentUser() user: CurrentUserPayload) {
+    return this.relations.followers(user.id);
   }
 
-  // ====== 公开关注/粉丝列表（按用户 ID） ======
-
-  /** 指定用户的关注列表（公开，OptionalAuth） */
   @Get(':id/following')
   @OptionalAuth()
-  @ApiBearerAuth()
   @ApiOperation({ summary: '指定用户的关注列表' })
-  @ApiOkResponse({ description: '指定用户的关注列表（含 id/username/avatar）' })
-  @ApiNotFoundResponse({ description: '用户不存在' })
-  async userFollowing(@Param('id') id: string) {
-    await this.assertUserExists(id);
-    return this.prisma.userFollow.findMany({
-      where: { followerId: id },
-      include: { following: { select: publicUserSummarySelect } },
-    });
+  @ApiOkResponse({ description: '指定用户的关注列表' })
+  userFollowing(@Param('id') id: string) {
+    return this.relations.userFollowing(id);
   }
 
-  /** 指定用户的粉丝列表（公开，OptionalAuth） */
   @Get(':id/followers')
   @OptionalAuth()
-  @ApiBearerAuth()
   @ApiOperation({ summary: '指定用户的粉丝列表' })
-  @ApiOkResponse({ description: '指定用户的粉丝列表（含 id/username/avatar）' })
-  @ApiNotFoundResponse({ description: '用户不存在' })
-  async userFollowers(@Param('id') id: string) {
-    await this.assertUserExists(id);
-    return this.prisma.userFollow.findMany({
-      where: { followingId: id },
-      include: { follower: { select: publicUserSummarySelect } },
-    });
+  @ApiOkResponse({ description: '指定用户的粉丝列表' })
+  userFollowers(@Param('id') id: string) {
+    return this.relations.userFollowers(id);
   }
 
-  private async assertUserExists(id: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id },
-      select: { id: true },
-    });
-    if (!user) throw new NotFoundException('用户不存在');
-  }
-
-  // ====== 拉黑 ======
-
-  /** 拉黑指定用户（双向阻止发帖 + 通知） */
   @Post('me/block/:id')
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '拉黑用户' })
-  @ApiOkResponse({ description: '拉黑结果（成功 / 不能拉黑自己）' })
-  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
-  @ApiNotFoundResponse({ description: '目标用户不存在' })
-  async block(@Param('id') targetId: string, @Req() req: FastifyRequest) {
-    const user = req['user'] as { id: string };
-    if (user.id === targetId) return { message: '不能拉黑自己' };
-    await this.prisma.userBlock.upsert({
-      where: { blockerId_blockedId: { blockerId: user.id, blockedId: targetId } },
-      create: { blockerId: user.id, blockedId: targetId },
-      update: {},
-    });
-    return { message: '已拉黑' };
+  @ApiOkResponse({ type: MessageResponseDto, description: '拉黑结果' })
+  block(@Param('id') targetId: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.relations.block(user.id, targetId);
   }
 
-  /** 取消拉黑 */
   @Delete('me/block/:id')
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '取消拉黑' })
-  @ApiOkResponse({ description: '已取消拉黑' })
-  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
-  async unblock(@Param('id') targetId: string, @Req() req: FastifyRequest) {
-    const user = req['user'] as { id: string };
-    await this.prisma.userBlock.deleteMany({
-      where: { blockerId: user.id, blockedId: targetId },
-    });
-    return { message: '已取消拉黑' };
+  @ApiOkResponse({ type: MessageResponseDto, description: '已取消拉黑' })
+  unblock(@Param('id') targetId: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.relations.unblock(user.id, targetId);
   }
 
-  /** 我的黑名单 */
   @Get('me/blocks')
   @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '我的黑名单' })
-  @ApiOkResponse({ description: '我的黑名单列表（含 id/username/avatar）' })
-  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
-  async blocks(@Req() req: FastifyRequest) {
-    const user = req['user'] as { id: string };
-    return this.prisma.userBlock.findMany({
-      where: { blockerId: user.id },
-      include: { blocked: { select: publicUserSummarySelect } },
-    });
+  @ApiOkResponse({ description: '我的黑名单列表' })
+  blocks(@CurrentUser() user: CurrentUserPayload) {
+    return this.relations.blocks(user.id);
   }
 }

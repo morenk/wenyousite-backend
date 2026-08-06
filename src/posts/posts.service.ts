@@ -1,28 +1,27 @@
 import { Injectable, HttpStatus, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { ThreadAccessService } from '../common/services/thread-access.service';
-import { BlockFilterService } from '../common/services/block-filter.service';
-import { NotificationProducer } from '../jobs/notification.producer';
+import { ThreadAccessService } from '../access/thread-access.service';
+import { BlockFilterService } from '../access/block-filter.service';
+import { NotificationProducer } from '../notifications/notification.producer';
 import { MentionsService } from '../mentions/mentions.service';
 import { ReadingProgressService } from '../reading-progress/reading-progress.service';
-import { RedisService } from '../redis/redis.service';
-import { CacheService } from '../redis/cache.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound, forbidden } from '../common/exceptions/business.exception';
-import { paginate } from '../common/dto/paginated-result';
 import {
   notDeleted,
   authorSelect,
-  countNonDeletedReplies,
   includeDiceRolls,
 } from '../common/prisma-helpers';
 import { truncateMarkdown } from '../common/markdown-truncate';
 import { hasVisibleMarkdownContent, normalizeMarkdownContent } from '../common/markdown-content';
 import { DiceService } from '../dice/dice.service';
+import { PostingPolicyService } from './posting-policy.service';
+import { PostQueryService } from './post-query.service';
+import { Prisma } from '@prisma/client';
+import { OutboxService } from '../outbox/outbox.service';
 
 /** 楼层服务：发帖（事务楼层编号 + FOR UPDATE）、楼中楼、编辑、软删除 */
 @Injectable()
@@ -37,131 +36,18 @@ export class PostsService {
     private notificationProducer: NotificationProducer,
     private mentionsService: MentionsService,
     private readingProgressService: ReadingProgressService,
-    private redis: RedisService,
-    private cache: CacheService,
     private diceService: DiceService,
+    private postingPolicy: PostingPolicyService,
+    private queries: PostQueryService,
+    private outbox: OutboxService,
   ) {}
 
-  /** 获取子贴的楼层列表（Cursor 分页），内嵌每个楼层的前 5 条楼中楼回复。已软删子贴返回 404 */
   async findAllBySubthread(subthreadId: string, cursor?: string, limit = 20, userId?: string) {
-    const subthread = await this.prisma.subthread.findUnique({
-      where: { id: subthreadId, ...notDeleted },
-      select: { id: true, threadId: true },
-    });
-    if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
-    await this.threadAccess.assertAccessible(subthread.threadId, userId);
-
-    const take = Math.min(limit, 50);
-    const posts = await this.prisma.post.findMany({
-      where: { subthreadId, kind: 'FLOOR', parentPostId: null, ...notDeleted },
-      orderBy: { floorNumber: 'asc' },
-      take: take + 1,
-      cursor: cursor ? { id: cursor } : undefined,
-      skip: cursor ? 1 : 0,
-      include: {
-        author: { select: authorSelect },
-        ...includeDiceRolls(),
-        _count: { select: { replies: { where: notDeleted } } },
-      },
-    });
-
-    const hasMore = posts.length > take;
-    if (hasMore) posts.pop();
-
-    // 为有回复的楼层批量获取前 5 条楼中楼回复
-    const floorIdsWithReplies = posts.filter((p) => p._count.replies > 0).map((p) => p.id);
-    if (floorIdsWithReplies.length > 0) {
-      const repliesMap = new Map<string, any[]>();
-      // 窗口函数先一次性选出每层前 5 条回复，再统一加载关联数据。
-      // 查询数固定为 2，避免一页 20 个楼层产生 20 次并行查询。
-      const replyIds = await this.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
-        SELECT ranked."id"
-        FROM (
-          SELECT
-            p."id",
-            ROW_NUMBER() OVER (
-              PARTITION BY p."parent_post_id"
-              ORDER BY p."created_at" ASC, p."id" ASC
-            ) AS "row_number"
-          FROM "posts" AS p
-          WHERE p."parent_post_id" IN (${Prisma.join(floorIdsWithReplies)})
-            AND p."deleted_at" IS NULL
-        ) AS ranked
-        WHERE ranked."row_number" <= 5
-      `);
-
-      const replies = replyIds.length > 0
-        ? await this.prisma.post.findMany({
-            where: { id: { in: replyIds.map((reply) => reply.id) } },
-            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-            include: {
-              author: { select: authorSelect },
-              ...includeDiceRolls(),
-              replyToPost: {
-                select: { id: true, authorId: true, author: { select: authorSelect } },
-              },
-            },
-          })
-        : [];
-
-      for (const reply of replies) {
-        const grouped = repliesMap.get(reply.parentPostId!) ?? [];
-        grouped.push(reply);
-        repliesMap.set(reply.parentPostId!, grouped);
-      }
-      for (const post of posts) {
-        (post as any).replies = repliesMap.get(post.id) || [];
-      }
-    } else {
-      for (const post of posts) {
-        (post as any).replies = [];
-      }
-    }
-
-    return paginate(posts, {
-      cursor: posts.length > 0 ? posts[posts.length - 1].id : null,
-      hasMore,
-    });
+    return this.queries.findAllBySubthread(subthreadId, cursor, limit, userId);
   }
 
-  /** 获取主楼层的楼中楼回复列表（cursor 分页）。已软删子贴或非主楼层返回 404 */
   async findReplies(postId: string, cursor?: string, limit = 20, userId?: string) {
-    const post = await this.prisma.post.findUnique({
-      where: { id: postId, deletedAt: null },
-      select: {
-        id: true,
-        threadId: true,
-        kind: true,
-        parentPostId: true,
-        subthread: { select: { deletedAt: true } },
-      },
-    });
-    if (!post) throw notFound(ErrorCode.POST_NOT_FOUND, '楼层不存在');
-    if (post.subthread.deletedAt) throw notFound(ErrorCode.POST_NOT_FOUND, '楼层不存在');
-    if (post.kind !== 'FLOOR' || post.parentPostId !== null) {
-      throw notFound(ErrorCode.POST_NOT_FOUND, '楼层不存在');
-    }
-    await this.threadAccess.assertAccessible(post.threadId, userId);
-
-    const take = Math.min(limit, 50);
-    const replies = await this.prisma.post.findMany({
-      where: { parentPostId: postId, ...notDeleted },
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-      take: take + 1,
-      cursor: cursor ? { id: cursor } : undefined,
-      skip: cursor ? 1 : 0,
-      include: {
-        author: { select: authorSelect },
-        ...includeDiceRolls(),
-        replyToPost: { select: { id: true, authorId: true, author: { select: authorSelect } } },
-      },
-    });
-    const hasMore = replies.length > take;
-    if (hasMore) replies.pop();
-    return paginate(replies, {
-      cursor: replies.length > 0 ? replies[replies.length - 1].id : null,
-      hasMore,
-    });
+    return this.queries.findReplies(postId, cursor, limit, userId);
   }
 
   /** 发帖：楼层或楼中楼回复。先校验访问权限与发帖策略，通过后才自动加入为参与人 */
@@ -192,24 +78,11 @@ export class PostsService {
     const member = await this.prisma.threadMember.findUnique({
       where: { threadId_userId: { threadId: subthread.threadId, userId } },
     });
-    const authorIsManager = member?.role === 'OWNER' || member?.role === 'COLLABORATOR';
-
-    // 检查发帖权限（通过后才自动加入，避免被拒时仍写入参与人记录）
-    if (subthread.postingPolicy === 'COLLABORATORS') {
-      if (!member || (member.role !== 'OWNER' && member.role !== 'COLLABORATOR')) {
-        throw forbidden('该子贴仅限协作者发帖', ErrorCode.NOT_COLLABORATOR);
-      }
-    } else if (subthread.postingPolicy === 'PLAYERS') {
-      if (!authorIsManager && (!member || !member.playerMarked)) {
-        throw forbidden('该子贴仅限玩家发帖', ErrorCode.NOT_PLAYER);
-      }
-    }
-
-    // 权限校验通过，自动加入主题帖
-    await this.prisma.threadMember.upsert({
-      where: { threadId_userId: { threadId: subthread.threadId, userId } },
-      create: { threadId: subthread.threadId, userId, role: 'PARTICIPANT' },
-      update: {},
+    await this.postingPolicy.assertCanPost({
+      ownerId: subthread.thread.ownerId,
+      userId,
+      postingPolicy: subthread.postingPolicy,
+      member,
     });
 
     // 验证 parentPost 存在、属于同一子贴、且为主楼层
@@ -244,6 +117,13 @@ export class PostsService {
     let post;
     try {
       post = await this.prisma.$transaction(async (tx) => {
+        // 自动加入与发帖原子提交，后续任何校验或写入失败都不会残留成员记录。
+        await tx.threadMember.upsert({
+          where: { threadId_userId: { threadId: subthread.threadId, userId } },
+          create: { threadId: subthread.threadId, userId, role: 'PARTICIPANT' },
+          update: {},
+        });
+
         let floorNumber: number | null = null;
 
         if (!dto.parentPostId) {
@@ -291,11 +171,41 @@ export class PostsService {
           },
         });
 
-        if (generatedDice.length === 0) return { ...p, diceRolls: [] };
-        return tx.post.findUniqueOrThrow({
-          where: { id: p.id },
-          include: { author: { select: authorSelect }, ...includeDiceRolls() },
-        });
+        const createdPost =
+          generatedDice.length === 0
+            ? { ...p, diceRolls: [] }
+            : await tx.post.findUniqueOrThrow({
+                where: { id: p.id },
+                include: { author: { select: authorSelect }, ...includeDiceRolls() },
+              });
+        if (subthread.thread.published) {
+          await this.outbox.enqueue(tx, {
+            eventType: 'post.created',
+            aggregateType: 'Post',
+            aggregateId: p.id,
+            eventKey: `post-created:${p.id}`,
+            payload: {
+              postId: p.id,
+              content,
+              userId,
+              authorUsername: createdPost.author.username,
+              threadId: subthread.threadId,
+              subthreadId: subthread.id,
+              subthreadTitle: subthread.title,
+              parentPostId: dto.parentPostId ?? null,
+              replyToPostId: dto.replyToPostId ?? null,
+              isSubthreadBody: false,
+              authorRole: member?.role ?? 'PARTICIPANT',
+              authorPlayerMarked: member?.playerMarked ?? false,
+              diceRolls: createdPost.diceRolls.map((roll) => ({
+                nodeId: roll.nodeId,
+                notation: roll.notation,
+                total: roll.total,
+              })),
+            } as Prisma.InputJsonValue,
+          });
+        }
+        return createdPost;
       });
     } catch (error) {
       if (dto.clientRequestId && (error as { code?: string })?.code === 'P2002') {
@@ -313,25 +223,6 @@ export class PostsService {
     }
 
     if (duplicateRequest) return post;
-
-    // 发帖后通过事件解耦：@提及、通知由 PostEventsListener 处理（仅已发布帖）
-    if (subthread.thread.published) {
-      this.eventEmitter.emit('post.created', {
-        postId: post.id,
-        content,
-        userId,
-        authorUsername: post.author.username,
-        threadId: subthread.threadId,
-        subthreadId: subthread.id,
-        subthreadTitle: subthread.title,
-        parentPostId: dto.parentPostId ?? null,
-        replyToPostId: dto.replyToPostId ?? null,
-        isSubthreadBody: false,
-        authorRole: member?.role ?? 'PARTICIPANT',
-        authorPlayerMarked: member?.playerMarked ?? false,
-        diceRolls: post.diceRolls,
-      });
-    }
 
     // 发帖人自己的阅读进度自动推进到此处（发帖即证明读到这里）
     this.readingProgressService.update(userId, subthreadId, post.id).catch((err) => {
@@ -459,29 +350,39 @@ export class PostsService {
             thread: { update: { data: { updatedAt: activityAt } } },
           },
         });
-        return tx.post.findUniqueOrThrow({
+        const post = await tx.post.findUniqueOrThrow({
           where: { id: created.id },
           include: { author: { select: authorSelect }, ...includeDiceRolls() },
         });
+        if (subthread.thread.published) {
+          await this.outbox.enqueue(tx, {
+            eventType: 'post.created',
+            aggregateType: 'Post',
+            aggregateId: post.id,
+            eventKey: `post-created:${post.id}`,
+            payload: {
+              postId: post.id,
+              content: normalizedContent,
+              userId,
+              authorUsername: post.author.username,
+              threadId: subthread.threadId,
+              subthreadId: subthread.id,
+              subthreadTitle: subthread.title,
+              parentPostId: null,
+              replyToPostId: null,
+              isSubthreadBody: true,
+              authorRole: manager.role,
+              authorPlayerMarked: manager.playerMarked,
+              diceRolls: (post.diceRolls ?? []).map((roll) => ({
+                nodeId: roll.nodeId,
+                notation: roll.notation,
+                total: roll.total,
+              })),
+            } as Prisma.InputJsonValue,
+          });
+        }
+        return post;
       });
-
-      if (subthread.thread.published) {
-        this.eventEmitter.emit('post.created', {
-          postId: post.id,
-          content: normalizedContent,
-          userId,
-          authorUsername: post.author.username,
-          threadId: subthread.threadId,
-          subthreadId: subthread.id,
-          subthreadTitle: subthread.title,
-          parentPostId: null,
-          replyToPostId: null,
-          isSubthreadBody: true,
-          authorRole: manager.role,
-          authorPlayerMarked: manager.playerMarked,
-          diceRolls: post.diceRolls,
-        });
-      }
       this.readingProgressService.update(userId, subthreadId, post.id).catch((err) => {
         this.logger.error(
           `正文创建后进度更新失败 userId=${userId} subthreadId=${subthreadId}`,
@@ -707,28 +608,8 @@ export class PostsService {
     return result;
   }
 
-  /** 获取单条帖子 + 导航上下文。已软删子贴返回 404 */
   async findById(id: string, userId?: string) {
-    const postLight = await this.prisma.post.findUnique({
-      where: { id, ...notDeleted },
-      select: { id: true, threadId: true, subthread: { select: { deletedAt: true } } },
-    });
-    if (!postLight) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
-    if (postLight.subthread.deletedAt) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
-    await this.threadAccess.assertAccessible(postLight.threadId, userId);
-
-    const post = await this.prisma.post.findUnique({
-      where: { id, ...notDeleted },
-      include: {
-        author: { select: authorSelect },
-        ...includeDiceRolls(),
-        thread: { select: { id: true, title: true } },
-        subthread: { select: { id: true, title: true } },
-        parentPost: { select: { id: true, floorNumber: true } },
-        ...countNonDeletedReplies(),
-      },
-    });
-    if (!post) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
-    return post;
+    return this.queries.findById(id, userId);
   }
+
 }

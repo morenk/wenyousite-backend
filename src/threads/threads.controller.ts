@@ -8,7 +8,6 @@ import {
   Param,
   Query,
   Req,
-  UseGuards,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -27,9 +26,9 @@ import { CreateThreadDto } from './dto/create-thread.dto';
 import { UpdateThreadDto } from './dto/update-thread.dto';
 import { ThreadQueryDto } from './dto/thread-query.dto';
 import { Auth, AuthRead, OptionalAuth } from '../auth/decorators/auth.decorator';
-import { Public } from '../common/decorators/public.decorator';
 import { InvitePreviewResponseDto } from './dto/invite-response.dto';
 import { ThreadDetailResponseDto } from './dto/thread-detail-response.dto';
+import { MessageResponseDto } from '../common/dto/message-response.dto';
 
 /** 主题帖控制器：草稿箱、列表、详情、修改、发布、删除、点赞 */
 @ApiTags('Threads')
@@ -44,19 +43,19 @@ export class ThreadsController {
   @ApiOkResponse({ description: '草稿列表，每个含子贴标题和标签' })
   @ApiUnauthorizedResponse({ description: '未登录' })
   async findDrafts(@Req() req: FastifyRequest) {
-    const user = (req as any).user as { id: string };
+    const user = req.user as { id: string };
     return this.threadsService.findDrafts(user.id);
   }
 
   @Get()
-  @Public()
+  @OptionalAuth()
   @ApiOperation({ summary: '主题帖列表（仅已发布帖），支持 sort=recommended|newest|active' })
   @ApiOkResponse({
     description:
       '分页列表，meta 含 cursor/hasMore。每个帖含 owner/subthreads/bodyPost.content(正文预览)/topicTags/_count',
   })
   async findAll(@Query() query: ThreadQueryDto, @Req() req: FastifyRequest) {
-    const user = (req as any).user as { id: string } | undefined;
+    const user = req.user as { id: string } | undefined;
     return this.threadsService.findAll(query, user?.id);
   }
 
@@ -112,7 +111,7 @@ export class ThreadsController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除主题帖。未发布帖硬删除（级联），已发布帖软删除（仅 OWNER）' })
-  @ApiOkResponse({ description: '删除成功返回 { message } 或 Thread 对象' })
+  @ApiOkResponse({ type: MessageResponseDto, description: '主题帖已删除' })
   @ApiUnauthorizedResponse({ description: '未登录或邮箱未验证' })
   @ApiForbiddenResponse({ description: '非 OWNER 不可删除' })
   @ApiNotFoundResponse({ description: '主题帖不存在' })

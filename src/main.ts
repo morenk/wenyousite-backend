@@ -11,14 +11,16 @@ import fastifyCookie from '@fastify/cookie';
 import * as Sentry from '@sentry/node';
 import { AppModule } from './app.module';
 import { createOpenApiDocument } from './common/swagger/openapi-document';
+import configuration from './config/configuration';
 
 async function bootstrap() {
+  const runtime = configuration();
   // Sentry 错误监控：配置 DSN 时启用
-  if (process.env.SENTRY_DSN) {
+  if (runtime.sentry.dsn) {
     Sentry.init({
-      dsn: process.env.SENTRY_DSN,
-      environment: process.env.NODE_ENV ?? 'development',
-      tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+      dsn: runtime.sentry.dsn,
+      environment: runtime.app.nodeEnv,
+      tracesSampleRate: runtime.app.nodeEnv === 'production' ? 0.1 : 1.0,
     });
   }
 
@@ -47,14 +49,14 @@ async function bootstrap() {
   await app.register(fastifyCookie as any);
 
   // Swagger 文档：仅当开启时挂载，与 NODE_ENV 解耦，方便线上移动端开发
-  if (process.env.ENABLE_API_DOCS !== 'false') {
+  if (runtime.app.apiDocsEnabled) {
     const document = createOpenApiDocument(app);
     SwaggerModule.setup('api/docs', app, document, {
       swaggerOptions: { persistAuthorization: true },
     });
   }
 
-  const port = process.env.PORT ?? 3000;
+  const port = runtime.port;
   await app.listen(port, '0.0.0.0');
   const logger = app.get(Logger);
   logger.log(`温油站 API running on http://localhost:${port}`, 'Bootstrap');

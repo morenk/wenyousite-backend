@@ -9,14 +9,18 @@ import { DraftsService } from '../drafts/drafts.service';
 import { DiceService } from '../dice/dice.service';
 import { MentionsService } from '../mentions/mentions.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { ThreadAccessService } from '../common/services/thread-access.service';
-import { BlockFilterService } from '../common/services/block-filter.service';
+import { ThreadAccessService } from '../access/thread-access.service';
+import { BlockFilterService } from '../access/block-filter.service';
 import { TagsService } from '../tags/tags.service';
-import { NotificationProducer } from '../jobs/notification.producer';
+import { NotificationProducer } from '../notifications/notification.producer';
 import { ReadingProgressService } from '../reading-progress/reading-progress.service';
 import { RedisService } from '../redis/redis.service';
 import { CacheService } from '../redis/cache.service';
 import { BusinessException } from '../common/exceptions/business.exception';
+import { PostingPolicyService } from '../posts/posting-policy.service';
+import { PostQueryService } from '../posts/post-query.service';
+import { ThreadQueryService } from '../threads/thread-query.service';
+import { OutboxService } from '../outbox/outbox.service';
 
 // ============ Mock 基础设施 ============
 const createMockPrisma = () => ({
@@ -63,7 +67,7 @@ const createMockPrisma = () => ({
   diceRoll: { createMany: jest.fn() },
   postMention: { createMany: jest.fn(), findMany: jest.fn(), deleteMany: jest.fn() },
   userFollow: { findMany: jest.fn() },
-  userBlock: { findMany: jest.fn() },
+  userBlock: { findMany: jest.fn(), findFirst: jest.fn() },
   draft: {
     findMany: jest.fn(),
     findUnique: jest.fn(),
@@ -86,6 +90,8 @@ const createMockPrisma = () => ({
 // 最小化的事务模拟函数
 const basicTx = () => ({
   $queryRaw: jest.fn(),
+  threadMember: { upsert: jest.fn().mockResolvedValue({}) },
+  thread: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
   post: { aggregate: jest.fn(), create: jest.fn() },
   subthread: {
     update: jest.fn().mockResolvedValue({}),
@@ -110,6 +116,7 @@ const setupThreadTransaction = (prisma: MockPrisma, threadId = 't1', subthreadId
       update: jest.fn().mockResolvedValue({}),
     },
     post: { create: jest.fn().mockResolvedValue({ id: 'p1', floorNumber: 1 }) },
+    threadTopicTag: prisma.threadTopicTag,
   };
   prisma.$transaction.mockImplementation(async (fn: any) => fn(tx));
   return tx;
@@ -142,6 +149,7 @@ const mockCache = {
   del: jest.fn().mockResolvedValue(undefined),
   delByPattern: jest.fn().mockResolvedValue(undefined),
 };
+const mockOutbox = { enqueue: jest.fn().mockResolvedValue(undefined) };
 
 // ============ 辅助工厂 ============
 type MockPrisma = ReturnType<typeof createMockPrisma>;
@@ -172,6 +180,7 @@ const setupHelpers = {
     m.$transaction.mockImplementation(async (fn: any) => {
       const tx = {
         ...basicTx(),
+        threadMember: { upsert: m.threadMember.upsert },
         post: {
           aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: maxFloor } }),
           create: jest.fn().mockResolvedValue({
@@ -206,10 +215,12 @@ describe('发帖全流程集成测试', () => {
     prisma = createMockPrisma();
     jest.clearAllMocks();
     prisma.post.findMany.mockResolvedValue([]);
+    prisma.threadMember.findMany.mockResolvedValue([]);
     prisma.$transaction.mockImplementation(async (fn: any) =>
       fn({
         $queryRaw: jest.fn(),
         thread: prisma.thread,
+        threadMember: prisma.threadMember,
         post: prisma.post,
         diceRoll: prisma.diceRoll,
       }),
@@ -225,6 +236,9 @@ describe('发帖全流程集成测试', () => {
         DraftsService,
         DiceService,
         MentionsService,
+        PostingPolicyService,
+        PostQueryService,
+        ThreadQueryService,
         { provide: PrismaService, useValue: prisma },
         { provide: ThreadAccessService, useValue: threadAccess },
         { provide: BlockFilterService, useValue: mockBlockFilter },
@@ -234,6 +248,7 @@ describe('发帖全流程集成测试', () => {
         { provide: ReadingProgressService, useValue: mockReadingProgressService },
         { provide: RedisService, useValue: mockRedis },
         { provide: CacheService, useValue: mockCache },
+        { provide: OutboxService, useValue: mockOutbox },
       ],
     }).compile();
 
@@ -456,11 +471,12 @@ describe('发帖全流程集成测试', () => {
 
       const result = await threadsService.update('t1', { version: 1, published: true }, 'u1');
       expect(result.published).toBe(true);
-      expect(mockNotificationProducer.notify).toHaveBeenCalledWith(
-        'thread_created',
-        ['f1', 'f2'],
-        expect.any(String),
-        expect.objectContaining({ threadId: 't1', fromUserId: 'u1' }),
+      expect(mockOutbox.enqueue).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          eventType: 'thread.published',
+          eventKey: 'thread-published:t1',
+        }),
       );
     });
 
@@ -611,9 +627,12 @@ describe('发帖全流程集成测试', () => {
         'u1',
       );
       expect(result!.id).toBe('s1');
-      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
-        'post.created',
-        expect.objectContaining({ isSubthreadBody: true }),
+      expect(mockOutbox.enqueue).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          eventType: 'post.created',
+          payload: expect.objectContaining({ isSubthreadBody: true }),
+        }),
       );
     });
 
@@ -675,7 +694,7 @@ describe('发帖全流程集成测试', () => {
       });
 
       await subthreadsService.create('t1', { title: '设定区', content: '正文' }, 'u1');
-      expect(mockEventEmitter.emit).not.toHaveBeenCalled();
+      expect(mockOutbox.enqueue).not.toHaveBeenCalled();
     });
 
     it('创建子贴：指定 sortOrder 冲突 → 409', async () => {
@@ -1032,15 +1051,18 @@ describe('发帖全流程集成测试', () => {
       );
 
       await postsService.create('s1', { content: 'test' }, 'u1');
-      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
-        'post.created',
+      expect(mockOutbox.enqueue).toHaveBeenCalledWith(
+        expect.anything(),
         expect.objectContaining({
-          postId: 'p11',
-          content: 'test',
-          userId: 'u1',
-          threadId: 't1',
-          subthreadId: 's1',
-          parentPostId: null,
+          eventType: 'post.created',
+          payload: expect.objectContaining({
+            postId: 'p11',
+            content: 'test',
+            userId: 'u1',
+            threadId: 't1',
+            subthreadId: 's1',
+            parentPostId: null,
+          }),
         }),
       );
     });
@@ -1074,7 +1096,7 @@ describe('发帖全流程集成测试', () => {
       );
 
       await postsService.create('s1', { content: 'test' }, 'u1');
-      expect(mockEventEmitter.emit).not.toHaveBeenCalled();
+      expect(mockOutbox.enqueue).not.toHaveBeenCalled();
     });
 
     it('已发布帖发楼中楼：parentPostId 非空时仍应触发事件', async () => {
@@ -1108,9 +1130,12 @@ describe('发帖全流程集成测试', () => {
       );
 
       await postsService.create('s1', { content: 'reply', parentPostId: 'p1' }, 'u2');
-      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
-        'post.created',
-        expect.objectContaining({ parentPostId: 'p1' }),
+      expect(mockOutbox.enqueue).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          eventType: 'post.created',
+          payload: expect.objectContaining({ parentPostId: 'p1' }),
+        }),
       );
     });
   });

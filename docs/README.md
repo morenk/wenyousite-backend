@@ -13,6 +13,7 @@
 | [前端接入指南](./frontend-guide.md) | 认证流程、分页约定、核心业务示例、错误码速查 |
 | [API 端点表](./api-endpoints.md) | API 方法、路径、守卫和参数说明 |
 | [API 参数校验规范](./api-validation.md) | 全局校验管道、DTO 编写规范、参数类型约束细则 |
+| [后端架构与模块边界](./architecture.md) | 分层规则、事务 Outbox、API 契约和自动门禁 |
 | [数据模型](./data-model.md) | 表、枚举、字段说明和关系 |
 | [图片上传管线](./image-upload.md) | 预签名上传 → S3 直传 → 确认 → sharp 缩略图 |
 | [通知投递规则](./notification-delivery.md) | 5 类通知的触发条件和接收者矩阵 |

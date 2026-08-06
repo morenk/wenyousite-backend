@@ -3,15 +3,17 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ThreadsService } from './threads.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TagsService } from '../tags/tags.service';
-import { NotificationProducer } from '../jobs/notification.producer';
-import { ThreadAccessService } from '../common/services/thread-access.service';
-import { BlockFilterService } from '../common/services/block-filter.service';
+import { NotificationProducer } from '../notifications/notification.producer';
+import { ThreadAccessService } from '../access/thread-access.service';
+import { BlockFilterService } from '../access/block-filter.service';
 import { RedisService } from '../redis/redis.service';
 import { CacheService } from '../redis/cache.service';
-import { BusinessException, notFound } from '../common/exceptions/business.exception';
+import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { DiceService } from '../dice/dice.service';
 import { paginate } from '../common/dto/paginated-result';
+import { ThreadQueryService } from './thread-query.service';
+import { OutboxService } from '../outbox/outbox.service';
 
 const mockPrisma = {
   $transaction: jest.fn(),
@@ -54,6 +56,8 @@ const mockPrisma = {
   },
   threadLike: {
     findUnique: jest.fn(),
+    createMany: jest.fn(),
+    deleteMany: jest.fn(),
   },
 };
 
@@ -69,6 +73,7 @@ const mockBlockFilter = {
   filterRecipients: jest.fn((ids: string[]) => ids),
 };
 const mockNotificationProducer = { notify: jest.fn().mockResolvedValue(undefined) };
+const mockOutbox = { enqueue: jest.fn().mockResolvedValue(undefined) };
 const mockEventEmitter = { emit: jest.fn() };
 const mockRedis = {
   hincrby: jest.fn().mockResolvedValue(1),
@@ -96,6 +101,7 @@ describe('ThreadsService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ThreadsService,
+        ThreadQueryService,
         DiceService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: TagsService, useValue: mockTags },
@@ -105,16 +111,19 @@ describe('ThreadsService', () => {
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: RedisService, useValue: mockRedis },
         { provide: CacheService, useValue: mockCache },
+        { provide: OutboxService, useValue: mockOutbox },
       ],
     }).compile();
     service = module.get<ThreadsService>(ThreadsService);
     diceService = module.get<DiceService>(DiceService);
     jest.clearAllMocks();
     mockPrisma.post.findMany.mockResolvedValue([]);
+    mockPrisma.threadMember.findMany.mockResolvedValue([]);
     mockPrisma.$transaction.mockImplementation(async (fn) =>
       fn({
         $queryRaw: jest.fn(),
         thread: mockPrisma.thread,
+        threadMember: mockPrisma.threadMember,
         post: mockPrisma.post,
         diceRoll: mockPrisma.diceRoll,
       }),
@@ -132,6 +141,7 @@ describe('ThreadsService', () => {
             update: jest.fn().mockResolvedValue({}),
           },
           threadMember: { create: jest.fn().mockResolvedValue({ id: 'm1' }) },
+          threadTopicTag: { createMany: jest.fn() },
           subthread: {
             create: jest.fn().mockResolvedValue({ id: 's1', threadId }),
             update: jest.fn().mockResolvedValue({}),
@@ -170,6 +180,7 @@ describe('ThreadsService', () => {
             update: jest.fn().mockResolvedValue({}),
           },
           threadMember: { create: jest.fn().mockResolvedValue({ id: 'm1' }) },
+          threadTopicTag: { createMany: jest.fn() },
           subthread: {
             create: jest.fn().mockResolvedValue({ id: 's1', threadId }),
             update: jest.fn().mockResolvedValue({}),
@@ -202,6 +213,7 @@ describe('ThreadsService', () => {
             update: jest.fn(),
           },
           threadMember: { create: jest.fn() },
+          threadTopicTag: { createMany: jest.fn() },
           subthread: { create: jest.fn(), update: jest.fn() },
           post: { create: jest.fn() },
         }),
@@ -307,7 +319,7 @@ describe('ThreadsService', () => {
           category: 'RPG',
           limit: 2,
         } as any);
-        expect(page1.items.map((t) => t.id)).toEqual(['r1', 'r2']);
+        expect(page1.items.map((t: { id: string }) => t.id)).toEqual(['r1', 'r2']);
         expect(page1.pagination.hasMore).toBe(true);
         expect(page1.pagination.cursor).toBe('2');
 
@@ -318,12 +330,12 @@ describe('ThreadsService', () => {
           limit: 2,
           cursor: '2',
         } as any);
-        expect(page2.items.map((t) => t.id)).toEqual(['r3']);
+        expect(page2.items.map((t: { id: string }) => t.id)).toEqual(['r3']);
         expect(page2.pagination.hasMore).toBe(false);
         expect(page2.pagination.cursor).toBeNull();
 
         // 两页合并无重复
-        const merged = [...page1.items, ...page2.items].map((t) => t.id);
+        const merged = [...page1.items, ...page2.items].map((t: { id: string }) => t.id);
         expect(new Set(merged).size).toBe(merged.length);
       });
 
@@ -343,7 +355,7 @@ describe('ThreadsService', () => {
           limit: 2,
         } as any);
         expect(mockRedis.zrevrange).toHaveBeenCalledTimes(2);
-        expect(page.items.map((t) => t.id)).toEqual(['r1', 'r2']);
+        expect(page.items.map((t: { id: string }) => t.id)).toEqual(['r1', 'r2']);
         expect(page.pagination.cursor).toBe('2');
       });
 
@@ -665,7 +677,7 @@ describe('ThreadsService', () => {
       );
     });
 
-    it('发布时应校验并通知粉丝', async () => {
+    it('发布时应校验并在事务中记录领域事件', async () => {
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
       mockPrisma.thread.findUnique.mockResolvedValue({
         published: false,
@@ -678,6 +690,7 @@ describe('ThreadsService', () => {
         title: '测试',
         category: 'RPG',
         published: true,
+        ownerId: 'u1',
         createdAt: new Date('2025-01-01'),
         updatedAt: new Date(),
         owner: { id: 'u1', username: 'test', avatar: null },
@@ -689,11 +702,12 @@ describe('ThreadsService', () => {
 
       const result = await service.update('t1', { version: 1, published: true }, 'u1');
       expect(result.published).toBe(true);
-      expect(mockNotificationProducer.notify).toHaveBeenCalledWith(
-        'thread_created',
-        ['f1'],
-        expect.any(String),
-        expect.objectContaining({ threadId: 't1', fromUserId: 'u1' }),
+      expect(mockOutbox.enqueue).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          eventType: 'thread.published',
+          eventKey: 'thread-published:t1',
+        }),
       );
     });
 
@@ -712,6 +726,7 @@ describe('ThreadsService', () => {
             title: '测试',
             category: 'RPG',
             published: true,
+            ownerId: 'u1',
             createdAt: new Date('2025-01-01'),
             updatedAt: new Date(),
             owner: { id: 'u1', username: 'test', avatar: null },
@@ -720,17 +735,32 @@ describe('ThreadsService', () => {
             _count: { members: 1, posts: 2 },
           }),
         },
+        threadMember: { findMany: jest.fn().mockResolvedValue([]) },
         post: {
           findMany: jest.fn().mockResolvedValue([
             {
               id: 'p1',
+              kind: 'FLOOR',
               content:
                 '[[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20]]',
+              authorId: 'u1',
+              author: { username: 'test' },
+              subthreadId: 's1',
+              subthread: { title: '测试' },
+              parentPostId: null,
+              replyToPostId: null,
             },
             {
               id: 'p2',
+              kind: 'FLOOR',
               content:
                 '[[dice:v1:550e8400-e29b-41d4-a716-446655440001:2d6+3]]',
+              authorId: 'u1',
+              author: { username: 'test' },
+              subthreadId: 's1',
+              subthread: { title: '测试' },
+              parentPostId: null,
+              replyToPostId: null,
             },
           ]),
           update: jest.fn().mockResolvedValue({}),
@@ -813,6 +843,7 @@ describe('ThreadsService', () => {
           }),
           update: threadUpdate,
         },
+        threadMember: { findMany: jest.fn().mockResolvedValue([]) },
         post: {
           findMany: jest
             .fn()
@@ -920,6 +951,56 @@ describe('ThreadsService', () => {
       mockPrisma.thread.delete.mockResolvedValue({ id: 't1' });
       await service.remove('t1', 'u1');
       expect(mockPrisma.thread.delete).toHaveBeenCalledWith({ where: { id: 't1' } });
+    });
+  });
+
+  describe('like counters', () => {
+    it('点赞事务只更新数据库并发事件，Redis 由投影监听器单点维护', async () => {
+      mockPrisma.thread.findUnique.mockResolvedValue({
+        id: 't1',
+        published: true,
+        ownerId: 'owner',
+        title: '主题',
+        likeCount: 0,
+      });
+      mockPrisma.$transaction.mockImplementation(async (fn) =>
+        fn({
+          threadLike: { createMany: jest.fn().mockResolvedValue({ count: 1 }) },
+          thread: { update: jest.fn().mockResolvedValue({ id: 't1', likeCount: 1 }) },
+        }),
+      );
+
+      await service.like('t1', 'u1', '用户');
+
+      expect(mockRedis.hincrby).not.toHaveBeenCalled();
+      expect(mockOutbox.enqueue).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          eventType: 'thread.liked',
+          eventKey: expect.stringMatching(/^thread-liked:t1:u1:/),
+        }),
+      );
+    });
+
+    it('取消点赞与计数递减原子提交，Redis 不在命令服务重复写入', async () => {
+      mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', published: true, likeCount: 1 });
+      mockPrisma.$transaction.mockImplementation(async (fn) =>
+        fn({
+          threadLike: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
+          thread: { update: jest.fn().mockResolvedValue({ id: 't1', likeCount: 0 }) },
+        }),
+      );
+
+      await service.unlike('t1', 'u1');
+
+      expect(mockRedis.hincrby).not.toHaveBeenCalled();
+      expect(mockOutbox.enqueue).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          eventType: 'thread.unliked',
+          eventKey: expect.stringMatching(/^thread-unliked:t1:u1:/),
+        }),
+      );
     });
   });
 

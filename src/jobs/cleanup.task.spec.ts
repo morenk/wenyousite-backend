@@ -14,6 +14,7 @@ const mockPrisma = {
     findMany: jest.fn().mockResolvedValue([]),
   },
   notification: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+  domainOutbox: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
   $executeRaw: jest.fn().mockResolvedValue(1),
 };
 
@@ -47,6 +48,9 @@ describe('CleanupTask', () => {
     expect(mockMediaService.cleanupOrphanMedia).toHaveBeenCalledTimes(1);
     expect(mockPrisma.refreshToken.deleteMany).toHaveBeenCalledWith({
       where: { expiresAt: { lt: expect.any(Date) } },
+    });
+    expect(mockPrisma.domainOutbox.deleteMany).toHaveBeenCalledWith({
+      where: { processedAt: { not: null, lt: expect.any(Date) } },
     });
   });
 

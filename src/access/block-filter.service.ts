@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 /** 双向拉黑关系集合 */
 export interface BlockSets {
@@ -8,7 +8,6 @@ export interface BlockSets {
   /** author 拉黑了的用户 ID 集合 */
   blockedByAuthor: Set<string>;
 }
-
 /** 拉黑过滤服务：统一加载双向拉黑关系，供通知投递复用 */
 @Injectable()
 export class BlockFilterService {

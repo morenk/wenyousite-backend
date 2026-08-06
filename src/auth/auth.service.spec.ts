@@ -8,8 +8,9 @@ import { EmailService } from '../email/email.service';
 import { ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import * as argon2 from 'argon2';
+import { AuthSessionService } from './auth-session.service';
 
-const mockPrisma = {
+const mockPrisma: Record<string, any> = {
   user: {
     findUnique: jest.fn(),
     findFirst: jest.fn(),
@@ -32,7 +33,7 @@ const mockPrisma = {
     updateMany: jest.fn(),
   },
   $queryRaw: jest.fn(),
-  $transaction: jest.fn((input: any) =>
+  $transaction: jest.fn((input: any): any =>
     typeof input === 'function' ? input(mockPrisma) : Promise.all(input),
   ),
 };
@@ -64,6 +65,7 @@ describe('AuthService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
+        AuthSessionService,
         VerificationCodeService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: JwtService, useValue: mockJwt },

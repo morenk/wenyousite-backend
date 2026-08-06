@@ -86,6 +86,16 @@ export class CleanupTask {
       this.logger.log(`清理过期已读通知: ${deletedNotifs.count} 条`);
     }
 
+    // 已确认 Outbox 仅保留 7 天用于投递审计，未处理事件不得清理。
+    const deletedOutbox = await this.prisma.domainOutbox.deleteMany({
+      where: {
+        processedAt: { not: null, lt: sevenDaysAgo },
+      },
+    });
+    if (deletedOutbox.count > 0) {
+      this.logger.log(`清理已投递 Outbox 事件: ${deletedOutbox.count} 条`);
+    }
+
     // 清理孤儿图片（未确认上传、处理失败、无引用的图片），失败不影响其他清理
     try {
       await this.mediaService.cleanupOrphanMedia();

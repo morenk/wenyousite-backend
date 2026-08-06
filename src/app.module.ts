@@ -7,7 +7,6 @@ import { LoggerModule } from 'nestjs-pino';
 import { BullModule } from '@nestjs/bullmq';
 import { ThrottlerModule, ThrottlerGuard, ThrottlerStorage } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
-import { BlockGuard } from './common/guards/block.guard';
 import { PrismaModule } from './prisma/prisma.module';
 import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
@@ -27,6 +26,8 @@ import { SearchModule } from './search/search.module';
 import { EmailModule } from './email/email.module';
 import { MediaModule } from './media/media.module';
 import { JobsModule } from './jobs/jobs.module';
+import { PostActivityModule } from './post-activity/post-activity.module';
+import { OutboxModule } from './outbox/outbox.module';
 import { BookmarksModule } from './bookmarks/bookmarks.module';
 import { CommonModule } from './common/common.module';
 import { RedisModule } from './redis/redis.module';
@@ -36,8 +37,8 @@ import configuration from './config/configuration';
 import { validate } from './config/env.validation';
 
 /** 构建 Pino 传输配置：开发环境 colorized 控制台，生产环境支持可选文件日志 */
-function buildPinoTransport(logLevel: string, logFileDir?: string) {
-  const isProd = process.env.NODE_ENV === 'production';
+function buildPinoTransport(logLevel: string, nodeEnv: string, logFileDir?: string) {
+  const isProd = nodeEnv === 'production';
 
   if (!isProd) {
     return { target: 'pino-pretty', options: { colorize: true, singleLine: true } };
@@ -76,11 +77,12 @@ function buildPinoTransport(logLevel: string, logFileDir?: string) {
       useFactory: (config: ConfigService) => {
         const logLevel = config.get<string>('log.level') ?? 'info';
         const logFileDir = config.get<string>('log.fileDir');
+        const nodeEnv = config.get<string>('app.nodeEnv') ?? 'development';
         return {
           pinoHttp: {
             level: logLevel,
             genReqId: (req: any) => req.headers['x-request-id'] ?? randomUUID(),
-            transport: buildPinoTransport(logLevel, logFileDir),
+            transport: buildPinoTransport(logLevel, nodeEnv, logFileDir),
             redact: [
               'req.headers.authorization',
               'req.headers.cookie',
@@ -141,11 +143,12 @@ function buildPinoTransport(logLevel: string, logFileDir?: string) {
     EmailModule,
     MediaModule,
     JobsModule,
+    PostActivityModule,
+    OutboxModule,
     BookmarksModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
-    { provide: APP_GUARD, useClass: BlockGuard },
   ],
 })
 export class AppModule {}

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { ThreadAccessService } from '../common/services/thread-access.service';
-import { BlockFilterService, BlockSets } from '../common/services/block-filter.service';
+import { ThreadAccessService } from '../access/thread-access.service';
+import { BlockFilterService, BlockSets } from '../access/block-filter.service';
 import { publicUserSummarySelect } from '../common/user-summary';
 
 export const ALL_PLAYERS_MENTION = '全体玩家';
@@ -14,7 +14,6 @@ export interface MentionedUser {
   username: string;
   source: MentionSource;
 }
-
 export interface MentionCandidate {
   id: string;
   username: string;

@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { attachPlayerCounts, authorSelect } from '../common/prisma-helpers';
 import { paginate } from '../common/dto/paginated-result';
-import { ThreadAccessService } from '../common/services/thread-access.service';
+import { ThreadAccessService } from '../access/thread-access.service';
 
 const SEARCH_POST_LIMIT = 20;
 const SEARCH_POSTS_PER_THREAD = 3;
@@ -25,7 +25,6 @@ interface RankedPostRow {
   relevance: number;
   createdAt: Date;
 }
-
 interface SearchPostCursor {
   relevance: number;
   createdAt: string;

@@ -2,11 +2,12 @@ import {
   Controller, Get, Post, Patch, Delete,
   Body, Param, Req,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody, ApiOkResponse } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { ThreadMembersService } from './thread-members.service';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { Auth, AuthRead, OptionalAuth } from '../auth/decorators/auth.decorator';
+import { MessageResponseDto } from '../common/dto/message-response.dto';
 
 /** 主题帖参与人控制器：候选池加入、身份管理、退出 */
 @ApiTags('Threads')
@@ -57,6 +58,7 @@ export class ThreadMembersController {
   @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '主动退出主题帖（取消自己的玩家标记）' })
+  @ApiOkResponse({ type: MessageResponseDto, description: '已退出主题帖' })
   async exitMember(
     @Param('threadId') threadId: string,
     @Req() req: FastifyRequest,

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { ThreadAccessService } from '../common/services/thread-access.service';
+import { ThreadAccessService } from '../access/thread-access.service';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { notFound } from '../common/exceptions/business.exception';
 

@@ -19,10 +19,12 @@ import { RevokeSessionResponseDto, SessionResponseDto } from './dto/session-resp
 import { AuthRead, Auth } from './decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { CLIENT_PLATFORMS, normalizeClientPlatform, refreshTtlSeconds } from './client-platform';
+import configuration from '../config/configuration';
+import { MessageResponseDto } from '../common/dto/message-response.dto';
 
 const COOKIE_BASE = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
+  secure: configuration().app.nodeEnv === 'production',
   sameSite: 'lax' as const,
   path: '/api/v1/auth',
 };
@@ -108,7 +110,7 @@ export class AuthController {
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @ApiBearerAuth()
   @ApiOperation({ summary: '验证当前登录用户的邮箱（6 位验证码，限流 5次/分钟）' })
-  @ApiOkResponse({ description: '验证成功 { message }' })
+  @ApiOkResponse({ type: MessageResponseDto, description: '验证成功' })
   @ApiUnauthorizedResponse({ description: '未登录' })
   @ApiBadRequestResponse({ description: '验证码错误' })
   async verifyEmail(@Req() req: FastifyRequest, @Body() dto: VerifyEmailDto) {
@@ -121,7 +123,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: 60000, limit: 1 } })
   @ApiOperation({ summary: '重发验证邮件（限流 1次/分钟）' })
-  @ApiOkResponse({ description: '验证邮件已重新发送 { message }' })
+  @ApiOkResponse({ type: MessageResponseDto, description: '验证邮件已重新发送' })
   async resendVerification(@Body() dto: ResendVerificationDto) {
     return this.authService.resendVerification(dto.email);
   }
@@ -131,7 +133,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
   @ApiOperation({ summary: '修改密码（需旧密码），成功后退出全部登录终端' })
-  @ApiOkResponse({ description: '密码修改成功 { message }' })
+  @ApiOkResponse({ type: MessageResponseDto, description: '密码修改成功' })
   @ApiUnauthorizedResponse({ description: '未登录或旧密码错误' })
   async changePassword(
     @Req() req: FastifyRequest,
@@ -146,7 +148,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: 60000, limit: 1 } })
   @ApiOperation({ summary: '忘记密码 — 发送重置邮件（限流 1次/分钟）' })
-  @ApiOkResponse({ description: '密码重置邮件已发送 { message }' })
+  @ApiOkResponse({ type: MessageResponseDto, description: '密码重置邮件已发送' })
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgotPassword(dto.email);
   }
@@ -156,7 +158,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @ApiOperation({ summary: '用邮箱 + 验证码重置密码，成功后吊销全部 refresh token' })
-  @ApiOkResponse({ description: '密码重置成功 { message }' })
+  @ApiOkResponse({ type: MessageResponseDto, description: '密码重置成功' })
   @ApiBadRequestResponse({ description: '验证码错误 或 密码格式不符合要求' })
   async resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.email, dto.token, dto.newPassword);
@@ -168,7 +170,7 @@ export class AuthController {
   @Throttle({ default: { ttl: 60000, limit: 1 } })
   @ApiBearerAuth()
   @ApiOperation({ summary: '更换邮箱第一步：向新邮箱发送验证码（限流 1次/分钟）' })
-  @ApiOkResponse({ description: '验证码已发送 { message }' })
+  @ApiOkResponse({ type: MessageResponseDto, description: '验证码已发送' })
   @ApiUnauthorizedResponse({ description: '未登录' })
   @ApiConflictResponse({ description: '新邮箱已被占用' })
   async requestChangeEmailCode(@Req() req: FastifyRequest, @Body() dto: ChangeEmailRequestDto) {
@@ -182,7 +184,7 @@ export class AuthController {
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @ApiBearerAuth()
   @ApiOperation({ summary: '更换邮箱第二步：验证码确认并更新邮箱' })
-  @ApiOkResponse({ description: '邮箱更换成功 { message }' })
+  @ApiOkResponse({ type: MessageResponseDto, description: '邮箱更换成功' })
   @ApiUnauthorizedResponse({ description: '未登录或邮箱未验证' })
   @ApiBadRequestResponse({ description: '验证码错误或过期' })
   async verifyChangeEmail(@Req() req: FastifyRequest, @Body() dto: ChangeEmailVerifyDto) {
@@ -195,7 +197,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
   @ApiOperation({ summary: '登出：撤销当前登录终端的 refresh token（Cookie 优先），同时清除客户端 Cookie' })
-  @ApiOkResponse({ description: '登出成功 { message: "已登出" }，refreshToken 被撤销，Cookie 被清除' })
+  @ApiOkResponse({ type: MessageResponseDto, description: '登出成功，refreshToken 被撤销，Cookie 被清除' })
   async logout(@Req() req: FastifyRequest, @Body() dto: LogoutDto, @Res({ passthrough: true }) res: FastifyReply) {
     const user = req['user'] as { id: string };
     const token = req.cookies?.refreshToken ?? dto.refreshToken;

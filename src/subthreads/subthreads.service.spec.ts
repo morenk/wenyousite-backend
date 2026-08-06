@@ -2,9 +2,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SubthreadsService } from './subthreads.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { ThreadAccessService } from '../common/services/thread-access.service';
+import { ThreadAccessService } from '../access/thread-access.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { DiceService } from '../dice/dice.service';
+import { OutboxService } from '../outbox/outbox.service';
 
 const mockPrisma = {
   $transaction: jest.fn(),
@@ -33,11 +34,13 @@ const mockThreadAccess = {
   assertCanManage: jest.fn().mockResolvedValue({ role: 'OWNER' }),
 };
 const mockEventEmitter = { emit: jest.fn() };
+const mockOutbox = { enqueue: jest.fn().mockResolvedValue(undefined) };
 
 /** 创建事务 mock 的辅助函数 */
 const createTxMock = (overrides: Record<string, any> = {}) => ({
   $queryRaw: jest.fn(),
   $queryRawUnsafe: jest.fn(),
+  thread: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
   post: {
     create: jest.fn().mockResolvedValue({
       id: 'p1',
@@ -70,6 +73,7 @@ describe('SubthreadsService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: ThreadAccessService, useValue: mockThreadAccess },
         { provide: EventEmitter2, useValue: mockEventEmitter },
+        { provide: OutboxService, useValue: mockOutbox },
       ],
     }).compile();
     service = module.get<SubthreadsService>(SubthreadsService);
@@ -106,6 +110,10 @@ describe('SubthreadsService', () => {
           data: expect.objectContaining({ kind: 'BODY', content: '正文' }),
         }),
       );
+      expect(tx.thread.updateMany).toHaveBeenCalledWith({
+        where: { id: 't1', defaultSubthreadId: null, deletedAt: null },
+        data: { defaultSubthreadId: 's1' },
+      });
       expect(tx.post.create).toHaveBeenCalledWith(
         expect.not.objectContaining({
           data: expect.objectContaining({ floorNumber: expect.anything() }),

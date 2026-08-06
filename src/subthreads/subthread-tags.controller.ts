@@ -1,87 +1,45 @@
-import {
-  Controller, Get, Post, Delete,
-  Body, Param, Req, UseGuards,
-} from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, Param, Post, Req } from '@nestjs/common';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
-import { PrismaService } from '../prisma/prisma.service';
-import { SubthreadsService } from './subthreads.service';
-import { AddSubthreadTagDto } from './dto/add-subthread-tag.dto';
 import { Auth, OptionalAuth } from '../auth/decorators/auth.decorator';
+import { AddSubthreadTagDto } from './dto/add-subthread-tag.dto';
+import { SubthreadTagsService } from './subthread-tags.service';
+import { MessageResponseDto } from '../common/dto/message-response.dto';
 
-/** 子贴标签关联控制器 */
 @ApiTags('Subthreads')
 @Controller('subthreads/:subthreadId/tags')
 export class SubthreadTagsController {
-  constructor(
-    private prisma: PrismaService,
-    private subthreadsService: SubthreadsService,
-  ) {}
+  constructor(private readonly tags: SubthreadTagsService) {}
 
   @Get()
   @OptionalAuth()
   @ApiOperation({ summary: '获取子贴的标签列表' })
-  async findAll(
-    @Param('subthreadId') subthreadId: string,
-    @Req() req: FastifyRequest,
-  ) {
-    const user = req['user'] as { id: string } | undefined;
-    await this.subthreadsService.findById(subthreadId, user?.id);
-    return this.prisma.subthreadTag.findMany({
-      where: { subthreadId },
-      include: { tag: true },
-    });
+  findAll(@Param('subthreadId') subthreadId: string, @Req() req: FastifyRequest) {
+    return this.tags.findAll(subthreadId, (req['user'] as { id: string } | undefined)?.id);
   }
 
   @Post()
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '为子贴添加标签（仅 OWNER/COLLABORATOR）' })
-  async add(
+  add(
     @Param('subthreadId') subthreadId: string,
     @Body() dto: AddSubthreadTagDto,
     @Req() req: FastifyRequest,
   ) {
-    const user = req['user'] as { id: string };
-    const subthread = await this.subthreadsService.findById(subthreadId, user.id);
-    await this.subthreadsService.assertCanManage(subthread.threadId, user.id);
-
-    // 查找或创建子贴标签定义
-    let tagDef = await this.prisma.subthreadTagDef.findFirst({
-      where: { threadId: subthread.threadId, name: dto.name },
-    });
-    if (!tagDef) {
-      tagDef = await this.prisma.subthreadTagDef.create({
-        data: { threadId: subthread.threadId, name: dto.name, color: dto.color },
-      });
-    }
-
-    // 关联子贴与标签
-    await this.prisma.subthreadTag.upsert({
-      where: { subthreadId_tagId: { subthreadId, tagId: tagDef.id } },
-      create: { subthreadId, tagId: tagDef.id },
-      update: {},
-    });
-
-    return tagDef;
+    return this.tags.add(subthreadId, dto, (req['user'] as { id: string }).id);
   }
 
   @Delete(':tagId')
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '移除子贴的标签（仅 OWNER/COLLABORATOR）' })
-  async remove(
+  @ApiOkResponse({ type: MessageResponseDto, description: '标签已移除' })
+  remove(
     @Param('subthreadId') subthreadId: string,
     @Param('tagId') tagId: string,
     @Req() req: FastifyRequest,
   ) {
-    const user = req['user'] as { id: string };
-    const subthread = await this.subthreadsService.findById(subthreadId, user.id);
-    await this.subthreadsService.assertCanManage(subthread.threadId, user.id);
-
-    await this.prisma.subthreadTag.deleteMany({
-      where: { subthreadId, tagId },
-    });
-    return { message: '标签已移除' };
+    return this.tags.remove(subthreadId, tagId, (req['user'] as { id: string }).id);
   }
 }

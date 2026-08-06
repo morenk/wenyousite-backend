@@ -60,8 +60,8 @@
 - 草稿列表：`GET /threads/draft` 返回当前用户所有未发布帖，按 createdAt DESC 排序
 - 发布校验：`PATCH /threads/:id { published: true }` 时校验 —— ① title 非空且非默认值"未命名草稿" ② category 已设置 ③ 默认子贴存在且有正文（存在 kind=BODY 的正文帖）
 - 草稿期各 Post 的内联骰子节点只保存在 `content` 中；发布事务会锁定 Thread，校验并结算全部帖子节点后才翻转 `published=true`，任一步失败整体回滚
-- 发布后通知：校验通过后先回放草稿期内全部帖子的 post.created 事件（补解析 @提及和通知），再通知创建者的所有粉丝（thread_created 类型）
-- 草稿内发帖不触发 @提及解析和通知（`post.created` 事件仅在已发布帖下发帖时发射）
+- 发布可靠事件：发布事务为草稿期全部帖子写入 `post.created` Outbox，并写入 `thread.published`；提交后依次补解析 @提及/通知，并通知通过双向拉黑过滤的粉丝
+- 草稿内发帖不立即触发 @提及解析和通知；发布事务统一生成事件，失败由 Outbox 重试
 - 草稿仅 owner 可查看和操作，非 owner 访问返回 404
 - 草稿帖删除为硬删除（级联删除子贴/帖子/参与人），已发布帖删除为软删除
 
@@ -153,14 +153,14 @@ POST subthreads        → Subthread + 可选正文帖（kind=BODY，正文为�
   GET /subthreads      → 查看已创建的子贴及其帖子数量
 
 POST posts             → 在子贴下新增楼层，自动记入该子贴
-  ↑ 仅 published=true 时触发 post.created 事件
+  ↑ published=true 时同事务写 post.created Outbox
 
 PATCH published=true   → 发布前校验：
                          ① title 非空
                          ② category 已选
                          ③ 默认子贴有正文
-                         → 回放草稿帖事件（@提及+通知）
-                         → 通知所有粉丝
+                         → 同事务写草稿帖事件 + 发布事件
+                         → 提交后可靠投递 @提及/通知/粉丝通知
 ```
 
 ### 级联删除
@@ -200,7 +200,7 @@ ThreadAccessService.assertAccessible(threadId, userId)
 
 - **草稿沙盒**：Thread 本身即为沙盒 —— published=false 时帖子不对外，楼主可在沙盒内任意搭建子贴、撰写楼层。发布时仅翻转 published 标记，数据零迁移
 - **发布即校验**：创建草稿时零必填字段，所有完整性校验推迟到发布时刻。这样用户可以分步填写、随时退出、续接编辑
-- **草稿内不发通知**：发帖事件（post.created）仅在已发布帖下发帖时发射，草稿内的所有操作不触发 @提及解析和通知。通知逻辑移至 publish 时刻（thread_created 通知粉丝）
+- **草稿内不发通知**：草稿内操作不立即触发通知；发布时将全部帖子事件与发布状态原子写入 Outbox，防止发布成功但通知事件丢失
 - **未发布帖硬删除**：草稿帖数据尚未对外发布，硬删除可直接级联清理所有关联的子贴/帖子/参与人。定时任务每天凌晨 4 点清理超过 7 天未发布的草稿
 - **乐观锁 version**：比悲观锁更适合读多写少的协作编辑场景；使用 Prisma 的 where { version } + data { version: increment: 1 } 实现原子比较并更新
 - **viewCount 分层更新**：详情请求只原子更新 Redis `thread:{id}:stats.views`，不再逐次写数据库；智能排序任务每 10 分钟用单条批量 SQL 将更大的 Redis 计数落盘。Redis 计数自增前以数据库值为下限，重启后不会倒退

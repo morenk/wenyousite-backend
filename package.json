@@ -11,7 +11,7 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
-    "lint": "eslint \"src/**/*.ts\" --max-warnings 158",
+    "lint": "eslint \"src/**/*.ts\" --max-warnings 137",
     "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "typecheck": "tsc --noEmit",
@@ -25,7 +25,9 @@
     "test:e2e:auth-terminal": "AUTH_TERMINAL_E2E_ENV=test ts-node --transpile-only scripts/auth-terminal-e2e.ts",
     "test:e2e": "tsx scripts/api-e2e-test.ts",
     "docs:check": "tsx scripts/check-doc-links.ts",
-    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm docs:check && pnpm build",
+    "arch:check": "tsx scripts/check-architecture.ts",
+    "openapi:check": "pnpm openapi:export /tmp/wenyousite-openapi-check.json && tsx scripts/check-openapi-contract.ts /tmp/wenyousite-openapi-check.json",
+    "check": "pnpm lint && pnpm typecheck && pnpm arch:check && pnpm openapi:check && pnpm test && pnpm docs:check && pnpm build",
     "check:full": "pnpm check && API_E2E_ENV=test pnpm test:e2e"
   },
   "dependencies": {

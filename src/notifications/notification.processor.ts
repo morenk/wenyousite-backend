@@ -8,7 +8,6 @@ interface LikeLiker {
   userId: string;
   username: string;
 }
-
 interface LikePayload {
   action?: string;
   actorName?: string;

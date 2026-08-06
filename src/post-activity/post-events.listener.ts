@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { MentionsService } from '../mentions/mentions.service';
-import { NotificationProducer } from './notification.producer';
+import { NotificationProducer } from '../notifications/notification.producer';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
-import { BlockFilterService } from '../common/services/block-filter.service';
+import { BlockFilterService } from '../access/block-filter.service';
 import { buildPostPreview } from '../common/post-preview';
 
 /** ZSET 键名 */
@@ -16,7 +16,6 @@ const ZSET_BY_SMART = 'threads:by:smart';
 function computeSmartScore(engagement: number, ageHours: number): number {
   return engagement / Math.pow(ageHours + 2, 1.5);
 }
-
 /** 从 Redis Hash 读取统计值计算智能排序分 */
 async function updateSmartScore(redis: RedisService, threadId: string): Promise<number> {
   const stats = await redis.hgetall(`thread:${threadId}:stats`);
@@ -50,11 +49,9 @@ export class PostEventsListener {
   /** 监听 post.created 事件，处理：@提及、新帖通知、楼中楼回复通知 + Redis 计数器更新 */
   @OnEvent('post.created')
   async handlePostCreated(event: PostCreatedEvent) {
-    // Redis: 更新回复计数器 + 帖子活跃度 ZSET + 智能排序分
-    this.redis.hincrby(`thread:${event.threadId}:stats`, 'replies', 1).catch(() => {});
-    if (event.parentPostId) {
-      this.redis.hincrby(`post:${event.parentPostId}:stats`, 'replies', 1).catch(() => {});
-    }
+    const failures: unknown[] = [];
+    // Redis 投影从数据库权威值覆盖，Outbox 重试时不会重复累加。
+    await this.refreshReplyProjection(event).catch(() => {});
     const now = Date.now();
     this.redis.zadd(ZSET_BY_ACTIVITY, now, event.threadId).catch(() => {});
     updateSmartScore(this.redis, event.threadId).catch(() => {});
@@ -123,6 +120,7 @@ export class PostEventsListener {
       }
     } catch (e) {
       this.logger.error('mention processing failed', e);
+      failures.push(e);
     }
 
     // 2. 新帖通知（子贴正文 / 新楼层）：通知楼主 + 协作者 + 订阅者（排除自己，过滤拉黑）
@@ -154,6 +152,7 @@ export class PostEventsListener {
         }
       } catch (e) {
         this.logger.error('new_post notification failed', e);
+        failures.push(e);
       }
     }
 
@@ -191,21 +190,63 @@ export class PostEventsListener {
       }
     } catch (e) {
       this.logger.error('reply notification failed', e);
+      failures.push(e);
+    }
+
+    if (failures.length > 0) {
+      throw new AggregateError(failures, 'post.created event processing failed');
     }
   }
 
   /** 主题帖点赞后更新计数 + 智能排序分 */
   @OnEvent('thread.liked')
   async handleThreadLiked(event: { threadId: string }) {
-    this.redis.hincrby(`thread:${event.threadId}:stats`, 'likes', 1).catch(() => {});
+    const thread = await this.prisma.thread.findUnique({
+      where: { id: event.threadId },
+      select: { likeCount: true },
+    });
+    if (!thread) return;
+    await this.redis.hset(
+      `thread:${event.threadId}:stats`,
+      'likes',
+      String(thread.likeCount),
+    );
     updateSmartScore(this.redis, event.threadId).catch(() => {});
   }
 
   /** 主题帖取消点赞后更新计数 */
   @OnEvent('thread.unliked')
   async handleThreadUnliked(event: { threadId: string }) {
-    this.redis.hincrby(`thread:${event.threadId}:stats`, 'likes', -1).catch(() => {});
-    updateSmartScore(this.redis, event.threadId).catch(() => {});
+    await this.handleThreadLiked(event);
+  }
+
+  private async refreshReplyProjection(event: PostCreatedEvent): Promise<void> {
+    const [threadReplies, parentReplies] = await Promise.all([
+      this.prisma.post.count({
+        where: {
+          threadId: event.threadId,
+          deletedAt: null,
+          subthread: { deletedAt: null },
+        },
+      }),
+      event.parentPostId
+        ? this.prisma.post.count({
+            where: { parentPostId: event.parentPostId, deletedAt: null },
+          })
+        : Promise.resolve(null),
+    ]);
+    await this.redis.hset(
+      `thread:${event.threadId}:stats`,
+      'replies',
+      String(threadReplies),
+    );
+    if (event.parentPostId && parentReplies !== null) {
+      await this.redis.hset(
+        `post:${event.parentPostId}:stats`,
+        'replies',
+        String(parentReplies),
+      );
+    }
   }
 }
 

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
-import { ErrorCode } from '../exceptions/error-codes';
-import { notFound, forbidden } from '../exceptions/business.exception';
+import { PrismaService } from '../prisma/prisma.service';
+import { ErrorCode } from '../common/exceptions/error-codes';
+import { notFound, forbidden } from '../common/exceptions/business.exception';
 
 /** 主题帖访问权限服务：可访问性校验 + 管理权限校验 */
 @Injectable()

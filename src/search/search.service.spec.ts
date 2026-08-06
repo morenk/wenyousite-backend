@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { SearchService } from './search.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { ThreadAccessService } from '../common/services/thread-access.service';
+import { ThreadAccessService } from '../access/thread-access.service';
 
 const mockPrisma = {
   thread: { findMany: jest.fn() },
@@ -26,7 +26,6 @@ const postDetail = (id: string) => ({
   thread: { id: `thread-${id}`, title: `主题 ${id}` },
   subthread: { id: 's1', title: '主讨论区' },
 });
-
 function lastRawSql(): string {
   const query = mockPrisma.$queryRaw.mock.calls.at(-1)?.[0] as { strings?: string[] };
   return query?.strings?.join(' ') ?? '';

@@ -57,7 +57,12 @@ export const authorSelect = publicUserSummarySelect;
 
 /** 计数用户和帖子总数（帖子只计楼层，正文不占楼层号） */
 export const countMembersAndPosts = () => ({
-  _count: { select: { members: true, posts: { where: { kind: 'FLOOR' as const } } } },
+  _count: {
+    select: {
+      members: true,
+      posts: { where: { kind: 'FLOOR' as const, ...notDeleted } },
+    },
+  },
 });
 
 /** 批量补全 _count.players：统计各主题帖 playerMarked=true（被授予玩家身份）的参与人数。

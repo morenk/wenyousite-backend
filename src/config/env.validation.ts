@@ -76,6 +76,10 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   LOG_FILE_DIR: string = '';
+
+  @IsString()
+  @IsOptional()
+  ENABLE_API_DOCS: string = 'true';
 }
 
 /** 校验函数：在 ConfigModule.forRoot 中调用，启动时验证环境变量完整性 */

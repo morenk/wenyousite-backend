@@ -60,6 +60,7 @@ export default () => ({
   app: {
     url: process.env.APP_URL ?? 'http://localhost:3000',
     nodeEnv: process.env.NODE_ENV ?? 'development',
+    apiDocsEnabled: process.env.ENABLE_API_DOCS !== 'false',
   },
 
   // 日志：Pino 结构化日志配置

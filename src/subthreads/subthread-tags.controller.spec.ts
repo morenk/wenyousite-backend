@@ -1,6 +1,7 @@
 /** 子贴标签控制器测试：保证读写接口沿用当前用户执行帖子访问校验 */
 
 import { SubthreadTagsController } from './subthread-tags.controller';
+import { SubthreadTagsService } from './subthread-tags.service';
 
 const mockPrisma = {
   subthreadTag: {
@@ -9,8 +10,7 @@ const mockPrisma = {
     deleteMany: jest.fn(),
   },
   subthreadTagDef: {
-    findFirst: jest.fn(),
-    create: jest.fn(),
+    upsert: jest.fn(),
   },
 };
 
@@ -23,10 +23,11 @@ describe('SubthreadTagsController（帖子访问校验）', () => {
   let controller: SubthreadTagsController;
 
   beforeEach(() => {
-    controller = new SubthreadTagsController(
+    const service = new SubthreadTagsService(
       mockPrisma as never,
       mockSubthreadsService as never,
     );
+    controller = new SubthreadTagsController(service);
     jest.clearAllMocks();
     mockSubthreadsService.findById.mockResolvedValue({
       id: 's1',
@@ -59,7 +60,7 @@ describe('SubthreadTagsController（帖子访问校验）', () => {
   });
 
   it('添加标签时以当前用户读取子贴后再校验管理权限', async () => {
-    mockPrisma.subthreadTagDef.findFirst.mockResolvedValue({
+    mockPrisma.subthreadTagDef.upsert.mockResolvedValue({
       id: 'tag1',
       name: '设定',
     });

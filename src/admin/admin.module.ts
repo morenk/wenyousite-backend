@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
-import { JobsModule } from '../jobs/jobs.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 /** 管理后台模块：系统通知发送、预览、历史、用户搜索 */
 @Module({
-  imports: [JobsModule],
+  imports: [NotificationsModule],
   controllers: [AdminController],
   providers: [AdminService],
 })

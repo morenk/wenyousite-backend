@@ -94,9 +94,9 @@
 - 资料修改限流 5 次/分钟
 - 关注和拉黑端点、资料修改、账号注销均使用 `@Auth()`（需邮箱验证），仅查询操作使用 `@AuthRead()`
 - `GET /users/:id/following` / `GET /users/:id/followers` 为公开查询（`@OptionalAuth()`，无隐私开关），返回全部关注/粉丝（含 id/username/avatar），目标用户不存在返回 404；与「我的关注/粉丝」（`/users/following`、`/users/followers`，仅本人）并存
-- 关注时检查是否已关注，仅在首次关注时发送通知，避免重复通知
+- 关注通过联合唯一键 + `createMany(skipDuplicates)` 幂等写入，仅在本次创建关系成功时写 Outbox
 - 关注自己返回 "不能关注自己" 消息，不执行数据库操作
-- 关注成功后异步发送 follow 类型通知给被关注者（fire-and-forget）
+- 关注成功后由 `UserRelationEventsListener` 双向过滤拉黑并发送 follow 通知；队列失败由 Outbox 退避重试
 - 拉黑使用 upsert 保证幂等，拉黑自己返回提示消息
 - 用户搜索返回最多 10 条结果，按用户名字母序排列，排除已注销用户
 - 公开收藏 (`GET /users/:id/bookmarks`)：受 `showBookmarks` 控制，关闭时返回 404；未发布帖不显示；私密帖仅对其参与人可见；本人始终可见；Cursor 分页
@@ -119,6 +119,6 @@
 - **参与/创建分离**：自建帖归入创建列表，参与列表只含其他楼主的帖子，且统一以 `playerMarked=true` 表示已获授玩家身份；本人可见其中的私密帖，他人只能看到公开玩家关系
 - **已注销用户屏蔽**：保留记录不物理删除（外键关联完整性），所有面向客户端的用户摘要查询携带 `deletedAt` 供统一响应层转换，仅输出兜底显示名和空头像，不暴露内部墓碑值或注销时间（通知为兼容既有跳转判断保留 `fromUser.deletedAt`）
 - **关注/拉黑/资料修改/注销使用 @Auth()**：这些写操作涉及通知推送和信息公开，要求邮箱已验证以减少滥用
-- **UserFollow 联合唯一键**：upsert 保证同一关注关系唯一，避免重复关注记录
-- **通知推送异步 fire-and-forget**：通知发送失败不影响关注操作的成功返回
+- **UserFollow 联合唯一键**：`createMany(skipDuplicates)` 保证同一关注关系唯一，避免并发重复记录
+- **通知推送可靠异步**：关注关系和 `user.followed` Outbox 在同一事务提交；HTTP 不等待通知落库，但已提交事件不会因进程退出或队列短暂故障丢失
 - **隐私开关前后端协作**：开关值由后端存储并返回，前端根据值隐藏/显示对应板块。`showBookmarks` 和 `showRecentReplies` 由后端在 API 层强制执行（404），而非仅依赖前端

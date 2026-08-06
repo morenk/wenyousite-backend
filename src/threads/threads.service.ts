@@ -1,31 +1,27 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { randomBytes } from 'crypto';
+import { Prisma } from '@prisma/client';
+import { randomBytes, randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { TagsService } from '../tags/tags.service';
-import { BlockFilterService } from '../common/services/block-filter.service';
-import { NotificationProducer } from '../jobs/notification.producer';
-import { ThreadAccessService } from '../common/services/thread-access.service';
+import { ThreadAccessService } from '../access/thread-access.service';
 import { RedisService } from '../redis/redis.service';
-import { CacheService } from '../redis/cache.service';
 import { CreateThreadDto } from './dto/create-thread.dto';
-import { UpdateThreadDto } from './dto/update-thread.dto';
 import { ThreadQueryDto } from './dto/thread-query.dto';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound, forbidden } from '../common/exceptions/business.exception';
-import { paginate } from '../common/dto/paginated-result';
 import {
   notDeleted,
-  countNonDeletedPosts,
   includeSubthreads,
   mapSubthreadBody,
   authorSelect,
   countMembersAndPosts,
   attachPlayerCounts,
 } from '../common/prisma-helpers';
-import { truncateMarkdown } from '../common/markdown-truncate';
 import { hasVisibleMarkdownContent, normalizeMarkdownContent } from '../common/markdown-content';
 import { DiceService } from '../dice/dice.service';
+import { ThreadQueryService } from './thread-query.service';
+import { OutboxService } from '../outbox/outbox.service';
 
 /** 帖子列表 ZSET 键名 */
 const ZSET_BY_CREATED = 'threads:by:created';
@@ -41,13 +37,12 @@ export class ThreadsService {
   constructor(
     private prisma: PrismaService,
     private tagsService: TagsService,
-    private notificationProducer: NotificationProducer,
     private threadAccess: ThreadAccessService,
-    private blockFilter: BlockFilterService,
     private eventEmitter: EventEmitter2,
     private redis: RedisService,
-    private cache: CacheService,
     private diceService: DiceService,
+    private queries: ThreadQueryService,
+    private outbox: OutboxService,
   ) {}
 
   /** 创建主题帖草稿：事务内创建 Thread + Owner + 默认子贴 + 可选子贴正文，一次请求完成 */
@@ -61,6 +56,11 @@ export class ThreadsService {
     );
     const hasBody =
       hasVisibleMarkdownContent(parsedContent.contentWithoutDice) || parsedContent.nodes.length > 0;
+    // 标签定义可先独立解析，但主题、默认子贴及标签关联必须原子提交。
+    const tags =
+      dto.tagNames && dto.tagNames.length > 0
+        ? await this.tagsService.findOrCreate(dto.tagNames)
+        : [];
 
     const result = await this.prisma.$transaction(async (tx) => {
       // 0. 草稿数上限校验：未发布草稿超过上限则拒绝创建
@@ -108,16 +108,14 @@ export class ThreadsService {
         data: { defaultSubthreadId: subthread.id },
       });
 
+      if (tags.length > 0) {
+        await tx.threadTopicTag.createMany({
+          data: tags.map((tag) => ({ threadId: thread.id, tagId: tag.id })),
+        });
+      }
+
       return { threadId: thread.id };
     });
-
-    // 6. 事务外处理标签（避免事务内复杂联表死锁）
-    if (dto.tagNames && dto.tagNames.length > 0) {
-      const tags = await this.tagsService.findOrCreate(dto.tagNames);
-      await this.prisma.threadTopicTag.createMany({
-        data: tags.map((tag) => ({ threadId: result.threadId, tagId: tag.id })),
-      });
-    }
 
     const thread = await this.prisma.thread.findUnique({
       where: { id: result.threadId, ...notDeleted },
@@ -135,282 +133,18 @@ export class ThreadsService {
     return thread;
   }
 
-  /** 我的草稿列表（未发布帖） */
   async findDrafts(userId: string) {
-    const drafts = await this.prisma.thread.findMany({
-      where: { ownerId: userId, published: false, ...notDeleted },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        defaultSubthread: { select: { id: true, title: true } },
-        topicTags: { include: { tag: true } },
-        _count: { select: { subthreads: true, posts: true } },
-      },
-    });
-    return drafts;
+    return this.queries.findDrafts(userId);
   }
 
-  /** 详情：主题帖 + 子贴列表。未发布帖仅 owner 可查看 */
   async findById(id: string, userId?: string) {
-    // 权限状态可能在缓存 TTL 内由 PUBLIC 变为 PRIVATE，必须先实时校验。
-    await this.threadAccess.assertAccessible(id, userId);
-    const cacheKey = this.cache.buildKey('thread', id);
-    let thread = await this.cache.get<any>(cacheKey);
-
-    // 详情缓存只保存公开且已发布的聚合结果；私密帖和草稿始终实时查询。
-    if (!thread?.published || thread.visibility !== 'PUBLIC' || thread.deletedAt) {
-      thread = await this.prisma.thread.findUnique({
-        where: { id, ...notDeleted },
-        include: {
-          owner: { select: authorSelect },
-          ...includeSubthreads(),
-          topicTags: { include: { tag: true } },
-          ...countMembersAndPosts(),
-        },
-      });
-      if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
-
-      // 把子贴的 posts[0]（kind=BODY）映射回 bodyPost 响应字段
-      thread.subthreads = mapSubthreadBody(thread.subthreads);
-      await attachPlayerCounts(this.prisma, [thread]);
-
-      if (thread.published && thread.visibility === 'PUBLIC') {
-        this.cache.set(cacheKey, thread, 30000).catch(() => {});
-      }
-    }
-
-    // 浏览量实时写 Redis，每 10 分钟批量落盘，避免每次详情请求写数据库。
-    let responseThread = thread;
-    if (thread.published) {
-      try {
-        const viewCount = await this.redis.hincrbyAtLeast(
-          `thread:${id}:stats`,
-          'views',
-          thread.viewCount ?? 0,
-          1,
-        );
-        responseThread = { ...thread, viewCount };
-      } catch {
-        responseThread = { ...thread, viewCount: (thread.viewCount ?? 0) + 1 };
-      }
-    }
-
-    // 登录态附加收藏与点赞状态（浅拷贝返回，不污染共享缓存）
-    if (userId) {
-      const [bookmark, like] = await Promise.all([
-        this.prisma.userBookmark.findUnique({
-          where: { userId_threadId: { userId, threadId: id } },
-          select: { id: true },
-        }),
-        this.prisma.threadLike.findUnique({
-          where: { threadId_userId: { userId, threadId: id } },
-          select: { id: true },
-        }),
-      ]);
-      return {
-        ...responseThread,
-        isBookmarked: !!bookmark,
-        bookmarkId: bookmark?.id ?? null,
-        isLiked: !!like,
-      };
-    }
-
-    return responseThread;
+    return this.queries.findById(id, userId);
   }
 
-  /** 分区列表：仅返回已发布帖。首页缓存 5 秒防击穿。recommended 排序使用 Redis ZSET */
   async findAll(query: ThreadQueryDto, userId?: string) {
-    const sort = query.sort ?? 'recommended';
-    const cacheKey = this.cache.buildKey(
-      'threads',
-      'list',
-      `sort:${sort}`,
-      `cat:${query.category ?? 'all'}`,
-      `status:${query.status ?? 'all'}`,
-      `tag:${query.tag ?? 'all'}`,
-      `filter:${query.filter ?? 'all'}`,
-      `limit:${Math.min(query.limit ?? 20, 50)}`,
-    );
-    const cacheableFirstPage = !query.cursor && query.filter !== 'playing';
-
-    // 公开首页尝试缓存命中；playing 是用户私有结果，严禁进入共享缓存。
-    if (cacheableFirstPage) {
-      const cached = await this.cache.get<any>(cacheKey);
-      if (cached) return cached;
-    }
-
-    // recommended 排序：ZSET 偏移分页
-    if (sort === 'recommended') {
-      const result = await this.findAllSmart(query, userId);
-      if (cacheableFirstPage) {
-        this.cache.set(cacheKey, result, 5000).catch(() => {});
-      }
-      return result;
-    }
-
-    const where: any = { ...notDeleted, published: true };
-
-    if (query.filter === 'playing') {
-      if (!userId) return paginate([], { cursor: null, hasMore: false });
-      where.members = {
-        some: { userId, playerMarked: true },
-      };
-      // 参与列表排除自己创建的帖（自建帖在「创建的帖子」中展示）
-      where.ownerId = { not: userId };
-    } else {
-      where.visibility = 'PUBLIC';
-    }
-
-    if (query.category) where.category = query.category;
-    if (query.status) where.status = query.status;
-    if (query.tag) {
-      where.topicTags = {
-        some: { tag: { name: { contains: query.tag, mode: 'insensitive' } } },
-      };
-    }
-
-    const take = Math.min(query.limit ?? 20, 50);
-    const orderBy: any[] = [{ pinned: 'desc' }, { createdAt: 'desc' }];
-
-    if (sort === 'active') {
-      orderBy[1] = { updatedAt: 'desc' };
-    }
-
-    const threads = await this.prisma.thread.findMany({
-      where,
-      orderBy,
-      take: take + 1,
-      cursor: query.cursor ? { id: query.cursor } : undefined,
-      skip: query.cursor ? 1 : 0,
-      include: {
-        owner: { select: authorSelect },
-        defaultSubthread: {
-          include: {
-            posts: {
-              where: { kind: 'BODY', ...notDeleted },
-              take: 1,
-              orderBy: { createdAt: 'asc' },
-              select: { content: true },
-            },
-          },
-        },
-        topicTags: { include: { tag: true } },
-        ...countMembersAndPosts(),
-      },
-    });
-
-    const hasMore = threads.length > take;
-    if (hasMore) threads.pop();
-
-    await attachPlayerCounts(this.prisma, threads);
-
-    const items = threads.map((t: any) => {
-      const preview = t.defaultSubthread?.posts?.[0]?.content
-        ? truncateMarkdown(t.defaultSubthread.posts[0].content)
-        : '';
-      // 移除 defaultSubthread.posts 全量，仅保留 preview
-      const { posts, ...rest } = t.defaultSubthread ?? {};
-      return { ...t, preview, defaultSubthread: t.defaultSubthread ? rest : null };
-    });
-
-    const result = paginate(items, {
-      cursor: items.length > 0 ? items[items.length - 1].id : null,
-      hasMore,
-    });
-
-    // 首页写入缓存 (5 秒)
-    if (cacheableFirstPage) {
-      this.cache.set(cacheKey, result, 5000).catch(() => {});
-    }
-
-    return result;
+    return this.queries.findAll(query, userId);
   }
 
-  /** 智能排序：从 Redis ZSET 按「已消费可见帖数」累进分页，SQL 过滤后归位切片，保证每帖只出现一次 */
-  private async findAllSmart(query: ThreadQueryDto, userId?: string) {
-    const take = Math.min(query.limit ?? 20, 50);
-    // cursor 记录「已消费的可见帖数」，单调累进
-    const consumed = query.cursor ? parseInt(query.cursor, 10) : 0;
-    const zsetSize = await this.redis.zcard(ZSET_BY_SMART);
-
-    const where: any = { ...notDeleted, published: true };
-    if (query.filter === 'playing') {
-      if (!userId) return paginate([], { cursor: null, hasMore: false });
-      where.members = { some: { userId, playerMarked: true } };
-    } else {
-      where.visibility = 'PUBLIC';
-    }
-    if (query.category) where.category = query.category;
-    if (query.status) where.status = query.status;
-    if (query.tag) {
-      where.topicTags = {
-        some: { tag: { name: { contains: query.tag, mode: 'insensitive' } } },
-      };
-    }
-
-    // 前缀累进扫描：从 ZSET 头部取足够长的前缀，SQL 过滤后按 ZSET 序排列
-    // 若前缀内可见帖仍不足以切够 take 个，扩大扫描窗口继续取（补偿过滤损耗）
-    let scanEnd = consumed + take * 5;
-    let ids: string[] = [];
-    let threads: any[] = [];
-
-    for (;;) {
-      const batch = await this.redis.zrevrange(ZSET_BY_SMART, 0, scanEnd - 1);
-      if (batch.length === 0) {
-        // ZSET 为空或超出范围
-        return paginate([], { cursor: null, hasMore: false });
-      }
-      ids = batch;
-      threads = await this.fetchSmartThreads(ids, where);
-      if (threads.length >= consumed + take || scanEnd >= zsetSize) break;
-      // 过滤损耗大：扩大前缀继续扫描
-      scanEnd = scanEnd * 2;
-    }
-
-    // 按 ZSET 原有顺序排列
-    const idOrder = new Map(ids.map((id, i) => [id, i]));
-    threads.sort((a, b) => (idOrder.get(a.id) ?? 9999) - (idOrder.get(b.id) ?? 9999));
-
-    const sliced = threads.slice(consumed, consumed + take);
-    const hasMore = threads.length > consumed + take;
-    const nextCursor = hasMore ? String(consumed + sliced.length) : null;
-
-    await attachPlayerCounts(this.prisma, sliced);
-
-    const items = sliced.map((t: any) => {
-      const preview = t.defaultSubthread?.posts?.[0]?.content
-        ? truncateMarkdown(t.defaultSubthread.posts[0].content)
-        : '';
-      // 移除 defaultSubthread.posts 全量，仅保留 preview
-      const { posts, ...rest } = t.defaultSubthread ?? {};
-      return { ...t, preview, defaultSubthread: t.defaultSubthread ? rest : null };
-    });
-
-    return paginate(items, { cursor: nextCursor, hasMore });
-  }
-
-  /** 按 id 列表查询已发布帖（含 owner/defaultSubthread/topicTags/_count），供智能排序过滤用 */
-  private async fetchSmartThreads(ids: string[], where: Record<string, unknown>) {
-    return this.prisma.thread.findMany({
-      where: { ...where, id: { in: ids } },
-      include: {
-        owner: { select: authorSelect },
-        defaultSubthread: {
-          include: {
-            posts: {
-              where: { kind: 'BODY', ...notDeleted },
-              take: 1,
-              orderBy: { createdAt: 'asc' },
-              select: { content: true },
-            },
-          },
-        },
-        topicTags: { include: { tag: true } },
-        ...countMembersAndPosts(),
-      },
-    });
-  }
-
-  /** 参与帖仅指已被授予玩家身份的帖子；他人只能查看其中的公开帖。 */
   async findByPlayedUser(
     targetId: string,
     viewerId?: string,
@@ -418,93 +152,11 @@ export class ThreadsService {
     limit = 20,
     visibility?: 'PUBLIC' | 'PRIVATE',
   ) {
-    const take = Math.min(limit, 50);
-    const isSelf = targetId === viewerId;
-
-    if (!isSelf && visibility === 'PRIVATE') {
-      return paginate([], { cursor: null, hasMore: false });
-    }
-
-    const where: any = {
-      userId: targetId,
-      playerMarked: true,
-      thread: { ...notDeleted, published: true },
-    };
-    // 参与列表排除自己创建的帖（自建帖在「创建的帖子」中展示）
-    where.thread.ownerId = { not: targetId };
-
-    if (isSelf) {
-      if (visibility) where.thread.visibility = visibility;
-    } else {
-      where.thread.visibility = 'PUBLIC';
-    }
-
-    const members = await this.prisma.threadMember.findMany({
-      where,
-      orderBy: { joinedAt: 'desc' },
-      take: take + 1,
-      cursor: cursor ? { id: cursor } : undefined,
-      skip: cursor ? 1 : 0,
-      include: {
-        thread: {
-          include: {
-            owner: { select: authorSelect },
-            defaultSubthread: { select: { id: true, title: true, lastPostAt: true } },
-            topicTags: { include: { tag: true } },
-            ...countMembersAndPosts(),
-          },
-        },
-      },
-    });
-
-    const hasMore = members.length > take;
-    if (hasMore) members.pop();
-
-    const playedThreads = members.map((m) => m.thread);
-    await attachPlayerCounts(this.prisma, playedThreads);
-
-    return paginate(playedThreads, {
-      cursor: members.length > 0 ? members[members.length - 1].id : null,
-      hasMore,
-    });
+    return this.queries.findByPlayedUser(targetId, viewerId, cursor, limit, visibility);
   }
 
-  /** 查看指定用户创建的主题帖（本人可见全部含私密帖，他人仅见 PUBLIC 已发布帖） */
   async findByCreatedUser(targetId: string, viewerId?: string, cursor?: string, limit = 20) {
-    const take = Math.min(limit, 50);
-    const where: any = {
-      ownerId: targetId,
-      ...notDeleted,
-      published: true,
-    };
-
-    if (targetId !== viewerId) {
-      where.visibility = 'PUBLIC';
-    }
-
-    const threads = await this.prisma.thread.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: take + 1,
-      cursor: cursor ? { id: cursor } : undefined,
-      skip: cursor ? 1 : 0,
-      include: {
-        owner: { select: authorSelect },
-        defaultSubthread: { select: { id: true, title: true, lastPostAt: true } },
-        topicTags: { include: { tag: true } },
-        ...countMembersAndPosts(),
-      },
-    });
-
-    const hasMore = threads.length > take;
-    if (hasMore) threads.pop();
-
-    await attachPlayerCounts(this.prisma, threads);
-
-    return paginate(threads, {
-      cursor: threads.length > 0 ? threads[threads.length - 1].id : null,
-      hasMore,
-    });
+    return this.queries.findByCreatedUser(targetId, viewerId, cursor, limit);
   }
 
   /** 修改主题帖（仅 OWNER/COLLABORATOR）。published=true 触发发布 */
@@ -587,32 +239,6 @@ export class ThreadsService {
     }
     this.eventEmitter.emit('thread.updated', { threadId: id });
 
-    if (published === true) {
-      // 1. 先回放草稿帖事件（@提及 + 通知）
-      await this.replayDraftPostEvents(updated.id).catch(() => {});
-      // 2. 再发射 thread.published（此时内容已完整处理）
-      this.eventEmitter.emit('thread.published', { threadId: id, ownerId: userId });
-
-      const followers = await this.prisma.userFollow.findMany({
-        where: { followingId: userId },
-        select: { followerId: true },
-      });
-      const followerIds = followers.map((f) => f.followerId);
-      if (followerIds.length > 0) {
-        const blockSets = await this.blockFilter.loadBlockSets(userId);
-        const filtered = this.blockFilter.filterRecipients(followerIds, blockSets);
-        if (filtered.length > 0) {
-          this.notificationProducer
-            .notify('thread_created', filtered, `${updated.owner.username}创建了新主题帖`, {
-              threadId: updated.id,
-              fromUserId: userId,
-              eventKey: `thread-created:${updated.id}`,
-            })
-            .catch(() => {});
-        }
-      }
-    }
-
     return updated;
   }
 
@@ -653,42 +279,38 @@ export class ThreadsService {
     if (!thread.published) throw new BusinessException(ErrorCode.BAD_REQUEST, '草稿暂不支持点赞');
     await this.threadAccess.assertAccessible(id, userId);
 
-    const existing = await this.prisma.threadLike.findUnique({
-      where: { threadId_userId: { threadId: id, userId } },
+    const { created, updated } = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.threadLike.createMany({
+        data: [{ threadId: id, userId }],
+        skipDuplicates: true,
+      });
+      if (result.count === 0) return { created: false, updated: thread };
+      const updatedThread = await tx.thread.update({
+        where: { id },
+        data: { likeCount: { increment: 1 } },
+      });
+      const eventId = randomUUID();
+      await this.outbox.enqueue(tx, {
+        eventType: 'thread.liked',
+        aggregateType: 'Thread',
+        aggregateId: id,
+        eventKey: `thread-liked:${id}:${userId}:${eventId}`,
+        payload: {
+          eventId,
+          threadId: id,
+          ownerId: thread.ownerId,
+          threadTitle: thread.title,
+          userId,
+          username,
+        },
+      });
+      return {
+        created: true,
+        updated: updatedThread,
+      };
     });
-    if (existing) return thread;
 
-    await this.prisma.threadLike.create({ data: { threadId: id, userId } });
-
-    const updated = await this.prisma.thread.update({
-      where: { id },
-      data: { likeCount: { increment: 1 } },
-    });
-
-    this.redis.hincrby(`thread:${id}:stats`, 'likes', 1).catch(() => {});
-
-    if (thread.ownerId !== userId) {
-      const blockSets = await this.blockFilter.loadBlockSets(userId);
-      const filtered = this.blockFilter.filterRecipients([thread.ownerId], blockSets);
-      if (filtered.length > 0) {
-        this.notificationProducer
-          .notify('like', [thread.ownerId], `${username} 赞了你的主题帖「${thread.title}」`, {
-            threadId: id,
-            fromUserId: userId,
-            eventKey: `like:${id}:${userId}`,
-            payload: {
-              action: 'like',
-              actorName: username,
-              threadTitle: thread.title,
-              totalCount: 1,
-              likers: [{ userId, username }],
-            },
-          })
-          .catch(() => {});
-      }
-    }
-
-    this.eventEmitter.emit('thread.liked', { threadId: id });
+    if (!created) return updated;
     return updated;
   }
 
@@ -700,18 +322,27 @@ export class ThreadsService {
     });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
 
-    const result = await this.prisma.threadLike.deleteMany({
-      where: { threadId: id, userId },
+    const { deleted, updated } = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.threadLike.deleteMany({ where: { threadId: id, userId } });
+      if (result.count === 0) return { deleted: false, updated: thread };
+      const updatedThread = await tx.thread.update({
+        where: { id },
+        data: { likeCount: { decrement: 1 } },
+      });
+      const eventId = randomUUID();
+      await this.outbox.enqueue(tx, {
+        eventType: 'thread.unliked',
+        aggregateType: 'Thread',
+        aggregateId: id,
+        eventKey: `thread-unliked:${id}:${userId}:${eventId}`,
+        payload: { eventId, threadId: id },
+      });
+      return {
+        deleted: true,
+        updated: updatedThread,
+      };
     });
-    if (result.count === 0) return thread;
-
-    const updated = await this.prisma.thread.update({
-      where: { id },
-      data: { likeCount: { increment: -1 } },
-    });
-
-    this.redis.hincrby(`thread:${id}:stats`, 'likes', -1).catch(() => {});
-    this.eventEmitter.emit('thread.unliked', { threadId: id });
+    if (!deleted) return updated;
     return updated;
   }
 
@@ -754,10 +385,23 @@ export class ThreadsService {
         where: { threadId: id, ...notDeleted, subthread: { deletedAt: null } },
         select: {
           id: true,
+          kind: true,
           content: true,
+          authorId: true,
+          author: { select: { username: true } },
+          subthreadId: true,
+          subthread: { select: { title: true } },
+          parentPostId: true,
+          replyToPostId: true,
         },
         orderBy: { createdAt: 'asc' },
       });
+
+      const members = await tx.threadMember.findMany({
+        where: { threadId: id },
+        select: { userId: true, role: true, playerMarked: true },
+      });
+      const memberByUserId = new Map(members.map((member) => [member.userId, member]));
 
       const generated = posts.map((post) => ({
         post,
@@ -775,7 +419,7 @@ export class ThreadsService {
         });
       }
 
-      return tx.thread.update({
+      const updated = await tx.thread.update({
         where: { id, version, ...notDeleted },
         data: {
           ...data,
@@ -790,6 +434,48 @@ export class ThreadsService {
           ...countMembersAndPosts(),
         },
       });
+
+      for (const { post, rolls } of generated) {
+        const member = memberByUserId.get(post.authorId);
+        await this.outbox.enqueue(tx, {
+          eventType: 'post.created',
+          aggregateType: 'Post',
+          aggregateId: post.id,
+          eventKey: `post-created:${post.id}`,
+          payload: {
+            postId: post.id,
+            content: post.content,
+            userId: post.authorId,
+            authorUsername: post.author.username,
+            threadId: id,
+            subthreadId: post.subthreadId,
+            subthreadTitle: post.subthread.title,
+            parentPostId: post.parentPostId ?? null,
+            replyToPostId: post.replyToPostId ?? null,
+            isSubthreadBody: post.kind === 'BODY',
+            authorRole: member?.role ?? 'PARTICIPANT',
+            authorPlayerMarked: member?.playerMarked ?? false,
+            diceRolls: rolls.map((roll) => ({
+              nodeId: roll.nodeId,
+              notation: roll.notation,
+              total: roll.total,
+            })),
+          } as Prisma.InputJsonValue,
+        });
+      }
+      await this.outbox.enqueue(tx, {
+        eventType: 'thread.published',
+        aggregateType: 'Thread',
+        aggregateId: id,
+        eventKey: `thread-published:${id}`,
+        payload: {
+          threadId: id,
+          ownerId: updated.ownerId,
+          ownerUsername: updated.owner.username,
+        },
+      });
+
+      return updated;
     });
   }
 
@@ -923,48 +609,6 @@ export class ThreadsService {
         user: { select: authorSelect },
       },
     });
-  }
-
-  /** 发布后补发：遍历草稿内全部帖子，逐一发射 post.created 事件以补解析 @提及和通知 */
-  private async replayDraftPostEvents(threadId: string) {
-    const posts = await this.prisma.post.findMany({
-      where: {
-        threadId,
-        ...notDeleted,
-        subthread: { deletedAt: null },
-      },
-      select: {
-        id: true,
-        kind: true,
-        content: true,
-        authorId: true,
-        author: { select: { username: true } },
-        subthreadId: true,
-        subthread: { select: { title: true } },
-        parentPostId: true,
-        replyToPostId: true,
-        diceRolls: { orderBy: { createdAt: 'asc' } },
-      },
-      orderBy: { createdAt: 'asc' },
-    });
-
-    for (const post of posts) {
-      this.eventEmitter.emit('post.created', {
-        postId: post.id,
-        content: post.content,
-        userId: post.authorId,
-        authorUsername: post.author.username,
-        threadId,
-        subthreadId: post.subthreadId,
-        subthreadTitle: post.subthread.title,
-        parentPostId: post.parentPostId ?? null,
-        replyToPostId: post.replyToPostId ?? null,
-        isSubthreadBody: post.kind === 'BODY',
-        authorRole: 'OWNER',
-        authorPlayerMarked: true,
-        diceRolls: post.diceRolls,
-      });
-    }
   }
 
   /** 生成随机邀请 token（密码学安全） */

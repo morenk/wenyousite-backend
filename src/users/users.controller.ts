@@ -6,8 +6,6 @@ import {
   Body,
   Param,
   Query,
-  Req,
-  NotFoundException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -16,23 +14,22 @@ import {
   ApiQuery,
   ApiOkResponse,
   ApiUnauthorizedResponse,
-  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiConflictResponse,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { FastifyRequest } from 'fastify';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { SetAvatarDto } from './dto/set-avatar.dto';
 import { Auth, AuthRead, OptionalAuth } from '../auth/decorators/auth.decorator';
-import { PrismaService } from '../prisma/prisma.service';
-import { BookmarksService } from '../bookmarks/bookmarks.service';
-import { ThreadsService } from '../threads/threads.service';
-import { buildPostPreview } from '../common/post-preview';
-import { MentionsService } from '../mentions/mentions.service';
 import { MentionCandidatesResponseDto } from './dto/mention-candidate.dto';
 import { PlayedThreadsQueryDto } from './dto/played-threads-query.dto';
+import { UserActivityService } from './user-activity.service';
+import {
+  CurrentUser,
+  CurrentUserPayload,
+} from '../auth/decorators/current-user.decorator';
+import { MessageResponseDto } from '../common/dto/message-response.dto';
 
 /** 用户控制器：查询和修改个人资料 */
 @ApiTags('Users')
@@ -40,10 +37,7 @@ import { PlayedThreadsQueryDto } from './dto/played-threads-query.dto';
 export class UsersController {
   constructor(
     private usersService: UsersService,
-    private prisma: PrismaService,
-    private bookmarksService: BookmarksService,
-    private threadsService: ThreadsService,
-    private mentionsService: MentionsService,
+    private activity: UserActivityService,
   ) {}
 
   @Get('search')
@@ -54,13 +48,7 @@ export class UsersController {
   @ApiOkResponse({ description: '匹配的用户列表（最多 10 条），含 id/username/avatar' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async search(@Query('q') q: string) {
-    if (!q || q.length < 1) return [];
-    return this.prisma.user.findMany({
-      where: { username: { contains: q, mode: 'insensitive' }, deletedAt: null },
-      select: { id: true, username: true, avatar: true },
-      take: 10,
-      orderBy: { username: 'asc' },
-    });
+    return this.activity.searchUsers(q);
   }
 
   @Get('mention-candidates')
@@ -77,15 +65,9 @@ export class UsersController {
   async mentionCandidates(
     @Query('threadId') threadId: string,
     @Query('q') q: string | undefined,
-    @Req() req: FastifyRequest,
+    @CurrentUser() user: CurrentUserPayload,
   ) {
-    const user = req['user'] as { id: string };
-    if (!threadId) return { users: [], canMentionAllPlayers: false };
-    const [users, canMentionAllPlayers] = await Promise.all([
-      this.mentionsService.findCandidates(threadId, user.id, q),
-      this.mentionsService.canMentionAllPlayers(threadId, user.id),
-    ]);
-    return { users, canMentionAllPlayers };
+    return this.activity.mentionCandidates(threadId, user.id, q);
   }
 
   @Get('me')
@@ -94,8 +76,7 @@ export class UsersController {
   @ApiOperation({ summary: '获取当前登录用户资料' })
   @ApiOkResponse({ description: '含 email / 隐私设置 / _count.following / _count.followers' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
-  async getMe(@Req() req: FastifyRequest) {
-    const user = req['user'] as { id: string };
+  async getMe(@CurrentUser() user: CurrentUserPayload) {
     return this.usersService.findMe(user.id);
   }
 
@@ -107,8 +88,7 @@ export class UsersController {
   @ApiOkResponse({ description: '更新后的用户资料' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   @ApiConflictResponse({ description: '用户名已被占用' })
-  async updateMe(@Req() req: FastifyRequest, @Body() dto: UpdateUserDto) {
-    const user = req['user'] as { id: string };
+  async updateMe(@CurrentUser() user: CurrentUserPayload, @Body() dto: UpdateUserDto) {
     return this.usersService.update(user.id, dto);
   }
 
@@ -119,8 +99,7 @@ export class UsersController {
   @ApiOkResponse({ description: '更新后的用户资料（含新头像）' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   @ApiNotFoundResponse({ description: 'mediaId 不存在或未完成处理' })
-  async setAvatar(@Req() req: FastifyRequest, @Body() dto: SetAvatarDto) {
-    const user = req['user'] as { id: string };
+  async setAvatar(@CurrentUser() user: CurrentUserPayload, @Body() dto: SetAvatarDto) {
     return this.usersService.setAvatar(user.id, dto.mediaId);
   }
 
@@ -130,8 +109,7 @@ export class UsersController {
   @ApiOperation({ summary: '移除头像（置空 user.avatar，回到首字母占位）' })
   @ApiOkResponse({ description: '更新后的用户资料（avatar 为 null）' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
-  async removeAvatar(@Req() req: FastifyRequest) {
-    const user = req['user'] as { id: string };
+  async removeAvatar(@CurrentUser() user: CurrentUserPayload) {
     return this.usersService.setAvatar(user.id, null);
   }
 
@@ -139,10 +117,9 @@ export class UsersController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '注销当前账号' })
-  @ApiOkResponse({ description: '账号已注销' })
+  @ApiOkResponse({ type: MessageResponseDto, description: '账号已注销' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
-  async deleteMe(@Req() req: FastifyRequest) {
-    const user = req['user'] as { id: string };
+  async deleteMe(@CurrentUser() user: CurrentUserPayload) {
     return this.usersService.deactivate(user.id);
   }
 
@@ -157,10 +134,9 @@ export class UsersController {
     @Param('id') id: string,
     @Query('cursor') cursor: string | undefined,
     @Query('limit') limit: string | undefined,
-    @Req() req: FastifyRequest,
+    @CurrentUser() viewer: CurrentUserPayload | undefined,
   ) {
-    const viewer = req['user'] as { id: string } | undefined;
-    return this.bookmarksService.findByUserId(
+    return this.activity.userBookmarks(
       id,
       viewer?.id,
       cursor,
@@ -176,26 +152,15 @@ export class UsersController {
   async getUserPlayedThreads(
     @Param('id') id: string,
     @Query() query: PlayedThreadsQueryDto,
-    @Req() req: FastifyRequest,
+    @CurrentUser() viewer: CurrentUserPayload | undefined,
   ) {
-    const viewer = req['user'] as { id: string } | undefined;
-
-    const targetUser = await this.prisma.user.findUnique({
-      where: { id },
-      select: { id: true, showPlayerBadges: true },
+    return this.activity.playedThreads({
+      targetId: id,
+      viewerId: viewer?.id,
+      cursor: query.cursor,
+      limit: query.limit,
+      visibility: query.visibility,
     });
-    if (!targetUser) throw new NotFoundException('用户不存在');
-    if (!targetUser.showPlayerBadges && targetUser.id !== viewer?.id) {
-      throw new NotFoundException('该用户未公开参与的帖子');
-    }
-
-    return this.threadsService.findByPlayedUser(
-      id,
-      viewer?.id,
-      query.cursor,
-      query.limit,
-      query.visibility,
-    );
   }
 
   @Get(':id/created-threads')
@@ -211,17 +176,9 @@ export class UsersController {
     @Param('id') id: string,
     @Query('cursor') cursor: string | undefined,
     @Query('limit') limit: string | undefined,
-    @Req() req: FastifyRequest,
+    @CurrentUser() viewer: CurrentUserPayload | undefined,
   ) {
-    const viewer = req['user'] as { id: string } | undefined;
-
-    const targetUser = await this.prisma.user.findUnique({
-      where: { id },
-      select: { id: true },
-    });
-    if (!targetUser) throw new NotFoundException('用户不存在');
-
-    return this.threadsService.findByCreatedUser(
+    return this.activity.createdThreads(
       id,
       viewer?.id,
       cursor,
@@ -234,53 +191,11 @@ export class UsersController {
   @ApiOperation({ summary: '查看用户最近 10 条回复（受 showRecentReplies 隐私开关控制）' })
   @ApiOkResponse({ description: '用户最近 10 条回复（含预览截断、所属帖子/子贴信息）' })
   @ApiNotFoundResponse({ description: '用户不存在或未公开最近动态' })
-  async getUserRecentReplies(@Param('id') id: string, @Req() req: FastifyRequest) {
-    const viewer = req['user'] as { id: string } | undefined;
-
-    const targetUser = await this.prisma.user.findUnique({
-      where: { id },
-      select: { id: true, showRecentReplies: true },
-    });
-    if (!targetUser) throw new NotFoundException('用户不存在');
-    if (!targetUser.showRecentReplies && targetUser.id !== viewer?.id) {
-      throw new NotFoundException('该用户未公开最近动态');
-    }
-
-    const isSelf = viewer?.id === id;
-    const replies = await this.prisma.post.findMany({
-      where: {
-        authorId: id,
-        deletedAt: null,
-        subthread: { deletedAt: null },
-        thread: {
-          published: true,
-          deletedAt: null,
-          ...(isSelf ? {} : { visibility: 'PUBLIC' }),
-        },
-      },
-      select: {
-        id: true,
-        createdAt: true,
-        floorNumber: true,
-        parentPostId: true,
-        content: true,
-        threadId: true,
-        thread: { select: { title: true } },
-        subthreadId: true,
-        subthread: { select: { title: true } },
-        diceRolls: {
-          orderBy: { createdAt: 'asc' },
-          select: { nodeId: true, notation: true, total: true },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-    });
-
-    return replies.map((r) => ({
-      ...r,
-      preview: buildPostPreview(r.content, r.diceRolls),
-    }));
+  async getUserRecentReplies(
+    @Param('id') id: string,
+    @CurrentUser() viewer: CurrentUserPayload | undefined,
+  ) {
+    return this.activity.recentReplies(id, viewer?.id);
   }
 
   @Get(':id')
@@ -290,8 +205,7 @@ export class UsersController {
     description: '公开资料。登录后附加 isFollowing/isFollowedBy/isBlocked/isBlockedBy',
   })
   @ApiNotFoundResponse({ description: '用户不存在' })
-  async getUser(@Param('id') id: string, @Req() req: FastifyRequest) {
-    const viewer = req['user'] as { id: string } | undefined;
+  async getUser(@Param('id') id: string, @CurrentUser() viewer: CurrentUserPayload | undefined) {
     return this.usersService.findById(id, viewer?.id);
   }
 }

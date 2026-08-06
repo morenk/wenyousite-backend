@@ -1,8 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { MentionsService } from './mentions.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { ThreadAccessService } from '../common/services/thread-access.service';
-import { BlockFilterService } from '../common/services/block-filter.service';
+import { ThreadAccessService } from '../access/thread-access.service';
+import { BlockFilterService } from '../access/block-filter.service';
 
 const mockPrisma = {
   user: {

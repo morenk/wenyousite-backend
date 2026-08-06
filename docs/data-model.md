@@ -1,6 +1,6 @@
 # 数据模型
 
-> 22 张表，9 个 Prisma 枚举。所有 ID 使用 `cuid()` 生成，时间戳使用 `DateTime`。
+> 26 张表，11 个 Prisma 枚举。所有 ID 使用 `cuid()` 生成，时间戳使用 `DateTime`。
 
 ## 枚举定义
 
@@ -170,6 +170,24 @@
 | createdAt | DateTime | — | — |
 
 `@@unique([followerId, followingId])`
+
+### domain_outbox — 可靠领域事件
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| id | String | PK, cuid() | 事件记录 ID |
+| eventType | String | — | 进程内领域事件名 |
+| aggregateType | String | — | 聚合类型（Post / Thread / UserFollow） |
+| aggregateId | String? | — | 聚合 ID |
+| eventKey | String | unique | 业务幂等键 |
+| payload | Json | — | 监听器所需的事件快照 |
+| attempts | Int | default 0 | 已领取次数 |
+| availableAt | DateTime | indexed | 租约或下次重试时间 |
+| processedAt | DateTime? | indexed | 全部监听器完成时间；null 表示待处理 |
+| lastError | String? | — | 最近一次投递错误摘要 |
+| createdAt / updatedAt | DateTime | — | 审计时间 |
+
+业务状态和 Outbox 记录在同一个 Prisma 事务提交。分发器使用 `FOR UPDATE SKIP LOCKED` 支持多实例竞争领取，成功记录保留 7 天，未处理记录不自动删除。
 
 ### threads — 主题帖
 

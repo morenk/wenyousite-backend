@@ -6,6 +6,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { VerificationCodeService } from './verification-code.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { AuthSessionService } from './auth-session.service';
 
 /** 认证模块：注册 JWT 策略、Passport 守卫，提供注册/登录/刷新 API */
 @Module({
@@ -22,7 +23,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, VerificationCodeService, JwtStrategy],
-  exports: [AuthService, VerificationCodeService, JwtStrategy, PassportModule],
+  providers: [AuthService, AuthSessionService, VerificationCodeService, JwtStrategy],
+  exports: [AuthService, AuthSessionService, VerificationCodeService, JwtStrategy, PassportModule],
 })
 export class AuthModule {}

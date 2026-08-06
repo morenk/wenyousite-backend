@@ -2,8 +2,7 @@ import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth, ApiOkResponse, ApiConflictResponse, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import { TagsService } from './tags.service';
 import { CreateTagDto } from './dto/create-tag.dto';
-import { UseGuards } from '@nestjs/common';
-import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
+import { Auth } from '../auth/decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
 
 /** 主题帖标签控制器：搜索与创建全局标签 */

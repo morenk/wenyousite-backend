@@ -1,5 +1,5 @@
 import { PostEventsListener, PostCreatedEvent } from './post-events.listener';
-import { BlockSets } from '../common/services/block-filter.service';
+import { BlockSets } from '../access/block-filter.service';
 
 /** 发帖事件监听器测试：验证 THREAD 订阅仅接收楼主/协作者发言的过滤逻辑 */
 
@@ -11,10 +11,12 @@ function buildListener(overrides: Partial<Record<string, unknown>> = {}) {
   const subscriptionsService = { findSubscribers: jest.fn().mockResolvedValue([]) };
   const prisma = {
     threadMember: { findMany: jest.fn().mockResolvedValue([]) },
-    post: { findUnique: jest.fn() },
+    thread: { findUnique: jest.fn() },
+    post: { findUnique: jest.fn(), count: jest.fn().mockResolvedValue(1) },
   };
   const redis = {
     hincrby: jest.fn(() => redisCatchable()),
+    hset: jest.fn(() => redisCatchable()),
     zadd: jest.fn(() => redisCatchable()),
     hgetall: jest.fn().mockResolvedValue({ createdAt: String(Date.now()) }),
   };
@@ -43,7 +45,14 @@ function buildListener(overrides: Partial<Record<string, unknown>> = {}) {
     merged.redis as any,
     merged.blockFilter as any,
   );
-  return { listener, notificationProducer, subscriptionsService, prisma, mentionsService };
+  return {
+    listener,
+    notificationProducer,
+    subscriptionsService,
+    prisma,
+    mentionsService,
+    redis,
+  };
 }
 
 const baseEvent: PostCreatedEvent = {
@@ -162,5 +171,45 @@ describe('PostEventsListener 订阅过滤', () => {
     expect(mentionCall?.[1]).toEqual(['replyAuthor']);
     expect(replyCall?.[1]).not.toContain('replyAuthor');
     expect(replyCall?.[1]).toEqual(expect.arrayContaining(['owner1']));
+  });
+
+  it('通知处理失败时向 Outbox 抛出错误以触发重试', async () => {
+    const { listener, notificationProducer, subscriptionsService } = buildListener();
+    subscriptionsService.findSubscribers.mockResolvedValue([
+      { userId: 'subscriber', type: 'USER', targetUserId: 'author1' },
+    ]);
+    notificationProducer.notify.mockRejectedValueOnce(new Error('queue unavailable'));
+
+    await expect(listener.handlePostCreated(baseEvent)).rejects.toThrow(
+      'post.created event processing failed',
+    );
+  });
+
+  it('点赞投影读取数据库权威计数并覆盖 Redis，重复投递不会重复累加', async () => {
+    const { listener, prisma, redis } = buildListener();
+    prisma.thread.findUnique.mockResolvedValue({ likeCount: 7 });
+
+    await listener.handleThreadLiked({ threadId: 'thread1' });
+    await listener.handleThreadLiked({ threadId: 'thread1' });
+
+    expect(redis.hset).toHaveBeenNthCalledWith(1, 'thread:thread1:stats', 'likes', '7');
+    expect(redis.hset).toHaveBeenNthCalledWith(2, 'thread:thread1:stats', 'likes', '7');
+    expect(redis.hincrby).not.toHaveBeenCalledWith('thread:thread1:stats', 'likes', 1);
+  });
+
+  it('发帖投影重复投递时覆盖数据库权威计数而非累加', async () => {
+    const { listener, prisma, redis } = buildListener();
+    prisma.post.count.mockResolvedValue(3);
+
+    await listener.handlePostCreated(baseEvent);
+    await listener.handlePostCreated(baseEvent);
+
+    const replyWrites = redis.hset.mock.calls.filter(
+      (call: unknown[]) => call[0] === 'thread:thread1:stats' && call[1] === 'replies',
+    );
+    expect(replyWrites).toEqual([
+      ['thread:thread1:stats', 'replies', '3'],
+      ['thread:thread1:stats', 'replies', '3'],
+    ]);
   });
 });

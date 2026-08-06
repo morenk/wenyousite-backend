@@ -1,14 +1,15 @@
 import {
   Controller, Get, Post, Patch, Delete, Put,
-  Body, Param, Req, UseGuards,
+  Body, Param, Req,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { SubthreadsService } from './subthreads.service';
 import { CreateSubthreadDto } from './dto/create-subthread.dto';
 import { UpdateSubthreadDto } from './dto/update-subthread.dto';
 import { ReorderSubthreadsDto } from './dto/reorder-subthreads.dto';
-import { Auth, AuthRead, OptionalAuth } from '../auth/decorators/auth.decorator';
+import { Auth, OptionalAuth } from '../auth/decorators/auth.decorator';
+import { MessageResponseDto } from '../common/dto/message-response.dto';
 
 /** 子贴控制器：列表、创建、详情、修改、删除、重排 */
 @ApiTags('Subthreads')
@@ -20,7 +21,7 @@ export class SubthreadsController {
   @OptionalAuth()
   @ApiOperation({ summary: '获取主题帖下的子贴列表' })
   async findAll(@Param('threadId') threadId: string, @Req() req: FastifyRequest) {
-    const user = (req as any).user as { id: string } | undefined;
+    const user = req.user as { id: string } | undefined;
     return this.subthreadsService.findAll(threadId, user?.id);
   }
 
@@ -41,7 +42,7 @@ export class SubthreadsController {
   @OptionalAuth()
   @ApiOperation({ summary: '获取子贴详情' })
   async findById(@Param('id') id: string, @Req() req: FastifyRequest) {
-    const user = (req as any).user as { id: string } | undefined;
+    const user = req.user as { id: string } | undefined;
     return this.subthreadsService.findById(id, user?.id);
   }
 
@@ -75,6 +76,7 @@ export class SubthreadsController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除子贴（仅 OWNER/COLLABORATOR）' })
+  @ApiOkResponse({ type: MessageResponseDto, description: '子贴已删除' })
   async remove(@Param('id') id: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     await this.subthreadsService.remove(id, user.id);
