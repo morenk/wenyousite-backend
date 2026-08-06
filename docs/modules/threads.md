@@ -16,7 +16,6 @@
 | `ThreadMember` | 帖内参与人关系（userId + role + playerMarked） |
 | `ThreadInvite` | 私密帖邀请链接（token + threadId，一对一 upsert） |
 | `ThreadTopicTag` | 主题帖与平台 TopicTag 的多对多关联 |
-| `SubthreadTagDef` | 子贴标签定义（归属主题帖，用于标签管理） |
 
 | 枚举 | 值 |
 |------|-----|

@@ -32,7 +32,7 @@
 | [notifications](./modules/notifications.md) | 通知 | 列表、未读数、已读 |
 | [subscriptions](./modules/subscriptions.md) | 订阅 | THREAD/USER 订阅 + 通知投递 |
 | [media](./modules/media.md) | 媒体 | 预签名 URL、upload-done、sharp 图片处理 |
-| [tags](./modules/tags.md) | 标签 | TopicTag + SubthreadTagDef 双标签系统 |
+| [tags](./modules/tags.md) | 标签 | 平台级 TopicTag 与主题帖关联 |
 | [search](./modules/search.md) | 搜索 | PostgreSQL ILIKE 全文搜索 |
 | [bookmarks](./modules/bookmarks.md) | 收藏 | 用户收藏主题帖，公开/私密帖 |
 | [reports](./modules/reports.md) | 举报 | 已搁置，待后期重构 |

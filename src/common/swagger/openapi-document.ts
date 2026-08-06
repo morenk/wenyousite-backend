@@ -4,7 +4,7 @@ import { applySuccessResponseEnvelope } from './success-response-envelope';
 import { applyErrorResponseEnvelope } from './error-response-envelope';
 
 /** 破坏性 API 变更时递增；Web 与 Flutter 生成客户端均记录该版本。 */
-export const API_CONTRACT_VERSION = '1.0.0-dev.20260806';
+export const API_CONTRACT_VERSION = '2.0.0-dev.20260806';
 
 /** 构建 OpenAPI 文档；既供运行时 Swagger，也供无需连接数据库的离线类型生成。 */
 export function createOpenApiDocument(app: INestApplication) {

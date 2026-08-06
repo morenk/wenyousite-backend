@@ -106,7 +106,7 @@ export class ThreadQueryDto extends CursorPaginationDto {
 | 昵称 | `@MaxLength(50)` | 用户昵称 |
 | 简介 | `@MaxLength(255)` | 用户 bio |
 | 密码 | `@MinLength(8) @MaxLength(100)` | 注册/修改/重置密码 |
-| 标签名 | `@MinLength(1) @MaxLength(20)` | TopicTag / SubthreadTagDef |
+| 标签名 | `@MinLength(1) @MaxLength(20)` | TopicTag |
 | 文件名 | `@MinLength(1) @MaxLength(255)` | 媒体上传文件名 |
 
 ### 3.2 ID 字段（UUID）

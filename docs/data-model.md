@@ -362,26 +362,6 @@
 
 唯一索引为 `(userId, threadId, targetUserId) NULLS NOT DISTINCT`，保证 THREAD 的空目标也唯一；CHECK 约束要求 THREAD 目标为空、USER 目标非空。`@@index([userId, type])` 支撑列表查询。
 
-### subthread_tag_defs — 子贴标签定义（帖内自定义标签）
-
-| 字段 | 类型 | 约束 | 说明 |
-|------|------|------|------|
-| id | String | PK | — |
-| threadId | String | FK threads (Cascade) | — |
-| name | String | unique per thread | 标签名（如"设定区""剧情分歧"） |
-| color | String? | — | 颜色值 |
-| createdAt | DateTime | — | — |
-
-### subthread_tags — 子贴-标签关联
-
-| 字段 | 类型 | 约束 | 说明 |
-|------|------|------|------|
-| id | String | PK | — |
-| subthreadId | String | FK subthreads (Cascade) | — |
-| tagId | String | FK subthread_tag_defs (Cascade) | — |
-
-`@@unique([subthreadId, tagId])`
-
 ### topic_tags — 平台全局标签
 
 | 字段 | 类型 | 约束 | 说明 |

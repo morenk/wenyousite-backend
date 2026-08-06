@@ -56,7 +56,7 @@ const createTxMock = (overrides: Record<string, any> = {}) => ({
     create: jest.fn().mockResolvedValue({ id: 's1', threadId: 't1', sortOrder: 1 }),
     findUnique: jest
       .fn()
-      .mockResolvedValue({ id: 's1', threadId: 't1', tags: [], _count: { posts: 1 } }),
+      .mockResolvedValue({ id: 's1', threadId: 't1', _count: { posts: 1 } }),
     update: jest.fn().mockResolvedValue({}),
     ...overrides,
   },
@@ -135,7 +135,7 @@ describe('SubthreadsService', () => {
             create: jest.fn().mockResolvedValue({ id: 's2', threadId: 't1', sortOrder: 2 }),
             findUnique: jest
               .fn()
-              .mockResolvedValue({ id: 's2', threadId: 't1', tags: [], _count: { posts: 0 } }),
+              .mockResolvedValue({ id: 's2', threadId: 't1', _count: { posts: 0 } }),
           }),
         ),
       );

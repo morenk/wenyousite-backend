@@ -29,10 +29,7 @@ export class SubthreadsService {
     return this.prisma.subthread.findMany({
       where: { threadId, ...notDeleted },
       orderBy: { sortOrder: 'asc' },
-      include: {
-        tags: { include: { tag: true } },
-        ...countNonDeletedPosts(),
-      },
+      include: countNonDeletedPosts(),
     });
   }
 
@@ -42,7 +39,6 @@ export class SubthreadsService {
       where: { id, ...notDeleted },
       include: {
         thread: { select: { id: true, title: true, ownerId: true, visibility: true } },
-        tags: { include: { tag: true } },
         ...countNonDeletedPosts(),
       },
     });
@@ -136,10 +132,7 @@ export class SubthreadsService {
 
         const full = await tx.subthread.findUnique({
           where: { id: subthread.id },
-          include: {
-            tags: { include: { tag: true } },
-            ...countNonDeletedPosts(),
-          },
+          include: countNonDeletedPosts(),
         });
 
         // 默认子贴指针与子贴创建原子提交；并发创建时仅首个成功写入。
@@ -296,10 +289,7 @@ export class SubthreadsService {
       .update({
         where: { id, version, ...notDeleted },
         data: updateData,
-        include: {
-          tags: { include: { tag: true } },
-          ...countNonDeletedPosts(),
-        },
+        include: countNonDeletedPosts(),
       })
       .catch((err) => {
         if (err?.code === 'P2025')
@@ -352,7 +342,7 @@ export class SubthreadsService {
     return result;
   }
 
-  /** 检查是否有管理权限（公开方法，供标签控制器调用） */
+  /** 复用主题帖管理权限校验。 */
   async assertCanManage(threadId: string, userId: string) {
     return this.threadAccess.assertCanManage(threadId, userId);
   }

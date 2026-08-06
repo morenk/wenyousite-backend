@@ -1,5 +1,7 @@
 # 子贴模块
 
+> 子贴标签移除批次：`subthread-tags-removal-2026-08-06`（后端 / Web 同批交付）。
+
 ## 概述
 
 主题帖内的子版块管理：创建（正文可选）、列表、详情、修改、软删除、批量拖拽重排，以及发帖权限策略控制。
@@ -11,8 +13,6 @@
 | 模型 | 用途 |
 |------|------|
 | `Subthread` | 子贴实体 |
-| `SubthreadTag` | 子贴与 SubthreadTagDef 的多对多关联 |
-| `SubthreadTagDef` | 子贴标签定义（归属主题帖，支持颜色） |
 
 | 枚举 | 值 |
 |------|-----|
@@ -28,9 +28,6 @@
 | GET | `/subthreads/:id` | Public | 子贴详情（含所属主题帖信息） |
 | PATCH | `/subthreads/:id` | AuthRead | 修改子贴（OWNER/COLLABORATOR，乐观锁 version。默认子贴 sortOrder 不可改） |
 | DELETE | `/subthreads/:id` | AuthRead | 软删除子贴（OWNER/COLLABORATOR） |
-| GET | `/subthreads/:subthreadId/tags` | OptionalAuth | 子贴标签列表（按主题帖可见性校验） |
-| POST | `/subthreads/:subthreadId/tags` | Auth | 添加标签（OWNER/COLLABORATOR，支持 name + color） |
-| DELETE | `/subthreads/:subthreadId/tags/:tagId` | Auth | 移除标签 |
 
 ## 核心业务规则
 
@@ -46,8 +43,6 @@
 - 软删除通过 deletedAt 字段实现，列表查询过滤 `deletedAt: null`
 - sortOrder 控制子贴在主题帖内的显示顺序（按升序排列）
 - 修改使用乐观锁（version 字段），并发冲突返回提示
-- 子贴标签使用 SubthreadTagDef 存储定义（name + color），通过 SubthreadTag 关联
-- 子贴标签读取需通过 `SubthreadsService.findById(subthreadId, userId)` 校验公开/私密、发布状态和成员身份；增删还需通过 `assertCanManage` 校验管理权限
 - 删除子贴需同时检查子贴自身和所属主题帖是否存在及是否已被删除
 
 ## 设计决策
@@ -55,5 +50,10 @@
 - **子贴正文可选**：创建子贴时正文非必填，允许楼主先搭建子版块框架再逐步填充内容。前端合并子贴表单和正文编辑器一同提交，正文以 kind=BODY 帖保存，正文为空时仅创建空子贴
 - **sortOrder 帖内唯一**：通过数据库唯一约束保证同一主题帖内编号不重复。创建时自动递增分配（MAX+1），修改时检测冲突。默认子贴固定为 0
 - **乐观锁保护**：子贴编辑场景多用户协作，version 字段防止基于过期数据的覆盖写
-- **子贴标签独立定义**：SubthreadTagDef 归属主题帖而非平台级，支持不同帖子的子贴使用同名不同色的标签
 - **软删除而非物理删除**：保留帖内楼层数据的完整性，子贴删除后已发的帖子内容通过 deletedAt 隐藏但保留关联
+
+## 2.0 合同迁移
+
+2026-08-06 起产品取消子贴标签，合同版本升级为 `2.0.0-dev.20260806`。这是破坏性变更：删除 `/subthreads/:subthreadId/tags` 读写端点，子贴详情及主题帖详情中的子贴对象不再返回 `tags`，数据库迁移删除 `subthread_tags` 与 `subthread_tag_defs`。主题帖的 `topicTags` 与 `/threads/:threadId/tags` 不受影响。
+
+Web 与移动端必须先停止读取、展示和写入子贴标签，再切换 2.0 后端；旧客户端没有兼容窗口。迁移前需完成数据库备份，回退时先恢复两张表及 1.x 后端，再恢复旧客户端。

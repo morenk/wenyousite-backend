@@ -1,5 +1,4 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { SubthreadTagRelationResponseDto } from './subthread-tag-response.dto';
 
 class SubthreadCountResponseDto {
   @ApiProperty({ minimum: 0 })
@@ -47,9 +46,6 @@ export class SubthreadResponseDto {
 
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date;
-
-  @ApiProperty({ type: [SubthreadTagRelationResponseDto] })
-  tags!: SubthreadTagRelationResponseDto[];
 
   @ApiProperty({ type: SubthreadCountResponseDto })
   _count!: SubthreadCountResponseDto;

@@ -20,14 +20,13 @@ export const includeDiceRolls = () => ({
   diceRolls: { orderBy: { createdAt: 'asc' as const } },
 });
 
-/** 主题帖 include: 非删子贴列表，按 sortOrder 升序，含楼层计数、标签与正文（kind=BODY）回填 */
+/** 主题帖 include: 非删子贴列表，按 sortOrder 升序，含楼层计数与正文（kind=BODY）回填 */
 export const includeSubthreads = (select?: Record<string, boolean>) => ({
   subthreads: {
     where: notDeleted,
     orderBy: { sortOrder: 'asc' as const },
     include: {
       ...countNonDeletedPosts(),
-      tags: { include: { tag: true } },
       posts: {
         where: { kind: 'BODY' as const, ...notDeleted },
         take: 1,
