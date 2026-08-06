@@ -6,7 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import {
-  S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectsCommand,
+  S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { PrismaService } from '../prisma/prisma.service';
@@ -30,6 +30,8 @@ const UPLOADING_STALE_HOURS = 24;
 const IMG_URL_PATTERN = /!\[[^\]]*\]\(([^)\s]+)/g;
 /** 单次 S3 批量删除对象上限 */
 const S3_BATCH_DELETE_LIMIT = 1000;
+/** S3 兼容存储不支持无 Content-MD5 的 DeleteObjects，单对象删除限制并发数。 */
+const S3_DELETE_CONCURRENCY = 20;
 /** 引用扫描分页大小 */
 const SCAN_PAGE_SIZE = 500;
 
@@ -427,22 +429,21 @@ export class MediaService {
     return true;
   }
 
-  /** 批量删除 S3 对象，返回删除失败的 key 集合 */
+  /** 有限并发删除 S3 对象，返回删除失败的 key 集合 */
   private async deleteS3Objects(bucket: string, keys: string[]): Promise<Set<string>> {
     const failed = new Set<string>();
-    for (let i = 0; i < keys.length; i += S3_BATCH_DELETE_LIMIT) {
-      const chunk = keys.slice(i, i + S3_BATCH_DELETE_LIMIT);
-      try {
-        const resp = await this.s3.send(new DeleteObjectsCommand({
-          Bucket: bucket,
-          Delete: { Objects: chunk.map((Key) => ({ Key })), Quiet: true },
-        }));
-        for (const err of resp.Errors ?? []) {
-          if (err.Key) failed.add(err.Key);
+    for (let i = 0; i < keys.length; i += S3_DELETE_CONCURRENCY) {
+      const chunk = keys.slice(i, i + S3_DELETE_CONCURRENCY);
+      const results = await Promise.allSettled(
+        chunk.map((Key) => this.s3.send(new DeleteObjectCommand({ Bucket: bucket, Key }))),
+      );
+      for (let index = 0; index < results.length; index++) {
+        if (results[index].status === 'rejected') {
+          failed.add(chunk[index]);
         }
-      } catch (e) {
-        this.logger.error('批量删除 S3 对象失败', e);
-        for (const key of chunk) failed.add(key);
+      }
+      if (results.some((result) => result.status === 'rejected')) {
+        this.logger.error(`删除 S3 对象失败: ${failed.size} 个待重试`);
       }
     }
     return failed;

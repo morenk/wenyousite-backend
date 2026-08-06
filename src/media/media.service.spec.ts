@@ -23,7 +23,7 @@ jest.mock('@aws-sdk/client-s3', () => ({
   PutObjectCommand: jest.fn((opts: any) => opts),
   GetObjectCommand: jest.fn((opts: any) => opts),
   HeadObjectCommand: jest.fn((opts: any) => opts),
-  DeleteObjectsCommand: jest.fn((opts: any) => opts),
+  DeleteObjectCommand: jest.fn((opts: any) => opts),
 }));
 
 const mockConfig = {
@@ -297,13 +297,11 @@ describe('MediaService', () => {
     mockPrisma.user.findFirst.mockResolvedValue(null);
     mockPrisma.post.findFirst.mockResolvedValue(null);
     mockPrisma.draft.findFirst.mockResolvedValue(null);
-    mockS3.send.mockResolvedValue({ Errors: undefined });
+    mockS3.send.mockResolvedValue({});
 
     await expect(service.cleanupOrphanByUrl(url)).resolves.toBe(true);
 
-    const keys = mockS3.send.mock.calls[0][0].Delete.Objects.map(
-      (item: { Key: string }) => item.Key,
-    );
+    const keys = mockS3.send.mock.calls.map(([command]) => command.Key);
     expect(keys).toEqual([
       'uploads/avatar.jpg',
       'uploads/avatar_thumb.webp',
@@ -343,7 +341,7 @@ describe('MediaService', () => {
         url: 'https://test.cos.com/test-bucket/uploads/2099/01/01/u1/photo.jpg',
       },
     ]);
-    mockS3.send.mockResolvedValue({ Errors: undefined });
+    mockS3.send.mockResolvedValue({});
     mockPrisma.media.deleteMany.mockResolvedValue({ count: 1 });
 
     await service.cleanupOrphanMedia();
@@ -352,9 +350,8 @@ describe('MediaService', () => {
       where: { avatar: { not: null }, deletedAt: null },
       select: { avatar: true },
     });
-    expect(mockS3.send).toHaveBeenCalledTimes(1);
-    const deleteCall = mockS3.send.mock.calls[0][0];
-    const keys = deleteCall.Delete.Objects.map((o: any) => o.Key);
+    expect(mockS3.send).toHaveBeenCalledTimes(3);
+    const keys = mockS3.send.mock.calls.map(([command]) => command.Key);
     expect(keys).toEqual([
       'uploads/2099/01/01/u1/photo.jpg',
       'uploads/2099/01/01/u1/photo_thumb.webp',
@@ -403,7 +400,7 @@ describe('MediaService', () => {
         url: 'https://test.cos.com/test-bucket/uploads/2099/01/01/u1/failed.svg',
       },
     ]);
-    mockS3.send.mockResolvedValue({ Errors: undefined });
+    mockS3.send.mockResolvedValue({});
 
     await service.cleanupOrphanMedia();
 
@@ -423,12 +420,11 @@ describe('MediaService', () => {
         url: 'https://test.cos.com/test-bucket/uploads/2099/01/01/u1/icon.svg',
       },
     ]);
-    mockS3.send.mockResolvedValue({ Errors: undefined });
+    mockS3.send.mockResolvedValue({});
 
     await service.cleanupOrphanMedia();
 
-    const deleteCall = mockS3.send.mock.calls[0][0];
-    const keys = deleteCall.Delete.Objects.map((o: any) => o.Key);
+    const keys = mockS3.send.mock.calls.map(([command]) => command.Key);
     expect(keys).toEqual(['uploads/2099/01/01/u1/icon.svg']);
   });
 
@@ -453,7 +449,7 @@ describe('MediaService', () => {
     mockPrisma.media.findMany.mockResolvedValue([
       { id: 'm1', key, url: `https://test.cos.com/test-bucket/${key}` },
     ]);
-    mockS3.send.mockResolvedValue({ Errors: [{ Key: key }] });
+    mockS3.send.mockRejectedValue(new Error('delete failed'));
 
     await service.cleanupOrphanMedia();
 
