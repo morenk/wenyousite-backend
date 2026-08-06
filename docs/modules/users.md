@@ -82,7 +82,7 @@
 - `findById` 排除 email / emailVerified / updatedAt / deletedAt 字段，仅返回公开信息。登录后额外返回 4 个关系字段
 - 已注销用户（deletedAt 非 null）的公开资料被屏蔽为 `{ id, username: '已注销用户', isDeactivated: true }`；帖子作者、楼主、成员、关注关系、收藏、搜索与通知中的用户摘要同样统一输出 `username: '已注销用户', avatar: null`
 - 注销时使用不含原用户名/邮箱的内部墓碑值释放两个唯一键，允许原用户或他人日后复用；墓碑值不得进入公开 API
-- 注销事务同时将 `users.avatar` 置空；如该 URL 未被正文或草稿引用，将按媒体孤儿回收规则删除原图和派生图
+- 注销事务同时将 `users.avatar` 置空；事务后立即检查原头像 URL，如未被其他头像、正文或草稿引用则删除原图和派生图。对象存储失败不影响注销，保留媒体记录交给每日孤儿回收重试
 - `GET /users/:id` 返回 `_count.following` 和 `_count.followers`，供前端展示社交数据
 - 更新用户名时检查唯一性（过滤 deletedAt），冲突返回 409；DB 层 P2002 同样转 409 防竞态
 - 用户名修改需间隔 7 天以上，不足时返回剩余天数提示

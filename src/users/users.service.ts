@@ -221,7 +221,7 @@ export class UsersService {
         data: { revokedAt: new Date() },
       }),
     ]);
-    this.eventEmitter.emit('user.deleted', { userId: id });
+    this.eventEmitter.emit('user.deleted', { userId: id, avatarUrl: user.avatar });
     return { message: '账号已注销' };
   }
 }

@@ -384,6 +384,49 @@ export class MediaService {
     this.logger.log(`孤儿图片清理完成: 扫描 ${stale.length} 条候选，清理 ${deletedIds.size} 条`);
   }
 
+  /**
+   * 注销账号后立即回收原头像。若相同 URL 仍被其他头像、正文或草稿引用则保留，
+   * 删除失败时保留媒体记录，交给每日孤儿清理重试。
+   */
+  async cleanupOrphanByUrl(url: string): Promise<boolean> {
+    const media = await this.prisma.media.findFirst({
+      where: { url },
+      select: { id: true, key: true },
+    });
+    if (!media) return false;
+
+    const [avatarRef, postRef, draftRef] = await Promise.all([
+      this.prisma.user.findFirst({
+        where: { avatar: url, deletedAt: null },
+        select: { id: true },
+      }),
+      this.prisma.post.findFirst({
+        where: { deletedAt: null, content: { contains: url } },
+        select: { id: true },
+      }),
+      this.prisma.draft.findFirst({
+        where: { content: { contains: url } },
+        select: { id: true },
+      }),
+    ]);
+    if (avatarRef || postRef || draftRef) return false;
+
+    const keys = [media.key];
+    if (!media.key.toLowerCase().endsWith('.svg')) {
+      const stem = media.key.replace(/\.[^.]+$/, '');
+      keys.push(`${stem}_thumb.webp`, `${stem}_md.webp`);
+    }
+    const failedKeys = await this.deleteS3Objects(
+      this.config.get<string>('cos.bucket')!,
+      keys,
+    );
+    if (failedKeys.has(media.key)) return false;
+
+    await this.prisma.media.deleteMany({ where: { id: media.id } });
+    this.logger.log(`注销头像已回收 mediaId=${media.id}`);
+    return true;
+  }
+
   /** 批量删除 S3 对象，返回删除失败的 key 集合 */
   private async deleteS3Objects(bucket: string, keys: string[]): Promise<Set<string>> {
     const failed = new Set<string>();

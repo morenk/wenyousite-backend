@@ -52,12 +52,13 @@ const mockPrisma = {
     update: jest.fn(),
     updateMany: jest.fn(),
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     findMany: jest.fn(),
     deleteMany: jest.fn(),
   },
-  user: { findMany: jest.fn() },
-  post: { findMany: jest.fn() },
-  draft: { findMany: jest.fn() },
+  user: { findMany: jest.fn(), findFirst: jest.fn() },
+  post: { findMany: jest.fn(), findFirst: jest.fn() },
+  draft: { findMany: jest.fn(), findFirst: jest.fn() },
 };
 
 describe('MediaService', () => {
@@ -286,6 +287,48 @@ describe('MediaService', () => {
   });
 
   // ── 孤儿图片回收 ──
+
+  it('cleanupOrphanByUrl 应立即删除无引用的注销头像及派生图', async () => {
+    const url = 'https://test.cos.com/test-bucket/uploads/avatar.jpg';
+    mockPrisma.media.findFirst.mockResolvedValue({
+      id: 'm-avatar',
+      key: 'uploads/avatar.jpg',
+    });
+    mockPrisma.user.findFirst.mockResolvedValue(null);
+    mockPrisma.post.findFirst.mockResolvedValue(null);
+    mockPrisma.draft.findFirst.mockResolvedValue(null);
+    mockS3.send.mockResolvedValue({ Errors: undefined });
+
+    await expect(service.cleanupOrphanByUrl(url)).resolves.toBe(true);
+
+    const keys = mockS3.send.mock.calls[0][0].Delete.Objects.map(
+      (item: { Key: string }) => item.Key,
+    );
+    expect(keys).toEqual([
+      'uploads/avatar.jpg',
+      'uploads/avatar_thumb.webp',
+      'uploads/avatar_md.webp',
+    ]);
+    expect(mockPrisma.media.deleteMany).toHaveBeenCalledWith({
+      where: { id: 'm-avatar' },
+    });
+  });
+
+  it('cleanupOrphanByUrl 检测到正文引用时应保留头像文件', async () => {
+    const url = 'https://test.cos.com/test-bucket/uploads/avatar.jpg';
+    mockPrisma.media.findFirst.mockResolvedValue({
+      id: 'm-avatar',
+      key: 'uploads/avatar.jpg',
+    });
+    mockPrisma.user.findFirst.mockResolvedValue(null);
+    mockPrisma.post.findFirst.mockResolvedValue({ id: 'p1' });
+    mockPrisma.draft.findFirst.mockResolvedValue(null);
+
+    await expect(service.cleanupOrphanByUrl(url)).resolves.toBe(false);
+
+    expect(mockS3.send).not.toHaveBeenCalled();
+    expect(mockPrisma.media.deleteMany).not.toHaveBeenCalled();
+  });
 
   it('cleanupOrphanMedia 应删除无引用的超期 COMPLETED 图片（原图+派生图）', async () => {
     mockPrisma.user.findMany.mockResolvedValue([{ avatar: null }]);

@@ -131,6 +131,10 @@ describe('UsersService', () => {
         deletedAt: expect.any(Date),
       }),
     });
+    expect(mockEventEmitter.emit).toHaveBeenCalledWith('user.deleted', {
+      userId: 'user_abcdefghijklmnop',
+      avatarUrl: 'https://example.com/avatar.webp',
+    });
   });
 
   it('deactivate 已注销再次调用应该返回404', async () => {
