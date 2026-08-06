@@ -22,6 +22,34 @@ export class RedisService implements OnModuleDestroy {
     return this.redis.hincrby(key, field, increment);
   }
 
+  /**
+   * 先把 Hash 字段提升到指定下限，再原子自增。
+   * 用于数据库定期落盘、Redis 实时计数的场景，避免 Redis 重启后计数倒退。
+   */
+  async hincrbyAtLeast(
+    key: string,
+    field: string,
+    floor: number,
+    increment: number,
+  ): Promise<number> {
+    const result = await this.redis.eval(
+      `
+        local current = tonumber(redis.call('HGET', KEYS[1], ARGV[1]) or '0')
+        local floor = tonumber(ARGV[2])
+        if current < floor then
+          redis.call('HSET', KEYS[1], ARGV[1], floor)
+        end
+        return redis.call('HINCRBY', KEYS[1], ARGV[1], ARGV[3])
+      `,
+      1,
+      key,
+      field,
+      String(floor),
+      String(increment),
+    );
+    return Number(result);
+  }
+
   /** 获取 Hash 全部字段 */
   async hgetall(key: string): Promise<Record<string, string>> {
     return this.redis.hgetall(key);

@@ -71,6 +71,7 @@
 - 楼层列表按 floorNumber ASC 排序（主楼层），楼中楼按 createdAt ASC、id ASC 稳定排序；`parentPostId + createdAt` 复合索引支撑上百条回复的分页读取
 - 独立楼中楼阅读页复用 `GET /posts/:id` 获取原楼层及主题帖/子贴导航上下文，再用 `GET /posts/:id/replies` 分页读取回复；replies 接口拒绝以正文或楼中楼回复作为讨论根
 - 楼层列表响应中每个楼层内嵌 `replies` 字段（前 5 条楼中楼回复），含 `author` 和 `replyToPost`；`replyToPost` 关联被回复的目标帖并带出其 `author`（前端据此显示「回复 @xxx」上下文）；`_count.replies` 提供回复总数，超过 5 条时前端显示"查看全部 N 条回复"入口跳转至独立楼中楼界面
+- 内嵌回复使用窗口函数一次选出每个楼层前 5 条 ID，再一次批量加载作者、骰子和回复目标；一页楼层的回复查询固定为 2 次，不随有回复的楼层数增长
 - 楼中楼回复稳定链接格式为 `/threads/{threadId}/posts/{parentPostId}/replies?post={replyId}`，由前端根据现有响应字段生成，不新增后端端点
 - 主楼层稳定链接格式为 `/threads/{threadId}?post={postId}`，由前端根据现有响应字段生成，不新增后端端点
 - 子贴正文通过 `PUT /subthreads/:subthreadId/body` upsert：无正文时创建 kind=BODY 帖（floorNumber=null），有正文时乐观锁更新（version 不匹配返回 409）。后端把子贴的 kind=BODY 帖映射回响应字段 `bodyPost`（不再有 `bodyPostId`），编辑器依赖 `subthread.bodyPost` 加载可编辑正文

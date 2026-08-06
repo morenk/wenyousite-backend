@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { MediaService } from '../media/media.service';
@@ -104,6 +105,7 @@ export class CleanupTask {
     if (threads.length === 0) return;
 
     let updated = 0;
+    const viewUpdates: { id: string; viewCount: number }[] = [];
     for (const thread of threads) {
       try {
         const stats = await this.redis.hgetall(`thread:${thread.id}:stats`);
@@ -116,9 +118,30 @@ export class CleanupTask {
         const score = engagement / Math.pow(ageHours + 2, 1.5);
 
         await this.redis.zadd(ZSET_BY_SMART, score, thread.id);
+        if (views > thread.viewCount) {
+          viewUpdates.push({ id: thread.id, viewCount: views });
+        }
         updated++;
       } catch (err) {
         this.logger.warn(`重算智能排序分失败 threadId=${thread.id}`, err);
+      }
+    }
+    if (viewUpdates.length > 0) {
+      try {
+        const values = Prisma.join(
+          viewUpdates.map(
+            ({ id, viewCount }) => Prisma.sql`(${id}::text, ${viewCount}::integer)`,
+          ),
+        );
+        await this.prisma.$executeRaw(Prisma.sql`
+          UPDATE "threads" AS thread
+          SET "view_count" = incoming."view_count"
+          FROM (VALUES ${values}) AS incoming("id", "view_count")
+          WHERE thread."id" = incoming."id"
+            AND thread."view_count" < incoming."view_count"
+        `);
+      } catch (err) {
+        this.logger.warn('主题帖浏览量批量落盘失败', err);
       }
     }
     if (updated > 0) {

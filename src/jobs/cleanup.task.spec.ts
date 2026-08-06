@@ -9,8 +9,17 @@ const mockPrisma = {
   emailVerification: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
   refreshToken: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
   user: { findMany: jest.fn().mockResolvedValue([]) },
-  thread: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+  thread: {
+    deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    findMany: jest.fn().mockResolvedValue([]),
+  },
   notification: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+  $executeRaw: jest.fn().mockResolvedValue(1),
+};
+
+const mockRedis = {
+  hgetall: jest.fn().mockResolvedValue({}),
+  zadd: jest.fn().mockResolvedValue(1),
 };
 
 const mockMediaService = {
@@ -25,7 +34,7 @@ describe('CleanupTask', () => {
       providers: [
         CleanupTask,
         { provide: PrismaService, useValue: mockPrisma },
-        { provide: RedisService, useValue: {} },
+        { provide: RedisService, useValue: mockRedis },
         { provide: MediaService, useValue: mockMediaService },
       ],
     }).compile();
@@ -45,5 +54,20 @@ describe('CleanupTask', () => {
     mockMediaService.cleanupOrphanMedia.mockRejectedValueOnce(new Error('cos down'));
     await expect(task.cleanup()).resolves.toBeUndefined();
     expect(mockPrisma.emailVerification.deleteMany).toHaveBeenCalled();
+  });
+
+  it('recalcSmartScores 应将 Redis 浏览量批量落盘', async () => {
+    mockPrisma.thread.findMany.mockResolvedValueOnce([
+      { id: 't1', createdAt: new Date(Date.now() - 3600000), viewCount: 5 },
+      { id: 't2', createdAt: new Date(Date.now() - 7200000), viewCount: 7 },
+    ]);
+    mockRedis.hgetall
+      .mockResolvedValueOnce({ views: '9', replies: '2', likes: '1' })
+      .mockResolvedValueOnce({ views: '7', replies: '0', likes: '0' });
+
+    await task.recalcSmartScores();
+
+    expect(mockRedis.zadd).toHaveBeenCalledTimes(2);
+    expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
   });
 });

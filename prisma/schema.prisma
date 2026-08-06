@@ -211,6 +211,9 @@ model Thread {
   bookmarks     UserBookmark[]
   likes         ThreadLike[]
 
+  @@index([published, visibility, deletedAt, pinned(sort: Desc), createdAt(sort: Desc)], map: "threads_public_created_idx")
+  @@index([published, visibility, deletedAt, pinned(sort: Desc), updatedAt(sort: Desc)], map: "threads_public_active_idx")
+  @@index([ownerId, published, deletedAt, createdAt(sort: Desc)], map: "threads_owner_created_idx")
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "threads_title_trgm_idx")
   @@map("threads")
 }
@@ -240,6 +243,7 @@ model ThreadMember {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([threadId, userId])
+  @@index([userId, playerMarked, joinedAt(sort: Desc)], map: "thread_members_user_played_idx")
   @@map("thread_members")
 }
 
@@ -403,6 +407,7 @@ model Post {
 
   @@unique([subthreadId, floorNumber])
   @@unique([authorId, clientRequestId])
+  @@index([subthreadId, kind, deletedAt, floorNumber], map: "posts_floor_page_idx")
   @@index([subthreadId, kind])
   @@index([subthreadId, createdAt])
   @@index([threadId, createdAt])
@@ -540,5 +545,6 @@ model UserFollow {
   following User @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
 
   @@unique([followerId, followingId])
+  @@index([followingId, createdAt(sort: Desc)], map: "user_follows_followers_idx")
   @@map("user_follows")
 }

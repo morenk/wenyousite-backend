@@ -193,7 +193,7 @@
 | updatedAt | DateTime | @updatedAt | — |
 | deletedAt | DateTime? | — | 软删除时间 |
 
-搜索索引：`threads_title_trgm_idx`（GIN + `gin_trgm_ops`），用于主题帖标题子串搜索。
+读取索引：`threads_public_created_idx` / `threads_public_active_idx` 支撑公开首页按创建时间或活动时间排序，`threads_owner_created_idx` 支撑用户创建帖列表；`threads_title_trgm_idx`（GIN + `gin_trgm_ops`）用于标题子串搜索。
 
 ### thread_invites — 私密帖邀请链接
 
@@ -215,7 +215,7 @@
 | playerMarked | Boolean | default false | 是否为玩家（决定能否在 postingPolicy=PLAYERS 的子贴中发帖） |
 | joinedAt | DateTime | — | 加入时间 |
 
-`@@unique([threadId, userId])`
+`@@unique([threadId, userId])`；`thread_members_user_played_idx` 支撑用户参与帖倒序读取。
 
 ### subthreads — 子贴
 
@@ -246,6 +246,8 @@
 | content | String | — | 正文（Markdown，含图片 URL 与内联骰子节点） |
 | version | Int | default 1 | 乐观锁 |
 | deletedAt | DateTime? | — | 软删除时间 |
+
+楼层首页使用 `posts_floor_page_idx` 按 `subthreadId + kind + deletedAt + floorNumber` 读取；楼中楼分页继续使用 `parentPostId + createdAt` 索引。
 | createdAt | DateTime | — | — |
 | updatedAt | DateTime | @updatedAt | — |
 

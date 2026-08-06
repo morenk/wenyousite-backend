@@ -1,5 +1,6 @@
 import { Injectable, HttpStatus, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../common/services/thread-access.service';
 import { BlockFilterService } from '../common/services/block-filter.service';
@@ -71,12 +72,28 @@ export class PostsService {
     const floorIdsWithReplies = posts.filter((p) => p._count.replies > 0).map((p) => p.id);
     if (floorIdsWithReplies.length > 0) {
       const repliesMap = new Map<string, any[]>();
-      await Promise.all(
-        floorIdsWithReplies.map(async (floorId) => {
-          const replies = await this.prisma.post.findMany({
-            where: { parentPostId: floorId, ...notDeleted },
-            orderBy: { createdAt: 'asc' },
-            take: 5,
+      // 窗口函数先一次性选出每层前 5 条回复，再统一加载关联数据。
+      // 查询数固定为 2，避免一页 20 个楼层产生 20 次并行查询。
+      const replyIds = await this.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+        SELECT ranked."id"
+        FROM (
+          SELECT
+            p."id",
+            ROW_NUMBER() OVER (
+              PARTITION BY p."parent_post_id"
+              ORDER BY p."created_at" ASC, p."id" ASC
+            ) AS "row_number"
+          FROM "posts" AS p
+          WHERE p."parent_post_id" IN (${Prisma.join(floorIdsWithReplies)})
+            AND p."deleted_at" IS NULL
+        ) AS ranked
+        WHERE ranked."row_number" <= 5
+      `);
+
+      const replies = replyIds.length > 0
+        ? await this.prisma.post.findMany({
+            where: { id: { in: replyIds.map((reply) => reply.id) } },
+            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
             include: {
               author: { select: authorSelect },
               ...includeDiceRolls(),
@@ -84,10 +101,14 @@ export class PostsService {
                 select: { id: true, authorId: true, author: { select: authorSelect } },
               },
             },
-          });
-          repliesMap.set(floorId, replies);
-        }),
-      );
+          })
+        : [];
+
+      for (const reply of replies) {
+        const grouped = repliesMap.get(reply.parentPostId!) ?? [];
+        grouped.push(reply);
+        repliesMap.set(reply.parentPostId!, grouped);
+      }
       for (const post of posts) {
         (post as any).replies = repliesMap.get(post.id) || [];
       }

@@ -127,6 +127,7 @@ const mockTags = { findOrCreate: jest.fn() };
 const mockNotificationProducer = { notify: jest.fn().mockResolvedValue(undefined) };
 const mockRedis = {
   hincrby: jest.fn().mockResolvedValue(1),
+  hincrbyAtLeast: jest.fn().mockResolvedValue(1),
   hgetall: jest.fn().mockResolvedValue({}),
   hset: jest.fn().mockResolvedValue(1),
   hdelAll: jest.fn().mockResolvedValue(1),
@@ -347,7 +348,7 @@ describe('发帖全流程集成测试', () => {
       );
     });
 
-    it('detail：已发布公开帖增加 viewCount，但不刷新主题帖更新时间', async () => {
+    it('detail：已发布公开帖在 Redis 增加 viewCount，但不刷新主题帖更新时间', async () => {
       const thread = {
         id: 't1',
         title: '测试',
@@ -359,7 +360,13 @@ describe('发帖全流程集成测试', () => {
       prisma.thread.findUnique.mockResolvedValue(thread);
       const result = await threadsService.findById('t1');
       expect(result.id).toBe('t1');
-      expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+      expect(mockRedis.hincrbyAtLeast).toHaveBeenCalledWith(
+        'thread:t1:stats',
+        'views',
+        0,
+        1,
+      );
+      expect(prisma.$executeRaw).not.toHaveBeenCalled();
       expect(prisma.thread.update).not.toHaveBeenCalled();
     });
 
@@ -1251,6 +1258,7 @@ describe('发帖全流程集成测试', () => {
       prisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1' });
       setupHelpers.mockThreadAccess_pass(prisma);
       prisma.post.findMany.mockResolvedValue([{ id: 'p1', author: {}, _count: { replies: 2 } }]);
+      prisma.$queryRaw.mockResolvedValue([]);
       const result = await postsService.findAllBySubthread('s1');
       expect(result.items[0].id).toBe('p1');
     });

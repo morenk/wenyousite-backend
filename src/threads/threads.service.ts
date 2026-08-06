@@ -151,39 +151,47 @@ export class ThreadsService {
 
   /** 详情：主题帖 + 子贴列表。未发布帖仅 owner 可查看 */
   async findById(id: string, userId?: string) {
+    // 权限状态可能在缓存 TTL 内由 PUBLIC 变为 PRIVATE，必须先实时校验。
     await this.threadAccess.assertAccessible(id, userId);
-
     const cacheKey = this.cache.buildKey('thread', id);
+    let thread = await this.cache.get<any>(cacheKey);
 
-    const thread = await this.prisma.thread.findUnique({
-      where: { id, ...notDeleted },
-      include: {
-        owner: { select: authorSelect },
-        ...includeSubthreads(),
-        topicTags: { include: { tag: true } },
-        ...countMembersAndPosts(),
-      },
-    });
-    if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
+    // 详情缓存只保存公开且已发布的聚合结果；私密帖和草稿始终实时查询。
+    if (!thread?.published || thread.visibility !== 'PUBLIC' || thread.deletedAt) {
+      thread = await this.prisma.thread.findUnique({
+        where: { id, ...notDeleted },
+        include: {
+          owner: { select: authorSelect },
+          ...includeSubthreads(),
+          topicTags: { include: { tag: true } },
+          ...countMembersAndPosts(),
+        },
+      });
+      if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
 
-    // 把子贴的 posts[0]（kind=BODY）映射回 bodyPost 响应字段
-    thread.subthreads = mapSubthreadBody(thread.subthreads);
+      // 把子贴的 posts[0]（kind=BODY）映射回 bodyPost 响应字段
+      thread.subthreads = mapSubthreadBody(thread.subthreads);
+      await attachPlayerCounts(this.prisma, [thread]);
 
-    await attachPlayerCounts(this.prisma, [thread]);
-
-    // 浏览量 +1：Redis 计数器 + DB 异步写入
-    if (thread.published) {
-      this.redis.hincrby(`thread:${id}:stats`, 'views', 1).catch(() => {});
-      // Thread.updatedAt 用作主题帖最近活动时间。Prisma update 会因 @updatedAt
-      // 自动刷新该字段，因此浏览量这种统计写入必须只更新物理计数字段。
-      this.prisma
-        .$executeRaw`UPDATE "threads" SET "view_count" = "view_count" + 1 WHERE "id" = ${id}`
-        .catch(() => {});
+      if (thread.published && thread.visibility === 'PUBLIC') {
+        this.cache.set(cacheKey, thread, 30000).catch(() => {});
+      }
     }
 
-    // 写入响应缓存 (30 秒)
+    // 浏览量实时写 Redis，每 10 分钟批量落盘，避免每次详情请求写数据库。
+    let responseThread = thread;
     if (thread.published) {
-      this.cache.set(cacheKey, thread, 30000).catch(() => {});
+      try {
+        const viewCount = await this.redis.hincrbyAtLeast(
+          `thread:${id}:stats`,
+          'views',
+          thread.viewCount ?? 0,
+          1,
+        );
+        responseThread = { ...thread, viewCount };
+      } catch {
+        responseThread = { ...thread, viewCount: (thread.viewCount ?? 0) + 1 };
+      }
     }
 
     // 登录态附加收藏与点赞状态（浅拷贝返回，不污染共享缓存）
@@ -199,25 +207,19 @@ export class ThreadsService {
         }),
       ]);
       return {
-        ...thread,
+        ...responseThread,
         isBookmarked: !!bookmark,
         bookmarkId: bookmark?.id ?? null,
         isLiked: !!like,
       };
     }
 
-    return thread;
+    return responseThread;
   }
 
   /** 分区列表：仅返回已发布帖。首页缓存 5 秒防击穿。recommended 排序使用 Redis ZSET */
   async findAll(query: ThreadQueryDto, userId?: string) {
     const sort = query.sort ?? 'recommended';
-
-    // recommended 排序：ZSET 偏移分页
-    if (sort === 'recommended') {
-      return this.findAllSmart(query, userId);
-    }
-
     const cacheKey = this.cache.buildKey(
       'threads',
       'list',
@@ -226,12 +228,23 @@ export class ThreadsService {
       `status:${query.status ?? 'all'}`,
       `tag:${query.tag ?? 'all'}`,
       `filter:${query.filter ?? 'all'}`,
+      `limit:${Math.min(query.limit ?? 20, 50)}`,
     );
+    const cacheableFirstPage = !query.cursor && query.filter !== 'playing';
 
-    // 仅首页（无 cursor）尝试缓存命中
-    if (!query.cursor) {
+    // 公开首页尝试缓存命中；playing 是用户私有结果，严禁进入共享缓存。
+    if (cacheableFirstPage) {
       const cached = await this.cache.get<any>(cacheKey);
       if (cached) return cached;
+    }
+
+    // recommended 排序：ZSET 偏移分页
+    if (sort === 'recommended') {
+      const result = await this.findAllSmart(query, userId);
+      if (cacheableFirstPage) {
+        this.cache.set(cacheKey, result, 5000).catch(() => {});
+      }
+      return result;
     }
 
     const where: any = { ...notDeleted, published: true };
@@ -305,7 +318,7 @@ export class ThreadsService {
     });
 
     // 首页写入缓存 (5 秒)
-    if (!query.cursor) {
+    if (cacheableFirstPage) {
       this.cache.set(cacheKey, result, 5000).catch(() => {});
     }
 

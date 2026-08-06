@@ -835,11 +835,12 @@ describe('PostsService', () => {
 
   it('findAllBySubthread 应该返回楼层及内嵌前 5 条楼中楼回复', async () => {
     mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1' });
+    mockPrisma.$queryRaw.mockResolvedValue([{ id: 'r1' }, { id: 'r2' }]);
     mockPrisma.post.findMany
       .mockResolvedValueOnce([{ id: 'p1', author: {}, _count: { replies: 2 } }])
       .mockResolvedValueOnce([
-        { id: 'r1', author: {}, replyToPost: null },
-        { id: 'r2', author: {}, replyToPost: null },
+        { id: 'r1', parentPostId: 'p1', author: {}, replyToPost: null },
+        { id: 'r2', parentPostId: 'p1', author: {}, replyToPost: null },
       ]);
     const result = await service.findAllBySubthread('s1');
     expect((result.items[0] as any).replies).toHaveLength(2);
@@ -852,8 +853,12 @@ describe('PostsService', () => {
     );
     expect(mockPrisma.post.findMany).toHaveBeenNthCalledWith(
       2,
-      expect.objectContaining({ take: 5 }),
+      expect.objectContaining({
+        where: { id: { in: ['r1', 'r2'] } },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      }),
     );
+    expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1);
   });
 
   it('findAllBySubthread 无回复楼层应返回空 replies 数组', async () => {

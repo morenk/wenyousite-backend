@@ -11,6 +11,7 @@ import { CacheService } from '../redis/cache.service';
 import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { DiceService } from '../dice/dice.service';
+import { paginate } from '../common/dto/paginated-result';
 
 const mockPrisma = {
   $transaction: jest.fn(),
@@ -71,6 +72,7 @@ const mockNotificationProducer = { notify: jest.fn().mockResolvedValue(undefined
 const mockEventEmitter = { emit: jest.fn() };
 const mockRedis = {
   hincrby: jest.fn().mockResolvedValue(1),
+  hincrbyAtLeast: jest.fn().mockResolvedValue(1),
   hset: jest.fn().mockResolvedValue(1),
   hdelAll: jest.fn().mockResolvedValue(1),
   zadd: jest.fn().mockResolvedValue(1),
@@ -254,6 +256,7 @@ describe('ThreadsService', () => {
         'status:CLOSED',
         'tag:all',
         'filter:all',
+        'limit:20',
       );
     });
 
@@ -369,6 +372,19 @@ describe('ThreadsService', () => {
         const page = await service.findAll({ sort: 'recommended', filter: 'playing' } as any);
         expect(page.items).toEqual([]);
         expect(mockPrisma.thread.findMany).not.toHaveBeenCalled();
+        expect(mockCache.get).not.toHaveBeenCalled();
+        expect(mockCache.set).not.toHaveBeenCalled();
+      });
+
+      it('recommended 公开首页命中短缓存时不访问 ZSET 和数据库', async () => {
+        const cached = paginate([mkThread('cached')], { cursor: null, hasMore: false });
+        mockCache.get.mockResolvedValueOnce(cached);
+
+        const page = await service.findAll({ sort: 'recommended' } as any);
+
+        expect(page).toBe(cached);
+        expect(mockRedis.zcard).not.toHaveBeenCalled();
+        expect(mockPrisma.thread.findMany).not.toHaveBeenCalled();
       });
 
       it('playing 筛选排除自己创建的帖', async () => {
@@ -383,7 +399,7 @@ describe('ThreadsService', () => {
   });
 
   describe('findById', () => {
-    it('已发布公开帖正常返回并递增 viewCount，但不刷新主题帖更新时间', async () => {
+    it('已发布公开帖只在 Redis 递增 viewCount，不同步写数据库或刷新更新时间', async () => {
       const thread = {
         id: 't1',
         title: '测试',
@@ -395,8 +411,35 @@ describe('ThreadsService', () => {
       mockPrisma.thread.findUnique.mockResolvedValue(thread);
       const result = await service.findById('t1');
       expect(result.id).toBe('t1');
-      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
+      expect(mockRedis.hincrbyAtLeast).toHaveBeenCalledWith(
+        'thread:t1:stats',
+        'views',
+        0,
+        1,
+      );
+      expect(mockPrisma.$executeRaw).not.toHaveBeenCalled();
       expect(mockPrisma.thread.update).not.toHaveBeenCalled();
+    });
+
+    it('已发布公开详情命中缓存时仍校验权限，但不重复执行昂贵详情查询', async () => {
+      const cached = {
+        id: 't1',
+        title: '缓存主题',
+        published: true,
+        visibility: 'PUBLIC',
+        deletedAt: null,
+        viewCount: 9,
+        owner: { id: 'u1' },
+        subthreads: [],
+      };
+      mockCache.get.mockResolvedValueOnce(cached);
+      mockRedis.hincrbyAtLeast.mockResolvedValueOnce(10);
+
+      const result = await service.findById('t1');
+
+      expect(result).toMatchObject({ id: 't1', viewCount: 10 });
+      expect(mockThreadAccess.assertAccessible).toHaveBeenCalledWith('t1', undefined);
+      expect(mockPrisma.thread.findUnique).not.toHaveBeenCalled();
     });
 
     it('详情合并玩家计数 _count.players（playerMarked=true）', async () => {

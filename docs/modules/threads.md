@@ -69,7 +69,7 @@
 
 - 列表接口 `findAll`：仅返回 published=true 的帖；`filter=all`(默认)仅 PUBLIC 帖；`filter=playing`返回被其他楼主标记为玩家（playerMarked=true）的帖（含私密帖，排除自己创建的帖），需登录。支持 `status=RECRUITING|CLOSED|FINISHED` 状态筛选；状态可与分区、排序和标签组合使用。每帖含 `preview` 字段（truncateMarkdown 截断默认子贴正文 kind=BODY，纯文本，~100 字），不再返回 `bodyPost.content` 全文
 - 发布校验会拒绝纯空白、仅顶层空段落或仅分隔线正文；图片、代码块等非空 Markdown 可发布。草稿正文仍可暂存为空，数据库字段与 Markdown 存储格式不变。
-- 详情接口 `findById`：未发布帖仅 owner 可查看且不递增 viewCount；已发布帖 viewCount 异步 +1（Redis 计数器 + DB），PRIVATE 帖非参与人返回 404；登录态附加 `isBookmarked` / `bookmarkId`（浅拷贝返回，不写入共享响应缓存）
+- 详情接口 `findById`：未发布帖仅 owner 可查看且不递增 viewCount；已发布帖在 Redis 原子 +1，每 10 分钟批量落库，PRIVATE 帖非参与人返回 404；只有公开已发布详情可进入 30 秒共享缓存，登录态附加 `isBookmarked` / `bookmarkId`（浅拷贝返回，不写入共享缓存）
 - 排序规则：
   - `sort=newest`：置顶优先，其次按 createdAt DESC
   - `sort=active`：置顶优先，其次按 updatedAt DESC
@@ -203,6 +203,7 @@ ThreadAccessService.assertAccessible(threadId, userId)
 - **草稿内不发通知**：发帖事件（post.created）仅在已发布帖下发帖时发射，草稿内的所有操作不触发 @提及解析和通知。通知逻辑移至 publish 时刻（thread_created 通知粉丝）
 - **未发布帖硬删除**：草稿帖数据尚未对外发布，硬删除可直接级联清理所有关联的子贴/帖子/参与人。定时任务每天凌晨 4 点清理超过 7 天未发布的草稿
 - **乐观锁 version**：比悲观锁更适合读多写少的协作编辑场景；使用 Prisma 的 where { version } + data { version: increment: 1 } 实现原子比较并更新
-- **viewCount 异步更新**：不阻塞详情接口的返回，使用 fire-and-forget catch，牺牲极端情况下的精度换取响应速度。未发布帖不递增 viewCount。同时维护 Redis 计数器 `thread:{id}:stats` 的 views 字段供智能排序
+- **viewCount 分层更新**：详情请求只原子更新 Redis `thread:{id}:stats.views`，不再逐次写数据库；智能排序任务每 10 分钟用单条批量 SQL 将更大的 Redis 计数落盘。Redis 计数自增前以数据库值为下限，重启后不会倒退
+- **短缓存边界**：公开列表首页缓存 5 秒、公开详情聚合结果缓存 30 秒；详情命中缓存仍先实时校验主题帖权限，防止 PUBLIC 切换 PRIVATE 时旧缓存越权。推荐排序同样读取首页缓存；`filter=playing` 是用户私有结果，禁止读写共享缓存
 - **访问权限统一入口**：`ThreadAccessService.assertAccessible()` 为所有主题帖读写的统一入口（含软删除 / 未发布 / 私密帖校验），`assertCanManage()` 统一 OWNER/COLLABORATOR 管理权限校验。所有服务层（ThreadsService / SubthreadsService / ThreadMembersService）和标签控制器均复用此服务，不再重复实现
 - **智能排序**：采用 Hacker News 热度算法变体 `score = (replies * 2 + likes * 3 + views * 0.3) / (age_hours + 2)^1.5`。每次发帖/点赞/浏览通过事件监听器实时更新 Redis ZSET 分数，每 10 分钟全量重算修正精度漂移。查询时从 ZSET 前缀扫描取 ID 列表，再经 SQL 过滤（分类/状态/标签/可见性）后按 ZSET 顺序归位，按「已消费可见帖数」切片输出（每帖只出现一次，避免筛选后相邻窗口重叠重复）
