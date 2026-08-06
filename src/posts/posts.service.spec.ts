@@ -141,9 +141,16 @@ describe('PostsService', () => {
 
     const result = await service.create('s1', { content: 'test' }, 'u1');
     expect(result.floorNumber).toBe(6);
-    // 发帖事务只更新 lastPostAt，不再回写 bodyPostId
+    // 发帖事务更新子贴和主题帖的最近活动时间，不再回写 bodyPostId
     expect(tx.subthread.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { lastPostAt: expect.any(Date) } }),
+      expect.objectContaining({
+        data: expect.objectContaining({
+          lastPostAt: expect.any(Date),
+          thread: {
+            update: { data: { updatedAt: expect.any(Date) } },
+          },
+        }),
+      }),
     );
   });
 
@@ -443,7 +450,15 @@ describe('PostsService', () => {
       expect(result.kind).toBe('BODY');
       expect(result.floorNumber).toBeNull();
       expect(mockPrisma.subthread.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 's1' }, data: { lastPostAt: expect.any(Date) } }),
+        expect.objectContaining({
+          where: { id: 's1' },
+          data: expect.objectContaining({
+            lastPostAt: expect.any(Date),
+            thread: {
+              update: { data: { updatedAt: expect.any(Date) } },
+            },
+          }),
+        }),
       );
       expect(mockEventEmitter.emit).toHaveBeenCalledWith(
         'post.created',

@@ -18,7 +18,7 @@
 |----|------|
 | `RECRUITING` | 招募中（默认创建时状态） |
 | `CLOSED` | 已停招 |
-| `FINISHED` | 已完结 |
+| `FINISHED` | 已结束 |
 
 ### ThreadVisibility — 主题帖可见性
 

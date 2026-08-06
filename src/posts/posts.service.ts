@@ -260,9 +260,14 @@ export class PostsService {
           });
         }
 
+        const activityAt = new Date();
         await tx.subthread.update({
           where: { id: subthreadId },
-          data: { lastPostAt: new Date() },
+          data: {
+            lastPostAt: activityAt,
+            // 只有帖子真正创建成功后才推进主题帖的最近活动时间。
+            thread: { update: { data: { updatedAt: activityAt } } },
+          },
         });
 
         if (generatedDice.length === 0) return { ...p, diceRolls: [] };
@@ -425,9 +430,13 @@ export class PostsService {
         if (subthread.thread.published) {
           await this.reconcilePublishedDice(tx, created.id, parsedContent.nodes, []);
         }
+        const activityAt = new Date();
         await tx.subthread.update({
           where: { id: subthreadId },
-          data: { lastPostAt: new Date() },
+          data: {
+            lastPostAt: activityAt,
+            thread: { update: { data: { updatedAt: activityAt } } },
+          },
         });
         return tx.post.findUniqueOrThrow({
           where: { id: created.id },

@@ -22,6 +22,7 @@ import { BusinessException } from '../common/exceptions/business.exception';
 const createMockPrisma = () => ({
   $transaction: jest.fn(),
   $queryRaw: jest.fn(),
+  $executeRaw: jest.fn().mockResolvedValue(1),
   user: { findUnique: jest.fn(), findMany: jest.fn() },
   thread: {
     findUnique: jest.fn(),
@@ -346,7 +347,7 @@ describe('发帖全流程集成测试', () => {
       );
     });
 
-    it('detail：已发布公开帖增加 viewCount', async () => {
+    it('detail：已发布公开帖增加 viewCount，但不刷新主题帖更新时间', async () => {
       const thread = {
         id: 't1',
         title: '测试',
@@ -356,13 +357,10 @@ describe('发帖全流程集成测试', () => {
         subthreads: [],
       };
       prisma.thread.findUnique.mockResolvedValue(thread);
-      prisma.thread.update.mockResolvedValue({});
       const result = await threadsService.findById('t1');
       expect(result.id).toBe('t1');
-      expect(prisma.thread.update).toHaveBeenCalledWith({
-        where: { id: 't1' },
-        data: { viewCount: { increment: 1 } },
-      });
+      expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+      expect(prisma.thread.update).not.toHaveBeenCalled();
     });
 
     it('detail：未发布帖非 owner 返回 404', async () => {

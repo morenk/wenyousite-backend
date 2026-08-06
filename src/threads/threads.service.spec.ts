@@ -14,6 +14,7 @@ import { DiceService } from '../dice/dice.service';
 
 const mockPrisma = {
   $transaction: jest.fn(),
+  $executeRaw: jest.fn().mockResolvedValue(1),
   thread: {
     findUnique: jest.fn(),
     create: jest.fn(),
@@ -237,6 +238,25 @@ describe('ThreadsService', () => {
       );
     });
 
+    it('按主题帖状态筛选', async () => {
+      mockPrisma.thread.findMany.mockResolvedValue([]);
+      await service.findAll({ sort: 'newest', status: 'CLOSED' } as any);
+      expect(mockPrisma.thread.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ status: 'CLOSED' }),
+        }),
+      );
+      expect(mockCache.buildKey).toHaveBeenCalledWith(
+        'threads',
+        'list',
+        'sort:newest',
+        'cat:all',
+        'status:CLOSED',
+        'tag:all',
+        'filter:all',
+      );
+    });
+
     describe('recommended（智能排序）', () => {
       const mkThread = (id: string) => ({
         id,
@@ -332,6 +352,19 @@ describe('ThreadsService', () => {
         expect(page.pagination.hasMore).toBe(false);
       });
 
+      it('智能排序同样按主题帖状态筛选', async () => {
+        mockRedis.zrevrange.mockResolvedValue(['t1']);
+        mockPrisma.thread.findMany.mockResolvedValue([]);
+
+        await service.findAll({ sort: 'recommended', status: 'FINISHED' } as any);
+
+        expect(mockPrisma.thread.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({ status: 'FINISHED' }),
+          }),
+        );
+      });
+
       it('未登录 playing 筛选返回空', async () => {
         const page = await service.findAll({ sort: 'recommended', filter: 'playing' } as any);
         expect(page.items).toEqual([]);
@@ -350,7 +383,7 @@ describe('ThreadsService', () => {
   });
 
   describe('findById', () => {
-    it('已发布公开帖正常返回并递增 viewCount', async () => {
+    it('已发布公开帖正常返回并递增 viewCount，但不刷新主题帖更新时间', async () => {
       const thread = {
         id: 't1',
         title: '测试',
@@ -360,13 +393,10 @@ describe('ThreadsService', () => {
         subthreads: [],
       };
       mockPrisma.thread.findUnique.mockResolvedValue(thread);
-      mockPrisma.thread.update.mockResolvedValue({});
       const result = await service.findById('t1');
       expect(result.id).toBe('t1');
-      expect(mockPrisma.thread.update).toHaveBeenCalledWith({
-        where: { id: 't1' },
-        data: { viewCount: { increment: 1 } },
-      });
+      expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.thread.update).not.toHaveBeenCalled();
     });
 
     it('详情合并玩家计数 _count.players（playerMarked=true）', async () => {

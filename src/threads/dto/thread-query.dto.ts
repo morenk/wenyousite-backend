@@ -22,6 +22,15 @@ export class ThreadQueryDto extends CursorPaginationDto {
   @IsIn(['recommended', 'newest', 'active'])
   sort?: string = 'recommended';
 
+  @ApiPropertyOptional({
+    enum: ['RECRUITING', 'CLOSED', 'FINISHED'],
+    description: '主题帖状态筛选：招募中、已停招、已结束',
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['RECRUITING', 'CLOSED', 'FINISHED'])
+  status?: string;
+
   @ApiPropertyOptional({ example: '无限流', description: '按标签名模糊筛选主题帖' })
   @IsOptional()
   @IsString()

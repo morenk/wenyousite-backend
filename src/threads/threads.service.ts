@@ -174,11 +174,10 @@ export class ThreadsService {
     // 浏览量 +1：Redis 计数器 + DB 异步写入
     if (thread.published) {
       this.redis.hincrby(`thread:${id}:stats`, 'views', 1).catch(() => {});
-      this.prisma.thread
-        .update({
-          where: { id },
-          data: { viewCount: { increment: 1 } },
-        })
+      // Thread.updatedAt 用作主题帖最近活动时间。Prisma update 会因 @updatedAt
+      // 自动刷新该字段，因此浏览量这种统计写入必须只更新物理计数字段。
+      this.prisma
+        .$executeRaw`UPDATE "threads" SET "view_count" = "view_count" + 1 WHERE "id" = ${id}`
         .catch(() => {});
     }
 
@@ -224,6 +223,7 @@ export class ThreadsService {
       'list',
       `sort:${sort}`,
       `cat:${query.category ?? 'all'}`,
+      `status:${query.status ?? 'all'}`,
       `tag:${query.tag ?? 'all'}`,
       `filter:${query.filter ?? 'all'}`,
     );
@@ -248,6 +248,7 @@ export class ThreadsService {
     }
 
     if (query.category) where.category = query.category;
+    if (query.status) where.status = query.status;
     if (query.tag) {
       where.topicTags = {
         some: { tag: { name: { contains: query.tag, mode: 'insensitive' } } },
@@ -326,6 +327,7 @@ export class ThreadsService {
       where.visibility = 'PUBLIC';
     }
     if (query.category) where.category = query.category;
+    if (query.status) where.status = query.status;
     if (query.tag) {
       where.topicTags = {
         some: { tag: { name: { contains: query.tag, mode: 'insensitive' } } },
