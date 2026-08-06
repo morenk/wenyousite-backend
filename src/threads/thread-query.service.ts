@@ -4,9 +4,10 @@ import { ThreadAccessService } from '../access/thread-access.service';
 import { RedisService } from '../redis/redis.service';
 import { CacheService } from '../redis/cache.service';
 import { ThreadQueryDto } from './dto/thread-query.dto';
+import type { HomeThreadListItemResponseDto } from './dto/thread-list-response.dto';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { notFound } from '../common/exceptions/business.exception';
-import { paginate } from '../common/dto/paginated-result';
+import { PaginatedResult, paginate } from '../common/dto/paginated-result';
 import {
   notDeleted,
   countMembersAndPosts,
@@ -148,8 +149,10 @@ export class ThreadQueryService {
 
     // 公开首页尝试缓存命中；playing 是用户私有结果，严禁进入共享缓存。
     if (cacheableFirstPage) {
-      const cached = await this.cache.get<any>(cacheKey);
-      if (cached) return cached;
+      const cached = await this.cache.get<
+        PaginatedResult<HomeThreadListItemResponseDto>
+      >(cacheKey);
+      if (cached) return paginate(cached.items, cached.pagination);
     }
 
     // recommended 排序：ZSET 偏移分页

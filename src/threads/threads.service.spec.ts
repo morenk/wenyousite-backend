@@ -11,7 +11,7 @@ import { CacheService } from '../redis/cache.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { DiceService } from '../dice/dice.service';
-import { paginate } from '../common/dto/paginated-result';
+import { PaginatedResult } from '../common/dto/paginated-result';
 import { ThreadQueryService } from './thread-query.service';
 import { OutboxService } from '../outbox/outbox.service';
 
@@ -389,12 +389,17 @@ describe('ThreadsService', () => {
       });
 
       it('recommended 公开首页命中短缓存时不访问 ZSET 和数据库', async () => {
-        const cached = paginate([mkThread('cached')], { cursor: null, hasMore: false });
+        const cached = {
+          items: [mkThread('cached')],
+          pagination: { cursor: null, hasMore: false },
+        };
         mockCache.get.mockResolvedValueOnce(cached);
 
         const page = await service.findAll({ sort: 'recommended' } as any);
 
-        expect(page).toBe(cached);
+        expect(page).toBeInstanceOf(PaginatedResult);
+        expect(page.items).toEqual(cached.items);
+        expect(page.pagination).toEqual(cached.pagination);
         expect(mockRedis.zcard).not.toHaveBeenCalled();
         expect(mockPrisma.thread.findMany).not.toHaveBeenCalled();
       });

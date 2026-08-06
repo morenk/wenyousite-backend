@@ -206,6 +206,6 @@ ThreadAccessService.assertAccessible(threadId, userId)
 - **未发布帖硬删除**：草稿帖数据尚未对外发布，硬删除可直接级联清理所有关联的子贴/帖子/参与人。定时任务每天凌晨 4 点清理超过 7 天未发布的草稿
 - **乐观锁 version**：比悲观锁更适合读多写少的协作编辑场景；使用 Prisma 的 where { version } + data { version: increment: 1 } 实现原子比较并更新
 - **viewCount 分层更新**：详情请求只原子更新 Redis `thread:{id}:stats.views`，不再逐次写数据库；智能排序任务每 10 分钟用单条批量 SQL 将更大的 Redis 计数落盘。Redis 计数自增前以数据库值为下限，重启后不会倒退
-- **短缓存边界**：公开列表首页缓存 5 秒、公开详情聚合结果缓存 30 秒；详情命中缓存仍先实时校验主题帖权限，防止 PUBLIC 切换 PRIVATE 时旧缓存越权。推荐排序同样读取首页缓存；`filter=playing` 是用户私有结果，禁止读写共享缓存
+- **短缓存边界**：公开列表首页缓存 5 秒、公开详情聚合结果缓存 30 秒；详情命中缓存仍先实时校验主题帖权限，防止 PUBLIC 切换 PRIVATE 时旧缓存越权。推荐排序同样读取首页缓存；列表缓存命中时必须重新构造 `PaginatedResult`，保证 Redis 反序列化后仍由统一拦截器输出 `data[] + meta`；`filter=playing` 是用户私有结果，禁止读写共享缓存
 - **访问权限统一入口**：`ThreadAccessService.assertAccessible()` 为所有主题帖读写的统一入口（含软删除 / 未发布 / 私密帖校验），`assertCanManage()` 统一 OWNER/COLLABORATOR 管理权限校验。所有服务层（ThreadsService / SubthreadsService / ThreadMembersService）和标签控制器均复用此服务，不再重复实现
 - **智能排序**：采用 Hacker News 热度算法变体 `score = (replies * 2 + likes * 3 + views * 0.3) / (age_hours + 2)^1.5`。每次发帖/点赞/浏览通过事件监听器实时更新 Redis ZSET 分数，每 10 分钟全量重算修正精度漂移。查询时从 ZSET 前缀扫描取 ID 列表，再经 SQL 过滤（分类/状态/标签/可见性）后按 ZSET 顺序归位，按「已消费可见帖数」切片输出（每帖只出现一次，避免筛选后相邻窗口重叠重复）
