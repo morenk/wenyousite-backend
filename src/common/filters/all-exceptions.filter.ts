@@ -57,6 +57,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         const resObj = res as Record<string, unknown>;
         if (Array.isArray(resObj.message)) {
           // ValidationPipe 的 message 是数组，合并为一条消息
+          code = ErrorCode.VALIDATION_ERROR;
           message = resObj.message.join('; ');
         } else {
           message = String(resObj.message ?? exception.message);

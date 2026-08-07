@@ -1,0 +1,59 @@
+{
+  "contract": "wenyousite-mobile-push",
+  "version": 1,
+  "description": "Flutter 与后端共用的 FCM data v1 黄金样例；推送只用于提示和导航，正文必须通过 API 拉取。",
+  "validCases": [
+    {
+      "id": "notification",
+      "payload": {
+        "schemaVersion": "1",
+        "kind": "notification",
+        "notificationId": "notification-1"
+      }
+    },
+    {
+      "id": "direct-message",
+      "payload": {
+        "schemaVersion": "1",
+        "kind": "direct_message",
+        "conversationId": "conversation-1",
+        "messageId": "message-1"
+      }
+    }
+  ],
+  "invalidCases": [
+    {
+      "id": "unknown-version",
+      "payload": {
+        "schemaVersion": "2",
+        "kind": "notification",
+        "notificationId": "notification-1"
+      }
+    },
+    {
+      "id": "notification-without-id",
+      "payload": {
+        "schemaVersion": "1",
+        "kind": "notification"
+      }
+    },
+    {
+      "id": "direct-message-without-message-id",
+      "payload": {
+        "schemaVersion": "1",
+        "kind": "direct_message",
+        "conversationId": "conversation-1"
+      }
+    },
+    {
+      "id": "privacy-leaking-extra-field",
+      "payload": {
+        "schemaVersion": "1",
+        "kind": "direct_message",
+        "conversationId": "conversation-1",
+        "messageId": "message-1",
+        "content": "不应出现在推送 data 中的正文"
+      }
+    }
+  ]
+}

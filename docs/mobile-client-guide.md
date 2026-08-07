@@ -11,7 +11,7 @@
 
 ## 认证与安全存储
 
-登录和注册请求必须携带 `X-Client-Platform: mobile`。服务端允许同一账号同时存在一个 Web 终端和一个原生移动终端，并向移动端响应体返回有效期 30 天、每次刷新都会轮转的 `refreshToken`。
+创建登录终端的 `POST /auth/login` 和 `POST /auth/register/verify-and-complete` 必须携带 `X-Client-Platform: mobile`。OpenAPI 为兼容旧 Web 客户端仍把该头标为 optional，不代表 Flutter 可以省略；省略或传入未知值会被服务端归为 `web`。服务端允许同一账号同时存在一个 Web 终端和一个原生移动终端，并向移动端响应体返回有效期 30 天、每次刷新都会轮转的 `refreshToken`。
 
 - access token 与 refresh token 存入 iOS Keychain / Android Keystore 封装的安全存储；不要使用 SharedPreferences、普通文件或日志。
 - 所有受保护请求携带 `Authorization: Bearer <accessToken>`。
@@ -39,7 +39,7 @@
 
 上传沿用“预签名 PUT → `upload-done` → 查询状态”流程。只有 `status=COMPLETED` 才使用衍生图：列表优先 `thumbnailUrl`，详情/预览优先 `mediumUrl`，字段为 `null` 或加载失败时回退 `url`。客户端不得从原图 URL 猜测 `_thumb.webp` 或 `_md.webp` 对象键。
 
-Markdown 协议版本由 `/meta.markdownContractVersion` 返回，当前为 v2。Flutter 必须通过与 Web 共用的 `contracts/markdown-v2-fixtures.json` 黄金语料验证链接、@提及、骰子和表情节点的解析行为。原始 HTML 默认禁用；外链协议仅允许明确白名单。
+Markdown 协议版本由 `/meta.markdownContractVersion` 返回，当前为 v2。Flutter 必须同时运行两层语言无关语料：[`markdown-v2-fixtures.json`](../contracts/markdown-v2-fixtures.json) 验证 `canonical` 与 `visible`；[`markdown-v2-nodes-fixtures.json`](../contracts/markdown-v2-nodes-fixtures.json) 验证提及、`@全体玩家`、骰子、表情、普通图片的 parse / serialize / round-trip、代码与转义边界以及复制身份规则。原始 HTML 默认禁用；外链协议仅允许明确白名单。
 
 ## FCM 设备注册
 
@@ -61,7 +61,9 @@ Content-Type: application/json
 - 登录/刷新成功、FCM token 刷新以及系统重新授权通知后调用 PUT；接口按当前 mobile 登录终端 upsert。
 - Web 会话不能注册移动推送。服务端退出/替换该 mobile 登录终端后不会继续投递。
 - 关闭通知权限或退出登录前调用 `DELETE /api/v1/mobile/devices/current`；服务端对无效 token 会自动停用。
-- 推送正文只含通用隐私提示和最小导航数据，不是权威业务内容。点击推送后调用通知或私聊 API 拉取最新状态；重复、延迟、乱序或未送达都必须可容忍。
+- 推送正文只含通用隐私提示和最小导航数据，不是权威业务内容。FCM `data` 的机器契约为 [`mobile-push-v1.schema.json`](../contracts/mobile-push-v1.schema.json)，黄金样例为 [`mobile-push-v1-fixtures.json`](../contracts/mobile-push-v1-fixtures.json)。
+- `kind=notification` 时刷新通知首页并按 `notificationId` 定位；未找到时打开通知中心。`kind=direct_message` 时用 `conversationId` 进入会话并重新拉取消息，`messageId` 只用于定位。未知 `schemaVersion` / `kind` 只刷新未读数并进入对应消息中心，不尝试猜测导航。
+- 点击推送后仍通过通知或私聊 API 拉取最新状态；重复、延迟、乱序或未送达都必须可容忍。
 
 ## 通知导航与前后台同步
 
@@ -70,6 +72,7 @@ Content-Type: application/json
 ## 发布前最低验证
 
 - 用固定 OpenAPI 生成 Dart 代码并执行 `dart format` / `dart analyze`。
-- 用 Markdown v2 黄金语料运行 Flutter 单测。
+- 用 Markdown v2 的规范化/可见性语料和扩展节点语料运行 Flutter 单测，其中表情必须经过编辑器解析后再序列化验证 round-trip。
+- 用 mobile push v1 黄金样例验证 FCM `data` 解析、未知版本降级与隐私字段过滤。
 - 覆盖 access token 并发过期、refresh token 轮转、离线创建重试、无效 cursor、媒体处理中 null 变体、FCM token 刷新和推送关闭降级。
 - 在测试环境确认错误响应、429 和 5xx 也带请求 ID 与契约版本响应头。

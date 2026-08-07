@@ -1,9 +1,36 @@
 import { ConfigService } from '@nestjs/config';
 import { applicationDefault, getApps, initializeApp } from 'firebase-admin/app';
 import { getMessaging } from 'firebase-admin/messaging';
-import { FirebasePushProvider } from './firebase-push.provider';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import {
+  buildMobilePushData,
+  FirebasePushProvider,
+  MobilePushData,
+  MobilePushMessage,
+} from './firebase-push.provider';
 
 const mockMessagingSend = jest.fn();
+const fixtures = JSON.parse(
+  readFileSync(resolve(__dirname, '../../contracts/mobile-push-v1-fixtures.json'), 'utf8'),
+) as { validCases: Array<{ id: string; payload: MobilePushData }> };
+
+function messageForPayload(payload: MobilePushData): MobilePushMessage {
+  if (payload.kind === 'notification') {
+    return {
+      token: 'secret-token',
+      kind: 'notification',
+      collapseKey: payload.notificationId,
+      data: { notificationId: payload.notificationId },
+    };
+  }
+  return {
+    token: 'secret-token',
+    kind: 'direct_message',
+    collapseKey: payload.conversationId,
+    data: { conversationId: payload.conversationId, messageId: payload.messageId },
+  };
+}
 
 jest.mock('firebase-admin/app', () => ({
   applicationDefault: jest.fn(),
@@ -87,10 +114,7 @@ describe('FirebasePushProvider', () => {
     expect(getMessaging).not.toHaveBeenCalled();
   });
 
-  it.each([
-    ['notification', '你有一条新通知'],
-    ['direct_message', '你有一条新私聊消息'],
-  ] as const)('发送 %s 时只携带最小导航数据', async (kind, body) => {
+  it.each(fixtures.validCases)('发送 $id 时匹配 push v1 黄金样例', async ({ payload }) => {
     config.get.mockImplementation((key: string) => key === 'push.enabled' ? true : 'project-1');
     (getApps as jest.Mock).mockReturnValue([{ name: '[DEFAULT]' }]);
     const provider = new FirebasePushProvider(config as unknown as ConfigService);
@@ -99,24 +123,20 @@ describe('FirebasePushProvider', () => {
       'log',
     ).mockImplementation(() => undefined);
     provider.onModuleInit();
+    const message = messageForPayload(payload);
 
-    await provider.send({
-      token: 'secret-token',
-      kind,
-      collapseKey: 'conversation-1',
-      data: { conversationId: 'conversation-1' },
-    });
+    expect(buildMobilePushData(message)).toEqual(payload);
+    await provider.send(message);
 
     expect(mockMessagingSend).toHaveBeenCalledWith({
       token: 'secret-token',
-      notification: { title: '温油站', body },
-      data: {
-        schemaVersion: '1',
-        kind,
-        conversationId: 'conversation-1',
+      notification: {
+        title: '温油站',
+        body: payload.kind === 'direct_message' ? '你有一条新私聊消息' : '你有一条新通知',
       },
-      android: { collapseKey: 'conversation-1' },
-      apns: { headers: { 'apns-collapse-id': 'conversation-1' } },
+      data: payload,
+      android: { collapseKey: message.collapseKey },
+      apns: { headers: { 'apns-collapse-id': message.collapseKey } },
     });
   });
 });

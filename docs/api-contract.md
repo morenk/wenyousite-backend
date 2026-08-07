@@ -34,6 +34,7 @@ pnpm docs:check
 - 每个操作显式标注 `public` / `optional` / `authenticated` / `verified` / `admin` 认证模式。
 - 每个成功响应引用具名 envelope component；分页 envelope 必含 `meta.cursor` 和 `meta.hasMore`。
 - 错误统一为 `ApiErrorEnvelope`，业务代码只依赖 `BusinessErrorCode`。
+- 每个响应显式声明 `X-Request-ID` 和 `X-API-Contract-Version`；显式 429 响应额外声明 `Retry-After`。
 - 查询参数不允许空 schema，本地与生产 server 均显式声明。
 - 未知响应字段必须被客户端忽略；可扩展枚举在客户端必须有 unknown fallback。
 

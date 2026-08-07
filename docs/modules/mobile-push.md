@@ -13,6 +13,8 @@
 
 同一 FCM token 只归属一个用户/终端；重新注册会清理旧归属。记录保存平台、应用版本、locale、最近活跃时间和 enabled 状态，不保存设备广告 ID。
 
+FCM `data` 使用独立的 [`mobile-push-v1.schema.json`](../../contracts/mobile-push-v1.schema.json) 机器契约和 [`mobile-push-v1-fixtures.json`](../../contracts/mobile-push-v1-fixtures.json) 黄金样例。`notification` 只携带 `notificationId`，`direct_message` 只携带 `conversationId` 和 `messageId`；所有值均为字符串，不得放入通知或私聊正文。
+
 ## 投递链路
 
 ```text

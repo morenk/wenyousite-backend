@@ -3,14 +3,21 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { createHash } from 'node:crypto';
 
-export interface MobilePushJob {
+interface MobilePushJobBase {
   userId: string;
-  kind: 'notification' | 'direct_message';
   eventKey: string;
-  notificationId?: string;
-  conversationId?: string;
-  messageId?: string;
 }
+
+export type MobilePushJob =
+  | (MobilePushJobBase & {
+      kind: 'notification';
+      notificationId: string;
+    })
+  | (MobilePushJobBase & {
+      kind: 'direct_message';
+      conversationId: string;
+      messageId: string;
+    });
 
 @Injectable()
 export class MobilePushProducer {

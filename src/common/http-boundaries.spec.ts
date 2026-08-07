@@ -93,7 +93,7 @@ describe('AllExceptionsFilter', () => {
     filter.catch(new BadRequestException({ message: ['标题不能为空', '标题过长'] }), host);
 
     expect(response.send).toHaveBeenCalledWith({
-      code: ErrorCode.BAD_REQUEST,
+      code: ErrorCode.VALIDATION_ERROR,
       message: '标题不能为空; 标题过长',
       data: null,
     });

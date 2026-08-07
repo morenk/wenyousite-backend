@@ -2,9 +2,10 @@ import { INestApplication } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { applySuccessResponseEnvelope } from './success-response-envelope';
 import { applyErrorResponseEnvelope } from './error-response-envelope';
+import { applyResponseHeaders } from './response-headers';
 
 /** 破坏性 API 变更时递增；Web 与 Flutter 生成客户端均记录该版本。 */
-export const API_CONTRACT_VERSION = '3.0.0-dev.20260807.1';
+export const API_CONTRACT_VERSION = '3.0.0-dev.20260807.2';
 
 type AuthMode = 'public' | 'optional' | 'authenticated' | 'verified' | 'admin';
 
@@ -61,5 +62,7 @@ export function createOpenApiDocument(app: INestApplication) {
     operationIdFactory: (controllerKey, methodKey) =>
       `${lowerFirst(controllerKey.replace(/Controller$/, ''))}${methodKey[0].toUpperCase()}${methodKey.slice(1)}`,
   });
-  return applyErrorResponseEnvelope(applySuccessResponseEnvelope(applyAuthSemantics(document)));
+  return applyResponseHeaders(
+    applyErrorResponseEnvelope(applySuccessResponseEnvelope(applyAuthSemantics(document))),
+  );
 }

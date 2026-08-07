@@ -1,5 +1,12 @@
 # API 合同变更
 
+## 3.0.0-dev.20260807.2
+
+- 修正 ValidationPipe 参数错误为 `40000 VALIDATION_ERROR`，与已发布错误码契约一致。
+- OpenAPI 为所有响应声明请求 ID 和契约版本头，429 额外声明 `Retry-After`。
+- 新增 FCM data v1 JSON Schema 与黄金样例，固定通知/私聊的最小导航载荷。
+- 澄清移动端 `X-Client-Platform` 必传规则和私聊推送能力，HTTP 路由与业务响应字段不变。
+
 ## 3.0.0-dev.20260807.1
 
 - 变更分类：生成接口破坏性、HTTP 线协议向后兼容。

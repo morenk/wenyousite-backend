@@ -3,11 +3,41 @@ import { ConfigService } from '@nestjs/config';
 import { applicationDefault, getApps, initializeApp } from 'firebase-admin/app';
 import { getMessaging } from 'firebase-admin/messaging';
 
-export interface MobilePushMessage {
+interface MobilePushMessageBase {
   token: string;
-  kind: 'notification' | 'direct_message';
   collapseKey: string;
-  data: Record<string, string>;
+}
+
+export type MobilePushMessage =
+  | (MobilePushMessageBase & {
+      kind: 'notification';
+      data: { notificationId: string };
+    })
+  | (MobilePushMessageBase & {
+      kind: 'direct_message';
+      data: { conversationId: string; messageId: string };
+    });
+
+export type MobilePushData =
+  | { schemaVersion: '1'; kind: 'notification'; notificationId: string }
+  | {
+      schemaVersion: '1';
+      kind: 'direct_message';
+      conversationId: string;
+      messageId: string;
+    };
+
+/** 构建与 contracts/mobile-push-v1.schema.json 一致的 FCM data payload。 */
+export function buildMobilePushData(message: MobilePushMessage): MobilePushData {
+  if (message.kind === 'notification') {
+    return { schemaVersion: '1', kind: 'notification', notificationId: message.data.notificationId };
+  }
+  return {
+    schemaVersion: '1',
+    kind: 'direct_message',
+    conversationId: message.data.conversationId,
+    messageId: message.data.messageId,
+  };
 }
 
 @Injectable()
@@ -39,7 +69,7 @@ export class FirebasePushProvider implements OnModuleInit {
     await getMessaging().send({
       token: message.token,
       notification: { title: '温油站', body },
-      data: { schemaVersion: '1', kind: message.kind, ...message.data },
+      data: buildMobilePushData(message),
       android: { collapseKey: message.collapseKey },
       apns: { headers: { 'apns-collapse-id': message.collapseKey } },
     });

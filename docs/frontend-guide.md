@@ -439,7 +439,7 @@ GET /threads/:threadId/search/posts?q=关键词&cursor=&limit=20
 
 ## 11. 前端开发建议
 
-OpenAPI 契约版本为 `3.0.0-dev.20260807.1`。Web 与 Flutter 都应从仓库内已审核的 `contracts/openapi.json` 生成类型；成功响应读取 `data`，分页读取 `meta`，错误响应统一按 `{ code, message, data: null }` 处理，业务分支使用生成的 `BusinessErrorCode`，不要依赖提示文案。完整移动端策略见 [Flutter / 原生移动端接入](./mobile-client-guide.md)。
+OpenAPI 契约版本为 `3.0.0-dev.20260807.2`。Web 与 Flutter 都应从仓库内已审核的 `contracts/openapi.json` 生成类型；成功响应读取 `data`，分页读取 `meta`，错误响应统一按 `{ code, message, data: null }` 处理，业务分支使用生成的 `BusinessErrorCode`，不要依赖提示文案。完整移动端策略见 [Flutter / 原生移动端接入](./mobile-client-guide.md)。
 
 1. **先看 Swagger**：`/api/docs` 有每个端点的请求 Schema（含 example 值）和响应描述，Try it out 可直接调试。
 2. **Token 管理**：封装单航班刷新拦截器；只对 `40101 TOKEN_EXPIRED` 刷新一次并重放请求，其他 401 直接进入对应登录/锁定/注销状态，避免刷新风暴。

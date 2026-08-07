@@ -10,9 +10,16 @@ let anonymousSuccessSchemas = 0;
 const errorEnvelopeRef = '#/components/schemas/ApiErrorEnvelope';
 const successEnvelopeRef = '#/components/schemas/ApiSuccessEnvelope';
 const paginatedEnvelopeRef = '#/components/schemas/ApiPaginatedSuccessEnvelope';
+const requestIdHeaderRef = '#/components/headers/XRequestId';
+const contractVersionHeaderRef = '#/components/headers/XApiContractVersion';
+const retryAfterHeaderRef = '#/components/headers/RetryAfter';
 
 function responseUsesErrorEnvelope(response: any): boolean {
   return response?.content?.['application/json']?.schema?.$ref === errorEnvelopeRef;
+}
+
+function responseUsesHeader(response: any, name: string, reference: string): boolean {
+  return response?.headers?.[name]?.$ref === reference;
 }
 
 function resolveReference(reference: string): unknown {
@@ -77,7 +84,30 @@ for (const [route, pathItem] of Object.entries(document.paths ?? {})) {
       failures.push(`${label}: 缺少统一 default 错误响应`);
     }
 
+    if (
+      method === 'post' &&
+      ['/api/v1/auth/login', '/api/v1/auth/register/verify-and-complete'].includes(route)
+    ) {
+      const platformHeader = (operation.parameters ?? []).find(
+        (parameter: any) =>
+          parameter?.in === 'header' && parameter?.name?.toLowerCase() === 'x-client-platform',
+      );
+      const values = platformHeader?.schema?.enum;
+      if (!Array.isArray(values) || !values.includes('web') || !values.includes('mobile')) {
+        failures.push(`${label}: 缺少 web/mobile X-Client-Platform 请求头契约`);
+      }
+    }
+
     for (const [status, response] of Object.entries(operation.responses ?? {}) as [string, any][]) {
+      if (!responseUsesHeader(response, 'X-Request-ID', requestIdHeaderRef)) {
+        failures.push(`${label} ${status}: 缺少 X-Request-ID 响应头`);
+      }
+      if (!responseUsesHeader(response, 'X-API-Contract-Version', contractVersionHeaderRef)) {
+        failures.push(`${label} ${status}: 缺少 X-API-Contract-Version 响应头`);
+      }
+      if (status === '429' && !responseUsesHeader(response, 'Retry-After', retryAfterHeaderRef)) {
+        failures.push(`${label} 429: 缺少 Retry-After 响应头`);
+      }
       if (/^[45]\d\d$/.test(status) && !responseUsesErrorEnvelope(response)) {
         failures.push(`${label} ${status}: 错误响应未引用 ApiErrorEnvelope`);
       }

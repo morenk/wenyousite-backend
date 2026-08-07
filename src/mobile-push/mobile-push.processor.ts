@@ -2,7 +2,7 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
-import { FirebasePushProvider } from './firebase-push.provider';
+import { FirebasePushProvider, MobilePushMessage } from './firebase-push.provider';
 import { MobilePushJob } from './mobile-push.producer';
 
 const INVALID_TOKEN_CODES = new Set([
@@ -47,20 +47,24 @@ export class MobilePushProcessor extends WorkerHost {
       return;
     }
 
-    const data = Object.fromEntries(
-      Object.entries({
-        notificationId: job.data.notificationId,
-        conversationId: job.data.conversationId,
-        messageId: job.data.messageId,
-      }).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
-    );
+    const pushMessage: MobilePushMessage = job.data.kind === 'notification'
+      ? {
+          token: device.pushToken,
+          kind: 'notification',
+          collapseKey: job.data.notificationId,
+          data: { notificationId: job.data.notificationId },
+        }
+      : {
+          token: device.pushToken,
+          kind: 'direct_message',
+          collapseKey: job.data.conversationId,
+          data: {
+            conversationId: job.data.conversationId,
+            messageId: job.data.messageId,
+          },
+        };
     try {
-      await this.provider.send({
-        token: device.pushToken,
-        kind: job.data.kind,
-        collapseKey: job.data.notificationId ?? job.data.conversationId ?? job.data.eventKey,
-        data,
-      });
+      await this.provider.send(pushMessage);
     } catch (error: unknown) {
       const code =
         error && typeof error === 'object' && 'code' in error && typeof error.code === 'string'

@@ -2,7 +2,10 @@
 
 ## 目标与范围
 
-本模块定义 Web、后端与 Flutter 共用的正文存储协议。`contracts/markdown-v2-fixtures.json` 是机器可读事实源；自然语言文档用于解释规则，不能覆盖黄金语料的预期结果。
+本模块定义 Web、后端与 Flutter 共用的正文存储协议。机器契约分为两层；自然语言文档只解释规则，不能覆盖黄金语料的预期结果：
+
+1. [`contracts/markdown-v2-fixtures.json`](../../contracts/markdown-v2-fixtures.json) 固定正文的 `canonical` 与 `visible`，用于写入规范化和发布可见性。
+2. [`contracts/markdown-v2-nodes-fixtures.json`](../../contracts/markdown-v2-nodes-fixtures.json) 固定扩展节点的 `nodes`、`serialized` 和复制身份规则，用于解析、序列化与编辑器 round-trip。
 
 v2 在 v1 规范化基础上增加收藏表情的标准 Markdown 图片标记与发布安全边界。旧客户端无需识别扩展标记，也能按普通图片显示。
 
@@ -39,7 +42,8 @@ v2 在 v1 规范化基础上增加收藏表情的标准 Markdown 图片标记与
 ## 跨端执行方式
 
 - 后端是写入和发布校验的最终权威。
-- Web 和 Flutter 必须加载或复制同版本黄金语料，并在 CI 中逐条验证 `canonical` 与 `visible`。
+- Web 和 Flutter 必须加载或复制同版本的两层黄金语料：逐条验证 `canonical` / `visible`，以及 mention、`@全体玩家`、dice、sticker、普通图片的 parse / serialize / round-trip。
+- 扩展节点不得在围栏代码、成对行内代码或反斜杠转义位置解析。骰子复制粘贴生成新 `nodeId`，剪切粘贴保留；提及 `userId` 和表情 `assetId` 在复制时保留。
 - 任一规则变更必须新增/修改语料并提升协议版本；不得只修改某一端的正则。
 
 ## 后端写入边界
@@ -53,16 +57,18 @@ v2 在 v1 规范化基础上增加收藏表情的标准 Markdown 图片标记与
 - [x] 黄金语料是合法 JSON，case id 唯一
 - [x] 后端规范化函数通过全部 canonical case
 - [x] 后端可见性函数通过全部 visible case
+- [x] 扩展节点语料覆盖解析、序列化、代码边界、转义和复制身份规则
 - [x] 帖子创建、正文 upsert 和帖子编辑在写入及下游事件前统一规范化
 - [x] 草稿创建和编辑在写入前统一规范化且允许保存不可见内容
 - [x] 类型检查、全量测试和生产构建通过
-- [x] 提交后按规范重启后端并验证健康状态
+- [x] 完整检查后按规范切换后端并验证健康状态
 
 ## 子任务
 
 - [x] 定义 Markdown v2 自然语言规则和表情扩展
 - [x] 建立语言无关 JSON 黄金语料
 - [x] 编写后端契约测试
+- [x] 建立语言无关扩展节点与编辑器往返语料
 - [x] 实现后端规范化和可见性对齐
 - [x] 接入帖子与草稿写入边界
-- [x] 质量检查、提交、重启
+- [x] 质量检查、服务切换与健康验证

@@ -1,0 +1,121 @@
+{
+  "contract": "wenyousite-markdown-nodes",
+  "version": 1,
+  "markdownContractVersion": 2,
+  "description": "Web、Flutter 与后端共用的 Markdown 扩展节点解析、序列化和往返黄金语料；nodes 只列出扩展/媒体节点，不包含普通文本节点。",
+  "cases": [
+    {
+      "id": "direct-mention",
+      "description": "直接提及使用稳定 userId 链接，显示名不承载身份",
+      "markdown": "你好 [@张三](/users/user-zhang)",
+      "nodes": [
+        { "type": "mention", "userId": "user-zhang", "label": "@张三" }
+      ],
+      "serialized": "你好 [@张三](/users/user-zhang)"
+    },
+    {
+      "id": "all-players-mention",
+      "description": "全体玩家是无资源 ID 的版本化群体提及文本",
+      "markdown": "请 @全体玩家 集合",
+      "nodes": [
+        { "type": "mention_all_players", "label": "@全体玩家" }
+      ],
+      "serialized": "请 @全体玩家 集合"
+    },
+    {
+      "id": "dice-normalization",
+      "description": "骰子 UUID 和表达式在序列化时规范为小写标准形式",
+      "markdown": "检定 [[DICE:V1:550E8400-E29B-41D4-A716-446655440000:D20]]",
+      "nodes": [
+        {
+          "type": "dice",
+          "nodeId": "550e8400-e29b-41d4-a716-446655440000",
+          "notation": "1d20"
+        }
+      ],
+      "serialized": "检定 [[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20]]"
+    },
+    {
+      "id": "sticker-round-trip",
+      "description": "表情解析为原子节点并以固定 alt 和版本化 title 无损写回",
+      "markdown": "![开心](https://cdn.example.com/stickers/a.webp \"wenyousite-sticker:v1:cm1234567890123456789012\")",
+      "nodes": [
+        {
+          "type": "sticker",
+          "assetId": "cm1234567890123456789012",
+          "url": "https://cdn.example.com/stickers/a.webp",
+          "alt": "开心"
+        }
+      ],
+      "serialized": "![表情](https://cdn.example.com/stickers/a.webp \"wenyousite-sticker:v1:cm1234567890123456789012\")"
+    },
+    {
+      "id": "regular-image-round-trip",
+      "description": "普通图片保持 URL、alt 和可选 title",
+      "markdown": "![插图](https://cdn.example.com/images/a.png \"场景说明\")",
+      "nodes": [
+        {
+          "type": "image",
+          "url": "https://cdn.example.com/images/a.png",
+          "alt": "插图",
+          "title": "场景说明"
+        }
+      ],
+      "serialized": "![插图](https://cdn.example.com/images/a.png \"场景说明\")"
+    },
+    {
+      "id": "mixed-inline-nodes",
+      "description": "提及、骰子、表情和普通图片可在同一正文中按原顺序往返",
+      "markdown": "[@张三](/users/user-zhang) 掷 [[dice:v1:550e8400-e29b-41d4-a716-446655440000:2D6 + 03]] ![表情](https://cdn.example.com/stickers/a.webp \"wenyousite-sticker:v1:cm1234567890123456789012\") ![图](https://cdn.example.com/images/a.png)",
+      "nodes": [
+        { "type": "mention", "userId": "user-zhang", "label": "@张三" },
+        {
+          "type": "dice",
+          "nodeId": "550e8400-e29b-41d4-a716-446655440000",
+          "notation": "2d6+3"
+        },
+        {
+          "type": "sticker",
+          "assetId": "cm1234567890123456789012",
+          "url": "https://cdn.example.com/stickers/a.webp",
+          "alt": "表情"
+        },
+        {
+          "type": "image",
+          "url": "https://cdn.example.com/images/a.png",
+          "alt": "图",
+          "title": null
+        }
+      ],
+      "serialized": "[@张三](/users/user-zhang) 掷 [[dice:v1:550e8400-e29b-41d4-a716-446655440000:2d6+3]] ![表情](https://cdn.example.com/stickers/a.webp \"wenyousite-sticker:v1:cm1234567890123456789012\") ![图](https://cdn.example.com/images/a.png)"
+    },
+    {
+      "id": "inline-code-boundary",
+      "description": "成对行内代码中的自定义标记全部保持普通代码文本",
+      "markdown": "`[@张三](/users/user-zhang) @全体玩家 [[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20]] ![表情](https://cdn.example.com/stickers/a.webp \"wenyousite-sticker:v1:cm1234567890123456789012\") ![图](https://cdn.example.com/images/a.png)`",
+      "nodes": [],
+      "serialized": "`[@张三](/users/user-zhang) @全体玩家 [[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20]] ![表情](https://cdn.example.com/stickers/a.webp \"wenyousite-sticker:v1:cm1234567890123456789012\") ![图](https://cdn.example.com/images/a.png)`"
+    },
+    {
+      "id": "fenced-code-boundary",
+      "description": "围栏代码块中的自定义标记全部保持普通代码文本",
+      "markdown": "```md\n[@张三](/users/user-zhang) @全体玩家\n[[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20]]\n![表情](https://cdn.example.com/stickers/a.webp \"wenyousite-sticker:v1:cm1234567890123456789012\") ![图](https://cdn.example.com/images/a.png)\n```",
+      "nodes": [],
+      "serialized": "```md\n[@张三](/users/user-zhang) @全体玩家\n[[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20]]\n![表情](https://cdn.example.com/stickers/a.webp \"wenyousite-sticker:v1:cm1234567890123456789012\") ![图](https://cdn.example.com/images/a.png)\n```"
+    },
+    {
+      "id": "escaped-markers",
+      "description": "反斜杠转义的稳定提及、骰子和图片标记不创建节点",
+      "markdown": "\\[@张三](/users/user-zhang) \\@全体玩家 \\[[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20]] \\![表情](https://cdn.example.com/stickers/a.webp \"wenyousite-sticker:v1:cm1234567890123456789012\") \\![图](https://cdn.example.com/images/a.png)",
+      "nodes": [],
+      "serialized": "\\[@张三](/users/user-zhang) \\@全体玩家 \\[[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20]] \\![表情](https://cdn.example.com/stickers/a.webp \"wenyousite-sticker:v1:cm1234567890123456789012\") \\![图](https://cdn.example.com/images/a.png)"
+    }
+  ],
+  "identityRules": [
+    { "nodeType": "dice", "operation": "copy_paste", "field": "nodeId", "result": "regenerate" },
+    { "nodeType": "dice", "operation": "cut_paste", "field": "nodeId", "result": "preserve" },
+    { "nodeType": "mention", "operation": "copy_paste", "field": "userId", "result": "preserve" },
+    { "nodeType": "sticker", "operation": "copy_paste", "field": "assetId", "result": "preserve" },
+    { "nodeType": "image", "operation": "copy_paste", "field": null, "result": "no_identity" }
+  ]
+}

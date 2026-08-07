@@ -244,22 +244,34 @@ export class MentionsService {
   private extractMentionTokens(content: string): MentionTokens {
     const withoutCode = this.stripMarkdownCode(content);
     const userIds: string[] = [];
-    const withoutCanonical = withoutCode.replace(this.canonicalMentionRegex, (_, userId: string) => {
-      userIds.push(userId);
-      return ' ';
-    });
-    const allPlayers = new RegExp(
-      `(?:^|[^a-zA-Z0-9_\\u4e00-\\u9fff])@${ALL_PLAYERS_MENTION}(?![a-zA-Z0-9_\\u4e00-\\u9fff])`,
-      'u',
-    ).test(withoutCanonical);
-    const usernames = [...withoutCanonical.matchAll(this.mentionRegex)]
+    const withoutCanonical = withoutCode.replace(
+      this.canonicalMentionRegex,
+      (marker: string, userId: string, offset: number) => {
+        if (!this.isEscaped(withoutCode, offset)) userIds.push(userId);
+        // 转义的稳定链接也必须从后续历史 @用户名解析中遮蔽。
+        return ' '.repeat(marker.length);
+      },
+    );
+    const mentionNames = [...withoutCanonical.matchAll(this.mentionRegex)]
+      .filter((match) => {
+        const atOffset = match[0].indexOf('@');
+        return match.index !== undefined && !this.isEscaped(withoutCanonical, match.index + atOffset);
+      })
       .map((match) => match[1])
-      .filter((username): username is string => username !== ALL_PLAYERS_MENTION);
+      .filter((username): username is string => typeof username === 'string');
+    const allPlayers = mentionNames.includes(ALL_PLAYERS_MENTION);
+    const usernames = mentionNames.filter((username) => username !== ALL_PLAYERS_MENTION);
     return {
       usernames: [...new Set(usernames)],
       userIds: [...new Set(userIds)],
       allPlayers,
     };
+  }
+
+  private isEscaped(content: string, index: number): boolean {
+    let slashes = 0;
+    for (let cursor = index - 1; cursor >= 0 && content[cursor] === '\\'; cursor--) slashes++;
+    return slashes % 2 === 1;
   }
 
   /** 移除 Markdown v2 围栏和成对反引号代码，避免代码示例触发真实通知。 */

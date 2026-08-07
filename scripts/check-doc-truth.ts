@@ -11,6 +11,7 @@ const checks: Array<[string, RegExp, string]> = [
   ['docs/api-validation.md', /"statusCode"\s*:\s*400/, '仍展示 Nest 原始异常而非统一 envelope'],
   ['docs/api-validation.md', /所有数据库主键\/外键 ID 字段必须添加[\s\S]{0,160}@IsUUID/, '仍把 CUID 主键描述为 UUID'],
   ['docs/notification-delivery.md', /PostsService\.like\(\)/, '仍引用已经迁移的点赞服务'],
+  ['docs/modules/direct-messages.md', /不支持[^\n。]*推送/, '仍声称私聊不支持推送'],
 ];
 for (const [file, pattern, message] of checks) {
   const source = fs.readFileSync(file, 'utf8');
