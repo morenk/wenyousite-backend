@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
@@ -38,6 +37,7 @@ import { MobilePushModule } from './mobile-push/mobile-push.module';
 import { ThrottlerRedisStorage } from './redis/throttler-redis.storage';
 import configuration from './config/configuration';
 import { validate } from './config/env.validation';
+import { requestIdFromHeader } from './common/http/request-id';
 
 /** 构建 Pino 传输配置：开发环境 colorized 控制台，生产环境支持可选文件日志 */
 function buildPinoTransport(logLevel: string, nodeEnv: string, logFileDir?: string) {
@@ -84,7 +84,7 @@ function buildPinoTransport(logLevel: string, nodeEnv: string, logFileDir?: stri
         return {
           pinoHttp: {
             level: logLevel,
-            genReqId: (req: any) => req.headers['x-request-id'] ?? randomUUID(),
+            genReqId: (req: any) => requestIdFromHeader(req.headers['x-request-id']),
             transport: buildPinoTransport(logLevel, nodeEnv, logFileDir),
             redact: [
               'req.headers.authorization',

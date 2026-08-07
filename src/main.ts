@@ -2,6 +2,7 @@
  * 应用入口：Fastify + Pino + Swagger + Sentry + 限流
  */
 import { NestFactory } from '@nestjs/core';
+import type { IncomingMessage } from 'http';
 import { ValidationPipe } from '@nestjs/common';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Logger } from 'nestjs-pino';
@@ -11,6 +12,7 @@ import fastifyCookie from '@fastify/cookie';
 import * as Sentry from '@sentry/node';
 import { AppModule } from './app.module';
 import { createOpenApiDocument } from './common/swagger/openapi-document';
+import { requestIdFromHeader } from './common/http/request-id';
 import configuration from './config/configuration';
 
 async function bootstrap() {
@@ -27,7 +29,10 @@ async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     // Caddy 与应用同机部署：仅信任 loopback 反代传入的 X-Forwarded-For。
-    new FastifyAdapter({ trustProxy: ['127.0.0.1', '::1'] }),
+    new FastifyAdapter({
+      trustProxy: ['127.0.0.1', '::1'],
+      genReqId: (request: IncomingMessage) => requestIdFromHeader(request.headers['x-request-id']),
+    }),
     { bufferLogs: true },
   );
 
