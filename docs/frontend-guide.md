@@ -55,11 +55,20 @@ Swagger `/api/docs-json` 同样输出这一真实 envelope，可直接用于 Web
 | `40001` | 业务逻辑错误 | 缺少必填内容、数据不完整 |
 | `40003` | 骰子表达式非法 | 不是 NdM±K 或数量/面数/修正值超限 |
 | `40004` | 骰子次数超限 | 单帖正式结果与本次新增合计超过 20 |
+| `40005` | 私聊消息无效 | 正文和图片均为空、图片不可用或幂等键误用 |
 | `40100` | 未登录 | Token 缺失或无效 |
 | `40300` | 权限不足 | 非 OWNER 修改、非协作者发帖 |
+| `40305` | 私聊被阻止 | 任一方存在拉黑关系 |
+| `40306` | 私聊操作不允许 | 非参与者、请求方向或会话状态不允许 |
 | `40400` | 资源不存在 | 帖/子贴/用户/通知不存在 |
 | `40401` | 私密帖不可访问 | PRIVATE 帖非成员 |
+| `40411` | 私聊会话不存在 | 会话不存在或当前用户不是参与者 |
+| `40412` | 私聊消息不存在 | 消息/分页锚点不存在或不属于会话 |
 | `40900` | 冲突 | 重复收藏、用户名占用、乐观锁冲突 |
+| `40906` | 消息请求待处理 | 首条消息未被接受，发起方不能继续发送 |
+| `40907` | 消息请求已拒绝 | 原发起方不能再次请求 |
+| `40908` | 撤回超时 | 消息创建已超过 10 分钟 |
+| `40909` | 图片已使用 | 同一 mediaId 已绑定其他私聊消息 |
 | `42900` | 限流 | 超过频率限制 |
 | `50000` | 服务器错误 | 内部异常 |
 
@@ -177,6 +186,20 @@ GET /threads?sort=recommended&limit=20  → meta.cursor: "20"
 // 第二页
 GET /threads?sort=recommended&limit=20&cursor=20 → meta.cursor: "40"
 ```
+
+### 3.5 按主题帖标签精确筛选
+
+合同 `2.2.0-dev.20260807` 起，标签帖子列表使用稳定的 TopicTag ID：
+
+```http
+GET /tags/:id
+GET /threads?tagId=:id&sort=recommended&limit=20
+```
+
+- `GET /tags/:id` 用于读取标签名称；标签不存在时返回 404。
+- `tagId` 对主题帖标签关系做精确匹配，仅返回公开、已发布且未删除的主题帖，可与 `category`、`status`、`sort` 和 cursor 组合。
+- 兼容参数 `tag` 仍按标签名称模糊匹配；`tagId` 与 `tag` 同时传入时以 `tagId` 为准。
+- 这是向后兼容新增的可选参数，旧 Web/Flutter 客户端无需迁移；新客户端应优先使用 `tagId`，避免同名片段误匹配。
 
 ---
 
@@ -343,7 +366,27 @@ DELETE /users/me/block/:id    取消拉黑
 
 ---
 
-## 8. 用户隐私
+## 8. 私聊
+
+```text
+用户主页 GET /direct-conversations/by-user/:userId
+  ├─ 已有 ACCEPTED/PENDING → 打开 conversation.id
+  └─ canInitiate=true → POST /direct-conversations 发送首条消息
+
+活动会话：GET /direct-conversations/:id/messages?after=<lastMessageId>（建议 10 秒）
+会话/徽标：GET /direct-conversations 与 /unread（建议 30 秒）
+```
+
+- 首条及后续消息使用 `{ content?, mediaId?, clientRequestId }`；发起时额外传 `recipientId`。正文最多 1000 字，与图片至少一项。
+- 非互关首条进入 `PENDING`，发起方不能继续发送；接收方用 `PATCH /:id/request` 接受或拒绝。
+- 响应不包含 `readAt`。客户端展示到最新接收消息后，用 `POST /:id/read` 发送 `throughMessageId`，不得推断或展示对方已读回执。
+- 已接受会话发送新消息会自动解除双方归档。图片沿用媒体上传流程，公开 URL 需要用户侧敏感内容警告。
+- 发送者在十分钟内可 `DELETE /direct-messages/:id` 撤回；待处理首条撤回会取消整个请求。
+- 拉黑保留已接受会话历史但禁止继续发送；若当时是待处理请求，会直接拒绝并删除首条消息。
+
+---
+
+## 9. 用户隐私
 
 ```json
 // PATCH /users/me
@@ -358,7 +401,7 @@ DELETE /users/me/block/:id    取消拉黑
 
 ---
 
-## 9. 搜索
+## 10. 搜索
 
 ```
 GET /search/threads?q=关键词
@@ -384,9 +427,9 @@ GET /threads/:threadId/search/posts?q=关键词&cursor=&limit=20
 
 ---
 
-## 10. 前端开发建议
+## 11. 前端开发建议
 
-OpenAPI 契约版本为 `1.0.0-dev.20260806`。Web 与 Flutter 都应从同一份 OpenAPI 生成类型；成功响应读取 `data`，错误响应统一按 `{ code, message, data: null }` 处理，业务分支使用生成的 `BusinessErrorCode`，不要依赖提示文案。
+OpenAPI 契约版本为 `2.1.0-dev.20260806`。Web 与 Flutter 都应从同一份 OpenAPI 生成类型；成功响应读取 `data`，错误响应统一按 `{ code, message, data: null }` 处理，业务分支使用生成的 `BusinessErrorCode`，不要依赖提示文案。
 
 1. **先看 Swagger**：`/api/docs` 有每个端点的请求 Schema（含 example 值）和响应描述，Try it out 可直接调试。
 2. **Token 管理**：封装一个 HTTP 拦截器，自动在 401 时调 `/auth/refresh` 刷新。
@@ -399,7 +442,7 @@ OpenAPI 契约版本为 `1.0.0-dev.20260806`。Web 与 Flutter 都应从同一�
 
 ---
 
-## 11. 废弃/搁置的功能
+## 12. 废弃/搁置的功能
 
 | 模块 | 状态 | 说明 |
 |------|------|------|

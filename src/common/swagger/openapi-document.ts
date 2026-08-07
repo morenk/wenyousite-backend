@@ -4,7 +4,7 @@ import { applySuccessResponseEnvelope } from './success-response-envelope';
 import { applyErrorResponseEnvelope } from './error-response-envelope';
 
 /** 破坏性 API 变更时递增；Web 与 Flutter 生成客户端均记录该版本。 */
-export const API_CONTRACT_VERSION = '2.0.0-dev.20260806';
+export const API_CONTRACT_VERSION = '2.2.0-dev.20260807';
 
 /** 构建 OpenAPI 文档；既供运行时 Swagger，也供无需连接数据库的离线类型生成。 */
 export function createOpenApiDocument(app: INestApplication) {
@@ -20,6 +20,7 @@ export function createOpenApiDocument(app: INestApplication) {
     .addTag('Posts', '楼层 — 发帖、楼中楼、编辑、点赞')
     .addTag('Drafts', '草稿 — 5 槽位草稿池')
     .addTag('Notifications', '通知 — 列表、未读数、已读')
+    .addTag('Direct Messages', '私聊 — 一对一会话、消息请求、未读与归档')
     .addTag('Subscriptions', '订阅 — 帖/用户粒度')
     .addTag('Bookmarks', '收藏 — 主题帖收藏')
     .addTag('Media', '媒体 — 预签名上传、缩略图')

@@ -142,6 +142,7 @@ export class ThreadQueryService {
       `cat:${query.category ?? 'all'}`,
       `status:${query.status ?? 'all'}`,
       `tag:${query.tag ?? 'all'}`,
+      `tagId:${query.tagId ?? 'all'}`,
       `filter:${query.filter ?? 'all'}`,
       `limit:${Math.min(query.limit ?? 20, 50)}`,
     );
@@ -179,7 +180,9 @@ export class ThreadQueryService {
 
     if (query.category) where.category = query.category;
     if (query.status) where.status = query.status;
-    if (query.tag) {
+    if (query.tagId) {
+      where.topicTags = { some: { tagId: query.tagId } };
+    } else if (query.tag) {
       where.topicTags = {
         some: { tag: { name: { contains: query.tag, mode: 'insensitive' } } },
       };
@@ -259,7 +262,9 @@ export class ThreadQueryService {
     }
     if (query.category) where.category = query.category;
     if (query.status) where.status = query.status;
-    if (query.tag) {
+    if (query.tagId) {
+      where.topicTags = { some: { tagId: query.tagId } };
+    } else if (query.tag) {
       where.topicTags = {
         some: { tag: { name: { contains: query.tag, mode: 'insensitive' } } },
       };

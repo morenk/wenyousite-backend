@@ -63,6 +63,7 @@ UPLOADING ──(元数据不合法)──────────────�
    - 未注销用户的 `users.avatar`（非 null）；注销事务会立即置空该引用，并触发单 URL 引用检查与即时回收
    - 未删除帖子的 `posts.content`（`deletedAt: null`）中正则提取 `![...](url)`
    - `drafts.content`（避免误删正在编辑的草稿图）
+   - 未撤回的 `direct_messages.mediaId` 所关联图片（私聊图片不是 Markdown 正文）
    - 引用集合为空时**跳过本次清理**（安全阀）
 2. **候选清理对象**（按 `status + createdAt` 过滤）：
    - `UPLOADING` 创建超 24h（上传从未确认）

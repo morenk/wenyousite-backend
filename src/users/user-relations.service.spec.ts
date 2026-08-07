@@ -14,6 +14,11 @@ describe('UserRelationsService', () => {
       findMany: jest.fn(),
     },
     userBlock: { findMany: jest.fn(), upsert: jest.fn(), deleteMany: jest.fn() },
+    directConversation: {
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
+    directMessage: { deleteMany: jest.fn() },
   };
   const outbox = { enqueue: jest.fn() };
   let service: UserRelationsService;
@@ -64,6 +69,23 @@ describe('UserRelationsService', () => {
     expect(prisma.userFollow.findMany).toHaveBeenCalledWith({
       where: { followerId: 'target' },
       include: { following: { select: publicUserSummarySelect } },
+    });
+  });
+
+  it('拉黑时拒绝待处理私聊请求并删除首条消息', async () => {
+    prisma.directConversation.findUnique.mockResolvedValue({ id: 'c1', status: 'PENDING' });
+    prisma.directConversation.update.mockResolvedValue({ id: 'c1' });
+    prisma.directMessage.deleteMany.mockResolvedValue({ count: 1 });
+
+    await expect(service.block('actor', 'target')).resolves.toEqual({ message: '已拉黑' });
+
+    expect(prisma.userBlock.upsert).toHaveBeenCalled();
+    expect(prisma.directConversation.update).toHaveBeenCalledWith({
+      where: { id: 'c1' },
+      data: { status: 'DECLINED', lastMessageAt: null },
+    });
+    expect(prisma.directMessage.deleteMany).toHaveBeenCalledWith({
+      where: { conversationId: 'c1' },
     });
   });
 });

@@ -1,6 +1,6 @@
 # 数据模型
 
-> 25 张表，11 个 Prisma 枚举。所有 ID 使用 `cuid()` 生成，时间戳使用 `DateTime`。
+> 26 张表，12 个 Prisma 枚举。除显式标注的 UUID 外，ID 使用 `cuid()` 生成，时间戳使用 `DateTime`。
 
 ## 枚举定义
 
@@ -76,6 +76,15 @@
 |----|------|
 | `THREAD` | 订阅官方更新，仅楼主/协作者的新正文、楼层和楼中楼通知 |
 | `USER` | 订阅帖内普通已标记玩家，仅该玩家发帖时通知 |
+
+### DirectConversationStatus — 私聊会话状态
+
+| 值 | 说明 |
+|----|------|
+| `PENDING` | 非互关用户的首条消息请求待接收方处理 |
+| `ACCEPTED` | 双方可以继续发送消息 |
+| `DECLINED` | 请求被接收方拒绝或因拉黑终止；原发起方不能重试 |
+| `CANCELED` | 发起方在十分钟内撤回首条消息并取消请求 |
 
 ---
 
@@ -397,6 +406,51 @@
 | createdAt | DateTime | — | — |
 
 `@@index([status, createdAt])` — 支撑孤儿图片回收的候选查询。
+
+### direct_conversations — 一对一私聊会话
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| id | String | PK, cuid() | — |
+| firstUserId | String | FK users | 规范化用户对中 ID 较小者 |
+| secondUserId | String | FK users | 规范化用户对中 ID 较大者 |
+| requesterId | String | FK users | 最近一次请求的发起者 |
+| recipientId | String | FK users | 最近一次请求的接收者 |
+| status | DirectConversationStatus | default PENDING | 请求/会话状态 |
+| lastMessageAt | DateTime? | — | 列表排序时间；无消息的拒绝/取消状态为空 |
+| createdAt | DateTime | — | — |
+| updatedAt | DateTime | @updatedAt | — |
+
+`@@unique([firstUserId, secondUserId])` 保证每个用户对只有一个会话；数据库 CHECK 保证两列不同。
+
+### direct_conversation_participants — 私聊参与者个人状态
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| id | String | PK, cuid() | — |
+| conversationId | String | FK direct_conversations (Cascade) | — |
+| userId | String | FK users | 参与者 |
+| archivedAt | DateTime? | — | 仅影响该用户自己的列表 |
+| createdAt | DateTime | — | — |
+
+`@@unique([conversationId, userId])`，每个会话固定创建两条参与记录。
+
+### direct_messages — 私聊消息
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| id | String | PK, cuid() | — |
+| conversationId | String | FK direct_conversations (Cascade) | 所属会话 |
+| senderId | String | FK users | 发送者 |
+| recipientId | String | FK users | 接收者 |
+| mediaId | String? | unique, FK media (SetNull) | 单张图片；同一媒体不能复用 |
+| clientRequestId | UUID | 与 senderId 联合唯一 | 客户端幂等键 |
+| content | String? | 最大 1000 字由 DTO 校验 | 纯文本正文 |
+| readAt | DateTime? | — | 仅供接收者未读统计，不对发送者返回 |
+| recalledAt | DateTime? | — | 非空时返回撤回占位，不返回正文/图片 |
+| createdAt | DateTime | — | — |
+
+数据库 CHECK 要求正常消息至少有正文或图片；撤回占位允许二者为空。历史索引为 `(conversationId, createdAt DESC, id DESC)`，未读索引为 `(recipientId, readAt, createdAt DESC)`。
 
 ### reports — 举报
 

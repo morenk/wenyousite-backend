@@ -76,10 +76,24 @@ export class UserRelationsService {
   async block(userId: string, targetId: string) {
     if (userId === targetId) return { message: '不能拉黑自己' };
     await this.assertUserExists(targetId);
-    await this.prisma.userBlock.upsert({
-      where: { blockerId_blockedId: { blockerId: userId, blockedId: targetId } },
-      create: { blockerId: userId, blockedId: targetId },
-      update: {},
+    const [firstUserId, secondUserId] = userId < targetId ? [userId, targetId] : [targetId, userId];
+    await this.prisma.$transaction(async (tx) => {
+      await tx.userBlock.upsert({
+        where: { blockerId_blockedId: { blockerId: userId, blockedId: targetId } },
+        create: { blockerId: userId, blockedId: targetId },
+        update: {},
+      });
+      const pending = await tx.directConversation.findUnique({
+        where: { firstUserId_secondUserId: { firstUserId, secondUserId } },
+        select: { id: true, status: true },
+      });
+      if (pending?.status === 'PENDING') {
+        await tx.directConversation.update({
+          where: { id: pending.id },
+          data: { status: 'DECLINED', lastMessageAt: null },
+        });
+        await tx.directMessage.deleteMany({ where: { conversationId: pending.id } });
+      }
     });
     return { message: '已拉黑' };
   }

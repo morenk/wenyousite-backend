@@ -69,6 +69,14 @@ class EnvironmentVariables {
   @IsOptional()
   UPLOAD_RATE_PER_HOUR: number = 60;
 
+  @IsNumber()
+  @IsOptional()
+  DIRECT_MESSAGE_RATE_PER_MINUTE: number = 30;
+
+  @IsNumber()
+  @IsOptional()
+  DIRECT_MESSAGE_REQUEST_RATE_PER_DAY: number = 10;
+
   @IsString()
   @IsOptional()
   LOG_LEVEL: string = 'info';

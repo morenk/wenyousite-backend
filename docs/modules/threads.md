@@ -2,6 +2,8 @@
 
 > 本轮跨端发布批次：`private-thread-access-2026-08-05`。
 
+> 标签帖子列表合同：`2.2.0-dev.20260807`（向后兼容新增 `GET /threads?tagId=` 精确筛选；旧客户端不受影响）。
+
 ## 概述
 
 主题帖的草稿创建、沙盒迭代、发布、列表、详情、修改、删除，参与人候选池管理（授予/移除协作者身份、授予/收回玩家身份），私密帖邀请链接，置顶排序，标签管理。
@@ -30,7 +32,7 @@
 |--------|------|-------|------|
 | GET | `/threads/draft` | AuthRead | 我的草稿箱列表（published=false 的帖） |
 | POST | `/threads` | Auth | 创建主题帖草稿（事务内创建 Thread + OWNER + 默认子贴 + 可选正文 kind=BODY，published=false）。每用户最多 10 条未发布草稿，超限返回 BAD_REQUEST |
-| GET | `/threads` | Public | 主题帖列表（仅已发布帖），支持分区/排序/状态/标签筛选；每帖含 `preview` 截断纯文本（`truncateMarkdown` 处理默认子贴正文 kind=BODY，~100 字；空段落标记不会泄漏） |
+| GET | `/threads` | OptionalAuth | 主题帖列表（仅已发布帖），支持分区/排序/状态/标签筛选；`tagId` 按标签 ID 精确筛选，旧 `tag` 参数保留名称模糊筛选；每帖含 `preview` 截断纯文本（`truncateMarkdown` 处理默认子贴正文 kind=BODY，~100 字；空段落标记不会泄漏） |
 | GET | `/threads/:id` | OptionalAuth | 详情（含子贴列表和标签）。公开已发布帖允许匿名访问；未发布帖仅 owner 可查看；PRIVATE 帖非成员 404。登录时附加收藏/点赞、当前用户成员关系和 capability 投影，不查询全量成员 |
 | PATCH | `/threads/:id` | Auth | 修改（OWNER/COLLABORATOR，乐观锁）；visibility、published 仅 OWNER，已发布帖不可撤回草稿 |
 | PATCH | `/threads/:id/aggregate` | Auth | 原子保存主题帖编辑器聚合：Thread 元数据、默认子贴标题/正文、主题标签及可选发布；校验三层 version，发布时同事务结算骰子和 Outbox |
@@ -68,7 +70,7 @@
 
 ### 列表与详情
 
-- 列表接口 `findAll`：仅返回 published=true 的帖；`filter=all`(默认)仅 PUBLIC 帖；`filter=playing`返回被其他楼主标记为玩家（playerMarked=true）的帖（含私密帖，排除自己创建的帖），需登录。支持 `status=RECRUITING|CLOSED|FINISHED` 状态筛选；状态可与分区、排序和标签组合使用。每帖含 `preview` 字段（truncateMarkdown 截断默认子贴正文 kind=BODY，纯文本，~100 字），不再返回 `bodyPost.content` 全文
+- 列表接口 `findAll`：仅返回 published=true 的帖；`filter=all`(默认)仅 PUBLIC 帖；`filter=playing`返回被其他楼主标记为玩家（playerMarked=true）的帖（含私密帖，排除自己创建的帖），需登录。支持 `status=RECRUITING|CLOSED|FINISHED` 状态筛选；状态可与分区、排序和标签组合使用。`tagId` 对 `ThreadTopicTag.tagId` 精确匹配，供稳定的标签帖子页使用；兼容参数 `tag` 继续按名称模糊匹配，两者并存时 `tagId` 优先。每帖含 `preview` 字段（truncateMarkdown 截断默认子贴正文 kind=BODY，纯文本，~100 字），不再返回 `bodyPost.content` 全文
 - 发布校验会拒绝纯空白、仅顶层空段落或仅分隔线正文；图片、代码块等非空 Markdown 可发布。草稿正文仍可暂存为空，数据库字段与 Markdown 存储格式不变。
 - 详情接口 `findById`：未发布帖仅 owner 可查看且不递增 viewCount；已发布帖在 Redis 原子 +1，每 10 分钟批量落库，PRIVATE 帖非参与人返回 404；只有公开已发布详情可进入 30 秒共享缓存。登录态浅拷贝附加 `isBookmarked` / `bookmarkId` / `isLiked`、`currentMembership` 和 `capabilities`，身份数据不写入共享缓存
 - 排序规则：

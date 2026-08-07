@@ -31,6 +31,7 @@ import { BookmarksModule } from './bookmarks/bookmarks.module';
 import { CommonModule } from './common/common.module';
 import { RedisModule } from './redis/redis.module';
 import { DiceModule } from './dice/dice.module';
+import { DirectMessagesModule } from './direct-messages/direct-messages.module';
 import { ThrottlerRedisStorage } from './redis/throttler-redis.storage';
 import configuration from './config/configuration';
 import { validate } from './config/env.validation';
@@ -144,9 +145,8 @@ function buildPinoTransport(logLevel: string, nodeEnv: string, logFileDir?: stri
     PostActivityModule,
     OutboxModule,
     BookmarksModule,
+    DirectMessagesModule,
   ],
-  providers: [
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
-  ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

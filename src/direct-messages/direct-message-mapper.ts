@@ -1,0 +1,133 @@
+import { Prisma } from '@prisma/client';
+import { publicUserSummarySelect } from '../common/user-summary';
+
+export const directMessageSelect = {
+  id: true,
+  conversationId: true,
+  senderId: true,
+  recipientId: true,
+  content: true,
+  recalledAt: true,
+  createdAt: true,
+  media: {
+    select: {
+      id: true,
+      url: true,
+      contentType: true,
+      width: true,
+      height: true,
+    },
+  },
+} satisfies Prisma.DirectMessageSelect;
+
+export function directConversationInclude(userId: string) {
+  return {
+    firstUser: { select: publicUserSummarySelect },
+    secondUser: { select: publicUserSummarySelect },
+    participants: {
+      where: { userId },
+      select: { archivedAt: true },
+    },
+    messages: {
+      orderBy: [{ createdAt: 'desc' as const }, { id: 'desc' as const }],
+      take: 1,
+      select: {
+        id: true,
+        senderId: true,
+        content: true,
+        mediaId: true,
+        recalledAt: true,
+        createdAt: true,
+      },
+    },
+    _count: {
+      select: {
+        messages: {
+          where: { recipientId: userId, readAt: null },
+        },
+      },
+    },
+  } satisfies Prisma.DirectConversationInclude;
+}
+
+type DirectConversationRecord = Prisma.DirectConversationGetPayload<{
+  include: ReturnType<typeof directConversationInclude>;
+}>;
+
+type DirectMessageRecord = Prisma.DirectMessageGetPayload<{
+  select: typeof directMessageSelect;
+}>;
+
+export function canonicalDirectUserPair(userId: string, otherUserId: string) {
+  return userId < otherUserId
+    ? { firstUserId: userId, secondUserId: otherUserId }
+    : { firstUserId: otherUserId, secondUserId: userId };
+}
+
+export function mapDirectMessage(message: DirectMessageRecord) {
+  return {
+    id: message.id,
+    conversationId: message.conversationId,
+    senderId: message.senderId,
+    recipientId: message.recipientId,
+    content: message.recalledAt ? null : message.content,
+    media: message.recalledAt ? null : message.media,
+    recalledAt: message.recalledAt,
+    createdAt: message.createdAt,
+  };
+}
+
+export function mapDirectConversation(
+  conversation: DirectConversationRecord,
+  userId: string,
+  isBlocked: boolean,
+) {
+  const otherUser = conversation.firstUserId === userId
+    ? conversation.secondUser
+    : conversation.firstUser;
+  const lastMessage = conversation.messages[0];
+  const requestDirection: 'NONE' | 'INCOMING' | 'OUTGOING' = conversation.status !== 'PENDING'
+    ? 'NONE'
+    : conversation.recipientId === userId
+      ? 'INCOMING'
+      : 'OUTGOING';
+  const otherDeactivated = Boolean(otherUser.deletedAt);
+
+  return {
+    id: conversation.id,
+    status: conversation.status,
+    requestDirection,
+    otherUser: {
+      ...otherUser,
+      isDeactivated: otherDeactivated,
+    },
+    lastMessage: lastMessage
+      ? {
+          id: lastMessage.id,
+          senderId: lastMessage.senderId,
+          contentPreview: lastMessage.recalledAt
+            ? null
+            : lastMessage.content?.slice(0, 120) ?? null,
+          hasImage: !lastMessage.recalledAt && Boolean(lastMessage.mediaId),
+          isRecalled: Boolean(lastMessage.recalledAt),
+          createdAt: lastMessage.createdAt,
+        }
+      : null,
+    unreadCount: conversation.status === 'ACCEPTED'
+      ? conversation._count.messages
+      : 0,
+    archivedAt: conversation.participants[0]?.archivedAt ?? null,
+    lastMessageAt: conversation.lastMessageAt,
+    createdAt: conversation.createdAt,
+    canSend: conversation.status === 'ACCEPTED' && !isBlocked && !otherDeactivated,
+    canAccept:
+      conversation.status === 'PENDING'
+      && conversation.recipientId === userId
+      && !isBlocked
+      && !otherDeactivated,
+    canDecline:
+      conversation.status === 'PENDING'
+      && conversation.recipientId === userId,
+    isBlocked,
+  };
+}

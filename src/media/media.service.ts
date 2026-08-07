@@ -1,12 +1,21 @@
 import {
-  Injectable, BadRequestException, NotFoundException, ForbiddenException,
-  HttpException, HttpStatus, Logger,
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  ForbiddenException,
+  HttpException,
+  HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import {
-  S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectCommand,
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { PrismaService } from '../prisma/prisma.service';
@@ -14,10 +23,7 @@ import { RedisService } from '../redis/redis.service';
 import sharp from 'sharp';
 
 /** 允许的文件类型白名单 */
-const ALLOWED_MIME = [
-  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-  'image/avif',
-];
+const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'];
 
 /** 单文件最大 10MB */
 const MAX_SIZE = 10 * 1024 * 1024;
@@ -75,7 +81,12 @@ export class MediaService {
   }
 
   /** 生成 S3 预签名上传 URL，预建 Media 记录（UPLOADING），一次性返回 mediaId */
-  async getUploadUrl(opts: { filename: string; contentType: string; size: number; userId: string }) {
+  async getUploadUrl(opts: {
+    filename: string;
+    contentType: string;
+    size: number;
+    userId: string;
+  }) {
     if (!ALLOWED_MIME.includes(opts.contentType)) {
       throw new BadRequestException('不支持的文件类型');
     }
@@ -147,13 +158,14 @@ export class MediaService {
 
     const actualSize = head.ContentLength;
     const actualContentType = this.normalizeContentType(head.ContentType);
-    const metadataInvalid = !Number.isSafeInteger(actualSize)
-      || actualSize! <= 0
-      || actualSize! > MAX_SIZE
-      || !actualContentType
-      || !ALLOWED_MIME.includes(actualContentType)
-      || (media.size !== null && media.size !== actualSize)
-      || (media.contentType !== null && media.contentType !== actualContentType);
+    const metadataInvalid =
+      !Number.isSafeInteger(actualSize) ||
+      actualSize! <= 0 ||
+      actualSize! > MAX_SIZE ||
+      !actualContentType ||
+      !ALLOWED_MIME.includes(actualContentType) ||
+      (media.size !== null && media.size !== actualSize) ||
+      (media.contentType !== null && media.contentType !== actualContentType);
 
     if (metadataInvalid) {
       await this.prisma.media.updateMany({
@@ -177,24 +189,31 @@ export class MediaService {
     } catch (error: any) {
       if (error?.code !== 'P2025') throw error;
       const current = await this.prisma.media.findUnique({ where: { id: mediaId } });
-      if (current?.userId === userId && (current.status === 'PROCESSING' || current.status === 'COMPLETED')) {
+      if (
+        current?.userId === userId &&
+        (current.status === 'PROCESSING' || current.status === 'COMPLETED')
+      ) {
         return { media: current, processing: current.status === 'PROCESSING' };
       }
       throw new BadRequestException('无效的上传状态');
     }
 
     try {
-      await this.imageQueue.add('process', {
-        mediaId: media.id,
-        objectKey: media.key,
-        bucket,
-      } as ImageProcessJob, {
-        jobId: media.id,
-        attempts: 2,
-        backoff: { type: 'fixed', delay: 10000 },
-        removeOnComplete: { age: 3600 * 24 },
-        removeOnFail: { age: 3600 * 24 * 7 },
-      });
+      await this.imageQueue.add(
+        'process',
+        {
+          mediaId: media.id,
+          objectKey: media.key,
+          bucket,
+        } as ImageProcessJob,
+        {
+          jobId: media.id,
+          attempts: 2,
+          backoff: { type: 'fixed', delay: 10000 },
+          removeOnComplete: { age: 3600 * 24 },
+          removeOnFail: { age: 3600 * 24 * 7 },
+        },
+      );
     } catch (error) {
       // 仅回滚仍在等待队列处理的记录；若消费者已完成则不得倒退状态。
       await this.prisma.media.updateMany({
@@ -223,9 +242,7 @@ export class MediaService {
   async processImage(job: ImageProcessJob) {
     const { bucket, objectKey, mediaId } = job;
 
-    const response = await this.s3.send(
-      new GetObjectCommand({ Bucket: bucket, Key: objectKey }),
-    );
+    const response = await this.s3.send(new GetObjectCommand({ Bucket: bucket, Key: objectKey }));
     const chunks: Uint8Array[] = [];
     if (response.Body) {
       for await (const chunk of response.Body as any) {
@@ -241,26 +258,30 @@ export class MediaService {
       .webp({ quality: 80 })
       .toBuffer();
     const thumbKey = objectKey.replace(/(\.[^.]+)$/, '_thumb.webp');
-    await this.s3.send(new PutObjectCommand({
-      Bucket: bucket,
-      Key: thumbKey,
-      Body: thumbBuffer,
-      ContentType: 'image/webp',
-      CacheControl: DERIVATIVE_CACHE_CONTROL,
-    }));
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: thumbKey,
+        Body: thumbBuffer,
+        ContentType: 'image/webp',
+        CacheControl: DERIVATIVE_CACHE_CONTROL,
+      }),
+    );
 
     const mdBuffer = await sharp(buffer)
       .resize(800, null, { fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 85 })
       .toBuffer();
     const mdKey = objectKey.replace(/(\.[^.]+)$/, '_md.webp');
-    await this.s3.send(new PutObjectCommand({
-      Bucket: bucket,
-      Key: mdKey,
-      Body: mdBuffer,
-      ContentType: 'image/webp',
-      CacheControl: DERIVATIVE_CACHE_CONTROL,
-    }));
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: mdKey,
+        Body: mdBuffer,
+        ContentType: 'image/webp',
+        CacheControl: DERIVATIVE_CACHE_CONTROL,
+      }),
+    );
 
     await this.prisma.media.update({
       where: { id: mediaId },
@@ -272,7 +293,9 @@ export class MediaService {
       },
     });
 
-    this.logger.log(`Image processed: ${objectKey} → thumb + md, ${metadata.width}x${metadata.height}`);
+    this.logger.log(
+      `Image processed: ${objectKey} → thumb + md, ${metadata.width}x${metadata.height}`,
+    );
   }
 
   /** 标记图片处理失败（由 ImageProcessor 在末次重试时调用） */
@@ -314,24 +337,27 @@ export class MediaService {
     }
 
     await this.collectMarkdownRefs(
-      (cursor) => this.prisma.post.findMany({
-        where: { deletedAt: null },
-        select: { id: true, content: true },
-        cursor: cursor ? { id: cursor } : undefined,
-        take: SCAN_PAGE_SIZE,
-        orderBy: { id: 'asc' },
-      }),
+      (cursor) =>
+        this.prisma.post.findMany({
+          where: { deletedAt: null },
+          select: { id: true, content: true },
+          cursor: cursor ? { id: cursor } : undefined,
+          take: SCAN_PAGE_SIZE,
+          orderBy: { id: 'asc' },
+        }),
       referenced,
     );
     await this.collectMarkdownRefs(
-      (cursor) => this.prisma.draft.findMany({
-        select: { id: true, content: true },
-        cursor: cursor ? { id: cursor } : undefined,
-        take: SCAN_PAGE_SIZE,
-        orderBy: { id: 'asc' },
-      }),
+      (cursor) =>
+        this.prisma.draft.findMany({
+          select: { id: true, content: true },
+          cursor: cursor ? { id: cursor } : undefined,
+          take: SCAN_PAGE_SIZE,
+          orderBy: { id: 'asc' },
+        }),
       referenced,
     );
+    await this.collectDirectMessageMediaRefs(referenced);
 
     // 安全阀：引用集合为空说明扫描异常，跳过本次清理避免误删
     if (referenced.size === 0) {
@@ -371,7 +397,10 @@ export class MediaService {
           keys.push({ key: `${stem}_md.webp`, mediaId: m.id, isOriginal: false });
         }
       }
-      const failedKeys = await this.deleteS3Objects(bucket, keys.map((k) => k.key));
+      const failedKeys = await this.deleteS3Objects(
+        bucket,
+        keys.map((k) => k.key),
+      );
       for (const k of keys) {
         if (k.isOriginal && !failedKeys.has(k.key)) {
           deletedIds.add(k.mediaId);
@@ -397,7 +426,7 @@ export class MediaService {
     });
     if (!media) return false;
 
-    const [avatarRef, postRef, draftRef] = await Promise.all([
+    const [avatarRef, postRef, draftRef, directMessageRef] = await Promise.all([
       this.prisma.user.findFirst({
         where: { avatar: url, deletedAt: null },
         select: { id: true },
@@ -410,18 +439,19 @@ export class MediaService {
         where: { content: { contains: url } },
         select: { id: true },
       }),
+      this.prisma.directMessage.findFirst({
+        where: { mediaId: media.id, recalledAt: null },
+        select: { id: true },
+      }),
     ]);
-    if (avatarRef || postRef || draftRef) return false;
+    if (avatarRef || postRef || draftRef || directMessageRef) return false;
 
     const keys = [media.key];
     if (!media.key.toLowerCase().endsWith('.svg')) {
       const stem = media.key.replace(/\.[^.]+$/, '');
       keys.push(`${stem}_thumb.webp`, `${stem}_md.webp`);
     }
-    const failedKeys = await this.deleteS3Objects(
-      this.config.get<string>('cos.bucket')!,
-      keys,
-    );
+    const failedKeys = await this.deleteS3Objects(this.config.get<string>('cos.bucket')!, keys);
     if (failedKeys.has(media.key)) return false;
 
     await this.prisma.media.deleteMany({ where: { id: media.id } });
@@ -470,6 +500,26 @@ export class MediaService {
     }
   }
 
+  /** 分页收集仍绑定在未撤回私聊消息上的图片 URL。 */
+  private async collectDirectMessageMediaRefs(referenced: Set<string>) {
+    let cursor: string | undefined;
+    for (;;) {
+      const rows = await this.prisma.directMessage.findMany({
+        where: { mediaId: { not: null }, recalledAt: null },
+        select: { id: true, media: { select: { url: true } } },
+        cursor: cursor ? { id: cursor } : undefined,
+        take: SCAN_PAGE_SIZE,
+        orderBy: { id: 'asc' },
+      });
+      if (rows.length === 0) break;
+      for (const row of rows) {
+        if (row.media?.url) referenced.add(row.media.url);
+      }
+      cursor = rows[rows.length - 1].id;
+      if (rows.length < SCAN_PAGE_SIZE) break;
+    }
+  }
+
   /** 构建文件公网访问 URL */
   private buildPublicUrl(objectKey: string): string {
     const endpoint = this.config.get<string>('cos.endpoint');
@@ -483,7 +533,11 @@ export class MediaService {
   /** 文件名消毒：提取最后一段扩展名，仅允许图片扩展名，防止双重扩展名攻击 */
   private sanitizeExt(filename: string): string {
     const parts = filename.split('.');
-    const ext = parts.pop()?.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'bin';
+    const ext =
+      parts
+        .pop()
+        ?.replace(/[^a-zA-Z0-9]/g, '')
+        .toLowerCase() || 'bin';
     if (!ext || ext.length > 10 || !ALLOWED_EXTENSIONS.has(ext)) {
       return 'bin';
     }

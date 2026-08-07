@@ -53,7 +53,7 @@ OutboxDispatcher（FOR UPDATE SKIP LOCKED）
 
 运行时成功响应统一为 `{ code, message, data, meta? }`，错误响应统一为 `{ code, message, data: null }`。Swagger 构建阶段使用同一 envelope 包装 2xx JSON schema，并为所有操作补充 `ApiErrorEnvelope` 兜底响应；命令型空结果使用 `MessageResponseDto`。
 
-当前开发契约版本为 `1.0.0-dev.20260806`。破坏性接口变更必须递增 `API_CONTRACT_VERSION`，重新导出 OpenAPI，并同步生成 Web/Flutter 客户端。`BusinessErrorCode` 由后端 `ErrorCode` 自动写入 OpenAPI，客户端不得复制一份无校验的错误码表。
+当前开发契约版本为 `2.1.0-dev.20260806`。2.1 新增一对一私聊模型与端点。破坏性接口变更必须递增 `API_CONTRACT_VERSION`，重新导出 OpenAPI，并同步生成 Web/Flutter 客户端。`BusinessErrorCode` 由后端 `ErrorCode` 自动写入 OpenAPI，客户端不得复制一份无校验的错误码表。
 
 `pnpm openapi:check` 校验：
 

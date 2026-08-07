@@ -267,6 +267,33 @@ describe('ThreadsService', () => {
         'cat:all',
         'status:CLOSED',
         'tag:all',
+        'tagId:all',
+        'filter:all',
+        'limit:20',
+      );
+    });
+
+    it('按标签 ID 精确筛选并隔离列表缓存', async () => {
+      mockPrisma.thread.findMany.mockResolvedValue([]);
+      const tagId = 'cms7rnyij000z7qdyg6zbge8e';
+
+      await service.findAll({ sort: 'newest', tag: '相似标签名', tagId });
+
+      expect(mockPrisma.thread.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            topicTags: { some: { tagId } },
+          }),
+        }),
+      );
+      expect(mockCache.buildKey).toHaveBeenCalledWith(
+        'threads',
+        'list',
+        'sort:newest',
+        'cat:all',
+        'status:all',
+        'tag:相似标签名',
+        `tagId:${tagId}`,
         'filter:all',
         'limit:20',
       );
@@ -376,6 +403,22 @@ describe('ThreadsService', () => {
         expect(mockPrisma.thread.findMany).toHaveBeenCalledWith(
           expect.objectContaining({
             where: expect.objectContaining({ status: 'FINISHED' }),
+          }),
+        );
+      });
+
+      it('智能排序同样按标签 ID 精确筛选', async () => {
+        const tagId = 'cms7rnyij000z7qdyg6zbge8e';
+        mockRedis.zrevrange.mockResolvedValue(['t1']);
+        mockPrisma.thread.findMany.mockResolvedValue([]);
+
+        await service.findAll({ sort: 'recommended', tagId });
+
+        expect(mockPrisma.thread.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({
+              topicTags: { some: { tagId } },
+            }),
           }),
         );
       });

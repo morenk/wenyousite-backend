@@ -5,7 +5,9 @@ export default () => ({
 
   // PostgreSQL 数据库连接串
   database: {
-    url: process.env.DATABASE_URL ?? 'postgresql://wenyou:wenyou@127.0.0.1:5432/wenyousite?schema=public',
+    url:
+      process.env.DATABASE_URL ??
+      'postgresql://wenyou:wenyou@127.0.0.1:5432/wenyousite?schema=public',
   },
 
   // Redis 连接配置（用于缓存、队列、会话）
@@ -40,6 +42,12 @@ export default () => ({
   // 图片上传：每用户小时配额（防刷爆存储）
   upload: {
     ratePerHour: parseInt(process.env.UPLOAD_RATE_PER_HOUR ?? '60', 10),
+  },
+
+  // 私聊防滥用：总发送频率与陌生请求每日配额
+  directMessages: {
+    sendRatePerMinute: parseInt(process.env.DIRECT_MESSAGE_RATE_PER_MINUTE ?? '30', 10),
+    requestRatePerDay: parseInt(process.env.DIRECT_MESSAGE_REQUEST_RATE_PER_DAY ?? '10', 10),
   },
 
   // 阿里云邮件推送 (DirectMail) SMTP（注册验证、找回密码）

@@ -1,6 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { BadRequestException, NotFoundException, ForbiddenException, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  BadRequestException,
+  NotFoundException,
+  ForbiddenException,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import { MediaService } from './media.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
@@ -41,8 +47,16 @@ const mockConfig = {
 };
 
 const makeMedia = (overrides = {}) => ({
-  id: 'm1', userId: 'u1', url: 'https://test.cos.com/test-bucket/...', key: 'uploads/2099/01/01/u1/photo.jpg',
-  status: 'UPLOADING', contentType: 'image/jpeg', size: 100000, width: null, height: null, createdAt: new Date(),
+  id: 'm1',
+  userId: 'u1',
+  url: 'https://test.cos.com/test-bucket/...',
+  key: 'uploads/2099/01/01/u1/photo.jpg',
+  status: 'UPLOADING',
+  contentType: 'image/jpeg',
+  size: 100000,
+  width: null,
+  height: null,
+  createdAt: new Date(),
   ...overrides,
 });
 
@@ -59,6 +73,7 @@ const mockPrisma = {
   user: { findMany: jest.fn(), findFirst: jest.fn() },
   post: { findMany: jest.fn(), findFirst: jest.fn() },
   draft: { findMany: jest.fn(), findFirst: jest.fn() },
+  directMessage: { findMany: jest.fn(), findFirst: jest.fn() },
 };
 
 describe('MediaService', () => {
@@ -78,6 +93,8 @@ describe('MediaService', () => {
     (service as any).s3 = mockS3;
     jest.clearAllMocks();
     mockRedis.hincrby.mockResolvedValue(1);
+    mockPrisma.directMessage.findMany.mockResolvedValue([]);
+    mockPrisma.directMessage.findFirst.mockResolvedValue(null);
   });
 
   // ── getUploadUrl ──
@@ -85,7 +102,10 @@ describe('MediaService', () => {
   it('合法请求应返回预签名 URL 和 mediaId', async () => {
     mockPrisma.media.create.mockResolvedValue(makeMedia());
     const result = await service.getUploadUrl({
-      filename: 'photo.jpg', contentType: 'image/jpeg', size: 100000, userId: 'u1',
+      filename: 'photo.jpg',
+      contentType: 'image/jpeg',
+      size: 100000,
+      userId: 'u1',
     });
     expect(result.uploadUrl).toBeDefined();
     expect(result.mediaId).toBe('m1');
@@ -98,14 +118,24 @@ describe('MediaService', () => {
 
   it('非法 MIME 类型应拒绝', async () => {
     await expect(
-      service.getUploadUrl({ filename: 'bad.txt', contentType: 'text/plain', size: 100, userId: 'u1' }),
+      service.getUploadUrl({
+        filename: 'bad.txt',
+        contentType: 'text/plain',
+        size: 100,
+        userId: 'u1',
+      }),
     ).rejects.toThrow(BadRequestException);
     expect(mockPrisma.media.create).not.toHaveBeenCalled();
   });
 
   it('SVG 应在签发上传凭证前拒绝', async () => {
     await expect(
-      service.getUploadUrl({ filename: 'unsafe.svg', contentType: 'image/svg+xml', size: 100, userId: 'u1' }),
+      service.getUploadUrl({
+        filename: 'unsafe.svg',
+        contentType: 'image/svg+xml',
+        size: 100,
+        userId: 'u1',
+      }),
     ).rejects.toThrow(BadRequestException);
     expect(mockPrisma.media.create).not.toHaveBeenCalled();
   });
@@ -113,7 +143,12 @@ describe('MediaService', () => {
   it('超大文件应拒绝', async () => {
     const bigSize = 11 * 1024 * 1024;
     await expect(
-      service.getUploadUrl({ filename: 'big.jpg', contentType: 'image/jpeg', size: bigSize, userId: 'u1' }),
+      service.getUploadUrl({
+        filename: 'big.jpg',
+        contentType: 'image/jpeg',
+        size: bigSize,
+        userId: 'u1',
+      }),
     ).rejects.toThrow(BadRequestException);
     expect(mockPrisma.media.create).not.toHaveBeenCalled();
   });
@@ -121,7 +156,10 @@ describe('MediaService', () => {
   it('文件名应消毒（双重扩展名攻击防护）', async () => {
     mockPrisma.media.create.mockResolvedValue(makeMedia());
     const result = await service.getUploadUrl({
-      filename: 'photo.jpg.exe', contentType: 'image/jpeg', size: 100000, userId: 'u1',
+      filename: 'photo.jpg.exe',
+      contentType: 'image/jpeg',
+      size: 100000,
+      userId: 'u1',
     });
     expect(result.objectKey).toContain('.bin');
   });
@@ -177,8 +215,9 @@ describe('MediaService', () => {
       where: { id: 'm1', status: 'UPLOADING' },
       data: { status: 'PROCESSING', size: 100000, contentType: 'image/jpeg' },
     });
-    expect(mockPrisma.media.update.mock.invocationCallOrder[0])
-      .toBeLessThan(mockImageQueue.add.mock.invocationCallOrder[0]);
+    expect(mockPrisma.media.update.mock.invocationCallOrder[0]).toBeLessThan(
+      mockImageQueue.add.mock.invocationCallOrder[0],
+    );
     expect(result.processing).toBe(true);
     expect(result.media.status).toBe('PROCESSING');
   });
@@ -263,7 +302,12 @@ describe('MediaService', () => {
   it('getUploadUrl 超过每用户小时配额应返回 429', async () => {
     mockRedis.hincrby.mockResolvedValue(61);
     try {
-      await service.getUploadUrl({ filename: 'photo.jpg', contentType: 'image/jpeg', size: 100000, userId: 'u1' });
+      await service.getUploadUrl({
+        filename: 'photo.jpg',
+        contentType: 'image/jpeg',
+        size: 100000,
+        userId: 'u1',
+      });
       throw new Error('should have thrown');
     } catch (e) {
       expect(e).toBeInstanceOf(HttpException);
@@ -275,14 +319,13 @@ describe('MediaService', () => {
   it('getUploadUrl 未超配额时正常放行并计数', async () => {
     mockPrisma.media.create.mockResolvedValue(makeMedia());
     const result = await service.getUploadUrl({
-      filename: 'photo.jpg', contentType: 'image/jpeg', size: 100000, userId: 'u1',
+      filename: 'photo.jpg',
+      contentType: 'image/jpeg',
+      size: 100000,
+      userId: 'u1',
     });
     expect(result.uploadUrl).toBeDefined();
-    expect(mockRedis.hincrby).toHaveBeenCalledWith(
-      'media:uploads:hour:u1',
-      expect.any(String),
-      1,
-    );
+    expect(mockRedis.hincrby).toHaveBeenCalledWith('media:uploads:hour:u1', expect.any(String), 1);
     expect(mockRedis.expire).toHaveBeenCalled();
   });
 
@@ -365,7 +408,10 @@ describe('MediaService', () => {
   it('cleanupOrphanMedia 应保留仍被引用的图片', async () => {
     mockPrisma.user.findMany.mockResolvedValue([]);
     mockPrisma.post.findMany.mockResolvedValue([
-      { id: 'p1', content: '![keep](https://test.cos.com/test-bucket/uploads/2099/01/01/u1/photo.jpg)' },
+      {
+        id: 'p1',
+        content: '![keep](https://test.cos.com/test-bucket/uploads/2099/01/01/u1/photo.jpg)',
+      },
     ]);
     mockPrisma.draft.findMany.mockResolvedValue([]);
     mockPrisma.media.findMany.mockResolvedValue([
@@ -374,6 +420,22 @@ describe('MediaService', () => {
         key: 'uploads/2099/01/01/u1/photo.jpg',
         url: 'https://test.cos.com/test-bucket/uploads/2099/01/01/u1/photo.jpg',
       },
+    ]);
+
+    await service.cleanupOrphanMedia();
+
+    expect(mockS3.send).not.toHaveBeenCalled();
+    expect(mockPrisma.media.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('cleanupOrphanMedia 应保留仍被未撤回私聊引用的图片', async () => {
+    const url = 'https://test.cos.com/test-bucket/uploads/2099/01/01/u1/private.jpg';
+    mockPrisma.user.findMany.mockResolvedValue([]);
+    mockPrisma.post.findMany.mockResolvedValue([]);
+    mockPrisma.draft.findMany.mockResolvedValue([]);
+    mockPrisma.directMessage.findMany.mockResolvedValue([{ id: 'dm1', media: { url } }]);
+    mockPrisma.media.findMany.mockResolvedValue([
+      { id: 'm1', key: 'uploads/2099/01/01/u1/private.jpg', url },
     ]);
 
     await service.cleanupOrphanMedia();

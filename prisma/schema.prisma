@@ -76,6 +76,13 @@ enum MediaStatus {
   FAILED
 }
 
+enum DirectConversationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELED
+}
+
 model User {
   id                  String    @id @default(cuid())
   email               String    @unique
@@ -103,20 +110,27 @@ model User {
   mentions      PostMention[]  @relation("mentionedUser")
   notifications Notification[]
 
-  userBlocks             UserBlock[]         @relation("Blocker")
-  blockedBy              UserBlock[]         @relation("Blocked")
-  following              UserFollow[]        @relation("Following")
-  followers              UserFollow[]        @relation("Followers")
-  emailVerifications     EmailVerification[]
-  subscriptions          Subscription[]      @relation("SubscriptionOwner")
-  subscriptionsTargeting Subscription[]      @relation("SubscriptionTarget")
-  sentNotifications      Notification[]      @relation("NotificationFromUser")
-  reportedReports        Report[]            @relation("Reporter")
-  bookmarks              UserBookmark[]
-  handledReports         Report[]            @relation("Handler")
-  auditLogs              AuditLog[]          @relation("AuditAdmin")
-  media                  Media[]
-  refreshTokens          RefreshToken[]
+  userBlocks                    UserBlock[]                     @relation("Blocker")
+  blockedBy                     UserBlock[]                     @relation("Blocked")
+  following                     UserFollow[]                    @relation("Following")
+  followers                     UserFollow[]                    @relation("Followers")
+  emailVerifications            EmailVerification[]
+  subscriptions                 Subscription[]                  @relation("SubscriptionOwner")
+  subscriptionsTargeting        Subscription[]                  @relation("SubscriptionTarget")
+  sentNotifications             Notification[]                  @relation("NotificationFromUser")
+  reportedReports               Report[]                        @relation("Reporter")
+  bookmarks                     UserBookmark[]
+  handledReports                Report[]                        @relation("Handler")
+  auditLogs                     AuditLog[]                      @relation("AuditAdmin")
+  media                         Media[]
+  refreshTokens                 RefreshToken[]
+  directConversationsAsFirst    DirectConversation[]            @relation("DirectConversationFirstUser")
+  directConversationsAsSecond   DirectConversation[]            @relation("DirectConversationSecondUser")
+  sentDirectRequests            DirectConversation[]            @relation("DirectConversationRequester")
+  receivedDirectRequests        DirectConversation[]            @relation("DirectConversationRecipient")
+  directConversationMemberships DirectConversationParticipant[]
+  sentDirectMessages            DirectMessage[]                 @relation("DirectMessageSender")
+  receivedDirectMessages        DirectMessage[]                 @relation("DirectMessageRecipient")
 
   @@index([username(ops: raw("gin_trgm_ops"))], type: Gin, map: "users_username_trgm_idx")
   @@map("users")
@@ -341,10 +355,72 @@ model Media {
   status      MediaStatus @default(UPLOADING)
   createdAt   DateTime    @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  directMessage DirectMessage?
 
   @@index([status, createdAt])
   @@map("media")
+}
+
+model DirectConversation {
+  id            String                   @id @default(cuid())
+  firstUserId   String                   @map("first_user_id")
+  secondUserId  String                   @map("second_user_id")
+  requesterId   String                   @map("requester_id")
+  recipientId   String                   @map("recipient_id")
+  status        DirectConversationStatus @default(PENDING)
+  lastMessageAt DateTime?                @map("last_message_at")
+  createdAt     DateTime                 @default(now()) @map("created_at")
+  updatedAt     DateTime                 @updatedAt @map("updated_at")
+
+  firstUser    User                            @relation("DirectConversationFirstUser", fields: [firstUserId], references: [id])
+  secondUser   User                            @relation("DirectConversationSecondUser", fields: [secondUserId], references: [id])
+  requester    User                            @relation("DirectConversationRequester", fields: [requesterId], references: [id])
+  recipient    User                            @relation("DirectConversationRecipient", fields: [recipientId], references: [id])
+  participants DirectConversationParticipant[]
+  messages     DirectMessage[]
+
+  @@unique([firstUserId, secondUserId])
+  @@index([status, recipientId, lastMessageAt(sort: Desc)], map: "direct_conversations_requests_idx")
+  @@map("direct_conversations")
+}
+
+model DirectConversationParticipant {
+  id             String    @id @default(cuid())
+  conversationId String    @map("conversation_id")
+  userId         String    @map("user_id")
+  archivedAt     DateTime? @map("archived_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  conversation DirectConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User               @relation(fields: [userId], references: [id])
+
+  @@unique([conversationId, userId])
+  @@index([userId, archivedAt, conversationId], map: "direct_conversation_participants_inbox_idx")
+  @@map("direct_conversation_participants")
+}
+
+model DirectMessage {
+  id              String    @id @default(cuid())
+  conversationId  String    @map("conversation_id")
+  senderId        String    @map("sender_id")
+  recipientId     String    @map("recipient_id")
+  mediaId         String?   @unique @map("media_id")
+  clientRequestId String    @map("client_request_id") @db.Uuid
+  content         String?
+  readAt          DateTime? @map("read_at")
+  recalledAt      DateTime? @map("recalled_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  conversation DirectConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User               @relation("DirectMessageSender", fields: [senderId], references: [id])
+  recipient    User               @relation("DirectMessageRecipient", fields: [recipientId], references: [id])
+  media        Media?             @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+
+  @@unique([senderId, clientRequestId])
+  @@index([conversationId, createdAt(sort: Desc), id(sort: Desc)], map: "direct_messages_history_idx")
+  @@index([recipientId, readAt, createdAt(sort: Desc)], map: "direct_messages_unread_idx")
+  @@map("direct_messages")
 }
 
 model Post {

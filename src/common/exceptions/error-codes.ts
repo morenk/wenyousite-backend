@@ -15,6 +15,8 @@ export const ErrorCode = {
   INVALID_DICE_NOTATION: 40003,
   /** 单帖骰子次数超限 */
   DICE_ROLL_LIMIT_EXCEEDED: 40004,
+  /** 私聊消息正文或附件不合法 */
+  INVALID_DIRECT_MESSAGE: 40005,
 
   // ── 认证 401xx ──
   /** 未认证 */
@@ -59,6 +61,10 @@ export const ErrorCode = {
   NOT_PLAYER: 40303,
   /** 越权管理 OWNER */
   CANNOT_MODERATE_OWNER: 40304,
+  /** 私聊双方存在拉黑关系 */
+  DIRECT_MESSAGE_BLOCKED: 40305,
+  /** 当前用户不能执行该私聊操作 */
+  DIRECT_MESSAGE_NOT_ALLOWED: 40306,
 
   // ── 资源不存在 404xx ──
   /** 通用资源不存在 */
@@ -83,6 +89,10 @@ export const ErrorCode = {
   MEDIA_NOT_FOUND: 40409,
   /** 举报不存在 */
   REPORT_NOT_FOUND: 40410,
+  /** 私聊会话不存在 */
+  DIRECT_CONVERSATION_NOT_FOUND: 40411,
+  /** 私聊消息不存在 */
+  DIRECT_MESSAGE_NOT_FOUND: 40412,
 
   // ── 冲突 409xx ──
   /** 通用冲突 */
@@ -97,6 +107,14 @@ export const ErrorCode = {
   ALREADY_SUBSCRIBED: 40904,
   /** 标签已存在 */
   TAG_ALREADY_EXISTS: 40905,
+  /** 陌生消息请求仍待处理，不能继续发送 */
+  DIRECT_MESSAGE_REQUEST_PENDING: 40906,
+  /** 陌生消息请求已被拒绝 */
+  DIRECT_MESSAGE_REQUEST_DECLINED: 40907,
+  /** 私聊消息已超过撤回时限 */
+  DIRECT_MESSAGE_RECALL_EXPIRED: 40908,
+  /** 图片已绑定到其他私聊消息 */
+  DIRECT_MESSAGE_MEDIA_ATTACHED: 40909,
 
   // ── 限流 429xx ──
   /** 请求过于频繁 */

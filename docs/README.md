@@ -30,6 +30,7 @@
 | [dice](./modules/dice.md) | 骰子 | 表达式协议、服务端投掷、结果不可变、草稿发布结算 |
 | [drafts](./modules/drafts.md) | 草稿 | 用户级全局 5 槽位草稿池 |
 | [notifications](./modules/notifications.md) | 通知 | 列表、未读数、已读 |
+| [direct-messages](./modules/direct-messages.md) | 私聊 | 一对一会话、消息请求、未读、归档与撤回 |
 | [subscriptions](./modules/subscriptions.md) | 订阅 | THREAD/USER 订阅 + 通知投递 |
 | [media](./modules/media.md) | 媒体 | 预签名 URL、upload-done、sharp 图片处理 |
 | [tags](./modules/tags.md) | 标签 | 平台级 TopicTag 与主题帖关联 |

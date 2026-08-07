@@ -50,7 +50,7 @@
 
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
-| GET | `/threads` | Public | 主题帖列表（仅已发布帖），支持分区/排序/状态/标签/Cursor，每帖含 `preview` 截断纯文本（源自默认子贴正文 kind=BODY） |
+| GET | `/threads` | OptionalAuth | 主题帖列表（仅已发布帖），支持分区/排序/状态/标签/Cursor；`tagId` 精确筛选主题帖标签，兼容 `tag` 名称模糊筛选，每帖含 `preview` 截断纯文本（源自默认子贴正文 kind=BODY） |
 | POST | `/threads` | Auth | 创建主题帖草稿（事务内创建 Thread + OWNER + 默认子贴 + 可选正文 kind=BODY，published=false）。参数: title/category/content/subthreadTitle/tagNames/visibility 全部可选。每用户最多 10 条未发布草稿，超限返回 BAD_REQUEST |
 | GET | `/threads/draft` | AuthRead | 我的草稿箱列表（未发布帖） |
 | GET | `/threads/:id` | OptionalAuth | 详情（含子贴列表）。公开已发布帖允许匿名访问；未发布帖仅 owner 可查看；已发布帖浏览量+1，PRIVATE 帖非成员 404；登录时附加收藏/点赞、`currentMembership` 与 `capabilities` |
@@ -115,6 +115,22 @@
 | PATCH | `/notifications/:id` | AuthRead | 标记单条通知阅读状态（Body: { isRead: boolean }） |
 | DELETE | `/notifications/:id` | AuthRead | 硬删除单条通知 |
 | POST | `/notifications/read-all` | AuthRead | 一键全部已读 |
+
+## 私聊端点 (Direct Messages)
+
+| 方法 | 路径 | 守卫 | 说明 |
+|------|------|------|------|
+| GET | `/direct-conversations?view=INBOX\|REQUESTS\|ARCHIVED&cursor=&limit=` | AuthRead | 本人的会话、待处理请求或归档列表，Cursor 分页 |
+| POST | `/direct-conversations` | Auth | 发送首条纯文本/单图消息；互关直接接受，否则创建请求 |
+| GET | `/direct-conversations/unread` | AuthRead | 已接受会话未读消息、待处理请求及合计 |
+| GET | `/direct-conversations/by-user/:userId` | AuthRead | 查询与指定用户的联系状态及现有会话 |
+| GET | `/direct-conversations/:id` | AuthRead | 会话详情，仅参与者可见 |
+| GET | `/direct-conversations/:id/messages?cursor=&after=&limit=` | AuthRead | 历史或轮询增量消息，按时间正序；cursor 与 after 互斥 |
+| POST | `/direct-conversations/:id/messages` | Auth | 向已接受会话发送纯文本/单图消息 |
+| PATCH | `/direct-conversations/:id/request` | AuthRead | 接收方接受或拒绝请求；接受要求邮箱已验证 |
+| PATCH | `/direct-conversations/:id/archive` | AuthRead | 归档或恢复当前用户的会话 |
+| POST | `/direct-conversations/:id/read` | AuthRead | 标记实际展示到的锚点及之前消息为本人已读 |
+| DELETE | `/direct-messages/:id` | AuthRead | 发送者十分钟内撤回；待处理首条撤回会取消请求 |
 
 ## 订阅端点 (Subscriptions)
 

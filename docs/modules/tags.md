@@ -17,6 +17,7 @@
 | `GET` | `/tags` | `@Public()` | 搜索 TopicTag（可选 `?q=` 模糊搜索） |
 | `GET` | `/tags/:id` | `@Public()` | 获取单个标签详情 |
 | `POST` | `/tags` | `@AuthRead()` | 创建 TopicTag |
+| `GET` | `/threads?tagId=:id` | `@OptionalAuth()` | 精确列出关联该标签的公开已发布主题帖 |
 
 ## 核心业务规则
 
@@ -24,6 +25,7 @@
 - TopicTag 可选 `color` 字段（十六进制 `#RRGGBB`）
 - 标签名限制 1-20 字符，仅允许字母、数字、下划线、中文和 `#`
 - `findOrCreate` 方法批量查找或创建标签，用于创建/编辑主题帖时关联标签
+- 标签帖子列表使用稳定的 TopicTag ID 查询；不存在的 ID 返回空列表，标签详情仍由 `GET /tags/:id` 返回 404
 
 ## 设计决策
 

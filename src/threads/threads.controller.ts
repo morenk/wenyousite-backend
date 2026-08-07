@@ -62,7 +62,9 @@ export class ThreadsController {
 
   @Get()
   @OptionalAuth()
-  @ApiOperation({ summary: '主题帖列表（仅已发布帖），支持 sort=recommended|newest|active' })
+  @ApiOperation({
+    summary: '主题帖列表（仅已发布帖），支持排序、分区、状态及标签筛选',
+  })
   @ApiOkResponse({
     type: HomeThreadListItemResponseDto,
     isArray: true,

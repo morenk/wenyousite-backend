@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, IsIn } from 'class-validator';
 import { CursorPaginationDto } from '../../common/dto/pagination.dto';
+import { IsCuid } from '../../common/decorators/is-cuid.decorator';
 
 /** 主题帖列表查询 DTO */
 export class ThreadQueryDto extends CursorPaginationDto {
@@ -35,4 +36,12 @@ export class ThreadQueryDto extends CursorPaginationDto {
   @IsOptional()
   @IsString()
   tag?: string;
+
+  @ApiPropertyOptional({
+    example: 'cms7rnyij000z7qdyg6zbge8e',
+    description: '按主题帖标签 ID 精确筛选；与 tag 同时传入时优先使用 tagId',
+  })
+  @IsOptional()
+  @IsCuid()
+  tagId?: string;
 }
