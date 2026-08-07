@@ -69,6 +69,10 @@ describe('NotificationProcessor 点赞聚合', () => {
 
   it('未读点赞聚合在事务中累加人数并保留主题帖标题', async () => {
     const { processor, tx } = buildProcessor();
+    const loggerLog = jest.spyOn(
+      (processor as unknown as { logger: { log: (...args: unknown[]) => void } }).logger,
+      'log',
+    ).mockImplementation(() => undefined);
     tx.notification.findMany.mockResolvedValue([
       {
         id: 'notification1',
@@ -108,6 +112,8 @@ describe('NotificationProcessor 点赞聚合', () => {
         }),
       }),
     );
+    expect(loggerLog).toHaveBeenCalled();
+    loggerLog.mockRestore();
   });
 
   it('已处理的点赞事件重试不会再次累加', async () => {

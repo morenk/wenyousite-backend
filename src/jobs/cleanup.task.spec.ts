@@ -47,7 +47,13 @@ describe('CleanupTask', () => {
     }).compile();
     task = module.get<CleanupTask>(CleanupTask);
     jest.clearAllMocks();
+    jest.spyOn(
+      (task as unknown as { logger: { error: (...args: unknown[]) => void } }).logger,
+      'error',
+    ).mockImplementation(() => undefined);
   });
+
+  afterEach(() => jest.restoreAllMocks());
 
   it('cleanup 应调用孤儿图片清理', async () => {
     await task.cleanup();

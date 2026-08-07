@@ -18,7 +18,7 @@ export class ImageProcessor extends WorkerHost {
     } catch (e) {
       this.logger.error(`Image processing failed for mediaId=${job.data.mediaId}`, e);
       // 末次重试仍失败则标记为 FAILED，让前端能展示错误状态
-      if (job.attemptsMade >= (job.opts.attempts ?? 1)) {
+      if (job.attemptsMade + 1 >= (job.opts.attempts ?? 1)) {
         await this.mediaService.markFailed(job.data.mediaId);
       }
       throw e;

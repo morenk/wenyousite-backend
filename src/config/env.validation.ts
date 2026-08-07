@@ -1,4 +1,4 @@
-import { plainToInstance } from 'class-transformer';
+import { plainToInstance, Transform } from 'class-transformer';
 import { IsBoolean, IsEnum, IsNumber, IsOptional, IsString, Min, validateSync } from 'class-validator';
 
 /** 环境变量校验器：应用启动时验证必要的环境变量 */
@@ -57,7 +57,12 @@ class EnvironmentVariables {
 
   @IsBoolean()
   @IsOptional()
-  PUSH_ENABLED: boolean = false;
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true) return true;
+    if (value === 'false' || value === false) return false;
+    return value;
+  })
+  PUSH_ENABLED: boolean | 'true' | 'false' = false;
 
   @IsString()
   @IsOptional()

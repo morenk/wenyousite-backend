@@ -1,9 +1,18 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { PaginatedResult, paginate } from '../common/dto/paginated-result';
 import { publicUserSummarySelect } from '../common/user-summary';
+
+const bookmarkThreadInclude = {
+  owner: { select: publicUserSummarySelect },
+  _count: { select: { members: true, posts: true } },
+} satisfies Prisma.ThreadInclude;
+
+type BookmarkThread = Prisma.ThreadGetPayload<{ include: typeof bookmarkThreadInclude }>;
+type OwnBookmarkThread = BookmarkThread & { bookmarkId: string };
 
 /** 收藏服务：CRUD + 可见性过滤 */
 @Injectable()
@@ -11,46 +20,46 @@ export class BookmarksService {
   constructor(private prisma: PrismaService) {}
 
   /** 我的收藏列表（含公开帖 + 我仍是参与人的私密帖） */
-  async findAll(userId: string, cursor?: string, limit = 20): Promise<PaginatedResult<any>> {
+  async findAll(
+    userId: string,
+    cursor?: string,
+    limit = 20,
+  ): Promise<PaginatedResult<OwnBookmarkThread>> {
     const take = Math.min(limit, 50);
     const bookmarks = await this.prisma.userBookmark.findMany({
-      where: { userId },
+      where: { userId, thread: { deletedAt: null } },
       orderBy: { createdAt: 'desc' },
       take: take + 1,
       cursor: cursor ? { id: cursor } : undefined,
       skip: cursor ? 1 : 0,
       include: {
         thread: {
-          include: {
-            owner: { select: publicUserSummarySelect },
-            _count: { select: { members: true, posts: true } },
-          },
+          include: bookmarkThreadInclude,
         },
       },
     });
 
-    // 过滤掉已删除的主题帖
-    const valid = bookmarks.filter((b) => {
-      if (!b.thread.deletedAt) return true;
-      return false;
-    });
-
-    const hasMore = valid.length > take;
-    if (hasMore) valid.pop();
+    const hasMore = bookmarks.length > take;
+    if (hasMore) bookmarks.pop();
 
     return paginate(
-      valid.map((b) => ({ ...b.thread, bookmarkId: b.id })),
+      bookmarks.map((b) => ({ ...b.thread, bookmarkId: b.id })),
       {
-        cursor: valid.length > 0 ? bookmarks[valid.length - 1].id : null,
+        cursor: bookmarks.at(-1)?.id ?? null,
         hasMore,
       },
     );
   }
 
   /** 查看指定用户的公开收藏（受 showBookmarks 隐私开关控制） */
-  async findByUserId(targetId: string, viewerId?: string, cursor?: string, limit = 20): Promise<PaginatedResult<any>> {
+  async findByUserId(
+    targetId: string,
+    viewerId?: string,
+    cursor?: string,
+    limit = 20,
+  ): Promise<PaginatedResult<BookmarkThread>> {
     const targetUser = await this.prisma.user.findUnique({
-      where: { id: targetId },
+      where: { id: targetId, deletedAt: null },
       select: { id: true, showBookmarks: true, deletedAt: true },
     });
     if (!targetUser) throw new NotFoundException('用户不存在');
@@ -59,50 +68,46 @@ export class BookmarksService {
     }
 
     const take = Math.min(limit, 50);
+    const isSelf = targetId === viewerId;
+    const visibilityWhere = isSelf
+      ? {}
+      : viewerId
+        ? {
+            OR: [
+              { visibility: 'PUBLIC' as const },
+              {
+                visibility: 'PRIVATE' as const,
+                members: { some: { userId: viewerId } },
+              },
+            ],
+          }
+        : { visibility: 'PUBLIC' as const };
     const bookmarks = await this.prisma.userBookmark.findMany({
-      where: { userId: targetId },
+      where: {
+        userId: targetId,
+        thread: {
+          deletedAt: null,
+          published: true,
+          ...visibilityWhere,
+        },
+      },
       orderBy: { createdAt: 'desc' },
       take: take + 1,
       cursor: cursor ? { id: cursor } : undefined,
       skip: cursor ? 1 : 0,
       include: {
         thread: {
-          include: {
-            owner: { select: publicUserSummarySelect },
-            _count: { select: { members: true, posts: true } },
-          },
+          include: bookmarkThreadInclude,
         },
       },
     });
 
-    // 构建可见的私密帖 ID 集合
-    let memberPrivateIds = new Set<string>();
-    if (viewerId && targetId !== viewerId) {
-      const privateIds = bookmarks.filter(b => b.thread.visibility === 'PRIVATE').map(b => b.thread.id);
-      if (privateIds.length > 0) {
-        const members = await this.prisma.threadMember.findMany({
-          where: { userId: viewerId, threadId: { in: privateIds } },
-          select: { threadId: true },
-        });
-        memberPrivateIds = new Set(members.map(m => m.threadId));
-      }
-    }
-
-    const isSelf = targetId === viewerId;
-    const validBookmarks = bookmarks.filter((b) => {
-      const t = b.thread;
-      if (t.deletedAt || !t.published) return false;
-      if (t.visibility === 'PUBLIC') return true;
-      if (isSelf) return true;
-      return memberPrivateIds.has(t.id);
-    });
-
-    const hasMore = validBookmarks.length > take;
-    if (hasMore) validBookmarks.pop();
+    const hasMore = bookmarks.length > take;
+    if (hasMore) bookmarks.pop();
 
     return paginate(
-      validBookmarks.map(b => b.thread),
-      { cursor: validBookmarks.length > 0 ? validBookmarks[validBookmarks.length - 1].id : null, hasMore },
+      bookmarks.map(b => b.thread),
+      { cursor: bookmarks.at(-1)?.id ?? null, hasMore },
     );
   }
 

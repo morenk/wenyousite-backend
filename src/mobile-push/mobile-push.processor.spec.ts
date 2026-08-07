@@ -76,6 +76,10 @@ describe('MobilePushProcessor', () => {
 
   it('Firebase 判定 token 无效时永久停用，瞬时错误继续抛出重试', async () => {
     const { processor, prisma, provider } = build();
+    const loggerWarn = jest.spyOn(
+      (processor as unknown as { logger: { warn: (...args: unknown[]) => void } }).logger,
+      'warn',
+    ).mockImplementation(() => undefined);
     prisma.mobileDevice.findFirst.mockResolvedValue({
       id: 'd1', userId: 'u1', sessionId: 'f1', pushToken: 'secret-token',
     });
@@ -90,5 +94,7 @@ describe('MobilePushProcessor', () => {
 
     provider.send.mockRejectedValueOnce(new Error('network down'));
     await expect(processor.process(job)).rejects.toThrow('network down');
+    expect(loggerWarn).toHaveBeenCalled();
+    loggerWarn.mockRestore();
   });
 });

@@ -61,6 +61,21 @@ describe('AuthService', () => {
   let service: AuthService;
 
   beforeEach(async () => {
+    jest.resetAllMocks();
+    mockConfig.get.mockImplementation((key: string) => ({
+      'jwt.accessSecret': 'test-secret',
+      'argon2.timeCost': 1,
+      'argon2.memoryCost': 8192,
+    })[key]);
+    mockEmailService.sendVerification.mockResolvedValue(undefined);
+    mockEmailService.sendPasswordReset.mockResolvedValue(undefined);
+    mockEmailService.sendPasswordChanged.mockResolvedValue(undefined);
+    mockEmailService.sendEmailChanged.mockResolvedValue(undefined);
+    mockPrisma.$transaction.mockImplementation((input: unknown) =>
+      typeof input === 'function'
+        ? input(mockPrisma)
+        : Promise.all(input as Promise<unknown>[]),
+    );
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
@@ -73,7 +88,6 @@ describe('AuthService', () => {
       ],
     }).compile();
     service = module.get<AuthService>(AuthService);
-    jest.clearAllMocks();
   });
 
   describe('requestCode', () => {
@@ -458,9 +472,212 @@ describe('AuthService', () => {
         expect.objectContaining({ data: { revokedAt: expect.any(Date) } }),
       );
     });
+
+    it('拒绝失效登录状态、相同新密码和错误旧密码', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      await expect(service.changePassword('u1', 'OldPass1', 'NewPass1')).rejects.toMatchObject({
+        errorCode: ErrorCode.UNAUTHORIZED,
+      });
+
+      const hashed = await argon2.hash('OldPass1');
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ password: hashed, email: 'user@example.com' });
+      await expect(service.changePassword('u1', 'SamePass1', 'SamePass1')).rejects.toMatchObject({
+        errorCode: ErrorCode.BAD_REQUEST,
+      });
+
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ password: hashed, email: 'user@example.com' });
+      await expect(service.changePassword('u1', 'WrongPass1', 'NewPass1')).rejects.toMatchObject({
+        errorCode: ErrorCode.WRONG_OLD_PASSWORD,
+      });
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('通知邮件失败不回滚已经完成的密码修改', async () => {
+      const hashed = await argon2.hash('OldPass1');
+      mockPrisma.user.findUnique.mockResolvedValue({ password: hashed, email: 'user@example.com' });
+      mockEmailService.sendPasswordChanged.mockRejectedValue(new Error('smtp down'));
+      const loggerError = jest.spyOn(
+        (service as unknown as { logger: { error: (...args: unknown[]) => void } }).logger,
+        'error',
+      ).mockImplementation(() => undefined);
+
+      await expect(service.changePassword('u1', 'OldPass1', 'NewPass1')).resolves.toEqual({
+        message: '密码已修改，请重新登录',
+      });
+      await Promise.resolve();
+      expect(loggerError).toHaveBeenCalledWith(
+        '密码修改通知邮件发送失败: user@example.com',
+        expect.any(Error),
+      );
+    });
+  });
+
+  describe('verifyEmail', () => {
+    const future = () => new Date(Date.now() + 60_000);
+
+    it('无记录、过期、错误和超限使用稳定错误码', async () => {
+      mockPrisma.emailVerification.findFirst.mockResolvedValueOnce(null);
+      await expect(service.verifyEmail('u1', '123456')).rejects.toMatchObject({
+        errorCode: ErrorCode.NO_CODE_RECORD,
+      });
+
+      mockPrisma.emailVerification.findFirst.mockResolvedValueOnce({
+        id: 'expired', token: '123456', attempts: 0, expiresAt: new Date(Date.now() - 1),
+      });
+      await expect(service.verifyEmail('u1', '123456')).rejects.toMatchObject({
+        errorCode: ErrorCode.CODE_EXPIRED,
+      });
+      expect(mockPrisma.emailVerification.delete).toHaveBeenCalledWith({ where: { id: 'expired' } });
+
+      mockPrisma.emailVerification.findFirst.mockResolvedValueOnce({
+        id: 'wrong', token: '999999', attempts: 0, expiresAt: future(),
+      });
+      await expect(service.verifyEmail('u1', '123456')).rejects.toMatchObject({
+        errorCode: ErrorCode.CODE_INVALID,
+      });
+      expect(mockPrisma.emailVerification.update).toHaveBeenCalledWith({
+        where: { id: 'wrong' },
+        data: { attempts: { increment: 1 } },
+      });
+
+      mockPrisma.emailVerification.findFirst.mockResolvedValueOnce({
+        id: 'limited', token: '999999', attempts: 5, expiresAt: future(),
+      });
+      await expect(service.verifyEmail('u1', '123456')).rejects.toMatchObject({
+        errorCode: ErrorCode.CODE_ATTEMPTS_EXCEEDED,
+      });
+      expect(mockPrisma.emailVerification.delete).toHaveBeenCalledWith({ where: { id: 'limited' } });
+    });
+
+    it('验证成功后更新用户并消费验证码', async () => {
+      mockPrisma.emailVerification.findFirst.mockResolvedValue({
+        id: 'record-1', token: '123456', attempts: 0, expiresAt: future(),
+      });
+
+      await expect(service.verifyEmail('u1', '123456')).resolves.toEqual({
+        message: '邮箱验证成功',
+      });
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'u1' },
+        data: { emailVerified: true },
+      });
+      expect(mockPrisma.emailVerification.delete).toHaveBeenCalledWith({
+        where: { id: 'record-1' },
+      });
+    });
+  });
+
+  describe('forgotPassword', () => {
+    it('未知邮箱返回相同响应且不创建验证码以防账号枚举', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.forgotPassword(' Missing@Example.COM ')).resolves.toEqual({
+        message: '如果该邮箱已注册，重置邮件已发送',
+      });
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
+        where: { email: 'missing@example.com', deletedAt: null },
+      });
+      expect(mockPrisma.emailVerification.create).not.toHaveBeenCalled();
+    });
+
+    it('已注册用户创建密码重置验证码并发送邮件', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'u1' });
+      mockPrisma.emailVerification.findFirst.mockResolvedValue(null);
+
+      await service.forgotPassword('User@Example.com');
+
+      expect(mockPrisma.emailVerification.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          type: 'PASSWORD_RESET',
+          userId: 'u1',
+          email: 'user@example.com',
+        }),
+      });
+      expect(mockEmailService.sendPasswordReset).toHaveBeenCalledWith(
+        'user@example.com',
+        expect.any(String),
+      );
+    });
+  });
+
+  describe('resetPassword', () => {
+    const future = () => new Date(Date.now() + 60_000);
+
+    it('无记录和过期记录均拒绝重置', async () => {
+      mockPrisma.emailVerification.findFirst.mockResolvedValueOnce(null);
+      await expect(service.resetPassword('user@example.com', '123456', 'NewPass1')).rejects
+        .toMatchObject({ errorCode: ErrorCode.CODE_INVALID });
+
+      mockPrisma.emailVerification.findFirst.mockResolvedValueOnce({
+        id: 'expired', token: '123456', attempts: 0, expiresAt: new Date(Date.now() - 1),
+      });
+      await expect(service.resetPassword('user@example.com', '123456', 'NewPass1')).rejects
+        .toMatchObject({ errorCode: ErrorCode.CODE_EXPIRED });
+      expect(mockPrisma.emailVerification.delete).toHaveBeenCalledWith({ where: { id: 'expired' } });
+    });
+
+    it('错误验证码递增次数，达到上限后删除记录', async () => {
+      mockPrisma.emailVerification.findFirst.mockResolvedValueOnce({
+        id: 'wrong', token: '999999', attempts: 0, expiresAt: future(),
+      });
+      await expect(service.resetPassword('user@example.com', '123456', 'NewPass1')).rejects
+        .toMatchObject({ errorCode: ErrorCode.CODE_INVALID });
+      expect(mockPrisma.emailVerification.update).toHaveBeenCalledWith({
+        where: { id: 'wrong' },
+        data: { attempts: { increment: 1 } },
+      });
+
+      mockPrisma.emailVerification.findFirst.mockResolvedValueOnce({
+        id: 'limited', token: '999999', attempts: 5, expiresAt: future(),
+      });
+      await expect(service.resetPassword('user@example.com', '123456', 'NewPass1')).rejects
+        .toMatchObject({ errorCode: ErrorCode.CODE_ATTEMPTS_EXCEEDED });
+      expect(mockPrisma.emailVerification.delete).toHaveBeenCalledWith({ where: { id: 'limited' } });
+    });
+
+    it('成功重置密码、验证邮箱、吊销会话并消费验证码', async () => {
+      mockPrisma.emailVerification.findFirst.mockResolvedValue({
+        id: 'record-1', userId: 'u1', token: '123456', attempts: 0, expiresAt: future(),
+      });
+
+      await expect(service.resetPassword(
+        ' User@Example.COM ',
+        '123456',
+        'NewPass1',
+      )).resolves.toEqual({ message: '密码已重置，请重新登录' });
+
+      expect(mockPrisma.emailVerification.findFirst).toHaveBeenCalledWith({
+        where: { email: 'user@example.com', type: 'PASSWORD_RESET' },
+      });
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'u1' },
+        data: { password: expect.any(String), emailVerified: true },
+      });
+      expect(mockPrisma.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'u1', revokedAt: null },
+        data: { revokedAt: expect.any(Date) },
+      });
+      expect(mockPrisma.emailVerification.delete).toHaveBeenCalledWith({ where: { id: 'record-1' } });
+    });
   });
 
   describe('requestChangeEmailCode', () => {
+    it('登录用户不存在和新邮箱已被使用时拒绝', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      await expect(service.requestChangeEmailCode('u1', 'new@example.com', 'CurrentPass1'))
+        .rejects.toMatchObject({ errorCode: ErrorCode.UNAUTHORIZED });
+
+      const hashed = await argon2.hash('CurrentPass1');
+      mockPrisma.user.findUnique
+        .mockResolvedValueOnce({ email: 'old@example.com', password: hashed })
+        .mockResolvedValueOnce({ id: 'other-user' });
+      await expect(service.requestChangeEmailCode('u1', ' New@Example.COM ', 'CurrentPass1'))
+        .rejects.toMatchObject({ errorCode: ErrorCode.EMAIL_ALREADY_REGISTERED });
+      expect(mockPrisma.user.findUnique).toHaveBeenLastCalledWith({
+        where: { email: 'new@example.com', deletedAt: null },
+      });
+    });
+
     it('新邮箱与当前相同应 400', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ email: 'a@b.com', password: 'x' });
       await expect(
@@ -544,6 +761,117 @@ describe('AuthService', () => {
       );
       expect(mockPrisma.emailVerification.delete).not.toHaveBeenCalled();
       expect(mockPrisma.emailVerification.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('verifyChangeEmail', () => {
+    const future = () => new Date(Date.now() + 60_000);
+
+    it('按用户、类型和规范化邮箱精确查找验证码', async () => {
+      mockPrisma.emailVerification.findFirst.mockResolvedValue(null);
+
+      await expect(service.verifyChangeEmail('u1', ' New@Example.COM ', '123456')).rejects
+        .toMatchObject({ errorCode: ErrorCode.NO_CODE_RECORD });
+      expect(mockPrisma.emailVerification.findFirst).toHaveBeenCalledWith({
+        where: { userId: 'u1', type: 'CHANGE_EMAIL', email: 'new@example.com' },
+      });
+    });
+
+    it('过期、错误和超限验证码执行对应清理策略', async () => {
+      mockPrisma.emailVerification.findFirst.mockResolvedValueOnce({
+        id: 'expired', token: '123456', attempts: 0, expiresAt: new Date(Date.now() - 1),
+      });
+      await expect(service.verifyChangeEmail('u1', 'new@example.com', '123456')).rejects
+        .toMatchObject({ errorCode: ErrorCode.CODE_EXPIRED });
+
+      mockPrisma.emailVerification.findFirst.mockResolvedValueOnce({
+        id: 'wrong', token: '999999', attempts: 0, expiresAt: future(),
+      });
+      await expect(service.verifyChangeEmail('u1', 'new@example.com', '123456')).rejects
+        .toMatchObject({ errorCode: ErrorCode.CODE_INVALID });
+      expect(mockPrisma.emailVerification.update).toHaveBeenCalledWith({
+        where: { id: 'wrong' },
+        data: { attempts: { increment: 1 } },
+      });
+
+      mockPrisma.emailVerification.findFirst.mockResolvedValueOnce({
+        id: 'limited', token: '999999', attempts: 5, expiresAt: future(),
+      });
+      await expect(service.verifyChangeEmail('u1', 'new@example.com', '123456')).rejects
+        .toMatchObject({ errorCode: ErrorCode.CODE_ATTEMPTS_EXCEEDED });
+      expect(mockPrisma.emailVerification.delete).toHaveBeenCalledWith({ where: { id: 'limited' } });
+    });
+
+    it('验证码正确但邮箱已被抢占时返回冲突且保留原邮箱', async () => {
+      mockPrisma.emailVerification.findFirst.mockResolvedValue({
+        id: 'record-1', token: '123456', attempts: 0, expiresAt: future(),
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'other-user' });
+
+      await expect(service.verifyChangeEmail('u1', 'new@example.com', '123456')).rejects
+        .toMatchObject({ errorCode: ErrorCode.EMAIL_ALREADY_REGISTERED });
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('成功更新邮箱并消费验证码，通知失败不回滚', async () => {
+      mockPrisma.emailVerification.findFirst.mockResolvedValue({
+        id: 'record-1', token: '123456', attempts: 0, expiresAt: future(),
+      });
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockEmailService.sendEmailChanged.mockRejectedValue(new Error('smtp down'));
+      const loggerError = jest.spyOn(
+        (service as unknown as { logger: { error: (...args: unknown[]) => void } }).logger,
+        'error',
+      ).mockImplementation(() => undefined);
+
+      await expect(service.verifyChangeEmail('u1', ' New@Example.COM ', '123456')).resolves
+        .toEqual({ message: '邮箱已成功更换' });
+      await Promise.resolve();
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'u1' },
+        data: { email: 'new@example.com', emailVerified: true },
+      });
+      expect(mockPrisma.emailVerification.delete).toHaveBeenCalledWith({ where: { id: 'record-1' } });
+      expect(loggerError).toHaveBeenCalled();
+    });
+  });
+
+  describe('resendVerification', () => {
+    it.each([
+      null,
+      { id: 'u1', email: 'user@example.com', emailVerified: true },
+    ])('未知或已验证邮箱返回相同响应且不发送：%p', async (user) => {
+      mockPrisma.user.findUnique.mockResolvedValue(user);
+
+      await expect(service.resendVerification(' User@Example.COM ')).resolves.toEqual({
+        emailSent: true,
+        message: '如果该邮箱已注册且未验证，验证邮件已发送',
+      });
+      expect(mockEmailService.sendVerification).not.toHaveBeenCalled();
+    });
+
+    it('未验证用户获得 EMAIL_VERIFY 类型验证码', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'u1', email: 'user@example.com', emailVerified: false,
+      });
+      mockPrisma.emailVerification.findFirst.mockResolvedValue(null);
+
+      await expect(service.resendVerification(' User@Example.COM ')).resolves.toEqual({
+        emailSent: true,
+        message: '如果该邮箱已注册且未验证，验证邮件已发送',
+      });
+      expect(mockPrisma.emailVerification.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          type: 'EMAIL_VERIFY',
+          userId: 'u1',
+          email: 'user@example.com',
+        }),
+      });
+      expect(mockEmailService.sendVerification).toHaveBeenCalledWith(
+        'user@example.com',
+        expect.any(String),
+        'EMAIL_VERIFY',
+      );
     });
   });
 

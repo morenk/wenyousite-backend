@@ -93,11 +93,17 @@ describe('MediaService', () => {
     service = module.get<MediaService>(MediaService);
     (service as any).s3 = mockS3;
     jest.clearAllMocks();
+    jest.spyOn(
+      (service as unknown as { logger: { error: (...args: unknown[]) => void } }).logger,
+      'error',
+    ).mockImplementation(() => undefined);
     mockRedis.hincrby.mockResolvedValue(1);
     mockPrisma.directMessage.findMany.mockResolvedValue([]);
     mockPrisma.directMessage.findFirst.mockResolvedValue(null);
     mockPrisma.stickerImport.findFirst.mockResolvedValue(null);
   });
+
+  afterEach(() => jest.restoreAllMocks());
 
   // ── getUploadUrl ──
 

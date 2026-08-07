@@ -175,6 +175,10 @@ describe('PostEventsListener 订阅过滤', () => {
 
   it('通知处理失败时向 Outbox 抛出错误以触发重试', async () => {
     const { listener, notificationProducer, subscriptionsService } = buildListener();
+    const loggerError = jest.spyOn(
+      (listener as unknown as { logger: { error: (...args: unknown[]) => void } }).logger,
+      'error',
+    ).mockImplementation(() => undefined);
     subscriptionsService.findSubscribers.mockResolvedValue([
       { userId: 'subscriber', type: 'USER', targetUserId: 'author1' },
     ]);
@@ -183,6 +187,8 @@ describe('PostEventsListener 订阅过滤', () => {
     await expect(listener.handlePostCreated(baseEvent)).rejects.toThrow(
       'post.created event processing failed',
     );
+    expect(loggerError).toHaveBeenCalled();
+    loggerError.mockRestore();
   });
 
   it('点赞投影读取数据库权威计数并覆盖 Redis，重复投递不会重复累加', async () => {

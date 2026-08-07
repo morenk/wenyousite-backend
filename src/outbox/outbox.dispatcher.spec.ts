@@ -18,7 +18,13 @@ describe('OutboxDispatcher', () => {
       prisma as unknown as PrismaService,
       events as unknown as EventEmitter2,
     );
+    jest.spyOn(
+      (dispatcher as unknown as { logger: { error: (...args: unknown[]) => void } }).logger,
+      'error',
+    ).mockImplementation(() => undefined);
   });
+
+  afterEach(() => jest.restoreAllMocks());
 
   it('等待所有监听器完成后确认事件', async () => {
     prisma.$queryRaw.mockResolvedValue([
