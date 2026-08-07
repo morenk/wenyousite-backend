@@ -74,6 +74,7 @@ const mockPrisma = {
   post: { findMany: jest.fn(), findFirst: jest.fn() },
   draft: { findMany: jest.fn(), findFirst: jest.fn() },
   directMessage: { findMany: jest.fn(), findFirst: jest.fn() },
+  stickerImport: { findFirst: jest.fn() },
 };
 
 describe('MediaService', () => {
@@ -95,6 +96,7 @@ describe('MediaService', () => {
     mockRedis.hincrby.mockResolvedValue(1);
     mockPrisma.directMessage.findMany.mockResolvedValue([]);
     mockPrisma.directMessage.findFirst.mockResolvedValue(null);
+    mockPrisma.stickerImport.findFirst.mockResolvedValue(null);
   });
 
   // ── getUploadUrl ──

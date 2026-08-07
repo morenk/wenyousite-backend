@@ -16,5 +16,9 @@ export function buildPostPreview(content: string, diceRolls: DiceSummary[] = [])
     const roll = byNodeId.get(nodeId.toLowerCase());
     return `${roll?.notation ?? notation} = ${roll?.total ?? '?'}`;
   });
-  return truncateMarkdown(resolved);
+  const withStickerLabels = resolved.replace(
+    /!\[[^\]]*\]\([^)]*["']wenyousite-sticker:v1:[a-z0-9]+["'][^)]*\)/giu,
+    '[表情]',
+  );
+  return truncateMarkdown(withStickerLabels);
 }

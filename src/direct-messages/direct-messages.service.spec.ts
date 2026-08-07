@@ -4,6 +4,7 @@ import { RedisService } from '../redis/redis.service';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { DirectMessagesService } from './direct-messages.service';
 import { DirectMessageQueryService } from './direct-message-query.service';
+import { StickersService } from '../stickers/stickers.service';
 
 const createdAt = new Date('2026-08-06T20:00:00.000Z');
 
@@ -60,6 +61,10 @@ describe('DirectMessagesService', () => {
     findMessageForUser: jest.fn(),
     assertParticipant: jest.fn(),
   };
+  const stickers = {
+    assertFavorite: jest.fn(),
+    recordUsage: jest.fn(),
+  };
   let service: DirectMessagesService;
 
   beforeEach(() => {
@@ -84,6 +89,7 @@ describe('DirectMessagesService', () => {
       redis as unknown as RedisService,
       config as unknown as ConfigService,
       queries as unknown as DirectMessageQueryService,
+      stickers as unknown as StickersService,
     );
   });
 
@@ -199,8 +205,37 @@ describe('DirectMessagesService', () => {
     });
     expect(prisma.directMessage.updateMany).toHaveBeenCalledWith({
       where: { id: 'm1', senderId: 'u1', recalledAt: null },
-      data: { content: null, mediaId: null, recalledAt: expect.any(Date) },
+      data: { content: null, mediaId: null, stickerAssetId: null, recalledAt: expect.any(Date) },
     });
+  });
+
+  it('表情消息只写资产引用并在同一事务记录最近使用', async () => {
+    prisma.directConversation.findUnique.mockResolvedValue(
+      routingConversation({ status: 'ACCEPTED' }),
+    );
+
+    await service.send('c1', 'u1', {
+      stickerAssetId: 'cm1234567890123456789012',
+      clientRequestId: '99454040-6a52-4bf3-8bad-42683c4d09be',
+    });
+
+    expect(stickers.assertFavorite).toHaveBeenCalledWith(
+      'u1',
+      'cm1234567890123456789012',
+      prisma,
+    );
+    expect(stickers.recordUsage).toHaveBeenCalledWith(
+      'u1',
+      'cm1234567890123456789012',
+      prisma,
+    );
+    expect(prisma.directMessage.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        content: null,
+        mediaId: null,
+        stickerAssetId: 'cm1234567890123456789012',
+      }),
+    }));
   });
 
   it('超过十分钟的消息不能撤回', async () => {

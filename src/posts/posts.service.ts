@@ -22,6 +22,7 @@ import { PostQueryService } from './post-query.service';
 import { Prisma } from '@prisma/client';
 import { OutboxService } from '../outbox/outbox.service';
 import { reconcilePublishedDice } from '../dice/reconcile-published-dice';
+import { StickerContentService } from '../stickers/sticker-content.service';
 
 /** 楼层服务：发帖（事务楼层编号 + FOR UPDATE）、楼中楼、编辑、软删除 */
 @Injectable()
@@ -37,6 +38,7 @@ export class PostsService {
     private postingPolicy: PostingPolicyService,
     private queries: PostQueryService,
     private outbox: OutboxService,
+    private stickerContent: StickerContentService,
   ) {}
 
   async findAllBySubthread(subthreadId: string, cursor?: string, limit = 20, userId?: string) {
@@ -70,6 +72,7 @@ export class PostsService {
         return existingRequest;
       }
     }
+    const stickerAssetIds = await this.stickerContent.assertContentAllowed(userId, content);
 
     // 先查当前参与人状态（未加入时按未参与处理）
     const member = await this.prisma.threadMember.findUnique({
@@ -221,6 +224,10 @@ export class PostsService {
 
     if (duplicateRequest) return post;
 
+    if (subthread.thread.published) {
+      await this.stickerContent.recordUsage(userId, stickerAssetIds);
+    }
+
     return post;
   }
 
@@ -283,6 +290,11 @@ export class PostsService {
       orderBy: { createdAt: 'asc' },
       include: { ...includeDiceRolls() },
     });
+    const stickerAssetIds = await this.stickerContent.assertContentAllowed(
+      userId,
+      normalizedContent,
+      existing?.content ?? '',
+    );
 
     if (!existing) {
       const post = await this.prisma.$transaction(async (tx) => {
@@ -340,6 +352,9 @@ export class PostsService {
         }
         return post;
       });
+      if (subthread.thread.published) {
+        await this.stickerContent.recordUsage(userId, stickerAssetIds);
+      }
       return post;
     }
 
@@ -417,6 +432,9 @@ export class PostsService {
       threadId: subthread.threadId,
       parentPostId: updated.parentPostId,
     });
+    if (subthread.thread.published) {
+      await this.stickerContent.recordUsage(userId, stickerAssetIds);
+    }
     return updated;
   }
 
@@ -451,6 +469,11 @@ export class PostsService {
     }
 
     const oldContent = postLight.content;
+    const stickerAssetIds = await this.stickerContent.assertContentAllowed(
+      userId,
+      content,
+      oldContent,
+    );
     const updated = await this.prisma
       .$transaction(async (tx) => {
         const post = await tx.post.update({
@@ -522,6 +545,10 @@ export class PostsService {
       threadId: postLight.threadId,
       parentPostId: updated.parentPostId,
     });
+
+    if (threadPublished) {
+      await this.stickerContent.recordUsage(userId, stickerAssetIds);
+    }
 
     return updated;
   }

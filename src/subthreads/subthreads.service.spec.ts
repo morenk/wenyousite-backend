@@ -6,6 +6,7 @@ import { ThreadAccessService } from '../access/thread-access.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { DiceService } from '../dice/dice.service';
 import { OutboxService } from '../outbox/outbox.service';
+import { StickerContentService } from '../stickers/sticker-content.service';
 
 const mockPrisma = {
   $transaction: jest.fn(),
@@ -74,6 +75,13 @@ describe('SubthreadsService', () => {
         { provide: ThreadAccessService, useValue: mockThreadAccess },
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: OutboxService, useValue: mockOutbox },
+        {
+          provide: StickerContentService,
+          useValue: {
+            assertContentAllowed: jest.fn().mockResolvedValue([]),
+            recordUsage: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
     service = module.get<SubthreadsService>(SubthreadsService);

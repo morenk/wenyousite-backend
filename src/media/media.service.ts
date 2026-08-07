@@ -376,6 +376,7 @@ export class MediaService {
           { status: 'FAILED', createdAt: { lt: orphanCutoff } },
           { status: 'COMPLETED', createdAt: { lt: orphanCutoff } },
         ],
+        stickerImports: { none: { status: 'PROCESSING' } },
       },
       select: { id: true, key: true, url: true },
     });
@@ -426,7 +427,7 @@ export class MediaService {
     });
     if (!media) return false;
 
-    const [avatarRef, postRef, draftRef, directMessageRef] = await Promise.all([
+    const [avatarRef, postRef, draftRef, directMessageRef, stickerImportRef] = await Promise.all([
       this.prisma.user.findFirst({
         where: { avatar: url, deletedAt: null },
         select: { id: true },
@@ -443,8 +444,12 @@ export class MediaService {
         where: { mediaId: media.id, recalledAt: null },
         select: { id: true },
       }),
+      this.prisma.stickerImport.findFirst({
+        where: { sourceMediaId: media.id, status: 'PROCESSING' },
+        select: { id: true },
+      }),
     ]);
-    if (avatarRef || postRef || draftRef || directMessageRef) return false;
+    if (avatarRef || postRef || draftRef || directMessageRef || stickerImportRef) return false;
 
     const keys = [media.key];
     if (!media.key.toLowerCase().endsWith('.svg')) {

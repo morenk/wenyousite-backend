@@ -40,6 +40,20 @@ export class DirectMessageMediaResponseDto {
   height!: number | null;
 }
 
+export class DirectMessageStickerResponseDto extends DirectMessageMediaResponseDto {
+  @ApiProperty()
+  thumbnailUrl!: string;
+
+  @ApiProperty()
+  animated!: boolean;
+
+  @ApiProperty()
+  frameCount!: number;
+
+  @ApiProperty()
+  durationMs!: number;
+}
+
 export class DirectMessageResponseDto {
   @ApiProperty()
   id!: string;
@@ -58,6 +72,9 @@ export class DirectMessageResponseDto {
 
   @ApiProperty({ type: DirectMessageMediaResponseDto, nullable: true })
   media!: DirectMessageMediaResponseDto | null;
+
+  @ApiProperty({ type: DirectMessageStickerResponseDto, nullable: true })
+  sticker!: DirectMessageStickerResponseDto | null;
 
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   recalledAt!: Date | null;
@@ -78,6 +95,9 @@ export class DirectMessagePreviewResponseDto {
 
   @ApiProperty()
   hasImage!: boolean;
+
+  @ApiProperty()
+  hasSticker!: boolean;
 
   @ApiProperty()
   isRecalled!: boolean;

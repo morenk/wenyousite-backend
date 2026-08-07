@@ -14,6 +14,7 @@ import { DiceService } from '../dice/dice.service';
 import { PostingPolicyService } from './posting-policy.service';
 import { PostQueryService } from './post-query.service';
 import { OutboxService } from '../outbox/outbox.service';
+import { StickerContentService } from '../stickers/sticker-content.service';
 
 const mockPrisma = {
   $transaction: jest.fn(),
@@ -67,6 +68,10 @@ const mockBlockFilter = {
   filterRecipients: jest.fn((ids: string[]) => ids),
 };
 const mockOutbox = { enqueue: jest.fn().mockResolvedValue(undefined) };
+const mockStickerContent = {
+  assertContentAllowed: jest.fn().mockResolvedValue([]),
+  recordUsage: jest.fn().mockResolvedValue(undefined),
+};
 
 describe('PostsService', () => {
   let service: PostsService;
@@ -87,6 +92,7 @@ describe('PostsService', () => {
         { provide: CacheService, useValue: mockCache },
         PostingPolicyService,
         { provide: OutboxService, useValue: mockOutbox },
+        { provide: StickerContentService, useValue: mockStickerContent },
       ],
     }).compile();
     service = module.get<PostsService>(PostsService);

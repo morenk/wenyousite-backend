@@ -262,7 +262,7 @@ export class MentionsService {
     };
   }
 
-  /** 移除 Markdown v1 围栏和成对反引号代码，避免代码示例触发真实通知。 */
+  /** 移除 Markdown v2 围栏和成对反引号代码，避免代码示例触发真实通知。 */
   private stripMarkdownCode(content: string): string {
     const lines = content.replace(/\r\n?/g, '\n').split('\n');
     let fence: { marker: '`' | '~'; length: number } | null = null;

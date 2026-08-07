@@ -1,4 +1,4 @@
-/** Markdown v1 内容规则：规范化存储字符串并判断是否包含可发布内容 */
+/** Markdown v2 内容规则：规范化存储字符串并判断是否包含可发布内容。 */
 
 const EMPTY_IMAGE_RE = /!\[[^\]]*\]\(\s*\)/g;
 const EMPTY_LINK_RE = /\[[^\]]*\]\(\s*\)/g;
@@ -11,7 +11,7 @@ const THEMATIC_BREAK_RE = /^ {0,3}(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$/;
 // eslint-disable-next-line no-misleading-character-class -- 此处按 Unicode code point 明确列举默认不可见字符及组合选择符。
 const DEFAULT_IGNORABLE_RE = /[\u00AD\u034F\u061C\u115F\u1160\u17B4\u17B5\u180B-\u180F\u200B-\u200F\u202A-\u202E\u2060-\u206F\u3164\uFE00-\uFE0F\uFEFF\uFFA0]/gu;
 
-/** 将跨端 Markdown 转为 v1 标准存储形式；不 trim、不做 Unicode 归一化。 */
+/** 将跨端 Markdown 转为 v2 标准存储形式；不 trim、不做 Unicode 归一化。 */
 export function normalizeMarkdownContent(markdown: string): string {
   const lines = markdown.replace(/\r\n?/g, '\n').split('\n');
   let fence: { marker: '`' | '~'; length: number } | null = null;

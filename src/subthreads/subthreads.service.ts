@@ -10,6 +10,7 @@ import { DiceService } from '../dice/dice.service';
 import { hasVisibleMarkdownContent, normalizeMarkdownContent } from '../common/markdown-content';
 import { Prisma } from '@prisma/client';
 import { OutboxService } from '../outbox/outbox.service';
+import { StickerContentService } from '../stickers/sticker-content.service';
 
 /** 子贴服务：CRUD、排序、权限校验 */
 @Injectable()
@@ -20,6 +21,7 @@ export class SubthreadsService {
     private eventEmitter: EventEmitter2,
     private diceService: DiceService,
     private outbox: OutboxService,
+    private stickerContent: StickerContentService,
   ) {}
 
   /** 获取主题帖下的子贴列表 */
@@ -62,6 +64,7 @@ export class SubthreadsService {
       normalizeMarkdownContent(dto.content ?? ''),
     );
     const content = parsedContent.content;
+    const stickerAssetIds = await this.stickerContent.assertContentAllowed(userId, content);
     const hasText = hasVisibleMarkdownContent(parsedContent.contentWithoutDice);
     if (thread.published && parsedContent.nodes.length > 0 && !hasText) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '子贴正文必须包含可见文字');
@@ -190,6 +193,9 @@ export class SubthreadsService {
         threadId: result.subthread.threadId,
         subthreadId: result.subthread.id,
       });
+    }
+    if (thread.published) {
+      await this.stickerContent.recordUsage(userId, stickerAssetIds);
     }
 
     return result.subthread!;

@@ -22,6 +22,7 @@ import { hasVisibleMarkdownContent, normalizeMarkdownContent } from '../common/m
 import { DiceService } from '../dice/dice.service';
 import { ThreadQueryService } from './thread-query.service';
 import { OutboxService } from '../outbox/outbox.service';
+import { StickerContentService } from '../stickers/sticker-content.service';
 
 /** 帖子列表 ZSET 键名 */
 const ZSET_BY_CREATED = 'threads:by:created';
@@ -43,6 +44,7 @@ export class ThreadsService {
     private diceService: DiceService,
     private queries: ThreadQueryService,
     private outbox: OutboxService,
+    private stickerContent: StickerContentService,
   ) {}
 
   /** 创建主题帖草稿：事务内创建 Thread + Owner + 默认子贴 + 可选子贴正文，一次请求完成 */
@@ -56,6 +58,7 @@ export class ThreadsService {
     );
     const hasBody =
       hasVisibleMarkdownContent(parsedContent.contentWithoutDice) || parsedContent.nodes.length > 0;
+    await this.stickerContent.assertContentAllowed(userId, parsedContent.content);
     // 标签定义可先独立解析，但主题、默认子贴及标签关联必须原子提交。
     const tags =
       dto.tagNames && dto.tagNames.length > 0

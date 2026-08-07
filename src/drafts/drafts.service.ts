@@ -6,6 +6,7 @@ import { ErrorCode } from '../common/exceptions/error-codes';
 import { CreateDraftDto } from './dto/create-draft.dto';
 import { DiceService } from '../dice/dice.service';
 import { hasVisibleMarkdownContent } from '../common/markdown-content';
+import { StickerContentService } from '../stickers/sticker-content.service';
 
 /** 草稿服务：用户级 5 槽位全局草稿池 */
 @Injectable()
@@ -13,6 +14,7 @@ export class DraftsService {
   constructor(
     private prisma: PrismaService,
     private diceService: DiceService,
+    private stickerContent: StickerContentService,
   ) {}
 
   /** 获取当前用户所有草稿 */
@@ -55,6 +57,11 @@ export class DraftsService {
     const existing = await this.prisma.draft.findUnique({
       where: { userId_slot: { userId, slot } },
     });
+    await this.stickerContent.assertContentAllowed(
+      userId,
+      parsedContent.content,
+      existing?.content ?? '',
+    );
 
     if (existing) {
       if (dto.version === undefined || dto.version !== existing.version) {
@@ -87,6 +94,7 @@ export class DraftsService {
     if (version !== draft.version) throw this.optimisticLockConflict();
     const parsedContent = this.diceService.parseContent(normalizeMarkdownContent(content));
     this.assertSnapshotNotEmpty(parsedContent.contentWithoutDice, parsedContent.nodes.length);
+    await this.stickerContent.assertContentAllowed(userId, parsedContent.content, draft.content);
     return this.prisma.draft
       .update({
         where: { id, version },

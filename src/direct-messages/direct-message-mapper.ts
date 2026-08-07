@@ -18,6 +18,19 @@ export const directMessageSelect = {
       height: true,
     },
   },
+  sticker: {
+    select: {
+      id: true,
+      url: true,
+      thumbnailUrl: true,
+      contentType: true,
+      width: true,
+      height: true,
+      animated: true,
+      frameCount: true,
+      durationMs: true,
+    },
+  },
 } satisfies Prisma.DirectMessageSelect;
 
 export function directConversationInclude(userId: string) {
@@ -36,6 +49,7 @@ export function directConversationInclude(userId: string) {
         senderId: true,
         content: true,
         mediaId: true,
+        stickerAssetId: true,
         recalledAt: true,
         createdAt: true,
       },
@@ -65,13 +79,24 @@ export function canonicalDirectUserPair(userId: string, otherUserId: string) {
 }
 
 export function mapDirectMessage(message: DirectMessageRecord) {
+  const sticker = message.recalledAt ? null : message.sticker;
   return {
     id: message.id,
     conversationId: message.conversationId,
     senderId: message.senderId,
     recipientId: message.recipientId,
     content: message.recalledAt ? null : message.content,
-    media: message.recalledAt ? null : message.media,
+    // 兼容旧客户端：表情同时降级映射为普通图片；新版优先使用 sticker。
+    media: message.recalledAt ? null : message.media ?? (sticker
+      ? {
+          id: sticker.id,
+          url: sticker.url,
+          contentType: sticker.contentType,
+          width: sticker.width,
+          height: sticker.height,
+        }
+      : null),
+    sticker,
     recalledAt: message.recalledAt,
     createdAt: message.createdAt,
   };
@@ -107,8 +132,9 @@ export function mapDirectConversation(
           senderId: lastMessage.senderId,
           contentPreview: lastMessage.recalledAt
             ? null
-            : lastMessage.content?.slice(0, 120) ?? null,
-          hasImage: !lastMessage.recalledAt && Boolean(lastMessage.mediaId),
+            : lastMessage.content?.slice(0, 120) ?? (lastMessage.stickerAssetId ? '[表情]' : null),
+          hasImage: !lastMessage.recalledAt && Boolean(lastMessage.mediaId || lastMessage.stickerAssetId),
+          hasSticker: !lastMessage.recalledAt && Boolean(lastMessage.stickerAssetId),
           isRecalled: Boolean(lastMessage.recalledAt),
           createdAt: lastMessage.createdAt,
         }

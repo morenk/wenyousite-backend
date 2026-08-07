@@ -121,12 +121,12 @@
 | 方法 | 路径 | 守卫 | 说明 |
 |------|------|------|------|
 | GET | `/direct-conversations?view=INBOX\|REQUESTS\|ARCHIVED&cursor=&limit=` | AuthRead | 本人的会话、待处理请求或归档列表，Cursor 分页 |
-| POST | `/direct-conversations` | Auth | 发送首条纯文本/单图消息；互关直接接受，否则创建请求 |
+| POST | `/direct-conversations` | Auth | 发送首条纯文本/单图/收藏表情消息；互关直接接受，否则创建请求 |
 | GET | `/direct-conversations/unread` | AuthRead | 已接受会话未读消息、待处理请求及合计 |
 | GET | `/direct-conversations/by-user/:userId` | AuthRead | 查询与指定用户的联系状态及现有会话 |
 | GET | `/direct-conversations/:id` | AuthRead | 会话详情，仅参与者可见 |
 | GET | `/direct-conversations/:id/messages?cursor=&after=&limit=` | AuthRead | 历史或轮询增量消息，按时间正序；cursor 与 after 互斥 |
-| POST | `/direct-conversations/:id/messages` | Auth | 向已接受会话发送纯文本/单图消息 |
+| POST | `/direct-conversations/:id/messages` | Auth | 向已接受会话发送纯文本/单图/收藏表情消息 |
 | PATCH | `/direct-conversations/:id/request` | AuthRead | 接收方接受或拒绝请求；接受要求邮箱已验证 |
 | PATCH | `/direct-conversations/:id/archive` | AuthRead | 归档或恢复当前用户的会话 |
 | POST | `/direct-conversations/:id/read` | AuthRead | 标记实际展示到的锚点及之前消息为本人已读 |
@@ -147,6 +147,18 @@
 | POST | `/media/upload-url` | Auth | 获取预签名上传 URL + mediaId（预建 UPLOADING 记录），需邮箱已验证；**每用户小时配额（默认 60 次）**，超限返回 429 |
 | POST | `/media/upload-done` | Auth | 幂等确认上传（传 mediaId），校验归属 + 对象实际大小/MIME，原子入队处理，需邮箱已验证 |
 | GET | `/media/:id` | Auth | 查询图片处理状态（UPLOADING / PROCESSING / COMPLETED / FAILED），需邮箱已验证 |
+
+## 表情收藏端点 (Stickers)
+
+| 方法 | 路径 | 守卫 | 说明 |
+|------|------|------|------|
+| GET | `/stickers` | AuthRead | 获取私有收藏夹、最近 20 个和处理中的导入 |
+| POST | `/stickers/imports/media` | Auth | 从本人已完成媒体导入，使用 UUID 幂等键 |
+| POST | `/stickers/imports/direct-message` | Auth | 收藏本人参与且未撤回私聊中的图片或表情 |
+| POST | `/stickers/imports/post-image` | Auth | 收藏当前可访问帖子正文中的指定站内图片或表情 |
+| GET | `/stickers/imports/:id` | AuthRead | 查询导入处理状态 |
+| PUT | `/stickers/reorder` | Auth | 使用收藏夹版本和完整 ID 列表原子重排 |
+| DELETE | `/stickers/:favoriteId` | Auth | 移除自己的收藏，不影响已发送内容 |
 
 ## 收藏端点 (Bookmarks)
 

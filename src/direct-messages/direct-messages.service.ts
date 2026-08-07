@@ -10,6 +10,11 @@ import { DirectRequestAction } from './dto/direct-conversation-action.dto';
 import { DirectConversationStartResponseDto } from './dto/direct-message-response.dto';
 import { canonicalDirectUserPair } from './direct-message-mapper';
 import { DirectMessageQueryService } from './direct-message-query.service';
+import { StickersService } from '../stickers/stickers.service';
+import {
+  NormalizedDirectMessageInput,
+  normalizeDirectMessageInput,
+} from './direct-message-input';
 
 const RECALL_WINDOW_MS = 10 * 60 * 1000;
 
@@ -26,12 +31,6 @@ type RoutingConversation = Prisma.DirectConversationGetPayload<{
   select: typeof routingConversationSelect;
 }>;
 
-interface NormalizedMessageInput {
-  content: string | null;
-  mediaId: string | null;
-  clientRequestId: string;
-}
-
 @Injectable()
 export class DirectMessagesService {
   private readonly sendRatePerMinute: number;
@@ -42,6 +41,7 @@ export class DirectMessagesService {
     private readonly redis: RedisService,
     private readonly config: ConfigService,
     private readonly queries: DirectMessageQueryService,
+    private readonly stickers: StickersService,
   ) {
     this.sendRatePerMinute = this.config.get<number>('directMessages.sendRatePerMinute') ?? 30;
     this.requestRatePerDay = this.config.get<number>('directMessages.requestRatePerDay') ?? 10;
@@ -52,7 +52,7 @@ export class DirectMessagesService {
     dto: CreateDirectConversationDto,
     retry = false,
   ): Promise<DirectConversationStartResponseDto> {
-    const input = this.normalizeMessage(dto);
+    const input = normalizeDirectMessageInput(dto);
     const duplicate = await this.findDuplicate(senderId, input.clientRequestId);
     if (duplicate) {
       if (duplicate.recipientId !== dto.recipientId) {
@@ -79,6 +79,7 @@ export class DirectMessagesService {
     try {
       const created = await this.prisma.$transaction(async (tx) => {
         await this.assertMediaAvailable(tx, senderId, input.mediaId);
+        await this.assertStickerAvailable(tx, senderId, input.stickerAssetId);
         await this.assertPairWritable(tx, senderId, dto.recipientId);
         const conversation = await tx.directConversation.create({
           data: {
@@ -120,7 +121,7 @@ export class DirectMessagesService {
   }
 
   async send(conversationId: string, senderId: string, dto: CreateDirectMessageDto) {
-    const input = this.normalizeMessage(dto);
+    const input = normalizeDirectMessageInput(dto);
     const duplicate = await this.findDuplicate(senderId, input.clientRequestId);
     if (duplicate) {
       if (duplicate.conversationId !== conversationId) throw this.invalidMessage('幂等键已用于其他会话');
@@ -271,7 +272,7 @@ export class DirectMessagesService {
       if (current.status !== 'ACCEPTED') throw this.notAllowed('该消息当前不能撤回');
       const recalled = await tx.directMessage.updateMany({
         where: { id: messageId, senderId, recalledAt: null },
-        data: { content: null, mediaId: null, recalledAt: new Date() },
+        data: { content: null, mediaId: null, stickerAssetId: null, recalledAt: new Date() },
       });
       if (recalled.count === 0) throw this.notAllowed('消息状态已变化');
       return false;
@@ -287,7 +288,7 @@ export class DirectMessagesService {
     conversation: RoutingConversation,
     senderId: string,
     recipientId: string,
-    input: NormalizedMessageInput,
+    input: NormalizedDirectMessageInput,
   ) {
     if (conversation.status === 'ACCEPTED') {
       const messageId = await this.sendAccepted(conversation, senderId, recipientId, input);
@@ -337,12 +338,13 @@ export class DirectMessagesService {
     conversation: RoutingConversation,
     senderId: string,
     recipientId: string,
-    input: NormalizedMessageInput,
+    input: NormalizedDirectMessageInput,
   ) {
     await this.assertSendRate(senderId);
     try {
       return await this.prisma.$transaction(async (tx) => {
         await this.assertMediaAvailable(tx, senderId, input.mediaId);
+        await this.assertStickerAvailable(tx, senderId, input.stickerAssetId);
         await this.assertPairWritable(tx, senderId, recipientId);
         const current = await tx.directConversation.findUnique({
           where: { id: conversation.id },
@@ -376,7 +378,7 @@ export class DirectMessagesService {
     conversation: RoutingConversation,
     senderId: string,
     recipientId: string,
-    input: NormalizedMessageInput,
+    input: NormalizedDirectMessageInput,
     nextStatus: DirectConversationStatus,
     markPreviousRead: boolean,
   ) {
@@ -384,6 +386,7 @@ export class DirectMessagesService {
     try {
       return await this.prisma.$transaction(async (tx) => {
         await this.assertMediaAvailable(tx, senderId, input.mediaId);
+        await this.assertStickerAvailable(tx, senderId, input.stickerAssetId);
         await this.assertPairWritable(tx, senderId, recipientId);
         const transitioned = await tx.directConversation.updateMany({
           where: { id: conversation.id, status: conversation.status },
@@ -428,7 +431,7 @@ export class DirectMessagesService {
     conversationId: string,
     senderId: string,
     recipientId: string,
-    input: NormalizedMessageInput,
+    input: NormalizedDirectMessageInput,
   ) {
     return tx.directMessage.create({
       data: {
@@ -437,6 +440,7 @@ export class DirectMessagesService {
         recipientId,
         content: input.content,
         mediaId: input.mediaId,
+        stickerAssetId: input.stickerAssetId,
         clientRequestId: input.clientRequestId,
       },
       select: { id: true, createdAt: true },
@@ -451,11 +455,14 @@ export class DirectMessagesService {
     return { conversation, message };
   }
 
-  private normalizeMessage(dto: CreateDirectMessageDto): NormalizedMessageInput {
-    const content = dto.content?.replace(/\r\n?/g, '\n').trim() || null;
-    const mediaId = dto.mediaId ?? null;
-    if (!content && !mediaId) throw this.invalidMessage('消息正文和图片至少需要一项');
-    return { content, mediaId, clientRequestId: dto.clientRequestId };
+  private async assertStickerAvailable(
+    tx: Prisma.TransactionClient,
+    senderId: string,
+    stickerAssetId: string | null,
+  ) {
+    if (!stickerAssetId) return;
+    await this.stickers.assertFavorite(senderId, stickerAssetId, tx);
+    await this.stickers.recordUsage(senderId, stickerAssetId, tx);
   }
 
   private async assertMediaAvailable(

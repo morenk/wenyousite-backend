@@ -20,6 +20,7 @@ import { PostingPolicyService } from '../posts/posting-policy.service';
 import { PostQueryService } from '../posts/post-query.service';
 import { ThreadQueryService } from '../threads/thread-query.service';
 import { OutboxService } from '../outbox/outbox.service';
+import { StickerContentService } from '../stickers/sticker-content.service';
 
 // ============ Mock 基础设施 ============
 const createMockPrisma = () => ({
@@ -246,6 +247,13 @@ describe('发帖全流程集成测试', () => {
         { provide: RedisService, useValue: mockRedis },
         { provide: CacheService, useValue: mockCache },
         { provide: OutboxService, useValue: mockOutbox },
+        {
+          provide: StickerContentService,
+          useValue: {
+            assertContentAllowed: jest.fn().mockResolvedValue([]),
+            recordUsage: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
 

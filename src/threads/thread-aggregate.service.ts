@@ -23,6 +23,7 @@ import { OutboxService } from '../outbox/outbox.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { SaveThreadAggregateDto } from './dto/save-thread-aggregate.dto';
+import { StickerContentService } from '../stickers/sticker-content.service';
 
 const ZSET_BY_CREATED = 'threads:by:created';
 const ZSET_BY_ACTIVITY = 'threads:by:activity';
@@ -55,6 +56,7 @@ export class ThreadAggregateService {
     private readonly mentions: MentionsService,
     private readonly blockFilter: BlockFilterService,
     private readonly notifications: NotificationProducer,
+    private readonly stickerContent: StickerContentService,
   ) {}
 
   async save(threadId: string, dto: SaveThreadAggregateDto, userId: string) {
@@ -76,6 +78,16 @@ export class ThreadAggregateService {
     }
     const parsedContent = this.dice.parseContent(normalizeMarkdownContent(dto.content));
     const content = parsedContent.content;
+    const previousBody = await this.prisma.post.findFirst({
+      where: { threadId, kind: 'BODY', subthread: { defaultForThread: { is: { id: threadId } } }, ...notDeleted },
+      select: { content: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    const stickerAssetIds = await this.stickerContent.assertContentAllowed(
+      userId,
+      content,
+      previousBody?.content ?? '',
+    );
 
     const result = await this.prisma
       .$transaction(async (tx) => {
@@ -314,6 +326,21 @@ export class ThreadAggregateService {
         parentPostId: null,
       });
       this.syncEditedMentions(result.updatedBody, userId, threadId);
+    }
+    if (result.updated.published) {
+      await this.stickerContent.recordUsage(userId, stickerAssetIds);
+      if (result.publishing) {
+        const publishedPosts = await this.prisma.post.findMany({
+          where: { threadId, deletedAt: null },
+          select: { content: true },
+        });
+        const allAssetIds = publishedPosts.flatMap((post) =>
+          this.stickerContent.extract(post.content)
+            .map((token) => token.stickerAssetId)
+            .filter((id): id is string => Boolean(id)),
+        );
+        await this.stickerContent.recordUsage(userId, allAssetIds);
+      }
     }
     return result.updated;
   }

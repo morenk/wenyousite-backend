@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { MediaService } from '../media/media.service';
+import { StickersService } from '../stickers/stickers.service';
 
 /** ZSET 键名 */
 const ZSET_BY_SMART = 'threads:by:smart';
@@ -17,6 +18,7 @@ export class CleanupTask {
     private prisma: PrismaService,
     private redis: RedisService,
     private mediaService: MediaService,
+    private stickersService: StickersService,
   ) {}
 
   /** 每天凌晨 4 点执行 */
@@ -101,6 +103,12 @@ export class CleanupTask {
       await this.mediaService.cleanupOrphanMedia();
     } catch (e) {
       this.logger.error('孤儿图片清理失败', e);
+    }
+
+    try {
+      await this.stickersService.cleanupOrphanAssets();
+    } catch (e) {
+      this.logger.error('孤儿表情资产清理失败', e);
     }
   }
 

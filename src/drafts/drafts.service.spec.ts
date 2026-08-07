@@ -5,6 +5,7 @@ import { NotFoundException, BadRequestException, HttpStatus } from '@nestjs/comm
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { DiceService } from '../dice/dice.service';
+import { StickerContentService } from '../stickers/sticker-content.service';
 
 const mockPrisma = {
   draft: {
@@ -21,7 +22,15 @@ describe('DraftsService', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [DraftsService, DiceService, { provide: PrismaService, useValue: mockPrisma }],
+      providers: [
+        DraftsService,
+        DiceService,
+        { provide: PrismaService, useValue: mockPrisma },
+        {
+          provide: StickerContentService,
+          useValue: { assertContentAllowed: jest.fn().mockResolvedValue([]) },
+        },
+      ],
     }).compile();
     service = module.get<DraftsService>(DraftsService);
     jest.clearAllMocks();

@@ -17,6 +17,8 @@ export const ErrorCode = {
   DICE_ROLL_LIMIT_EXCEEDED: 40004,
   /** 私聊消息正文或附件不合法 */
   INVALID_DIRECT_MESSAGE: 40005,
+  /** 表情来源、格式或正文表情协议不合法 */
+  INVALID_STICKER: 40006,
 
   // ── 认证 401xx ──
   /** 未认证 */
@@ -93,6 +95,8 @@ export const ErrorCode = {
   DIRECT_CONVERSATION_NOT_FOUND: 40411,
   /** 私聊消息不存在 */
   DIRECT_MESSAGE_NOT_FOUND: 40412,
+  /** 表情资产、收藏或导入记录不存在 */
+  STICKER_NOT_FOUND: 40413,
 
   // ── 冲突 409xx ──
   /** 通用冲突 */
@@ -115,6 +119,10 @@ export const ErrorCode = {
   DIRECT_MESSAGE_RECALL_EXPIRED: 40908,
   /** 图片已绑定到其他私聊消息 */
   DIRECT_MESSAGE_MEDIA_ATTACHED: 40909,
+  /** 表情收藏数量达到上限 */
+  STICKER_LIMIT_REACHED: 40910,
+  /** 表情收藏夹版本冲突 */
+  STICKER_COLLECTION_VERSION_CONFLICT: 40911,
 
   // ── 限流 429xx ──
   /** 请求过于频繁 */

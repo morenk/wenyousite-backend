@@ -31,6 +31,7 @@
 | [drafts](./modules/drafts.md) | 草稿 | 用户级全局 5 槽位草稿池 |
 | [notifications](./modules/notifications.md) | 通知 | 列表、未读数、已读 |
 | [direct-messages](./modules/direct-messages.md) | 私聊 | 一对一会话、消息请求、未读、归档与撤回 |
+| [stickers](./modules/stickers.md) | 表情收藏 | 私有收藏夹、图片规范化、排序、最近使用与跨端发送协议 |
 | [subscriptions](./modules/subscriptions.md) | 订阅 | THREAD/USER 订阅 + 通知投递 |
 | [media](./modules/media.md) | 媒体 | 预签名 URL、upload-done、sharp 图片处理 |
 | [tags](./modules/tags.md) | 标签 | 平台级 TopicTag 与主题帖关联 |

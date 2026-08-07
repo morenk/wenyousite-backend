@@ -1,4 +1,4 @@
-/** Markdown v1 契约测试：以后端纯函数执行跨语言黄金语料 */
+/** Markdown v2 契约测试：以后端纯函数执行跨语言黄金语料 */
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -18,13 +18,13 @@ interface MarkdownFixtureFile {
   cases: MarkdownFixtureCase[];
 }
 
-const fixturePath = resolve(__dirname, '../../contracts/markdown-v1-fixtures.json');
+const fixturePath = resolve(__dirname, '../../contracts/markdown-v2-fixtures.json');
 const fixtures = JSON.parse(readFileSync(fixturePath, 'utf8')) as MarkdownFixtureFile;
 
-describe('Markdown v1 黄金语料', () => {
+describe('Markdown v2 黄金语料', () => {
   it('协议标识、版本和 case id 合法', () => {
     expect(fixtures.contract).toBe('wenyousite-markdown');
-    expect(fixtures.version).toBe(1);
+    expect(fixtures.version).toBe(2);
     expect(fixtures.cases.length).toBeGreaterThan(0);
     expect(new Set(fixtures.cases.map((item) => item.id)).size).toBe(fixtures.cases.length);
   });

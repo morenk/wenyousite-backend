@@ -4,6 +4,7 @@ import { CleanupTask } from './cleanup.task';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { MediaService } from '../media/media.service';
+import { StickersService } from '../stickers/stickers.service';
 
 const mockPrisma = {
   emailVerification: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
@@ -26,6 +27,7 @@ const mockRedis = {
 const mockMediaService = {
   cleanupOrphanMedia: jest.fn().mockResolvedValue(undefined),
 };
+const mockStickersService = { cleanupOrphanAssets: jest.fn().mockResolvedValue(undefined) };
 
 describe('CleanupTask', () => {
   let task: CleanupTask;
@@ -37,6 +39,7 @@ describe('CleanupTask', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: RedisService, useValue: mockRedis },
         { provide: MediaService, useValue: mockMediaService },
+        { provide: StickersService, useValue: mockStickersService },
       ],
     }).compile();
     task = module.get<CleanupTask>(CleanupTask);

@@ -14,6 +14,7 @@ import { DiceService } from '../dice/dice.service';
 import { PaginatedResult } from '../common/dto/paginated-result';
 import { ThreadQueryService } from './thread-query.service';
 import { OutboxService } from '../outbox/outbox.service';
+import { StickerContentService } from '../stickers/sticker-content.service';
 
 const mockPrisma = {
   $transaction: jest.fn(),
@@ -112,6 +113,10 @@ describe('ThreadsService', () => {
         { provide: RedisService, useValue: mockRedis },
         { provide: CacheService, useValue: mockCache },
         { provide: OutboxService, useValue: mockOutbox },
+        {
+          provide: StickerContentService,
+          useValue: { assertContentAllowed: jest.fn().mockResolvedValue([]) },
+        },
       ],
     }).compile();
     service = module.get<ThreadsService>(ThreadsService);

@@ -1,6 +1,6 @@
 # 数据模型
 
-> 26 张表，12 个 Prisma 枚举。除显式标注的 UUID 外，ID 使用 `cuid()` 生成，时间戳使用 `DateTime`。
+> 30 张表，13 个 Prisma 枚举。除显式标注的 UUID 外，ID 使用 `cuid()` 生成，时间戳使用 `DateTime`。
 
 ## 枚举定义
 
@@ -85,6 +85,14 @@
 | `ACCEPTED` | 双方可以继续发送消息 |
 | `DECLINED` | 请求被接收方拒绝或因拉黑终止；原发起方不能重试 |
 | `CANCELED` | 发起方在十分钟内撤回首条消息并取消请求 |
+
+### StickerImportStatus — 表情导入状态
+
+| 值 | 说明 |
+|----|------|
+| `PROCESSING` | 已入队，正在下载和规范化 |
+| `COMPLETED` | 已生成或复用资产并加入收藏 |
+| `FAILED` | 输入或输出不符合规则，或处理重试耗尽 |
 
 ---
 
@@ -407,6 +415,17 @@
 
 `@@index([status, createdAt])` — 支撑孤儿图片回收的候选查询。
 
+### sticker_assets / sticker_collections / user_stickers / sticker_imports — 表情收藏
+
+| 表 | 核心字段 | 说明 |
+|----|----------|------|
+| `sticker_assets` | url/key/thumbnailUrl/contentHash/size/width/height/animated/frameCount/durationMs | 规范化后的独立 WebP 资产；内容哈希全局去重 |
+| `sticker_collections` | userId(PK), version | 每用户懒创建的私有收藏夹和排序乐观锁版本 |
+| `user_stickers` | userId, assetId, position, lastUsedAt | 用户与资产关联；用户+资产唯一，最多 200 条 |
+| `sticker_imports` | userId, sourceMediaId?, clientRequestId, status, assetId?, failureCode? | 异步导入和幂等状态；用户+请求 UUID 唯一 |
+
+资产不依赖来源内容生存。`user_stickers` 删除只影响本人；仍被其他收藏、私聊消息或帖子 Markdown 引用的资产不会清理。
+
 ### direct_conversations — 一对一私聊会话
 
 | 字段 | 类型 | 约束 | 说明 |
@@ -444,13 +463,14 @@
 | senderId | String | FK users | 发送者 |
 | recipientId | String | FK users | 接收者 |
 | mediaId | String? | unique, FK media (SetNull) | 单张图片；同一媒体不能复用 |
+| stickerAssetId | String? | FK sticker_assets (SetNull) | 独立收藏表情；发送后不依赖用户继续收藏 |
 | clientRequestId | UUID | 与 senderId 联合唯一 | 客户端幂等键 |
 | content | String? | 最大 1000 字由 DTO 校验 | 纯文本正文 |
 | readAt | DateTime? | — | 仅供接收者未读统计，不对发送者返回 |
 | recalledAt | DateTime? | — | 非空时返回撤回占位，不返回正文/图片 |
 | createdAt | DateTime | — | — |
 
-数据库 CHECK 要求正常消息至少有正文或图片；撤回占位允许二者为空。历史索引为 `(conversationId, createdAt DESC, id DESC)`，未读索引为 `(recipientId, readAt, createdAt DESC)`。
+数据库 CHECK 要求正常消息至少有正文、图片或表情；撤回占位允许三者为空。历史索引为 `(conversationId, createdAt DESC, id DESC)`，未读索引为 `(recipientId, readAt, createdAt DESC)`。
 
 ### reports — 举报
 
