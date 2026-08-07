@@ -26,7 +26,8 @@ async function bootstrap() {
 
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter(),
+    // Caddy 与应用同机部署：仅信任 loopback 反代传入的 X-Forwarded-For。
+    new FastifyAdapter({ trustProxy: ['127.0.0.1', '::1'] }),
     { bufferLogs: true },
   );
 

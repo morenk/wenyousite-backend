@@ -43,7 +43,6 @@ const mockConfig = {
   get: jest.fn((key: string) => {
     const map: Record<string, any> = {
       'jwt.accessSecret': 'test-secret',
-      'jwt.refreshSecret': 'test-refresh',
       'argon2.timeCost': 1,
       'argon2.memoryCost': 8192,
     };
