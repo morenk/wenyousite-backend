@@ -1,9 +1,11 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, HttpStatus, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { attachPlayerCounts, authorSelect } from '../common/prisma-helpers';
 import { paginate } from '../common/dto/paginated-result';
 import { ThreadAccessService } from '../access/thread-access.service';
+import { BusinessException } from '../common/exceptions/business.exception';
+import { ErrorCode } from '../common/exceptions/error-codes';
 
 const SEARCH_POST_LIMIT = 20;
 const SEARCH_POSTS_PER_THREAD = 3;
@@ -64,7 +66,11 @@ function decodePostCursor(cursor: string): SearchPostCursor {
     }
     return value as SearchPostCursor;
   } catch {
-    throw new BadRequestException('无效的搜索游标');
+    throw new BusinessException(
+      ErrorCode.INVALID_CURSOR,
+      '无效的搜索游标',
+      HttpStatus.BAD_REQUEST,
+    );
   }
 }
 

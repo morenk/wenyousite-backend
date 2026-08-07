@@ -41,6 +41,8 @@ import {
   RecentReplyResponseDto,
 } from './dto/user-response.dto';
 import { PostAuthorResponseDto } from '../posts/dto/post-response.dto';
+import { CursorPaginationDto } from '../common/dto/pagination.dto';
+import { ApiCursorPaginatedResponse } from '../common/swagger/api-cursor-paginated-response.decorator';
 
 /** 用户控制器：查询和修改个人资料 */
 @ApiTags('Users')
@@ -137,28 +139,25 @@ export class UsersController {
   @Get(':id/bookmarks')
   @OptionalAuth()
   @ApiOperation({ summary: '查看用户的收藏列表（受 showBookmarks 隐私开关控制）' })
-  @ApiQuery({ name: 'cursor', required: false, description: '分页游标（上一页最后一条记录 ID）' })
-  @ApiQuery({ name: 'limit', required: false, description: '每页条数（默认 20，最大 50）' })
-  @ApiOkResponse({ type: BookmarkThreadResponseDto, isArray: true, description: '用户的收藏列表（cursor 分页，含帖子摘要）' })
+  @ApiCursorPaginatedResponse(BookmarkThreadResponseDto, '用户的收藏列表（cursor 分页，含帖子摘要）')
   @ApiNotFoundResponse({ description: '用户不存在或未公开收藏' })
   async getUserBookmarks(
     @Param('id') id: string,
-    @Query('cursor') cursor: string | undefined,
-    @Query('limit') limit: string | undefined,
+    @Query() query: CursorPaginationDto,
     @CurrentUser() viewer: CurrentUserPayload | undefined,
   ) {
     return this.activity.userBookmarks(
       id,
       viewer?.id,
-      cursor,
-      limit ? parseInt(limit) : undefined,
+      query.cursor,
+      query.limit,
     );
   }
 
   @Get(':id/played-threads')
   @OptionalAuth()
   @ApiOperation({ summary: '查看用户参与的帖子（仅已被授予玩家身份的帖子；他人仅可见公开帖）' })
-  @ApiOkResponse({ type: ThreadListItemResponseDto, isArray: true, description: '用户参与的帖子列表（cursor 分页）' })
+  @ApiCursorPaginatedResponse(ThreadListItemResponseDto, '用户参与的帖子列表（cursor 分页）')
   @ApiNotFoundResponse({ description: '用户不存在或未公开参与的帖子' })
   async getUserPlayedThreads(
     @Param('id') id: string,
@@ -179,21 +178,18 @@ export class UsersController {
   @ApiOperation({
     summary: '查看用户创建的主题帖（本人可见全部含私密帖，他人仅见 PUBLIC 已发布帖）',
   })
-  @ApiQuery({ name: 'cursor', required: false, description: '分页游标（上一页最后一条记录 ID）' })
-  @ApiQuery({ name: 'limit', required: false, description: '每页条数（默认 20，最大 50）' })
-  @ApiOkResponse({ type: ThreadListItemResponseDto, isArray: true, description: '用户创建的主题帖列表（cursor 分页）' })
+  @ApiCursorPaginatedResponse(ThreadListItemResponseDto, '用户创建的主题帖列表（cursor 分页）')
   @ApiNotFoundResponse({ description: '用户不存在' })
   async getUserCreatedThreads(
     @Param('id') id: string,
-    @Query('cursor') cursor: string | undefined,
-    @Query('limit') limit: string | undefined,
+    @Query() query: CursorPaginationDto,
     @CurrentUser() viewer: CurrentUserPayload | undefined,
   ) {
     return this.activity.createdThreads(
       id,
       viewer?.id,
-      cursor,
-      limit ? parseInt(limit) : undefined,
+      query.cursor,
+      query.limit,
     );
   }
 

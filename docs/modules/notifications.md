@@ -42,7 +42,8 @@
 - 同一条回复的显式 `mention` 优先级高于 `reply`，只保留一次提醒；同一批通知写入使用 `skipDuplicates` 兜底并发重试
 - 点赞通知按主题帖聚合；聚合事务使用 Serializable 隔离级别，并在 payload 中保留最近事件键，避免并发丢计数或重试重复累加
 - 定时清理任务每天凌晨 4 点清理 90 天前已读的通知
-- `payload` JSON 字段携带通知的结构化数据（actorName、action、preview 等）；新版前端优先分离展示操作者、动作和正文预览，`content` 继续作为旧数据降级字段
+- 响应把历史 `payload` 规范化为带 `schemaVersion=1` 的类型结构，并额外给出 `target.kind`（post/thread/user/none）及相应 ID；新版 Web/Flutter 按 target 导航，`content` 继续作为旧数据和未知类型的降级字段
+- 通知落库后按稳定事件键进入 `mobile-push` 队列；FCM 只发送通用隐私提示，客户端回到 API 拉取权威内容
 - 通知摘要先把 Markdown 图片语法替换为 `[图片]`，再剥离其他 Markdown 标记；纯图片回复仍有可识别预览，同时图片 alt（包括 Milkdown 的 `1.00` 比例占位）不会进入通知文案
 - 通知摘要会把顶层空段落协议标记（`<br />` 及历史变体）转换为空白并折叠，避免空行撑高或标签泄漏
 - 摘要把 Milkdown 转义的字面标点（`\<` `\>` `\*` `\_` `` \` `` `\~` 等）统一替换为私有区占位符再交给 remove-markdown，清理后还原：字面字符完整保留、不残留孤立 `\`，且不会被强调/删除线/行内代码等正则误删；普通反斜杠路径（如 `C:\temp`）不受影响
@@ -52,7 +53,7 @@
 ## 设计决策
 
 - **读写的关注点分离**：本模块仅负责通知的查询和已读管理；通知的创建由 BullMQ notification 队列异步处理，保证发帖/关注/点赞操作不因通知投递而阻塞
-- **结构化导航字段 + payload**：在 Notification 表冗余存储 postId / threadId / fromUserId 以及 payload JSON，前端可直接读取跳转信息和结构化渲染数据，无需额外查询
+- **结构化导航字段 + payload**：在 Notification 表冗余存储 postId / threadId / fromUserId 以及 payload JSON，API 映射为版本化 payload 与具名 target，客户端无需猜测字段组合
 - **内容兼容**：保留 `content` 纯文本字段作为降级渲染，`payload` 为可选 JSON 字段供新版客户端使用
 - **Cursor 分页而非偏移分页**：通知列表高频查询且数据持续增长，Cursor 分页避免 offset 在大数据量下性能衰减
 - **硬删除而非软删除**：通知是可丢弃的 transient 数据，硬删除减少存储开销，无需维护 deletedAt 状态

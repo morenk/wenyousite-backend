@@ -21,6 +21,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import sharp from 'sharp';
+import { withMediaVariants } from './media-response.mapper';
 
 /** 允许的文件类型白名单 */
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'];
@@ -141,7 +142,7 @@ export class MediaService {
       throw new ForbiddenException('无权操作');
     }
     if (media.status === 'PROCESSING' || media.status === 'COMPLETED') {
-      return { media, processing: media.status === 'PROCESSING' };
+      return { media: withMediaVariants(media), processing: media.status === 'PROCESSING' };
     }
     if (media.status !== 'UPLOADING') {
       throw new BadRequestException('无效的上传状态');
@@ -193,7 +194,7 @@ export class MediaService {
         current?.userId === userId &&
         (current.status === 'PROCESSING' || current.status === 'COMPLETED')
       ) {
-        return { media: current, processing: current.status === 'PROCESSING' };
+        return { media: withMediaVariants(current), processing: current.status === 'PROCESSING' };
       }
       throw new BadRequestException('无效的上传状态');
     }
@@ -223,7 +224,7 @@ export class MediaService {
       throw error;
     }
 
-    return { media: processing, processing: true };
+    return { media: withMediaVariants(processing), processing: true };
   }
 
   /** 根据 ID 查询单条媒体记录，校验所属用户 */
@@ -235,7 +236,7 @@ export class MediaService {
     if (media.userId !== userId) {
       throw new ForbiddenException('无权访问');
     }
-    return media;
+    return withMediaVariants(media);
   }
 
   /** 生成缩略图和中图，上传至 S3 并更新 Media 记录 */

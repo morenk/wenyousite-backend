@@ -1,6 +1,8 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, HttpStatus } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { SetMetadata } from '@nestjs/common';
+import { BusinessException } from '../exceptions/business.exception';
+import { ErrorCode } from '../exceptions/error-codes';
 
 const SKIP_VERIFIED_KEY = 'skipVerified';
 
@@ -24,7 +26,11 @@ export class VerifiedGuard implements CanActivate {
     const user = request.user;
     if (!user) return true;
     if (user.emailVerified === false) {
-      throw new ForbiddenException('请先验证邮箱后再操作。如未收到邮件，可调用 /auth/resend-verification 重新获取');
+      throw new BusinessException(
+        ErrorCode.EMAIL_NOT_VERIFIED,
+        '请先验证邮箱后再操作。如未收到邮件，可调用 /auth/resend-verification 重新获取',
+        HttpStatus.FORBIDDEN,
+      );
     }
     return true;
   }

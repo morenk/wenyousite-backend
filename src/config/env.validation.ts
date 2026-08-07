@@ -1,5 +1,5 @@
 import { plainToInstance } from 'class-transformer';
-import { IsEnum, IsNumber, IsOptional, IsString, validateSync } from 'class-validator';
+import { IsBoolean, IsEnum, IsNumber, IsOptional, IsString, Min, validateSync } from 'class-validator';
 
 /** 环境变量校验器：应用启动时验证必要的环境变量 */
 enum Environment {
@@ -35,15 +35,37 @@ class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
-  JWT_REFRESH_SECRET: string = 'dev-refresh-secret';
-
-  @IsString()
-  @IsOptional()
   JWT_ACCESS_EXPIRES_IN: string = '15m';
 
+  @IsNumber()
+  @IsOptional()
+  @Min(1)
+  AUTH_REFRESH_WEB_TTL_DAYS: number = 7;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(1)
+  AUTH_REFRESH_MOBILE_TTL_DAYS: number = 30;
+
   @IsString()
   @IsOptional()
-  JWT_REFRESH_EXPIRES_IN: string = '7d';
+  CORS_ORIGINS: string = '';
+
+  @IsString()
+  @IsOptional()
+  BUILD_SHA: string = '';
+
+  @IsBoolean()
+  @IsOptional()
+  PUSH_ENABLED: boolean = false;
+
+  @IsString()
+  @IsOptional()
+  FIREBASE_PROJECT_ID: string = '';
+
+  @IsString()
+  @IsOptional()
+  GOOGLE_APPLICATION_CREDENTIALS: string = '';
 
   @IsString()
   @IsOptional()
@@ -101,6 +123,22 @@ export function validate(config: Record<string, unknown>) {
 
   if (errors.length > 0) {
     throw new Error(errors.toString());
+  }
+  if (validatedConfig.NODE_ENV === Environment.Production) {
+    if (
+      !validatedConfig.JWT_ACCESS_SECRET ||
+      validatedConfig.JWT_ACCESS_SECRET.startsWith('dev-') ||
+      validatedConfig.JWT_ACCESS_SECRET.startsWith('change-me') ||
+      validatedConfig.JWT_ACCESS_SECRET.length < 24
+    ) {
+      throw new Error('生产环境 JWT_ACCESS_SECRET 必须是至少 24 字符的非默认随机值');
+    }
+    if (
+      validatedConfig.PUSH_ENABLED &&
+      (!validatedConfig.FIREBASE_PROJECT_ID || !validatedConfig.GOOGLE_APPLICATION_CREDENTIALS)
+    ) {
+      throw new Error('启用推送时必须配置 FIREBASE_PROJECT_ID 和 GOOGLE_APPLICATION_CREDENTIALS');
+    }
   }
   return validatedConfig;
 }

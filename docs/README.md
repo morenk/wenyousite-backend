@@ -14,9 +14,11 @@
 | [API 端点表](./api-endpoints.md) | API 方法、路径、守卫和参数说明 |
 | [API 参数校验规范](./api-validation.md) | 全局校验管道、DTO 编写规范、参数类型约束细则 |
 | [后端架构与模块边界](./architecture.md) | 分层规则、事务 Outbox、API 契约和自动门禁 |
+| [API 契约发布流程](./api-contract.md) | OpenAPI 事实源、版本、生成与客户端同步规则 |
+| [Flutter / 原生移动端接入](./mobile-client-guide.md) | 安全存储、刷新、幂等、分页、媒体和 FCM |
 | [数据模型](./data-model.md) | 表、枚举、字段说明和关系 |
 | [图片上传管线](./image-upload.md) | 预签名上传 → S3 直传 → 确认 → sharp 缩略图 |
-| [通知投递规则](./notification-delivery.md) | 5 类通知的触发条件和接收者矩阵 |
+| [通知投递规则](./notification-delivery.md) | 7 类通知的触发条件和接收者矩阵 |
 
 ### 模块文档
 
@@ -30,6 +32,7 @@
 | [dice](./modules/dice.md) | 骰子 | 表达式协议、服务端投掷、结果不可变、草稿发布结算 |
 | [drafts](./modules/drafts.md) | 草稿 | 用户级全局 5 槽位草稿池 |
 | [notifications](./modules/notifications.md) | 通知 | 列表、未读数、已读 |
+| [mobile-push](./modules/mobile-push.md) | 移动推送 | FCM token 绑定、队列投递、失效停用 |
 | [direct-messages](./modules/direct-messages.md) | 私聊 | 一对一会话、消息请求、未读、归档与撤回 |
 | [stickers](./modules/stickers.md) | 表情收藏 | 私有收藏夹、图片规范化、排序、最近使用与跨端发送协议 |
 | [subscriptions](./modules/subscriptions.md) | 订阅 | THREAD/USER 订阅 + 通知投递 |
@@ -46,4 +49,5 @@
 - **想知道某个 API 怎么调用？** → [API 端点表](./api-endpoints.md)
 - **想知道某张表有哪些字段？** → [数据模型](./data-model.md)
 - **想知道上传图片的完整流程？** → [图片上传管线](./image-upload.md)
+- **Flutter 如何安全接入？** → [Flutter / 原生移动端接入](./mobile-client-guide.md)
 - **想知道什么情况会收到通知？** → [通知投递规则](./notification-delivery.md)

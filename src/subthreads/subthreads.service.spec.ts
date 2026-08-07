@@ -7,6 +7,7 @@ import { BusinessException } from '../common/exceptions/business.exception';
 import { DiceService } from '../dice/dice.service';
 import { OutboxService } from '../outbox/outbox.service';
 import { StickerContentService } from '../stickers/sticker-content.service';
+import { ErrorCode } from '../common/exceptions/error-codes';
 
 const mockPrisma = {
   $transaction: jest.fn(),
@@ -93,9 +94,24 @@ describe('SubthreadsService', () => {
       published: true,
       ownerId: 'u1',
     });
+    mockPrisma.subthread.findFirst.mockResolvedValue(null);
   });
 
   describe('create', () => {
+    it('相同 clientRequestId 复用于不同载荷时拒绝且不启动事务', async () => {
+      mockPrisma.thread.findUnique.mockResolvedValue({ published: true, title: '主题A' });
+      mockPrisma.subthread.findFirst.mockResolvedValue({ id: 's1', createRequestHash: 'other' });
+
+      await expect(service.create('t1', {
+        title: '设定区',
+        clientRequestId: '99454040-6a52-4bf3-8bad-42683c4d09be',
+      }, 'u1')).rejects.toMatchObject({
+        errorCode: ErrorCode.IDEMPOTENCY_KEY_REUSED,
+        status: 409,
+      });
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
     it('创建子贴并自动分配 sortOrder，正文创建为 kind=BODY 正文帖', async () => {
       mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
       mockPrisma.thread.findUnique.mockResolvedValue({

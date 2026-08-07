@@ -16,6 +16,7 @@ import {
   NotificationResponseDto,
   UnreadNotificationCountResponseDto,
 } from './dto/notification-response.dto';
+import { ApiCursorPaginatedResponse } from '../common/swagger/api-cursor-paginated-response.decorator';
 
 /** 通知控制器：站内通知的查询、标记已读/未读、删除 */
 @ApiTags('Notifications')
@@ -34,7 +35,7 @@ export class NotificationsController {
     required: false,
     description: '按类型过滤，逗号分隔，如 type=mention,reply',
   })
-  @ApiOkResponse({ type: NotificationResponseDto, isArray: true, description: '通知列表（cursor 分页，按时间倒序）' })
+  @ApiCursorPaginatedResponse(NotificationResponseDto, '通知列表（cursor 分页，按时间倒序）')
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async findAll(
     @Req() req: FastifyRequest,

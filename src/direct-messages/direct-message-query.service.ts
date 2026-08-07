@@ -132,7 +132,11 @@ export class DirectMessageQueryService {
         })
       : null;
     if (anchorId && (!anchor || anchor.conversationId !== conversationId)) {
-      throw notFound(ErrorCode.DIRECT_MESSAGE_NOT_FOUND, '私聊消息不存在');
+      throw new BusinessException(
+        ErrorCode.INVALID_CURSOR,
+        '分页锚点无效或不属于当前会话',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const take = Math.min(query.limit ?? 30, 50);

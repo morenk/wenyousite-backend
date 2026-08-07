@@ -3,6 +3,44 @@ import { PrismaService } from '../prisma/prisma.service';
 import { paginate } from '../common/dto/paginated-result';
 import { publicUserSummarySelect } from '../common/user-summary';
 
+function normalizePayload(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return { ...(value as Record<string, unknown>), schemaVersion: 1 };
+}
+
+function notificationTarget(notification: {
+  postId: string | null;
+  threadId: string | null;
+  fromUserId: string | null;
+  type: string;
+}) {
+  if (notification.postId) {
+    return {
+      kind: 'post' as const,
+      threadId: notification.threadId,
+      postId: notification.postId,
+      userId: null,
+    };
+  }
+  if (notification.threadId) {
+    return {
+      kind: 'thread' as const,
+      threadId: notification.threadId,
+      postId: null,
+      userId: null,
+    };
+  }
+  if (notification.type === 'follow' && notification.fromUserId) {
+    return {
+      kind: 'user' as const,
+      threadId: null,
+      postId: null,
+      userId: notification.fromUserId,
+    };
+  }
+  return { kind: 'none' as const, threadId: null, postId: null, userId: null };
+}
+
 /** 站内通知服务：CRUD、未读数、硬删除、标记未读 */
 @Injectable()
 export class NotificationsService {
@@ -66,11 +104,18 @@ export class NotificationsService {
     if (hasMore) notifs.pop();
 
     // 兼容迁移前已经写入的旧类型，避免前端需要同时维护两套类型分支。
-    const normalizedNotifs = notifs.map((notification) =>
-      notification.type === 'new_floor' || notification.type === 'subthread_created'
-        ? { ...notification, type: 'new_post' }
-        : notification,
-    );
+    const normalizedNotifs = notifs.map((notification) => {
+      const normalizedType =
+        notification.type === 'new_floor' || notification.type === 'subthread_created'
+          ? 'new_post'
+          : notification.type;
+      return {
+        ...notification,
+        type: normalizedType,
+        payload: normalizePayload(notification.payload),
+        target: notificationTarget({ ...notification, type: normalizedType }),
+      };
+    });
 
     return paginate(normalizedNotifs, {
       cursor: normalizedNotifs.length > 0 ? normalizedNotifs[normalizedNotifs.length - 1].id : null,

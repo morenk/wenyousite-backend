@@ -11,6 +11,7 @@ import { hasVisibleMarkdownContent, normalizeMarkdownContent } from '../common/m
 import { Prisma } from '@prisma/client';
 import { OutboxService } from '../outbox/outbox.service';
 import { StickerContentService } from '../stickers/sticker-content.service';
+import { hashIdempotencyPayload } from '../common/idempotency';
 
 /** 子贴服务：CRUD、排序、权限校验 */
 @Injectable()
@@ -74,6 +75,32 @@ export class SubthreadsService {
       ? this.diceService.rollNodes(parsedContent.nodes)
       : [];
     const postingPolicy = dto.postingPolicy ?? ('PARTICIPANTS' as any);
+    const requestHash = hashIdempotencyPayload({
+      actorId: userId,
+      title: dto.title,
+      content,
+      sortOrder: dto.sortOrder ?? null,
+      postingPolicy,
+    });
+    if (dto.clientRequestId) {
+      const existing = await this.prisma.subthread.findFirst({
+        where: { threadId, clientRequestId: dto.clientRequestId },
+        select: { id: true, createRequestHash: true },
+      });
+      if (existing) {
+        if (existing.createRequestHash !== requestHash) {
+          throw new BusinessException(
+            ErrorCode.IDEMPOTENCY_KEY_REUSED,
+            'clientRequestId 已用于不同的子贴创建请求',
+            HttpStatus.CONFLICT,
+          );
+        }
+        return this.prisma.subthread.findUniqueOrThrow({
+          where: { id: existing.id },
+          include: countNonDeletedPosts(),
+        });
+      }
+    }
 
     const result = await this.prisma
       .$transaction(async (tx) => {
@@ -102,7 +129,14 @@ export class SubthreadsService {
         }
 
         const subthread = await tx.subthread.create({
-          data: { threadId, title: dto.title, sortOrder, postingPolicy },
+          data: {
+            threadId,
+            title: dto.title,
+            sortOrder,
+            postingPolicy,
+            clientRequestId: dto.clientRequestId,
+            createRequestHash: dto.clientRequestId ? requestHash : undefined,
+          },
         });
 
         let bodyPost: any = null;
@@ -172,11 +206,33 @@ export class SubthreadsService {
           });
         }
 
-        return { subthread: full, bodyPost };
+        return { subthread: full, bodyPost, replayed: false };
       })
       .catch((err) => {
         if (err instanceof BusinessException) throw err;
         if (err?.code === 'P2002') {
+          if (dto.clientRequestId) {
+            return this.prisma.subthread.findFirst({
+              where: { threadId, clientRequestId: dto.clientRequestId },
+              include: countNonDeletedPosts(),
+            }).then((existing) => {
+              if (existing?.createRequestHash === requestHash) {
+                return { subthread: existing, bodyPost: null, replayed: true };
+              }
+              if (existing) {
+                throw new BusinessException(
+                  ErrorCode.IDEMPOTENCY_KEY_REUSED,
+                  'clientRequestId 已用于不同的子贴创建请求',
+                  HttpStatus.CONFLICT,
+                );
+              }
+              throw new BusinessException(
+                ErrorCode.CONFLICT,
+                '排序序号冲突，请刷新后重试',
+                HttpStatus.CONFLICT,
+              );
+            });
+          }
           // Prisma UNIQUE 约束冲突（并发创建撞 sortOrder）
           throw new BusinessException(
             ErrorCode.CONFLICT,
@@ -188,13 +244,13 @@ export class SubthreadsService {
       });
 
     // 缓存失效事件（仅已发布帖）
-    if (thread.published && result.subthread) {
+    if (thread.published && result.subthread && !result.replayed) {
       this.eventEmitter.emit('subthread.created', {
         threadId: result.subthread.threadId,
         subthreadId: result.subthread.id,
       });
     }
-    if (thread.published) {
+    if (thread.published && !result.replayed) {
       await this.stickerContent.recordUsage(userId, stickerAssetIds);
     }
 

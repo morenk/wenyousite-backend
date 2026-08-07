@@ -25,6 +25,7 @@ import {
   ReplyResponseDto,
 } from './dto/post-response.dto';
 import { MessageResponseDto } from '../common/dto/message-response.dto';
+import { ApiCursorPaginatedResponse } from '../common/swagger/api-cursor-paginated-response.decorator';
 
 /** 楼层控制器：发帖、楼中楼、编辑、删除 */
 @ApiTags('Posts')
@@ -37,11 +38,10 @@ export class PostsController {
   @ApiOperation({ summary: '获取子贴的楼层列表（Cursor 分页）' })
   @ApiQuery({ name: 'cursor', required: false, description: '分页游标' })
   @ApiQuery({ name: 'limit', required: false, description: '每页条数' })
-  @ApiOkResponse({
-    type: FloorResponseDto,
-    isArray: true,
-    description: '楼层列表（含楼中楼内联回复），cursor 分页',
-  })
+  @ApiCursorPaginatedResponse(
+    FloorResponseDto,
+    '楼层列表（含楼中楼内联回复），cursor 分页',
+  )
   async findFloors(
     @Param('subthreadId') subthreadId: string,
     @Query() query: PostQueryDto,
@@ -56,11 +56,10 @@ export class PostsController {
   @ApiOperation({ summary: '获取楼中楼回复列表（cursor 分页，无限下拉）' })
   @ApiQuery({ name: 'cursor', required: false, description: '分页游标（上一页最后一条记录 ID）' })
   @ApiQuery({ name: 'limit', required: false, description: '每页条数（默认 20，最大 50）' })
-  @ApiOkResponse({
-    type: ReplyResponseDto,
-    isArray: true,
-    description: '楼中楼回复列表（平级挂载，含 replyToPostId 追踪回复目标），cursor 分页',
-  })
+  @ApiCursorPaginatedResponse(
+    ReplyResponseDto,
+    '楼中楼回复列表（平级挂载，含 replyToPostId 追踪回复目标），cursor 分页',
+  )
   async findReplies(
     @Param('id') id: string,
     @Query() query: PostQueryDto,

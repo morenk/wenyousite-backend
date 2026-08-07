@@ -19,9 +19,9 @@ export default () => ({
   // JWT 双 Token 配置
   jwt: {
     accessSecret: process.env.JWT_ACCESS_SECRET ?? 'dev-access-secret-change-me',
-    refreshSecret: process.env.JWT_REFRESH_SECRET ?? 'dev-refresh-secret-change-me',
     accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '15m',
-    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
+    refreshWebTtlDays: parseInt(process.env.AUTH_REFRESH_WEB_TTL_DAYS ?? '7', 10),
+    refreshMobileTtlDays: parseInt(process.env.AUTH_REFRESH_MOBILE_TTL_DAYS ?? '30', 10),
   },
 
   // Argon2 密码哈希参数
@@ -69,6 +69,17 @@ export default () => ({
     url: process.env.APP_URL ?? 'http://localhost:3000',
     nodeEnv: process.env.NODE_ENV ?? 'development',
     apiDocsEnabled: process.env.ENABLE_API_DOCS !== 'false',
+    buildSha: process.env.BUILD_SHA || undefined,
+    corsOrigins: (process.env.CORS_ORIGINS || process.env.APP_URL || 'http://localhost:3001')
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean),
+  },
+
+  push: {
+    enabled: process.env.PUSH_ENABLED === 'true',
+    firebaseProjectId: process.env.FIREBASE_PROJECT_ID ?? '',
+    credentialsPath: process.env.GOOGLE_APPLICATION_CREDENTIALS ?? '',
   },
 
   // 日志：Pino 结构化日志配置

@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { SearchService } from './search.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../access/thread-access.service';
+import { ErrorCode } from '../common/exceptions/error-codes';
 
 const mockPrisma = {
   thread: { findMany: jest.fn() },
@@ -173,6 +174,14 @@ describe('SearchService', () => {
     expect(sql).toContain('ranked.id <');
   });
 
+  it('无法解析的搜索游标返回稳定业务错误码', async () => {
+    await expect(service.searchPosts('测试', 'not-a-cursor')).rejects.toMatchObject({
+      errorCode: ErrorCode.INVALID_CURSOR,
+      status: 400,
+    });
+    expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
   it('帖内楼层搜索应先校验访问权限并复用相关度游标分页', async () => {
     const rankedRows = [{
       id: 'p1',
@@ -214,13 +223,6 @@ describe('SearchService', () => {
 
     expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
     expect(mockPrisma.post.findMany).not.toHaveBeenCalled();
-  });
-
-  it('非法楼层搜索游标应返回 400', async () => {
-    await expect(service.searchPosts('测试', 'not-a-cursor')).rejects.toThrow(
-      BadRequestException,
-    );
-    expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
   });
 
   it('兼容搜索在单字符时仅返回用户和主题帖，不执行楼层扫描', async () => {

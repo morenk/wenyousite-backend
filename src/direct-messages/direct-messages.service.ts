@@ -8,28 +8,20 @@ import { ErrorCode } from '../common/exceptions/error-codes';
 import { CreateDirectConversationDto, CreateDirectMessageDto } from './dto/direct-message.dto';
 import { DirectRequestAction } from './dto/direct-conversation-action.dto';
 import { DirectConversationStartResponseDto } from './dto/direct-message-response.dto';
-import { canonicalDirectUserPair } from './direct-message-mapper';
+import {
+  canonicalDirectUserPair,
+  RoutingConversation,
+  routingConversationSelect,
+} from './direct-message-mapper';
 import { DirectMessageQueryService } from './direct-message-query.service';
 import { StickersService } from '../stickers/stickers.service';
 import {
   NormalizedDirectMessageInput,
   normalizeDirectMessageInput,
 } from './direct-message-input';
+import { DirectMessageEventsService } from './direct-message-events.service';
 
 const RECALL_WINDOW_MS = 10 * 60 * 1000;
-
-const routingConversationSelect = {
-  id: true,
-  firstUserId: true,
-  secondUserId: true,
-  requesterId: true,
-  recipientId: true,
-  status: true,
-} satisfies Prisma.DirectConversationSelect;
-
-type RoutingConversation = Prisma.DirectConversationGetPayload<{
-  select: typeof routingConversationSelect;
-}>;
 
 @Injectable()
 export class DirectMessagesService {
@@ -42,6 +34,7 @@ export class DirectMessagesService {
     private readonly config: ConfigService,
     private readonly queries: DirectMessageQueryService,
     private readonly stickers: StickersService,
+    private readonly events: DirectMessageEventsService,
   ) {
     this.sendRatePerMinute = this.config.get<number>('directMessages.sendRatePerMinute') ?? 30;
     this.requestRatePerDay = this.config.get<number>('directMessages.requestRatePerDay') ?? 10;
@@ -433,7 +426,7 @@ export class DirectMessagesService {
     recipientId: string,
     input: NormalizedDirectMessageInput,
   ) {
-    return tx.directMessage.create({
+    const message = await tx.directMessage.create({
       data: {
         conversationId,
         senderId,
@@ -445,6 +438,8 @@ export class DirectMessagesService {
       },
       select: { id: true, createdAt: true },
     });
+    await this.events.created(tx, { messageId: message.id, conversationId, recipientId });
+    return message;
   }
 
   private async startResponse(conversationId: string, messageId: string, userId: string) {

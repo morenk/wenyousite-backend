@@ -31,6 +31,12 @@ export class DirectMessageMediaResponseDto {
   url!: string;
 
   @ApiProperty({ type: String, nullable: true })
+  thumbnailUrl!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  mediumUrl!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
   contentType!: string | null;
 
   @ApiProperty({ type: Number, nullable: true })
@@ -41,9 +47,6 @@ export class DirectMessageMediaResponseDto {
 }
 
 export class DirectMessageStickerResponseDto extends DirectMessageMediaResponseDto {
-  @ApiProperty()
-  thumbnailUrl!: string;
-
   @ApiProperty()
   animated!: boolean;
 

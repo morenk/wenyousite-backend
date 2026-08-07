@@ -9,6 +9,9 @@ import {
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { BusinessException } from '../exceptions/business.exception';
 import { httpStatusToCode } from '../exceptions/error-codes';
+import { API_CONTRACT_VERSION } from '../swagger/openapi-document';
+import { Prisma } from '@prisma/client';
+import { ErrorCode } from '../exceptions/error-codes';
 
 /** 统一错误响应体 */
 interface ErrorResponse {
@@ -31,7 +34,15 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let code: number;
     let message: string;
 
-    if (exception instanceof BusinessException) {
+    if (
+      exception instanceof Prisma.PrismaClientKnownRequestError &&
+      exception.code === 'P2025' &&
+      this.hasCursor(request)
+    ) {
+      httpStatus = HttpStatus.BAD_REQUEST;
+      code = ErrorCode.INVALID_CURSOR;
+      message = '分页游标无效或不属于当前列表';
+    } else if (exception instanceof BusinessException) {
       httpStatus = exception.getStatus();
       code = exception.errorCode;
       message = exception.message;
@@ -64,7 +75,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
       exception instanceof Error ? exception.stack : undefined,
     );
 
+    response.header('X-Request-ID', request.id);
+    response.header('X-API-Contract-Version', API_CONTRACT_VERSION);
+    if (httpStatus === HttpStatus.TOO_MANY_REQUESTS && !response.hasHeader('Retry-After')) {
+      response.header('Retry-After', '60');
+    }
     const body: ErrorResponse = { code, message, data: null };
     response.status(httpStatus).send(body);
+  }
+
+  private hasCursor(request: FastifyRequest): boolean {
+    const query = request.query;
+    return typeof query === 'object' && query !== null &&
+      ('cursor' in query || 'after' in query);
   }
 }

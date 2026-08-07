@@ -1,6 +1,6 @@
 # 数据模型
 
-> 30 张表，13 个 Prisma 枚举。除显式标注的 UUID 外，ID 使用 `cuid()` 生成，时间戳使用 `DateTime`。
+> 31 张表，14 个 Prisma 枚举。除显式标注的 UUID 外，ID 使用 `cuid()` 生成，时间戳使用 `DateTime`。
 
 ## 枚举定义
 
@@ -94,6 +94,13 @@
 | `COMPLETED` | 已生成或复用资产并加入收藏 |
 | `FAILED` | 输入或输出不符合规则，或处理重试耗尽 |
 
+### MobilePlatform — 原生推送平台
+
+| 值 | 说明 |
+|----|------|
+| `android` | Android FCM 终端 |
+| `ios` | iOS FCM/APNs 终端 |
+
 ---
 
 ## 表定义
@@ -166,6 +173,23 @@
 >
 > 发布批次 `auth-login-terminal-2026-08-05` 的迁移数据量、锁风险、部署顺序和失败恢复步骤见 `docs/modules/auth.md` 的“数据迁移与兼容”。
 
+### mobile_devices — 原生移动推送终端
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| id | String | PK, cuid() | 设备绑定记录 |
+| userId | String | FK users (Cascade) | 所属用户 |
+| sessionId | String | unique with userId, UUID | 绑定的 mobile refresh-token family |
+| pushToken | String | unique | FCM registration token；不得写入日志或 API 响应 |
+| platform | MobilePlatform | — | android / ios |
+| appVersion | String? | — | 客户端版本，用于兼容诊断 |
+| locale | String? | — | 客户端 locale |
+| enabled | Boolean | default true | 是否允许继续推送 |
+| lastSeenAt | DateTime | — | 最近一次注册或刷新 token 时间 |
+| createdAt / updatedAt | DateTime | — | 审计时间 |
+
+每个原生登录终端最多一条绑定，一个 push token 也只能归属一个终端。发送前复查 `sessionId` 对应的 mobile refresh token family 仍活跃；退出登录、失效 token 或长期不活跃清理会将记录停用。
+
 ### user_blocks — 拉黑
 
 | 字段 | 类型 | 约束 | 说明 |
@@ -213,6 +237,8 @@
 | id | String | PK | — |
 | title | String? | — | 标题（草稿可空，发布时必填） |
 | ownerId | String | FK users | 楼主 |
+| clientRequestId | UUID? | unique with ownerId | 创建主题帖的客户端幂等键 |
+| createRequestHash | String? | — | 规范化创建载荷摘要，用于检测键误用 |
 | category | ThreadCategory | default DEDUCTION | 分区 |
 | status | ThreadStatus | default RECRUITING | 生命周期状态 |
 | visibility | ThreadVisibility | default PUBLIC | 可见性 |
@@ -258,6 +284,8 @@
 |------|------|------|------|
 | id | String | PK | — |
 | threadId | String | FK threads (Cascade) | 所属主题帖 |
+| clientRequestId | UUID? | unique with threadId | 创建子贴的客户端幂等键 |
+| createRequestHash | String? | — | 规范化创建载荷摘要，用于检测键误用 |
 | title | String | — | 子贴标题 |
 | sortOrder | Int | default 0, unique per thread | 排序序号（帖内唯一，默认子贴固定为 0） |
 | postingPolicy | PostingPolicy | default PARTICIPANTS | 发帖权限策略 |

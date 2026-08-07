@@ -1,4 +1,5 @@
 allowBuilds:
+  '@firebase/util': true
   '@prisma/client': true
   '@prisma/engines': true
   '@scarf/scarf': true
@@ -6,4 +7,5 @@ allowBuilds:
   esbuild: true
   msgpackr-extract: true
   prisma: true
+  protobufjs: true
   unrs-resolver: true

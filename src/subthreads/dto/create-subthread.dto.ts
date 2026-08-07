@@ -6,10 +6,19 @@ import {
   MaxLength,
   IsIn,
   IsNumber,
+  IsUUID,
 } from 'class-validator';
 
 /** 创建子贴 DTO */
 export class CreateSubthreadDto {
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: '客户端创建幂等键；同一次提交和网络重试必须复用',
+  })
+  @IsOptional()
+  @IsUUID('4')
+  clientRequestId?: string;
+
   @ApiProperty({ example: '设定区', description: '子贴标题', minLength: 1, maxLength: 100 })
   @IsString()
   @MinLength(1)

@@ -17,6 +17,7 @@ import {
   SearchKeywordQueryDto,
   SearchPostsQueryDto,
 } from './dto/search-query.dto';
+import { ApiCursorPaginatedResponse } from '../common/swagger/api-cursor-paginated-response.decorator';
 
 /** 全站搜索控制器：分类端点供 Tab 按需加载，聚合端点兼容旧客户端。 */
 @ApiTags('Search')
@@ -43,7 +44,7 @@ export class SearchController {
   @Get('posts')
   @Public()
   @ApiOperation({ summary: '按正文搜索公开楼层与楼中楼' })
-  @ApiOkResponse({ type: SearchPostResponseDto, isArray: true, description: '相关度游标分页；meta 含 cursor/hasMore' })
+  @ApiCursorPaginatedResponse(SearchPostResponseDto, '相关度游标分页；meta 含 cursor/hasMore')
   @ApiBadRequestResponse({ description: '关键词不足 2 个字符或游标无效' })
   async searchPosts(@Query() query: SearchPostsQueryDto) {
     return this.searchService.searchPosts(query.q, query.cursor, query.limit);

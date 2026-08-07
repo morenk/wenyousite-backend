@@ -8,6 +8,8 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { PaginatedResult } from '../dto/paginated-result';
 import { sanitizePublicUserSummaries } from '../user-summary';
+import { FastifyReply, FastifyRequest } from 'fastify';
+import { API_CONTRACT_VERSION } from '../swagger/openapi-document';
 
 /** 统一成功响应体 */
 export interface ApiResponse<T = unknown> {
@@ -30,6 +32,10 @@ export class TransformInterceptor<T>
     context: ExecutionContext,
     next: CallHandler,
   ): Observable<ApiResponse<T>> {
+    const request = context.switchToHttp().getRequest<FastifyRequest>();
+    const response = context.switchToHttp().getResponse<FastifyReply>();
+    response.header('X-Request-ID', request.id);
+    response.header('X-API-Contract-Version', API_CONTRACT_VERSION);
     return next.handle().pipe(
       map((rawData): ApiResponse<T> => {
         // 分页结果：items → data，pagination → meta

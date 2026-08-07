@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../access/thread-access.service';
 import { RedisService } from '../redis/redis.service';
@@ -6,7 +6,7 @@ import { CacheService } from '../redis/cache.service';
 import { ThreadQueryDto } from './dto/thread-query.dto';
 import type { HomeThreadListItemResponseDto } from './dto/thread-list-response.dto';
 import { ErrorCode } from '../common/exceptions/error-codes';
-import { notFound } from '../common/exceptions/business.exception';
+import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { PaginatedResult, paginate } from '../common/dto/paginated-result';
 import {
   notDeleted,
@@ -250,7 +250,17 @@ export class ThreadQueryService {
   private async findAllSmart(query: ThreadQueryDto, userId?: string) {
     const take = Math.min(query.limit ?? 20, 50);
     // cursor 记录「已消费的可见帖数」，单调累进
-    const consumed = query.cursor ? parseInt(query.cursor, 10) : 0;
+    const consumed = query.cursor ? Number(query.cursor) : 0;
+    if (
+      query.cursor &&
+      (!/^(0|[1-9]\d*)$/.test(query.cursor) || !Number.isSafeInteger(consumed))
+    ) {
+      throw new BusinessException(
+        ErrorCode.INVALID_CURSOR,
+        '无效的推荐排序游标',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
     const zsetSize = await this.redis.zcard(ZSET_BY_SMART);
 
     const where: any = { ...notDeleted, published: true };

@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { MediaService } from '../media/media.service';
 import { StickersService } from '../stickers/stickers.service';
+import { MobileDeviceService } from '../mobile-push/mobile-device.service';
 
 /** ZSET 键名 */
 const ZSET_BY_SMART = 'threads:by:smart';
@@ -19,6 +20,7 @@ export class CleanupTask {
     private redis: RedisService,
     private mediaService: MediaService,
     private stickersService: StickersService,
+    private mobileDevices: MobileDeviceService,
   ) {}
 
   /** 每天凌晨 4 点执行 */
@@ -109,6 +111,15 @@ export class CleanupTask {
       await this.stickersService.cleanupOrphanAssets();
     } catch (e) {
       this.logger.error('孤儿表情资产清理失败', e);
+    }
+
+    try {
+      const disabledDevices = await this.mobileDevices.cleanupInactiveSessions();
+      if (disabledDevices > 0) {
+        this.logger.log(`禁用失效移动终端推送: ${disabledDevices} 个`);
+      }
+    } catch (e) {
+      this.logger.error('失效移动终端推送清理失败', e);
     }
   }
 

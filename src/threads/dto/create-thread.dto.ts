@@ -6,10 +6,19 @@ import {
   MaxLength,
   IsIn,
   IsArray,
+  IsUUID,
 } from 'class-validator';
 
 /** 创建主题帖草稿 DTO：全部可选，发布时校验完整 */
 export class CreateThreadDto {
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: '客户端创建幂等键；同一次提交和网络重试必须复用',
+  })
+  @IsOptional()
+  @IsUUID('4')
+  clientRequestId?: string;
+
   @ApiPropertyOptional({
     example: '我的第一个主题帖',
     description: '主题帖标题（可为空，发布时校验）',

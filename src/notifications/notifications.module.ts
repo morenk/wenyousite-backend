@@ -4,10 +4,12 @@ import { NotificationsService } from './notifications.service';
 import { BullModule } from '@nestjs/bullmq';
 import { NotificationProducer } from './notification.producer';
 import { NotificationProcessor } from './notification.processor';
+import { MobilePushModule } from '../mobile-push/mobile-push.module';
 
 /** 站内通知模块：CRUD、未读数、处理器 */
 @Module({
   imports: [
+    MobilePushModule,
     BullModule.registerQueue({
       name: 'notification',
       defaultJobOptions: {

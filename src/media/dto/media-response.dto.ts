@@ -30,6 +30,12 @@ export class MediaResponseDto {
   @ApiProperty({ description: '原图公开访问地址' })
   url!: string;
 
+  @ApiProperty({ type: String, nullable: true, description: '处理完成后的 300px WebP 缩略图地址' })
+  thumbnailUrl!: string | null;
+
+  @ApiProperty({ type: String, nullable: true, description: '处理完成后的 800px WebP 中图地址' })
+  mediumUrl!: string | null;
+
   @ApiProperty({ description: '对象存储 key' })
   key!: string;
 

@@ -5,10 +5,10 @@ import { AuthService } from './auth.service';
 import { VerificationCodeService } from './verification-code.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
-import { ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { AuthSessionService } from './auth-session.service';
+import { ErrorCode } from '../common/exceptions/error-codes';
 
 const mockPrisma: Record<string, any> = {
   user: {
@@ -82,7 +82,7 @@ describe('AuthService', () => {
       mockPrisma.user.findUnique.mockResolvedValue({ id: 'x' });
       await expect(
         service.requestCode('a@b.com'),
-      ).rejects.toThrow(ConflictException);
+      ).rejects.toMatchObject({ errorCode: ErrorCode.EMAIL_ALREADY_REGISTERED, status: 409 });
     });
 
     it('无验证记录时应该创建新记录并发送验证码', async () => {
@@ -148,7 +148,7 @@ describe('AuthService', () => {
       mockPrisma.emailVerification.findFirst.mockResolvedValue(null);
       await expect(
         service.verifyAndComplete(validDto),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toMatchObject({ errorCode: ErrorCode.NO_CODE_RECORD, status: 401 });
     });
 
     it('验证码错误时应该返回401并增加尝试计数', async () => {
@@ -160,7 +160,7 @@ describe('AuthService', () => {
 
       await expect(
         service.verifyAndComplete(validDto),
-      ).rejects.toThrow(UnauthorizedException);
+      ).rejects.toMatchObject({ errorCode: ErrorCode.CODE_INVALID, status: 401 });
       expect(mockPrisma.emailVerification.update).toHaveBeenCalledWith(
         expect.objectContaining({ data: { attempts: { increment: 1 } } }),
       );
@@ -175,7 +175,7 @@ describe('AuthService', () => {
 
       await expect(
         service.verifyAndComplete(validDto),
-      ).rejects.toThrow(UnauthorizedException);
+      ).rejects.toMatchObject({ errorCode: ErrorCode.CODE_ATTEMPTS_EXCEEDED, status: 401 });
       expect(mockPrisma.emailVerification.delete).toHaveBeenCalledWith({ where: { id: 'ev1' } });
     });
 
@@ -188,7 +188,7 @@ describe('AuthService', () => {
 
       await expect(
         service.verifyAndComplete(validDto),
-      ).rejects.toThrow(UnauthorizedException);
+      ).rejects.toMatchObject({ errorCode: ErrorCode.CODE_EXPIRED, status: 401 });
       expect(mockPrisma.emailVerification.delete).toHaveBeenCalledWith({ where: { id: 'ev1' } });
     });
 
@@ -235,7 +235,7 @@ describe('AuthService', () => {
 
       await expect(
         service.verifyAndComplete(validDto),
-      ).rejects.toThrow(ConflictException);
+      ).rejects.toMatchObject({ errorCode: ErrorCode.USERNAME_TAKEN, status: 409 });
     });
   });
 
@@ -293,7 +293,7 @@ describe('AuthService', () => {
 
       await expect(
         service.login({ account: 'TESTER', password: 'Test1234!' }),
-      ).rejects.toThrow(UnauthorizedException);
+      ).rejects.toMatchObject({ errorCode: ErrorCode.LOGIN_FAILED, status: 401 });
       expect(mockPrisma.user.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { OR: [{ email: 'tester' }, { username: 'TESTER' }] },
@@ -309,14 +309,14 @@ describe('AuthService', () => {
       mockPrisma.user.findFirst.mockResolvedValue({ ...userRow, password: hashed });
       await expect(
         service.login({ account: 'a@b.com', password: 'wrong' }),
-      ).rejects.toThrow(UnauthorizedException);
+      ).rejects.toMatchObject({ errorCode: ErrorCode.LOGIN_FAILED, status: 401 });
     });
 
     it('用户不存在时登录应该返回401', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(null);
       await expect(
         service.login({ account: 'a@b.com', password: 'Test1234!' }),
-      ).rejects.toThrow(UnauthorizedException);
+      ).rejects.toMatchObject({ errorCode: ErrorCode.LOGIN_FAILED, status: 401 });
     });
 
     it('已注销用户登录应该返回401', async () => {
@@ -324,7 +324,7 @@ describe('AuthService', () => {
       mockPrisma.user.findFirst.mockResolvedValue({ ...userRow, deletedAt: new Date(), password: hashed });
       await expect(
         service.login({ account: 'a@b.com', password: 'Test1234!' }),
-      ).rejects.toThrow(UnauthorizedException);
+      ).rejects.toMatchObject({ errorCode: ErrorCode.LOGIN_FAILED, status: 401 });
     });
 
     it('邮箱登录大小写不敏感', async () => {
@@ -391,7 +391,10 @@ describe('AuthService', () => {
 
     it('refresh token 无效时应该返回401', async () => {
       mockPrisma.refreshToken.findFirst.mockResolvedValue(null);
-      await expect(service.refresh('bad-rt')).rejects.toThrow(UnauthorizedException);
+      await expect(service.refresh('bad-rt')).rejects.toMatchObject({
+        errorCode: ErrorCode.TOKEN_INVALID,
+        status: 401,
+      });
     });
 
     it('超过并发宽限期的已撤销 refresh token 重放会吊销整个 family', async () => {
@@ -402,7 +405,10 @@ describe('AuthService', () => {
         user: { deletedAt: null },
       });
 
-      await expect(service.refresh('stolen-rt')).rejects.toThrow(UnauthorizedException);
+      await expect(service.refresh('stolen-rt')).rejects.toMatchObject({
+        errorCode: ErrorCode.TOKEN_THEFT_DETECTED,
+        status: 401,
+      });
       expect(mockPrisma.refreshToken.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { userId: 'u1', family: 'f1', revokedAt: null } }),
       );
@@ -416,7 +422,10 @@ describe('AuthService', () => {
         user: { deletedAt: null },
       });
 
-      await expect(service.refresh('concurrent-old-rt')).rejects.toThrow(UnauthorizedException);
+      await expect(service.refresh('concurrent-old-rt')).rejects.toMatchObject({
+        errorCode: ErrorCode.TOKEN_REVOKED,
+        status: 401,
+      });
       expect(mockPrisma.refreshToken.updateMany).not.toHaveBeenCalled();
     });
   });
@@ -439,7 +448,7 @@ describe('AuthService', () => {
     it('修改密码后应吊销全部 refresh token', async () => {
       const hashed = await argon2.hash('OldPass1');
       mockPrisma.user.findUnique.mockResolvedValue({ password: hashed });
-      mockPrisma.$transaction.mockImplementation(async (ops: any[]) => {
+      mockPrisma.$transaction.mockImplementation(async (ops: unknown[]) => {
         for (const op of ops) await op;
         return ops;
       });
@@ -457,7 +466,7 @@ describe('AuthService', () => {
       mockPrisma.user.findUnique.mockResolvedValue({ email: 'a@b.com', password: 'x' });
       await expect(
         service.requestChangeEmailCode('u1', 'a@b.com', 'Pass1234'),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toMatchObject({ errorCode: ErrorCode.BAD_REQUEST, status: 400 });
     });
 
     it('当前密码错误应 401（二次认证）', async () => {
@@ -465,7 +474,7 @@ describe('AuthService', () => {
       mockPrisma.user.findUnique.mockResolvedValue({ email: 'a@b.com', password: hashed });
       await expect(
         service.requestChangeEmailCode('u1', 'new@b.com', 'WrongPass'),
-      ).rejects.toThrow(UnauthorizedException);
+      ).rejects.toMatchObject({ errorCode: ErrorCode.WRONG_OLD_PASSWORD, status: 401 });
     });
 
     it('密码正确时发送验证码并创建记录', async () => {
@@ -594,7 +603,7 @@ describe('AuthService', () => {
       mockPrisma.refreshToken.findFirst.mockResolvedValue(null);
       await expect(
         service.revokeSession('u1', 'nonexistent'),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toMatchObject({ errorCode: ErrorCode.SESSION_NOT_FOUND, status: 401 });
     });
   });
 });

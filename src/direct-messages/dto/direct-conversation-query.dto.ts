@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEnum, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export const DIRECT_CONVERSATION_VIEWS = ['INBOX', 'REQUESTS', 'ARCHIVED'] as const;
 export type DirectConversationView = (typeof DIRECT_CONVERSATION_VIEWS)[number];
@@ -19,7 +19,7 @@ export class DirectConversationQueryDto {
   @ApiPropertyOptional({ minimum: 1, maximum: 50, default: 20 })
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @IsInt()
   @Min(1)
   @Max(50)
   limit: number = 20;
@@ -39,7 +39,7 @@ export class DirectMessageQueryDto {
   @ApiPropertyOptional({ minimum: 1, maximum: 50, default: 30 })
   @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @IsInt()
   @Min(1)
   @Max(50)
   limit: number = 30;

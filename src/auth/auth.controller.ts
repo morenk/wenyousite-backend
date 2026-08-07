@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Delete, Body, Param, HttpCode, HttpStatus, Req, Res, UnauthorizedException } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Body, Param, HttpCode, HttpStatus, Req, Res } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiOkResponse, ApiUnauthorizedResponse, ApiConflictResponse, ApiBadRequestResponse, ApiHeader } from '@nestjs/swagger';
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { Throttle } from '@nestjs/throttler';
@@ -19,26 +19,23 @@ import { RevokeSessionResponseDto, SessionResponseDto } from './dto/session-resp
 import { AuthRead, Auth } from './decorators/auth.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { CLIENT_PLATFORMS, normalizeClientPlatform, refreshTtlSeconds } from './client-platform';
-import configuration from '../config/configuration';
 import { MessageResponseDto } from '../common/dto/message-response.dto';
-
-const COOKIE_BASE = {
-  httpOnly: true,
-  secure: configuration().app.nodeEnv === 'production',
-  sameSite: 'lax' as const,
-  path: '/api/v1/auth',
-};
+import { ErrorCode } from '../common/exceptions/error-codes';
+import { unauthorized } from '../common/exceptions/business.exception';
+import { ConfigService } from '@nestjs/config';
 
 function authResultForClient<T extends { refreshToken: string }>(
   result: T,
   platform: 'web' | 'mobile',
   res: FastifyReply,
+  cookieBase: { httpOnly: true; secure: boolean; sameSite: 'lax'; path: string },
+  maxAge: number,
 ) {
   if (platform === 'mobile') return result;
 
   res.setCookie('refreshToken', result.refreshToken, {
-    ...COOKIE_BASE,
-    maxAge: refreshTtlSeconds(platform),
+    ...cookieBase,
+    maxAge,
   });
   const webResult = { ...result } as Partial<T>;
   delete webResult.refreshToken;
@@ -50,7 +47,27 @@ function authResultForClient<T extends { refreshToken: string }>(
 @Controller('auth')
 @Throttle({ default: { ttl: 60000, limit: 20 } })
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private config: ConfigService,
+  ) {}
+
+  private get cookieBase() {
+    return {
+      httpOnly: true as const,
+      secure: this.config.get<string>('app.nodeEnv') === 'production',
+      sameSite: 'lax' as const,
+      path: '/api/v1/auth',
+    };
+  }
+
+  private refreshMaxAge(platform: 'web' | 'mobile') {
+    return refreshTtlSeconds(
+      platform,
+      this.config.get<number>('jwt.refreshWebTtlDays') ?? 7,
+      this.config.get<number>('jwt.refreshMobileTtlDays') ?? 30,
+    );
+  }
 
   @Post('register/request-code')
   @Public()
@@ -74,7 +91,7 @@ export class AuthController {
     const deviceInfo = req.headers['user-agent']?.slice(0, 512) ?? undefined;
     const platform = normalizeClientPlatform(req.headers['x-client-platform']);
     const result = await this.authService.verifyAndComplete(dto, deviceInfo, platform);
-    return authResultForClient(result, platform, res);
+    return authResultForClient(result, platform, res, this.cookieBase, this.refreshMaxAge(platform));
   }
 
   @Post('login')
@@ -88,7 +105,7 @@ export class AuthController {
     const deviceInfo = req.headers['user-agent']?.slice(0, 512) ?? undefined;
     const platform = normalizeClientPlatform(req.headers['x-client-platform']);
     const result = await this.authService.login(dto, deviceInfo, platform);
-    return authResultForClient(result, platform, res);
+    return authResultForClient(result, platform, res, this.cookieBase, this.refreshMaxAge(platform));
   }
 
   @Post('refresh')
@@ -99,9 +116,9 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'refreshToken 无效/过期/已被盗用（确认重放时对应登录终端退出）' })
   async refresh(@Body() dto: RefreshDto, @Req() req: FastifyRequest, @Res({ passthrough: true }) res: FastifyReply) {
     const token = req.cookies?.refreshToken ?? dto.refreshToken;
-    if (!token) throw new UnauthorizedException('缺少刷新令牌');
+    if (!token) throw unauthorized('缺少刷新令牌', ErrorCode.TOKEN_INVALID);
     const { platform, ...result } = await this.authService.refresh(token);
-    return authResultForClient(result, platform, res);
+    return authResultForClient(result, platform, res, this.cookieBase, this.refreshMaxAge(platform));
   }
 
   @Post('verify-email')
@@ -204,7 +221,7 @@ export class AuthController {
     if (token) {
       await this.authService.logout(user.id, token);
     }
-    res.clearCookie('refreshToken', COOKIE_BASE);
+    res.clearCookie('refreshToken', this.cookieBase);
     return { message: '已登出' };
   }
 

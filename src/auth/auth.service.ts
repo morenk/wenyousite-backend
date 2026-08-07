@@ -1,8 +1,6 @@
 import {
   Injectable,
-  ConflictException,
-  UnauthorizedException,
-  BadRequestException,
+  HttpStatus,
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -15,6 +13,8 @@ import { LoginDto } from './dto/login.dto';
 import { VerifyAndCompleteDto } from './dto/verify-and-complete.dto';
 import { ClientPlatform } from './client-platform';
 import { AuthSessionService } from './auth-session.service';
+import { ErrorCode } from '../common/exceptions/error-codes';
+import { BusinessException, unauthorized } from '../common/exceptions/business.exception';
 
 const userSelectPublic = {
   id: true, email: true, username: true, avatar: true,
@@ -39,7 +39,11 @@ export class AuthService {
     const email = rawEmail.toLowerCase().trim();
     const existingUser = await this.prisma.user.findUnique({ where: { email } });
     if (existingUser) {
-      throw new ConflictException('该邮箱已被注册');
+      throw new BusinessException(
+        ErrorCode.EMAIL_ALREADY_REGISTERED,
+        '该邮箱已被注册',
+        HttpStatus.CONFLICT,
+      );
     }
 
     const { emailSent } = await this.verificationCodeService.issue({
@@ -59,24 +63,24 @@ export class AuthService {
       where: { email, type: 'REGISTRATION' },
     });
     if (!record) {
-      throw new BadRequestException('请先获取邮箱验证码');
+      throw unauthorized('请先获取邮箱验证码', ErrorCode.NO_CODE_RECORD);
     }
 
     if (record.expiresAt <= new Date()) {
       await this.prisma.emailVerification.delete({ where: { id: record.id } });
-      throw new UnauthorizedException('验证码已过期，请重新获取');
+      throw unauthorized('验证码已过期，请重新获取', ErrorCode.CODE_EXPIRED);
     }
 
     if (record.token !== dto.code) {
       if (record.attempts >= 5) {
         await this.prisma.emailVerification.delete({ where: { id: record.id } });
-        throw new UnauthorizedException('验证码尝试次数过多，请重新获取');
+        throw unauthorized('验证码尝试次数过多，请重新获取', ErrorCode.CODE_ATTEMPTS_EXCEEDED);
       }
       await this.prisma.emailVerification.update({
         where: { id: record.id },
         data: { attempts: { increment: 1 } },
       });
-      throw new UnauthorizedException('验证码错误');
+      throw unauthorized('验证码错误', ErrorCode.CODE_INVALID);
     }
 
     const password = await argon2.hash(dto.password, {
@@ -98,7 +102,11 @@ export class AuthService {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
         const target = (e.meta as Record<string, unknown> | null)?.target as string[] | undefined;
         if (target?.includes('username')) {
-          throw new ConflictException('该用户名已被占用');
+          throw new BusinessException(
+            ErrorCode.USERNAME_TAKEN,
+            '该用户名已被占用',
+            HttpStatus.CONFLICT,
+          );
         }
       }
       throw e;
@@ -118,22 +126,22 @@ export class AuthService {
     const record = await this.prisma.emailVerification.findFirst({
       where: { userId, type: 'EMAIL_VERIFY' },
     });
-    if (!record) throw new BadRequestException('请先请求验证码');
+    if (!record) throw unauthorized('请先请求验证码', ErrorCode.NO_CODE_RECORD);
     if (record.expiresAt <= new Date()) {
       await this.prisma.emailVerification.delete({ where: { id: record.id } });
-      throw new UnauthorizedException('验证码已过期，请重新获取');
+      throw unauthorized('验证码已过期，请重新获取', ErrorCode.CODE_EXPIRED);
     }
 
     if (record.token !== inputToken) {
       if (record.attempts >= 5) {
         await this.prisma.emailVerification.delete({ where: { id: record.id } });
-        throw new UnauthorizedException('验证码尝试次数过多，请重新获取');
+        throw unauthorized('验证码尝试次数过多，请重新获取', ErrorCode.CODE_ATTEMPTS_EXCEEDED);
       }
       await this.prisma.emailVerification.update({
         where: { id: record.id },
         data: { attempts: { increment: 1 } },
       });
-      throw new UnauthorizedException('验证码错误');
+      throw unauthorized('验证码错误', ErrorCode.CODE_INVALID);
     }
 
     await this.prisma.user.update({
@@ -150,14 +158,14 @@ export class AuthService {
       where: { id: userId },
       select: { password: true, email: true },
     });
-    if (!user) throw new UnauthorizedException();
+    if (!user) throw unauthorized('登录状态无效', ErrorCode.UNAUTHORIZED);
 
     if (oldPassword === newPassword) {
-      throw new BadRequestException('新密码不能与旧密码相同');
+      throw new BusinessException(ErrorCode.BAD_REQUEST, '新密码不能与旧密码相同');
     }
 
     const valid = await argon2.verify(user.password, oldPassword);
-    if (!valid) throw new UnauthorizedException('原密码错误');
+    if (!valid) throw unauthorized('原密码错误', ErrorCode.WRONG_OLD_PASSWORD);
 
     const hashed = await argon2.hash(newPassword, {
       timeCost: this.configService.get<number>('argon2.timeCost')!,
@@ -207,22 +215,22 @@ export class AuthService {
     const record = await this.prisma.emailVerification.findFirst({
       where: { email, type: 'PASSWORD_RESET' },
     });
-    if (!record) throw new UnauthorizedException('验证码错误');
+    if (!record) throw unauthorized('验证码错误', ErrorCode.CODE_INVALID);
     if (record.expiresAt <= new Date()) {
       await this.prisma.emailVerification.delete({ where: { id: record.id } });
-      throw new UnauthorizedException('验证码已过期，请重新获取');
+      throw unauthorized('验证码已过期，请重新获取', ErrorCode.CODE_EXPIRED);
     }
 
     if (record.token !== inputToken) {
       if (record.attempts >= 5) {
         await this.prisma.emailVerification.delete({ where: { id: record.id } });
-        throw new UnauthorizedException('验证码尝试次数过多，请重新获取');
+        throw unauthorized('验证码尝试次数过多，请重新获取', ErrorCode.CODE_ATTEMPTS_EXCEEDED);
       }
       await this.prisma.emailVerification.update({
         where: { id: record.id },
         data: { attempts: { increment: 1 } },
       });
-      throw new UnauthorizedException('验证码错误');
+      throw unauthorized('验证码错误', ErrorCode.CODE_INVALID);
     }
 
     const userId = record.userId!;
@@ -253,19 +261,25 @@ export class AuthService {
       where: { id: userId },
       select: { email: true, password: true },
     });
-    if (!currentUser) throw new UnauthorizedException();
+    if (!currentUser) throw unauthorized('登录状态无效', ErrorCode.UNAUTHORIZED);
     if (currentUser.email === normalized) {
-      throw new BadRequestException('新邮箱不能与当前邮箱相同');
+      throw new BusinessException(ErrorCode.BAD_REQUEST, '新邮箱不能与当前邮箱相同');
     }
 
     // 二次认证：校验当前密码，防止会话被劫持后直接改邮箱
     const valid = await argon2.verify(currentUser.password, oldPassword);
-    if (!valid) throw new UnauthorizedException('当前密码错误');
+    if (!valid) throw unauthorized('当前密码错误', ErrorCode.WRONG_OLD_PASSWORD);
 
     const existing = await this.prisma.user.findUnique({
       where: { email: normalized, deletedAt: null },
     });
-    if (existing) throw new ConflictException('该邮箱已被其他用户使用');
+    if (existing) {
+      throw new BusinessException(
+        ErrorCode.EMAIL_ALREADY_REGISTERED,
+        '该邮箱已被其他用户使用',
+        HttpStatus.CONFLICT,
+      );
+    }
 
     await this.verificationCodeService.issue({
       type: 'CHANGE_EMAIL',
@@ -285,27 +299,33 @@ export class AuthService {
     const record = await this.prisma.emailVerification.findFirst({
       where: { userId, type: 'CHANGE_EMAIL', email: normalized },
     });
-    if (!record) throw new BadRequestException('请先请求验证码');
+    if (!record) throw unauthorized('请先请求验证码', ErrorCode.NO_CODE_RECORD);
     if (record.expiresAt <= new Date()) {
       await this.prisma.emailVerification.delete({ where: { id: record.id } });
-      throw new UnauthorizedException('验证码已过期，请重新获取');
+      throw unauthorized('验证码已过期，请重新获取', ErrorCode.CODE_EXPIRED);
     }
     if (record.token !== inputCode) {
       if (record.attempts >= 5) {
         await this.prisma.emailVerification.delete({ where: { id: record.id } });
-        throw new UnauthorizedException('验证码尝试次数过多，请重新获取');
+        throw unauthorized('验证码尝试次数过多，请重新获取', ErrorCode.CODE_ATTEMPTS_EXCEEDED);
       }
       await this.prisma.emailVerification.update({
         where: { id: record.id },
         data: { attempts: { increment: 1 } },
       });
-      throw new UnauthorizedException('验证码错误');
+      throw unauthorized('验证码错误', ErrorCode.CODE_INVALID);
     }
 
     const existing = await this.prisma.user.findUnique({
       where: { email: normalized, deletedAt: null },
     });
-    if (existing) throw new ConflictException('该邮箱已被其他用户使用');
+    if (existing) {
+      throw new BusinessException(
+        ErrorCode.EMAIL_ALREADY_REGISTERED,
+        '该邮箱已被其他用户使用',
+        HttpStatus.CONFLICT,
+      );
+    }
 
     await this.prisma.$transaction([
       this.prisma.user.update({

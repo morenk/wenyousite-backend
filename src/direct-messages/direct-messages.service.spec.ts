@@ -5,6 +5,7 @@ import { ErrorCode } from '../common/exceptions/error-codes';
 import { DirectMessagesService } from './direct-messages.service';
 import { DirectMessageQueryService } from './direct-message-query.service';
 import { StickersService } from '../stickers/stickers.service';
+import { DirectMessageEventsService } from './direct-message-events.service';
 
 const createdAt = new Date('2026-08-06T20:00:00.000Z');
 
@@ -65,6 +66,7 @@ describe('DirectMessagesService', () => {
     assertFavorite: jest.fn(),
     recordUsage: jest.fn(),
   };
+  const events = { created: jest.fn() };
   let service: DirectMessagesService;
 
   beforeEach(() => {
@@ -90,6 +92,7 @@ describe('DirectMessagesService', () => {
       config as unknown as ConfigService,
       queries as unknown as DirectMessageQueryService,
       stickers as unknown as StickersService,
+      events as unknown as DirectMessageEventsService,
     );
   });
 

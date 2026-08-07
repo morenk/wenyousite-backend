@@ -19,6 +19,8 @@ export const ErrorCode = {
   INVALID_DIRECT_MESSAGE: 40005,
   /** 表情来源、格式或正文表情协议不合法 */
   INVALID_STICKER: 40006,
+  /** 分页游标无法解析或不属于当前列表 */
+  INVALID_CURSOR: 40007,
 
   // ── 认证 401xx ──
   /** 未认证 */
@@ -123,6 +125,8 @@ export const ErrorCode = {
   STICKER_LIMIT_REACHED: 40910,
   /** 表情收藏夹版本冲突 */
   STICKER_COLLECTION_VERSION_CONFLICT: 40911,
+  /** 同一幂等键被复用于不同创建请求 */
+  IDEMPOTENCY_KEY_REUSED: 40912,
 
   // ── 限流 429xx ──
   /** 请求过于频繁 */

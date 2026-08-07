@@ -59,15 +59,21 @@ OutboxDispatcher（FOR UPDATE SKIP LOCKED）
 
 运行时成功响应统一为 `{ code, message, data, meta? }`，错误响应统一为 `{ code, message, data: null }`。Swagger 构建阶段使用同一 envelope 包装 2xx JSON schema，并为所有操作补充 `ApiErrorEnvelope` 兜底响应；命令型空结果使用 `MessageResponseDto`。
 
-当前开发契约版本为 `2.1.0-dev.20260806`。2.1 新增一对一私聊模型与端点。破坏性接口变更必须递增 `API_CONTRACT_VERSION`，重新导出 OpenAPI，并同步生成 Web/Flutter 客户端。`BusinessErrorCode` 由后端 `ErrorCode` 自动写入 OpenAPI，客户端不得复制一份无校验的错误码表。
+当前开发契约版本为 `3.0.0-dev.20260807.1`。3.0 为 Flutter 接入固化了认证语义、具名响应 schema、游标分页、创建幂等、媒体变体、移动推送注册与可观测响应头。破坏性接口变更必须递增 `API_CONTRACT_VERSION`，更新 [契约变更记录](../contracts/CHANGELOG.md)，重新导出受版本控制的 `contracts/openapi.json`，并同步生成 Web/Flutter 客户端。`BusinessErrorCode` 由后端 `ErrorCode` 自动写入 OpenAPI，客户端不得复制一份无校验的错误码表。
 
 `pnpm openapi:check` 校验：
 
 - 每个操作都有唯一 `operationId`；
-- 2xx JSON 响应与运行时 envelope 一致；
+- 每个 2xx JSON 响应引用以 `operationId + 状态码` 命名的具名 envelope schema；
+- 分页响应必须引用带 `meta.cursor` / `meta.hasMore` 的分页 envelope；
+- Public / OptionalAuth / Bearer / Admin 的 `security` 与 `x-auth-mode` 一致；
 - 本地 `$ref` 均可解析；
-- 用户端成功响应必须使用具名 DTO；当前仅允许已搁置的 Reports/Admin 8 个操作保留匿名响应债务；
+- 查询参数不得生成空 schema，OpenAPI 必须声明生产与本地 server；
+- 已提交的 `contracts/openapi.json` 必须与代码实时导出结果逐字节一致；
+- 用户端及管理端成功响应都必须使用具名 DTO，不保留匿名响应预算；
 - 每个操作的兜底错误以及已声明的 4xx/5xx 响应都必须引用 `ApiErrorEnvelope`。
+
+`pnpm docs:check` 额外校验生成端点表、错误码表、Markdown v2 黄金语料和已知历史错误。客户端生成必须消费仓库内已审核的契约产物，不直接抓取某个正在运行的开发实例。
 
 TypeScript 开启 `noImplicitAny` 等严格增量选项。Fastify 的 Passport `request.user` 通过模块声明统一建模，新的控制器优先使用 `@CurrentUser()`。
 

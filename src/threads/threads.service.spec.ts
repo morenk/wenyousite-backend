@@ -15,12 +15,14 @@ import { PaginatedResult } from '../common/dto/paginated-result';
 import { ThreadQueryService } from './thread-query.service';
 import { OutboxService } from '../outbox/outbox.service';
 import { StickerContentService } from '../stickers/sticker-content.service';
+import { ThreadCreateIdempotencyService } from './thread-create-idempotency.service';
 
 const mockPrisma = {
   $transaction: jest.fn(),
   $executeRaw: jest.fn().mockResolvedValue(1),
   thread: {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
@@ -103,6 +105,7 @@ describe('ThreadsService', () => {
       providers: [
         ThreadsService,
         ThreadQueryService,
+        ThreadCreateIdempotencyService,
         DiceService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: TagsService, useValue: mockTags },
@@ -122,6 +125,7 @@ describe('ThreadsService', () => {
     service = module.get<ThreadsService>(ThreadsService);
     diceService = module.get<DiceService>(DiceService);
     jest.clearAllMocks();
+    mockPrisma.thread.findFirst.mockResolvedValue(null);
     mockPrisma.post.findMany.mockResolvedValue([]);
     mockPrisma.threadMember.findMany.mockResolvedValue([]);
     mockPrisma.$transaction.mockImplementation(async (fn) =>
@@ -136,6 +140,19 @@ describe('ThreadsService', () => {
   });
 
   describe('create', () => {
+    it('相同 clientRequestId 复用于不同载荷时返回稳定冲突码', async () => {
+      mockPrisma.thread.findFirst.mockResolvedValue({ id: 't1', createRequestHash: 'other' });
+
+      await expect(service.create({
+        title: '新草稿',
+        clientRequestId: '99454040-6a52-4bf3-8bad-42683c4d09be',
+      }, 'u1')).rejects.toMatchObject({
+        errorCode: ErrorCode.IDEMPOTENCY_KEY_REUSED,
+        status: 409,
+      });
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
     it('创建草稿帖，不通知粉丝', async () => {
       const threadId = 't1';
       mockPrisma.$transaction.mockImplementation(async (fn) =>
@@ -397,6 +414,13 @@ describe('ThreadsService', () => {
         const page = await service.findAll({ sort: 'recommended' } as any);
         expect(page.items).toEqual([]);
         expect(page.pagination.hasMore).toBe(false);
+      });
+
+      it('拒绝推荐排序中的非整数不透明游标', async () => {
+        await expect(
+          service.findAll({ sort: 'recommended', cursor: '2oops' }),
+        ).rejects.toMatchObject({ errorCode: ErrorCode.INVALID_CURSOR, status: 400 });
+        expect(mockRedis.zrevrange).not.toHaveBeenCalled();
       });
 
       it('智能排序同样按主题帖状态筛选', async () => {

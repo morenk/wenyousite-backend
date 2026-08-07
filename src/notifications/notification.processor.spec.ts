@@ -1,4 +1,8 @@
+import { Job } from 'bullmq';
+import { PrismaService } from '../prisma/prisma.service';
+import { MobilePushProducer } from '../mobile-push/mobile-push.producer';
 import { NotificationProcessor } from './notification.processor';
+import { NotificationJob } from './notification.producer';
 
 function buildProcessor() {
   const tx = {
@@ -9,16 +13,29 @@ function buildProcessor() {
     },
   };
   const prisma = {
-    $transaction: jest.fn(async (callback: (client: typeof tx) => Promise<void>) => callback(tx)),
+    $transaction: jest.fn(async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx)),
     notification: {},
   };
-  return { processor: new NotificationProcessor(prisma as any), tx, prisma };
+  const pushes = { enqueue: jest.fn() };
+  return {
+    processor: new NotificationProcessor(
+      prisma as unknown as PrismaService,
+      pushes as unknown as MobilePushProducer,
+    ),
+    tx,
+    prisma,
+    pushes,
+  };
 }
 
 describe('NotificationProcessor 点赞聚合', () => {
   it('首次点赞写入 eventKey，队列重试可识别该事件', async () => {
-    const { processor, tx } = buildProcessor();
+    const { processor, tx, pushes } = buildProcessor();
     tx.notification.findMany.mockResolvedValue([]);
+    tx.notification.create.mockResolvedValue({
+      id: 'notification1',
+      eventKey: 'like:thread1:player1:owner1',
+    });
 
     await processor.process({
       data: {
@@ -36,7 +53,7 @@ describe('NotificationProcessor 点赞聚合', () => {
           likers: [{ userId: 'player1', username: '玩家1' }],
         },
       },
-    } as any);
+    } as unknown as Job<NotificationJob>);
 
     expect(tx.notification.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -44,6 +61,9 @@ describe('NotificationProcessor 点赞聚合', () => {
           payload: expect.objectContaining({ eventKeys: ['like:thread1:player1'] }),
         }),
       }),
+    );
+    expect(pushes.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({ notificationId: 'notification1', userId: 'owner1' }),
     );
   });
 
@@ -77,7 +97,7 @@ describe('NotificationProcessor 点赞聚合', () => {
           likers: [{ userId: 'player2', username: '玩家2' }],
         },
       },
-    } as any);
+    } as unknown as Job<NotificationJob>);
 
     expect(tx.notification.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -109,7 +129,7 @@ describe('NotificationProcessor 点赞聚合', () => {
         eventKey: 'like:thread1:player1',
         payload: { likers: [{ userId: 'player1', username: '玩家1' }] },
       },
-    } as any);
+    } as unknown as Job<NotificationJob>);
 
     expect(tx.notification.update).not.toHaveBeenCalled();
     expect(tx.notification.create).not.toHaveBeenCalled();

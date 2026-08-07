@@ -1,7 +1,7 @@
 import { ConfigService } from '@nestjs/config';
-import { UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtStrategy } from './jwt.strategy';
+import { ErrorCode } from '../../common/exceptions/error-codes';
 
 const user = {
   id: 'u1',
@@ -46,8 +46,10 @@ describe('JwtStrategy 登录终端校验', () => {
   it('终端被远程退出后立即拒绝尚未过期的 access token', async () => {
     mockPrisma.refreshToken.findFirst.mockResolvedValue(null);
 
-    await expect(strategy.validate({ sub: 'u1', sid: 'revoked-family' }))
-      .rejects.toThrow(UnauthorizedException);
+    await expect(strategy.validate({ sub: 'u1', sid: 'revoked-family' })).rejects.toMatchObject({
+      errorCode: ErrorCode.TOKEN_REVOKED,
+      status: 401,
+    });
   });
 
   it('兼容部署前签发的无 sid access token', async () => {

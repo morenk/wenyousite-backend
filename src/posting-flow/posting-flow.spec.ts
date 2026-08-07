@@ -19,6 +19,7 @@ import { BusinessException } from '../common/exceptions/business.exception';
 import { PostingPolicyService } from '../posts/posting-policy.service';
 import { PostQueryService } from '../posts/post-query.service';
 import { ThreadQueryService } from '../threads/thread-query.service';
+import { ThreadCreateIdempotencyService } from '../threads/thread-create-idempotency.service';
 import { OutboxService } from '../outbox/outbox.service';
 import { StickerContentService } from '../stickers/sticker-content.service';
 
@@ -238,6 +239,7 @@ describe('发帖全流程集成测试', () => {
         PostingPolicyService,
         PostQueryService,
         ThreadQueryService,
+        ThreadCreateIdempotencyService,
         { provide: PrismaService, useValue: prisma },
         { provide: ThreadAccessService, useValue: threadAccess },
         { provide: BlockFilterService, useValue: mockBlockFilter },

@@ -1,8 +1,10 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
-import { Prisma } from '@prisma/client';
+import { NotificationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { MobilePushProducer } from '../mobile-push/mobile-push.producer';
+import { NotificationJob } from './notification.producer';
 
 interface LikeLiker {
   userId: string;
@@ -45,11 +47,14 @@ function isLikeLiker(value: unknown): value is LikeLiker {
 export class NotificationProcessor extends WorkerHost {
   private readonly logger = new Logger(NotificationProcessor.name);
 
-  constructor(private prisma: PrismaService) {
+  constructor(
+    private prisma: PrismaService,
+    private readonly pushes: MobilePushProducer,
+  ) {
     super();
   }
 
-  async process(job: Job): Promise<void> {
+  async process(job: Job<NotificationJob>): Promise<void> {
     const { type, recipients, content, postId, threadId, fromUserId, payload, eventKey } = job.data;
 
     switch (type) {
@@ -115,10 +120,10 @@ export class NotificationProcessor extends WorkerHost {
 
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
-        await this.prisma.$transaction(
+        const pushTarget = await this.prisma.$transaction(
           async (tx) => {
             const notifications = await tx.notification.findMany({
-              where: { userId, type: 'like' as any, threadId },
+              where: { userId, type: NotificationType.like, threadId },
               orderBy: { createdAt: 'desc' },
               select: { id: true, isRead: true, payload: true },
             });
@@ -130,7 +135,7 @@ export class NotificationProcessor extends WorkerHost {
                 asLikePayload(notification.payload).eventKeys?.includes(eventKey),
               )
             ) {
-              return;
+              return null;
             }
 
             const existing = notifications.find((notification) => !notification.isRead);
@@ -178,13 +183,13 @@ export class NotificationProcessor extends WorkerHost {
               this.logger.log(
                 `Aggregated like notification for user ${userId} (count: ${totalCount})`,
               );
-              return;
+              return { notificationId: existing.id, eventKey: eventKey ?? `like:${existing.id}` };
             }
 
-            await tx.notification.create({
+            const created = await tx.notification.create({
               data: {
                 userId,
-                type: 'like' as any,
+                type: NotificationType.like,
                 content,
                 threadId,
                 fromUserId,
@@ -194,10 +199,20 @@ export class NotificationProcessor extends WorkerHost {
                     ? Prisma.JsonNull
                     : (payload as Prisma.InputJsonValue),
               },
+              select: { id: true, eventKey: true },
             });
+            return { notificationId: created.id, eventKey: eventKey ?? created.eventKey };
           },
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
         );
+        if (pushTarget) {
+          await this.pushes.enqueue({
+            userId,
+            kind: 'notification',
+            eventKey: `notification:${pushTarget.eventKey}:${userId}`,
+            notificationId: pushTarget.notificationId,
+          });
+        }
         return;
       } catch (error: unknown) {
         const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
@@ -209,40 +224,42 @@ export class NotificationProcessor extends WorkerHost {
 
   private async createNotifications(
     userIds: string[],
-    type: string,
+    type: NotificationType,
     content: string,
     postId?: string,
     threadId?: string,
     fromUserId?: string,
-    payload?: any,
+    payload?: Record<string, unknown> | null,
     eventKey?: string,
   ) {
     if (userIds.length === 0) return;
+    const startedAt = new Date();
 
-    const data = userIds.map((userId) => ({
+    const data: Prisma.NotificationCreateManyInput[] = userIds.map((userId) => ({
       userId,
-      type: type as any,
+      type,
       content,
       postId,
       threadId,
       fromUserId,
-      payload,
+      payload: payload == null ? Prisma.JsonNull : (payload as Prisma.InputJsonValue),
       ...(eventKey ? { eventKey: `${eventKey}:${userId}` } : {}),
     }));
 
     // 防止 BullMQ retry 时重复插入：过滤已存在记录，不整批跳过
-    const dedupWhere: any = eventKey
+    const dedupWhere: Prisma.NotificationWhereInput = eventKey
       ? { OR: userIds.map((userId) => ({ userId, eventKey: `${eventKey}:${userId}` })) }
-      : { userId: { in: userIds }, type: type as any, postId, threadId };
+      : { userId: { in: userIds }, type, postId, threadId };
     if (!eventKey && fromUserId !== undefined) dedupWhere.fromUserId = fromUserId;
     const existing = await this.prisma.notification.findMany({
       where: dedupWhere,
       select: { userId: true, eventKey: true },
     });
+    let newData = data;
     if (existing.length > 0) {
       const existingKeys = new Set(existing.map((n) => (eventKey ? n.eventKey : n.userId)));
-      const newData = data.filter(
-        (item) => !existingKeys.has(eventKey ? (item as any).eventKey : item.userId),
+      newData = data.filter(
+        (item) => !existingKeys.has(eventKey ? item.eventKey ?? '' : item.userId),
       );
       if (newData.length === 0) {
         this.logger.warn(
@@ -250,14 +267,30 @@ export class NotificationProcessor extends WorkerHost {
         );
         return;
       }
-      await this.prisma.notification.createMany({ data: newData as any, skipDuplicates: true });
-      this.logger.log(
-        `Created ${newData.length} notifications of type '${type}' (${existing.length} duplicates skipped)`,
-      );
-      return;
     }
 
-    await this.prisma.notification.createMany({ data: data as any, skipDuplicates: true });
-    this.logger.log(`Created ${userIds.length} notifications of type '${type}'`);
+    await this.prisma.notification.createMany({ data: newData, skipDuplicates: true });
+    const stored = await this.prisma.notification.findMany({
+      where: eventKey
+        ? { OR: newData.map((item) => ({ userId: item.userId, eventKey: item.eventKey })) }
+        : {
+            userId: { in: newData.map((item) => item.userId) },
+            type,
+            postId,
+            threadId,
+            createdAt: { gte: startedAt },
+            ...(fromUserId !== undefined ? { fromUserId } : {}),
+          },
+      select: { id: true, userId: true, eventKey: true },
+    });
+    await Promise.all(stored.map((notification) => this.pushes.enqueue({
+      userId: notification.userId,
+      kind: 'notification',
+      eventKey: `notification:${notification.eventKey}`,
+      notificationId: notification.id,
+    })));
+    this.logger.log(
+      `Created ${newData.length} notifications of type '${type}' (${existing.length} duplicates skipped)`,
+    );
   }
 }

@@ -1,7 +1,5 @@
 import {
-  BadRequestException,
   Injectable,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
@@ -10,6 +8,8 @@ import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { ClientPlatform, normalizeClientPlatform } from './client-platform';
+import { ErrorCode } from '../common/exceptions/error-codes';
+import { unauthorized } from '../common/exceptions/business.exception';
 
 const userSelectPublic = {
   id: true,
@@ -23,8 +23,6 @@ const userSelectPublic = {
 /** 登录终端与令牌轮转用例。 */
 @Injectable()
 export class AuthSessionService {
-  private readonly REFRESH_WEB_TTL = 7 * 24 * 60 * 60 * 1000;
-  private readonly REFRESH_MOBILE_TTL = 30 * 24 * 60 * 60 * 1000;
   private readonly REFRESH_REPLAY_GRACE = 10 * 1000;
 
   constructor(
@@ -32,6 +30,13 @@ export class AuthSessionService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
   ) {}
+
+  private refreshTtl(platform: ClientPlatform): number {
+    const days = platform === 'mobile'
+      ? this.configService.get<number>('jwt.refreshMobileTtlDays') ?? 30
+      : this.configService.get<number>('jwt.refreshWebTtlDays') ?? 7;
+    return days * 24 * 60 * 60 * 1000;
+  }
 
   private hashToken(token: string): string {
     return crypto.createHash('sha256').update(token).digest('hex');
@@ -49,7 +54,7 @@ export class AuthSessionService {
 
     const rawRefreshToken = crypto.randomUUID();
     const tokenHash = this.hashToken(rawRefreshToken);
-    const ttl = normalizedPlatform === 'mobile' ? this.REFRESH_MOBILE_TTL : this.REFRESH_WEB_TTL;
+    const ttl = this.refreshTtl(normalizedPlatform);
     const expiresAt = new Date(Date.now() + ttl);
 
     await this.prisma.$transaction(async (tx) => {
@@ -88,15 +93,15 @@ export class AuthSessionService {
       select: { ...userSelectPublic, password: true, deletedAt: true, failedLoginAttempts: true, lockedUntil: true },
     });
     if (!user) {
-      throw new UnauthorizedException('账号或密码错误');
+      throw unauthorized('账号或密码错误', ErrorCode.LOGIN_FAILED);
     }
 
     if (user.deletedAt) {
-      throw new UnauthorizedException('账号或密码错误');
+      throw unauthorized('账号或密码错误', ErrorCode.LOGIN_FAILED);
     }
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
-      throw new UnauthorizedException('登录过于频繁，请稍后重试');
+      throw unauthorized('登录过于频繁，请稍后重试', ErrorCode.ACCOUNT_LOCKED);
     }
 
     const valid = await argon2.verify(user.password, dto.password);
@@ -107,13 +112,13 @@ export class AuthSessionService {
           where: { id: user.id },
           data: { failedLoginAttempts: attempts, lockedUntil: new Date(Date.now() + 15 * 60 * 1000) },
         });
-        throw new UnauthorizedException('登录过于频繁，请稍后重试');
+        throw unauthorized('登录过于频繁，请稍后重试', ErrorCode.ACCOUNT_LOCKED);
       }
       await this.prisma.user.update({
         where: { id: user.id },
         data: { failedLoginAttempts: attempts },
       });
-      throw new UnauthorizedException('账号或密码错误');
+      throw unauthorized('账号或密码错误', ErrorCode.LOGIN_FAILED);
     }
 
     // 登录成功，重置失败计数
@@ -152,7 +157,7 @@ export class AuthSessionService {
       select: { userId: true },
     });
     if (!initial) {
-      throw new UnauthorizedException('刷新令牌无效');
+      throw unauthorized('刷新令牌无效', ErrorCode.TOKEN_INVALID);
     }
 
     const rotated = await this.prisma.$transaction(async (tx) => {
@@ -165,7 +170,7 @@ export class AuthSessionService {
       });
 
       if (!record) {
-        return { ok: false as const, message: '刷新令牌无效' };
+        return { ok: false as const, message: '刷新令牌无效', code: ErrorCode.TOKEN_INVALID };
       }
 
       if (record.revokedAt) {
@@ -177,7 +182,11 @@ export class AuthSessionService {
             data: { revokedAt: new Date() },
           });
         }
-        return { ok: false as const, message: '令牌已失效，请重新登录' };
+        return {
+          ok: false as const,
+          message: outsideGrace ? '检测到刷新令牌重放，登录终端已退出' : '刷新令牌已被轮转',
+          code: outsideGrace ? ErrorCode.TOKEN_THEFT_DETECTED : ErrorCode.TOKEN_REVOKED,
+        };
       }
 
       if (record.expiresAt <= new Date()) {
@@ -185,7 +194,7 @@ export class AuthSessionService {
           where: { id: record.id, revokedAt: null },
           data: { revokedAt: new Date() },
         });
-        return { ok: false as const, message: '刷新令牌已过期，请重新登录' };
+        return { ok: false as const, message: '刷新令牌已过期，请重新登录', code: ErrorCode.TOKEN_EXPIRED };
       }
 
       if (record.user.deletedAt) {
@@ -193,7 +202,7 @@ export class AuthSessionService {
           where: { userId: record.userId, family: record.family, revokedAt: null },
           data: { revokedAt: new Date() },
         });
-        return { ok: false as const, message: '刷新令牌无效' };
+        return { ok: false as const, message: '账号已注销', code: ErrorCode.ACCOUNT_DEACTIVATED };
       }
 
       // 原子撤销：用 updateMany({ id, revokedAt: null }) 防并发竞争
@@ -207,13 +216,13 @@ export class AuthSessionService {
           where: { userId: record.userId, family: record.family, revokedAt: null },
           data: { revokedAt: new Date() },
         });
-        return { ok: false as const, message: '令牌已失效，请重新登录' };
+        return { ok: false as const, message: '刷新令牌已被轮转', code: ErrorCode.TOKEN_REVOKED };
       }
 
       const newRawToken = crypto.randomUUID();
       const newHash = this.hashToken(newRawToken);
       const platform = normalizeClientPlatform(record.platform);
-      const ttl = platform === 'mobile' ? this.REFRESH_MOBILE_TTL : this.REFRESH_WEB_TTL;
+      const ttl = this.refreshTtl(platform);
       const expiresAt = new Date(Date.now() + ttl);
 
       await tx.refreshToken.create({
@@ -239,7 +248,7 @@ export class AuthSessionService {
     });
 
     if (!rotated.ok) {
-      throw new UnauthorizedException(rotated.message);
+      throw unauthorized(rotated.message, rotated.code);
     }
 
     const accessToken = await this.jwtService.signAsync(
@@ -309,7 +318,7 @@ export class AuthSessionService {
       orderBy: { createdAt: 'desc' },
     });
     if (!terminal) {
-      throw new BadRequestException('登录终端不存在或已失效');
+      throw unauthorized('登录终端不存在或已失效', ErrorCode.SESSION_NOT_FOUND);
     }
 
     const result = await this.prisma.refreshToken.updateMany({
@@ -317,7 +326,7 @@ export class AuthSessionService {
       data: { revokedAt: new Date() },
     });
     if (result.count === 0) {
-      throw new BadRequestException('登录终端不存在或已失效');
+      throw unauthorized('登录终端不存在或已失效', ErrorCode.SESSION_NOT_FOUND);
     }
     return { message: '登录终端已退出' };
   }

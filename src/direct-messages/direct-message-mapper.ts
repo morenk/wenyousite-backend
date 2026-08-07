@@ -1,5 +1,19 @@
 import { Prisma } from '@prisma/client';
 import { publicUserSummarySelect } from '../common/user-summary';
+import { mediaVariantUrls } from '../media/media-response.mapper';
+
+export const routingConversationSelect = {
+  id: true,
+  firstUserId: true,
+  secondUserId: true,
+  requesterId: true,
+  recipientId: true,
+  status: true,
+} satisfies Prisma.DirectConversationSelect;
+
+export type RoutingConversation = Prisma.DirectConversationGetPayload<{
+  select: typeof routingConversationSelect;
+}>;
 
 export const directMessageSelect = {
   id: true,
@@ -13,6 +27,7 @@ export const directMessageSelect = {
     select: {
       id: true,
       url: true,
+      status: true,
       contentType: true,
       width: true,
       height: true,
@@ -80,6 +95,17 @@ export function canonicalDirectUserPair(userId: string, otherUserId: string) {
 
 export function mapDirectMessage(message: DirectMessageRecord) {
   const sticker = message.recalledAt ? null : message.sticker;
+  const stickerResponse = sticker ? { ...sticker, mediumUrl: sticker.url } : null;
+  const media = message.media
+    ? {
+        id: message.media.id,
+        url: message.media.url,
+        contentType: message.media.contentType,
+        width: message.media.width,
+        height: message.media.height,
+        ...mediaVariantUrls(message.media),
+      }
+    : null;
   return {
     id: message.id,
     conversationId: message.conversationId,
@@ -87,16 +113,18 @@ export function mapDirectMessage(message: DirectMessageRecord) {
     recipientId: message.recipientId,
     content: message.recalledAt ? null : message.content,
     // 兼容旧客户端：表情同时降级映射为普通图片；新版优先使用 sticker。
-    media: message.recalledAt ? null : message.media ?? (sticker
+    media: message.recalledAt ? null : media ?? (sticker
       ? {
           id: sticker.id,
           url: sticker.url,
           contentType: sticker.contentType,
           width: sticker.width,
           height: sticker.height,
+          thumbnailUrl: sticker.thumbnailUrl,
+          mediumUrl: sticker.url,
         }
       : null),
-    sticker,
+    sticker: stickerResponse,
     recalledAt: message.recalledAt,
     createdAt: message.createdAt,
   };

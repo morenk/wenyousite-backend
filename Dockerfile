@@ -1,6 +1,6 @@
 # 阶段 1：依赖安装 + 构建
 FROM node:24-alpine AS builder
-RUN corepack enable && corepack prepare pnpm@9 --activate
+RUN corepack enable && corepack prepare pnpm@11.17.0 --activate
 WORKDIR /app
 
 # 安装依赖
@@ -15,7 +15,7 @@ RUN pnpm prisma:generate && pnpm build
 
 # 阶段 2：生产镜像
 FROM node:24-alpine AS runner
-RUN corepack enable && corepack prepare pnpm@9 --activate
+RUN corepack enable && corepack prepare pnpm@11.17.0 --activate
 WORKDIR /app
 
 # 仅安装生产依赖

@@ -57,14 +57,18 @@ Swagger `/api/docs-json` 同样输出这一真实 envelope，可直接用于 Web
 | `40004` | 骰子次数超限 | 单帖正式结果与本次新增合计超过 20 |
 | `40005` | 私聊消息无效 | 正文和图片均为空、图片不可用或幂等键误用 |
 | `40006` | 表情无效 | 格式、大小、帧数、时长或帖子图片来源不合法 |
-| `40100` | 未登录 | Token 缺失或无效 |
+| `40100` | 未登录 | 未携带认证凭证 |
+| `40101` | access token 过期 | 单飞刷新并重放一次原请求 |
+| `40102`–`40107` | token/账号状态异常 | 不触发 access token 刷新，按生成的错误码进入对应状态 |
+| `40110`–`40116` | 登录、验证码、会话或旧密码错误 | 展示业务错误，不触发 access token 刷新 |
 | `40300` | 权限不足 | 非 OWNER 修改、非协作者发帖 |
 | `40305` | 私聊被阻止 | 任一方存在拉黑关系 |
 | `40306` | 私聊操作不允许 | 非参与者、请求方向或会话状态不允许 |
 | `40400` | 资源不存在 | 帖/子贴/用户/通知不存在 |
 | `40401` | 私密帖不可访问 | PRIVATE 帖非成员 |
 | `40411` | 私聊会话不存在 | 会话不存在或当前用户不是参与者 |
-| `40412` | 私聊消息不存在 | 消息/分页锚点不存在或不属于会话 |
+| `40412` | 私聊消息不存在 | 撤回等按消息 ID 操作时目标不存在或不属于会话 |
+| `40007` | 分页游标无效 | cursor/after 无法解析或不属于当前列表；清空分页并从首页重载 |
 | `40413` | 表情不存在 | 收藏、资产、导入任务或来源图片不可访问 |
 | `40900` | 冲突 | 重复收藏、用户名占用、乐观锁冲突 |
 | `40906` | 消息请求待处理 | 首条消息未被接受，发起方不能继续发送 |
@@ -73,6 +77,7 @@ Swagger `/api/docs-json` 同样输出这一真实 envelope，可直接用于 Web
 | `40909` | 图片已使用 | 同一 mediaId 已绑定其他私聊消息 |
 | `40910` | 表情收藏已满 | 收藏与处理中的导入合计达到 200 |
 | `40911` | 表情收藏版本冲突 | 排序期间收藏夹已被其他操作修改，应刷新重试 |
+| `40912` | 幂等键误用 | 同一 `clientRequestId` 被复用于不同创建载荷 |
 | `42900` | 限流 | 超过频率限制 |
 | `50000` | 服务器错误 | 内部异常 |
 
@@ -94,8 +99,8 @@ Swagger `/api/docs-json` 同样输出这一真实 envelope，可直接用于 Web
 
 | Token | 有效期 | 存储方式 | 用途 |
 |-------|--------|----------|------|
-| `accessToken` | 15 分钟 | 前端内存/localStorage | 请求时放 `Authorization: Bearer <token>` |
-| `refreshToken` | web 7 天 / mobile 30 天 | Web：仅 httpOnly Cookie；原生移动端：仅响应体 | 刷新 accessToken |
+| `accessToken` | 15 分钟 | Web：仅内存；Flutter：系统安全存储 | 请求时放 `Authorization: Bearer <token>` |
+| `refreshToken` | web 7 天 / mobile 30 天 | Web：仅 httpOnly Cookie；Flutter：Keychain/Keystore 安全存储 | 刷新 accessToken |
 
 **双端登录**：每个账号最多一个 Web 登录终端和一个原生移动端登录终端。PC 与手机浏览器均属 Web 端；同端再次登录会替换旧终端。Web 的 refresh 和 logout 自动从 Cookie 读取 refreshToken，RequestBody 仅作兼容备选。
 
@@ -142,13 +147,13 @@ Web 成功响应只返回新的 access token 与 user，新 refresh token 通过
 
 ## 3. 分页 (Cursor Pagination)
 
-所有列表类端点（threads / posts / notifications / bookmarks 等）使用 **游标分页**（id-based cursor）。
+所有列表类端点（threads / posts / notifications / bookmarks 等）使用**不透明游标分页**。多数当前实现以 ID 生成游标，推荐排序使用偏移游标，搜索使用编码后的复合游标；客户端不得解析或自行构造。
 
 ### 3.1 请求
 
 | 参数 | 类型 | 说明 |
 |------|------|------|
-| `cursor` | string | 上一页最后一条记录的 ID。**首次请求不传** |
+| `cursor` | string | 上一页响应的 `meta.cursor`。**首次请求不传，后续原样回传** |
 | `limit` | number | 每页条数，默认 20，最大 50 |
 
 ### 3.2 响应
@@ -161,8 +166,9 @@ Web 成功响应只返回新的 access token 与 user，新 refresh token 通过
 }
 ```
 
-- `meta.cursor`：当前页最后一条记录的 ID。**原样传给下一页的 `?cursor=`**
+- `meta.cursor`：服务端生成的不透明游标。**原样传给下一页的 `?cursor=`**
 - `meta.hasMore`：`true` 有下一页，`false` 已到末尾
+- 无法解析、已失效或不属于当前列表的游标返回 HTTP 400 / `code=40007`；客户端应清空列表并从首页重载。
 
 ### 3.3 前端伪代码
 
@@ -280,8 +286,8 @@ POST /subthreads/:id/posts         // 发楼中楼回复
 ### 4.4 点赞
 
 ```
-POST   /posts/:id/like     点赞（幂等，重复点赞不报错）
-DELETE /posts/:id/like     取消点赞
+POST   /threads/:id/like     点赞（幂等，重复点赞不报错）
+DELETE /threads/:id/like     取消点赞
 ```
 
 `likeCount` 在 Post 对象上直接返回，无需额外查询。
@@ -304,12 +310,12 @@ POST   /threads/join-by-link/:token   通过 16 位 token 幂等加入私密帖
 
 ```
 GET    /notifications             通知列表（支持 ?type=mention,reply 过滤）
-GET    /notifications/unread      未读通知数 → { count: 5 }
-PATCH  /notifications/:id/read    标记单条已读
+GET    /notifications/unread      未读通知数 → { unreadCount: 5 }
+PATCH  /notifications/:id         传 { "isRead": true|false } 设置阅读状态
 POST   /notifications/read-all    全部已读
 ```
 
-每条通知含 `type`、`content`（可读文本）、以及 `postId`/`threadId`/`fromUserId` 导航字段。前端可根据 `type` + 导航字段直接跳转到对应内容。
+每条通知含 `type`、`content`（可读文本）、`payload.schemaVersion` 与具名 `target`。客户端按 `target.kind`（`post` / `thread` / `user` / `none`）导航；新增 payload 字段时保持向后兼容，未知通知类型应降级展示 `content`。
 
 ---
 
@@ -334,7 +340,7 @@ S3 预签名直传，不经过后端中转：
    → status: UPLOADING → PROCESSING → COMPLETED
 ```
 
-文件限制：仅允许图片格式（jpg/png/gif/webp/bmp/svg），最大 10MB。
+文件限制：仅允许 jpg/jpeg、png、gif、webp、avif，最大 10MB；明确拒绝 SVG/BMP。处理完成后响应中的 `thumbnailUrl`（300×300 WebP）和 `mediumUrl`（最长边 800 WebP）可直接用于列表与详情，处理中为 `null`。
 
 ---
 
@@ -433,15 +439,15 @@ GET /threads/:threadId/search/posts?q=关键词&cursor=&limit=20
 
 ## 11. 前端开发建议
 
-OpenAPI 契约版本为 `2.1.0-dev.20260806`。Web 与 Flutter 都应从同一份 OpenAPI 生成类型；成功响应读取 `data`，错误响应统一按 `{ code, message, data: null }` 处理，业务分支使用生成的 `BusinessErrorCode`，不要依赖提示文案。
+OpenAPI 契约版本为 `3.0.0-dev.20260807.1`。Web 与 Flutter 都应从仓库内已审核的 `contracts/openapi.json` 生成类型；成功响应读取 `data`，分页读取 `meta`，错误响应统一按 `{ code, message, data: null }` 处理，业务分支使用生成的 `BusinessErrorCode`，不要依赖提示文案。完整移动端策略见 [Flutter / 原生移动端接入](./mobile-client-guide.md)。
 
 1. **先看 Swagger**：`/api/docs` 有每个端点的请求 Schema（含 example 值）和响应描述，Try it out 可直接调试。
-2. **Token 管理**：封装一个 HTTP 拦截器，自动在 401 时调 `/auth/refresh` 刷新。
+2. **Token 管理**：封装单航班刷新拦截器；只对 `40101 TOKEN_EXPIRED` 刷新一次并重放请求，其他 401 直接进入对应登录/锁定/注销状态，避免刷新风暴。
 3. **分页**：列表类用 cursor 游标，第一页不传，后续页传 `meta.cursor`。
 4. **乐观锁**：编辑帖子/主题帖时，必须传 `version` 字段（从 GET 详情获得），冲突时 (409) 提示用户刷新。
 5. **楼中楼展开**：列表里显示前 5 条 + "查看全部"按钮，点击进入独立楼中楼界面分页加载。
-6. **图片上传**：等 `status: COMPLETED` 后再插入 Markdown `![](url)`。
-7. **通知轮询**：`GET /notifications/unread` 按业务需要间隔（15-30s 均可），避免过于频繁触发限流。
+6. **图片上传**：等 `status: COMPLETED` 后再插入 Markdown `![](url)`；列表优先 `thumbnailUrl`，正文预览优先 `mediumUrl`，字段为 null 时回退 `url`。
+7. **通知与推送**：前台按需轮询 `/notifications/unread`；Flutter 登录/刷新成功后注册 FCM token，推送只用于唤醒与提示，进入页面后仍以通知/私聊 API 为权威数据源。
 8. **内容安全**：帖子/子贴/草稿/简介等 content 字段按 **Markdown 原样存储**（后端不做 HTML 转义）。客户端必须在**渲染层**净化：web 端用 react-markdown（默认剥离原始 HTML 标签、拦截危险 URL）；移动端用 markdown 渲染器，若需渲染原始 HTML 则对渲染输出加净化。**禁止在后端把内容当 HTML 转义后再存**（会破坏 markdown，导致 `>` 变成 `&gt;`）。
 
 ---

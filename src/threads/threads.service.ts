@@ -23,6 +23,7 @@ import { DiceService } from '../dice/dice.service';
 import { ThreadQueryService } from './thread-query.service';
 import { OutboxService } from '../outbox/outbox.service';
 import { StickerContentService } from '../stickers/sticker-content.service';
+import { ThreadCreateIdempotencyService } from './thread-create-idempotency.service';
 
 /** 帖子列表 ZSET 键名 */
 const ZSET_BY_CREATED = 'threads:by:created';
@@ -43,19 +44,24 @@ export class ThreadsService {
     private redis: RedisService,
     private diceService: DiceService,
     private queries: ThreadQueryService,
+    private createIdempotency: ThreadCreateIdempotencyService,
     private outbox: OutboxService,
     private stickerContent: StickerContentService,
   ) {}
 
   /** 创建主题帖草稿：事务内创建 Thread + Owner + 默认子贴 + 可选子贴正文，一次请求完成 */
   async create(dto: CreateThreadDto, userId: string) {
-    const title = dto.title ?? '未命名草稿';
-    const subthreadTitle = dto.subthreadTitle ?? title;
-    const category = dto.category ?? 'DEDUCTION';
-    const visibility = dto.visibility ?? 'PUBLIC';
     const parsedContent = this.diceService.parseContent(
       normalizeMarkdownContent(dto.content ?? ''),
     );
+    const { title, subthreadTitle, category, visibility, requestHash } =
+      this.createIdempotency.prepare(dto, parsedContent.content);
+    const replay = await this.createIdempotency.findReplay(
+      userId,
+      dto.clientRequestId,
+      requestHash,
+    );
+    if (replay) return replay;
     const hasBody =
       hasVisibleMarkdownContent(parsedContent.contentWithoutDice) || parsedContent.nodes.length > 0;
     await this.stickerContent.assertContentAllowed(userId, parsedContent.content);
@@ -65,60 +71,80 @@ export class ThreadsService {
         ? await this.tagsService.findOrCreate(dto.tagNames)
         : [];
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      // 0. 草稿数上限校验：未发布草稿超过上限则拒绝创建
-      const draftCount = await tx.thread.count({
-        where: { ownerId: userId, published: false, ...notDeleted },
-      });
-      if (draftCount >= MAX_THREAD_DRAFTS) {
-        throw new BusinessException(
-          ErrorCode.BAD_REQUEST,
-          `草稿数量已达上限（${MAX_THREAD_DRAFTS}/${MAX_THREAD_DRAFTS}），请先发布或删除旧草稿`,
-        );
-      }
+    let result: { threadId: string };
+    try {
+      result = await this.prisma.$transaction(async (tx) => {
+        // 0. 草稿数上限校验：未发布草稿超过上限则拒绝创建
+        const draftCount = await tx.thread.count({
+          where: { ownerId: userId, published: false, ...notDeleted },
+        });
+        if (draftCount >= MAX_THREAD_DRAFTS) {
+          throw new BusinessException(
+            ErrorCode.BAD_REQUEST,
+            `草稿数量已达上限（${MAX_THREAD_DRAFTS}/${MAX_THREAD_DRAFTS}），请先发布或删除旧草稿`,
+          );
+        }
 
-      // 1. 创建 Thread
-      const thread = await tx.thread.create({
-        data: { title, category, ownerId: userId, visibility, published: false } as any,
-      });
-
-      // 2. 创建 OWNER 成员
-      await tx.threadMember.create({
-        data: { threadId: thread.id, userId, role: 'OWNER', playerMarked: true },
-      });
-
-      // 3. 创建默认子贴
-      const subthread = await tx.subthread.create({
-        data: { threadId: thread.id, title: subthreadTitle, sortOrder: 0 },
-      });
-
-      // 4. 若有正文则创建正文帖（kind=BODY，不占楼层号）
-      if (hasBody) {
-        await tx.post.create({
+        // 1. 创建 Thread
+        const thread = await tx.thread.create({
           data: {
-            threadId: thread.id,
-            subthreadId: subthread.id,
-            authorId: userId,
-            kind: 'BODY',
-            content: parsedContent.content,
+            title,
+            category,
+            ownerId: userId,
+            visibility,
+            published: false,
+            clientRequestId: dto.clientRequestId,
+            createRequestHash: dto.clientRequestId ? requestHash : undefined,
           },
         });
-      }
 
-      // 5. 回写默认子贴引用
-      await tx.thread.update({
-        where: { id: thread.id },
-        data: { defaultSubthreadId: subthread.id },
-      });
-
-      if (tags.length > 0) {
-        await tx.threadTopicTag.createMany({
-          data: tags.map((tag) => ({ threadId: thread.id, tagId: tag.id })),
+        // 2. 创建 OWNER 成员
+        await tx.threadMember.create({
+          data: { threadId: thread.id, userId, role: 'OWNER', playerMarked: true },
         });
-      }
 
-      return { threadId: thread.id };
-    });
+        // 3. 创建默认子贴
+        const subthread = await tx.subthread.create({
+          data: { threadId: thread.id, title: subthreadTitle, sortOrder: 0 },
+        });
+
+        // 4. 若有正文则创建正文帖（kind=BODY，不占楼层号）
+        if (hasBody) {
+          await tx.post.create({
+            data: {
+              threadId: thread.id,
+              subthreadId: subthread.id,
+              authorId: userId,
+              kind: 'BODY',
+              content: parsedContent.content,
+            },
+          });
+        }
+
+        // 5. 回写默认子贴引用
+        await tx.thread.update({
+          where: { id: thread.id },
+          data: { defaultSubthreadId: subthread.id },
+        });
+
+        if (tags.length > 0) {
+          await tx.threadTopicTag.createMany({
+            data: tags.map((tag) => ({ threadId: thread.id, tagId: tag.id })),
+          });
+        }
+
+        return { threadId: thread.id };
+      });
+    } catch (error: unknown) {
+      const replayAfterRace = await this.createIdempotency.findReplayAfterConflict(
+        error,
+        userId,
+        dto.clientRequestId,
+        requestHash,
+      );
+      if (replayAfterRace) return replayAfterRace;
+      throw error;
+    }
 
     const thread = await this.prisma.thread.findUnique({
       where: { id: result.threadId, ...notDeleted },

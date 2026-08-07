@@ -39,6 +39,7 @@ import {
   JoinedThreadMemberResponseDto,
   ThreadLikeResponseDto,
 } from './dto/thread-action-response.dto';
+import { ApiCursorPaginatedResponse } from '../common/swagger/api-cursor-paginated-response.decorator';
 
 /** 主题帖控制器：草稿箱、列表、详情、修改、发布、删除、点赞 */
 @ApiTags('Threads')
@@ -65,12 +66,10 @@ export class ThreadsController {
   @ApiOperation({
     summary: '主题帖列表（仅已发布帖），支持排序、分区、状态及标签筛选',
   })
-  @ApiOkResponse({
-    type: HomeThreadListItemResponseDto,
-    isArray: true,
-    description:
-      '分页列表，meta 含 cursor/hasMore。每个帖含 owner/subthreads/bodyPost.content(正文预览)/topicTags/_count',
-  })
+  @ApiCursorPaginatedResponse(
+    HomeThreadListItemResponseDto,
+    '分页列表，meta 含 cursor/hasMore。每个帖含 owner/subthreads/bodyPost.content(正文预览)/topicTags/_count',
+  )
   async findAll(@Query() query: ThreadQueryDto, @Req() req: FastifyRequest) {
     const user = req.user as { id: string } | undefined;
     return this.threadsService.findAll(query, user?.id);

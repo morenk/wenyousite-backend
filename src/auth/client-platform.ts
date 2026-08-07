@@ -8,6 +8,6 @@ export function normalizeClientPlatform(value: unknown): ClientPlatform {
   return value === 'mobile' ? 'mobile' : 'web';
 }
 
-export function refreshTtlSeconds(platform: ClientPlatform) {
-  return platform === 'mobile' ? 30 * 24 * 60 * 60 : 7 * 24 * 60 * 60;
+export function refreshTtlSeconds(platform: ClientPlatform, webDays = 7, mobileDays = 30) {
+  return (platform === 'mobile' ? mobileDays : webDays) * 24 * 60 * 60;
 }

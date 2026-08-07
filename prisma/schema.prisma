@@ -89,6 +89,11 @@ enum StickerImportStatus {
   FAILED
 }
 
+enum MobilePlatform {
+  ANDROID
+  IOS
+}
+
 model User {
   id                  String    @id @default(cuid())
   email               String    @unique
@@ -140,6 +145,7 @@ model User {
   stickerCollection             StickerCollection?
   stickers                      UserSticker[]
   stickerImports                StickerImport[]
+  mobileDevices                MobileDevice[]
 
   @@index([username(ops: raw("gin_trgm_ops"))], type: Gin, map: "users_username_trgm_idx")
   @@map("users")
@@ -183,6 +189,26 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+model MobileDevice {
+  id          String         @id @default(cuid())
+  userId      String         @map("user_id")
+  sessionId   String         @map("session_id")
+  pushToken   String         @unique @map("push_token")
+  platform    MobilePlatform
+  appVersion  String?        @map("app_version")
+  locale      String?
+  enabled     Boolean        @default(true)
+  lastSeenAt  DateTime       @default(now()) @map("last_seen_at")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sessionId])
+  @@index([userId, enabled])
+  @@map("mobile_devices")
+}
+
 model UserBlock {
   id        String   @id @default(cuid())
   blockerId String   @map("blocker_id")
@@ -207,6 +233,8 @@ model Thread {
   visibility  ThreadVisibility @default(PUBLIC) @map("visibility")
   published   Boolean          @default(false) @map("published")
   publishedAt DateTime?        @map("published_at")
+  clientRequestId  String?     @map("client_request_id") @db.Uuid
+  createRequestHash String?    @map("create_request_hash")
 
   pinned   Boolean   @default(false)
   pinnedAt DateTime?
@@ -235,6 +263,7 @@ model Thread {
   @@index([published, visibility, deletedAt, pinned(sort: Desc), createdAt(sort: Desc)], map: "threads_public_created_idx")
   @@index([published, visibility, deletedAt, pinned(sort: Desc), updatedAt(sort: Desc)], map: "threads_public_active_idx")
   @@index([ownerId, published, deletedAt, createdAt(sort: Desc)], map: "threads_owner_created_idx")
+  @@unique([ownerId, clientRequestId])
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "threads_title_trgm_idx")
   @@map("threads")
 }
@@ -278,12 +307,15 @@ model Subthread {
   lastPostAt    DateTime?     @map("last_post_at")
   deletedAt     DateTime?     @map("deleted_at")
   createdAt     DateTime      @default(now()) @map("created_at")
+  clientRequestId  String?    @map("client_request_id") @db.Uuid
+  createRequestHash String?   @map("create_request_hash")
 
   thread           Thread  @relation("ThreadSubthreads", fields: [threadId], references: [id], onDelete: Cascade)
   defaultForThread Thread? @relation("DefaultSubthread")
   posts            Post[]
 
   @@unique([threadId, sortOrder])
+  @@unique([threadId, clientRequestId])
   @@map("subthreads")
 }
 

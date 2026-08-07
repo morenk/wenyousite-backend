@@ -14,6 +14,7 @@ import { ThreadEventsListener } from './thread-events.listener';
 import { ThreadAggregateService } from './thread-aggregate.service';
 import { MentionsModule } from '../mentions/mentions.module';
 import { StickersModule } from '../stickers/stickers.module';
+import { ThreadCreateIdempotencyService } from './thread-create-idempotency.service';
 
 /** 主题帖模块：CRUD、参与人管理、标签关联 */
 @Module({
@@ -31,6 +32,7 @@ import { StickersModule } from '../stickers/stickers.module';
     ThreadMembersService,
     ThreadTagsService,
     ThreadQueryService,
+    ThreadCreateIdempotencyService,
     ThreadEventsListener,
     ThreadAggregateService,
   ],

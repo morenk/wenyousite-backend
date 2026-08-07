@@ -275,7 +275,7 @@ describe('MediaService', () => {
     const m = makeMedia({ status: 'COMPLETED' });
     mockPrisma.media.findUnique.mockResolvedValue(m);
     const result = await service.getMedia('m1', 'u1');
-    expect(result).toEqual(m);
+    expect(result).toEqual({ ...m, thumbnailUrl: null, mediumUrl: null });
   });
 
   it('getMedia 不应返回不存在的记录', async () => {

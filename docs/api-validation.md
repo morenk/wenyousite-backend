@@ -25,11 +25,9 @@ app.useGlobalPipes(
 
 ```json
 {
-  "statusCode": 400,
-  "message": ["title must be shorter than or equal to 100 characters"],
-  "error": "Bad Request",
-  "timestamp": "2025-01-01T00:00:00.000Z",
-  "path": "/api/v1/threads"
+  "code": 40000,
+  "message": "title must be shorter than or equal to 100 characters",
+  "data": null
 }
 ```
 
@@ -109,17 +107,17 @@ export class ThreadQueryDto extends CursorPaginationDto {
 | 标签名 | `@MinLength(1) @MaxLength(20)` | TopicTag |
 | 文件名 | `@MinLength(1) @MaxLength(255)` | 媒体上传文件名 |
 
-### 3.2 ID 字段（UUID）
+### 3.2 ID 字段（CUID 与 UUID）
 
-所有数据库主键/外键 ID 字段必须添加：
+绝大多数业务实体主键/外键使用 Prisma `cuid()`，DTO 只验证非空字符串；不得误加 `@IsUUID()`：
 
 ```ts
 @IsString()
-@IsUUID()
+@IsNotEmpty()
 threadId: string;
 ```
 
-**例外**：纯字符串标识符（如邀请链接 token、验证 token）不在此列，仅用 `@IsString()`。
+只有 schema 明确标注 `@db.Uuid` 的字段才使用 `@IsUUID()`，例如创建请求的 `clientRequestId`、refresh token 与登录终端 family。邀请 token、分页 cursor 等不透明字符串使用各自的格式或业务校验。
 
 ### 3.3 邮箱
 
@@ -226,8 +224,9 @@ export class XxxQueryDto extends CursorPaginationDto {
 ```
 
 **分页规则**：
-- `cursor`：上一页最后一条记录的 ID（字符串），首次请求不传
+- `cursor`：上一页 `meta.cursor`（不透明字符串），首次请求不传、后续原样回传
 - `limit`：每页条数，默认 20，必须校验 `@IsNumber()`
+- 游标无法解析或不属于当前列表时统一返回 `40007 INVALID_CURSOR`
 
 ---
 

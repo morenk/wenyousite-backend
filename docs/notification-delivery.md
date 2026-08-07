@@ -11,7 +11,7 @@
 | 新帖通知   | `new_post`       | `post.created`（`!parentPostId` 或 `isSubthreadBody`）                                 | `PostEventsListener`                                                              | `src/post-activity/post-events.listener.ts`                      |
 | 新主题帖   | `thread_created` | 主题帖 PATCH published=true                                                            | `ThreadEventsListener`                                                            | `src/threads/thread-events.listener.ts`                          |
 | 被关注     | `follow`         | 首次关注关系写入                                                                       | `UserRelationEventsListener`                                                      | `src/users/user-relation-events.listener.ts`                     |
-| 被点赞     | `like`           | 首次点赞                                                                               | `PostsService.like()`                                                             | `src/posts/posts.service.ts`                                     |
+| 被点赞     | `like`           | 首次点赞主题帖                                                                         | `ThreadsService.like()`                                                           | `src/threads/threads.service.ts`                                 |
 | 系统通知   | `system`         | 管理员 POST /admin/notifications/system                                                | `AdminService.sendSystemNotification()`                                           | `src/admin/admin.service.ts`                                     |
 
 > `new_post` 合并了原 `new_floor`（新楼层）和 `subthread_created`（新子贴）两种类型，通过 payload 中的 `subthreadTitle` 字段区分是否为子贴。

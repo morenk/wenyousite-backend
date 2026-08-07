@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { MediaService } from '../media/media.service';
 import { StickersService } from '../stickers/stickers.service';
+import { MobileDeviceService } from '../mobile-push/mobile-device.service';
 
 const mockPrisma = {
   emailVerification: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
@@ -28,6 +29,7 @@ const mockMediaService = {
   cleanupOrphanMedia: jest.fn().mockResolvedValue(undefined),
 };
 const mockStickersService = { cleanupOrphanAssets: jest.fn().mockResolvedValue(undefined) };
+const mockMobileDevices = { cleanupInactiveSessions: jest.fn().mockResolvedValue(0) };
 
 describe('CleanupTask', () => {
   let task: CleanupTask;
@@ -40,6 +42,7 @@ describe('CleanupTask', () => {
         { provide: RedisService, useValue: mockRedis },
         { provide: MediaService, useValue: mockMediaService },
         { provide: StickersService, useValue: mockStickersService },
+        { provide: MobileDeviceService, useValue: mockMobileDevices },
       ],
     }).compile();
     task = module.get<CleanupTask>(CleanupTask);
@@ -55,6 +58,7 @@ describe('CleanupTask', () => {
     expect(mockPrisma.domainOutbox.deleteMany).toHaveBeenCalledWith({
       where: { processedAt: { not: null, lt: expect.any(Date) } },
     });
+    expect(mockMobileDevices.cleanupInactiveSessions).toHaveBeenCalledTimes(1);
   });
 
   it('孤儿图片清理抛错不应影响其他清理任务', async () => {

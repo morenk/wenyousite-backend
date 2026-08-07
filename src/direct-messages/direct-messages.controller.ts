@@ -30,6 +30,7 @@ import {
   DirectMessageResponseDto,
   DirectUnreadCountResponseDto,
 } from './dto/direct-message-response.dto';
+import { ApiCursorPaginatedResponse } from '../common/swagger/api-cursor-paginated-response.decorator';
 
 @ApiTags('Direct Messages')
 @ApiBearerAuth()
@@ -43,7 +44,7 @@ export class DirectConversationsController {
   @Get()
   @AuthRead()
   @ApiOperation({ summary: '私聊会话列表（主列表 / 消息请求 / 归档）' })
-  @ApiOkResponse({ type: DirectConversationResponseDto, isArray: true, description: '游标分页会话列表' })
+  @ApiCursorPaginatedResponse(DirectConversationResponseDto, '游标分页会话列表')
   async findAll(@Req() req: FastifyRequest, @Query() query: DirectConversationQueryDto) {
     const user = req.user as { id: string };
     return this.queries.findAll(user.id, query);
@@ -92,7 +93,7 @@ export class DirectConversationsController {
   @Get(':id/messages')
   @AuthRead()
   @ApiOperation({ summary: '私聊消息历史或轮询增量；响应按时间正序' })
-  @ApiOkResponse({ type: DirectMessageResponseDto, isArray: true, description: '游标分页消息列表' })
+  @ApiCursorPaginatedResponse(DirectMessageResponseDto, '游标分页消息列表')
   @ApiNotFoundResponse({ description: '会话或消息游标不存在' })
   async messages(
     @Req() req: FastifyRequest,

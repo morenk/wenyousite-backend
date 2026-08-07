@@ -8,6 +8,8 @@ const operationIds = new Set<string>();
 const methods = new Set(['get', 'put', 'post', 'delete', 'patch', 'options', 'head']);
 let anonymousSuccessSchemas = 0;
 const errorEnvelopeRef = '#/components/schemas/ApiErrorEnvelope';
+const successEnvelopeRef = '#/components/schemas/ApiSuccessEnvelope';
+const paginatedEnvelopeRef = '#/components/schemas/ApiPaginatedSuccessEnvelope';
 
 function responseUsesErrorEnvelope(response: any): boolean {
   return response?.content?.['application/json']?.schema?.$ref === errorEnvelopeRef;
@@ -46,7 +48,30 @@ for (const [route, pathItem] of Object.entries(document.paths ?? {})) {
     const operationId = operation.operationId;
     if (!operationId) failures.push(`${label}: 缺少 operationId`);
     else if (operationIds.has(operationId)) failures.push(`${label}: operationId 重复 (${operationId})`);
-    else operationIds.add(operationId);
+    else {
+      operationIds.add(operationId);
+      if (!/^[a-z][A-Za-z0-9]*$/.test(operationId) || operationId.includes('Controller')) {
+        failures.push(`${label}: operationId 不是稳定 lowerCamel 名称 (${operationId})`);
+      }
+    }
+
+    const authMode = operation['x-auth-mode'];
+    const security = operation.security ?? [];
+    const hasBearer = security.some((entry: any) => Array.isArray(entry?.bearer));
+    const hasAnonymous = security.some((entry: any) => Object.keys(entry ?? {}).length === 0);
+    if (authMode === 'public' && security.length !== 0) failures.push(`${label}: public 操作不应声明鉴权`);
+    if (authMode === 'optional' && (!hasBearer || !hasAnonymous)) {
+      failures.push(`${label}: optional 操作必须同时声明 bearer 与匿名访问`);
+    }
+    if (['authenticated', 'verified', 'admin'].includes(authMode) && (!hasBearer || hasAnonymous)) {
+      failures.push(`${label}: ${authMode} 操作必须声明 bearer 鉴权`);
+    }
+
+    for (const parameter of operation.parameters ?? []) {
+      if (parameter?.schema && Object.keys(parameter.schema).length === 0) {
+        failures.push(`${label}: 参数 ${parameter.name} 的 schema 为空`);
+      }
+    }
 
     if (!responseUsesErrorEnvelope(operation.responses?.default)) {
       failures.push(`${label}: 缺少统一 default 错误响应`);
@@ -58,10 +83,19 @@ for (const [route, pathItem] of Object.entries(document.paths ?? {})) {
       }
       if (!/^2\d\d$/.test(status) || status === '204' || status === '205') continue;
       const schema = response?.content?.['application/json']?.schema;
-      const allOf = schema?.allOf;
+      if (!schema?.$ref) {
+        failures.push(`${label} ${status}: 成功响应必须引用具名 envelope schema`);
+        anonymousSuccessSchemas += 1;
+        continue;
+      }
+      const component = resolveReference(schema.$ref) as any;
+      const allOf = component?.allOf;
+      const expectedEnvelope = operation['x-pagination'] === 'cursor'
+        ? paginatedEnvelopeRef
+        : successEnvelopeRef;
       const wrapped =
         Array.isArray(allOf) &&
-        allOf.some((part: any) => part?.$ref === '#/components/schemas/ApiSuccessEnvelope');
+        allOf.some((part: any) => part?.$ref === expectedEnvelope);
       const dataSchema = allOf?.find((part: any) => part?.properties?.data)?.properties?.data;
       if (!wrapped || dataSchema === undefined) {
         failures.push(`${label} ${status}: 成功 JSON 响应未声明统一 envelope/data`);
@@ -79,8 +113,11 @@ for (const [route, pathItem] of Object.entries(document.paths ?? {})) {
 
 visit(document, 'openapi');
 
-// 历史匿名成功响应基线。新增/修改端点必须声明 DTO，存量清理后同步下调。
-const anonymousSchemaBudget = 8;
+if (!Array.isArray(document.servers) || document.servers.length === 0) {
+  failures.push('OpenAPI servers 不能为空');
+}
+
+const anonymousSchemaBudget = 0;
 if (anonymousSuccessSchemas > anonymousSchemaBudget) {
   failures.push(
     `匿名成功响应为 ${anonymousSuccessSchemas}，超过基线 ${anonymousSchemaBudget}；请为端点补充 Swagger DTO`,

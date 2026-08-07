@@ -11,9 +11,9 @@ NestJS + Fastify + PostgreSQL + Prisma + Redis + BullMQ，模块化单体架构�
 |------|------|------|
 | 运行时 | Node.js 24 LTS + TypeScript | — |
 | 框架 | NestJS + Fastify | Fastify 性能优于 Express |
-| 数据库 | PostgreSQL 17 + Prisma ORM | 30 张表，13 个枚举，类型安全 |
+| 数据库 | PostgreSQL 17 + Prisma ORM | 31 张表，14 个枚举，类型安全 |
 | 缓存/队列 | Redis 7 + BullMQ | 通知、图片和表情处理队列 |
-| 认证 | Passport JWT + Argon2 | 双 Token (access 15m / refresh 7d) |
+| 认证 | Passport JWT + Argon2 | 双 Token（access 15m / Web refresh 7d / mobile refresh 30d） |
 | 校验 | class-validator + class-transformer | DTO 自动校验 |
 | 日志 | nestjs-pino + pino-pretty + pino-roll | 结构化日志，dev 彩色控制台，prod JSON + 可选日滚动文件 |
 | 错误监控 | @sentry/nestjs + @sentry/node | 有 DSN 时启用 |

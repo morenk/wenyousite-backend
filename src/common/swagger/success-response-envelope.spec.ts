@@ -10,6 +10,7 @@ function createDocument(): OpenAPIObject {
     paths: {
       '/candidates': {
         get: {
+          operationId: 'candidatesFind',
           responses: {
             200: {
               description: '候选列表',
@@ -25,6 +26,7 @@ function createDocument(): OpenAPIObject {
       },
       '/posts': {
         post: {
+          operationId: 'postsCreate',
           responses: {
             201: { description: '创建成功' },
           },
@@ -32,6 +34,7 @@ function createDocument(): OpenAPIObject {
       },
       '/empty': {
         delete: {
+          operationId: 'emptyDelete',
           responses: {
             204: { description: '无响应体' },
           },
@@ -54,20 +57,19 @@ describe('applySuccessResponseEnvelope', () => {
     expect(schema).toMatchObject({
       content: {
         'application/json': {
-          schema: {
-            allOf: [
-              { $ref: '#/components/schemas/ApiSuccessEnvelope' },
-              {
-                type: 'object',
-                required: ['data'],
-                properties: {
-                  data: { $ref: '#/components/schemas/CandidatesDto' },
-                },
-              },
-            ],
-          },
+          schema: { $ref: '#/components/schemas/CandidatesFind200Response' },
         },
       },
+    });
+    expect(document.components?.schemas?.CandidatesFind200Response).toEqual({
+      allOf: [
+        { $ref: '#/components/schemas/ApiSuccessEnvelope' },
+        {
+          type: 'object',
+          required: ['data'],
+          properties: { data: { $ref: '#/components/schemas/CandidatesDto' } },
+        },
+      ],
     });
   });
 
@@ -79,16 +81,15 @@ describe('applySuccessResponseEnvelope', () => {
       description: '创建成功',
       content: {
         'application/json': {
-          schema: {
-            allOf: [
-              { $ref: '#/components/schemas/ApiSuccessEnvelope' },
-              {
-                properties: { data: {} },
-              },
-            ],
-          },
+          schema: { $ref: '#/components/schemas/PostsCreate201Response' },
         },
       },
+    });
+    expect(document.components?.schemas?.PostsCreate201Response).toEqual({
+      allOf: [
+        { $ref: '#/components/schemas/ApiSuccessEnvelope' },
+        { type: 'object', required: ['data'], properties: { data: {} } },
+      ],
     });
   });
 
@@ -101,7 +102,6 @@ describe('applySuccessResponseEnvelope', () => {
       properties: {
         code: { type: 'integer', enum: [0], example: 0 },
         message: { type: 'string', example: 'ok' },
-        meta: { $ref: '#/components/schemas/ApiPaginationMeta' },
       },
     });
     expect(document.components?.schemas?.ApiPaginationMeta).toEqual({
@@ -111,6 +111,16 @@ describe('applySuccessResponseEnvelope', () => {
         cursor: { type: 'string', nullable: true },
         hasMore: { type: 'boolean' },
       },
+    });
+    expect(document.components?.schemas?.ApiPaginatedSuccessEnvelope).toEqual({
+      allOf: [
+        { $ref: '#/components/schemas/ApiSuccessEnvelope' },
+        {
+          type: 'object',
+          required: ['meta'],
+          properties: { meta: { $ref: '#/components/schemas/ApiPaginationMeta' } },
+        },
+      ],
     });
     expect(document.paths['/candidates'].get?.responses['401']).toEqual({ description: '未登录' });
     expect(document.paths['/empty'].delete?.responses['204']).toEqual({ description: '无响应体' });
@@ -122,6 +132,10 @@ describe('applySuccessResponseEnvelope', () => {
     applySuccessResponseEnvelope(document);
 
     const response = document.paths['/candidates'].get?.responses['200'];
-    expect(JSON.stringify(response).match(/ApiSuccessEnvelope/g)).toHaveLength(1);
+    expect(response).toMatchObject({
+      content: { 'application/json': { schema: { $ref: '#/components/schemas/CandidatesFind200Response' } } },
+    });
+    expect(JSON.stringify(document.components?.schemas?.CandidatesFind200Response).match(/ApiSuccessEnvelope/g))
+      .toHaveLength(1);
   });
 });

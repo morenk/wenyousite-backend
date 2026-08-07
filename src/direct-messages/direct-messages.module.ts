@@ -3,11 +3,13 @@ import { DirectConversationsController, DirectMessagesController } from './direc
 import { DirectMessageQueryService } from './direct-message-query.service';
 import { DirectMessagesService } from './direct-messages.service';
 import { StickersModule } from '../stickers/stickers.module';
+import { OutboxModule } from '../outbox/outbox.module';
+import { DirectMessageEventsService } from './direct-message-events.service';
 
 @Module({
-  imports: [StickersModule],
+  imports: [StickersModule, OutboxModule],
   controllers: [DirectConversationsController, DirectMessagesController],
-  providers: [DirectMessageQueryService, DirectMessagesService],
+  providers: [DirectMessageQueryService, DirectMessageEventsService, DirectMessagesService],
   exports: [DirectMessageQueryService],
 })
 export class DirectMessagesModule {}

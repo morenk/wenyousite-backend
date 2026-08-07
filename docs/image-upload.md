@@ -148,11 +148,15 @@ class ConfirmUploadDto {
   "id": "clx...",
   "status": "COMPLETED",
   "url": "https://...",
+  "thumbnailUrl": "https://..._thumb.webp",
+  "mediumUrl": "https://..._md.webp",
   "width": 1920,
   "height": 1080,
   "size": 204800
 }
 ```
+
+`thumbnailUrl` 与 `mediumUrl` 在 `COMPLETED` 前为 `null`，避免客户端猜测对象键或提前请求尚未生成的文件。Flutter 列表使用缩略图、正文预览使用中图，加载失败或旧记录无变体时回退 `url`。
 
 **状态机**：
 

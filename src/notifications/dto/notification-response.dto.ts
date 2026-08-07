@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export const NOTIFICATION_TYPES = [
   'reply',
@@ -13,6 +13,58 @@ export const NOTIFICATION_TYPES = [
 ] as const;
 
 export type NotificationResponseType = (typeof NOTIFICATION_TYPES)[number];
+
+export class NotificationLikerResponseDto {
+  @ApiProperty()
+  userId!: string;
+
+  @ApiProperty()
+  username!: string;
+}
+
+/** 所有通知共用的结构化展示字段；未知新增字段由客户端忽略。 */
+export class NotificationPayloadResponseDto {
+  @ApiProperty({ enum: [1] })
+  schemaVersion!: 1;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  action?: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  actorId?: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  actorName?: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  preview?: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  subthreadTitle?: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  threadTitle?: string | null;
+
+  @ApiPropertyOptional({ type: Number, nullable: true, minimum: 1 })
+  totalCount?: number | null;
+
+  @ApiPropertyOptional({ type: NotificationLikerResponseDto, isArray: true })
+  likers?: NotificationLikerResponseDto[];
+}
+
+export class NotificationTargetResponseDto {
+  @ApiProperty({ enum: ['post', 'thread', 'user', 'none'] })
+  kind!: 'post' | 'thread' | 'user' | 'none';
+
+  @ApiProperty({ type: String, nullable: true })
+  threadId!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  postId!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  userId!: string | null;
+}
 
 class NotificationPostResponseDto {
   @ApiProperty()
@@ -66,8 +118,11 @@ export class NotificationResponseDto {
   @ApiProperty({ type: String, nullable: true })
   content!: string | null;
 
-  @ApiProperty({ type: 'object', additionalProperties: true, nullable: true })
-  payload!: Record<string, unknown> | null;
+  @ApiProperty({ type: NotificationPayloadResponseDto, nullable: true })
+  payload!: NotificationPayloadResponseDto | null;
+
+  @ApiProperty({ type: NotificationTargetResponseDto })
+  target!: NotificationTargetResponseDto;
 
   @ApiProperty({ type: String, nullable: true })
   postId!: string | null;

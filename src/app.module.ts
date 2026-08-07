@@ -33,6 +33,8 @@ import { RedisModule } from './redis/redis.module';
 import { DiceModule } from './dice/dice.module';
 import { DirectMessagesModule } from './direct-messages/direct-messages.module';
 import { StickersModule } from './stickers/stickers.module';
+import { MetaModule } from './meta/meta.module';
+import { MobilePushModule } from './mobile-push/mobile-push.module';
 import { ThrottlerRedisStorage } from './redis/throttler-redis.storage';
 import configuration from './config/configuration';
 import { validate } from './config/env.validation';
@@ -148,6 +150,8 @@ function buildPinoTransport(logLevel: string, nodeEnv: string, logFileDir?: stri
     BookmarksModule,
     DirectMessagesModule,
     StickersModule,
+    MetaModule,
+    MobilePushModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

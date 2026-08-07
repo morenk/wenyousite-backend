@@ -351,6 +351,13 @@ test(s1, "GET /health 返回 ok", async () => {
   assert(r.data.info.database.status === "up", "数据库应为 up");
 });
 
+test(s1, "GET /meta 客户端协议元数据", async () => {
+  const r = await api.get("/meta");
+  assert(r.code === 0, "meta 应成功");
+  assert(/^3\.0\./.test(r.data.contractVersion), "契约应为 3.0.x");
+  assert(r.data.markdownContractVersion === 2, "Markdown 协议应为 v2");
+});
+
 test(s1, "GET /threads 公开列表（分页）", async () => {
   const r = await api.get("/threads?limit=3", apiPaginated(threadSchema));
   assert(Array.isArray(r.data), "data 应为数组");
@@ -455,13 +462,25 @@ test(s2, "GET /users/me 未登录 → 401", async () => {
 const s3 = suite("主题帖");
 
 test(s3, "POST /threads 创建草稿帖", async () => {
+  const clientRequestId = crypto.randomUUID();
+  const title = `E2E 测试帖 ${Date.now()}`;
   const r = await api.post("/threads", {
-    title: `E2E 测试帖 ${Date.now()}`,
+    title,
     category: "DEDUCTION",
     visibility: "PUBLIC",
+    content: "帖子正文内容",
+    clientRequestId,
   });
   assert(r.code === 0, `创建草稿应成功 (got: ${r.code} ${r.message})`);
   threadId = r.data.id;
+  const replay = await api.post("/threads", {
+    title,
+    category: "DEDUCTION",
+    visibility: "PUBLIC",
+    content: "帖子正文内容",
+    clientRequestId,
+  });
+  assert(replay.data.id === threadId, "相同创建幂等键应返回原主题帖");
 });
 
 test(s3, "GET /threads/draft 草稿箱（含新帖）", async () => {
@@ -470,16 +489,7 @@ test(s3, "GET /threads/draft 草稿箱（含新帖）", async () => {
   assert(Array.isArray(r.data), "data 应为数组");
 });
 
-test(s3, "PATCH /threads/:id 发布（需先有子贴）", async () => {
-  // 先创建子贴
-  const sub = await api.post(`/threads/${threadId}/subthreads`, {
-    title: "主讨论区",
-    content: "帖子正文内容",
-    sortOrder: 0,
-    postingPolicy: "PARTICIPANTS",
-  });
-  assert(sub.code === 0, `创建默认子贴应成功 (got: ${sub.code} ${sub.message})`);
-  // 再发布
+test(s3, "PATCH /threads/:id 发布默认子贴完整的草稿", async () => {
   const r = await api.patch(`/threads/${threadId}`, {
     published: true,
     version: 1,
@@ -510,6 +520,11 @@ test(s3, "GET /threads filter=playing", async () => {
   assert(r.code === 0, `filter=playing 应成功 (got: ${r.code})`);
 });
 
+test(s3, "GET /threads 非法推荐游标 → 400", async () => {
+  const { status } = await api.expectStatus("/threads?sort=recommended&cursor=oops", "GET");
+  assert(status === 400, `非法游标期望 400, 实际 ${status}`);
+});
+
 // ═══════════════════════════════════════════════════════════════
 // 4. 子贴
 // ═══════════════════════════════════════════════════════════════
@@ -529,6 +544,7 @@ test(s4, "POST /threads/:id/subthreads 创建子贴", async () => {
     content: "子贴正文",
     sortOrder: 1,
     postingPolicy: "PARTICIPANTS",
+    clientRequestId: crypto.randomUUID(),
   });
   assert(r.code === 0, `创建子贴应成功 (got: ${r.code} ${r.message})`);
   subthreadId = r.data.id;
@@ -565,6 +581,7 @@ test(s5, "GET /subthreads/:id/posts 楼层列表", async () => {
 test(s5, "POST /subthreads/:id/posts 发帖", async () => {
   const r = await api.post(`/subthreads/${subthreadId}/posts`, {
     content: faker.lorem.sentence(),
+    clientRequestId: crypto.randomUUID(),
   });
   assert(r.code === 0, `发帖应成功 (got: ${r.code} ${r.message})`);
   postId = r.data.id;
@@ -576,18 +593,14 @@ test(s5, "GET /posts/:id 帖子详情", async () => {
 });
 
 test(s5, "POST /subthreads/:id/posts 楼中楼回复", async () => {
-  // 注意: DTO 使用 @IsUUID()，但系统 ID 为 CUID 格式，故此处会被参数校验拦截
-  // 这是已知的 UUID/CUID 不匹配问题
   const r = await api.post(`/subthreads/${subthreadId}/posts`, {
     content: "楼中楼回复内容",
     parentPostId: postId,
     replyToPostId: postId,
+    clientRequestId: crypto.randomUUID(),
   });
-  if (r.code === 0) {
-    replyPostId = r.data.id;
-  } else {
-    assert(r.code === 40001, `楼中楼预期失败: ${r.code} ${r.message} (UUID/CUID 不匹配)`);
-  }
+  assert(r.code === 0, `楼中楼应成功: ${r.code} ${r.message}`);
+  replyPostId = r.data.id;
 });
 
 test(s5, "GET /posts/:id/replies 楼中楼列表", async () => {
@@ -614,14 +627,14 @@ test(s5, "PATCH /posts/:id 乐观锁冲突", async () => {
   assert(status !== 200, `应拒绝过期版本 (status: ${status})`);
 });
 
-test(s5, "POST /posts/:id/like 点赞", async () => {
-  const r = await api.post(`/posts/${postId}/like`);
+test(s5, "POST /threads/:id/like 点赞", async () => {
+  const r = await api.post(`/threads/${threadId}/like`);
   assert(r.code === 0, `点赞应成功 (got: ${r.code} ${r.message})`);
 });
 
-test(s5, "POST /posts/:id/like 重复点赞", async () => {
+test(s5, "POST /threads/:id/like 重复点赞", async () => {
   const { status } = await api.expectStatus(
-    `/posts/${postId}/like`,
+    `/threads/${threadId}/like`,
     "POST"
   );
   // API 可能返回 201（视为幂等成功）或 409（冲突）
@@ -631,8 +644,8 @@ test(s5, "POST /posts/:id/like 重复点赞", async () => {
   );
 });
 
-test(s5, "DELETE /posts/:id/like 取消点赞", async () => {
-  const r = await api.del(`/posts/${postId}/like`);
+test(s5, "DELETE /threads/:id/like 取消点赞", async () => {
+  const r = await api.del(`/threads/${threadId}/like`);
   assert(r.code === 0, `取消点赞应成功 (got: ${r.code} ${r.message})`);
 });
 

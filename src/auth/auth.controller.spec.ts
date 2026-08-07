@@ -4,6 +4,9 @@ import 'reflect-metadata';
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { ConfigService } from '@nestjs/config';
+
+const config = new ConfigService();
 
 describe('AuthController 会话限流', () => {
   it('登录终端列表和远程退出各自允许每分钟 60 次请求', () => {
@@ -20,7 +23,7 @@ describe('AuthController 会话限流', () => {
     const authService = {
       listSessions: jest.fn().mockResolvedValue([]),
     } as unknown as AuthService;
-    const controller = new AuthController(authService);
+    const controller = new AuthController(authService, config);
     const request = {
       user: { id: 'u1', sessionId: 'family-1' },
       cookies: { refreshToken: 'legacy-cookie' },
@@ -43,7 +46,7 @@ describe('AuthController 客户端平台契约', () => {
     const authService = {
       login: jest.fn().mockResolvedValue({ accessToken: 'access', refreshToken: 'refresh', user: {} }),
     } as unknown as AuthService;
-    const controller = new AuthController(authService);
+    const controller = new AuthController(authService, config);
     const reply = makeReply();
     const request = { headers: { 'x-client-platform': 'desktop', 'user-agent': 'browser' } } as unknown as FastifyRequest;
 
@@ -66,7 +69,7 @@ describe('AuthController 客户端平台契约', () => {
     const authService = {
       login: jest.fn().mockResolvedValue({ accessToken: 'access', refreshToken: 'refresh', user: {} }),
     } as unknown as AuthService;
-    const controller = new AuthController(authService);
+    const controller = new AuthController(authService, config);
     const reply = makeReply();
     const request = {
       headers: { 'x-client-platform': 'mobile', 'user-agent': 'flutter-app' },
@@ -87,7 +90,7 @@ describe('AuthController 客户端平台契约', () => {
         user: {},
       }),
     } as unknown as AuthService;
-    const controller = new AuthController(authService);
+    const controller = new AuthController(authService, config);
     const reply = makeReply();
     const request = {
       headers: { 'x-client-platform': 'web' },
@@ -111,7 +114,7 @@ describe('AuthController 客户端平台契约', () => {
         user: {},
       }),
     } as unknown as AuthService;
-    const controller = new AuthController(authService);
+    const controller = new AuthController(authService, config);
     const reply = makeReply();
     const request = {
       headers: {},

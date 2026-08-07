@@ -41,9 +41,10 @@ async function bootstrap() {
     }),
   );
   app.enableCors({
-    origin: true,
+    origin: runtime.app.corsOrigins,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true,
+    exposedHeaders: ['X-Request-ID', 'X-API-Contract-Version', 'Retry-After'],
   });
   await app.register(fastifyHelmet);
   await app.register(fastifyCookie as any);
