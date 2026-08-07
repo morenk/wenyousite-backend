@@ -11,8 +11,8 @@ NestJS + Fastify + PostgreSQL + Prisma + Redis + BullMQ，模块化单体架构�
 |------|------|------|
 | 运行时 | Node.js 24 LTS + TypeScript | — |
 | 框架 | NestJS + Fastify | Fastify 性能优于 Express |
-| 数据库 | PostgreSQL 17 + Prisma ORM | 25 张表，11 个枚举，类型安全 |
-| 缓存/队列 | Redis 7 + BullMQ | 通知队列 (notification) + 图片处理队列 (image) |
+| 数据库 | PostgreSQL 17 + Prisma ORM | 30 张表，13 个枚举，类型安全 |
+| 缓存/队列 | Redis 7 + BullMQ | 通知、图片和表情处理队列 |
 | 认证 | Passport JWT + Argon2 | 双 Token (access 15m / refresh 7d) |
 | 校验 | class-validator + class-transformer | DTO 自动校验 |
 | 日志 | nestjs-pino + pino-pretty + pino-roll | 结构化日志，dev 彩色控制台，prod JSON + 可选日滚动文件 |
@@ -64,6 +64,7 @@ src/
 ├── search/                    # 全文搜索 (PostgreSQL ILIKE)
 ├── email/                     # SMTP 邮件服务
 ├── media/                     # S3 上传 + image 队列消费者 + sharp 衍生图
+├── stickers/                  # 私有表情收藏 + sticker 队列 + WebP 规范化
 ├── jobs/                      # 仅后台维护任务（过期数据、Outbox、孤儿媒体、排序投影）
 ├── admin/                     # 管理后台 API
 └── health/                    # 健康检查端点
@@ -119,7 +120,7 @@ scripts/
 
 | 命令 | 说明 |
 |------|------|
-| `docker compose up -d` | 启动 PG + Redis |
+| `docker compose up -d --wait` | 从后端仓库唯一 Compose 启动 PG + Redis |
 | `pnpm install` | 安装依赖 |
 | `pnpm build` | 编译 |
 | `pnpm start:dev` | 开发服务器 |
@@ -159,17 +160,11 @@ scripts/
 - 重启后只检查首页/健康接口、本次关键路径和最近日志；失败优先快速前滚修复
 - 项目进入正式生产阶段后，由用户明确更新本节，再恢复严格发布审批、完整回滚和监控要求
 
-### 正式生产全栈部署（当前不默认使用）
-
-```bash
-cp .env.example .env.prod
-# 编辑 .env.prod，填入生产配置
-bash scripts/deploy.sh
-```
-
 ### 公网开发环境的 production 模式运行
 
-VPS 上手动迭代用**生产模式**（`node dist/main`），比 `start:dev`（watch + ts 编译）省内存、RSS 稳定不涨。**production 模式没有热更新**：改代码必须重新构建后重启进程。当前阶段默认使用下方手动切换；`scripts/deploy.sh` 留给正式生产全栈部署。
+VPS 上手动迭代用**生产模式**（`node dist/main`），比 `start:dev`（watch + ts 编译）省内存、RSS 稳定不涨。**production 模式没有热更新**：改代码必须重新构建后重启进程。当前阶段可使用下方手动切换，或运行 `scripts/deploy.sh` 完成同一拓扑的完整部署。
+
+当前运行拓扑固定为：宿主机 systemd Caddy、宿主机后端 3000、宿主机前端 3001，以及后端仓库唯一 `docker-compose.yml` 管理的 PostgreSQL/Redis。工作区和前端仓库不维护第二份 Compose；容器、Compose project 和数据卷统一使用 `wenyousite` 前缀。`scripts/deploy.sh` 按此拓扑执行两端检查、基础设施启动、备份、迁移和宿主机进程切换。
 
 一个可交付批次可以包含多个原子提交，但只在批次末尾推送、重启和验证一次。开发任务完成默认交付到公网开发环境，无需逐次询问是否重启。
 
@@ -182,6 +177,7 @@ setsid nohup env NODE_ENV=production node dist/main </dev/null \
 ```
 
 - 首次/依赖变更后先 `npx prisma generate`；`npx prisma migrate deploy` 应用未执行迁移（幂等）
+- 数据库备份统一运行 `bash scripts/backup.sh`；脚本只接受根目录 Compose 中健康运行的 `wenyousite-postgres`，并校验 gzip 完整性和最小文件大小
 - 日志：`/tmp/opencode/wenyousite-backend.log`
 - 前端对应的生产模式迭代流程见前端 `AGENTS.md` 第 11 节
 

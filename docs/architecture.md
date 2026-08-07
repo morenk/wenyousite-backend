@@ -1,5 +1,11 @@
 # 后端架构与模块边界
 
+## 公网开发环境运行拓扑
+
+后端仓库的 `docker-compose.yml` 是基础设施唯一且受版本控制的 Compose 事实源，只管理 `wenyousite-postgres` 与 `wenyousite-redis`。Caddy 由宿主机 systemd 管理，NestJS production build 与 Next.js standalone 也作为宿主机进程分别监听 3000/3001。工作区根目录和前端仓库不得再添加重复 Compose，也不得假定存在 `api`、`web`、`caddy` Compose 服务。
+
+数据库备份通过 `scripts/backup.sh` 定位该 Compose 的 postgres 服务，并在保留文件前验证 gzip 完整性；当前开发部署助手 `scripts/deploy.sh` 按“检查 → 启动基础设施 → 备份 → 迁移 → 后端 → 前端 → 公网烟雾”执行。
+
 ## 总体形态
 
 后端采用 NestJS 模块化单体。部署仍是一个进程，但代码按业务能力分模块，并在模块内区分 HTTP 适配、应用用例、查询、领域策略和基础设施。拆分目标是降低变更耦合，不是引入分布式复杂度。

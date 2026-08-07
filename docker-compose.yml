@@ -1,11 +1,15 @@
+name: wenyousite
+
+# 公网开发环境的唯一基础设施编排。
+# Caddy、NestJS 和 Next.js 由宿主机进程管理；Compose 只管理有状态依赖。
 services:
   postgres:
     image: postgres:17-alpine
     container_name: wenyousite-postgres
-    image: postgres:17-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: wenyou
-      POSTGRES_PASSWORD: wenyou
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-wenyou}
       POSTGRES_DB: wenyousite
     ports:
       - "127.0.0.1:5432:5432"
@@ -15,7 +19,7 @@ services:
       test: ["CMD-SHELL", "pg_isready -U wenyou -d wenyousite"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   redis:
     image: redis:7-alpine
@@ -29,8 +33,10 @@ services:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
 volumes:
   pgdata:
+    name: wenyousite_pgdata
   redisdata:
+    name: wenyousite_redisdata
