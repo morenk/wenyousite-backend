@@ -5,7 +5,7 @@ import { applyErrorResponseEnvelope } from './error-response-envelope';
 import { applyResponseHeaders } from './response-headers';
 
 /** 破坏性 API 变更时递增；Web 与 Flutter 生成客户端均记录该版本。 */
-export const API_CONTRACT_VERSION = '3.1.0-dev.20260807.1';
+export const API_CONTRACT_VERSION = '4.3.0-dev.20260808.1';
 
 type AuthMode = 'public' | 'optional' | 'authenticated' | 'verified' | 'admin';
 
@@ -43,6 +43,7 @@ export function createOpenApiDocument(app: INestApplication) {
     .addTag('Auth', '认证 — 注册、登录、Token 刷新、登录终端管理')
     .addTag('Users', '用户 — 资料、关注、拉黑')
     .addTag('Threads', '主题帖 — CRUD、成员管理、私密帖、邀请')
+    .addTag('Thread Categories', '主题帖分类 — 管理员配置的公开可选项')
     .addTag('Subthreads', '子贴 — CRUD、排序、发帖权限')
     .addTag('Posts', '楼层 — 发帖、楼中楼、编辑、点赞')
     .addTag('Drafts', '草稿 — 5 槽位草稿池')
@@ -54,9 +55,13 @@ export function createOpenApiDocument(app: INestApplication) {
     .addTag('Stickers', '表情 — 私有收藏、来源导入、排序与最近使用')
     .addTag('Tags', '标签 — 全局标签搜索/创建')
     .addTag('Search', '搜索 — PostgreSQL ILIKE 全文')
-    .addTag('Reports', '举报 — 已搁置')
+    .addTag('Reports', '举报 — 公开社区目标提交')
+    .addTag('Admin Reports', '管理后台 — 举报队列与原子结案')
     .addTag('Health', '健康检查 — 数据库连通')
-    .addTag('Admin', '管理后台 — 系统通知、用户搜索')
+    .addTag('Admin', '管理后台 — 能力、系统通知与用户搜索')
+    .addTag('Admin Moderation', '管理后台 — 用户处罚、内容处置与审计')
+    .addTag('Admin Dashboard', '管理后台 — 活跃、增长、治理和分布指标')
+    .addTag('Admin Taxonomy', '管理后台 — 主题帖分类和平台标签配置')
     .build();
 
   const document = SwaggerModule.createDocument(app, config, {

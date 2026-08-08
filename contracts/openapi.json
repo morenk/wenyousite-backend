@@ -3842,14 +3842,10 @@
             "name": "category",
             "required": false,
             "in": "query",
-            "description": "分区筛选",
+            "description": "按动态分类 slug 筛选",
             "schema": {
-              "type": "string",
-              "enum": [
-                "DEDUCTION",
-                "NATION",
-                "RPG"
-              ]
+              "example": "DEDUCTION",
+              "type": "string"
             }
           },
           {
@@ -6080,6 +6076,56 @@
         "x-auth-mode": "verified"
       }
     },
+    "/api/v1/thread-categories": {
+      "get": {
+        "operationId": "threadCategoriesList",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadCategoriesList200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "获取管理员配置的可用主题帖分类",
+        "tags": [
+          "Thread Categories"
+        ],
+        "x-auth-mode": "public",
+        "security": []
+      }
+    },
     "/api/v1/threads/{threadId}/subthreads": {
       "get": {
         "operationId": "subthreadsFindAll",
@@ -6727,6 +6773,28 @@
               "example": 20,
               "type": "number"
             }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "description": "回复顺序；帖子回复默认 OLDEST，动态主评论默认 NEWEST",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "OLDEST",
+                "NEWEST"
+              ]
+            }
+          },
+          {
+            "name": "authorId",
+            "required": false,
+            "in": "query",
+            "description": "只返回指定作者的回复",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -6767,7 +6835,7 @@
             }
           }
         },
-        "summary": "获取楼中楼回复列表（cursor 分页，无限下拉）",
+        "summary": "获取楼中楼回复列表（支持顺序与玩家/楼主/协作者筛选）",
         "tags": [
           "Posts"
         ],
@@ -8077,55 +8145,12 @@
               }
             }
           },
-          "default": {
-            "description": "未在此操作中单独列出的错误响应",
+          "409": {
+            "description": "已存在相同待处理举报",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "提交举报",
-        "tags": [
-          "Reports"
-        ],
-        "x-auth-mode": "verified"
-      },
-      "get": {
-        "operationId": "reportsFindAll",
-        "parameters": [
-          {
-            "name": "status",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReportsFindAll200Response"
                 }
               }
             },
@@ -8162,16 +8187,202 @@
             "bearer": []
           }
         ],
-        "summary": "举报列表（管理员）",
+        "summary": "提交公开社区目标举报",
         "tags": [
           "Reports"
         ],
-        "x-auth-mode": "authenticated"
+        "x-auth-mode": "verified"
       }
     },
-    "/api/v1/reports/{id}/handle": {
-      "patch": {
-        "operationId": "reportsHandle",
+    "/api/v1/admin/reports": {
+      "get": {
+        "operationId": "adminReportsFindAll",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
+            "schema": {
+              "example": "clxabc123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（默认 20，最大 50）",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "RESOLVED",
+                "DISMISSED"
+              ]
+            }
+          },
+          {
+            "name": "targetType",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "USER",
+                "THREAD",
+                "POST",
+                "MOMENT",
+                "MOMENT_COMMENT"
+              ]
+            }
+          },
+          {
+            "name": "reasonCode",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "SPAM",
+                "HARASSMENT",
+                "HATE_OR_THREATS",
+                "SEXUAL_CONTENT",
+                "VIOLENT_CONTENT",
+                "PERSONAL_INFORMATION",
+                "ILLEGAL_CONTENT",
+                "OTHER"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "管理员举报队列",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminReportsFindAll200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "管理员举报队列",
+        "tags": [
+          "Admin Reports"
+        ],
+        "x-auth-mode": "admin",
+        "x-pagination": "cursor"
+      }
+    },
+    "/api/v1/admin/reports/{id}": {
+      "get": {
+        "operationId": "adminReportsFindOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminReportsFindOne200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "管理员举报详情",
+        "tags": [
+          "Admin Reports"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/reports/{id}/resolve": {
+      "post": {
+        "operationId": "adminReportsResolve",
         "parameters": [
           {
             "name": "id",
@@ -8187,7 +8398,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/HandleReportDto"
+                "$ref": "#/components/schemas/ResolveReportDto"
               }
             }
           }
@@ -8198,7 +8409,25 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReportsHandle200Response"
+                  "$ref": "#/components/schemas/AdminReportsResolve200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "409": {
+            "description": "举报已结案或目标状态冲突",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
                 }
               }
             },
@@ -8235,11 +8464,11 @@
             "bearer": []
           }
         ],
-        "summary": "处理举报（管理员）",
+        "summary": "原子结案并可选执行治理动作",
         "tags": [
-          "Reports"
+          "Admin Reports"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "admin"
       }
     },
     "/api/v1/admin": {
@@ -8284,12 +8513,16 @@
             }
           }
         },
-        "summary": "管理后台入口",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "当前管理员能力",
         "tags": [
           "Admin"
         ],
-        "x-auth-mode": "public",
-        "security": []
+        "x-auth-mode": "admin"
       }
     },
     "/api/v1/admin/notifications/system": {
@@ -8546,6 +8779,1417 @@
           "Admin"
         ],
         "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/users": {
+      "get": {
+        "operationId": "adminModerationListUsers",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
+            "schema": {
+              "example": "clxabc123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（默认 20，最大 50）",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "用户名或邮箱关键词",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "role",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "USER",
+                "ADMIN",
+                "SUPER_ADMIN"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "SUSPENDED",
+                "BANNED"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "管理员用户列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminModerationListUsers200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "管理员用户列表",
+        "tags": [
+          "Admin Moderation"
+        ],
+        "x-auth-mode": "admin",
+        "x-pagination": "cursor"
+      }
+    },
+    "/api/v1/admin/users/{id}": {
+      "get": {
+        "operationId": "adminModerationGetUser",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminModerationGetUser200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "管理员用户详情",
+        "tags": [
+          "Admin Moderation"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/users/{id}/sanctions": {
+      "post": {
+        "operationId": "adminModerationSanctionUser",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SanctionUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminModerationSanctionUser201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "暂停或永久封禁用户",
+        "tags": [
+          "Admin Moderation"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/users/{id}/sanctions/current/revoke": {
+      "post": {
+        "operationId": "adminModerationRevokeSanction",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeSanctionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminModerationRevokeSanction200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "解除用户当前处罚",
+        "tags": [
+          "Admin Moderation"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/users/{id}/role": {
+      "patch": {
+        "operationId": "adminModerationUpdateRole",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAdminRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminModerationUpdateRole200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "授予或撤销管理员角色（超级管理员）",
+        "tags": [
+          "Admin Moderation"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/content/{type}/{id}/hide": {
+      "post": {
+        "operationId": "adminModerationHideContent",
+        "parameters": [
+          {
+            "name": "type",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "thread",
+                "post",
+                "moment",
+                "moment_comment"
+              ]
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModerateContentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminModerationHideContent200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "隐藏主题帖、帖子、动态或动态评论",
+        "tags": [
+          "Admin Moderation"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/content/{type}/{id}/restore": {
+      "post": {
+        "operationId": "adminModerationRestoreContent",
+        "parameters": [
+          {
+            "name": "type",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "thread",
+                "post",
+                "moment",
+                "moment_comment"
+              ]
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModerateContentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminModerationRestoreContent200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "恢复由管理员隐藏的主题帖、帖子、动态或动态评论",
+        "tags": [
+          "Admin Moderation"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/audit-logs": {
+      "get": {
+        "operationId": "adminModerationListAuditLogs",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
+            "schema": {
+              "example": "clxabc123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（默认 20，最大 50）",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "action",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "SUPER_ADMIN_BOOTSTRAPPED",
+                "ADMIN_ROLE_GRANTED",
+                "ADMIN_ROLE_REVOKED",
+                "USER_SUSPENDED",
+                "USER_BANNED",
+                "USER_SANCTION_REVOKED",
+                "CONTENT_HIDDEN",
+                "CONTENT_RESTORED",
+                "REPORT_RESOLVED",
+                "REPORT_DISMISSED",
+                "SYSTEM_NOTIFICATION_SENT",
+                "THREAD_CATEGORY_CREATED",
+                "THREAD_CATEGORY_UPDATED",
+                "TAG_CREATED",
+                "TAG_UPDATED"
+              ]
+            }
+          },
+          {
+            "name": "targetType",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "USER",
+                "THREAD",
+                "POST",
+                "MOMENT",
+                "MOMENT_COMMENT",
+                "REPORT",
+                "SYSTEM_NOTIFICATION",
+                "THREAD_CATEGORY",
+                "TAG"
+              ]
+            }
+          },
+          {
+            "name": "targetId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "actorId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "createdAfter",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "createdBefore",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "不可变管理员审计日志",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminModerationListAuditLogs200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "管理员审计日志",
+        "tags": [
+          "Admin Moderation"
+        ],
+        "x-auth-mode": "admin",
+        "x-pagination": "cursor"
+      }
+    },
+    "/api/v1/admin/dashboard/overview": {
+      "get": {
+        "operationId": "adminDashboardOverview",
+        "parameters": [
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "北京时间起始日期（含）",
+            "schema": {
+              "example": "2026-08-01",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "北京时间结束日期（含）",
+            "schema": {
+              "example": "2026-08-08",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDashboardOverview200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "管理看板概览、环比区间和 DAU/WAU/MAU",
+        "tags": [
+          "Admin Dashboard"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/dashboard/timeseries": {
+      "get": {
+        "operationId": "adminDashboardTimeseries",
+        "parameters": [
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "北京时间起始日期（含）",
+            "schema": {
+              "example": "2026-08-01",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "北京时间结束日期（含）",
+            "schema": {
+              "example": "2026-08-08",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDashboardTimeseries200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "管理看板按日时间序列",
+        "tags": [
+          "Admin Dashboard"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/dashboard/distributions": {
+      "get": {
+        "operationId": "adminDashboardDistributions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDashboardDistributions200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "用户、举报、内容和处罚分布",
+        "tags": [
+          "Admin Dashboard"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/thread-categories": {
+      "get": {
+        "operationId": "adminTaxonomyListCategories",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTaxonomyListCategories200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "管理员主题帖分类列表（含停用项）",
+        "tags": [
+          "Admin Taxonomy"
+        ],
+        "x-auth-mode": "admin"
+      },
+      "post": {
+        "operationId": "adminTaxonomyCreateCategory",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateThreadCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTaxonomyCreateCategory201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "新增主题帖分类",
+        "tags": [
+          "Admin Taxonomy"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/thread-categories/{id}": {
+      "patch": {
+        "operationId": "adminTaxonomyUpdateCategory",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateThreadCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTaxonomyUpdateCategory200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "编辑、排序或停用主题帖分类",
+        "tags": [
+          "Admin Taxonomy"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/tags": {
+      "get": {
+        "operationId": "adminTaxonomyListTags",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTaxonomyListTags200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "管理员标签列表（含停用项）",
+        "tags": [
+          "Admin Taxonomy"
+        ],
+        "x-auth-mode": "admin"
+      },
+      "post": {
+        "operationId": "adminTaxonomyCreateTag",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateManagedTagDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTaxonomyCreateTag201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "新增平台标签",
+        "tags": [
+          "Admin Taxonomy"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/tags/{id}": {
+      "patch": {
+        "operationId": "adminTaxonomyUpdateTag",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateManagedTagDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTaxonomyUpdateTag200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "编辑、排序或停用平台标签",
+        "tags": [
+          "Admin Taxonomy"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/search/moments": {
+      "get": {
+        "operationId": "searchSearchMoments",
+        "parameters": [
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "description": "搜索关键词，首尾空白会被移除",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "上一页返回的不透明游标",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数，默认及最大均为 20",
+            "schema": {
+              "minimum": 1,
+              "maximum": 20,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "相关度优先的动态游标分页",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchSearchMoments200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "关键词不足 2 个字符或游标无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "按标题和纯文本正文搜索公开动态",
+        "tags": [
+          "Search"
+        ],
+        "x-auth-mode": "optional",
+        "x-pagination": "cursor",
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
       }
     },
     "/api/v1/search/threads": {
@@ -8953,6 +10597,1286 @@
         "summary": "按正文搜索单个主题帖内的楼层与楼中楼",
         "tags": [
           "Search"
+        ],
+        "x-auth-mode": "optional",
+        "x-pagination": "cursor",
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
+      }
+    },
+    "/api/v1/moments": {
+      "get": {
+        "operationId": "momentsList",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
+            "schema": {
+              "example": "clxabc123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（默认 20，最大 50）",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "feed",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "DISCOVER",
+              "type": "string",
+              "enum": [
+                "DISCOVER",
+                "FOLLOWING"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "动态卡片游标分页",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsList200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "动态瀑布流；发现为热度，新鲜关注为时间倒序",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "optional",
+        "x-pagination": "cursor",
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
+      },
+      "post": {
+        "operationId": "momentsCreate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMomentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsCreate201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "标题、正文、封面或图片状态不合法",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "409": {
+            "description": "幂等键复用或图片已被使用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "发布纯文本/图片动态，最多 9 张图片",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "verified"
+      }
+    },
+    "/api/v1/moments/bookmarks": {
+      "get": {
+        "operationId": "momentsBookmarks",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
+            "schema": {
+              "example": "clxabc123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（默认 20，最大 50）",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "动态收藏游标分页",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsBookmarks200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "当前用户收藏的动态",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "authenticated",
+        "x-pagination": "cursor"
+      }
+    },
+    "/api/v1/moments/{id}": {
+      "get": {
+        "operationId": "momentsDetail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsDetail200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "动态不存在、已删除或因拉黑不可见",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "获取动态详情",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "optional",
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
+      },
+      "patch": {
+        "operationId": "momentsUpdate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMomentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsUpdate200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "409": {
+            "description": "版本冲突或图片已被其他动态使用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "编辑自己的动态，使用 version 乐观锁",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "verified"
+      },
+      "delete": {
+        "operationId": "momentsRemove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsRemove200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "软删除动态",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "verified"
+      }
+    },
+    "/api/v1/moments/{id}/like": {
+      "post": {
+        "operationId": "momentsLike",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsLike201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "点赞动态，幂等",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "verified"
+      },
+      "delete": {
+        "operationId": "momentsUnlike",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsUnlike200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "取消点赞动态，幂等",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "verified"
+      }
+    },
+    "/api/v1/moments/{id}/bookmark": {
+      "post": {
+        "operationId": "momentsBookmark",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsBookmark201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "收藏动态，幂等",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "verified"
+      },
+      "delete": {
+        "operationId": "momentsUnbookmark",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsUnbookmark200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "取消收藏动态，幂等",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "verified"
+      }
+    },
+    "/api/v1/moments/{id}/comments": {
+      "get": {
+        "operationId": "momentsCommentsList",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
+            "schema": {
+              "example": "clxabc123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（默认 20，最大 50）",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "description": "回复顺序；帖子回复默认 OLDEST，动态主评论默认 NEWEST",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "OLDEST",
+                "NEWEST"
+              ]
+            }
+          },
+          {
+            "name": "authorId",
+            "required": false,
+            "in": "query",
+            "description": "只返回指定作者的回复",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "主评论游标分页",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsCommentsList200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "主评论列表，支持顺序与作者筛选并内嵌三条楼中楼",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "optional",
+        "x-pagination": "cursor",
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
+      },
+      "post": {
+        "operationId": "momentsCreateComment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMomentCommentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsCreateComment201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "发表文字、单图或单表情评论；回复统一归入两层楼中楼",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "verified"
+      }
+    },
+    "/api/v1/moments/{id}/comment-authors": {
+      "get": {
+        "operationId": "momentsCommentAuthors",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsCommentAuthors200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "获取当前可见动态回复串中的作者候选",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "optional",
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
+      }
+    },
+    "/api/v1/moments/{id}/comments/{commentId}/replies": {
+      "get": {
+        "operationId": "momentsReplies",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "commentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
+            "schema": {
+              "example": "clxabc123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（默认 20，最大 50）",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "description": "回复顺序；帖子回复默认 OLDEST，动态主评论默认 NEWEST",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "OLDEST",
+                "NEWEST"
+              ]
+            }
+          },
+          {
+            "name": "authorId",
+            "required": false,
+            "in": "query",
+            "description": "只返回指定作者的回复",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "楼中楼游标分页",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsReplies200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "分页获取某主评论的楼中楼，支持顺序与作者筛选",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "optional",
+        "x-pagination": "cursor",
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
+      }
+    },
+    "/api/v1/moments/{id}/comments/{commentId}": {
+      "delete": {
+        "operationId": "momentsRemoveComment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "commentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsRemoveComment200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "403": {
+            "description": "无删除权限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "评论作者、动态作者或管理员软删除评论",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "verified"
+      }
+    },
+    "/api/v1/users/{id}/moments": {
+      "get": {
+        "operationId": "userMomentsList",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
+            "schema": {
+              "example": "clxabc123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（默认 20，最大 50）",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "用户动态游标分页",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserMomentsList200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "用户公开动态列表",
+        "tags": [
+          "Moments"
         ],
         "x-auth-mode": "optional",
         "x-pagination": "cursor",
@@ -10783,12 +13707,157 @@
         ],
         "x-auth-mode": "verified"
       }
+    },
+    "/api/v1/moments/{id}/tips": {
+      "post": {
+        "operationId": "economyTipMoment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TipRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EconomyTipMoment201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "金额不是不小于 2 的整数升",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "403": {
+            "description": "给自己加油或存在拉黑关系",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "动态不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "409": {
+            "description": "余额不足或幂等键复用于不同请求",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "给公开动态作者加油",
+        "tags": [
+          "Wallet"
+        ],
+        "x-auth-mode": "verified"
+      }
     }
   },
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "3.1.0-dev.20260807.1",
+    "version": "4.3.0-dev.20260808.1",
     "contact": {}
   },
   "tags": [
@@ -10803,6 +13872,10 @@
     {
       "name": "Threads",
       "description": "主题帖 — CRUD、成员管理、私密帖、邀请"
+    },
+    {
+      "name": "Thread Categories",
+      "description": "主题帖分类 — 管理员配置的公开可选项"
     },
     {
       "name": "Subthreads",
@@ -10850,7 +13923,11 @@
     },
     {
       "name": "Reports",
-      "description": "举报 — 已搁置"
+      "description": "举报 — 公开社区目标提交"
+    },
+    {
+      "name": "Admin Reports",
+      "description": "管理后台 — 举报队列与原子结案"
     },
     {
       "name": "Health",
@@ -10858,7 +13935,19 @@
     },
     {
       "name": "Admin",
-      "description": "管理后台 — 系统通知、用户搜索"
+      "description": "管理后台 — 能力、系统通知与用户搜索"
+    },
+    {
+      "name": "Admin Moderation",
+      "description": "管理后台 — 用户处罚、内容处置与审计"
+    },
+    {
+      "name": "Admin Dashboard",
+      "description": "管理后台 — 活跃、增长、治理和分布指标"
+    },
+    {
+      "name": "Admin Taxonomy",
+      "description": "管理后台 — 主题帖分类和平台标签配置"
     }
   ],
   "servers": [
@@ -11672,11 +14761,9 @@
           },
           "category": {
             "type": "string",
-            "enum": [
-              "DEDUCTION",
-              "NATION",
-              "RPG"
-            ]
+            "nullable": true,
+            "example": "DEDUCTION",
+            "description": "动态分类 slug"
           },
           "status": {
             "type": "string",
@@ -11777,12 +14864,26 @@
           "color": {
             "type": "string",
             "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "number",
+            "minimum": 0
+          },
+          "isActive": {
+            "type": "boolean"
           }
         },
         "required": [
           "id",
           "name",
-          "color"
+          "color",
+          "description",
+          "sortOrder",
+          "isActive"
         ]
       },
       "ThreadTagRelationResponseDto": {
@@ -11841,11 +14942,9 @@
           },
           "category": {
             "type": "string",
-            "enum": [
-              "DEDUCTION",
-              "NATION",
-              "RPG"
-            ]
+            "nullable": true,
+            "example": "DEDUCTION",
+            "description": "动态分类 slug"
           },
           "status": {
             "type": "string",
@@ -12210,6 +15309,10 @@
             "type": "string",
             "nullable": true
           },
+          "momentTitle": {
+            "type": "string",
+            "nullable": true
+          },
           "totalCount": {
             "type": "number",
             "nullable": true,
@@ -12266,6 +15369,7 @@
             "enum": [
               "post",
               "thread",
+              "moment",
               "user",
               "none"
             ]
@@ -12278,6 +15382,14 @@
             "type": "string",
             "nullable": true
           },
+          "momentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "momentCommentId": {
+            "type": "string",
+            "nullable": true
+          },
           "userId": {
             "type": "string",
             "nullable": true
@@ -12287,6 +15399,8 @@
           "kind",
           "threadId",
           "postId",
+          "momentId",
+          "momentCommentId",
           "userId"
         ]
       },
@@ -12336,6 +15450,49 @@
         "required": [
           "id",
           "title",
+          "deletedAt"
+        ]
+      },
+      "NotificationMomentResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "deletedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "deletedAt"
+        ]
+      },
+      "NotificationMomentCommentResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "parentCommentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "deletedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "parentCommentId",
           "deletedAt"
         ]
       },
@@ -12420,6 +15577,14 @@
             "type": "string",
             "nullable": true
           },
+          "momentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "momentCommentId": {
+            "type": "string",
+            "nullable": true
+          },
           "fromUserId": {
             "type": "string",
             "nullable": true
@@ -12452,6 +15617,24 @@
               }
             ]
           },
+          "moment": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NotificationMomentResponseDto"
+              }
+            ]
+          },
+          "momentComment": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NotificationMomentCommentResponseDto"
+              }
+            ]
+          },
           "fromUser": {
             "nullable": true,
             "type": "object",
@@ -12471,12 +15654,16 @@
           "target",
           "postId",
           "threadId",
+          "momentId",
+          "momentCommentId",
           "fromUserId",
           "eventKey",
           "isRead",
           "createdAt",
           "post",
           "thread",
+          "moment",
+          "momentComment",
           "fromUser"
         ]
       },
@@ -12584,11 +15771,9 @@
           },
           "category": {
             "type": "string",
-            "enum": [
-              "DEDUCTION",
-              "NATION",
-              "RPG"
-            ]
+            "nullable": true,
+            "example": "DEDUCTION",
+            "description": "动态分类 slug"
           },
           "status": {
             "type": "string",
@@ -12736,11 +15921,9 @@
           },
           "category": {
             "type": "string",
-            "enum": [
-              "DEDUCTION",
-              "NATION",
-              "RPG"
-            ]
+            "nullable": true,
+            "example": "DEDUCTION",
+            "description": "动态分类 slug"
           },
           "status": {
             "type": "string",
@@ -12823,11 +16006,9 @@
           },
           "category": {
             "type": "string",
-            "enum": [
-              "DEDUCTION",
-              "NATION",
-              "RPG"
-            ]
+            "nullable": true,
+            "example": "DEDUCTION",
+            "description": "动态分类 slug"
           },
           "status": {
             "type": "string",
@@ -12892,6 +16073,14 @@
           "preview": {
             "type": "string",
             "description": "首页列表正文预览"
+          },
+          "coverImages": {
+            "maxItems": 3,
+            "description": "默认主贴正文中的普通图片 URL，按出现顺序返回，最多 3 张",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -12909,7 +16098,8 @@
           "owner",
           "defaultSubthread",
           "topicTags",
-          "_count"
+          "_count",
+          "coverImages"
         ]
       },
       "CreateThreadDto": {
@@ -12929,13 +16119,8 @@
           },
           "category": {
             "type": "string",
-            "enum": [
-              "DEDUCTION",
-              "NATION",
-              "RPG"
-            ],
-            "default": "DEDUCTION",
-            "description": "分区"
+            "example": "DEDUCTION",
+            "description": "管理员配置的主题帖分类 slug；草稿可暂不选择"
           },
           "content": {
             "type": "string",
@@ -13232,11 +16417,9 @@
           },
           "category": {
             "type": "string",
-            "enum": [
-              "DEDUCTION",
-              "NATION",
-              "RPG"
-            ]
+            "nullable": true,
+            "example": "DEDUCTION",
+            "description": "动态分类 slug"
           },
           "status": {
             "type": "string",
@@ -13380,11 +16563,7 @@
           "category": {
             "type": "string",
             "example": "DEDUCTION",
-            "enum": [
-              "DEDUCTION",
-              "NATION",
-              "RPG"
-            ]
+            "description": "管理员配置的分类 slug"
           },
           "status": {
             "type": "string",
@@ -13430,11 +16609,8 @@
           },
           "category": {
             "type": "string",
-            "enum": [
-              "DEDUCTION",
-              "NATION",
-              "RPG"
-            ]
+            "example": "DEDUCTION",
+            "description": "管理员配置的分类 slug"
           },
           "status": {
             "type": "string",
@@ -13571,12 +16747,9 @@
           },
           "category": {
             "type": "string",
-            "enum": [
-              "DEDUCTION",
-              "NATION",
-              "RPG"
-            ],
-            "description": "主题帖分区"
+            "nullable": true,
+            "example": "DEDUCTION",
+            "description": "动态分类 slug"
           },
           "status": {
             "type": "string",
@@ -13766,7 +16939,21 @@
             "type": "string",
             "nullable": true
           },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "number"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
           "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
             "type": "string",
             "format": "date-time"
           }
@@ -13775,7 +16962,11 @@
           "id",
           "name",
           "color",
-          "createdAt"
+          "description",
+          "sortOrder",
+          "isActive",
+          "createdAt",
+          "updatedAt"
         ]
       },
       "CreateTagDto": {
@@ -14019,6 +17210,62 @@
         "required": [
           "version",
           "favoriteIds"
+        ]
+      },
+      "ThreadCategoryResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string",
+            "example": "MYSTERY"
+          },
+          "name": {
+            "type": "string",
+            "example": "悬疑推理"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "example": "#7C3AED"
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true,
+            "example": "search"
+          },
+          "sortOrder": {
+            "type": "number"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "description",
+          "color",
+          "icon",
+          "sortOrder",
+          "isActive",
+          "createdAt",
+          "updatedAt"
         ]
       },
       "SubthreadCountResponseDto": {
@@ -14933,11 +18180,9 @@
           },
           "category": {
             "type": "string",
-            "enum": [
-              "DEDUCTION",
-              "NATION",
-              "RPG"
-            ]
+            "nullable": true,
+            "example": "DEDUCTION",
+            "description": "动态分类 slug"
           }
         },
         "required": [
@@ -15020,21 +18265,40 @@
         "properties": {
           "targetType": {
             "type": "string",
-            "description": "举报目标类型"
+            "enum": [
+              "USER",
+              "THREAD",
+              "POST",
+              "MOMENT",
+              "MOMENT_COMMENT"
+            ]
           },
           "targetId": {
-            "type": "string",
-            "description": "举报目标 ID"
+            "type": "string"
           },
-          "reason": {
+          "reasonCode": {
             "type": "string",
-            "description": "举报原因"
+            "enum": [
+              "SPAM",
+              "HARASSMENT",
+              "HATE_OR_THREATS",
+              "SEXUAL_CONTENT",
+              "VIOLENT_CONTENT",
+              "PERSONAL_INFORMATION",
+              "ILLEGAL_CONTENT",
+              "OTHER"
+            ]
+          },
+          "details": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "选择 OTHER 时必填"
           }
         },
         "required": [
           "targetType",
           "targetId",
-          "reason"
+          "reasonCode"
         ]
       },
       "ReportResponseDto": {
@@ -15044,16 +18308,43 @@
             "type": "string"
           },
           "reporterId": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "targetType": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "USER",
+              "THREAD",
+              "POST",
+              "MOMENT",
+              "MOMENT_COMMENT"
+            ]
           },
           "targetId": {
             "type": "string"
           },
-          "reason": {
-            "type": "string"
+          "reasonCode": {
+            "type": "string",
+            "enum": [
+              "SPAM",
+              "HARASSMENT",
+              "HATE_OR_THREATS",
+              "SEXUAL_CONTENT",
+              "VIOLENT_CONTENT",
+              "PERSONAL_INFORMATION",
+              "ILLEGAL_CONTENT",
+              "OTHER"
+            ]
+          },
+          "details": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetSnapshot": {
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true
           },
           "status": {
             "type": "string",
@@ -15072,7 +18363,15 @@
             "format": "date-time",
             "nullable": true
           },
+          "resolutionNote": {
+            "type": "string",
+            "nullable": true
+          },
           "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
             "type": "string",
             "format": "date-time"
           }
@@ -15082,46 +18381,214 @@
           "reporterId",
           "targetType",
           "targetId",
-          "reason",
+          "reasonCode",
+          "details",
+          "targetSnapshot",
           "status",
           "handledBy",
           "handledAt",
-          "createdAt"
+          "resolutionNote",
+          "createdAt",
+          "updatedAt"
         ]
       },
-      "HandleReportDto": {
+      "ReportUserSummaryDto": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "ADMIN",
+              "SUPER_ADMIN"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "role"
+        ]
+      },
+      "AdminReportResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "reporterId": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetType": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "THREAD",
+              "POST",
+              "MOMENT",
+              "MOMENT_COMMENT"
+            ]
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": "string",
+            "enum": [
+              "SPAM",
+              "HARASSMENT",
+              "HATE_OR_THREATS",
+              "SEXUAL_CONTENT",
+              "VIOLENT_CONTENT",
+              "PERSONAL_INFORMATION",
+              "ILLEGAL_CONTENT",
+              "OTHER"
+            ]
+          },
+          "details": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetSnapshot": {
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true
+          },
           "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "RESOLVED",
+              "DISMISSED"
+            ]
+          },
+          "handledBy": {
+            "type": "string",
+            "nullable": true
+          },
+          "handledAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "resolutionNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reporter": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportUserSummaryDto"
+              }
+            ]
+          },
+          "handler": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportUserSummaryDto"
+              }
+            ]
+          },
+          "targetState": {
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "reporterId",
+          "targetType",
+          "targetId",
+          "reasonCode",
+          "details",
+          "targetSnapshot",
+          "status",
+          "handledBy",
+          "handledAt",
+          "resolutionNote",
+          "createdAt",
+          "updatedAt",
+          "reporter",
+          "handler"
+        ]
+      },
+      "ResolveReportDto": {
+        "type": "object",
+        "properties": {
+          "outcome": {
             "type": "string",
             "enum": [
               "RESOLVED",
               "DISMISSED"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "description": "同时作为关联处罚的理由"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "NONE",
+              "HIDE_CONTENT",
+              "SUSPEND_USER",
+              "BAN_USER"
             ],
-            "description": "处理状态"
+            "default": "NONE"
+          },
+          "suspendUntil": {
+            "type": "string",
+            "format": "date-time",
+            "description": "SUSPEND_USER 时必填"
           }
         },
         "required": [
-          "status"
+          "outcome",
+          "note"
         ]
       },
-      "AdminStatusResponseDto": {
+      "AdminCapabilityResponseDto": {
         "type": "object",
         "properties": {
-          "name": {
-            "type": "string"
+          "role": {
+            "type": "string",
+            "enum": [
+              "ADMIN",
+              "SUPER_ADMIN"
+            ]
           },
-          "status": {
-            "type": "string"
-          },
-          "docs": {
-            "type": "string"
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
-          "name",
-          "status",
-          "docs"
+          "role",
+          "capabilities"
         ]
       },
       "UserConditionDto": {
@@ -15343,6 +18810,872 @@
           "data"
         ]
       },
+      "AdminUserSanctionResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "SUSPENSION",
+              "BAN"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "reportId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "reason",
+          "startsAt",
+          "endsAt",
+          "reportId"
+        ]
+      },
+      "AdminUserModerationResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "username": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "ADMIN",
+              "SUPER_ADMIN"
+            ]
+          },
+          "emailVerified": {
+            "type": "boolean"
+          },
+          "moderationStatus": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "SUSPENDED",
+              "BANNED"
+            ]
+          },
+          "currentSanction": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminUserSanctionResponseDto"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "username",
+          "role",
+          "emailVerified",
+          "moderationStatus",
+          "createdAt"
+        ]
+      },
+      "SanctionUserDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "SUSPENSION",
+              "BAN"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "暂停结束时间；永久封禁时不得传入"
+          }
+        },
+        "required": [
+          "type",
+          "reason"
+        ]
+      },
+      "RevokeSanctionDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "UpdateAdminRoleDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "ADMIN"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "role",
+          "reason"
+        ]
+      },
+      "ModerateContentDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "AdminContentModerationResponseDto": {
+        "type": "object",
+        "properties": {
+          "targetType": {
+            "type": "string",
+            "enum": [
+              "THREAD",
+              "POST",
+              "MOMENT",
+              "MOMENT_COMMENT"
+            ]
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "deletedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "targetType",
+          "targetId",
+          "hidden",
+          "deletedAt"
+        ]
+      },
+      "AdminAuditActorResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "ADMIN",
+              "SUPER_ADMIN"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "role"
+        ]
+      },
+      "AdminAuditLogResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "SUPER_ADMIN_BOOTSTRAPPED",
+              "ADMIN_ROLE_GRANTED",
+              "ADMIN_ROLE_REVOKED",
+              "USER_SUSPENDED",
+              "USER_BANNED",
+              "USER_SANCTION_REVOKED",
+              "CONTENT_HIDDEN",
+              "CONTENT_RESTORED",
+              "REPORT_RESOLVED",
+              "REPORT_DISMISSED",
+              "SYSTEM_NOTIFICATION_SENT",
+              "THREAD_CATEGORY_CREATED",
+              "THREAD_CATEGORY_UPDATED",
+              "TAG_CREATED",
+              "TAG_UPDATED"
+            ]
+          },
+          "targetType": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "THREAD",
+              "POST",
+              "MOMENT",
+              "MOMENT_COMMENT",
+              "REPORT",
+              "SYSTEM_NOTIFICATION",
+              "THREAD_CATEGORY",
+              "TAG"
+            ]
+          },
+          "targetId": {
+            "type": "string",
+            "nullable": true
+          },
+          "reportId": {
+            "type": "string",
+            "nullable": true
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true
+          },
+          "actor": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminAuditActorResponseDto"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "targetType",
+          "targetId",
+          "reportId",
+          "reason",
+          "metadata",
+          "actor",
+          "createdAt"
+        ]
+      },
+      "AdminDashboardRangeResponseDto": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "example": "2026-08-01"
+          },
+          "to": {
+            "type": "string",
+            "example": "2026-08-08"
+          },
+          "previousFrom": {
+            "type": "string",
+            "example": "2026-07-24"
+          },
+          "previousTo": {
+            "type": "string",
+            "example": "2026-07-31"
+          },
+          "timezone": {
+            "type": "string",
+            "example": "Asia/Shanghai"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "previousFrom",
+          "previousTo",
+          "timezone"
+        ]
+      },
+      "AdminDashboardActivityMetricsDto": {
+        "type": "object",
+        "properties": {
+          "dau": {
+            "type": "number",
+            "example": 42
+          },
+          "wau": {
+            "type": "number",
+            "example": 173
+          },
+          "mau": {
+            "type": "number",
+            "example": 486
+          }
+        },
+        "required": [
+          "dau",
+          "wau",
+          "mau"
+        ]
+      },
+      "AdminDashboardPeriodMetricsDto": {
+        "type": "object",
+        "properties": {
+          "activeUsers": {
+            "type": "number",
+            "example": 128,
+            "description": "区间内至少活跃一天的去重普通用户数"
+          },
+          "newUsers": {
+            "type": "number",
+            "example": 17
+          },
+          "publishedThreads": {
+            "type": "number",
+            "example": 12
+          },
+          "newPosts": {
+            "type": "number",
+            "example": 86,
+            "description": "新增楼层数，不包含主题正文 BODY"
+          },
+          "reportsReceived": {
+            "type": "number",
+            "example": 9
+          },
+          "reportsHandled": {
+            "type": "number",
+            "example": 7
+          }
+        },
+        "required": [
+          "activeUsers",
+          "newUsers",
+          "publishedThreads",
+          "newPosts",
+          "reportsReceived",
+          "reportsHandled"
+        ]
+      },
+      "AdminDashboardSnapshotDto": {
+        "type": "object",
+        "properties": {
+          "totalUsers": {
+            "type": "number",
+            "example": 1024
+          },
+          "pendingReports": {
+            "type": "number",
+            "example": 4
+          },
+          "activeSuspensions": {
+            "type": "number",
+            "example": 3
+          },
+          "activeBans": {
+            "type": "number",
+            "example": 2
+          }
+        },
+        "required": [
+          "totalUsers",
+          "pendingReports",
+          "activeSuspensions",
+          "activeBans"
+        ]
+      },
+      "AdminDashboardOverviewResponseDto": {
+        "type": "object",
+        "properties": {
+          "range": {
+            "$ref": "#/components/schemas/AdminDashboardRangeResponseDto"
+          },
+          "activity": {
+            "$ref": "#/components/schemas/AdminDashboardActivityMetricsDto"
+          },
+          "current": {
+            "$ref": "#/components/schemas/AdminDashboardPeriodMetricsDto"
+          },
+          "previous": {
+            "$ref": "#/components/schemas/AdminDashboardPeriodMetricsDto"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/AdminDashboardSnapshotDto"
+          }
+        },
+        "required": [
+          "range",
+          "activity",
+          "current",
+          "previous",
+          "snapshot"
+        ]
+      },
+      "AdminDashboardTimeseriesPointDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "example": "2026-08-08"
+          },
+          "dau": {
+            "type": "number",
+            "example": 42
+          },
+          "newUsers": {
+            "type": "number",
+            "example": 5
+          },
+          "publishedThreads": {
+            "type": "number",
+            "example": 3
+          },
+          "newPosts": {
+            "type": "number",
+            "example": 18
+          },
+          "reportsReceived": {
+            "type": "number",
+            "example": 2
+          },
+          "reportsHandled": {
+            "type": "number",
+            "example": 1
+          }
+        },
+        "required": [
+          "date",
+          "dau",
+          "newUsers",
+          "publishedThreads",
+          "newPosts",
+          "reportsReceived",
+          "reportsHandled"
+        ]
+      },
+      "AdminDashboardTimeseriesResponseDto": {
+        "type": "object",
+        "properties": {
+          "range": {
+            "$ref": "#/components/schemas/AdminDashboardRangeResponseDto"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminDashboardTimeseriesPointDto"
+            }
+          }
+        },
+        "required": [
+          "range",
+          "items"
+        ]
+      },
+      "AdminDashboardDistributionItemDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "USER"
+          },
+          "count": {
+            "type": "number",
+            "example": 42
+          }
+        },
+        "required": [
+          "key",
+          "count"
+        ]
+      },
+      "AdminDashboardDistributionsResponseDto": {
+        "type": "object",
+        "properties": {
+          "usersByRole": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminDashboardDistributionItemDto"
+            }
+          },
+          "reportsByStatus": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminDashboardDistributionItemDto"
+            }
+          },
+          "reportsByReason": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminDashboardDistributionItemDto"
+            }
+          },
+          "threadsByCategory": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminDashboardDistributionItemDto"
+            }
+          },
+          "activeSanctionsByType": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminDashboardDistributionItemDto"
+            }
+          }
+        },
+        "required": [
+          "usersByRole",
+          "reportsByStatus",
+          "reportsByReason",
+          "threadsByCategory",
+          "activeSanctionsByType"
+        ]
+      },
+      "CreateThreadCategoryDto": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "example": "MYSTERY",
+            "description": "稳定机器标识，创建后不可修改"
+          },
+          "name": {
+            "type": "string",
+            "example": "悬疑推理",
+            "minLength": 1,
+            "maxLength": 50
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "color": {
+            "type": "string",
+            "example": "#7C3AED"
+          },
+          "icon": {
+            "type": "string",
+            "example": "search",
+            "maxLength": 50
+          },
+          "sortOrder": {
+            "type": "number",
+            "minimum": 0,
+            "default": 0
+          },
+          "isActive": {
+            "type": "boolean",
+            "default": true
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "管理员审计原因"
+          }
+        },
+        "required": [
+          "slug",
+          "name"
+        ]
+      },
+      "UpdateThreadCategoryDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          },
+          "description": {
+            "type": "object",
+            "maxLength": 200,
+            "nullable": true
+          },
+          "color": {
+            "type": "object",
+            "example": "#7C3AED",
+            "nullable": true
+          },
+          "icon": {
+            "type": "object",
+            "maxLength": 50,
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "number",
+            "minimum": 0
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "管理员审计原因"
+          }
+        }
+      },
+      "CreateManagedTagDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "无限流",
+            "minLength": 1,
+            "maxLength": 20
+          },
+          "color": {
+            "type": "string",
+            "example": "#FF6B6B"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "sortOrder": {
+            "type": "number",
+            "minimum": 0,
+            "default": 0
+          },
+          "isActive": {
+            "type": "boolean",
+            "default": true
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "UpdateManagedTagDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20
+          },
+          "color": {
+            "type": "object",
+            "example": "#FF6B6B",
+            "nullable": true
+          },
+          "description": {
+            "type": "object",
+            "maxLength": 200,
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "number",
+            "minimum": 0
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "MomentMediaResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "thumbnailUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "feedUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "mediumUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "width": {
+            "type": "number",
+            "nullable": true
+          },
+          "height": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "thumbnailUrl",
+          "feedUrl",
+          "mediumUrl",
+          "width",
+          "height"
+        ]
+      },
+      "MomentSearchResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "authorId": {
+            "type": "string"
+          },
+          "author": {
+            "$ref": "#/components/schemas/PostAuthorResponseDto"
+          },
+          "title": {
+            "type": "string"
+          },
+          "contentExcerpt": {
+            "type": "string",
+            "description": "纯文本正文摘要"
+          },
+          "coverType": {
+            "type": "string",
+            "enum": [
+              "IMAGE",
+              "TEXT"
+            ]
+          },
+          "textCoverTheme": {
+            "type": "string",
+            "enum": [
+              "ROSE",
+              "LILAC",
+              "MINT",
+              "AMBER"
+            ]
+          },
+          "coverMedia": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MomentMediaResponseDto"
+              }
+            ]
+          },
+          "imageCount": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 9
+          },
+          "likeCount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "commentCount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "bookmarkCount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "tipTotal": {
+            "type": "string",
+            "pattern": "^\\d+$"
+          },
+          "viewerLiked": {
+            "type": "boolean"
+          },
+          "viewerBookmarked": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "relevance": {
+            "type": "number",
+            "description": "仅用于说明结果相关度；客户端不得作为稳定业务字段依赖"
+          }
+        },
+        "required": [
+          "id",
+          "authorId",
+          "author",
+          "title",
+          "contentExcerpt",
+          "coverType",
+          "textCoverTheme",
+          "coverMedia",
+          "imageCount",
+          "likeCount",
+          "commentCount",
+          "bookmarkCount",
+          "tipTotal",
+          "viewerLiked",
+          "viewerBookmarked",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
       "SearchThreadOwnerResponseDto": {
         "type": "object",
         "properties": {
@@ -15401,12 +19734,9 @@
           },
           "category": {
             "type": "string",
-            "enum": [
-              "DEDUCTION",
-              "NATION",
-              "RPG"
-            ],
-            "description": "主题帖分区"
+            "nullable": true,
+            "example": "DEDUCTION",
+            "description": "动态分类 slug"
           },
           "createdAt": {
             "format": "date-time",
@@ -15428,6 +19758,14 @@
                 "$ref": "#/components/schemas/SearchThreadCountResponseDto"
               }
             ]
+          },
+          "coverImages": {
+            "maxItems": 3,
+            "description": "默认主贴正文中的普通图片 URL，按出现顺序返回，最多 3 张",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -15436,7 +19774,8 @@
           "category",
           "createdAt",
           "owner",
-          "_count"
+          "_count",
+          "coverImages"
         ]
       },
       "SearchUserResponseDto": {
@@ -15612,6 +19951,591 @@
           "posts"
         ]
       },
+      "MomentCardResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "authorId": {
+            "type": "string"
+          },
+          "author": {
+            "$ref": "#/components/schemas/PostAuthorResponseDto"
+          },
+          "title": {
+            "type": "string"
+          },
+          "contentExcerpt": {
+            "type": "string",
+            "description": "纯文本正文摘要"
+          },
+          "coverType": {
+            "type": "string",
+            "enum": [
+              "IMAGE",
+              "TEXT"
+            ]
+          },
+          "textCoverTheme": {
+            "type": "string",
+            "enum": [
+              "ROSE",
+              "LILAC",
+              "MINT",
+              "AMBER"
+            ]
+          },
+          "coverMedia": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MomentMediaResponseDto"
+              }
+            ]
+          },
+          "imageCount": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 9
+          },
+          "likeCount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "commentCount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "bookmarkCount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "tipTotal": {
+            "type": "string",
+            "pattern": "^\\d+$"
+          },
+          "viewerLiked": {
+            "type": "boolean"
+          },
+          "viewerBookmarked": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "authorId",
+          "author",
+          "title",
+          "contentExcerpt",
+          "coverType",
+          "textCoverTheme",
+          "coverMedia",
+          "imageCount",
+          "likeCount",
+          "commentCount",
+          "bookmarkCount",
+          "tipTotal",
+          "viewerLiked",
+          "viewerBookmarked",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateMomentDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 40,
+            "description": "动态标题，纯文本"
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 1000,
+            "default": "",
+            "description": "动态正文，纯文本"
+          },
+          "mediaIds": {
+            "maxItems": 9,
+            "default": [],
+            "description": "已完成处理的图片 ID，顺序即展示顺序",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "coverMediaId": {
+            "type": "string",
+            "nullable": true,
+            "description": "必须属于 mediaIds；无图时为 null"
+          },
+          "clientRequestId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "发布幂等键，同时决定无图文字封面配色"
+          }
+        },
+        "required": [
+          "title",
+          "mediaIds",
+          "clientRequestId"
+        ]
+      },
+      "MomentDetailResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "authorId": {
+            "type": "string"
+          },
+          "author": {
+            "$ref": "#/components/schemas/PostAuthorResponseDto"
+          },
+          "title": {
+            "type": "string"
+          },
+          "contentExcerpt": {
+            "type": "string",
+            "description": "纯文本正文摘要"
+          },
+          "coverType": {
+            "type": "string",
+            "enum": [
+              "IMAGE",
+              "TEXT"
+            ]
+          },
+          "textCoverTheme": {
+            "type": "string",
+            "enum": [
+              "ROSE",
+              "LILAC",
+              "MINT",
+              "AMBER"
+            ]
+          },
+          "coverMedia": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MomentMediaResponseDto"
+              }
+            ]
+          },
+          "imageCount": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 9
+          },
+          "likeCount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "commentCount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "bookmarkCount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "tipTotal": {
+            "type": "string",
+            "pattern": "^\\d+$"
+          },
+          "viewerLiked": {
+            "type": "boolean"
+          },
+          "viewerBookmarked": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "content": {
+            "type": "string",
+            "description": "完整纯文本正文"
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MomentMediaResponseDto"
+            }
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1
+          },
+          "canEdit": {
+            "type": "boolean"
+          },
+          "canDelete": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "authorId",
+          "author",
+          "title",
+          "contentExcerpt",
+          "coverType",
+          "textCoverTheme",
+          "coverMedia",
+          "imageCount",
+          "likeCount",
+          "commentCount",
+          "bookmarkCount",
+          "tipTotal",
+          "viewerLiked",
+          "viewerBookmarked",
+          "createdAt",
+          "updatedAt",
+          "content",
+          "images",
+          "version",
+          "canEdit",
+          "canDelete"
+        ]
+      },
+      "UpdateMomentDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 40
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "mediaIds": {
+            "maxItems": 9,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "coverMediaId": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1,
+            "description": "乐观锁版本"
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "MomentDeleteResponseDto": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ]
+      },
+      "MomentActionResponseDto": {
+        "type": "object",
+        "properties": {
+          "momentId": {
+            "type": "string"
+          },
+          "count": {
+            "type": "number",
+            "minimum": 0
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "momentId",
+          "count",
+          "active"
+        ]
+      },
+      "MomentStickerResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "thumbnailUrl": {
+            "type": "string"
+          },
+          "mediumUrl": {
+            "type": "string"
+          },
+          "width": {
+            "type": "number",
+            "nullable": true
+          },
+          "height": {
+            "type": "number",
+            "nullable": true
+          },
+          "animated": {
+            "type": "boolean"
+          },
+          "frameCount": {
+            "type": "number"
+          },
+          "durationMs": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "thumbnailUrl",
+          "mediumUrl",
+          "width",
+          "height",
+          "animated",
+          "frameCount",
+          "durationMs"
+        ]
+      },
+      "MomentReplyTargetResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "author": {
+            "$ref": "#/components/schemas/PostAuthorResponseDto"
+          }
+        },
+        "required": [
+          "id",
+          "author"
+        ]
+      },
+      "MomentCommentResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "momentId": {
+            "type": "string"
+          },
+          "author": {
+            "$ref": "#/components/schemas/PostAuthorResponseDto"
+          },
+          "content": {
+            "type": "string",
+            "nullable": true,
+            "description": "图片/表情评论可为空字符串；删除后为 null"
+          },
+          "media": {
+            "nullable": true,
+            "description": "每条评论最多一张普通图片",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MomentMediaResponseDto"
+              }
+            ]
+          },
+          "sticker": {
+            "nullable": true,
+            "description": "每条评论最多一个表情；与 media 互斥",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MomentStickerResponseDto"
+              }
+            ]
+          },
+          "parentCommentId": {
+            "type": "string",
+            "nullable": true,
+            "description": "楼中楼统一指向主评论"
+          },
+          "replyToComment": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MomentReplyTargetResponseDto"
+              }
+            ]
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "canDelete": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "momentId",
+          "author",
+          "content",
+          "media",
+          "sticker",
+          "parentCommentId",
+          "replyToComment",
+          "deleted",
+          "canDelete",
+          "createdAt"
+        ]
+      },
+      "MomentRootCommentResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "momentId": {
+            "type": "string"
+          },
+          "author": {
+            "$ref": "#/components/schemas/PostAuthorResponseDto"
+          },
+          "content": {
+            "type": "string",
+            "nullable": true,
+            "description": "图片/表情评论可为空字符串；删除后为 null"
+          },
+          "media": {
+            "nullable": true,
+            "description": "每条评论最多一张普通图片",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MomentMediaResponseDto"
+              }
+            ]
+          },
+          "sticker": {
+            "nullable": true,
+            "description": "每条评论最多一个表情；与 media 互斥",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MomentStickerResponseDto"
+              }
+            ]
+          },
+          "parentCommentId": {
+            "type": "string",
+            "nullable": true,
+            "description": "楼中楼统一指向主评论"
+          },
+          "replyToComment": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MomentReplyTargetResponseDto"
+              }
+            ]
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "canDelete": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "replyCount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "replies": {
+            "description": "按当前筛选与顺序返回的前三条可见楼中楼预览",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MomentCommentResponseDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "momentId",
+          "author",
+          "content",
+          "media",
+          "sticker",
+          "parentCommentId",
+          "replyToComment",
+          "deleted",
+          "canDelete",
+          "createdAt",
+          "replyCount",
+          "replies"
+        ]
+      },
+      "CreateMomentCommentDto": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "评论纯文本；与图片或表情至少提供一项"
+          },
+          "mediaId": {
+            "type": "string",
+            "description": "已完成处理且属于评论者的图片 ID；与 stickerAssetId 互斥"
+          },
+          "stickerAssetId": {
+            "type": "string",
+            "description": "当前收藏夹中的表情资产 ID；与 mediaId 互斥"
+          },
+          "replyToCommentId": {
+            "type": "string",
+            "description": "被回复评论 ID；服务端自动归并到所属主评论"
+          },
+          "clientRequestId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "评论幂等键"
+          }
+        },
+        "required": [
+          "clientRequestId"
+        ]
+      },
       "CreateUploadUrlDto": {
         "type": "object",
         "properties": {
@@ -15702,6 +20626,11 @@
             "nullable": true,
             "description": "处理完成后的 300px WebP 缩略图地址"
           },
+          "feedUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "处理完成后的 480px 等比例 WebP 信息流图片地址"
+          },
           "mediumUrl": {
             "type": "string",
             "nullable": true,
@@ -15748,6 +20677,7 @@
           "userId",
           "url",
           "thumbnailUrl",
+          "feedUrl",
           "mediumUrl",
           "key",
           "contentType",
@@ -16395,6 +21325,7 @@
             "enum": [
               "THREAD",
               "USER",
+              "MOMENT",
               "NONE"
             ]
           },
@@ -16532,6 +21463,11 @@
             "type": "string",
             "pattern": "^\\d+$",
             "description": "主题累计投入总额"
+          },
+          "momentTipTotal": {
+            "type": "string",
+            "pattern": "^\\d+$",
+            "description": "动态累计加油总额"
           },
           "recipientTipTotal": {
             "type": "string",
@@ -18075,6 +23011,27 @@
           }
         ]
       },
+      "ThreadCategoriesList200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ThreadCategoryResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
       "SubthreadsFindAll200Response": {
         "allOf": [
           {
@@ -18489,27 +23446,6 @@
           }
         ]
       },
-      "ReportsFindAll200Response": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ApiSuccessEnvelope"
-          },
-          {
-            "type": "object",
-            "required": [
-              "data"
-            ],
-            "properties": {
-              "data": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/ReportResponseDto"
-                }
-              }
-            }
-          }
-        ]
-      },
       "ReportsCreate201Response": {
         "allOf": [
           {
@@ -18528,7 +23464,28 @@
           }
         ]
       },
-      "ReportsHandle200Response": {
+      "AdminReportsFindAll200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AdminReportResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AdminReportsFindOne200Response": {
         "allOf": [
           {
             "$ref": "#/components/schemas/ApiSuccessEnvelope"
@@ -18540,7 +23497,25 @@
             ],
             "properties": {
               "data": {
-                "$ref": "#/components/schemas/ReportResponseDto"
+                "$ref": "#/components/schemas/AdminReportResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminReportsResolve200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AdminReportResponseDto"
               }
             }
           }
@@ -18558,7 +23533,7 @@
             ],
             "properties": {
               "data": {
-                "$ref": "#/components/schemas/AdminStatusResponseDto"
+                "$ref": "#/components/schemas/AdminCapabilityResponseDto"
               }
             }
           }
@@ -18631,6 +23606,345 @@
             "properties": {
               "data": {
                 "$ref": "#/components/schemas/AdminUserSearchResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminModerationListUsers200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AdminUserModerationResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AdminModerationGetUser200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AdminUserModerationResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminModerationSanctionUser201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AdminUserSanctionResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminModerationRevokeSanction200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AdminUserSanctionResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminModerationUpdateRole200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AdminUserModerationResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminModerationHideContent200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AdminContentModerationResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminModerationRestoreContent200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AdminContentModerationResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminModerationListAuditLogs200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AdminAuditLogResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AdminDashboardOverview200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AdminDashboardOverviewResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminDashboardTimeseries200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AdminDashboardTimeseriesResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminDashboardDistributions200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AdminDashboardDistributionsResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminTaxonomyListCategories200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ThreadCategoryResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AdminTaxonomyCreateCategory201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/ThreadCategoryResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminTaxonomyUpdateCategory200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/ThreadCategoryResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminTaxonomyListTags200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/TagResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AdminTaxonomyCreateTag201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/TagResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminTaxonomyUpdateTag200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/TagResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "SearchSearchMoments200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MomentSearchResponseDto"
+                }
               }
             }
           }
@@ -18732,6 +24046,312 @@
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/SearchPostResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "MomentsList200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MomentCardResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "MomentsCreate201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MomentDetailResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "MomentsBookmarks200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MomentCardResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "MomentsDetail200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MomentDetailResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "MomentsRemove200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MomentDeleteResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "MomentsUpdate200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MomentDetailResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "MomentsLike201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MomentActionResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "MomentsUnlike200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MomentActionResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "MomentsBookmark201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MomentActionResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "MomentsUnbookmark200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MomentActionResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "MomentsCommentsList200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MomentRootCommentResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "MomentsCreateComment201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MomentCommentResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "MomentsCommentAuthors200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PostAuthorResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "MomentsReplies200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MomentCommentResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "MomentsRemoveComment200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MomentDeleteResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "UserMomentsList200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MomentCardResponseDto"
                 }
               }
             }
@@ -19107,6 +24727,24 @@
           }
         ]
       },
+      "EconomyTipMoment201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/TipResponseDto"
+              }
+            }
+          }
+        ]
+      },
       "BusinessErrorCode": {
         "type": "integer",
         "enum": [
@@ -19128,6 +24766,8 @@
           40105,
           40106,
           40107,
+          40108,
+          40109,
           40110,
           40111,
           40112,
@@ -19143,6 +24783,8 @@
           40305,
           40306,
           40307,
+          40308,
+          40309,
           40400,
           40401,
           40402,
@@ -19157,6 +24799,8 @@
           40411,
           40412,
           40413,
+          40414,
+          40415,
           40900,
           40901,
           40902,
@@ -19171,6 +24815,12 @@
           40911,
           40912,
           40913,
+          40914,
+          40915,
+          40916,
+          40917,
+          40918,
+          40919,
           42900,
           50000
         ],
@@ -19194,6 +24844,8 @@
           "ACCOUNT_LOCKED",
           "ACCOUNT_DEACTIVATED",
           "EMAIL_NOT_VERIFIED",
+          "ACCOUNT_SUSPENDED",
+          "ACCOUNT_BANNED",
           "LOGIN_FAILED",
           "CODE_EXPIRED",
           "CODE_INVALID",
@@ -19209,6 +24861,8 @@
           "DIRECT_MESSAGE_BLOCKED",
           "DIRECT_MESSAGE_NOT_ALLOWED",
           "TIP_NOT_ALLOWED",
+          "ADMIN_REQUIRED",
+          "CANNOT_MODERATE_ADMIN",
           "NOT_FOUND",
           "USER_NOT_FOUND",
           "THREAD_NOT_FOUND",
@@ -19223,6 +24877,8 @@
           "DIRECT_CONVERSATION_NOT_FOUND",
           "DIRECT_MESSAGE_NOT_FOUND",
           "STICKER_NOT_FOUND",
+          "THREAD_CATEGORY_NOT_FOUND",
+          "MOMENT_NOT_FOUND",
           "CONFLICT",
           "EMAIL_ALREADY_REGISTERED",
           "USERNAME_TAKEN",
@@ -19237,6 +24893,12 @@
           "STICKER_COLLECTION_VERSION_CONFLICT",
           "IDEMPOTENCY_KEY_REUSED",
           "INSUFFICIENT_WENYOU",
+          "REPORT_ALREADY_PENDING",
+          "REPORT_ALREADY_HANDLED",
+          "CONTENT_STATE_CONFLICT",
+          "SANCTION_STATE_CONFLICT",
+          "THREAD_CATEGORY_ALREADY_EXISTS",
+          "TAXONOMY_STATE_CONFLICT",
           "RATE_LIMITED",
           "INTERNAL_ERROR"
         ]

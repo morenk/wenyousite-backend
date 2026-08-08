@@ -122,6 +122,12 @@
 | PUT | `/stickers/reorder` | verified | 按完整 ID 列表手动重排收藏 |
 | DELETE | `/stickers/{favoriteId}` | verified | 从自己的收藏夹移除表情 |
 
+## Thread Categories
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/thread-categories` | public | 获取管理员配置的可用主题帖分类 |
+
 ## Subthreads
 
 | 方法 | 路径 | 鉴权 | 说明 |
@@ -139,7 +145,7 @@
 |---|---|---|---|
 | GET | `/subthreads/{subthreadId}/posts` | optional | 获取子贴的楼层列表（Cursor 分页） |
 | POST | `/subthreads/{subthreadId}/posts` | verified | 发帖（创建新楼层或楼中楼回复） |
-| GET | `/posts/{id}/replies` | optional | 获取楼中楼回复列表（cursor 分页，无限下拉） |
+| GET | `/posts/{id}/replies` | optional | 获取楼中楼回复列表（支持顺序与玩家/楼主/协作者筛选） |
 | PUT | `/subthreads/{subthreadId}/body` | verified | 写入子贴正文（upsert：无正文创建，有正文乐观锁更新）。仅 OWNER/COLLABORATOR |
 | GET | `/posts/{id}` | optional | 获取帖子详情 |
 | PATCH | `/posts/{id}` | verified | 编辑帖子 |
@@ -168,29 +174,89 @@
 
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
-| GET | `/reports` | authenticated | 举报列表（管理员） |
-| POST | `/reports` | verified | 提交举报 |
-| PATCH | `/reports/{id}/handle` | verified | 处理举报（管理员） |
+| POST | `/reports` | verified | 提交公开社区目标举报 |
+
+## Admin Reports
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/admin/reports` | admin | 管理员举报队列 |
+| GET | `/admin/reports/{id}` | admin | 管理员举报详情 |
+| POST | `/admin/reports/{id}/resolve` | admin | 原子结案并可选执行治理动作 |
 
 ## Admin
 
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
-| GET | `/admin` | public | 管理后台入口 |
+| GET | `/admin` | admin | 当前管理员能力 |
 | POST | `/admin/notifications/system` | admin | 发送系统通知（管理员，手动指定 / 条件筛选 / 全站广播） |
 | POST | `/admin/notifications/system/preview` | admin | 预览系统通知接收者人数 |
 | GET | `/admin/notifications/system/history` | admin | 系统通知发送历史 |
 | GET | `/admin/users/search` | admin | 用户搜索（管理员用） |
 
+## Admin Moderation
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/admin/users` | admin | 管理员用户列表 |
+| GET | `/admin/users/{id}` | admin | 管理员用户详情 |
+| POST | `/admin/users/{id}/sanctions` | admin | 暂停或永久封禁用户 |
+| POST | `/admin/users/{id}/sanctions/current/revoke` | admin | 解除用户当前处罚 |
+| PATCH | `/admin/users/{id}/role` | admin | 授予或撤销管理员角色（超级管理员） |
+| POST | `/admin/content/{type}/{id}/hide` | admin | 隐藏主题帖、帖子、动态或动态评论 |
+| POST | `/admin/content/{type}/{id}/restore` | admin | 恢复由管理员隐藏的主题帖、帖子、动态或动态评论 |
+| GET | `/admin/audit-logs` | admin | 管理员审计日志 |
+
+## Admin Dashboard
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/admin/dashboard/overview` | admin | 管理看板概览、环比区间和 DAU/WAU/MAU |
+| GET | `/admin/dashboard/timeseries` | admin | 管理看板按日时间序列 |
+| GET | `/admin/dashboard/distributions` | admin | 用户、举报、内容和处罚分布 |
+
+## Admin Taxonomy
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/admin/thread-categories` | admin | 管理员主题帖分类列表（含停用项） |
+| POST | `/admin/thread-categories` | admin | 新增主题帖分类 |
+| PATCH | `/admin/thread-categories/{id}` | admin | 编辑、排序或停用主题帖分类 |
+| GET | `/admin/tags` | admin | 管理员标签列表（含停用项） |
+| POST | `/admin/tags` | admin | 新增平台标签 |
+| PATCH | `/admin/tags/{id}` | admin | 编辑、排序或停用平台标签 |
+
 ## Search
 
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
+| GET | `/search/moments` | optional | 按标题和纯文本正文搜索公开动态 |
 | GET | `/search/threads` | public | 按标题搜索公开主题帖 |
 | GET | `/search/users` | public | 按用户名搜索未注销用户 |
 | GET | `/search/posts` | public | 按正文搜索公开楼层与楼中楼 |
 | GET | `/search` | public | 兼容聚合搜索（用户名 + 主题帖标题 + 楼层内容） |
 | GET | `/threads/{threadId}/search/posts` | optional | 按正文搜索单个主题帖内的楼层与楼中楼 |
+
+## Moments
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/moments` | optional | 动态瀑布流；发现为热度，新鲜关注为时间倒序 |
+| POST | `/moments` | verified | 发布纯文本/图片动态，最多 9 张图片 |
+| GET | `/moments/bookmarks` | authenticated | 当前用户收藏的动态 |
+| GET | `/moments/{id}` | optional | 获取动态详情 |
+| PATCH | `/moments/{id}` | verified | 编辑自己的动态，使用 version 乐观锁 |
+| DELETE | `/moments/{id}` | verified | 软删除动态 |
+| POST | `/moments/{id}/like` | verified | 点赞动态，幂等 |
+| DELETE | `/moments/{id}/like` | verified | 取消点赞动态，幂等 |
+| POST | `/moments/{id}/bookmark` | verified | 收藏动态，幂等 |
+| DELETE | `/moments/{id}/bookmark` | verified | 取消收藏动态，幂等 |
+| GET | `/moments/{id}/comments` | optional | 主评论列表，支持顺序与作者筛选并内嵌三条楼中楼 |
+| POST | `/moments/{id}/comments` | verified | 发表文字、单图或单表情评论；回复统一归入两层楼中楼 |
+| GET | `/moments/{id}/comment-authors` | optional | 获取当前可见动态回复串中的作者候选 |
+| GET | `/moments/{id}/comments/{commentId}/replies` | optional | 分页获取某主评论的楼中楼，支持顺序与作者筛选 |
+| DELETE | `/moments/{id}/comments/{commentId}` | verified | 评论作者、动态作者或管理员软删除评论 |
+| GET | `/users/{id}/moments` | optional | 用户公开动态列表 |
 
 ## Media
 
@@ -231,3 +297,4 @@
 | GET | `/wallet/transactions` | authenticated | 获取当前用户温油收支流水 |
 | POST | `/threads/{id}/tips` | verified | 向已发布主题帖楼主打赏温油 |
 | POST | `/users/{id}/tips` | verified | 直接向用户打赏温油 |
+| POST | `/moments/{id}/tips` | verified | 给公开动态作者加油 |
