@@ -2,6 +2,8 @@
 
 本页描述 Flutter 客户端必须遵循的跨端协议。字段和端点的唯一机器事实源是 [`contracts/openapi.json`](../contracts/openapi.json)；本文只补充 OpenAPI 无法完整表达的生命周期、存储与重试规则。
 
+字体、文字缩放、阅读列、原生导航和界面状态的事实源是 [`mobile-ui-contract.md`](./mobile-ui-contract.md)。PC Web 的固定栏宽和 CSS 像素不属于 Flutter 契约。
+
 ## 启动与兼容检查
 
 1. 客户端构建时从仓库内固定版本的 OpenAPI 生成 API/model 代码，不在构建过程中访问线上 Swagger。
@@ -43,6 +45,8 @@
 
 Markdown 协议版本由 `/meta.markdownContractVersion` 返回，当前为 v2。Flutter 必须同时运行两层语言无关语料：[`markdown-v2-fixtures.json`](../contracts/markdown-v2-fixtures.json) 验证 `canonical` 与 `visible`；[`markdown-v2-nodes-fixtures.json`](../contracts/markdown-v2-nodes-fixtures.json) 验证提及、`@全体玩家`、骰子、表情、普通图片的 parse / serialize / round-trip、代码与转义边界以及复制身份规则。原始 HTML 默认禁用；外链协议仅允许明确白名单。
 
+主题帖分类不再是客户端枚举。Flutter 从 `GET /api/v1/thread-categories` 获取启用分类，按返回顺序展示并保存稳定 `slug`；草稿允许 `category=null`，发布前必须选择启用项。未知 slug 显示原值或安全占位，不得反序列化失败。
+
 ## FCM 设备注册
 
 推送能力以 `/meta.capabilities.pushNotifications` 为准。它关闭时不注册，通知页仍可通过 API 正常使用。
@@ -74,6 +78,7 @@ Content-Type: application/json
 ## 发布前最低验证
 
 - 用固定 OpenAPI 生成 Dart 代码并执行 `dart format` / `dart analyze`。
+- 覆盖动态分类新增、停用、未知 slug 与草稿空分类；客户端不得穷举旧三分类。
 - 用 Markdown v2 的规范化/可见性语料和扩展节点语料运行 Flutter 单测，其中表情必须经过编辑器解析后再序列化验证 round-trip。
 - 用 mobile push v1 黄金样例验证 FCM `data` 解析、未知版本降级与隐私字段过滤。
 - 覆盖 access token 并发过期、refresh token 轮转、离线创建重试、无效 cursor、媒体处理中 null 变体、FCM token 刷新和推送关闭降级。
