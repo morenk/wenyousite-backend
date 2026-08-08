@@ -1,16 +1,8 @@
 # 数据模型
 
-> 36 张表，18 个 Prisma 枚举。除显式标注的 UUID 外，ID 使用 `cuid()` 生成，时间戳使用 `DateTime`。
+> 39 张表，24 个 Prisma 枚举。除显式标注的 UUID 外，ID 使用 `cuid()` 生成，时间戳使用 `DateTime`。
 
 ## 枚举定义
-
-### ThreadCategory — 主题帖分区
-
-| 值 | 说明 |
-|----|------|
-| `DEDUCTION` | 演绎 |
-| `NATION` | 国策 |
-| `RPG` | 角色扮演 |
 
 ### ThreadStatus — 主题帖生命周期
 
@@ -34,6 +26,8 @@
 | `USER` | 普通用户 |
 | `ADMIN` | 管理员 |
 | `SUPER_ADMIN` | 超级管理员（站长） |
+
+治理相关枚举：`ReportTargetType` 为 `USER / THREAD / POST`，`ReportStatus` 为 `PENDING / RESOLVED / DISMISSED`，`UserSanctionType` 为 `SUSPENSION / BAN`。`ContentRemovalSource` 用于区分作者、楼主、帖内管理者和站务隐藏；`AuditAction / AuditTargetType` 固定管理员审计分类。
 
 ### MemberRole — 帖内角色
 
@@ -152,6 +146,12 @@
 - 正向经验事件按来源幂等写入，日统计按北京时间限制次数；撤销事件保留原因并可使用户降级。
 - 等级门槛依次为 0、50、200、600、1500、3500、7000、14000、30000；Lv.9 后继续累计经验。
 
+### user_daily_activities — 每日活跃事实
+
+- 以 `(userId, dateKey)` 为主键，普通用户在一个北京时间自然日最多一行，供管理员看板计算 DAU/WAU/MAU。
+- 仅记录首次成功产品请求时间，不记录路径、请求参数、IP 或 User-Agent；管理员请求、通知轮询和失败请求不计入。
+- Redis 只做跨实例日内去重，PostgreSQL 唯一键是最终事实与故障回退。
+
 ### email_verifications — 邮箱验证码（统一注册/验证/重置）
 
 | 字段 | 类型 | 约束 | 说明 |
@@ -253,6 +253,22 @@
 
 业务状态和 Outbox 记录在同一个 Prisma 事务提交。分发器使用 `FOR UPDATE SKIP LOCKED` 支持多实例竞争领取，成功记录保留 7 天，未处理记录不自动删除。
 
+### thread_category_definitions — 主题帖分类配置
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| id | String | PK, cuid() | 分类记录 ID |
+| slug | String | unique, VarChar(50) | 创建后不可修改的机器标识，Thread 外键引用 |
+| name | String | unique, VarChar(50) | 管理员配置的显示名称 |
+| description | String? | VarChar(200) | 描述 |
+| color | String? | VarChar(7) | `#RRGGBB` 颜色 |
+| icon | String? | VarChar(50) | 客户端图标键 |
+| sortOrder | Int | default 0 | 展示顺序 |
+| isActive | Boolean | default true | 是否允许新选择；停用不删除历史关联 |
+| createdAt / updatedAt | DateTime | — | 审计时间 |
+
+旧 `DEDUCTION / NATION / RPG` 作为初始配置迁移保留。公开接口只返回启用项，管理接口返回全部配置。
+
 ### threads — 主题帖
 
 | 字段 | 类型 | 约束 | 说明 |
@@ -262,7 +278,7 @@
 | ownerId | String | FK users | 楼主 |
 | clientRequestId | UUID? | unique with ownerId | 创建主题帖的客户端幂等键 |
 | createRequestHash | String? | — | 规范化创建载荷摘要，用于检测键误用 |
-| category | ThreadCategory | default DEDUCTION | 分区 |
+| category | String? | FK thread_category_definitions.slug (Restrict/Cascade) | 动态分类 slug；草稿可空，发布时必须为启用项 |
 | status | ThreadStatus | default RECRUITING | 生命周期状态 |
 | visibility | ThreadVisibility | default PUBLIC | 可见性 |
 | published | Boolean | default false | 是否已发布（发布前为草稿态，不出现在列表/搜索） |
@@ -436,8 +452,11 @@
 |------|------|------|------|
 | id | String | PK | — |
 | name | String | unique | 标签名（如"无限流""穿越""西幻"） |
-| color | String? | — | 颜色值 |
-| createdAt | DateTime | — | — |
+| color | String? | VarChar(7) | `#RRGGBB` 颜色 |
+| description | String? | VarChar(200) | 管理员配置的描述 |
+| sortOrder | Int | default 0 | 展示顺序 |
+| isActive | Boolean | default true | 是否允许搜索和新关联 |
+| createdAt / updatedAt | DateTime | — | — |
 
 ### thread_topic_tags — 主题帖-标签关联
 
@@ -528,26 +547,37 @@
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | String | PK | — |
-| reporterId | String | FK users (SetNull) | 举报人 |
-| targetType | String | — | 举报目标类型（POST/THREAD/USER） |
+| reporterId | String? | FK users (SetNull) | 举报人 |
+| targetType | ReportTargetType | — | 举报目标类型（POST/THREAD/USER） |
 | targetId | String | — | 举报目标 ID |
-| reason | String | — | 举报原因 |
-| status | String | default PENDING | 状态（PENDING/RESOLVED/DISMISSED） |
+| reasonCode | ReportReasonCode | default OTHER | 结构化举报原因 |
+| details | String? | — | 补充说明；旧自由文本原因迁移到此字段 |
+| targetSnapshot | Json? | — | 提交时的版本化脱敏证据快照 |
+| status | ReportStatus | default PENDING | 状态（PENDING/RESOLVED/DISMISSED） |
 | handledBy | String? | FK users (SetNull) | 处理人 |
 | handledAt | DateTime? | — | 处理时间 |
-| createdAt | DateTime | — | — |
+| resolutionNote | String? | — | 结案理由，同时作为关联处罚理由 |
+| createdAt / updatedAt | DateTime | — | — |
 
-> ⚠️ 举报模块已搁置，待后期重构。
+数据库部分唯一索引保证同一举报人对同一目标最多一条待处理举报。
+
+### user_sanctions — 账号处罚
+
+记录暂停/封禁、起止时间、创建与解除管理员、理由及关联举报。每个用户最多一条未解除处罚；过期暂停由查询和认证策略按时间判定为无效，记录仍保留用于追溯。
 
 ### audit_logs — 管理员操作审计
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | String | PK | — |
-| adminId | String | FK users (SetNull) | — |
-| action | String | — | 操作类型 |
-| targetType | String | — | 操作目标类型 |
+| actorId | String? | FK users (SetNull) | 操作管理员 |
+| action | AuditAction | — | 操作类型 |
+| targetType | AuditTargetType | — | 操作目标类型 |
 | targetId | String? | — | 操作目标 ID |
-| detail | String? | — | 操作详情 |
+| reportId | String? | FK reports (SetNull) | 关联举报 |
+| reason | String? | — | 管理动作理由 |
+| detail | String? | — | 迁移前历史详情，只读保留 |
+| metadata | Json? | — | 新操作的结构化脱敏详情 |
 | ip | String? | — | 操作 IP |
+| requestId | String? | — | 关联 HTTP 请求 ID |
 | createdAt | DateTime | — | — |

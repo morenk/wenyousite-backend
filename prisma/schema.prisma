@@ -7,12 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum ThreadCategory {
-  DEDUCTION
-  NATION
-  RPG
-}
-
 enum ThreadStatus {
   RECRUITING
   CLOSED
@@ -74,6 +68,14 @@ enum WalletTransactionType {
 enum TipTargetType {
   THREAD
   USER
+  MOMENT
+}
+
+enum MomentTextCoverTheme {
+  ROSE
+  LILAC
+  MINT
+  AMBER
 }
 
 enum ExperienceEventType {
@@ -119,6 +121,73 @@ enum MobilePlatform {
   IOS
 }
 
+enum ReportTargetType {
+  USER
+  THREAD
+  POST
+  MOMENT
+  MOMENT_COMMENT
+}
+
+enum ReportStatus {
+  PENDING
+  RESOLVED
+  DISMISSED
+}
+
+enum ReportReasonCode {
+  SPAM
+  HARASSMENT
+  HATE_OR_THREATS
+  SEXUAL_CONTENT
+  VIOLENT_CONTENT
+  PERSONAL_INFORMATION
+  ILLEGAL_CONTENT
+  OTHER
+}
+
+enum UserSanctionType {
+  SUSPENSION
+  BAN
+}
+
+enum ContentRemovalSource {
+  AUTHOR
+  OWNER
+  THREAD_MANAGER
+  ADMIN
+}
+
+enum AuditAction {
+  SUPER_ADMIN_BOOTSTRAPPED
+  ADMIN_ROLE_GRANTED
+  ADMIN_ROLE_REVOKED
+  USER_SUSPENDED
+  USER_BANNED
+  USER_SANCTION_REVOKED
+  CONTENT_HIDDEN
+  CONTENT_RESTORED
+  REPORT_RESOLVED
+  REPORT_DISMISSED
+  SYSTEM_NOTIFICATION_SENT
+  THREAD_CATEGORY_CREATED
+  THREAD_CATEGORY_UPDATED
+  TAG_CREATED
+  TAG_UPDATED
+}
+
+enum AuditTargetType {
+  USER
+  THREAD
+  POST
+  MOMENT
+  MOMENT_COMMENT
+  REPORT
+  SYSTEM_NOTIFICATION
+  THREAD_CATEGORY
+  TAG
+}
+
 model User {
   id                  String    @id @default(cuid())
   email               String    @unique
@@ -159,7 +228,10 @@ model User {
   reportedReports               Report[]                        @relation("Reporter")
   bookmarks                     UserBookmark[]
   handledReports                Report[]                        @relation("Handler")
-  auditLogs                     AuditLog[]                      @relation("AuditAdmin")
+  auditLogs                     AuditLog[]                      @relation("AuditActor")
+  sanctions                     UserSanction[]                  @relation("SanctionedUser")
+  sanctionsCreated              UserSanction[]                  @relation("SanctionCreator")
+  sanctionsRevoked              UserSanction[]                  @relation("SanctionRevoker")
   media                         Media[]
   refreshTokens                 RefreshToken[]
   directConversationsAsFirst    DirectConversation[]            @relation("DirectConversationFirstUser")
@@ -177,7 +249,12 @@ model User {
   dailyCheckIns                 DailyCheckIn[]
   experienceEvents              ExperienceEvent[]
   experienceDailyStats          ExperienceDailyStat[]
+  dailyActivities               UserDailyActivity[]
   targetedTipTransactions       WalletTransaction[]             @relation("TipTargetUser")
+  moments                       Moment[]
+  momentLikes                   MomentLike[]
+  momentBookmarks               MomentBookmark[]
+  momentComments                MomentComment[]
 
   @@index([username(ops: raw("gin_trgm_ops"))], type: Gin, map: "users_username_trgm_idx")
   @@map("users")
@@ -254,19 +331,38 @@ model UserBlock {
   @@map("user_blocks")
 }
 
+model ThreadCategoryDefinition {
+  id          String   @id @default(cuid())
+  slug        String   @unique @db.VarChar(50)
+  name        String   @unique @db.VarChar(50)
+  description String?  @db.VarChar(200)
+  color       String?  @db.VarChar(7)
+  icon        String?  @db.VarChar(50)
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  threads Thread[]
+
+  @@index([isActive, sortOrder, name])
+  @@map("thread_category_definitions")
+}
+
 model Thread {
   id      String  @id @default(cuid())
   title   String?
   ownerId String  @map("owner_id")
   owner   User    @relation("ThreadOwner", fields: [ownerId], references: [id])
 
-  category          ThreadCategory   @default(DEDUCTION)
-  status            ThreadStatus     @default(RECRUITING)
-  visibility        ThreadVisibility @default(PUBLIC) @map("visibility")
-  published         Boolean          @default(false) @map("published")
-  publishedAt       DateTime?        @map("published_at")
-  clientRequestId   String?          @map("client_request_id") @db.Uuid
-  createRequestHash String?          @map("create_request_hash")
+  category           String?                   @db.VarChar(50)
+  categoryDefinition ThreadCategoryDefinition? @relation(fields: [category], references: [slug], onDelete: Restrict, onUpdate: Cascade)
+  status             ThreadStatus              @default(RECRUITING)
+  visibility         ThreadVisibility          @default(PUBLIC) @map("visibility")
+  published          Boolean                   @default(false) @map("published")
+  publishedAt        DateTime?                 @map("published_at")
+  clientRequestId    String?                   @map("client_request_id") @db.Uuid
+  createRequestHash  String?                   @map("create_request_hash")
 
   pinned   Boolean   @default(false)
   pinnedAt DateTime?
@@ -279,9 +375,12 @@ model Thread {
   defaultSubthreadId String?    @unique @map("default_subthread_id")
   defaultSubthread   Subthread? @relation("DefaultSubthread", fields: [defaultSubthreadId], references: [id], onDelete: SetNull)
 
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-  deletedAt DateTime? @map("deleted_at")
+  createdAt     DateTime              @default(now()) @map("created_at")
+  updatedAt     DateTime              @updatedAt @map("updated_at")
+  deletedAt     DateTime?             @map("deleted_at")
+  removalSource ContentRemovalSource? @map("removal_source")
+  removedById   String?               @map("removed_by_id")
+  removalReason String?               @map("removal_reason")
 
   members         ThreadMember[]
   subthreads      Subthread[]         @relation("ThreadSubthreads")
@@ -354,13 +453,18 @@ model Subthread {
 }
 
 model TopicTag {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  color     String?
-  createdAt DateTime @default(now()) @map("created_at")
+  id          String   @id @default(cuid())
+  name        String   @unique
+  color       String?  @db.VarChar(7)
+  description String?  @db.VarChar(200)
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   threads ThreadTopicTag[]
 
+  @@index([isActive, sortOrder, name])
   @@map("topic_tags")
 }
 
@@ -418,6 +522,121 @@ model UserBookmark {
   @@map("user_bookmarks")
 }
 
+model Moment {
+  id                String                @id @default(cuid())
+  authorId          String                @map("author_id")
+  title             String                @db.VarChar(40)
+  content           String                @default("") @db.VarChar(1000)
+  textCoverTheme    MomentTextCoverTheme  @default(ROSE) @map("text_cover_theme")
+  coverMediaId      String?               @map("cover_media_id")
+  clientRequestId   String                @map("client_request_id") @db.Uuid
+  createRequestHash String                @map("create_request_hash")
+  likeCount         Int                   @default(0) @map("like_count")
+  commentCount      Int                   @default(0) @map("comment_count")
+  bookmarkCount     Int                   @default(0) @map("bookmark_count")
+  tipTotal          BigInt                @default(0) @map("tip_total")
+  version           Int                   @default(1) @map("lock_version")
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+  deletedAt         DateTime?             @map("deleted_at")
+  removalSource     ContentRemovalSource? @map("removal_source")
+  removedById       String?               @map("removed_by_id")
+  removalReason     String?               @map("removal_reason")
+
+  author          User                @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  coverMedia      Media?              @relation("MomentCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
+  images          MomentImage[]
+  likes           MomentLike[]
+  bookmarks       MomentBookmark[]
+  comments        MomentComment[]
+  notifications   Notification[]
+  tipTransactions WalletTransaction[]
+
+  @@unique([authorId, clientRequestId])
+  @@index([deletedAt, createdAt(sort: Desc), id(sort: Desc)], map: "moments_public_created_idx")
+  @@index([authorId, deletedAt, createdAt(sort: Desc), id(sort: Desc)], map: "moments_author_created_idx")
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "moments_title_trgm_idx")
+  @@index([content(ops: raw("gin_trgm_ops"))], type: Gin, map: "moments_content_trgm_idx")
+  @@map("moments")
+}
+
+model MomentImage {
+  id        String @id @default(cuid())
+  momentId  String @map("moment_id")
+  mediaId   String @unique @map("media_id")
+  sortOrder Int    @map("sort_order")
+
+  moment Moment @relation(fields: [momentId], references: [id], onDelete: Cascade)
+  media  Media  @relation(fields: [mediaId], references: [id], onDelete: Restrict)
+
+  @@unique([momentId, sortOrder])
+  @@index([momentId])
+  @@map("moment_images")
+}
+
+model MomentLike {
+  id        String   @id @default(cuid())
+  momentId  String   @map("moment_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  moment Moment @relation(fields: [momentId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([momentId, userId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("moment_likes")
+}
+
+model MomentBookmark {
+  id        String   @id @default(cuid())
+  momentId  String   @map("moment_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  moment Moment @relation(fields: [momentId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([momentId, userId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("moment_bookmarks")
+}
+
+model MomentComment {
+  id                String                @id @default(cuid())
+  momentId          String                @map("moment_id")
+  authorId          String                @map("author_id")
+  parentCommentId   String?               @map("parent_comment_id")
+  replyToCommentId  String?               @map("reply_to_comment_id")
+  clientRequestId   String                @map("client_request_id") @db.Uuid
+  createRequestHash String                @map("create_request_hash")
+  content           String                @db.VarChar(500)
+  mediaId           String?               @unique @map("media_id")
+  stickerAssetId    String?               @map("sticker_asset_id")
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+  deletedAt         DateTime?             @map("deleted_at")
+  removalSource     ContentRemovalSource? @map("removal_source")
+  removedById       String?               @map("removed_by_id")
+  removalReason     String?               @map("removal_reason")
+
+  moment         Moment          @relation(fields: [momentId], references: [id], onDelete: Cascade)
+  author         User            @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  parentComment  MomentComment?  @relation("MomentCommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies        MomentComment[] @relation("MomentCommentReplies")
+  replyToComment MomentComment?  @relation("MomentCommentReplyTarget", fields: [replyToCommentId], references: [id], onDelete: SetNull)
+  repliedBy      MomentComment[] @relation("MomentCommentReplyTarget")
+  media          Media?          @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+  sticker        StickerAsset?   @relation(fields: [stickerAssetId], references: [id], onDelete: SetNull)
+  notifications  Notification[]
+
+  @@unique([authorId, clientRequestId])
+  @@index([momentId, parentCommentId, deletedAt, createdAt(sort: Desc), id(sort: Desc)], map: "moment_comments_roots_idx")
+  @@index([parentCommentId, createdAt, id], map: "moment_comments_replies_idx")
+  @@index([stickerAssetId])
+  @@map("moment_comments")
+}
+
 model Media {
   id          String      @id @default(cuid())
   userId      String      @map("user_id")
@@ -433,6 +652,9 @@ model Media {
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   directMessage  DirectMessage?
   stickerImports StickerImport[]
+  momentImages   MomentImage[]
+  momentCovers   Moment[]        @relation("MomentCover")
+  momentComment  MomentComment?
 
   @@index([status, createdAt])
   @@map("media")
@@ -457,6 +679,7 @@ model StickerAsset {
   favorites      UserSticker[]
   imports        StickerImport[]
   directMessages DirectMessage[]
+  momentComments MomentComment[]
 
   @@index([createdAt])
   @@map("sticker_assets")
@@ -578,20 +801,23 @@ model DirectMessage {
 }
 
 model Post {
-  id              String    @id @default(cuid())
-  threadId        String    @map("thread_id")
-  subthreadId     String    @map("subthread_id")
-  authorId        String    @map("author_id")
-  kind            PostKind  @default(FLOOR) @map("kind")
-  floorNumber     Int?      @map("floor_number")
-  parentPostId    String?   @map("parent_post_id")
-  replyToPostId   String?   @map("reply_to_post_id")
-  clientRequestId String?   @map("client_request_id") @db.Uuid
+  id              String                @id @default(cuid())
+  threadId        String                @map("thread_id")
+  subthreadId     String                @map("subthread_id")
+  authorId        String                @map("author_id")
+  kind            PostKind              @default(FLOOR) @map("kind")
+  floorNumber     Int?                  @map("floor_number")
+  parentPostId    String?               @map("parent_post_id")
+  replyToPostId   String?               @map("reply_to_post_id")
+  clientRequestId String?               @map("client_request_id") @db.Uuid
   content         String
-  version         Int       @default(1) @map("lock_version")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
-  deletedAt       DateTime? @map("deleted_at")
+  version         Int                   @default(1) @map("lock_version")
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+  deletedAt       DateTime?             @map("deleted_at")
+  removalSource   ContentRemovalSource? @map("removal_source")
+  removedById     String?               @map("removed_by_id")
+  removalReason   String?               @map("removal_reason")
 
   thread        Thread         @relation(fields: [threadId], references: [id], onDelete: Cascade)
   subthread     Subthread      @relation(fields: [subthreadId], references: [id], onDelete: Cascade)
@@ -665,22 +891,26 @@ model Draft {
 }
 
 model Notification {
-  id         String           @id @default(cuid())
-  userId     String           @map("user_id")
-  type       NotificationType
-  content    String?
-  payload    Json?
-  postId     String?          @map("post_id")
-  threadId   String?          @map("thread_id")
-  fromUserId String?          @map("from_user_id")
-  eventKey   String           @default(dbgenerated("(gen_random_uuid())::text")) @map("event_key")
-  isRead     Boolean          @default(false) @map("is_read")
-  createdAt  DateTime         @default(now()) @map("created_at")
+  id              String           @id @default(cuid())
+  userId          String           @map("user_id")
+  type            NotificationType
+  content         String?
+  payload         Json?
+  postId          String?          @map("post_id")
+  threadId        String?          @map("thread_id")
+  momentId        String?          @map("moment_id")
+  momentCommentId String?          @map("moment_comment_id")
+  fromUserId      String?          @map("from_user_id")
+  eventKey        String           @default(dbgenerated("(gen_random_uuid())::text")) @map("event_key")
+  isRead          Boolean          @default(false) @map("is_read")
+  createdAt       DateTime         @default(now()) @map("created_at")
 
-  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  post     Post?   @relation(fields: [postId], references: [id], onDelete: SetNull)
-  thread   Thread? @relation(fields: [threadId], references: [id], onDelete: SetNull)
-  fromUser User?   @relation("NotificationFromUser", fields: [fromUserId], references: [id], onDelete: SetNull)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post          Post?          @relation(fields: [postId], references: [id], onDelete: SetNull)
+  thread        Thread?        @relation(fields: [threadId], references: [id], onDelete: SetNull)
+  moment        Moment?        @relation(fields: [momentId], references: [id], onDelete: SetNull)
+  momentComment MomentComment? @relation(fields: [momentCommentId], references: [id], onDelete: SetNull)
+  fromUser      User?          @relation("NotificationFromUser", fields: [fromUserId], references: [id], onDelete: SetNull)
 
   @@unique([userId, eventKey])
   @@index([userId, isRead, createdAt])
@@ -688,35 +918,78 @@ model Notification {
 }
 
 model Report {
-  id         String    @id @default(cuid())
-  reporterId String    @map("reporter_id")
-  targetType String    @map("target_type")
-  targetId   String    @map("target_id")
-  reason     String
-  status     String    @default("PENDING")
-  handledBy  String?   @map("handled_by")
-  handledAt  DateTime? @map("handled_at")
-  createdAt  DateTime  @default(now()) @map("created_at")
+  id             String           @id @default(cuid())
+  reporterId     String?          @map("reporter_id")
+  targetType     ReportTargetType @map("target_type")
+  targetId       String           @map("target_id")
+  reasonCode     ReportReasonCode @default(OTHER) @map("reason_code")
+  details        String?
+  targetSnapshot Json?            @map("target_snapshot")
+  status         ReportStatus     @default(PENDING)
+  handledBy      String?          @map("handled_by")
+  handledAt      DateTime?        @map("handled_at")
+  resolutionNote String?          @map("resolution_note")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
 
-  reporter User  @relation("Reporter", fields: [reporterId], references: [id], onDelete: SetNull)
-  handler  User? @relation("Handler", fields: [handledBy], references: [id], onDelete: SetNull)
+  reporter  User?          @relation("Reporter", fields: [reporterId], references: [id], onDelete: SetNull)
+  handler   User?          @relation("Handler", fields: [handledBy], references: [id], onDelete: SetNull)
+  audits    AuditLog[]
+  sanctions UserSanction[]
 
+  @@index([status, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([targetType, targetId, createdAt(sort: Desc)])
   @@map("reports")
 }
 
 model AuditLog {
-  id         String   @id @default(cuid())
-  adminId    String   @map("admin_id")
-  action     String
-  targetType String   @map("target_type")
-  targetId   String?  @map("target_id")
+  id         String          @id @default(cuid())
+  actorId    String?         @map("actor_id")
+  action     AuditAction
+  targetType AuditTargetType @map("target_type")
+  targetId   String?         @map("target_id")
+  reportId   String?         @map("report_id")
+  reason     String?
   detail     String?
+  metadata   Json?
   ip         String?
-  createdAt  DateTime @default(now()) @map("created_at")
+  requestId  String?         @map("request_id")
+  createdAt  DateTime        @default(now()) @map("created_at")
 
-  admin User @relation("AuditAdmin", fields: [adminId], references: [id], onDelete: SetNull)
+  actor  User?   @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  report Report? @relation(fields: [reportId], references: [id], onDelete: SetNull)
 
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
+  @@index([actorId, createdAt(sort: Desc)])
+  @@index([targetType, targetId, createdAt(sort: Desc)])
+  @@index([action, createdAt(sort: Desc)])
+  @@index([reportId, createdAt(sort: Desc)])
   @@map("audit_logs")
+}
+
+model UserSanction {
+  id           String           @id @default(cuid())
+  userId       String           @map("user_id")
+  type         UserSanctionType
+  reason       String
+  reportId     String?          @map("report_id")
+  createdById  String           @map("created_by_id")
+  startsAt     DateTime         @default(now()) @map("starts_at")
+  endsAt       DateTime?        @map("ends_at")
+  revokedAt    DateTime?        @map("revoked_at")
+  revokedById  String?          @map("revoked_by_id")
+  revokeReason String?          @map("revoke_reason")
+  createdAt    DateTime         @default(now()) @map("created_at")
+
+  user      User    @relation("SanctionedUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy User    @relation("SanctionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  revokedBy User?   @relation("SanctionRevoker", fields: [revokedById], references: [id], onDelete: SetNull)
+  report    Report? @relation(fields: [reportId], references: [id], onDelete: SetNull)
+
+  @@index([userId, revokedAt, endsAt])
+  @@index([createdById, createdAt(sort: Desc)])
+  @@index([reportId])
+  @@map("user_sanctions")
 }
 
 model UserFollow {
@@ -781,6 +1054,7 @@ model WalletTransaction {
   targetType             TipTargetType?        @map("target_type")
   targetThreadId         String?               @map("target_thread_id")
   targetUserId           String?               @map("target_user_id")
+  targetMomentId         String?               @map("target_moment_id")
   grossAmount            BigInt                @map("gross_amount")
   recipientAmount        BigInt                @map("recipient_amount")
   platformAmount         BigInt                @default(0) @map("platform_amount")
@@ -788,6 +1062,7 @@ model WalletTransaction {
   recipientBalanceAfter  BigInt                @map("recipient_balance_after")
   platformBalanceAfter   BigInt?               @map("platform_balance_after")
   threadTipTotalAfter    BigInt?               @map("thread_tip_total_after")
+  momentTipTotalAfter    BigInt?               @map("moment_tip_total_after")
   recipientTipTotalAfter BigInt                @default(0) @map("recipient_tip_total_after")
   recipientTipCountAfter Int                   @default(0) @map("recipient_tip_count_after")
   clientRequestId        String?               @map("client_request_id") @db.Uuid
@@ -800,12 +1075,14 @@ model WalletTransaction {
   platformWallet  Wallet?       @relation("WalletTransactionPlatform", fields: [platformWalletId], references: [id], onDelete: Restrict)
   targetThread    Thread?       @relation(fields: [targetThreadId], references: [id], onDelete: SetNull)
   targetUser      User?         @relation("TipTargetUser", fields: [targetUserId], references: [id], onDelete: SetNull)
+  targetMoment    Moment?       @relation(fields: [targetMomentId], references: [id], onDelete: SetNull)
   dailyCheckIn    DailyCheckIn?
 
   @@unique([senderWalletId, clientRequestId])
   @@index([senderWalletId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([recipientWalletId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([targetThreadId, createdAt])
+  @@index([targetMomentId, createdAt])
   @@map("wallet_transactions")
 }
 
@@ -863,4 +1140,17 @@ model ExperienceDailyStat {
 
   @@id([userId, dateKey])
   @@map("experience_daily_stats")
+}
+
+/// 管理看板的低基数活跃事实：北京时间内每个普通用户每天最多一行，不记录访问路径或 IP。
+model UserDailyActivity {
+  userId      String   @map("user_id")
+  dateKey     String   @map("date_key") @db.VarChar(10)
+  firstSeenAt DateTime @default(now()) @map("first_seen_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, dateKey])
+  @@index([dateKey, userId])
+  @@map("user_daily_activities")
 }
