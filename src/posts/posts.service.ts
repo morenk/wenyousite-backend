@@ -9,20 +9,17 @@ import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound, forbidden } from '../common/exceptions/business.exception';
-import {
-  notDeleted,
-  authorSelect,
-  includeDiceRolls,
-} from '../common/prisma-helpers';
+import { notDeleted, authorSelect, includeDiceRolls } from '../common/prisma-helpers';
 import { truncateMarkdown } from '../common/markdown-truncate';
 import { hasVisibleMarkdownContent, normalizeMarkdownContent } from '../common/markdown-content';
 import { DiceService } from '../dice/dice.service';
 import { PostingPolicyService } from './posting-policy.service';
 import { PostQueryService } from './post-query.service';
-import { Prisma } from '@prisma/client';
+import { ContentRemovalSource, Prisma } from '@prisma/client';
 import { OutboxService } from '../outbox/outbox.service';
 import { reconcilePublishedDice } from '../dice/reconcile-published-dice';
 import { StickerContentService } from '../stickers/sticker-content.service';
+import { ReplyOrder } from '../common/dto/reply-query.dto';
 
 /** 楼层服务：发帖（事务楼层编号 + FOR UPDATE）、楼中楼、编辑、软删除 */
 @Injectable()
@@ -45,15 +42,25 @@ export class PostsService {
     return this.queries.findAllBySubthread(subthreadId, cursor, limit, userId);
   }
 
-  async findReplies(postId: string, cursor?: string, limit = 20, userId?: string) {
-    return this.queries.findReplies(postId, cursor, limit, userId);
+  async findReplies(
+    postId: string,
+    cursor?: string,
+    limit = 20,
+    userId?: string,
+    order = ReplyOrder.OLDEST,
+    authorId?: string,
+  ) {
+    return this.queries.findReplies(postId, cursor, limit, userId, order, authorId);
   }
 
   /** 发帖：楼层或楼中楼回复。先校验访问权限与发帖策略，通过后才自动加入为参与人 */
   async create(subthreadId: string, dto: CreatePostDto, userId: string) {
     const parsedContent = this.diceService.parseContent(normalizeMarkdownContent(dto.content));
     const content = parsedContent.content;
-    if (!hasVisibleMarkdownContent(parsedContent.contentWithoutDice) && parsedContent.nodes.length === 0) {
+    if (
+      !hasVisibleMarkdownContent(parsedContent.contentWithoutDice) &&
+      parsedContent.nodes.length === 0
+    ) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '正文和骰子不能同时为空');
     }
     const subthread = await this.prisma.subthread.findUnique({
@@ -582,7 +589,14 @@ export class PostsService {
 
     const result = await this.prisma.post.update({
       where: { id, ...notDeleted },
-      data: { deletedAt: new Date() },
+      data: {
+        deletedAt: new Date(),
+        removalSource:
+          postLight.authorId === userId
+            ? ContentRemovalSource.AUTHOR
+            : ContentRemovalSource.THREAD_MANAGER,
+        removedById: userId,
+      },
     });
 
     // 缓存失效 + 有序集合更新
@@ -598,5 +612,4 @@ export class PostsService {
   async findById(id: string, userId?: string) {
     return this.queries.findById(id, userId);
   }
-
 }

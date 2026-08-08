@@ -26,6 +26,7 @@ import {
 } from './dto/post-response.dto';
 import { MessageResponseDto } from '../common/dto/message-response.dto';
 import { ApiCursorPaginatedResponse } from '../common/swagger/api-cursor-paginated-response.decorator';
+import { ReplyOrder, ReplyQueryDto } from '../common/dto/reply-query.dto';
 
 /** 楼层控制器：发帖、楼中楼、编辑、删除 */
 @ApiTags('Posts')
@@ -53,7 +54,7 @@ export class PostsController {
 
   @Get('posts/:id/replies')
   @OptionalAuth()
-  @ApiOperation({ summary: '获取楼中楼回复列表（cursor 分页，无限下拉）' })
+  @ApiOperation({ summary: '获取楼中楼回复列表（支持顺序与玩家/楼主/协作者筛选）' })
   @ApiQuery({ name: 'cursor', required: false, description: '分页游标（上一页最后一条记录 ID）' })
   @ApiQuery({ name: 'limit', required: false, description: '每页条数（默认 20，最大 50）' })
   @ApiCursorPaginatedResponse(
@@ -62,11 +63,18 @@ export class PostsController {
   )
   async findReplies(
     @Param('id') id: string,
-    @Query() query: PostQueryDto,
+    @Query() query: ReplyQueryDto,
     @Req() req: FastifyRequest,
   ) {
     const user = req.user as { id: string } | undefined;
-    return this.postsService.findReplies(id, query.cursor, query.limit, user?.id);
+    return this.postsService.findReplies(
+      id,
+      query.cursor,
+      query.limit,
+      user?.id,
+      query.order ?? ReplyOrder.OLDEST,
+      query.authorId,
+    );
   }
 
   @Put('subthreads/:subthreadId/body')

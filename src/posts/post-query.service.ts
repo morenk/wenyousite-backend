@@ -11,6 +11,7 @@ import {
   countNonDeletedReplies,
   includeDiceRolls,
 } from '../common/prisma-helpers';
+import { ReplyOrder } from '../common/dto/reply-query.dto';
 
 /** 帖子读模型：楼层、楼中楼和导航上下文查询。 */
 @Injectable()
@@ -103,7 +104,14 @@ export class PostQueryService {
   }
 
   /** 获取主楼层的楼中楼回复列表（cursor 分页）。已软删子贴或非主楼层返回 404 */
-  async findReplies(postId: string, cursor?: string, limit = 20, userId?: string) {
+  async findReplies(
+    postId: string,
+    cursor?: string,
+    limit = 20,
+    userId?: string,
+    order = ReplyOrder.OLDEST,
+    authorId?: string,
+  ) {
     const post = await this.prisma.post.findUnique({
       where: { id: postId, deletedAt: null },
       select: {
@@ -111,6 +119,7 @@ export class PostQueryService {
         threadId: true,
         kind: true,
         parentPostId: true,
+        thread: { select: { ownerId: true } },
         subthread: { select: { deletedAt: true } },
       },
     });
@@ -121,10 +130,22 @@ export class PostQueryService {
     }
     await this.threadAccess.assertAccessible(post.threadId, userId);
 
+    // “只看某人”仅面向当前仍是玩家、楼主或协作者的成员。
+    if (authorId && authorId !== post.thread.ownerId) {
+      const member = await this.prisma.threadMember.findUnique({
+        where: { threadId_userId: { threadId: post.threadId, userId: authorId } },
+        select: { role: true, playerMarked: true },
+      });
+      const eligible =
+        member?.playerMarked || member?.role === 'OWNER' || member?.role === 'COLLABORATOR';
+      if (!eligible) return paginate([], { cursor: null, hasMore: false });
+    }
+
     const take = Math.min(limit, 50);
+    const direction = order === ReplyOrder.NEWEST ? 'desc' : 'asc';
     const replies = await this.prisma.post.findMany({
-      where: { parentPostId: postId, ...notDeleted },
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      where: { parentPostId: postId, ...notDeleted, ...(authorId ? { authorId } : {}) },
+      orderBy: [{ createdAt: direction }, { id: direction }],
       take: take + 1,
       cursor: cursor ? { id: cursor } : undefined,
       skip: cursor ? 1 : 0,

@@ -17,7 +17,7 @@
 | Method | Path | Guard | 描述 |
 |--------|------|-------|------|
 | GET | `/subthreads/:subthreadId/posts` | Public | 楼层列表（Cursor 分页，仅返回楼层 kind=FLOOR，不含正文；主楼层 parentPostId=null，内嵌每个楼层前 5 条楼中楼回复） |
-| GET | `/posts/:id/replies` | Public | 主楼层的楼中楼回复列表（Cursor 分页，无限下拉；仅接受 parentPostId=null 的 FLOOR） |
+| GET | `/posts/:id/replies` | Public | 主楼层的楼中楼回复列表（Cursor 分页；支持 `order=OLDEST|NEWEST` 与 `authorId`；仅接受 parentPostId=null 的 FLOOR） |
 | POST | `/subthreads/:subthreadId/posts` | Auth | 发帖（创建楼层 kind=FLOOR，含楼中楼回复；正文不通过本接口创建） |
 | PUT | `/subthreads/:subthreadId/body` | Auth | upsert 子贴正文（kind=BODY：无正文创建，有正文乐观锁更新，version 不匹配返回 409；仅 OWNER/COLLABORATOR） |
 | GET | `/posts/:id` | Public | 帖子详情（含导航上下文：帖/子贴/父楼） |
@@ -69,6 +69,7 @@
 - [x] 数据库唯一约束兜底并发双请求
 - [x] 全量测试、迁移、生产构建、提交、重启与健康检查通过
 - 楼层列表按 floorNumber ASC 排序（主楼层），楼中楼按 createdAt ASC、id ASC 稳定排序；`parentPostId + createdAt` 复合索引支撑上百条回复的分页读取
+- 独立楼中楼可切换 `OLDEST` / `NEWEST` 稳定顺序；`authorId` 只允许筛选当前仍为帖内玩家、楼主或协作者的用户，角色不再符合时返回空页。排序与作者均属于游标查询条件，客户端切换后必须从第一页重新读取。
 - 独立楼中楼阅读页复用 `GET /posts/:id` 获取原楼层及主题帖/子贴导航上下文，再用 `GET /posts/:id/replies` 分页读取回复；replies 接口拒绝以正文或楼中楼回复作为讨论根
 - 楼层列表响应中每个楼层内嵌 `replies` 字段（前 5 条楼中楼回复），含 `author` 和 `replyToPost`；`replyToPost` 关联被回复的目标帖并带出其 `author`（前端据此显示「回复 @xxx」上下文）；`_count.replies` 提供回复总数，超过 5 条时前端显示"查看全部 N 条回复"入口跳转至独立楼中楼界面
 - 内嵌回复使用窗口函数一次选出每个楼层前 5 条 ID，再一次批量加载作者、骰子和回复目标；一页楼层的回复查询固定为 2 次，不随有回复的楼层数增长

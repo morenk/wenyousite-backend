@@ -15,6 +15,7 @@ import { PostingPolicyService } from './posting-policy.service';
 import { PostQueryService } from './post-query.service';
 import { OutboxService } from '../outbox/outbox.service';
 import { StickerContentService } from '../stickers/sticker-content.service';
+import { ReplyOrder } from '../common/dto/reply-query.dto';
 
 const mockPrisma = {
   $transaction: jest.fn(),
@@ -136,15 +137,13 @@ describe('PostsService', () => {
         threadMember: { upsert: jest.fn() },
         post: {
           aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 5 } }),
-          create: jest
-            .fn()
-            .mockResolvedValue({
-              id: 'p1',
-              kind: 'FLOOR',
-              floorNumber: 6,
-              content: 'test',
-              author: { username: 'test' },
-            }),
+          create: jest.fn().mockResolvedValue({
+            id: 'p1',
+            kind: 'FLOOR',
+            floorNumber: 6,
+            content: 'test',
+            author: { username: 'test' },
+          }),
         },
         subthread: { update: jest.fn() },
       };
@@ -429,16 +428,14 @@ describe('PostsService', () => {
         threadMember: { upsert: jest.fn() },
         post: {
           aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 5 } }),
-          create: jest
-            .fn()
-            .mockResolvedValue({
-              id: 'p2',
-              kind: 'FLOOR',
-              floorNumber: null,
-              parentPostId: 'p1',
-              content: 'reply',
-              author: { username: 'test' },
-            }),
+          create: jest.fn().mockResolvedValue({
+            id: 'p2',
+            kind: 'FLOOR',
+            floorNumber: null,
+            parentPostId: 'p1',
+            content: 'reply',
+            author: { username: 'test' },
+          }),
         },
         subthread: { update: jest.fn() },
       };
@@ -713,10 +710,7 @@ describe('PostsService', () => {
 
     expect(mockPrisma.diceRoll.deleteMany).not.toHaveBeenCalled();
     expect(mockPrisma.diceRoll.createMany).not.toHaveBeenCalled();
-    expect(mockEventEmitter.emit).not.toHaveBeenCalledWith(
-      'post.updated',
-      expect.anything(),
-    );
+    expect(mockEventEmitter.emit).not.toHaveBeenCalledWith('post.updated', expect.anything());
   });
 
   it('update 应将规范化正文用于存库和提及同步', async () => {
@@ -774,7 +768,9 @@ describe('PostsService', () => {
     mockPrisma.post.update.mockResolvedValue({ id: 'p1', deletedAt: new Date() });
     await service.remove('p1', 'u1');
     expect(mockPrisma.post.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { deletedAt: expect.any(Date) } }),
+      expect.objectContaining({
+        data: expect.objectContaining({ deletedAt: expect.any(Date) }),
+      }),
     );
   });
 
@@ -917,6 +913,71 @@ describe('PostsService', () => {
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       }),
     );
+  });
+
+  it('findReplies 支持倒序并只看当前玩家的回复', async () => {
+    mockPrisma.post.findUnique.mockResolvedValue({
+      id: 'p1',
+      threadId: 't1',
+      kind: 'FLOOR',
+      parentPostId: null,
+      thread: { ownerId: 'owner' },
+      subthread: { deletedAt: null },
+    });
+    mockPrisma.threadMember.findUnique.mockResolvedValue({
+      role: 'PARTICIPANT',
+      playerMarked: true,
+    });
+    mockPrisma.post.findMany.mockResolvedValue([
+      { id: 'p3', authorId: 'player', author: {}, replyToPost: null },
+    ]);
+
+    const result = await service.findReplies(
+      'p1',
+      undefined,
+      20,
+      undefined,
+      ReplyOrder.NEWEST,
+      'player',
+    );
+
+    expect(result.items[0].id).toBe('p3');
+    expect(mockPrisma.post.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ parentPostId: 'p1', authorId: 'player' }),
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      }),
+    );
+  });
+
+  it('findReplies 不向作者筛选开放普通候选参与人', async () => {
+    mockPrisma.post.findUnique.mockResolvedValue({
+      id: 'p1',
+      threadId: 't1',
+      kind: 'FLOOR',
+      parentPostId: null,
+      thread: { ownerId: 'owner' },
+      subthread: { deletedAt: null },
+    });
+    mockPrisma.threadMember.findUnique.mockResolvedValue({
+      role: 'PARTICIPANT',
+      playerMarked: false,
+    });
+
+    const result = await service.findReplies(
+      'p1',
+      undefined,
+      20,
+      undefined,
+      undefined,
+      'candidate',
+    );
+
+    expect(result).toMatchObject({
+      items: [],
+      pagination: { cursor: null, hasMore: false },
+    });
+    expect(mockPrisma.post.findMany).not.toHaveBeenCalled();
   });
 
   it('findReplies 拒绝以楼中楼回复作为讨论根', async () => {
