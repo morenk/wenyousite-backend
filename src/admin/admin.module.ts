@@ -7,6 +7,8 @@ import { AuditService } from './audit.service';
 import { ModerationService } from './moderation.service';
 import { AdminModerationController } from './admin-moderation.controller';
 import { AdminModerationQueryService } from './admin-moderation-query.service';
+import { AdminDashboardController } from './admin-dashboard.controller';
+import { AdminDashboardService } from './admin-dashboard.service';
 
 /** 管理后台模块：系统通知发送、预览、历史、用户搜索 */
 @Module({
@@ -14,6 +16,7 @@ import { AdminModerationQueryService } from './admin-moderation-query.service';
   controllers: [
     AdminController,
     AdminModerationController,
+    AdminDashboardController,
   ],
   providers: [
     AdminService,
@@ -21,6 +24,7 @@ import { AdminModerationQueryService } from './admin-moderation-query.service';
     AuditService,
     ModerationService,
     AdminModerationQueryService,
+    AdminDashboardService,
   ],
   exports: [AdminPolicyService, AuditService, ModerationService],
 })

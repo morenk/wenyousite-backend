@@ -40,6 +40,7 @@ import { validate } from './config/env.validation';
 import { requestIdFromHeader } from './common/http/request-id';
 import { ProgressionModule } from './progression/progression.module';
 import { EconomyModule } from './economy/economy.module';
+import { ActivityModule } from './activity/activity.module';
 
 /** 构建 Pino 传输配置：开发环境 colorized 控制台，生产环境支持可选文件日志 */
 function buildPinoTransport(logLevel: string, nodeEnv: string, logFileDir?: string) {
@@ -156,6 +157,7 @@ function buildPinoTransport(logLevel: string, nodeEnv: string, logFileDir?: stri
     MobilePushModule,
     ProgressionModule,
     EconomyModule,
+    ActivityModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

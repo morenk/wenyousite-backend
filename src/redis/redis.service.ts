@@ -132,9 +132,7 @@ export class RedisService implements OnModuleDestroy {
     const keys: string[] = [];
     let cursor = '0';
     do {
-      const [nextCursor, found] = await this.redis.scan(
-        cursor, 'MATCH', pattern, 'COUNT', limit,
-      );
+      const [nextCursor, found] = await this.redis.scan(cursor, 'MATCH', pattern, 'COUNT', limit);
       cursor = nextCursor;
       keys.push(...found);
     } while (cursor !== '0');
@@ -151,6 +149,12 @@ export class RedisService implements OnModuleDestroy {
   /** 设置键值（带过期，秒） */
   async setex(key: string, seconds: number, value: string) {
     return this.redis.setex(key, seconds, value);
+  }
+
+  /** 仅在键不存在时写入并设置过期，用于跨实例低成本去重。 */
+  async setIfAbsent(key: string, seconds: number, value: string): Promise<boolean> {
+    const result = await this.redis.set(key, value, 'EX', seconds, 'NX');
+    return result === 'OK';
   }
 
   /** 获取键值 */
