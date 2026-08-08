@@ -354,10 +354,21 @@ function cleanupTestData() {
       '-c',
       `DO $cleanup$
        DECLARE test_user_id text;
+       DECLARE test_wallet_id text;
        BEGIN
          SELECT id INTO test_user_id FROM users WHERE email='${safeEmail}';
          IF test_user_id IS NOT NULL THEN
+           SELECT id INTO test_wallet_id FROM wallets WHERE user_id=test_user_id;
            DELETE FROM threads WHERE owner_id=test_user_id;
+           IF test_wallet_id IS NOT NULL THEN
+             DELETE FROM daily_check_ins
+               WHERE user_id=test_user_id OR wallet_id=test_wallet_id;
+             DELETE FROM wallet_transactions
+               WHERE sender_wallet_id=test_wallet_id
+                  OR recipient_wallet_id=test_wallet_id
+                  OR target_user_id=test_user_id;
+             DELETE FROM wallets WHERE id=test_wallet_id;
+           END IF;
            DELETE FROM users WHERE id=test_user_id;
          END IF;
          DELETE FROM email_verifications WHERE email='${safeEmail}';
@@ -384,7 +395,7 @@ test(s1, 'GET /health 返回 ok', async () => {
 test(s1, 'GET /meta 客户端协议元数据', async () => {
   const r = await api.get('/meta');
   assert(r.code === 0, 'meta 应成功');
-  assert(/^3\.0\./.test(r.data.contractVersion), '契约应为 3.0.x');
+  assert(/^3\.1\./.test(r.data.contractVersion), '契约应为 3.1.x');
   assert(r.data.markdownContractVersion === 2, 'Markdown 协议应为 v2');
 });
 
