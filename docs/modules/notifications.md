@@ -12,7 +12,7 @@
 
 | 枚举               | 值                                                             |
 | ------------------ | -------------------------------------------------------------- |
-| `NotificationType` | reply, mention, new_post, thread_created, follow, like, system |
+| `NotificationType` | reply, mention, new_post, thread_created, follow, like, tip, level_up, system |
 
 ## API 端点
 

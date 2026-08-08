@@ -50,6 +50,9 @@ export class PostAuthorResponseDto {
 
   @ApiProperty({ type: String, nullable: true })
   avatar!: string | null;
+
+  @ApiProperty({ minimum: 1, maximum: 9 })
+  level!: number;
 }
 
 /** 帖子公共字段 */

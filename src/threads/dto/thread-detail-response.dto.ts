@@ -157,6 +157,9 @@ export class ThreadDetailResponseDto {
   @ApiProperty()
   likeCount!: number;
 
+  @ApiProperty({ type: String, pattern: '^\\d+$', description: '用户投入的累计打赏升数' })
+  tipTotal!: string;
+
   @ApiProperty({ type: String, nullable: true })
   defaultSubthreadId!: string | null;
 

@@ -5,7 +5,7 @@ import { applyErrorResponseEnvelope } from './error-response-envelope';
 import { applyResponseHeaders } from './response-headers';
 
 /** 破坏性 API 变更时递增；Web 与 Flutter 生成客户端均记录该版本。 */
-export const API_CONTRACT_VERSION = '3.0.0-dev.20260807.2';
+export const API_CONTRACT_VERSION = '3.1.0-dev.20260807.1';
 
 type AuthMode = 'public' | 'optional' | 'authenticated' | 'verified' | 'admin';
 
@@ -19,7 +19,8 @@ function applyAuthSemantics(document: ReturnType<typeof SwaggerModule.createDocu
     for (const method of methods) {
       const operation = path[method];
       if (!operation) continue;
-      const mode = (operation as typeof operation & Record<string, unknown>)['x-auth-mode'] as AuthMode | undefined;
+      const mode = (operation as typeof operation & Record<string, unknown>)['x-auth-mode'] as
+        AuthMode | undefined;
       if (mode === 'public') operation.security = [];
       if (mode === 'optional') operation.security = [{ bearer: [] }, {}];
       if (mode === 'authenticated' || mode === 'verified' || mode === 'admin') {

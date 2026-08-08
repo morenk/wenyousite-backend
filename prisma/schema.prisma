@@ -56,7 +56,32 @@ enum NotificationType {
   thread_created
   follow
   like
+  tip
+  level_up
   system
+}
+
+enum WalletKind {
+  USER
+  PLATFORM
+}
+
+enum WalletTransactionType {
+  DAILY_CHECK_IN
+  TIP
+}
+
+enum TipTargetType {
+  THREAD
+  USER
+}
+
+enum ExperienceEventType {
+  DAILY_CHECK_IN
+  THREAD_PUBLISHED
+  POST_CREATED
+  THREAD_LIKED
+  REVERSAL
 }
 
 enum MentionSource {
@@ -110,6 +135,8 @@ model User {
   failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
   lockedUntil         DateTime? @map("locked_until")
   lastUsernameChange  DateTime? @map("last_username_change")
+  experience          Int       @default(0)
+  level               Int       @default(1)
   createdAt           DateTime  @default(now()) @map("created_at")
   updatedAt           DateTime  @updatedAt @map("updated_at")
 
@@ -145,7 +172,12 @@ model User {
   stickerCollection             StickerCollection?
   stickers                      UserSticker[]
   stickerImports                StickerImport[]
-  mobileDevices                MobileDevice[]
+  mobileDevices                 MobileDevice[]
+  wallet                        Wallet?
+  dailyCheckIns                 DailyCheckIn[]
+  experienceEvents              ExperienceEvent[]
+  experienceDailyStats          ExperienceDailyStat[]
+  targetedTipTransactions       WalletTransaction[]             @relation("TipTargetUser")
 
   @@index([username(ops: raw("gin_trgm_ops"))], type: Gin, map: "users_username_trgm_idx")
   @@map("users")
@@ -190,17 +222,17 @@ model RefreshToken {
 }
 
 model MobileDevice {
-  id          String         @id @default(cuid())
-  userId      String         @map("user_id")
-  sessionId   String         @map("session_id")
-  pushToken   String         @unique @map("push_token")
-  platform    MobilePlatform
-  appVersion  String?        @map("app_version")
-  locale      String?
-  enabled     Boolean        @default(true)
-  lastSeenAt  DateTime       @default(now()) @map("last_seen_at")
-  createdAt   DateTime       @default(now()) @map("created_at")
-  updatedAt   DateTime       @updatedAt @map("updated_at")
+  id         String         @id @default(cuid())
+  userId     String         @map("user_id")
+  sessionId  String         @map("session_id")
+  pushToken  String         @unique @map("push_token")
+  platform   MobilePlatform
+  appVersion String?        @map("app_version")
+  locale     String?
+  enabled    Boolean        @default(true)
+  lastSeenAt DateTime       @default(now()) @map("last_seen_at")
+  createdAt  DateTime       @default(now()) @map("created_at")
+  updatedAt  DateTime       @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -228,20 +260,21 @@ model Thread {
   ownerId String  @map("owner_id")
   owner   User    @relation("ThreadOwner", fields: [ownerId], references: [id])
 
-  category    ThreadCategory   @default(DEDUCTION)
-  status      ThreadStatus     @default(RECRUITING)
-  visibility  ThreadVisibility @default(PUBLIC) @map("visibility")
-  published   Boolean          @default(false) @map("published")
-  publishedAt DateTime?        @map("published_at")
-  clientRequestId  String?     @map("client_request_id") @db.Uuid
-  createRequestHash String?    @map("create_request_hash")
+  category          ThreadCategory   @default(DEDUCTION)
+  status            ThreadStatus     @default(RECRUITING)
+  visibility        ThreadVisibility @default(PUBLIC) @map("visibility")
+  published         Boolean          @default(false) @map("published")
+  publishedAt       DateTime?        @map("published_at")
+  clientRequestId   String?          @map("client_request_id") @db.Uuid
+  createRequestHash String?          @map("create_request_hash")
 
   pinned   Boolean   @default(false)
   pinnedAt DateTime?
 
-  viewCount Int @default(0) @map("view_count")
-  version   Int @default(1) @map("lock_version")
-  likeCount Int @default(0) @map("like_count")
+  viewCount Int    @default(0) @map("view_count")
+  version   Int    @default(1) @map("lock_version")
+  likeCount Int    @default(0) @map("like_count")
+  tipTotal  BigInt @default(0) @map("tip_total")
 
   defaultSubthreadId String?    @unique @map("default_subthread_id")
   defaultSubthread   Subthread? @relation("DefaultSubthread", fields: [defaultSubthreadId], references: [id], onDelete: SetNull)
@@ -250,20 +283,21 @@ model Thread {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  members       ThreadMember[]
-  subthreads    Subthread[]      @relation("ThreadSubthreads")
-  posts         Post[]
-  topicTags     ThreadTopicTag[]
-  subscriptions Subscription[]
-  notifications Notification[]
-  invites       ThreadInvite[]
-  bookmarks     UserBookmark[]
-  likes         ThreadLike[]
+  members         ThreadMember[]
+  subthreads      Subthread[]         @relation("ThreadSubthreads")
+  posts           Post[]
+  topicTags       ThreadTopicTag[]
+  subscriptions   Subscription[]
+  notifications   Notification[]
+  invites         ThreadInvite[]
+  bookmarks       UserBookmark[]
+  likes           ThreadLike[]
+  tipTransactions WalletTransaction[]
 
+  @@unique([ownerId, clientRequestId])
   @@index([published, visibility, deletedAt, pinned(sort: Desc), createdAt(sort: Desc)], map: "threads_public_created_idx")
   @@index([published, visibility, deletedAt, pinned(sort: Desc), updatedAt(sort: Desc)], map: "threads_public_active_idx")
   @@index([ownerId, published, deletedAt, createdAt(sort: Desc)], map: "threads_owner_created_idx")
-  @@unique([ownerId, clientRequestId])
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "threads_title_trgm_idx")
   @@map("threads")
 }
@@ -298,17 +332,17 @@ model ThreadMember {
 }
 
 model Subthread {
-  id            String        @id @default(cuid())
-  threadId      String        @map("thread_id")
-  title         String
-  sortOrder     Int           @default(0) @map("sort_order")
-  postingPolicy PostingPolicy @default(PARTICIPANTS) @map("posting_policy")
-  version       Int           @default(1) @map("lock_version")
-  lastPostAt    DateTime?     @map("last_post_at")
-  deletedAt     DateTime?     @map("deleted_at")
-  createdAt     DateTime      @default(now()) @map("created_at")
-  clientRequestId  String?    @map("client_request_id") @db.Uuid
-  createRequestHash String?   @map("create_request_hash")
+  id                String        @id @default(cuid())
+  threadId          String        @map("thread_id")
+  title             String
+  sortOrder         Int           @default(0) @map("sort_order")
+  postingPolicy     PostingPolicy @default(PARTICIPANTS) @map("posting_policy")
+  version           Int           @default(1) @map("lock_version")
+  lastPostAt        DateTime?     @map("last_post_at")
+  deletedAt         DateTime?     @map("deleted_at")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  clientRequestId   String?       @map("client_request_id") @db.Uuid
+  createRequestHash String?       @map("create_request_hash")
 
   thread           Thread  @relation("ThreadSubthreads", fields: [threadId], references: [id], onDelete: Cascade)
   defaultForThread Thread? @relation("DefaultSubthread")
@@ -716,4 +750,117 @@ model DomainOutbox {
 
   @@index([processedAt, availableAt, createdAt], map: "domain_outbox_pending_idx")
   @@map("domain_outbox")
+}
+
+model Wallet {
+  id               String     @id @default(cuid())
+  kind             WalletKind
+  userId           String?    @unique @map("user_id")
+  balance          BigInt     @default(0)
+  receivedTipTotal BigInt     @default(0) @map("received_tip_total")
+  receivedTipCount Int        @default(0) @map("received_tip_count")
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+
+  user                 User?               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  sentTransactions     WalletTransaction[] @relation("WalletTransactionSender")
+  receivedTransactions WalletTransaction[] @relation("WalletTransactionRecipient")
+  platformTransactions WalletTransaction[] @relation("WalletTransactionPlatform")
+  dailyCheckIns        DailyCheckIn[]
+
+  @@index([kind])
+  @@map("wallets")
+}
+
+model WalletTransaction {
+  id                     String                @id @default(cuid())
+  type                   WalletTransactionType
+  senderWalletId         String?               @map("sender_wallet_id")
+  recipientWalletId      String                @map("recipient_wallet_id")
+  platformWalletId       String?               @map("platform_wallet_id")
+  targetType             TipTargetType?        @map("target_type")
+  targetThreadId         String?               @map("target_thread_id")
+  targetUserId           String?               @map("target_user_id")
+  grossAmount            BigInt                @map("gross_amount")
+  recipientAmount        BigInt                @map("recipient_amount")
+  platformAmount         BigInt                @default(0) @map("platform_amount")
+  senderBalanceAfter     BigInt?               @map("sender_balance_after")
+  recipientBalanceAfter  BigInt                @map("recipient_balance_after")
+  platformBalanceAfter   BigInt?               @map("platform_balance_after")
+  threadTipTotalAfter    BigInt?               @map("thread_tip_total_after")
+  recipientTipTotalAfter BigInt                @default(0) @map("recipient_tip_total_after")
+  recipientTipCountAfter Int                   @default(0) @map("recipient_tip_count_after")
+  clientRequestId        String?               @map("client_request_id") @db.Uuid
+  requestHash            String?               @map("request_hash")
+  dateKey                String?               @map("date_key") @db.VarChar(10)
+  createdAt              DateTime              @default(now()) @map("created_at")
+
+  senderWallet    Wallet?       @relation("WalletTransactionSender", fields: [senderWalletId], references: [id], onDelete: Restrict)
+  recipientWallet Wallet        @relation("WalletTransactionRecipient", fields: [recipientWalletId], references: [id], onDelete: Restrict)
+  platformWallet  Wallet?       @relation("WalletTransactionPlatform", fields: [platformWalletId], references: [id], onDelete: Restrict)
+  targetThread    Thread?       @relation(fields: [targetThreadId], references: [id], onDelete: SetNull)
+  targetUser      User?         @relation("TipTargetUser", fields: [targetUserId], references: [id], onDelete: SetNull)
+  dailyCheckIn    DailyCheckIn?
+
+  @@unique([senderWalletId, clientRequestId])
+  @@index([senderWalletId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([recipientWalletId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([targetThreadId, createdAt])
+  @@map("wallet_transactions")
+}
+
+model DailyCheckIn {
+  id                  String   @id @default(cuid())
+  userId              String   @map("user_id")
+  walletId            String   @map("wallet_id")
+  walletTransactionId String   @unique @map("wallet_transaction_id")
+  dateKey             String   @map("date_key") @db.VarChar(10)
+  rewardAmount        BigInt   @map("reward_amount")
+  experienceAwarded   Int      @default(2) @map("experience_awarded")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wallet            Wallet            @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  walletTransaction WalletTransaction @relation(fields: [walletTransactionId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, dateKey])
+  @@index([walletId, createdAt(sort: Desc)])
+  @@map("daily_check_ins")
+}
+
+model ExperienceEvent {
+  id             String              @id @default(cuid())
+  userId         String              @map("user_id")
+  type           ExperienceEventType
+  delta          Int
+  dateKey        String              @map("date_key") @db.VarChar(10)
+  idempotencyKey String              @unique @map("idempotency_key")
+  sourceType     String?             @map("source_type")
+  sourceId       String?             @map("source_id")
+  note           String?
+  reversedAt     DateTime?           @map("reversed_at")
+  createdAt      DateTime            @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([sourceType, sourceId])
+  @@map("experience_events")
+}
+
+model ExperienceDailyStat {
+  userId             String   @map("user_id")
+  dateKey            String   @map("date_key") @db.VarChar(10)
+  checkInCount       Int      @default(0) @map("check_in_count")
+  threadPublishCount Int      @default(0) @map("thread_publish_count")
+  postCreateCount    Int      @default(0) @map("post_create_count")
+  receivedLikeCount  Int      @default(0) @map("received_like_count")
+  experienceAwarded  Int      @default(0) @map("experience_awarded")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, dateKey])
+  @@map("experience_daily_stats")
 }

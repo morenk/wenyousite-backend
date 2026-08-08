@@ -28,6 +28,24 @@ export class PrivateUserResponseDto {
   @ApiProperty({ enum: ['USER', 'ADMIN', 'SUPER_ADMIN'] })
   role!: 'USER' | 'ADMIN' | 'SUPER_ADMIN';
 
+  @ApiProperty({ minimum: 1, maximum: 9 })
+  level!: number;
+
+  @ApiProperty({ minimum: 0 })
+  experience!: number;
+
+  @ApiProperty({ minimum: 0 })
+  currentLevelExperience!: number;
+
+  @ApiProperty({ type: Number, nullable: true, minimum: 0 })
+  nextLevelExperience!: number | null;
+
+  @ApiProperty({ type: String, pattern: '^\\d+$' })
+  receivedTipTotal!: string;
+
+  @ApiProperty({ minimum: 0 })
+  receivedTipCount!: number;
+
   @ApiProperty()
   showRecentReplies!: boolean;
 
@@ -71,6 +89,15 @@ export class PublicUserResponseDto {
 
   @ApiPropertyOptional({ enum: ['USER', 'ADMIN', 'SUPER_ADMIN'] })
   role?: 'USER' | 'ADMIN' | 'SUPER_ADMIN';
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 9 })
+  level?: number;
+
+  @ApiPropertyOptional({ type: String, pattern: '^\\d+$' })
+  receivedTipTotal?: string;
+
+  @ApiPropertyOptional({ minimum: 0 })
+  receivedTipCount?: number;
 
   @ApiPropertyOptional()
   showRecentReplies?: boolean;

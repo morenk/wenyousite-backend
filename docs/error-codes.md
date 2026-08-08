@@ -13,6 +13,7 @@
 | `INVALID_DIRECT_MESSAGE` | 40005 | 私聊消息正文或附件不合法 |
 | `INVALID_STICKER` | 40006 | 表情来源、格式或正文表情协议不合法 |
 | `INVALID_CURSOR` | 40007 | 分页游标无法解析或不属于当前列表 |
+| `INVALID_WENYOU_AMOUNT` | 40008 | 温油金额不是受支持的整数升 |
 | `UNAUTHORIZED` | 40100 | 未认证 |
 | `TOKEN_EXPIRED` | 40101 | Token 过期（access token） |
 | `TOKEN_INVALID` | 40102 | Token 无效 |
@@ -35,6 +36,7 @@
 | `CANNOT_MODERATE_OWNER` | 40304 | 越权管理 OWNER |
 | `DIRECT_MESSAGE_BLOCKED` | 40305 | 私聊双方存在拉黑关系 |
 | `DIRECT_MESSAGE_NOT_ALLOWED` | 40306 | 当前用户不能执行该私聊操作 |
+| `TIP_NOT_ALLOWED` | 40307 | 自我打赏、拉黑关系或其他打赏策略拒绝 |
 | `NOT_FOUND` | 40400 | 通用资源不存在 |
 | `USER_NOT_FOUND` | 40401 | 用户不存在 |
 | `THREAD_NOT_FOUND` | 40402 | 主题帖不存在 |
@@ -62,5 +64,6 @@
 | `STICKER_LIMIT_REACHED` | 40910 | 表情收藏数量达到上限 |
 | `STICKER_COLLECTION_VERSION_CONFLICT` | 40911 | 表情收藏夹版本冲突 |
 | `IDEMPOTENCY_KEY_REUSED` | 40912 | 同一幂等键被复用于不同创建请求 |
+| `INSUFFICIENT_WENYOU` | 40913 | 温油钱包余额不足 |
 | `RATE_LIMITED` | 42900 | 请求过于频繁 |
 | `INTERNAL_ERROR` | 50000 | 服务器内部错误 |

@@ -30,7 +30,7 @@ function notificationTarget(notification: {
       userId: null,
     };
   }
-  if (notification.type === 'follow' && notification.fromUserId) {
+  if ((notification.type === 'follow' || notification.type === 'tip') && notification.fromUserId) {
     return {
       kind: 'user' as const,
       threadId: null,

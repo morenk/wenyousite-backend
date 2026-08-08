@@ -21,6 +21,8 @@ export const ErrorCode = {
   INVALID_STICKER: 40006,
   /** 分页游标无法解析或不属于当前列表 */
   INVALID_CURSOR: 40007,
+  /** 温油金额不是受支持的整数升 */
+  INVALID_WENYOU_AMOUNT: 40008,
 
   // ── 认证 401xx ──
   /** 未认证 */
@@ -69,6 +71,8 @@ export const ErrorCode = {
   DIRECT_MESSAGE_BLOCKED: 40305,
   /** 当前用户不能执行该私聊操作 */
   DIRECT_MESSAGE_NOT_ALLOWED: 40306,
+  /** 自我打赏、拉黑关系或其他打赏策略拒绝 */
+  TIP_NOT_ALLOWED: 40307,
 
   // ── 资源不存在 404xx ──
   /** 通用资源不存在 */
@@ -127,6 +131,8 @@ export const ErrorCode = {
   STICKER_COLLECTION_VERSION_CONFLICT: 40911,
   /** 同一幂等键被复用于不同创建请求 */
   IDEMPOTENCY_KEY_REUSED: 40912,
+  /** 温油钱包余额不足 */
+  INSUFFICIENT_WENYOU: 40913,
 
   // ── 限流 429xx ──
   /** 请求过于频繁 */

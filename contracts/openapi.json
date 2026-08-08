@@ -10308,12 +10308,487 @@
         "x-auth-mode": "public",
         "security": []
       }
+    },
+    "/api/v1/wallet": {
+      "get": {
+        "operationId": "economyGetWallet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EconomyGetWallet200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "获取当前用户温油钱包余额与收款统计",
+        "tags": [
+          "Wallet"
+        ],
+        "x-auth-mode": "authenticated"
+      }
+    },
+    "/api/v1/wallet/check-in": {
+      "post": {
+        "operationId": "economyCheckIn",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EconomyCheckIn200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "按北京时间自动签到；每日幂等获得 1–3 升温油和 2 经验",
+        "tags": [
+          "Wallet"
+        ],
+        "x-auth-mode": "verified"
+      }
+    },
+    "/api/v1/wallet/transactions": {
+      "get": {
+        "operationId": "economyTransactions",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
+            "schema": {
+              "example": "clxabc123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（默认 20，最大 50）",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "温油收支流水，cursor 分页",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EconomyTransactions200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "获取当前用户温油收支流水",
+        "tags": [
+          "Wallet"
+        ],
+        "x-auth-mode": "authenticated",
+        "x-pagination": "cursor"
+      }
+    },
+    "/api/v1/threads/{id}/tips": {
+      "post": {
+        "operationId": "economyTipThread",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TipRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EconomyTipThread201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "金额不是不小于 2 的整数升",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "403": {
+            "description": "自我打赏、拉黑关系或无主题访问权限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "主题帖或收款用户不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "409": {
+            "description": "余额不足或幂等键复用于不同请求",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "向已发布主题帖楼主打赏温油",
+        "tags": [
+          "Wallet"
+        ],
+        "x-auth-mode": "verified"
+      }
+    },
+    "/api/v1/users/{id}/tips": {
+      "post": {
+        "operationId": "economyTipUser",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TipRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EconomyTipUser201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "金额不是不小于 2 的整数升",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "403": {
+            "description": "自我打赏或存在拉黑关系",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "收款用户不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "409": {
+            "description": "余额不足或幂等键复用于不同请求",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "直接向用户打赏温油",
+        "tags": [
+          "Wallet"
+        ],
+        "x-auth-mode": "verified"
+      }
     }
   },
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "3.0.0-dev.20260807.2",
+    "version": "3.1.0-dev.20260807.1",
     "contact": {}
   },
   "tags": [
@@ -10509,6 +10984,11 @@
             "type": "boolean",
             "example": true,
             "description": "邮箱是否已验证"
+          },
+          "level": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 9
           }
         },
         "required": [
@@ -10517,7 +10997,8 @@
           "username",
           "avatar",
           "role",
-          "emailVerified"
+          "emailVerified",
+          "level"
         ]
       },
       "AuthResponseDto": {
@@ -10828,12 +11309,18 @@
           "avatar": {
             "type": "string",
             "nullable": true
+          },
+          "level": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 9
           }
         },
         "required": [
           "id",
           "username",
-          "avatar"
+          "avatar",
+          "level"
         ]
       },
       "MentionCandidateDto": {
@@ -10929,6 +11416,32 @@
               "SUPER_ADMIN"
             ]
           },
+          "level": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 9
+          },
+          "experience": {
+            "type": "number",
+            "minimum": 0
+          },
+          "currentLevelExperience": {
+            "type": "number",
+            "minimum": 0
+          },
+          "nextLevelExperience": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0
+          },
+          "receivedTipTotal": {
+            "type": "string",
+            "pattern": "^\\d+$"
+          },
+          "receivedTipCount": {
+            "type": "number",
+            "minimum": 0
+          },
           "showRecentReplies": {
             "type": "boolean"
           },
@@ -10965,6 +11478,12 @@
           "avatar",
           "bio",
           "role",
+          "level",
+          "experience",
+          "currentLevelExperience",
+          "nextLevelExperience",
+          "receivedTipTotal",
+          "receivedTipCount",
           "showRecentReplies",
           "showPlayerBadges",
           "showBookmarks",
@@ -11038,6 +11557,32 @@
               "SUPER_ADMIN"
             ]
           },
+          "level": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 9
+          },
+          "experience": {
+            "type": "number",
+            "minimum": 0
+          },
+          "currentLevelExperience": {
+            "type": "number",
+            "minimum": 0
+          },
+          "nextLevelExperience": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0
+          },
+          "receivedTipTotal": {
+            "type": "string",
+            "pattern": "^\\d+$"
+          },
+          "receivedTipCount": {
+            "type": "number",
+            "minimum": 0
+          },
           "showRecentReplies": {
             "type": "boolean"
           },
@@ -11071,6 +11616,12 @@
           "avatar",
           "bio",
           "role",
+          "level",
+          "experience",
+          "currentLevelExperience",
+          "nextLevelExperience",
+          "receivedTipTotal",
+          "receivedTipCount",
           "showRecentReplies",
           "showPlayerBadges",
           "showBookmarks",
@@ -11148,6 +11699,11 @@
           "pinned": {
             "type": "boolean"
           },
+          "tipTotal": {
+            "type": "string",
+            "pattern": "^\\d+$",
+            "description": "用户投入的累计打赏升数"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -11180,6 +11736,7 @@
           "visibility",
           "published",
           "pinned",
+          "tipTotal",
           "createdAt",
           "updatedAt",
           "deletedAt",
@@ -11311,6 +11868,11 @@
           "pinned": {
             "type": "boolean"
           },
+          "tipTotal": {
+            "type": "string",
+            "pattern": "^\\d+$",
+            "description": "用户投入的累计打赏升数"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -11358,6 +11920,7 @@
           "visibility",
           "published",
           "pinned",
+          "tipTotal",
           "createdAt",
           "updatedAt",
           "deletedAt",
@@ -11490,6 +12053,19 @@
               "ADMIN",
               "SUPER_ADMIN"
             ]
+          },
+          "level": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 9
+          },
+          "receivedTipTotal": {
+            "type": "string",
+            "pattern": "^\\d+$"
+          },
+          "receivedTipCount": {
+            "type": "number",
+            "minimum": 0
           },
           "showRecentReplies": {
             "type": "boolean"
@@ -11644,6 +12220,38 @@
             "items": {
               "$ref": "#/components/schemas/NotificationLikerResponseDto"
             }
+          },
+          "grossAmount": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^\\d+$"
+          },
+          "recipientAmount": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^\\d+$"
+          },
+          "platformAmount": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^\\d+$"
+          },
+          "previousLevel": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 9
+          },
+          "level": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 9
+          },
+          "experience": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0
           }
         },
         "required": [
@@ -11744,6 +12352,11 @@
             "type": "string",
             "nullable": true
           },
+          "level": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 9
+          },
           "deletedAt": {
             "type": "string",
             "format": "date-time",
@@ -11754,6 +12367,7 @@
           "id",
           "username",
           "avatar",
+          "level",
           "deletedAt"
         ]
       },
@@ -11777,6 +12391,8 @@
               "thread_created",
               "follow",
               "like",
+              "tip",
+              "level_up",
               "system"
             ]
           },
@@ -11995,6 +12611,11 @@
           "pinned": {
             "type": "boolean"
           },
+          "tipTotal": {
+            "type": "string",
+            "pattern": "^\\d+$",
+            "description": "用户投入的累计打赏升数"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -12027,6 +12648,7 @@
           "visibility",
           "published",
           "pinned",
+          "tipTotal",
           "createdAt",
           "updatedAt",
           "deletedAt",
@@ -12228,6 +12850,11 @@
           "pinned": {
             "type": "boolean"
           },
+          "tipTotal": {
+            "type": "string",
+            "pattern": "^\\d+$",
+            "description": "用户投入的累计打赏升数"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -12275,6 +12902,7 @@
           "visibility",
           "published",
           "pinned",
+          "tipTotal",
           "createdAt",
           "updatedAt",
           "deletedAt",
@@ -12651,6 +13279,11 @@
           "likeCount": {
             "type": "number"
           },
+          "tipTotal": {
+            "type": "string",
+            "pattern": "^\\d+$",
+            "description": "用户投入的累计打赏升数"
+          },
           "defaultSubthreadId": {
             "type": "string",
             "nullable": true
@@ -12724,6 +13357,7 @@
           "viewCount",
           "version",
           "likeCount",
+          "tipTotal",
           "defaultSubthreadId",
           "createdAt",
           "updatedAt",
@@ -15659,6 +16293,266 @@
           "capabilities"
         ]
       },
+      "WalletResponseDto": {
+        "type": "object",
+        "properties": {
+          "balance": {
+            "type": "string",
+            "pattern": "^\\d+$",
+            "example": "42"
+          },
+          "receivedTipTotal": {
+            "type": "string",
+            "pattern": "^\\d+$",
+            "example": "120"
+          },
+          "receivedTipCount": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "balance",
+          "receivedTipTotal",
+          "receivedTipCount"
+        ]
+      },
+      "ProgressionResponseDto": {
+        "type": "object",
+        "properties": {
+          "level": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 9
+          },
+          "experience": {
+            "type": "number",
+            "minimum": 0
+          },
+          "currentLevelExperience": {
+            "type": "number",
+            "minimum": 0
+          },
+          "nextLevelExperience": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0
+          }
+        },
+        "required": [
+          "level",
+          "experience",
+          "currentLevelExperience",
+          "nextLevelExperience"
+        ]
+      },
+      "DailyCheckInResponseDto": {
+        "type": "object",
+        "properties": {
+          "claimedNow": {
+            "type": "boolean",
+            "description": "true 仅表示本次请求实际完成领取"
+          },
+          "date": {
+            "type": "string",
+            "example": "2026-08-07",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "rewardAmount": {
+            "type": "string",
+            "enum": [
+              "1",
+              "2",
+              "3"
+            ]
+          },
+          "experienceAwarded": {
+            "type": "number",
+            "example": 2
+          },
+          "balance": {
+            "type": "string",
+            "pattern": "^\\d+$"
+          },
+          "progression": {
+            "$ref": "#/components/schemas/ProgressionResponseDto"
+          }
+        },
+        "required": [
+          "claimedNow",
+          "date",
+          "rewardAmount",
+          "experienceAwarded",
+          "balance",
+          "progression"
+        ]
+      },
+      "WalletTransactionTargetResponseDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "THREAD",
+              "USER",
+              "NONE"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "title"
+        ]
+      },
+      "WalletTransactionResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "DAILY_CHECK_IN",
+              "TIP"
+            ]
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "INCOME",
+              "EXPENSE"
+            ]
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^\\d+$",
+            "description": "该用户本次实际收入或支出"
+          },
+          "grossAmount": {
+            "type": "string",
+            "pattern": "^\\d+$"
+          },
+          "recipientAmount": {
+            "type": "string",
+            "pattern": "^\\d+$"
+          },
+          "platformAmount": {
+            "type": "string",
+            "pattern": "^\\d+$"
+          },
+          "balanceAfter": {
+            "type": "string",
+            "pattern": "^\\d+$"
+          },
+          "counterparty": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PostAuthorResponseDto"
+              }
+            ]
+          },
+          "target": {
+            "$ref": "#/components/schemas/WalletTransactionTargetResponseDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "direction",
+          "amount",
+          "grossAmount",
+          "recipientAmount",
+          "platformAmount",
+          "balanceAfter",
+          "counterparty",
+          "target",
+          "createdAt"
+        ]
+      },
+      "TipRequestDto": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "string",
+            "example": "10",
+            "pattern": "^(?:[2-9]|[1-9]\\d+)$",
+            "description": "打赏升数；只接受不小于 2 的十进制正整数字符串"
+          },
+          "clientRequestId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "客户端生成的幂等请求 ID"
+          }
+        },
+        "required": [
+          "amount",
+          "clientRequestId"
+        ]
+      },
+      "TipResponseDto": {
+        "type": "object",
+        "properties": {
+          "transactionId": {
+            "type": "string"
+          },
+          "grossAmount": {
+            "type": "string",
+            "pattern": "^\\d+$"
+          },
+          "recipientAmount": {
+            "type": "string",
+            "pattern": "^\\d+$"
+          },
+          "platformAmount": {
+            "type": "string",
+            "pattern": "^\\d+$"
+          },
+          "balance": {
+            "type": "string",
+            "pattern": "^\\d+$",
+            "description": "付款后余额"
+          },
+          "threadTipTotal": {
+            "type": "string",
+            "pattern": "^\\d+$",
+            "description": "主题累计投入总额"
+          },
+          "recipientTipTotal": {
+            "type": "string",
+            "pattern": "^\\d+$",
+            "description": "收款人累计收到的用户投入总额"
+          },
+          "recipientTipCount": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "transactionId",
+          "grossAmount",
+          "recipientAmount",
+          "platformAmount",
+          "balance",
+          "recipientTipTotal",
+          "recipientTipCount"
+        ]
+      },
       "ApiPaginationMeta": {
         "type": "object",
         "required": [
@@ -18120,6 +19014,99 @@
           }
         ]
       },
+      "EconomyGetWallet200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/WalletResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "EconomyCheckIn200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/DailyCheckInResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "EconomyTransactions200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/WalletTransactionResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "EconomyTipThread201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/TipResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "EconomyTipUser201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/TipResponseDto"
+              }
+            }
+          }
+        ]
+      },
       "BusinessErrorCode": {
         "type": "integer",
         "enum": [
@@ -18132,6 +19119,7 @@
           40005,
           40006,
           40007,
+          40008,
           40100,
           40101,
           40102,
@@ -18154,6 +19142,7 @@
           40304,
           40305,
           40306,
+          40307,
           40400,
           40401,
           40402,
@@ -18181,6 +19170,7 @@
           40910,
           40911,
           40912,
+          40913,
           42900,
           50000
         ],
@@ -18195,6 +19185,7 @@
           "INVALID_DIRECT_MESSAGE",
           "INVALID_STICKER",
           "INVALID_CURSOR",
+          "INVALID_WENYOU_AMOUNT",
           "UNAUTHORIZED",
           "TOKEN_EXPIRED",
           "TOKEN_INVALID",
@@ -18217,6 +19208,7 @@
           "CANNOT_MODERATE_OWNER",
           "DIRECT_MESSAGE_BLOCKED",
           "DIRECT_MESSAGE_NOT_ALLOWED",
+          "TIP_NOT_ALLOWED",
           "NOT_FOUND",
           "USER_NOT_FOUND",
           "THREAD_NOT_FOUND",
@@ -18244,6 +19236,7 @@
           "STICKER_LIMIT_REACHED",
           "STICKER_COLLECTION_VERSION_CONFLICT",
           "IDEMPOTENCY_KEY_REUSED",
+          "INSUFFICIENT_WENYOU",
           "RATE_LIMITED",
           "INTERNAL_ERROR"
         ]

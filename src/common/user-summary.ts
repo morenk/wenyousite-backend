@@ -7,6 +7,7 @@ export const publicUserSummarySelect = {
   id: true,
   username: true,
   avatar: true,
+  level: true,
   deletedAt: true,
 } as const;
 
@@ -32,16 +33,14 @@ function isUserSummary(value: JsonRecord): boolean {
  * 其他摘要只输出稳定展示名和空头像，不公开注销时间。
  */
 export function sanitizePublicUserSummaries<T>(value: T, fieldName?: string): T {
+  if (typeof value === 'bigint') return value.toString() as T;
   if (Array.isArray(value)) {
     return value.map((item) => sanitizePublicUserSummaries(item)) as T;
   }
   if (!isPlainRecord(value)) return value;
 
   const sanitized = Object.fromEntries(
-    Object.entries(value).map(([key, item]) => [
-      key,
-      sanitizePublicUserSummaries(item, key),
-    ]),
+    Object.entries(value).map(([key, item]) => [key, sanitizePublicUserSummaries(item, key)]),
   ) as JsonRecord;
 
   if (!isUserSummary(sanitized)) return sanitized as T;
@@ -58,9 +57,7 @@ export function sanitizePublicUserSummaries<T>(value: T, fieldName?: string): T 
   return {
     ...publicFields,
     username: DEACTIVATED_USER_NAME,
-    ...(Object.prototype.hasOwnProperty.call(sanitized, 'avatar')
-      ? { avatar: null }
-      : {}),
+    ...(Object.prototype.hasOwnProperty.call(sanitized, 'avatar') ? { avatar: null } : {}),
     ...(keepDeletedAt ? { deletedAt } : {}),
   } as T;
 }

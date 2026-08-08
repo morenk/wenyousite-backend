@@ -24,6 +24,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { SaveThreadAggregateDto } from './dto/save-thread-aggregate.dto';
 import { StickerContentService } from '../stickers/sticker-content.service';
+import { computeThreadEngagement, computeThreadSmartScore } from './thread-smart-score';
 
 const ZSET_BY_CREATED = 'threads:by:created';
 const ZSET_BY_ACTIVITY = 'threads:by:activity';
@@ -40,6 +41,7 @@ interface PublishedThreadCacheData {
   id: string;
   createdAt: Date;
   viewCount: number;
+  tipTotal?: bigint;
   _count?: { posts?: number };
 }
 
@@ -61,7 +63,10 @@ export class ThreadAggregateService {
 
   async save(threadId: string, dto: SaveThreadAggregateDto, userId: string) {
     const manager = await this.access.assertCanManage(threadId, userId);
-    if (manager.role === 'COLLABORATOR' && (dto.visibility !== undefined || dto.published !== undefined)) {
+    if (
+      manager.role === 'COLLABORATOR' &&
+      (dto.visibility !== undefined || dto.published !== undefined)
+    ) {
       throw forbidden('仅楼主可修改可见性或发布主题帖', ErrorCode.NOT_THREAD_OWNER);
     }
     if (dto.published === false) {
@@ -79,7 +84,12 @@ export class ThreadAggregateService {
     const parsedContent = this.dice.parseContent(normalizeMarkdownContent(dto.content));
     const content = parsedContent.content;
     const previousBody = await this.prisma.post.findFirst({
-      where: { threadId, kind: 'BODY', subthread: { defaultForThread: { is: { id: threadId } } }, ...notDeleted },
+      where: {
+        threadId,
+        kind: 'BODY',
+        subthread: { defaultForThread: { is: { id: threadId } } },
+        ...notDeleted,
+      },
       select: { content: true },
       orderBy: { createdAt: 'asc' },
     });
@@ -139,7 +149,11 @@ export class ThreadAggregateService {
         const publishing = dto.published === true;
         const effectivePublished = current.published || publishing;
         if (publishing) {
-          this.assertPublishReadiness(effectiveTitle, effectiveCategory, parsedContent.contentWithoutDice);
+          this.assertPublishReadiness(
+            effectiveTitle,
+            effectiveCategory,
+            parsedContent.contentWithoutDice,
+          );
         } else if (
           effectivePublished &&
           !hasVisibleMarkdownContent(parsedContent.contentWithoutDice)
@@ -159,7 +173,11 @@ export class ThreadAggregateService {
         const existingBody = defaultSubthread.posts[0];
         let updatedBody: UpdatedBodySideEffect | undefined;
         let createdPublishedBody:
-          | { id: string; author: { username: string }; diceRolls: { nodeId: string; notation: string; total: number }[] }
+          | {
+              id: string;
+              author: { username: string };
+              diceRolls: { nodeId: string; notation: string; total: number }[];
+            }
           | undefined;
         if (existingBody) {
           if (dto.bodyVersion !== existingBody.version) this.optimisticLockConflict('默认正文');
@@ -187,7 +205,8 @@ export class ThreadAggregateService {
         } else {
           if (dto.bodyVersion !== undefined) this.optimisticLockConflict('默认正文');
           const hasBody =
-            hasVisibleMarkdownContent(parsedContent.contentWithoutDice) || parsedContent.nodes.length > 0;
+            hasVisibleMarkdownContent(parsedContent.contentWithoutDice) ||
+            parsedContent.nodes.length > 0;
           if (hasBody) {
             const created = await tx.post.create({
               data: {
@@ -250,6 +269,7 @@ export class ThreadAggregateService {
               content,
               userId,
               authorUsername: createdPublishedBody.author.username,
+              occurredAt: new Date().toISOString(),
               threadId,
               subthreadId: defaultSubthread.id,
               subthreadTitle: nextSubthreadTitle,
@@ -291,6 +311,7 @@ export class ThreadAggregateService {
               threadId,
               ownerId: updated.ownerId,
               ownerUsername: updated.owner.username,
+              occurredAt: new Date().toISOString(),
             },
           });
         }
@@ -335,7 +356,8 @@ export class ThreadAggregateService {
           select: { content: true },
         });
         const allAssetIds = publishedPosts.flatMap((post) =>
-          this.stickerContent.extract(post.content)
+          this.stickerContent
+            .extract(post.content)
             .map((token) => token.stickerAssetId)
             .filter((id): id is string => Boolean(id)),
         );
@@ -404,6 +426,7 @@ export class ThreadAggregateService {
           content: post.content,
           userId: post.authorId,
           authorUsername: post.author.username,
+          occurredAt: new Date().toISOString(),
           threadId,
           subthreadId: post.subthreadId,
           subthreadTitle: post.subthread.title,
@@ -427,13 +450,25 @@ export class ThreadAggregateService {
     this.redis.zadd(ZSET_BY_CREATED, thread.createdAt.getTime(), thread.id).catch(() => {});
     this.redis.zadd(ZSET_BY_ACTIVITY, now, thread.id).catch(() => {});
     const postCount = thread._count?.posts ?? 0;
-    this.redis.hset(`thread:${thread.id}:stats`, 'views', String(thread.viewCount || 0)).catch(() => {});
+    this.redis
+      .hset(`thread:${thread.id}:stats`, 'views', String(thread.viewCount || 0))
+      .catch(() => {});
     this.redis.hset(`thread:${thread.id}:stats`, 'replies', String(postCount)).catch(() => {});
     this.redis.hset(`thread:${thread.id}:stats`, 'likes', '0').catch(() => {});
+    const tipTotal = thread.tipTotal ?? 0n;
+    this.redis.hset(`thread:${thread.id}:stats`, 'tips', tipTotal.toString()).catch(() => {});
     this.redis
       .hset(`thread:${thread.id}:stats`, 'createdAt', String(thread.createdAt.getTime()))
       .catch(() => {});
-    this.redis.zadd(ZSET_BY_SMART, (postCount * 2) / Math.pow(2, 1.5), thread.id).catch(() => {});
+    const engagement = computeThreadEngagement({
+      replies: postCount,
+      likes: 0,
+      views: thread.viewCount || 0,
+      tips: Number(tipTotal),
+    });
+    this.redis
+      .zadd(ZSET_BY_SMART, computeThreadSmartScore(engagement, 0), thread.id)
+      .catch(() => {});
   }
 
   private syncEditedMentions(change: UpdatedBodySideEffect, userId: string, threadId: string) {

@@ -26,6 +26,7 @@
 |------|------|------|
 | [auth](./modules/auth.md) | 认证 | 注册、登录、Token 刷新、邮箱验证、改密码、找回密码 |
 | [users](./modules/users.md) | 用户 | 资料、关注、拉黑、注销 |
+| [economy](./modules/economy.md) | 等级与温油 | 经验等级、每日签到、打赏、钱包流水与公开统计 |
 | [threads](./modules/threads.md) | 主题帖 | CRUD、成员管理、私密帖、邀请链接、置顶 |
 | [subthreads](./modules/subthreads.md) | 子贴 | CRUD、排序、发帖权限策略 |
 | [posts](./modules/posts.md) | 楼层 | 发帖、楼中楼、编辑、软删除、点赞、@提及 |

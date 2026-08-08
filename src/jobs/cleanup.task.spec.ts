@@ -22,6 +22,7 @@ const mockPrisma = {
 
 const mockRedis = {
   hgetall: jest.fn().mockResolvedValue({}),
+  hset: jest.fn().mockResolvedValue(1),
   zadd: jest.fn().mockResolvedValue(1),
 };
 

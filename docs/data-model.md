@@ -1,6 +1,6 @@
 # 数据模型
 
-> 31 张表，14 个 Prisma 枚举。除显式标注的 UUID 外，ID 使用 `cuid()` 生成，时间戳使用 `DateTime`。
+> 36 张表，18 个 Prisma 枚举。除显式标注的 UUID 外，ID 使用 `cuid()` 生成，时间戳使用 `DateTime`。
 
 ## 枚举定义
 
@@ -68,7 +68,16 @@
 | `thread_created` | 关注的用户创建了新主题帖 |
 | `follow` | 有人关注了你 |
 | `like` | 有人赞了你的帖子 |
+| `tip` | 有人向你或你的主题帖打赏温油 |
+| `level_up` | 用户经验达到新等级 |
 | `system` | 系统通知（管理员发送，fromUserId 为空） |
+
+### WalletKind / WalletTransactionType — 温油账户与流水
+
+- `WalletKind`：`USER` 为用户钱包，`PLATFORM` 为平台手续费账户；平台账户全局唯一。
+- `WalletTransactionType`：`DAILY_CHECK_IN` 为每日领取，`TIP` 为用户或主题帖打赏。
+- `TipTargetType`：`THREAD` / `USER`，记录打赏发生的公开目标。
+- `ExperienceEventType`：签到、发布主题帖、回复、主题帖获赞以及未来处罚撤销事件。
 
 ### SubscriptionType — 订阅粒度
 
@@ -124,10 +133,24 @@
 | failedLoginAttempts | Int | default 0 | 连续登录失败次数（>=5 锁定） |
 | lockedUntil | DateTime? | — | 锁定解除时间（15 分钟） |
 | lastUsernameChange | DateTime? | — | 上次用户名修改时间（7 天冷却） |
+| experience | Int | default 0, >= 0 | 精确经验，仅本人资料接口公开 |
+| level | Int | default 1, 1..9 | 当前等级，作为用户摘要公开 |
 | createdAt | DateTime | default now() | — |
 | updatedAt | DateTime | @updatedAt | — |
 
 搜索索引：`users_username_trgm_idx`（GIN + `gin_trgm_ops`），用于用户名子串搜索。
+
+### wallets / wallet_transactions / daily_check_ins — 温油账本
+
+- 每个用户恰有一个 `USER` 钱包；平台有一个 `PLATFORM` 钱包。金额使用 `BIGINT` 整数升，不存在小数、充值或提现。
+- `wallet_transactions` 是不可变账本，保存付款、收款和平台费以及各方交易后余额快照。打赏以付款钱包和 UUID `clientRequestId` 唯一，超时重试不会重复扣款。
+- 主题帖/用户打赏按用户投入总额计公开统计；收款人实际入账为 `floor(gross * 85 / 100)`，余数进入平台钱包。
+- `daily_check_ins` 以用户和北京时间日期唯一，每日随机领取 1～3 升温油并获得 2 经验。
+
+### experience_events / experience_daily_stats — 经验账本
+
+- 正向经验事件按来源幂等写入，日统计按北京时间限制次数；撤销事件保留原因并可使用户降级。
+- 等级门槛依次为 0、50、200、600、1500、3500、7000、14000、30000；Lv.9 后继续累计经验。
 
 ### email_verifications — 邮箱验证码（统一注册/验证/重置）
 

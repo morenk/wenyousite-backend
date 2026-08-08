@@ -19,6 +19,9 @@ export class UserProfile {
 
   @ApiProperty({ example: true, description: '邮箱是否已验证' })
   emailVerified: boolean;
+
+  @ApiProperty({ minimum: 1, maximum: 9 })
+  level: number;
 }
 
 /** 认证响应 DTO：Web 使用 httpOnly Cookie，移动客户端从响应体取得 refresh token。 */

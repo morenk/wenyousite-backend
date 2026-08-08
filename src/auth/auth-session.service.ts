@@ -18,6 +18,7 @@ const userSelectPublic = {
   avatar: true,
   role: true,
   emailVerified: true,
+  level: true,
 } as const;
 
 /** 登录终端与令牌轮转用例。 */
@@ -145,6 +146,7 @@ export class AuthSessionService {
         avatar: user.avatar,
         role: user.role,
         emailVerified: user.emailVerified,
+        level: user.level,
       },
     };
   }

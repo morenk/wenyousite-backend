@@ -9,6 +9,8 @@ export const NOTIFICATION_TYPES = [
   'thread_created',
   'follow',
   'like',
+  'tip',
+  'level_up',
   'system',
 ] as const;
 
@@ -50,6 +52,24 @@ export class NotificationPayloadResponseDto {
 
   @ApiPropertyOptional({ type: NotificationLikerResponseDto, isArray: true })
   likers?: NotificationLikerResponseDto[];
+
+  @ApiPropertyOptional({ type: String, nullable: true, pattern: '^\\d+$' })
+  grossAmount?: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true, pattern: '^\\d+$' })
+  recipientAmount?: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true, pattern: '^\\d+$' })
+  platformAmount?: string | null;
+
+  @ApiPropertyOptional({ type: Number, nullable: true, minimum: 1, maximum: 9 })
+  previousLevel?: number | null;
+
+  @ApiPropertyOptional({ type: Number, nullable: true, minimum: 1, maximum: 9 })
+  level?: number | null;
+
+  @ApiPropertyOptional({ type: Number, nullable: true, minimum: 0 })
+  experience?: number | null;
 }
 
 export class NotificationTargetResponseDto {
@@ -100,6 +120,9 @@ class NotificationFromUserResponseDto {
 
   @ApiProperty({ type: String, nullable: true })
   avatar!: string | null;
+
+  @ApiProperty({ minimum: 1, maximum: 9 })
+  level!: number;
 
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   deletedAt!: Date | null;

@@ -2,6 +2,17 @@ import { Injectable, Inject, Logger } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 
+function cacheSafe<T>(value: T): T {
+  if (typeof value === 'bigint') return value.toString() as T;
+  if (Array.isArray(value)) return value.map((item) => cacheSafe(item)) as T;
+  if (!value || typeof value !== 'object') return value;
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, cacheSafe(item)]),
+  ) as T;
+}
+
 /** 响应缓存服务：封装 cache-manager 的 get/set/del，提供命名空间化的键管理 */
 @Injectable()
 export class CacheService {
@@ -27,7 +38,7 @@ export class CacheService {
   /** 设置缓存 */
   async set<T = unknown>(key: string, data: T, ttlMs?: number): Promise<void> {
     try {
-      await this.cacheManager.set(key, data, ttlMs);
+      await this.cacheManager.set(key, cacheSafe(data), ttlMs);
     } catch (err) {
       this.logger.warn(`缓存写入失败 key=${key}`, err);
     }
@@ -45,7 +56,9 @@ export class CacheService {
   /** 批量删除匹配模式的缓存键（通过 cache-manager 遍历 store） */
   async delByPattern(pattern: string): Promise<void> {
     try {
-      const stores = (this.cacheManager as any).stores as { keys?: (pattern?: string) => Promise<string[]> }[];
+      const stores = (this.cacheManager as any).stores as {
+        keys?: (pattern?: string) => Promise<string[]>;
+      }[];
       if (!stores) return;
       const allKeys: string[] = [];
       for (const store of stores) {
@@ -55,7 +68,7 @@ export class CacheService {
         }
       }
       if (allKeys.length > 0) {
-        await Promise.all(allKeys.map(key => this.cacheManager.del(key)));
+        await Promise.all(allKeys.map((key) => this.cacheManager.del(key)));
         this.logger.debug(`批量删除缓存 pattern=${pattern} count=${allKeys.length}`);
       }
     } catch (err) {

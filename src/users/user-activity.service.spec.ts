@@ -36,7 +36,7 @@ describe('UserActivityService', () => {
     await expect(service.searchUsers('ali')).resolves.toHaveLength(1);
     expect(prisma.user.findMany).toHaveBeenCalledWith({
       where: { username: { contains: 'ali', mode: 'insensitive' }, deletedAt: null },
-      select: { id: true, username: true, avatar: true },
+      select: { id: true, username: true, avatar: true, level: true },
       take: 10,
       orderBy: { username: 'asc' },
     });

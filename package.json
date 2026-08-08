@@ -25,13 +25,14 @@
     "test": "jest",
     "test:coverage": "jest --coverage --maxWorkers=2",
     "test:e2e:auth-terminal": "AUTH_TERMINAL_E2E_ENV=test ts-node --transpile-only scripts/auth-terminal-e2e.ts",
+    "test:e2e:economy-terminal": "ECONOMY_TERMINAL_E2E_ENV=test ts-node --transpile-only scripts/economy-terminal-e2e.ts",
     "test:e2e": "tsx scripts/api-e2e-test.ts",
     "docs:generate": "tsx scripts/generate-api-endpoints.ts && tsx scripts/generate-error-code-doc.ts",
     "docs:check": "tsx scripts/check-doc-links.ts && tsx scripts/generate-api-endpoints.ts --check && tsx scripts/generate-error-code-doc.ts --check && tsx scripts/check-doc-truth.ts && tsx scripts/check-markdown-node-contract.ts && tsx scripts/check-mobile-push-contract.ts",
     "arch:check": "tsx scripts/check-architecture.ts",
     "openapi:check": "pnpm openapi:export /tmp/wenyousite-openapi-check.json && tsx scripts/check-openapi-contract.ts /tmp/wenyousite-openapi-check.json && tsx scripts/check-contract-artifact.ts /tmp/wenyousite-openapi-check.json",
     "check": "pnpm lint && pnpm typecheck && pnpm arch:check && pnpm openapi:check && pnpm test && pnpm docs:check && pnpm build",
-    "check:full": "pnpm check && API_E2E_ENV=test pnpm test:e2e"
+    "check:full": "pnpm check && pnpm test:e2e:economy-terminal && API_E2E_ENV=test pnpm test:e2e"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.800.0",

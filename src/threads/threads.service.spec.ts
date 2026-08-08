@@ -143,10 +143,15 @@ describe('ThreadsService', () => {
     it('相同 clientRequestId 复用于不同载荷时返回稳定冲突码', async () => {
       mockPrisma.thread.findFirst.mockResolvedValue({ id: 't1', createRequestHash: 'other' });
 
-      await expect(service.create({
-        title: '新草稿',
-        clientRequestId: '99454040-6a52-4bf3-8bad-42683c4d09be',
-      }, 'u1')).rejects.toMatchObject({
+      await expect(
+        service.create(
+          {
+            title: '新草稿',
+            clientRequestId: '99454040-6a52-4bf3-8bad-42683c4d09be',
+          },
+          'u1',
+        ),
+      ).rejects.toMatchObject({
         errorCode: ErrorCode.IDEMPOTENCY_KEY_REUSED,
         status: 409,
       });
@@ -500,12 +505,7 @@ describe('ThreadsService', () => {
       mockPrisma.thread.findUnique.mockResolvedValue(thread);
       const result = await service.findById('t1');
       expect(result.id).toBe('t1');
-      expect(mockRedis.hincrbyAtLeast).toHaveBeenCalledWith(
-        'thread:t1:stats',
-        'views',
-        0,
-        1,
-      );
+      expect(mockRedis.hincrbyAtLeast).toHaveBeenCalledWith('thread:t1:stats', 'views', 0, 1);
       expect(mockPrisma.$executeRaw).not.toHaveBeenCalled();
       expect(mockPrisma.thread.update).not.toHaveBeenCalled();
     });
@@ -818,8 +818,7 @@ describe('ThreadsService', () => {
             {
               id: 'p1',
               kind: 'FLOOR',
-              content:
-                '[[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20]]',
+              content: '[[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20]]',
               authorId: 'u1',
               author: { username: 'test' },
               subthreadId: 's1',
@@ -830,8 +829,7 @@ describe('ThreadsService', () => {
             {
               id: 'p2',
               kind: 'FLOOR',
-              content:
-                '[[dice:v1:550e8400-e29b-41d4-a716-446655440001:2d6+3]]',
+              content: '[[dice:v1:550e8400-e29b-41d4-a716-446655440001:2d6+3]]',
               authorId: 'u1',
               author: { username: 'test' },
               subthreadId: 's1',
@@ -922,15 +920,12 @@ describe('ThreadsService', () => {
         },
         threadMember: { findMany: jest.fn().mockResolvedValue([]) },
         post: {
-          findMany: jest
-            .fn()
-            .mockResolvedValue([
-              {
-                id: 'p1',
-                content:
-                  '[[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20]]',
-              },
-            ]),
+          findMany: jest.fn().mockResolvedValue([
+            {
+              id: 'p1',
+              content: '[[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20]]',
+            },
+          ]),
           update: jest.fn(),
         },
         diceRoll: { createMany: jest.fn().mockRejectedValue(new Error('db write failed')) },

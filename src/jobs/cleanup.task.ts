@@ -6,6 +6,10 @@ import { RedisService } from '../redis/redis.service';
 import { MediaService } from '../media/media.service';
 import { StickersService } from '../stickers/stickers.service';
 import { MobileDeviceService } from '../mobile-push/mobile-device.service';
+import {
+  computeThreadEngagement,
+  computeThreadSmartScore,
+} from '../threads/thread-smart-score';
 
 /** ZSET 键名 */
 const ZSET_BY_SMART = 'threads:by:smart';
@@ -128,7 +132,7 @@ export class CleanupTask {
   async recalcSmartScores() {
     const threads = await this.prisma.thread.findMany({
       where: { published: true, deletedAt: null },
-      select: { id: true, createdAt: true, viewCount: true },
+      select: { id: true, createdAt: true, viewCount: true, tipTotal: true },
     });
 
     if (threads.length === 0) return;
@@ -142,11 +146,14 @@ export class CleanupTask {
         const replies = parseInt(stats?.replies ?? '0', 10);
         const likes = parseInt(stats?.likes ?? '0', 10);
 
+        const tipTotal = thread.tipTotal ?? 0n;
+        const tips = Number(stats?.tips ?? tipTotal.toString());
         const ageHours = (Date.now() - thread.createdAt.getTime()) / 3600000;
-        const engagement = replies * 2 + likes * 3 + views * 0.3;
-        const score = engagement / Math.pow(ageHours + 2, 1.5);
+        const engagement = computeThreadEngagement({ replies, likes, views, tips });
+        const score = computeThreadSmartScore(engagement, ageHours);
 
         await this.redis.zadd(ZSET_BY_SMART, score, thread.id);
+        await this.redis.hset(`thread:${thread.id}:stats`, 'tips', tipTotal.toString());
         if (views > thread.viewCount) {
           viewUpdates.push({ id: thread.id, viewCount: views });
         }

@@ -2,7 +2,7 @@
 
 ## 通知类型与触发事件
 
-系统定义 8 类通知（Prisma 枚举 `NotificationType`），各自有独立的触发源和事件。
+系统通知由 Prisma 枚举 `NotificationType` 定义，各自有独立的触发源和事件。
 
 | 类型       | 枚举值           | 触发事件                                                                               | 触发源                                                                            | 触发位置                                                         |
 | ---------- | ---------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
@@ -12,6 +12,8 @@
 | 新主题帖   | `thread_created` | 主题帖 PATCH published=true                                                            | `ThreadEventsListener`                                                            | `src/threads/thread-events.listener.ts`                          |
 | 被关注     | `follow`         | 首次关注关系写入                                                                       | `UserRelationEventsListener`                                                      | `src/users/user-relation-events.listener.ts`                     |
 | 被点赞     | `like`           | 首次点赞主题帖                                                                         | `ThreadsService.like()`                                                           | `src/threads/threads.service.ts`                                 |
+| 收到温油   | `tip`            | 用户或主题帖打赏事务完成                                                               | `EconomyEventsListener`                                                           | `src/economy/economy-events.listener.ts`                         |
+| 等级提升   | `level_up`       | 经验跨越等级门槛                                                                       | `ExperienceEventsListener`                                                        | `src/progression/experience-events.listener.ts`                  |
 | 系统通知   | `system`         | 管理员 POST /admin/notifications/system                                                | `AdminService.sendSystemNotification()`                                           | `src/admin/admin.service.ts`                                     |
 
 > `new_post` 合并了原 `new_floor`（新楼层）和 `subthread_created`（新子贴）两种类型，通过 payload 中的 `subthreadTitle` 字段区分是否为子贴。

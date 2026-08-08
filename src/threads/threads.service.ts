@@ -24,6 +24,7 @@ import { ThreadQueryService } from './thread-query.service';
 import { OutboxService } from '../outbox/outbox.service';
 import { StickerContentService } from '../stickers/sticker-content.service';
 import { ThreadCreateIdempotencyService } from './thread-create-idempotency.service';
+import { initialThreadSmartScore } from './thread-smart-score';
 
 /** 帖子列表 ZSET 键名 */
 const ZSET_BY_CREATED = 'threads:by:created';
@@ -258,12 +259,12 @@ export class ThreadsService {
         .catch(() => {});
       this.redis.hset(`thread:${id}:stats`, 'replies', String(postCount)).catch(() => {});
       this.redis.hset(`thread:${id}:stats`, 'likes', '0').catch(() => {});
+      this.redis.hset(`thread:${id}:stats`, 'tips', (updated.tipTotal ?? 0n).toString()).catch(() => {});
       this.redis
         .hset(`thread:${id}:stats`, 'createdAt', String(updated.createdAt.getTime()))
         .catch(() => {});
       // 智能排序初始分
-      const initEngagement = postCount * 2;
-      const initScore = initEngagement / Math.pow(2, 1.5);
+      const initScore = initialThreadSmartScore(postCount, updated.viewCount || 0, Number(updated.tipTotal ?? 0n));
       this.redis.zadd(ZSET_BY_SMART, initScore, id).catch(() => {});
     }
     this.eventEmitter.emit('thread.updated', { threadId: id });
@@ -331,6 +332,7 @@ export class ThreadsService {
           threadTitle: thread.title,
           userId,
           username,
+          occurredAt: new Date().toISOString(),
         },
       });
       return {
@@ -474,6 +476,7 @@ export class ThreadsService {
             content: post.content,
             userId: post.authorId,
             authorUsername: post.author.username,
+            occurredAt: new Date().toISOString(),
             threadId: id,
             subthreadId: post.subthreadId,
             subthreadTitle: post.subthread.title,
@@ -499,6 +502,7 @@ export class ThreadsService {
           threadId: id,
           ownerId: updated.ownerId,
           ownerUsername: updated.owner.username,
+          occurredAt: new Date().toISOString(),
         },
       });
 

@@ -19,6 +19,7 @@ import { BusinessException, unauthorized } from '../common/exceptions/business.e
 const userSelectPublic = {
   id: true, email: true, username: true, avatar: true,
   role: true, emailVerified: true,
+  level: true,
 } as const;
 
 @Injectable()
@@ -89,12 +90,15 @@ export class AuthService {
     });
 
     try {
-      const user = await this.prisma.user.create({
-        data: { email, username: dto.username, password, emailVerified: true },
-        select: userSelectPublic,
+      const user = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.user.create({
+          data: { email, username: dto.username, password, emailVerified: true },
+          select: userSelectPublic,
+        });
+        await tx.wallet.create({ data: { kind: 'USER', userId: created.id } });
+        await tx.emailVerification.delete({ where: { id: record.id } });
+        return created;
       });
-
-      await this.prisma.emailVerification.delete({ where: { id: record.id } });
 
       const { accessToken, refreshToken } = await this.sessions.createSession(user.id, deviceInfo ?? null, platform);
       return { accessToken, refreshToken, user, message: '注册成功' };

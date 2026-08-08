@@ -7,30 +7,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { BlockFilterService } from '../access/block-filter.service';
 import { buildPostPreview } from '../common/post-preview';
+import { updateThreadSmartScore } from '../threads/thread-smart-score';
 
 /** ZSET 键名 */
 const ZSET_BY_ACTIVITY = 'threads:by:activity';
-const ZSET_BY_SMART = 'threads:by:smart';
-
-/** 智能排序分计算：Hacker News 变体 */
-function computeSmartScore(engagement: number, ageHours: number): number {
-  return engagement / Math.pow(ageHours + 2, 1.5);
-}
-/** 从 Redis Hash 读取统计值计算智能排序分 */
-async function updateSmartScore(redis: RedisService, threadId: string): Promise<number> {
-  const stats = await redis.hgetall(`thread:${threadId}:stats`);
-  const views = parseInt(stats?.views ?? '0', 10);
-  const replies = parseInt(stats?.replies ?? '0', 10);
-  const likes = parseInt(stats?.likes ?? '0', 10);
-  const createdAt = parseInt(stats?.createdAt ?? '0', 10);
-  if (!createdAt) return 0;
-
-  const ageHours = (Date.now() - createdAt) / 3600000;
-  const engagement = replies * 2 + likes * 3 + views * 0.3;
-  const score = computeSmartScore(engagement, ageHours);
-  await redis.zadd(ZSET_BY_SMART, score, threadId);
-  return score;
-}
 
 /** 发帖事件监听器：PostCreated → @提及解析 + 通知队列投递 + Redis 计数器/SortedSet 更新 */
 @Injectable()
@@ -54,7 +34,7 @@ export class PostEventsListener {
     await this.refreshReplyProjection(event).catch(() => {});
     const now = Date.now();
     this.redis.zadd(ZSET_BY_ACTIVITY, now, event.threadId).catch(() => {});
-    updateSmartScore(this.redis, event.threadId).catch(() => {});
+    updateThreadSmartScore(this.redis, event.threadId).catch(() => {});
 
     // 预加载拉黑关系、订阅者、管理者（多类通知共用，一次 DB 查询）
     const [subscribers, blockSets, managers] = await Promise.all([
@@ -211,7 +191,7 @@ export class PostEventsListener {
       'likes',
       String(thread.likeCount),
     );
-    updateSmartScore(this.redis, event.threadId).catch(() => {});
+    updateThreadSmartScore(this.redis, event.threadId).catch(() => {});
   }
 
   /** 主题帖取消点赞后更新计数 */

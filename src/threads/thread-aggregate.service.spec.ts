@@ -102,7 +102,10 @@ describe('ThreadAggregateService', () => {
   const prisma = {
     $transaction: jest.fn((fn: (client: typeof tx) => unknown) => fn(tx)),
     threadMember: { groupBy: jest.fn().mockResolvedValue([{ threadId: 't1', _count: 1 }]) },
-    post: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
+    post: {
+      findFirst: jest.fn().mockResolvedValue(null),
+      findMany: jest.fn().mockResolvedValue([]),
+    },
   };
   const stickerContent = {
     assertContentAllowed: jest.fn().mockResolvedValue([]),

@@ -1,27 +1,76 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { CacheService } from '../redis/cache.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { DEACTIVATED_USER_NAME } from '../common/user-summary';
+import { progressionFor } from '../progression/progression.constants';
 
 const userSelectPrivate = {
-  id: true, email: true, username: true, avatar: true, bio: true,
-  role: true, showRecentReplies: true, showPlayerBadges: true, showBookmarks: true,
-  emailVerified: true, deletedAt: true, createdAt: true, updatedAt: true,
+  id: true,
+  email: true,
+  username: true,
+  avatar: true,
+  bio: true,
+  role: true,
+  showRecentReplies: true,
+  showPlayerBadges: true,
+  showBookmarks: true,
+  emailVerified: true,
+  deletedAt: true,
+  experience: true,
+  level: true,
+  createdAt: true,
+  updatedAt: true,
+  wallet: { select: { receivedTipTotal: true, receivedTipCount: true } },
 };
 
 const userSelectPublic = {
-  id: true, username: true, avatar: true, bio: true, role: true,
-  showRecentReplies: true, showPlayerBadges: true, showBookmarks: true,
-  deletedAt: true, createdAt: true,
+  id: true,
+  username: true,
+  avatar: true,
+  bio: true,
+  role: true,
+  showRecentReplies: true,
+  showPlayerBadges: true,
+  showBookmarks: true,
+  deletedAt: true,
+  level: true,
+  createdAt: true,
+  wallet: { select: { receivedTipTotal: true, receivedTipCount: true } },
 };
 
-const maskDeactivated = (user: Record<string, any>) => {
+interface UserWithProgressAndTips extends Record<string, unknown> {
+  id: string;
+  deletedAt?: Date | null;
+  experience?: number;
+  wallet?: {
+    receivedTipTotal: bigint;
+    receivedTipCount: number;
+  } | null;
+}
+
+const flattenProgressAndTips = (user: UserWithProgressAndTips): Record<string, unknown> => {
+  const { wallet, ...fields } = user;
+  return {
+    ...fields,
+    ...(typeof fields.experience === 'number' ? progressionFor(fields.experience) : {}),
+    receivedTipTotal: (wallet?.receivedTipTotal ?? 0n).toString(),
+    receivedTipCount: wallet?.receivedTipCount ?? 0,
+  };
+};
+
+const maskDeactivated = (user: UserWithProgressAndTips): Record<string, unknown> => {
   if (!user.deletedAt) {
     const rest = { ...user };
     delete rest.deletedAt;
-    return rest;
+    return flattenProgressAndTips(rest);
   }
   return { id: user.id, username: DEACTIVATED_USER_NAME, isDeactivated: true };
 };
@@ -45,14 +94,14 @@ export class UsersService {
       },
     });
     if (!user) throw new NotFoundException('用户不存在');
-    return user;
+    return flattenProgressAndTips(user);
   }
 
   async findById(id: string, viewerId?: string) {
     // 无登录态 viewer → 尝试缓存命中
     if (!viewerId) {
       const cacheKey = this.cache.buildKey('user', id);
-      const cached = await this.cache.get<any>(cacheKey);
+      const cached = await this.cache.get<Record<string, unknown>>(cacheKey);
       if (cached) return cached;
 
       const user = await this.prisma.user.findUnique({
@@ -75,7 +124,7 @@ export class UsersService {
     if (!user) throw new NotFoundException('用户不存在');
     const masked = maskDeactivated(user);
 
-    if ((masked as any).isDeactivated) return masked;
+    if (masked.isDeactivated === true) return masked;
 
     const [following, follower, blocked, blockedBy] = await Promise.all([
       this.prisma.userFollow.findUnique({
@@ -136,7 +185,7 @@ export class UsersService {
         where: { id },
         select: userSelectPrivate,
       });
-      return currentUser!;
+      return flattenProgressAndTips(currentUser!);
     }
 
     try {
@@ -144,21 +193,24 @@ export class UsersService {
         where: { id },
         data: {
           ...dto,
-          ...(dto.username && dto.username !== user.username ? { lastUsernameChange: new Date() } : {}),
+          ...(dto.username && dto.username !== user.username
+            ? { lastUsernameChange: new Date() }
+            : {}),
         },
         select: userSelectPrivate,
       });
       this.eventEmitter.emit('user.updated', { userId: id });
-      return result;
-    } catch (e: any) {
-      if (e.code === 'P2002') {
+      return flattenProgressAndTips(result);
+    } catch (error: unknown) {
+      const prismaError = error as { code?: string; meta?: { target?: unknown } };
+      if (prismaError.code === 'P2002') {
         // findByUsername 与 DB 写之间的竞态
-        const target = e.meta?.target as string[] | undefined;
+        const target = prismaError.meta?.target as string[] | undefined;
         if (target?.includes('username')) {
           throw new ConflictException('用户名已被占用');
         }
       }
-      throw e;
+      throw error;
     }
   }
 
@@ -166,14 +218,16 @@ export class UsersService {
   async setAvatar(userId: string, mediaId: string | null) {
     // mediaId 为 null 表示清除头像
     if (mediaId === null) {
-      return this.prisma.user.update({
-        where: { id: userId },
-        data: { avatar: null },
-        select: userSelectPrivate,
-      }).then((result) => {
-        this.eventEmitter.emit('user.updated', { userId });
-        return result;
-      });
+      return this.prisma.user
+        .update({
+          where: { id: userId },
+          data: { avatar: null },
+          select: userSelectPrivate,
+        })
+        .then((result) => {
+          this.eventEmitter.emit('user.updated', { userId });
+          return flattenProgressAndTips(result);
+        });
     }
 
     const media = await this.prisma.media.findUnique({ where: { id: mediaId } });
@@ -184,17 +238,21 @@ export class UsersService {
       throw new ForbiddenException('无权使用此图片');
     }
     if (media.status !== 'COMPLETED') {
-      throw new BadRequestException(`图片尚未处理完成（当前状态: ${media.status}），请稍后重试或查询 GET /media/${media.id}`);
+      throw new BadRequestException(
+        `图片尚未处理完成（当前状态: ${media.status}），请稍后重试或查询 GET /media/${media.id}`,
+      );
     }
 
-    return this.prisma.user.update({
-      where: { id: userId },
-      data: { avatar: media.url },
-      select: userSelectPrivate,
-    }).then((result) => {
-      this.eventEmitter.emit('user.updated', { userId });
-      return result;
-    });
+    return this.prisma.user
+      .update({
+        where: { id: userId },
+        data: { avatar: media.url },
+        select: userSelectPrivate,
+      })
+      .then((result) => {
+        this.eventEmitter.emit('user.updated', { userId });
+        return flattenProgressAndTips(result);
+      });
   }
 
   async deactivate(id: string) {

@@ -63,6 +63,8 @@ export class NotificationProcessor extends WorkerHost {
       case 'new_post':
       case 'thread_created':
       case 'follow':
+      case 'tip':
+      case 'level_up':
       case 'system':
         await this.createNotifications(
           recipients,

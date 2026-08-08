@@ -19,7 +19,7 @@ export class UserActivityService {
     if (!query) return [];
     return this.prisma.user.findMany({
       where: { username: { contains: query, mode: 'insensitive' }, deletedAt: null },
-      select: { id: true, username: true, avatar: true },
+      select: { id: true, username: true, avatar: true, level: true },
       take: 10,
       orderBy: { username: 'asc' },
     });

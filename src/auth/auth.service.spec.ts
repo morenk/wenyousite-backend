@@ -32,6 +32,9 @@ const mockPrisma: Record<string, any> = {
     update: jest.fn(),
     updateMany: jest.fn(),
   },
+  wallet: {
+    create: jest.fn(),
+  },
   $queryRaw: jest.fn(),
   $transaction: jest.fn((input: any): any =>
     typeof input === 'function' ? input(mockPrisma) : Promise.all(input),
@@ -217,6 +220,7 @@ describe('AuthService', () => {
       });
       mockJwt.signAsync.mockResolvedValue('at-token');
       mockPrisma.refreshToken.create.mockResolvedValue({ id: 'rt1' });
+      mockPrisma.wallet.create.mockResolvedValue({ id: 'wallet-1' });
 
       const result = await service.verifyAndComplete(validDto);
 
@@ -226,6 +230,9 @@ describe('AuthService', () => {
       expect(result.user.emailVerified).toBe(true);
       expect(result.message).toBe('注册成功');
       expect(mockPrisma.emailVerification.delete).toHaveBeenCalledWith({ where: { id: 'ev1' } });
+      expect(mockPrisma.wallet.create).toHaveBeenCalledWith({
+        data: { kind: 'USER', userId: 'u1' },
+      });
       expect(mockPrisma.user.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ emailVerified: true }),

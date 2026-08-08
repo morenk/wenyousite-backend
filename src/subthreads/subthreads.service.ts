@@ -189,6 +189,7 @@ export class SubthreadsService {
               content,
               userId,
               authorUsername: bodyPost.author.username,
+              occurredAt: new Date().toISOString(),
               threadId,
               subthreadId: subthread.id,
               subthreadTitle: dto.title,
