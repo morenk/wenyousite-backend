@@ -89,15 +89,29 @@ describe('SearchService', () => {
 
   it('主题帖分类只查询公开已发布主题并合并玩家计数', async () => {
     mockPrisma.thread.findMany.mockResolvedValue([
-      { id: 't1', title: '测试帖', _count: { members: 5, posts: 3 } },
+      {
+        id: 't1',
+        title: '测试帖',
+        _count: { members: 5, posts: 3 },
+        defaultSubthread: {
+          posts: [
+            {
+              content: [
+                '![封面](https://cdn.example.com/cover.jpg)',
+                '![表情](https://cdn.example.com/sticker.webp "wenyousite-sticker:v1:asset")',
+              ].join('\n'),
+            },
+          ],
+        },
+      },
     ]);
-    mockPrisma.threadMember.groupBy.mockResolvedValue([
-      { threadId: 't1', _count: 2 },
-    ]);
+    mockPrisma.threadMember.groupBy.mockResolvedValue([{ threadId: 't1', _count: 2 }]);
 
     const threads = await service.searchThreads('测试');
 
     expect(threads[0]._count).toEqual({ members: 5, posts: 3, players: 2 });
+    expect(threads[0].coverImages).toEqual(['https://cdn.example.com/cover.jpg']);
+    expect(threads[0]).not.toHaveProperty('defaultSubthread');
     expect(mockPrisma.thread.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
@@ -106,6 +120,18 @@ describe('SearchService', () => {
           visibility: 'PUBLIC',
           title: { contains: '测试', mode: 'insensitive' },
         },
+        select: expect.objectContaining({
+          defaultSubthread: {
+            select: {
+              posts: {
+                where: { kind: 'BODY', deletedAt: null },
+                take: 1,
+                orderBy: { createdAt: 'asc' },
+                select: { content: true },
+              },
+            },
+          },
+        }),
       }),
     );
     expect(mockPrisma.user.findMany).not.toHaveBeenCalled();
@@ -127,7 +153,10 @@ describe('SearchService', () => {
     }));
     mockPrisma.$queryRaw.mockResolvedValue(rankedRows);
     mockPrisma.post.findMany.mockResolvedValue(
-      rankedRows.slice(0, 20).reverse().map((row) => postDetail(row.id)),
+      rankedRows
+        .slice(0, 20)
+        .reverse()
+        .map((row) => postDetail(row.id)),
     );
 
     const page = await service.searchPosts('测试');
@@ -183,26 +212,19 @@ describe('SearchService', () => {
   });
 
   it('帖内楼层搜索应先校验访问权限并复用相关度游标分页', async () => {
-    const rankedRows = [{
-      id: 'p1',
-      relevance: 0.8,
-      createdAt: new Date('2026-08-01T00:00:00.000Z'),
-    }];
+    const rankedRows = [
+      {
+        id: 'p1',
+        relevance: 0.8,
+        createdAt: new Date('2026-08-01T00:00:00.000Z'),
+      },
+    ];
     mockPrisma.$queryRaw.mockResolvedValue(rankedRows);
     mockPrisma.post.findMany.mockResolvedValue([postDetail('p1')]);
 
-    const page = await service.searchThreadPosts(
-      't-private',
-      '测试',
-      undefined,
-      20,
-      'u1',
-    );
+    const page = await service.searchThreadPosts('t-private', '测试', undefined, 20, 'u1');
 
-    expect(mockThreadAccess.assertAccessible).toHaveBeenCalledWith(
-      't-private',
-      'u1',
-    );
+    expect(mockThreadAccess.assertAccessible).toHaveBeenCalledWith('t-private', 'u1');
     expect(page.items).toHaveLength(1);
     expect(page.pagination.hasMore).toBe(false);
 

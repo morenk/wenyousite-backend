@@ -55,7 +55,7 @@ export class NotificationProcessor extends WorkerHost {
   }
 
   async process(job: Job<NotificationJob>): Promise<void> {
-    const { type, recipients, content, postId, threadId, fromUserId, payload, eventKey } = job.data;
+    const { type, recipients, content, postId, threadId, momentId, momentCommentId, fromUserId, payload, eventKey } = job.data;
 
     switch (type) {
       case 'reply':
@@ -72,6 +72,8 @@ export class NotificationProcessor extends WorkerHost {
           content,
           postId,
           threadId,
+          momentId,
+          momentCommentId,
           fromUserId,
           payload,
           eventKey,
@@ -230,6 +232,8 @@ export class NotificationProcessor extends WorkerHost {
     content: string,
     postId?: string,
     threadId?: string,
+    momentId?: string,
+    momentCommentId?: string,
     fromUserId?: string,
     payload?: Record<string, unknown> | null,
     eventKey?: string,
@@ -243,6 +247,8 @@ export class NotificationProcessor extends WorkerHost {
       content,
       postId,
       threadId,
+      momentId,
+      momentCommentId,
       fromUserId,
       payload: payload == null ? Prisma.JsonNull : (payload as Prisma.InputJsonValue),
       ...(eventKey ? { eventKey: `${eventKey}:${userId}` } : {}),
@@ -251,7 +257,7 @@ export class NotificationProcessor extends WorkerHost {
     // 防止 BullMQ retry 时重复插入：过滤已存在记录，不整批跳过
     const dedupWhere: Prisma.NotificationWhereInput = eventKey
       ? { OR: userIds.map((userId) => ({ userId, eventKey: `${eventKey}:${userId}` })) }
-      : { userId: { in: userIds }, type, postId, threadId };
+      : { userId: { in: userIds }, type, postId, threadId, momentId, momentCommentId };
     if (!eventKey && fromUserId !== undefined) dedupWhere.fromUserId = fromUserId;
     const existing = await this.prisma.notification.findMany({
       where: dedupWhere,
@@ -280,6 +286,8 @@ export class NotificationProcessor extends WorkerHost {
             type,
             postId,
             threadId,
+            momentId,
+            momentCommentId,
             createdAt: { gte: startedAt },
             ...(fromUserId !== undefined ? { fromUserId } : {}),
           },

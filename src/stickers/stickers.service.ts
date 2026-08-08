@@ -291,6 +291,7 @@ export class StickersService {
         createdAt: { lt: cutoff },
         favorites: { none: {} },
         directMessages: { none: {} },
+        momentComments: { none: { deletedAt: null } },
         imports: { none: {} },
       },
       select: { id: true, key: true, thumbnailKey: true, url: true },

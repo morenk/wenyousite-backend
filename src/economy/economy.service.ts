@@ -30,6 +30,8 @@ interface TipTarget {
   recipientId: string;
   threadId?: string;
   threadTitle?: string | null;
+  momentId?: string;
+  momentTitle?: string;
 }
 
 interface PreparedTip {
@@ -201,6 +203,46 @@ export class EconomyService {
     );
   }
 
+  async tipMoment(
+    sender: { id: string; username?: string },
+    momentId: string,
+    amountInput: string,
+    clientRequestId: string,
+  ) {
+    const prepared = await this.prepareTip(
+      sender.id,
+      TipTargetType.MOMENT,
+      momentId,
+      amountInput,
+      clientRequestId,
+    );
+    if ('replay' in prepared) return prepared.replay;
+    const moment = await this.prisma.moment.findFirst({
+      where: {
+        id: momentId,
+        deletedAt: null,
+        author: {
+          userBlocks: { none: { blockedId: sender.id } },
+          blockedBy: { none: { blockerId: sender.id } },
+        },
+      },
+      select: { id: true, authorId: true, title: true },
+    });
+    if (!moment) throw notFound(ErrorCode.MOMENT_NOT_FOUND, '动态不存在');
+    return this.tip(
+      sender,
+      {
+        type: 'MOMENT',
+        id: momentId,
+        recipientId: moment.authorId,
+        momentId,
+        momentTitle: moment.title,
+      },
+      clientRequestId,
+      prepared,
+    );
+  }
+
   async listTransactions(userId: string, cursor?: string, limit = 20) {
     const wallet = await this.prisma.wallet.findUnique({
       where: { userId },
@@ -236,6 +278,7 @@ export class EconomyService {
         recipientWallet: { include: { user: { select: publicUserSummarySelect } } },
         targetThread: { select: { id: true, title: true } },
         targetUser: { select: publicUserSummarySelect },
+        targetMoment: { select: { id: true, title: true } },
       },
     });
     const hasMore = rows.length > take;
@@ -257,6 +300,12 @@ export class EconomyService {
                 id: row.targetUser?.id ?? row.targetUserId,
                 title: row.targetUser?.username ?? null,
               }
+            : row.targetType === 'MOMENT'
+              ? {
+                  type: 'MOMENT' as const,
+                  id: row.targetMoment?.id ?? row.targetMomentId,
+                  title: row.targetMoment?.title ?? null,
+                }
             : { type: 'NONE' as const, id: null, title: null };
       return {
         id: row.id,
@@ -360,6 +409,16 @@ export class EconomyService {
               }
             }
 
+            if (target.type === 'MOMENT') {
+              const currentMoment = await tx.moment.findUnique({
+                where: { id: target.momentId, deletedAt: null },
+                select: { authorId: true },
+              });
+              if (!currentMoment || currentMoment.authorId !== target.recipientId) {
+                throw notFound(ErrorCode.MOMENT_NOT_FOUND, '动态不存在');
+              }
+            }
+
             const debited = await tx.wallet.updateMany({
               where: { id: senderWallet.id, balance: { gte: amount } },
               data: { balance: { decrement: amount } },
@@ -395,6 +454,14 @@ export class EconomyService {
                     select: { tipTotal: true },
                   })
                 : null;
+            const updatedMoment =
+              target.type === 'MOMENT'
+                ? await tx.moment.update({
+                    where: { id: target.momentId },
+                    data: { tipTotal: { increment: amount } },
+                    select: { tipTotal: true },
+                  })
+                : null;
             const transaction = await tx.walletTransaction.create({
               data: {
                 type: 'TIP',
@@ -404,6 +471,7 @@ export class EconomyService {
                 targetType: target.type,
                 targetThreadId: target.threadId,
                 targetUserId: target.recipientId,
+                targetMomentId: target.momentId,
                 grossAmount: amount,
                 recipientAmount,
                 platformAmount,
@@ -411,6 +479,7 @@ export class EconomyService {
                 recipientBalanceAfter: updatedRecipient.balance,
                 platformBalanceAfter: updatedPlatform.balance,
                 threadTipTotalAfter: updatedThread?.tipTotal,
+                momentTipTotalAfter: updatedMoment?.tipTotal,
                 recipientTipTotalAfter: updatedRecipient.receivedTipTotal,
                 recipientTipCountAfter: updatedRecipient.receivedTipCount,
                 clientRequestId,
@@ -430,10 +499,13 @@ export class EconomyService {
                 targetType: target.type,
                 threadId: target.threadId ?? null,
                 threadTitle: target.threadTitle ?? null,
+                momentId: target.momentId ?? null,
+                momentTitle: target.momentTitle ?? null,
                 grossAmount: amount.toString(),
                 recipientAmount: recipientAmount.toString(),
                 platformAmount: platformAmount.toString(),
                 threadTipTotal: updatedThread?.tipTotal.toString() ?? null,
+                momentTipTotal: updatedMoment?.tipTotal.toString() ?? null,
               },
             });
             return this.tipResponse(transaction);
@@ -528,6 +600,7 @@ export class EconomyService {
     platformAmount: bigint;
     senderBalanceAfter: bigint | null;
     threadTipTotalAfter: bigint | null;
+    momentTipTotalAfter: bigint | null;
     recipientTipTotalAfter: bigint;
     recipientTipCountAfter: number;
   }) {
@@ -539,6 +612,9 @@ export class EconomyService {
       balance: transaction.senderBalanceAfter ?? 0n,
       ...(transaction.threadTipTotalAfter !== null
         ? { threadTipTotal: transaction.threadTipTotalAfter }
+        : {}),
+      ...(transaction.momentTipTotalAfter !== null
+        ? { momentTipTotal: transaction.momentTipTotalAfter }
         : {}),
       recipientTipTotal: transaction.recipientTipTotalAfter,
       recipientTipCount: transaction.recipientTipCountAfter,

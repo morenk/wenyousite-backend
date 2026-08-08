@@ -18,12 +18,31 @@ import {
   SearchPostsQueryDto,
 } from './dto/search-query.dto';
 import { ApiCursorPaginatedResponse } from '../common/swagger/api-cursor-paginated-response.decorator';
+import { OptionalAuth } from '../auth/decorators/auth.decorator';
+import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
+import { MomentsService } from '../moments/moments.service';
+import { MomentSearchResponseDto } from '../moments/dto/moment-response.dto';
 
 /** 全站搜索控制器：分类端点供 Tab 按需加载，聚合端点兼容旧客户端。 */
 @ApiTags('Search')
 @Controller('search')
 export class SearchController {
-  constructor(private searchService: SearchService) {}
+  constructor(
+    private searchService: SearchService,
+    private momentsService: MomentsService,
+  ) {}
+
+  @Get('moments')
+  @OptionalAuth()
+  @ApiOperation({ summary: '按标题和纯文本正文搜索公开动态' })
+  @ApiCursorPaginatedResponse(MomentSearchResponseDto, '相关度优先的动态游标分页')
+  @ApiBadRequestResponse({ description: '关键词不足 2 个字符或游标无效' })
+  async searchMoments(
+    @Query() query: SearchPostsQueryDto,
+    @CurrentUser() user?: CurrentUserPayload,
+  ) {
+    return this.momentsService.search(query.q, query.cursor, query.limit, user);
+  }
 
   @Get('threads')
   @Public()

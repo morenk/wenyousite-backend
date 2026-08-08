@@ -33,6 +33,9 @@ export class MediaResponseDto {
   @ApiProperty({ type: String, nullable: true, description: '处理完成后的 300px WebP 缩略图地址' })
   thumbnailUrl!: string | null;
 
+  @ApiProperty({ type: String, nullable: true, description: '处理完成后的 480px 等比例 WebP 信息流图片地址' })
+  feedUrl!: string | null;
+
   @ApiProperty({ type: String, nullable: true, description: '处理完成后的 800px WebP 中图地址' })
   mediumUrl!: string | null;
 

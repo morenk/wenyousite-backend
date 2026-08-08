@@ -269,6 +269,21 @@ export class MediaService {
       }),
     );
 
+    const feedBuffer = await sharp(buffer)
+      .resize(480, null, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 82 })
+      .toBuffer();
+    const feedKey = objectKey.replace(/(\.[^.]+)$/, '_feed.webp');
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: feedKey,
+        Body: feedBuffer,
+        ContentType: 'image/webp',
+        CacheControl: DERIVATIVE_CACHE_CONTROL,
+      }),
+    );
+
     const mdBuffer = await sharp(buffer)
       .resize(800, null, { fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 85 })
@@ -295,7 +310,7 @@ export class MediaService {
     });
 
     this.logger.log(
-      `Image processed: ${objectKey} → thumb + md, ${metadata.width}x${metadata.height}`,
+      `Image processed: ${objectKey} → thumb + feed + md, ${metadata.width}x${metadata.height}`,
     );
   }
 
@@ -359,6 +374,18 @@ export class MediaService {
       referenced,
     );
     await this.collectDirectMessageMediaRefs(referenced);
+    const momentImages = await this.prisma.momentImage.findMany({
+      where: { moment: { deletedAt: null } },
+      select: { media: { select: { url: true } } },
+    });
+    for (const image of momentImages) referenced.add(image.media.url);
+    const momentCommentImages = await this.prisma.momentComment.findMany({
+      where: { deletedAt: null, mediaId: { not: null } },
+      select: { media: { select: { url: true } } },
+    });
+    for (const comment of momentCommentImages) {
+      if (comment.media?.url) referenced.add(comment.media.url);
+    }
 
     // 安全阀：引用集合为空说明扫描异常，跳过本次清理避免误删
     if (referenced.size === 0) {
@@ -396,6 +423,7 @@ export class MediaService {
         if (!m.key.toLowerCase().endsWith('.svg')) {
           const stem = m.key.replace(/\.[^.]+$/, '');
           keys.push({ key: `${stem}_thumb.webp`, mediaId: m.id, isOriginal: false });
+          keys.push({ key: `${stem}_feed.webp`, mediaId: m.id, isOriginal: false });
           keys.push({ key: `${stem}_md.webp`, mediaId: m.id, isOriginal: false });
         }
       }
@@ -428,7 +456,7 @@ export class MediaService {
     });
     if (!media) return false;
 
-    const [avatarRef, postRef, draftRef, directMessageRef, stickerImportRef] = await Promise.all([
+    const [avatarRef, postRef, draftRef, directMessageRef, stickerImportRef, momentImageRef, momentCommentRef] = await Promise.all([
       this.prisma.user.findFirst({
         where: { avatar: url, deletedAt: null },
         select: { id: true },
@@ -449,13 +477,21 @@ export class MediaService {
         where: { sourceMediaId: media.id, status: 'PROCESSING' },
         select: { id: true },
       }),
+      this.prisma.momentImage.findFirst({
+        where: { mediaId: media.id, moment: { deletedAt: null } },
+        select: { id: true },
+      }),
+      this.prisma.momentComment.findFirst({
+        where: { mediaId: media.id, deletedAt: null },
+        select: { id: true },
+      }),
     ]);
-    if (avatarRef || postRef || draftRef || directMessageRef || stickerImportRef) return false;
+    if (avatarRef || postRef || draftRef || directMessageRef || stickerImportRef || momentImageRef || momentCommentRef) return false;
 
     const keys = [media.key];
     if (!media.key.toLowerCase().endsWith('.svg')) {
       const stem = media.key.replace(/\.[^.]+$/, '');
-      keys.push(`${stem}_thumb.webp`, `${stem}_md.webp`);
+      keys.push(`${stem}_thumb.webp`, `${stem}_feed.webp`, `${stem}_md.webp`);
     }
     const failedKeys = await this.deleteS3Objects(this.config.get<string>('cos.bucket')!, keys);
     if (failedKeys.has(media.key)) return false;

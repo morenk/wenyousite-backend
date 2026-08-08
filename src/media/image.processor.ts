@@ -3,7 +3,7 @@ import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { MediaService, ImageProcessJob } from './media.service';
 
-/** 图片处理队列消费者：从 S3 下载原图，用 sharp 生成缩略图和中图，上传回 S3 */
+/** 图片处理队列消费者：从 S3 下载原图，用 sharp 生成缩略图、信息流图和中图，上传回 S3 */
 @Processor('image')
 export class ImageProcessor extends WorkerHost {
   private readonly logger = new Logger(ImageProcessor.name);

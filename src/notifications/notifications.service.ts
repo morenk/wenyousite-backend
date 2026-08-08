@@ -11,14 +11,28 @@ function normalizePayload(value: unknown): Record<string, unknown> | null {
 function notificationTarget(notification: {
   postId: string | null;
   threadId: string | null;
+  momentId: string | null;
+  momentCommentId: string | null;
   fromUserId: string | null;
   type: string;
 }) {
+  if (notification.momentId) {
+    return {
+      kind: 'moment' as const,
+      threadId: null,
+      postId: null,
+      momentId: notification.momentId,
+      momentCommentId: notification.momentCommentId,
+      userId: null,
+    };
+  }
   if (notification.postId) {
     return {
       kind: 'post' as const,
       threadId: notification.threadId,
       postId: notification.postId,
+      momentId: null,
+      momentCommentId: null,
       userId: null,
     };
   }
@@ -27,6 +41,8 @@ function notificationTarget(notification: {
       kind: 'thread' as const,
       threadId: notification.threadId,
       postId: null,
+      momentId: null,
+      momentCommentId: null,
       userId: null,
     };
   }
@@ -35,10 +51,12 @@ function notificationTarget(notification: {
       kind: 'user' as const,
       threadId: null,
       postId: null,
+      momentId: null,
+      momentCommentId: null,
       userId: notification.fromUserId,
     };
   }
-  return { kind: 'none' as const, threadId: null, postId: null, userId: null };
+  return { kind: 'none' as const, threadId: null, postId: null, momentId: null, momentCommentId: null, userId: null };
 }
 
 /** 站内通知服务：CRUD、未读数、硬删除、标记未读 */
@@ -61,7 +79,8 @@ export class NotificationsService {
       AND: [
         {
           OR: [
-            { postId: null, threadId: null },
+            { postId: null, threadId: null, momentId: null },
+            { momentId: { not: null }, moment: { deletedAt: null } },
             { postId: null, threadId: { not: null }, thread: { deletedAt: null } },
             {
               postId: { not: null },
@@ -96,6 +115,8 @@ export class NotificationsService {
       include: {
         post: { select: { id: true, floorNumber: true, parentPostId: true, deletedAt: true } },
         thread: { select: { id: true, title: true, deletedAt: true } },
+        moment: { select: { id: true, title: true, deletedAt: true } },
+        momentComment: { select: { id: true, parentCommentId: true, deletedAt: true } },
         fromUser: { select: publicUserSummarySelect },
       },
     });
@@ -128,7 +149,7 @@ export class NotificationsService {
     userId: string,
     type: string,
     content: string,
-    opts?: { postId?: string; threadId?: string; fromUserId?: string },
+    opts?: { postId?: string; threadId?: string; momentId?: string; momentCommentId?: string; fromUserId?: string },
   ) {
     return this.prisma.notification.create({
       data: { userId, type: type as any, content, ...opts },
@@ -142,6 +163,8 @@ export class NotificationsService {
       content: string;
       postId?: string;
       threadId?: string;
+      momentId?: string;
+      momentCommentId?: string;
       fromUserId?: string;
     }[],
   ) {

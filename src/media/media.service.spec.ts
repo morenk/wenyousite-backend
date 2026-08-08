@@ -74,6 +74,8 @@ const mockPrisma = {
   post: { findMany: jest.fn(), findFirst: jest.fn() },
   draft: { findMany: jest.fn(), findFirst: jest.fn() },
   directMessage: { findMany: jest.fn(), findFirst: jest.fn() },
+  momentImage: { findMany: jest.fn(), findFirst: jest.fn() },
+  momentComment: { findMany: jest.fn(), findFirst: jest.fn() },
   stickerImport: { findFirst: jest.fn() },
 };
 
@@ -100,6 +102,10 @@ describe('MediaService', () => {
     mockRedis.hincrby.mockResolvedValue(1);
     mockPrisma.directMessage.findMany.mockResolvedValue([]);
     mockPrisma.directMessage.findFirst.mockResolvedValue(null);
+    mockPrisma.momentImage.findMany.mockResolvedValue([]);
+    mockPrisma.momentImage.findFirst.mockResolvedValue(null);
+    mockPrisma.momentComment.findMany.mockResolvedValue([]);
+    mockPrisma.momentComment.findFirst.mockResolvedValue(null);
     mockPrisma.stickerImport.findFirst.mockResolvedValue(null);
   });
 
@@ -281,7 +287,7 @@ describe('MediaService', () => {
     const m = makeMedia({ status: 'COMPLETED' });
     mockPrisma.media.findUnique.mockResolvedValue(m);
     const result = await service.getMedia('m1', 'u1');
-    expect(result).toEqual({ ...m, thumbnailUrl: null, mediumUrl: null });
+    expect(result).toEqual({ ...m, thumbnailUrl: null, mediumUrl: null, feedUrl: null });
   });
 
   it('getMedia 不应返回不存在的记录', async () => {
@@ -356,6 +362,7 @@ describe('MediaService', () => {
     expect(keys).toEqual([
       'uploads/avatar.jpg',
       'uploads/avatar_thumb.webp',
+      'uploads/avatar_feed.webp',
       'uploads/avatar_md.webp',
     ]);
     expect(mockPrisma.media.deleteMany).toHaveBeenCalledWith({
@@ -401,11 +408,12 @@ describe('MediaService', () => {
       where: { avatar: { not: null }, deletedAt: null },
       select: { avatar: true },
     });
-    expect(mockS3.send).toHaveBeenCalledTimes(3);
+    expect(mockS3.send).toHaveBeenCalledTimes(4);
     const keys = mockS3.send.mock.calls.map(([command]) => command.Key);
     expect(keys).toEqual([
       'uploads/2099/01/01/u1/photo.jpg',
       'uploads/2099/01/01/u1/photo_thumb.webp',
+      'uploads/2099/01/01/u1/photo_feed.webp',
       'uploads/2099/01/01/u1/photo_md.webp',
     ]);
     expect(mockPrisma.media.deleteMany).toHaveBeenCalledWith({
@@ -444,6 +452,22 @@ describe('MediaService', () => {
     mockPrisma.directMessage.findMany.mockResolvedValue([{ id: 'dm1', media: { url } }]);
     mockPrisma.media.findMany.mockResolvedValue([
       { id: 'm1', key: 'uploads/2099/01/01/u1/private.jpg', url },
+    ]);
+
+    await service.cleanupOrphanMedia();
+
+    expect(mockS3.send).not.toHaveBeenCalled();
+    expect(mockPrisma.media.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('cleanupOrphanMedia 应保留仍被动态评论引用的图片', async () => {
+    const url = 'https://test.cos.com/test-bucket/uploads/2099/01/01/u1/comment.webp';
+    mockPrisma.user.findMany.mockResolvedValue([]);
+    mockPrisma.post.findMany.mockResolvedValue([]);
+    mockPrisma.draft.findMany.mockResolvedValue([]);
+    mockPrisma.momentComment.findMany.mockResolvedValue([{ media: { url } }]);
+    mockPrisma.media.findMany.mockResolvedValue([
+      { id: 'm1', key: 'uploads/2099/01/01/u1/comment.webp', url },
     ]);
 
     await service.cleanupOrphanMedia();

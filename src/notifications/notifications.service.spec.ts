@@ -29,13 +29,14 @@ describe('NotificationsService', () => {
     await service.findAll('u1');
     expect(mockPrisma.notification.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        include: {
+        include: expect.objectContaining({
           post: expect.objectContaining({ select: expect.objectContaining({ deletedAt: true }) }),
           thread: expect.objectContaining({ select: expect.objectContaining({ deletedAt: true }) }),
+          moment: expect.objectContaining({ select: expect.objectContaining({ deletedAt: true }) }),
           fromUser: expect.objectContaining({
             select: expect.objectContaining({ deletedAt: true }),
           }),
-        },
+        }),
       }),
     );
   });
@@ -54,7 +55,10 @@ describe('NotificationsService', () => {
         expect.objectContaining({ postId: expect.objectContaining({ not: null }) }),
       ]),
     );
-    expect(call.where.AND[0].OR[2].post).toEqual(
+    const postTarget = call.where.AND[0].OR.find(
+      (condition: { postId?: { not: null } }) => condition.postId?.not === null,
+    );
+    expect(postTarget.post).toEqual(
       expect.objectContaining({
         deletedAt: null,
         thread: { deletedAt: null },

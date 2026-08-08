@@ -10,13 +10,16 @@ interface TipCompletedEvent {
   senderId: string;
   senderUsername: string;
   recipientId: string;
-  targetType: 'THREAD' | 'USER';
+  targetType: 'THREAD' | 'USER' | 'MOMENT';
   threadId?: string | null;
   threadTitle?: string | null;
   grossAmount: string;
   recipientAmount: string;
   platformAmount: string;
   threadTipTotal?: string | null;
+  momentId?: string | null;
+  momentTitle?: string | null;
+  momentTipTotal?: string | null;
 }
 
 @Injectable()
@@ -29,9 +32,10 @@ export class EconomyEventsListener {
 
   @OnEvent('tip.completed')
   async handleTipCompleted(event: TipCompletedEvent) {
-    const targetLabel =
-      event.targetType === 'THREAD' && event.threadTitle
-        ? `你的主题帖「${event.threadTitle}」`
+    const targetLabel = event.targetType === 'THREAD' && event.threadTitle
+      ? `你的主题帖「${event.threadTitle}」`
+      : event.targetType === 'MOMENT' && event.momentTitle
+        ? `你的动态「${event.momentTitle}」`
         : '你';
     await this.notifications.notify(
       'tip',
@@ -39,6 +43,7 @@ export class EconomyEventsListener {
       `${event.senderUsername} 向${targetLabel}打赏了 ${event.grossAmount} 升温油（到账 ${event.recipientAmount} 升）`,
       {
         threadId: event.threadId ?? undefined,
+        momentId: event.momentId ?? undefined,
         fromUserId: event.senderId,
         eventKey: `tip:${event.transactionId}`,
         payload: {
@@ -47,6 +52,7 @@ export class EconomyEventsListener {
           actorId: event.senderId,
           actorName: event.senderUsername,
           threadTitle: event.threadTitle ?? null,
+          momentTitle: event.momentTitle ?? null,
           grossAmount: event.grossAmount,
           recipientAmount: event.recipientAmount,
           platformAmount: event.platformAmount,
@@ -58,6 +64,9 @@ export class EconomyEventsListener {
       await this.redis.hset(`thread:${event.threadId}:stats`, 'tips', event.threadTipTotal);
       await updateThreadSmartScore(this.redis, event.threadId);
       this.events.emit('thread.updated', { threadId: event.threadId });
+    }
+    if (event.momentId && event.momentTipTotal !== null && event.momentTipTotal !== undefined) {
+      this.events.emit('moment.updated', { momentId: event.momentId });
     }
   }
 }

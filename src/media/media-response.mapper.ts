@@ -3,7 +3,7 @@ type MediaVariantSource = {
   status?: string;
 };
 
-function derivativeUrl(url: string, suffix: '_thumb.webp' | '_md.webp'): string | null {
+function derivativeUrl(url: string, suffix: '_thumb.webp' | '_feed.webp' | '_md.webp'): string | null {
   const match = url.match(/^(.*)\.[^./?#]+([?#].*)?$/);
   return match ? `${match[1]}${suffix}${match[2] ?? ''}` : null;
 }
@@ -11,10 +11,11 @@ function derivativeUrl(url: string, suffix: '_thumb.webp' | '_md.webp'): string 
 /** 只在服务端已完成衍生图生成后公开可用地址。 */
 export function mediaVariantUrls(media: MediaVariantSource) {
   if (media.status !== 'COMPLETED') {
-    return { thumbnailUrl: null, mediumUrl: null };
+    return { thumbnailUrl: null, feedUrl: null, mediumUrl: null };
   }
   return {
     thumbnailUrl: derivativeUrl(media.url, '_thumb.webp'),
+    feedUrl: derivativeUrl(media.url, '_feed.webp'),
     mediumUrl: derivativeUrl(media.url, '_md.webp'),
   };
 }

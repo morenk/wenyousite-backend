@@ -1,11 +1,12 @@
 import { BadRequestException, HttpStatus, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { attachPlayerCounts, authorSelect } from '../common/prisma-helpers';
+import { attachPlayerCounts, authorSelect, notDeleted } from '../common/prisma-helpers';
 import { paginate } from '../common/dto/paginated-result';
 import { ThreadAccessService } from '../access/thread-access.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
+import { extractMarkdownCoverImages } from '../common/markdown-cover-images';
 
 const SEARCH_POST_LIMIT = 20;
 const SEARCH_POSTS_PER_THREAD = 3;
@@ -33,9 +34,7 @@ interface SearchPostCursor {
   id: string;
 }
 
-type PostSearchScope =
-  | { type: 'global' }
-  | { type: 'thread'; threadId: string };
+type PostSearchScope = { type: 'global' } | { type: 'thread'; threadId: string };
 
 const keywordLength = (keyword: string) => Array.from(keyword.trim()).length;
 
@@ -44,33 +43,33 @@ function escapeLikePattern(keyword: string): string {
 }
 
 function encodePostCursor(row: RankedPostRow): string {
-  return Buffer.from(JSON.stringify({
-    relevance: row.relevance,
-    createdAt: row.createdAt.toISOString(),
-    id: row.id,
-  } satisfies SearchPostCursor)).toString('base64url');
+  return Buffer.from(
+    JSON.stringify({
+      relevance: row.relevance,
+      createdAt: row.createdAt.toISOString(),
+      id: row.id,
+    } satisfies SearchPostCursor),
+  ).toString('base64url');
 }
 
 function decodePostCursor(cursor: string): SearchPostCursor {
   try {
-    const value = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as Partial<SearchPostCursor>;
+    const value = JSON.parse(
+      Buffer.from(cursor, 'base64url').toString('utf8'),
+    ) as Partial<SearchPostCursor>;
     if (
-      typeof value.relevance !== 'number'
-      || !Number.isFinite(value.relevance)
-      || typeof value.createdAt !== 'string'
-      || Number.isNaN(Date.parse(value.createdAt))
-      || typeof value.id !== 'string'
-      || value.id.length === 0
+      typeof value.relevance !== 'number' ||
+      !Number.isFinite(value.relevance) ||
+      typeof value.createdAt !== 'string' ||
+      Number.isNaN(Date.parse(value.createdAt)) ||
+      typeof value.id !== 'string' ||
+      value.id.length === 0
     ) {
       throw new Error('invalid cursor shape');
     }
     return value as SearchPostCursor;
   } catch {
-    throw new BusinessException(
-      ErrorCode.INVALID_CURSOR,
-      '无效的搜索游标',
-      HttpStatus.BAD_REQUEST,
-    );
+    throw new BusinessException(ErrorCode.INVALID_CURSOR, '无效的搜索游标', HttpStatus.BAD_REQUEST);
   }
 }
 
@@ -87,9 +86,10 @@ export class SearchService {
     const keyword = q?.trim() ?? '';
     if (!keyword) return { users: [], threads: [], posts: [] };
 
-    const postsPromise = keywordLength(keyword) >= MIN_POST_SEARCH_LENGTH
-      ? this.searchPosts(keyword).then((page) => page.items)
-      : Promise.resolve([]);
+    const postsPromise =
+      keywordLength(keyword) >= MIN_POST_SEARCH_LENGTH
+        ? this.searchPosts(keyword).then((page) => page.items)
+        : Promise.resolve([]);
     const [users, threads, posts] = await Promise.all([
       this.searchUsers(keyword),
       this.searchThreads(keyword),
@@ -129,12 +129,25 @@ export class SearchService {
         createdAt: true,
         owner: { select: authorSelect },
         _count: { select: { members: true, posts: true } },
+        defaultSubthread: {
+          select: {
+            posts: {
+              where: { kind: 'BODY', ...notDeleted },
+              take: 1,
+              orderBy: { createdAt: 'asc' },
+              select: { content: true },
+            },
+          },
+        },
       },
       take: 50,
       orderBy: { updatedAt: 'desc' },
     });
     await attachPlayerCounts(this.prisma, threads);
-    return threads;
+    return threads.map(({ defaultSubthread, ...thread }) => ({
+      ...thread,
+      coverImages: extractMarkdownCoverImages(defaultSubthread?.posts[0]?.content ?? ''),
+    }));
   }
 
   /**
@@ -172,8 +185,9 @@ export class SearchService {
     const take = Math.max(1, Math.min(limit, SEARCH_POST_LIMIT));
     const decodedCursor = cursor ? decodePostCursor(cursor) : undefined;
     const cursorDate = decodedCursor ? new Date(decodedCursor.createdAt) : undefined;
-    const cursorCondition = decodedCursor && cursorDate
-      ? Prisma.sql`
+    const cursorCondition =
+      decodedCursor && cursorDate
+        ? Prisma.sql`
           AND (
             ranked.relevance < ${decodedCursor.relevance}
             OR (ranked.relevance = ${decodedCursor.relevance} AND ranked."createdAt" < ${cursorDate})
@@ -183,23 +197,26 @@ export class SearchService {
               AND ranked.id < ${decodedCursor.id}
             )
           )`
-      : Prisma.empty;
+        : Prisma.empty;
     const likePattern = `%${escapeLikePattern(keyword)}%`;
-    const threadRankSelect = scope.type === 'global'
-      ? Prisma.sql`,
+    const threadRankSelect =
+      scope.type === 'global'
+        ? Prisma.sql`,
           ROW_NUMBER() OVER (
             PARTITION BY p."thread_id"
             ORDER BY similarity(p."content", ${keyword}) DESC, p."created_at" DESC, p."id" DESC
           ) AS "threadRank"`
-      : Prisma.empty;
-    const threadScopeCondition = scope.type === 'global'
-      ? Prisma.sql`
+        : Prisma.empty;
+    const threadScopeCondition =
+      scope.type === 'global'
+        ? Prisma.sql`
           AND t."published" = true
           AND t."visibility" = 'PUBLIC'`
-      : Prisma.sql`AND t."id" = ${scope.threadId}`;
-    const threadRankCondition = scope.type === 'global'
-      ? Prisma.sql`AND ranked."threadRank" <= ${SEARCH_POSTS_PER_THREAD}`
-      : Prisma.empty;
+        : Prisma.sql`AND t."id" = ${scope.threadId}`;
+    const threadRankCondition =
+      scope.type === 'global'
+        ? Prisma.sql`AND ranked."threadRank" <= ${SEARCH_POSTS_PER_THREAD}`
+        : Prisma.empty;
 
     const rankedRows = await this.prisma.$queryRaw<RankedPostRow[]>(Prisma.sql`
       WITH ranked AS (
@@ -230,12 +247,13 @@ export class SearchService {
     const hasMore = rankedRows.length > take;
     const pageRows = rankedRows.slice(0, take);
     const ids = pageRows.map((row) => row.id);
-    const unorderedPosts = ids.length > 0
-      ? await this.prisma.post.findMany({
-          where: { id: { in: ids } },
-          select: postSearchSelect,
-        })
-      : [];
+    const unorderedPosts =
+      ids.length > 0
+        ? await this.prisma.post.findMany({
+            where: { id: { in: ids } },
+            select: postSearchSelect,
+          })
+        : [];
     const postById = new Map(unorderedPosts.map((post) => [post.id, post]));
     const posts = ids.flatMap((id) => {
       const post = postById.get(id);

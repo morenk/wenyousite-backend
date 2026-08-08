@@ -9,6 +9,8 @@ export interface NotificationJob {
   content: string;
   postId?: string;
   threadId?: string;
+  momentId?: string;
+  momentCommentId?: string;
   fromUserId?: string;
   payload?: Record<string, unknown> | null;
   eventKey?: string;
@@ -27,6 +29,8 @@ export class NotificationProducer {
     opts?: {
       postId?: string;
       threadId?: string;
+      momentId?: string;
+      momentCommentId?: string;
       fromUserId?: string;
       payload?: Record<string, unknown>;
       /** 同一业务事件的稳定键；处理器会按收件人拼接，保证队列重试幂等。 */

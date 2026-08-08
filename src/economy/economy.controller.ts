@@ -92,4 +92,22 @@ export class EconomyController {
   ) {
     return this.economy.tipUser(user, id, dto.amount, dto.clientRequestId);
   }
+
+  @Post('moments/:id/tips')
+  @Auth()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '给公开动态作者加油' })
+  @ApiCreatedResponse({ type: TipResponseDto })
+  @ApiBadRequestResponse({ description: '金额不是不小于 2 的整数升' })
+  @ApiForbiddenResponse({ description: '给自己加油或存在拉黑关系' })
+  @ApiNotFoundResponse({ description: '动态不存在' })
+  @ApiConflictResponse({ description: '余额不足或幂等键复用于不同请求' })
+  tipMoment(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() dto: TipRequestDto,
+  ) {
+    return this.economy.tipMoment(user, id, dto.amount, dto.clientRequestId);
+  }
 }

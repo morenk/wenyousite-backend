@@ -267,6 +267,12 @@ GET /subthreads/:id/posts?limit=20
 
 ### 4.3 楼中楼
 
+#### 动态评论媒体
+
+`POST /moments/:id/comments` 支持纯文本以及可选的单个媒体位：普通图片传 `mediaId`，收藏表情传 `stickerAssetId`。正文、图片、表情至少提供一项；`mediaId` 与 `stickerAssetId` 不能同时出现。普通图片必须由当前用户上传、已完成处理且尚未绑定其他内容，表情必须仍在当前用户收藏夹中。
+
+评论响应会返回互斥的 `media` / `sticker`；图片或表情评论的 `content` 可以是空字符串，删除后正文和媒体都返回 `null`。旧客户端可忽略新增字段并继续发布纯文字评论。
+
 ```
 GET /posts/:id/replies?limit=20    // 获取某楼层的全部回复（分页）
 POST /subthreads/:id/posts         // 发楼中楼回复
@@ -429,7 +435,7 @@ GET /threads/:threadId/search/posts?q=关键词&cursor=&limit=20
 }
 ```
 
-三个全站分类端点供 Tab 按需请求，避免默认执行正文搜索。楼层关键词至少 2 个字符，每页最多 20 条、每个主题帖最多 3 条，按相关度优先排序；继续加载时透传 `meta.cursor`。用户结果排除已注销账号且不返回邮箱等敏感资料；主题帖与全站正文结果仅搜索已发布的公开帖内容。
+三个全站分类端点供 Tab 按需请求，避免默认执行正文搜索。楼层关键词至少 2 个字符，每页最多 20 条、每个主题帖最多 3 条，按相关度优先排序；继续加载时透传 `meta.cursor`。用户结果排除已注销账号且不返回邮箱等敏感资料；主题帖与全站正文结果仅搜索已发布的公开帖内容。主题帖搜索结果的 `coverImages` 始终为数组，按默认主贴正文顺序提供最多三张普通图片 URL。
 
 帖内楼层端点使用相同的关键词限制、排序和游标协议，但覆盖指定主题帖的全部子贴且不限制结果为 3 条；公开帖允许匿名调用，私密帖仅成员可调用，未发布帖仅楼主可调用。帖子结果的 `parentPostId` 用于区分主楼层与楼中楼并生成精确定位链接。
 
@@ -439,7 +445,7 @@ GET /threads/:threadId/search/posts?q=关键词&cursor=&limit=20
 
 ## 11. 前端开发建议
 
-OpenAPI 契约版本为 `3.0.0-dev.20260807.2`。Web 与 Flutter 都应从仓库内已审核的 `contracts/openapi.json` 生成类型；成功响应读取 `data`，分页读取 `meta`，错误响应统一按 `{ code, message, data: null }` 处理，业务分支使用生成的 `BusinessErrorCode`，不要依赖提示文案。完整移动端策略见 [Flutter / 原生移动端接入](./mobile-client-guide.md)。
+OpenAPI 契约版本为 `4.3.0-dev.20260808.1`。Web 与 Flutter 都应从仓库内已审核的 `contracts/openapi.json` 生成类型；成功响应读取 `data`，分页读取 `meta`，错误响应统一按 `{ code, message, data: null }` 处理，业务分支使用生成的 `BusinessErrorCode`，不要依赖提示文案。动态的标题、正文和评论文字是纯文本，不得进入 Markdown 渲染链路；分类选项必须从 `GET /thread-categories` 获取并提交其 `slug`。完整移动端策略见 [Flutter / 原生移动端接入](./mobile-client-guide.md)。
 
 1. **先看 Swagger**：`/api/docs` 有每个端点的请求 Schema（含 example 值）和响应描述，Try it out 可直接调试。
 2. **Token 管理**：封装单航班刷新拦截器；只对 `40101 TOKEN_EXPIRED` 刷新一次并重放请求，其他 401 直接进入对应登录/锁定/注销状态，避免刷新风暴。
@@ -456,5 +462,5 @@ OpenAPI 契约版本为 `3.0.0-dev.20260807.2`。Web 与 Flutter 都应从仓库
 
 | 模块 | 状态 | 说明 |
 |------|------|------|
-| Reports | 已搁置 | 举报端点可调但将在后期重构，前端暂不接入 |
-| Admin | 已搁置 | `GET /admin` 仅返回占位 JSON，真实管理功能待开发 |
+| Reports | 后端就绪 | 类型化举报、管理员队列和原子结案已提供，客户端尚未接入 |
+| Admin | 后端就绪 | 权限、处罚、内容处置、审计和数据看板已提供，客户端尚未接入 |

@@ -45,8 +45,8 @@ export class SearchThreadResponseDto {
   @ApiProperty({ description: '主题帖标题' })
   title: string;
 
-  @ApiProperty({ enum: ['DEDUCTION', 'NATION', 'RPG'], description: '主题帖分区' })
-  category: 'DEDUCTION' | 'NATION' | 'RPG';
+  @ApiProperty({ type: String, nullable: true, example: 'DEDUCTION', description: '动态分类 slug' })
+  category: string | null;
 
   @ApiProperty({ format: 'date-time', description: '创建时间' })
   createdAt: Date;
@@ -56,6 +56,13 @@ export class SearchThreadResponseDto {
 
   @ApiProperty({ type: SearchThreadCountResponseDto, description: '主题帖统计' })
   _count: SearchThreadCountResponseDto;
+
+  @ApiProperty({
+    type: [String],
+    maxItems: 3,
+    description: '默认主贴正文中的普通图片 URL，按出现顺序返回，最多 3 张',
+  })
+  coverImages: string[];
 }
 
 class SearchThreadReferenceResponseDto {
@@ -104,9 +111,15 @@ export class SearchResultResponseDto {
   @ApiProperty({ type: [SearchUserResponseDto], description: '用户名匹配结果，最多 20 条' })
   users: SearchUserResponseDto[];
 
-  @ApiProperty({ type: [SearchThreadResponseDto], description: '公开主题帖标题匹配结果，最多 50 条' })
+  @ApiProperty({
+    type: [SearchThreadResponseDto],
+    description: '公开主题帖标题匹配结果，最多 50 条',
+  })
   threads: SearchThreadResponseDto[];
 
-  @ApiProperty({ type: [SearchPostResponseDto], description: '公开楼层正文兼容匹配结果，最多 20 条' })
+  @ApiProperty({
+    type: [SearchPostResponseDto],
+    description: '公开楼层正文兼容匹配结果，最多 20 条',
+  })
   posts: SearchPostResponseDto[];
 }

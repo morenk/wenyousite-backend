@@ -65,6 +65,9 @@ export class TipResponseDto {
   @ApiPropertyOptional({ type: String, pattern: '^\\d+$', description: '主题累计投入总额' })
   threadTipTotal?: string;
 
+  @ApiPropertyOptional({ type: String, pattern: '^\\d+$', description: '动态累计加油总额' })
+  momentTipTotal?: string;
+
   @ApiProperty({ type: String, pattern: '^\\d+$', description: '收款人累计收到的用户投入总额' })
   recipientTipTotal!: string;
 
@@ -73,8 +76,8 @@ export class TipResponseDto {
 }
 
 export class WalletTransactionTargetResponseDto {
-  @ApiProperty({ enum: ['THREAD', 'USER', 'NONE'] })
-  type!: 'THREAD' | 'USER' | 'NONE';
+  @ApiProperty({ enum: ['THREAD', 'USER', 'MOMENT', 'NONE'] })
+  type!: 'THREAD' | 'USER' | 'MOMENT' | 'NONE';
 
   @ApiProperty({ type: String, nullable: true })
   id!: string | null;

@@ -47,6 +47,9 @@ export class NotificationPayloadResponseDto {
   @ApiPropertyOptional({ type: String, nullable: true })
   threadTitle?: string | null;
 
+  @ApiPropertyOptional({ type: String, nullable: true })
+  momentTitle?: string | null;
+
   @ApiPropertyOptional({ type: Number, nullable: true, minimum: 1 })
   totalCount?: number | null;
 
@@ -73,14 +76,20 @@ export class NotificationPayloadResponseDto {
 }
 
 export class NotificationTargetResponseDto {
-  @ApiProperty({ enum: ['post', 'thread', 'user', 'none'] })
-  kind!: 'post' | 'thread' | 'user' | 'none';
+  @ApiProperty({ enum: ['post', 'thread', 'moment', 'user', 'none'] })
+  kind!: 'post' | 'thread' | 'moment' | 'user' | 'none';
 
   @ApiProperty({ type: String, nullable: true })
   threadId!: string | null;
 
   @ApiProperty({ type: String, nullable: true })
   postId!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  momentId!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  momentCommentId!: string | null;
 
   @ApiProperty({ type: String, nullable: true })
   userId!: string | null;
@@ -106,6 +115,28 @@ class NotificationThreadResponseDto {
 
   @ApiProperty({ type: String, nullable: true })
   title!: string | null;
+
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  deletedAt!: Date | null;
+}
+
+class NotificationMomentResponseDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  title!: string;
+
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  deletedAt!: Date | null;
+}
+
+class NotificationMomentCommentResponseDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  parentCommentId!: string | null;
 
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   deletedAt!: Date | null;
@@ -154,6 +185,12 @@ export class NotificationResponseDto {
   threadId!: string | null;
 
   @ApiProperty({ type: String, nullable: true })
+  momentId!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  momentCommentId!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
   fromUserId!: string | null;
 
   @ApiProperty()
@@ -170,6 +207,12 @@ export class NotificationResponseDto {
 
   @ApiProperty({ type: NotificationThreadResponseDto, nullable: true })
   thread!: NotificationThreadResponseDto | null;
+
+  @ApiProperty({ type: NotificationMomentResponseDto, nullable: true })
+  moment!: NotificationMomentResponseDto | null;
+
+  @ApiProperty({ type: NotificationMomentCommentResponseDto, nullable: true })
+  momentComment!: NotificationMomentCommentResponseDto | null;
 
   @ApiProperty({ type: NotificationFromUserResponseDto, nullable: true })
   fromUser!: NotificationFromUserResponseDto | null;
