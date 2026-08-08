@@ -15,6 +15,7 @@ import { ThreadAggregateService } from './thread-aggregate.service';
 import { MentionsModule } from '../mentions/mentions.module';
 import { StickersModule } from '../stickers/stickers.module';
 import { ThreadCreateIdempotencyService } from './thread-create-idempotency.service';
+import { TaxonomyModule } from '../taxonomy/taxonomy.module';
 
 /** 主题帖模块：CRUD、参与人管理、标签关联 */
 @Module({
@@ -25,6 +26,7 @@ import { ThreadCreateIdempotencyService } from './thread-create-idempotency.serv
     OutboxModule,
     MentionsModule,
     StickersModule,
+    TaxonomyModule,
   ],
   controllers: [ThreadsController, ThreadMembersController, ThreadTagsController],
   providers: [

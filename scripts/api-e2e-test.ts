@@ -13,6 +13,7 @@ import pc from 'picocolors';
 import { z } from 'zod';
 import { faker } from '@faker-js/faker';
 import { execFileSync } from 'child_process';
+import { API_CONTRACT_VERSION } from '../src/common/swagger/openapi-document';
 
 // ═══════════════════════════════════════════════════════════════
 // 配置
@@ -395,8 +396,21 @@ test(s1, 'GET /health 返回 ok', async () => {
 test(s1, 'GET /meta 客户端协议元数据', async () => {
   const r = await api.get('/meta');
   assert(r.code === 0, 'meta 应成功');
-  assert(/^3\.1\./.test(r.data.contractVersion), '契约应为 3.1.x');
+  assert(r.data.contractVersion === API_CONTRACT_VERSION, `契约应为 ${API_CONTRACT_VERSION}`);
   assert(r.data.markdownContractVersion === 2, 'Markdown 协议应为 v2');
+});
+
+test(s1, 'GET /thread-categories 返回动态分类配置', async () => {
+  const r = await api.get('/thread-categories');
+  assert(r.code === 0 && Array.isArray(r.data), '分类列表应成功');
+  assert(
+    r.data.some((item: { slug?: string }) => item.slug === 'DEDUCTION'),
+    '应保留旧分类',
+  );
+  assert(
+    r.data.every((item: { isActive?: boolean }) => item.isActive === true),
+    '只返回启用分类',
+  );
 });
 
 test(s1, 'GET /threads 公开列表（分页）', async () => {

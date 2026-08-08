@@ -17,6 +17,10 @@ import {
   mapSubthreadBody,
 } from '../common/prisma-helpers';
 import { truncateMarkdown } from '../common/markdown-truncate';
+import {
+  extractMarkdownCoverImages,
+  stripVisibleMarkdownImages,
+} from '../common/markdown-cover-images';
 
 const ZSET_BY_SMART = 'threads:by:smart';
 
@@ -145,14 +149,13 @@ export class ThreadQueryService {
       `tagId:${query.tagId ?? 'all'}`,
       `filter:${query.filter ?? 'all'}`,
       `limit:${Math.min(query.limit ?? 20, 50)}`,
+      'shape:covers-v1',
     );
     const cacheableFirstPage = !query.cursor && query.filter !== 'playing';
 
     // 公开首页尝试缓存命中；playing 是用户私有结果，严禁进入共享缓存。
     if (cacheableFirstPage) {
-      const cached = await this.cache.get<
-        PaginatedResult<HomeThreadListItemResponseDto>
-      >(cacheKey);
+      const cached = await this.cache.get<PaginatedResult<HomeThreadListItemResponseDto>>(cacheKey);
       if (cached) return paginate(cached.items, cached.pagination);
     }
 
@@ -224,13 +227,22 @@ export class ThreadQueryService {
     await attachPlayerCounts(this.prisma, threads);
 
     const items = threads.map((t: any) => {
-      const preview = t.defaultSubthread?.posts?.[0]?.content
-        ? truncateMarkdown(t.defaultSubthread.posts[0].content)
+      const bodyContent = t.defaultSubthread?.posts?.[0]?.content ?? '';
+      const coverImages = extractMarkdownCoverImages(bodyContent);
+      const preview = bodyContent
+        ? truncateMarkdown(
+            coverImages.length > 0 ? stripVisibleMarkdownImages(bodyContent) : bodyContent,
+          )
         : '';
       // 移除 defaultSubthread.posts 全量，仅保留 preview
       const rest = { ...(t.defaultSubthread ?? {}) };
       delete rest.posts;
-      return { ...t, preview, defaultSubthread: t.defaultSubthread ? rest : null };
+      return {
+        ...t,
+        preview,
+        coverImages,
+        defaultSubthread: t.defaultSubthread ? rest : null,
+      };
     });
 
     const result = paginate(items, {
@@ -251,10 +263,7 @@ export class ThreadQueryService {
     const take = Math.min(query.limit ?? 20, 50);
     // cursor 记录「已消费的可见帖数」，单调累进
     const consumed = query.cursor ? Number(query.cursor) : 0;
-    if (
-      query.cursor &&
-      (!/^(0|[1-9]\d*)$/.test(query.cursor) || !Number.isSafeInteger(consumed))
-    ) {
+    if (query.cursor && (!/^(0|[1-9]\d*)$/.test(query.cursor) || !Number.isSafeInteger(consumed))) {
       throw new BusinessException(
         ErrorCode.INVALID_CURSOR,
         '无效的推荐排序游标',
@@ -310,13 +319,22 @@ export class ThreadQueryService {
     await attachPlayerCounts(this.prisma, sliced);
 
     const items = sliced.map((t: any) => {
-      const preview = t.defaultSubthread?.posts?.[0]?.content
-        ? truncateMarkdown(t.defaultSubthread.posts[0].content)
+      const bodyContent = t.defaultSubthread?.posts?.[0]?.content ?? '';
+      const coverImages = extractMarkdownCoverImages(bodyContent);
+      const preview = bodyContent
+        ? truncateMarkdown(
+            coverImages.length > 0 ? stripVisibleMarkdownImages(bodyContent) : bodyContent,
+          )
         : '';
       // 移除 defaultSubthread.posts 全量，仅保留 preview
       const rest = { ...(t.defaultSubthread ?? {}) };
       delete rest.posts;
-      return { ...t, preview, defaultSubthread: t.defaultSubthread ? rest : null };
+      return {
+        ...t,
+        preview,
+        coverImages,
+        defaultSubthread: t.defaultSubthread ? rest : null,
+      };
     });
 
     return paginate(items, { cursor: nextCursor, hasMore });

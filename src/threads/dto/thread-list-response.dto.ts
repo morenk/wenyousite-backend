@@ -31,8 +31,8 @@ export class ThreadListItemResponseDto {
   @ApiProperty()
   title!: string;
 
-  @ApiProperty({ enum: ['DEDUCTION', 'NATION', 'RPG'] })
-  category!: 'DEDUCTION' | 'NATION' | 'RPG';
+  @ApiProperty({ type: String, nullable: true, example: 'DEDUCTION', description: '动态分类 slug' })
+  category!: string | null;
 
   @ApiProperty({ enum: ['RECRUITING', 'CLOSED', 'FINISHED'] })
   status!: 'RECRUITING' | 'CLOSED' | 'FINISHED';
@@ -77,6 +77,13 @@ export class ThreadListItemResponseDto {
 export class HomeThreadListItemResponseDto extends ThreadListItemResponseDto {
   @ApiProperty({ description: '首页列表正文预览' })
   declare preview: string;
+
+  @ApiProperty({
+    type: [String],
+    maxItems: 3,
+    description: '默认主贴正文中的普通图片 URL，按出现顺序返回，最多 3 张',
+  })
+  coverImages!: string[];
 }
 
 class BookmarkThreadCountResponseDto {
@@ -94,8 +101,8 @@ export class BookmarkThreadResponseDto {
   @ApiProperty()
   title!: string;
 
-  @ApiProperty({ enum: ['DEDUCTION', 'NATION', 'RPG'] })
-  category!: 'DEDUCTION' | 'NATION' | 'RPG';
+  @ApiProperty({ type: String, nullable: true, example: 'DEDUCTION', description: '动态分类 slug' })
+  category!: string | null;
 
   @ApiProperty({ enum: ['RECRUITING', 'CLOSED', 'FINISHED'] })
   status!: 'RECRUITING' | 'CLOSED' | 'FINISHED';
@@ -159,8 +166,8 @@ export class DraftThreadResponseDto {
   @ApiProperty()
   title!: string;
 
-  @ApiProperty({ enum: ['DEDUCTION', 'NATION', 'RPG'] })
-  category!: 'DEDUCTION' | 'NATION' | 'RPG';
+  @ApiProperty({ type: String, nullable: true, example: 'DEDUCTION', description: '动态分类 slug' })
+  category!: string | null;
 
   @ApiProperty({ enum: ['RECRUITING', 'CLOSED', 'FINISHED'] })
   status!: 'RECRUITING' | 'CLOSED' | 'FINISHED';

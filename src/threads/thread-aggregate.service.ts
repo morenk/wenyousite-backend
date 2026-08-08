@@ -25,6 +25,7 @@ import { RedisService } from '../redis/redis.service';
 import { SaveThreadAggregateDto } from './dto/save-thread-aggregate.dto';
 import { StickerContentService } from '../stickers/sticker-content.service';
 import { computeThreadEngagement, computeThreadSmartScore } from './thread-smart-score';
+import { ThreadCategoriesService } from '../taxonomy/thread-categories.service';
 
 const ZSET_BY_CREATED = 'threads:by:created';
 const ZSET_BY_ACTIVITY = 'threads:by:activity';
@@ -59,6 +60,7 @@ export class ThreadAggregateService {
     private readonly blockFilter: BlockFilterService,
     private readonly notifications: NotificationProducer,
     private readonly stickerContent: StickerContentService,
+    private readonly categories: ThreadCategoriesService,
   ) {}
 
   async save(threadId: string, dto: SaveThreadAggregateDto, userId: string) {
@@ -145,7 +147,10 @@ export class ThreadAggregateService {
         }
 
         const effectiveTitle = title ?? current.title ?? '';
-        const effectiveCategory = dto.category ?? current.category;
+        let effectiveCategory = current.category;
+        if (dto.category !== undefined) {
+          effectiveCategory = await this.categories.assertSelectable(dto.category, tx);
+        }
         const publishing = dto.published === true;
         const effectivePublished = current.published || publishing;
         if (publishing) {
@@ -154,6 +159,9 @@ export class ThreadAggregateService {
             effectiveCategory,
             parsedContent.contentWithoutDice,
           );
+          if (dto.category === undefined) {
+            await this.categories.assertSelectable(effectiveCategory!, tx);
+          }
         } else if (
           effectivePublished &&
           !hasVisibleMarkdownContent(parsedContent.contentWithoutDice)
@@ -235,12 +243,28 @@ export class ThreadAggregateService {
           }
         }
 
-        await tx.topicTag.createMany({
-          data: tagNames.map((name) => ({ name })),
-          skipDuplicates: true,
-        });
-        const tags = tagNames.length
+        const existingTags = tagNames.length
           ? await tx.topicTag.findMany({ where: { name: { in: tagNames } } })
+          : [];
+        if (existingTags.some((tag) => tag.isActive === false)) {
+          throw new BusinessException(
+            ErrorCode.TAXONOMY_STATE_CONFLICT,
+            '所选标签已停用',
+            HttpStatus.CONFLICT,
+          );
+        }
+        const existingTagNames = new Set(existingTags.map((tag) => tag.name));
+        const missingTagNames = tagNames.filter((name) => !existingTagNames.has(name));
+        if (missingTagNames.length > 0) {
+          await tx.topicTag.createMany({
+            data: missingTagNames.map((name) => ({ name })),
+            skipDuplicates: true,
+          });
+        }
+        const tags = tagNames.length
+          ? await tx.topicTag.findMany({
+              where: { name: { in: tagNames }, isActive: true },
+            })
           : [];
         const tagIds = tags.map((tag) => tag.id);
         await tx.threadTopicTag.deleteMany({
@@ -287,7 +311,7 @@ export class ThreadAggregateService {
           where: { id: threadId, version: dto.version, ...notDeleted },
           data: {
             ...(title !== undefined ? { title } : {}),
-            ...(dto.category !== undefined ? { category: dto.category } : {}),
+            ...(dto.category !== undefined ? { category: effectiveCategory } : {}),
             ...(dto.status !== undefined ? { status: dto.status } : {}),
             ...(dto.visibility !== undefined ? { visibility: dto.visibility } : {}),
             ...(publishing ? { published: true, publishedAt: new Date() } : {}),
@@ -375,7 +399,11 @@ export class ThreadAggregateService {
     );
   }
 
-  private assertPublishReadiness(title: string, category: string, contentWithoutDice: string) {
+  private assertPublishReadiness(
+    title: string,
+    category: string | null,
+    contentWithoutDice: string,
+  ) {
     if (!title || title === '未命名草稿') {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '请填写主题帖标题后再发布');
     }

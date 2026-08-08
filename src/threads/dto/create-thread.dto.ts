@@ -7,7 +7,9 @@ import {
   IsIn,
   IsArray,
   IsUUID,
+  Matches,
 } from 'class-validator';
+import { CATEGORY_SLUG_PATTERN } from '../../taxonomy/category-slug';
 
 /** 创建主题帖草稿 DTO：全部可选，发布时校验完整 */
 export class CreateThreadDto {
@@ -32,13 +34,12 @@ export class CreateThreadDto {
   title?: string;
 
   @ApiPropertyOptional({
-    enum: ['DEDUCTION', 'NATION', 'RPG'],
-    default: 'DEDUCTION',
-    description: '分区',
+    example: 'DEDUCTION',
+    description: '管理员配置的主题帖分类 slug；草稿可暂不选择',
   })
   @IsOptional()
   @IsString()
-  @IsIn(['DEDUCTION', 'NATION', 'RPG'])
+  @Matches(CATEGORY_SLUG_PATTERN)
   category?: string;
 
   @ApiPropertyOptional({

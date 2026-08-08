@@ -16,6 +16,11 @@ import { ThreadQueryService } from './thread-query.service';
 import { OutboxService } from '../outbox/outbox.service';
 import { StickerContentService } from '../stickers/sticker-content.service';
 import { ThreadCreateIdempotencyService } from './thread-create-idempotency.service';
+import { ThreadCategoriesService } from '../taxonomy/thread-categories.service';
+
+const mockCategories = {
+  assertSelectable: jest.fn(async (slug: string) => slug.trim().toUpperCase()),
+};
 
 const mockPrisma = {
   $transaction: jest.fn(),
@@ -116,6 +121,7 @@ describe('ThreadsService', () => {
         { provide: RedisService, useValue: mockRedis },
         { provide: CacheService, useValue: mockCache },
         { provide: OutboxService, useValue: mockOutbox },
+        { provide: ThreadCategoriesService, useValue: mockCategories },
         {
           provide: StickerContentService,
           useValue: { assertContentAllowed: jest.fn().mockResolvedValue([]) },
@@ -297,6 +303,7 @@ describe('ThreadsService', () => {
         'tagId:all',
         'filter:all',
         'limit:20',
+        'shape:covers-v1',
       );
     });
 
@@ -323,7 +330,41 @@ describe('ThreadsService', () => {
         `tagId:${tagId}`,
         'filter:all',
         'limit:20',
+        'shape:covers-v1',
       );
+    });
+
+    it('首页列表从默认主贴正文提取封面并移除正文查询结果', async () => {
+      mockPrisma.thread.findMany.mockResolvedValue([
+        {
+          id: 't-cover',
+          title: '有封面的主题',
+          defaultSubthread: {
+            id: 's-cover',
+            title: '主贴',
+            posts: [
+              {
+                content: [
+                  '正文',
+                  '![一](https://cdn.example.com/one.jpg)',
+                  '![二](https://cdn.example.com/two.jpg)',
+                ].join('\n'),
+              },
+            ],
+          },
+          _count: { members: 1, posts: 0 },
+        },
+      ]);
+      mockPrisma.threadMember.groupBy.mockResolvedValue([]);
+
+      const page = await service.findAll({ sort: 'newest' } as any);
+
+      expect(page.items[0]).toMatchObject({
+        preview: '正文',
+        coverImages: ['https://cdn.example.com/one.jpg', 'https://cdn.example.com/two.jpg'],
+        defaultSubthread: { id: 's-cover', title: '主贴' },
+      });
+      expect(page.items[0].defaultSubthread).not.toHaveProperty('posts');
     });
 
     describe('recommended（智能排序）', () => {
@@ -391,6 +432,24 @@ describe('ThreadsService', () => {
         // 两页合并无重复
         const merged = [...page1.items, ...page2.items].map((t: { id: string }) => t.id);
         expect(new Set(merged).size).toBe(merged.length);
+      });
+
+      it('推荐排序同样返回默认主贴封面', async () => {
+        mockRedis.zrevrange.mockResolvedValue(['r1']);
+        mockPrisma.thread.findMany.mockResolvedValue([
+          {
+            ...mkThread('r1'),
+            defaultSubthread: {
+              id: 's-r1',
+              title: '主贴',
+              posts: [{ content: '![封面](https://cdn.example.com/cover.jpg)' }],
+            },
+          },
+        ]);
+
+        const page = await service.findAll({ sort: 'recommended' } as any);
+
+        expect(page.items[0].coverImages).toEqual(['https://cdn.example.com/cover.jpg']);
       });
 
       it('过滤损耗大时扩大前缀扫描直至取够可见帖', async () => {

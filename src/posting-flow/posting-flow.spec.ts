@@ -22,6 +22,7 @@ import { ThreadQueryService } from '../threads/thread-query.service';
 import { ThreadCreateIdempotencyService } from '../threads/thread-create-idempotency.service';
 import { OutboxService } from '../outbox/outbox.service';
 import { StickerContentService } from '../stickers/sticker-content.service';
+import { ThreadCategoriesService } from '../taxonomy/thread-categories.service';
 
 // ============ Mock 基础设施 ============
 const createMockPrisma = () => ({
@@ -87,6 +88,10 @@ const createMockPrisma = () => ({
   userBookmark: { findUnique: jest.fn() },
   threadLike: { findUnique: jest.fn() },
 });
+
+const mockCategories = {
+  assertSelectable: jest.fn(async (slug: string) => slug.trim().toUpperCase()),
+};
 
 // 最小化的事务模拟函数
 const basicTx = () => ({
@@ -249,6 +254,7 @@ describe('发帖全流程集成测试', () => {
         { provide: RedisService, useValue: mockRedis },
         { provide: CacheService, useValue: mockCache },
         { provide: OutboxService, useValue: mockOutbox },
+        { provide: ThreadCategoriesService, useValue: mockCategories },
         {
           provide: StickerContentService,
           useValue: {
@@ -382,12 +388,7 @@ describe('发帖全流程集成测试', () => {
       prisma.thread.findUnique.mockResolvedValue(thread);
       const result = await threadsService.findById('t1');
       expect(result.id).toBe('t1');
-      expect(mockRedis.hincrbyAtLeast).toHaveBeenCalledWith(
-        'thread:t1:stats',
-        'views',
-        0,
-        1,
-      );
+      expect(mockRedis.hincrbyAtLeast).toHaveBeenCalledWith('thread:t1:stats', 'views', 0, 1);
       expect(prisma.$executeRaw).not.toHaveBeenCalled();
       expect(prisma.thread.update).not.toHaveBeenCalled();
     });
@@ -853,15 +854,13 @@ describe('发帖全流程集成测试', () => {
           ...basicTx(),
           post: {
             aggregate: jest.fn(),
-            create: jest
-              .fn()
-              .mockResolvedValue({
-                id: 'p2',
-                floorNumber: null,
-                parentPostId: 'p1',
-                content: 'reply',
-                author: { id: 'u2', username: 'user2' },
-              }),
+            create: jest.fn().mockResolvedValue({
+              id: 'p2',
+              floorNumber: null,
+              parentPostId: 'p1',
+              content: 'reply',
+              author: { id: 'u2', username: 'user2' },
+            }),
           },
         });
       prisma.$transaction.mockImplementation(txFn);
@@ -888,16 +887,14 @@ describe('发帖全流程集成测试', () => {
           ...basicTx(),
           post: {
             aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 3 } }),
-            create: jest
-              .fn()
-              .mockResolvedValue({
-                id: 'p3',
-                floorNumber: null,
-                parentPostId: 'p_parent',
-                replyToPostId: 'p_target',
-                content: 'reply',
-                author: { id: 'u2', username: 'user2' },
-              }),
+            create: jest.fn().mockResolvedValue({
+              id: 'p3',
+              floorNumber: null,
+              parentPostId: 'p_parent',
+              replyToPostId: 'p_target',
+              content: 'reply',
+              author: { id: 'u2', username: 'user2' },
+            }),
           },
         }),
       );
@@ -1045,14 +1042,12 @@ describe('发帖全流程集成测试', () => {
           ...basicTx(),
           post: {
             aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 10 } }),
-            create: jest
-              .fn()
-              .mockResolvedValue({
-                id: 'p11',
-                floorNumber: 11,
-                content: 'test',
-                author: { id: 'u1', username: 'test' },
-              }),
+            create: jest.fn().mockResolvedValue({
+              id: 'p11',
+              floorNumber: 11,
+              content: 'test',
+              author: { id: 'u1', username: 'test' },
+            }),
           },
         }),
       );
@@ -1090,14 +1085,12 @@ describe('发帖全流程集成测试', () => {
           ...basicTx(),
           post: {
             aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 0 } }),
-            create: jest
-              .fn()
-              .mockResolvedValue({
-                id: 'p1',
-                floorNumber: 1,
-                content: 'test',
-                author: { id: 'u1', username: 'test' },
-              }),
+            create: jest.fn().mockResolvedValue({
+              id: 'p1',
+              floorNumber: 1,
+              content: 'test',
+              author: { id: 'u1', username: 'test' },
+            }),
           },
         }),
       );
@@ -1123,15 +1116,13 @@ describe('发帖全流程集成测试', () => {
           ...basicTx(),
           post: {
             aggregate: jest.fn(),
-            create: jest
-              .fn()
-              .mockResolvedValue({
-                id: 'p2',
-                floorNumber: null,
-                parentPostId: 'p1',
-                content: 'reply',
-                author: { id: 'u2', username: 'user2' },
-              }),
+            create: jest.fn().mockResolvedValue({
+              id: 'p2',
+              floorNumber: null,
+              parentPostId: 'p1',
+              content: 'reply',
+              author: { id: 'u2', username: 'user2' },
+            }),
           },
         }),
       );
@@ -1237,7 +1228,11 @@ describe('发帖全流程集成测试', () => {
       expect(prisma.post.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { deletedAt: null, id: 'p1' },
-          data: { deletedAt: expect.any(Date) },
+          data: {
+            deletedAt: expect.any(Date),
+            removalSource: 'AUTHOR',
+            removedById: 'u1',
+          },
         }),
       );
     });
@@ -1370,7 +1365,13 @@ describe('发帖全流程集成测试', () => {
       prisma.thread.update.mockResolvedValue({ id: 't1', deletedAt: new Date() });
       await threadsService.remove('t1', 'u1');
       expect(prisma.thread.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: { deletedAt: expect.any(Date) } }),
+        expect.objectContaining({
+          data: {
+            deletedAt: expect.any(Date),
+            removalSource: 'OWNER',
+            removedById: 'u1',
+          },
+        }),
       );
       expect(prisma.thread.delete).not.toHaveBeenCalled();
     });

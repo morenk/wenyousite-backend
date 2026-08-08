@@ -1,17 +1,23 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-export class TagResponseDto {
+export class ThreadCategoryResponseDto {
   @ApiProperty()
   id!: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'MYSTERY' })
+  slug!: string;
+
+  @ApiProperty({ example: '悬疑推理' })
   name!: string;
 
   @ApiProperty({ type: String, nullable: true })
+  description!: string | null;
+
+  @ApiProperty({ type: String, nullable: true, example: '#7C3AED' })
   color!: string | null;
 
-  @ApiProperty({ type: String, nullable: true })
-  description!: string | null;
+  @ApiProperty({ type: String, nullable: true, example: 'search' })
+  icon!: string | null;
 
   @ApiProperty()
   sortOrder!: number;

@@ -29,6 +29,15 @@ export class ThreadTagResponseDto {
 
   @ApiProperty({ type: String, nullable: true })
   color!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  description!: string | null;
+
+  @ApiProperty({ minimum: 0 })
+  sortOrder!: number;
+
+  @ApiProperty()
+  isActive!: boolean;
 }
 
 export class ThreadTagRelationResponseDto {
@@ -127,8 +136,8 @@ export class ThreadDetailResponseDto {
   @ApiProperty()
   ownerId!: string;
 
-  @ApiProperty({ enum: ['DEDUCTION', 'NATION', 'RPG'] })
-  category!: 'DEDUCTION' | 'NATION' | 'RPG';
+  @ApiProperty({ type: String, nullable: true, example: 'DEDUCTION', description: '动态分类 slug' })
+  category!: string | null;
 
   @ApiProperty({ enum: ['RECRUITING', 'CLOSED', 'FINISHED'] })
   status!: 'RECRUITING' | 'CLOSED' | 'FINISHED';

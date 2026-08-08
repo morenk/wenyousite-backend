@@ -3,7 +3,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { TagsService } from './tags.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CacheService } from '../redis/cache.service';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ErrorCode } from '../common/exceptions/error-codes';
 
 const mockPrisma = {
   topicTag: {
@@ -15,7 +15,12 @@ const mockPrisma = {
 };
 
 const mockEventEmitter = { emit: jest.fn() };
-const mockCache = { buildKey: jest.fn((...parts: string[]) => parts.join(':')), get: jest.fn().mockResolvedValue(undefined), set: jest.fn().mockResolvedValue(undefined), del: jest.fn().mockResolvedValue(undefined) };
+const mockCache = {
+  buildKey: jest.fn((...parts: string[]) => parts.join(':')),
+  get: jest.fn().mockResolvedValue(undefined),
+  set: jest.fn().mockResolvedValue(undefined),
+  del: jest.fn().mockResolvedValue(undefined),
+};
 
 describe('TagsService', () => {
   let service: TagsService;
@@ -58,12 +63,16 @@ describe('TagsService', () => {
 
   it('create 重复标签应该返回409', async () => {
     mockPrisma.topicTag.findUnique.mockResolvedValue({ id: 'existing' });
-    await expect(service.create({ name: '无限流' })).rejects.toThrow(ConflictException);
+    await expect(service.create({ name: '无限流' })).rejects.toMatchObject({
+      errorCode: ErrorCode.TAG_ALREADY_EXISTS,
+    });
   });
 
   it('findById 不存在应该返回404', async () => {
     mockPrisma.topicTag.findUnique.mockResolvedValue(null);
-    await expect(service.findById('x')).rejects.toThrow(NotFoundException);
+    await expect(service.findById('x')).rejects.toMatchObject({
+      errorCode: ErrorCode.TAG_NOT_FOUND,
+    });
   });
 
   it('findOrCreate 应该找到现有标签', async () => {
@@ -82,5 +91,13 @@ describe('TagsService', () => {
     const result = await service.findOrCreate(['新标签']);
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe('新标签');
+  });
+
+  it('findOrCreate 不应该重新启用已停用标签', async () => {
+    mockPrisma.topicTag.findMany.mockResolvedValue([{ id: 't1', name: '已停用', isActive: false }]);
+    await expect(service.findOrCreate(['已停用'])).rejects.toMatchObject({
+      errorCode: ErrorCode.TAXONOMY_STATE_CONFLICT,
+    });
+    expect(mockPrisma.topicTag.createMany).not.toHaveBeenCalled();
   });
 });

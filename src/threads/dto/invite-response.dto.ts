@@ -32,8 +32,8 @@ class InviteThreadPreviewResponseDto {
   @ApiProperty({ description: '主题帖标题' })
   title: string;
 
-  @ApiProperty({ enum: ['DEDUCTION', 'NATION', 'RPG'], description: '主题帖分区' })
-  category: 'DEDUCTION' | 'NATION' | 'RPG';
+  @ApiProperty({ type: String, nullable: true, example: 'DEDUCTION', description: '动态分类 slug' })
+  category: string | null;
 
   @ApiProperty({ enum: ['RECRUITING', 'CLOSED', 'FINISHED'], description: '主题帖状态' })
   status: 'RECRUITING' | 'CLOSED' | 'FINISHED';

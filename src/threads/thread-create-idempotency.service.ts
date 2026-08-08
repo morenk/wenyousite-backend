@@ -1,11 +1,12 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { ThreadCategory, ThreadVisibility } from '@prisma/client';
+import { ThreadVisibility } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { hashIdempotencyPayload } from '../common/idempotency';
 import { CreateThreadDto } from './dto/create-thread.dto';
 import { ThreadQueryService } from './thread-query.service';
+import { normalizeCategorySlug } from '../taxonomy/category-slug';
 
 /** 主题帖创建幂等协调：集中处理正常重放、并发唯一键竞争与载荷误用。 */
 @Injectable()
@@ -18,7 +19,7 @@ export class ThreadCreateIdempotencyService {
   prepare(dto: CreateThreadDto, normalizedContent: string) {
     const title = dto.title ?? '未命名草稿';
     const subthreadTitle = dto.subthreadTitle ?? title;
-    const category = (dto.category ?? ThreadCategory.DEDUCTION) as ThreadCategory;
+    const category = dto.category ? normalizeCategorySlug(dto.category) : undefined;
     const visibility = (dto.visibility ?? ThreadVisibility.PUBLIC) as ThreadVisibility;
     return {
       title,

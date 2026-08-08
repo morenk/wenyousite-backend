@@ -126,17 +126,16 @@ threadId: string;
 email: string;
 ```
 
-### 3.4 枚举
+### 3.4 固定枚举与动态分类
 
 使用 `@IsIn()` 配合数组，不使用 `@IsEnum()`（Prisma 枚举为编译后类型，运行时不可用）。
 
 ```ts
-@IsIn(['DEDUCTION', 'NATION', 'RPG'])
-category: string;
-
 @IsIn(['THREAD', 'USER'])
 type: string;
 ```
+
+主题帖分类不是枚举。客户端从 `GET /thread-categories` 获取可用项，DTO 用 `@Matches(/^[A-Z0-9][A-Z0-9_-]{0,49}$/)` 校验稳定 slug，服务层再确认该分类存在且已启用。
 
 ### 3.5 数字
 

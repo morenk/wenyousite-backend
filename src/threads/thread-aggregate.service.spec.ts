@@ -112,6 +112,9 @@ describe('ThreadAggregateService', () => {
     recordUsage: jest.fn().mockResolvedValue(undefined),
     extract: jest.fn().mockReturnValue([]),
   };
+  const categories = {
+    assertSelectable: jest.fn(async (slug: string) => slug),
+  };
   const service = new ThreadAggregateService(
     prisma as never,
     access as never,
@@ -123,6 +126,7 @@ describe('ThreadAggregateService', () => {
     blockFilter as never,
     notifications as never,
     stickerContent as never,
+    categories as never,
   );
 
   beforeEach(() => {
@@ -149,7 +153,7 @@ describe('ThreadAggregateService', () => {
     tx.threadMember.findMany.mockResolvedValue([
       { userId: 'u1', role: 'OWNER', playerMarked: true },
     ]);
-    tx.topicTag.findMany.mockResolvedValue([{ id: 'tag1', name: '奇幻' }]);
+    tx.topicTag.findMany.mockResolvedValue([{ id: 'tag1', name: '奇幻', isActive: true }]);
   });
 
   it('在单个事务中保存元数据、默认正文、标签并发布', async () => {

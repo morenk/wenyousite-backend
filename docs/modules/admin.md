@@ -1,63 +1,53 @@
-# 管理后台
+# 管理后台后端
 
-## 概述
+## 权限模型
 
-管理后台模块提供系统通知的发送、预览、历史查询，以及用户搜索功能。需 JWT 登录、邮箱验证，且角色为 ADMIN 或 SUPER_ADMIN。
+所有管理接口使用统一 `@AdminAuth()`，要求 JWT、已验证邮箱以及 `ADMIN` 或 `SUPER_ADMIN`。Controller 不手写角色判断。
 
-## 涉及的模型
+- `ADMIN`：举报读取/结案、内容处置、普通用户处罚、系统通知、分类与标签配置。
+- `SUPER_ADMIN`：包含全部管理员能力，并可处罚 `ADMIN`、授予或撤销 `ADMIN`。
+- 不允许处罚自己或任何 `SUPER_ADMIN`；HTTP API 不允许授予 `SUPER_ADMIN`。
+- 首个超级管理员通过 `pnpm admin:bootstrap -- --email=...` 从已验证账号初始化；已有超级管理员时命令拒绝执行。
 
-| 模型 | 说明 |
-|------|------|
-| `Notification` | 复用，系统通知 `fromUserId` 为 null |
-| `audit_logs` | 每次发送系统通知时写入审计记录 |
+## 管理 API
 
-## API 端点
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/admin` | 返回当前角色派生的能力列表 |
+| `GET` | `/admin/users` | 按关键词、角色、处罚状态游标分页 |
+| `GET` | `/admin/users/:id` | 用户和当前有效处罚详情 |
+| `POST` | `/admin/users/:id/sanctions` | 临时暂停或永久封禁 |
+| `POST` | `/admin/users/:id/sanctions/current/revoke` | 解除当前处罚 |
+| `PATCH` | `/admin/users/:id/role` | `SUPER_ADMIN` 授予/撤销 `ADMIN` |
+| `POST` | `/admin/content/:type/:id/hide` | 隐藏公开 `thread/post` |
+| `POST` | `/admin/content/:type/:id/restore` | 恢复由站务隐藏的内容 |
+| `GET` | `/admin/audit-logs` | 按动作、管理员、目标和时间游标分页 |
+| `GET` | `/admin/dashboard/overview` | 当前/上一等长周期、DAU/WAU/MAU 和治理快照 |
+| `GET` | `/admin/dashboard/timeseries` | 注册、活跃、发帖和举报的按日连续时间序列 |
+| `GET` | `/admin/dashboard/distributions` | 角色、举报、分区和有效处罚分布 |
+| `GET / POST` | `/admin/thread-categories` | 列出（含停用项）或新增主题帖分类 |
+| `PATCH` | `/admin/thread-categories/:id` | 编辑、排序或停用主题帖分类；slug 创建后不可修改 |
+| `GET / POST` | `/admin/tags` | 列出（含停用项）或新增平台标签 |
+| `PATCH` | `/admin/tags/:id` | 编辑、排序或停用平台标签 |
 
-| 方法 | 路径 | 认证 | 说明 |
-|------|------|------|------|
-| `GET` | `/admin` | 无 | 管理后台入口，返回服务名、状态、文档地址 |
-| `POST` | `/admin/notifications/system` | JWT + Verified + Admin | 发送系统通知。Body: content(必填) + 可选 payload / recipientIds / conditions / threadId |
-| `POST` | `/admin/notifications/system/preview` | JWT + Verified + Admin | 预览接收者人数（复用发送 DTO，仅统计不发送） |
-| `GET` | `/admin/notifications/system/history` | JWT + Verified + Admin | 系统通知发送历史（cursor 分页，默认 20 条/页） |
-| `GET` | `/admin/users/search?q=` | JWT + Verified + Admin | 用户搜索（用户名或邮箱模糊匹配），供管理员手动选择接收者 |
+系统通知的发送、预览、历史与用户搜索路径保持 `/admin/notifications/system*`、`/admin/users/search` 不变，也使用相同管理员认证。
 
-## 核心业务规则
+## 数据看板口径
 
-### 发送系统通知
+- `overview` 与 `timeseries` 接受可选 `from/to=YYYY-MM-DD`，均为北京时间闭区间；默认最近 30 天，最长 366 天。
+- 概览中的 `previous` 是紧邻当前区间、长度相同的上一周期；前端可据此计算环比，避免在多个客户端重复定义时间边界。
+- DAU/WAU/MAU 分别为当天、最近 7 天、最近 30 天出现过成功产品请求的去重普通用户。管理员、匿名、失败请求、管理接口和通知轮询不计入。
+- `newPosts` 只统计 `FLOOR` 楼层，不包含每个子贴的 `BODY` 正文；主题帖按 `publishedAt` 统计，举报处理按 `handledAt` 统计。
+- 固定枚举分布返回完整桶；主题帖分类分布从分类配置表读取并保留零值项，顺序与管理员配置一致。
 
-支持三种分发模式（优先级从高到低）：
+## 处罚与内容处置
 
-1. **手动指定用户**：传入 `recipientIds: string[]`，自动过滤已注销用户
-2. **条件筛选**：传入 `conditions` 对象，支持以下字段组合（AND 逻辑）：
-   - `role`: 角色筛选（USER / ADMIN / SUPER_ADMIN）
-   - `emailVerified`: 邮箱验证状态
-   - `createdAfter` / `createdBefore`: 注册时间范围
-3. **全站广播**：不传 `recipientIds` 也不传 `conditions`，发送给所有未注销用户
+- `SUSPENSION` 必须提供未来结束时间；`BAN` 永久生效。处罚不自动隐藏用户历史内容。
+- 生效处罚会在同一事务吊销目标所有 Refresh Token。登录、刷新和每次 JWT 身份加载都会检查处罚，因此旧 Access Token 也立即失效。
+- 过期暂停自动视为无效；历史处罚记录不删除。暂停可升级为封禁，封禁必须先明确解除才能改为较轻处罚。
+- 主题帖和帖子继续使用 `deletedAt` 控制可见性，同时用 `removalSource` 区分作者、帖内管理者和站务动作。只有 `ADMIN` 来源可以从后台恢复。
+- 隐藏主题帖同步移除 Redis 排序/统计投影；恢复会重建投影。帖子处置复用现有缓存失效事件。
 
-所有模式均通过游标分页遍历目标用户（500 人/批），分批入 BullMQ `notification` 队列异步创建。
-`fromUserId` 不传（= null），前端据此区分系统通知与社交通知。
+## 审计
 
-### 审计日志
-
-每次发送成功后在 `audit_logs` 表写入记录：
-- `action`: `SYSTEM_NOTIFICATION`
-- `targetType`: `USER`
-- `detail`: JSON（通知内容摘要 + 接收者人数 + 筛选条件）
-- `adminId`: 操作管理员 ID
-- `ip`: 操作 IP
-
-### 预览
-
-`POST /admin/notifications/system/preview` 与发送接口复用同一 DTO，仅执行 COUNT 查询，不创建任何通知。
-
-### 通知历史
-
-查询 `notifications` 表中 `type='system'` 的记录，按创建时间倒序游标分页。
-
-## 设计决策
-
-- 系统通知不拆分独立表/接口，通过 `fromUserId: null` 在现有 Notification 表中共存，减少前端适配成本
-- 全站广播分批入队而非单次批量插入，避免大用户量下队列任务超时
-- 条件筛选使用简单的字段组合（AND 逻辑），不引入复杂 DSL，满足 admin 后台常见需求
-- 用户搜索与业务侧 `/users/search` 分离，admin 版本返回 email/role 等敏感字段
-- 管理员端点独立于各业务模块，后续管理操作（用户管理、审核等）可逐步迁移至此
+所有治理和分类/标签配置写操作通过统一 `AuditService` 写不可变 `audit_logs`，记录 actor、动作、目标、举报、理由、脱敏 metadata、IP 和 request ID。状态与审计同事务提交；日志没有修改或删除接口。

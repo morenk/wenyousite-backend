@@ -9,14 +9,19 @@ import { AdminModerationController } from './admin-moderation.controller';
 import { AdminModerationQueryService } from './admin-moderation-query.service';
 import { AdminDashboardController } from './admin-dashboard.controller';
 import { AdminDashboardService } from './admin-dashboard.service';
+import { TagsModule } from '../tags/tags.module';
+import { TaxonomyModule } from '../taxonomy/taxonomy.module';
+import { AdminTaxonomyController } from './admin-taxonomy.controller';
+import { AdminTaxonomyService } from './admin-taxonomy.service';
 
 /** 管理后台模块：系统通知发送、预览、历史、用户搜索 */
 @Module({
-  imports: [NotificationsModule],
+  imports: [NotificationsModule, TagsModule, TaxonomyModule],
   controllers: [
     AdminController,
     AdminModerationController,
     AdminDashboardController,
+    AdminTaxonomyController,
   ],
   providers: [
     AdminService,
@@ -25,6 +30,7 @@ import { AdminDashboardService } from './admin-dashboard.service';
     ModerationService,
     AdminModerationQueryService,
     AdminDashboardService,
+    AdminTaxonomyService,
   ],
   exports: [AdminPolicyService, AuditService, ModerationService],
 })

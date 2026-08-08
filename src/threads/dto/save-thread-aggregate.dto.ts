@@ -11,7 +11,9 @@ import {
   MaxLength,
   Min,
   MinLength,
+  Matches,
 } from 'class-validator';
+import { CATEGORY_SLUG_PATTERN } from '../../taxonomy/category-slug';
 
 /** 原子保存主题帖编辑器中的元数据、默认正文与标签。 */
 export class SaveThreadAggregateDto {
@@ -22,10 +24,10 @@ export class SaveThreadAggregateDto {
   @MaxLength(100)
   title?: string;
 
-  @ApiPropertyOptional({ enum: ['DEDUCTION', 'NATION', 'RPG'] })
+  @ApiPropertyOptional({ example: 'DEDUCTION', description: '管理员配置的分类 slug' })
   @IsOptional()
-  @IsIn(['DEDUCTION', 'NATION', 'RPG'])
-  category?: 'DEDUCTION' | 'NATION' | 'RPG';
+  @Matches(CATEGORY_SLUG_PATTERN)
+  category?: string;
 
   @ApiPropertyOptional({ enum: ['RECRUITING', 'CLOSED', 'FINISHED'] })
   @IsOptional()
