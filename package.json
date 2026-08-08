@@ -21,6 +21,7 @@
     "openapi:export": "ts-node --files scripts/export-openapi.ts",
     "contract:generate": "pnpm openapi:export contracts/openapi.json",
     "prisma:seed": "tsx prisma/seed.ts",
+    "admin:bootstrap": "tsx scripts/bootstrap-super-admin.ts",
     "test:cleanup": "tsx scripts/cleanup-testuser.ts",
     "test": "jest",
     "test:coverage": "jest --coverage --maxWorkers=2",

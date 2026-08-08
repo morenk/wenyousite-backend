@@ -5,6 +5,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ErrorCode } from '../../common/exceptions/error-codes';
 import { unauthorized } from '../../common/exceptions/business.exception';
+import { activeSanctionWhere, sanctionFailure } from '../account-sanction';
 
 /** JWT 策略：从 Authorization header 提取并验证 accessToken，从 DB 加载用户 */
 @Injectable()
@@ -26,18 +27,31 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     const [user, activeTerminal] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: payload.sub },
-        select: { id: true, email: true, username: true, avatar: true, role: true, emailVerified: true, deletedAt: true },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          avatar: true,
+          role: true,
+          emailVerified: true,
+          deletedAt: true,
+          sanctions: {
+            where: activeSanctionWhere(),
+            take: 1,
+            select: { type: true, endsAt: true },
+          },
+        },
       }),
       payload.sid
         ? this.prisma.refreshToken.findFirst({
-          where: {
-            userId: payload.sub,
-            family: payload.sid,
-            revokedAt: null,
-            expiresAt: { gt: new Date() },
-          },
-          select: { id: true },
-        })
+            where: {
+              userId: payload.sub,
+              family: payload.sid,
+              revokedAt: null,
+              expiresAt: { gt: new Date() },
+            },
+            select: { id: true },
+          })
         : Promise.resolve(null),
     ]);
     if (!user) {
@@ -46,10 +60,21 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     if (user.deletedAt) {
       throw unauthorized('账号已注销', ErrorCode.ACCOUNT_DEACTIVATED);
     }
+    const failure = sanctionFailure(user.sanctions?.[0]);
+    if (failure) throw unauthorized(failure.message, failure.code);
     // 兼容部署前签发、最长仅存活 15 分钟的无 sid access token。
     if (payload.sid && !activeTerminal) {
       throw unauthorized('登录终端已失效，请重新登录', ErrorCode.TOKEN_REVOKED);
     }
-    return { ...user, sessionId: payload.sid };
+    return {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      avatar: user.avatar,
+      role: user.role,
+      emailVerified: user.emailVerified,
+      deletedAt: user.deletedAt,
+      sessionId: payload.sid,
+    };
   }
 }

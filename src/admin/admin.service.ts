@@ -3,6 +3,8 @@ import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationProducer } from '../notifications/notification.producer';
 import { SendSystemNotificationDto } from './dto/send-system-notification.dto';
+import { AuditAction, AuditTargetType } from '@prisma/client';
+import { AuditService } from './audit.service';
 
 /** 管理后台服务：系统通知发送、预览、历史、用户搜索 */
 @Injectable()
@@ -13,6 +15,7 @@ export class AdminService {
   constructor(
     private prisma: PrismaService,
     private notificationProducer: NotificationProducer,
+    private audit: AuditService,
   ) {}
 
   /** 根据 DTO 构建接收者查询条件 */
@@ -84,18 +87,16 @@ export class AdminService {
     }
 
     // 审计日志
-    await this.prisma.auditLog.create({
-      data: {
-        adminId,
-        action: 'SYSTEM_NOTIFICATION',
-        targetType: 'USER',
-        detail: JSON.stringify({
-          content: content.slice(0, 200),
-          recipientCount: sentCount,
-          conditions: dto.conditions ?? null,
-        }),
-        ip: ip ?? null,
+    await this.audit.record({
+      actorId: adminId,
+      action: AuditAction.SYSTEM_NOTIFICATION_SENT,
+      targetType: AuditTargetType.SYSTEM_NOTIFICATION,
+      metadata: {
+        content: content.slice(0, 200),
+        recipientCount: sentCount,
+        conditions: dto.conditions ?? null,
       },
+      ip,
     });
 
     this.logger.log(`Admin ${adminId} sent system notification to ${sentCount} users`);

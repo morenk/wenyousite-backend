@@ -1,6 +1,4 @@
-import {
-  Injectable,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
@@ -10,6 +8,7 @@ import { LoginDto } from './dto/login.dto';
 import { ClientPlatform, normalizeClientPlatform } from './client-platform';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { unauthorized } from '../common/exceptions/business.exception';
+import { activeSanctionWhere, sanctionFailure } from './account-sanction';
 
 const userSelectPublic = {
   id: true,
@@ -33,9 +32,10 @@ export class AuthSessionService {
   ) {}
 
   private refreshTtl(platform: ClientPlatform): number {
-    const days = platform === 'mobile'
-      ? this.configService.get<number>('jwt.refreshMobileTtlDays') ?? 30
-      : this.configService.get<number>('jwt.refreshWebTtlDays') ?? 7;
+    const days =
+      platform === 'mobile'
+        ? (this.configService.get<number>('jwt.refreshMobileTtlDays') ?? 30)
+        : (this.configService.get<number>('jwt.refreshWebTtlDays') ?? 7);
     return days * 24 * 60 * 60 * 1000;
   }
 
@@ -60,6 +60,12 @@ export class AuthSessionService {
 
     await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`;
+      const sanction = await tx.userSanction.findFirst({
+        where: { userId, ...activeSanctionWhere() },
+        select: { type: true, endsAt: true },
+      });
+      const failure = sanctionFailure(sanction);
+      if (failure) throw unauthorized(failure.message, failure.code);
       await tx.refreshToken.updateMany({
         where: { userId, platform: normalizedPlatform, revokedAt: null },
         data: { revokedAt: new Date() },
@@ -91,7 +97,18 @@ export class AuthSessionService {
           { username: account },
         ],
       },
-      select: { ...userSelectPublic, password: true, deletedAt: true, failedLoginAttempts: true, lockedUntil: true },
+      select: {
+        ...userSelectPublic,
+        password: true,
+        deletedAt: true,
+        failedLoginAttempts: true,
+        lockedUntil: true,
+        sanctions: {
+          where: activeSanctionWhere(),
+          take: 1,
+          select: { type: true, endsAt: true },
+        },
+      },
     });
     if (!user) {
       throw unauthorized('账号或密码错误', ErrorCode.LOGIN_FAILED);
@@ -111,7 +128,10 @@ export class AuthSessionService {
       if (attempts >= 5) {
         await this.prisma.user.update({
           where: { id: user.id },
-          data: { failedLoginAttempts: attempts, lockedUntil: new Date(Date.now() + 15 * 60 * 1000) },
+          data: {
+            failedLoginAttempts: attempts,
+            lockedUntil: new Date(Date.now() + 15 * 60 * 1000),
+          },
         });
         throw unauthorized('登录过于频繁，请稍后重试', ErrorCode.ACCOUNT_LOCKED);
       }
@@ -121,6 +141,9 @@ export class AuthSessionService {
       });
       throw unauthorized('账号或密码错误', ErrorCode.LOGIN_FAILED);
     }
+
+    const sanction = sanctionFailure(user.sanctions?.[0]);
+    if (sanction) throw unauthorized(sanction.message, sanction.code);
 
     // 登录成功，重置失败计数
     if (user.failedLoginAttempts > 0 || user.lockedUntil) {
@@ -167,12 +190,31 @@ export class AuthSessionService {
       const record = await tx.refreshToken.findFirst({
         where: { tokenHash },
         include: {
-          user: { select: { ...userSelectPublic, deletedAt: true } },
+          user: {
+            select: {
+              ...userSelectPublic,
+              deletedAt: true,
+              sanctions: {
+                where: activeSanctionWhere(),
+                take: 1,
+                select: { type: true, endsAt: true },
+              },
+            },
+          },
         },
       });
 
       if (!record) {
         return { ok: false as const, message: '刷新令牌无效', code: ErrorCode.TOKEN_INVALID };
+      }
+
+      const sanction = sanctionFailure(record.user.sanctions?.[0]);
+      if (sanction) {
+        await tx.refreshToken.updateMany({
+          where: { userId: record.userId, family: record.family, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        return { ok: false as const, message: sanction.message, code: sanction.code };
       }
 
       if (record.revokedAt) {
@@ -196,7 +238,11 @@ export class AuthSessionService {
           where: { id: record.id, revokedAt: null },
           data: { revokedAt: new Date() },
         });
-        return { ok: false as const, message: '刷新令牌已过期，请重新登录', code: ErrorCode.TOKEN_EXPIRED };
+        return {
+          ok: false as const,
+          message: '刷新令牌已过期，请重新登录',
+          code: ErrorCode.TOKEN_EXPIRED,
+        };
       }
 
       if (record.user.deletedAt) {
@@ -273,7 +319,6 @@ export class AuthSessionService {
     };
   }
 
-
   /** 登出：撤销当前登录终端的 refresh token */
   async logout(userId: string, rawRefreshToken: string) {
     const tokenHash = this.hashToken(rawRefreshToken);
@@ -291,17 +336,23 @@ export class AuthSessionService {
     const sessions = await this.prisma.refreshToken.findMany({
       where: { userId, revokedAt: null, expiresAt: { gt: now } },
       select: {
-        family: true, platform: true, deviceInfo: true, sessionStartedAt: true,
-        createdAt: true, expiresAt: true, tokenHash: true,
+        family: true,
+        platform: true,
+        deviceInfo: true,
+        sessionStartedAt: true,
+        createdAt: true,
+        expiresAt: true,
+        tokenHash: true,
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    return sessions.map(s => ({
+    return sessions.map((s) => ({
       id: s.family,
       platform: normalizeClientPlatform(s.platform),
       deviceInfo: s.deviceInfo,
-      isCurrent: s.family === currentSessionId || (currentHash !== null && s.tokenHash === currentHash),
+      isCurrent:
+        s.family === currentSessionId || (currentHash !== null && s.tokenHash === currentHash),
       signedInAt: s.sessionStartedAt,
       lastActiveAt: s.createdAt,
       expiresAt: s.expiresAt,

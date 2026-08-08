@@ -22,6 +22,8 @@
 | `ACCOUNT_LOCKED` | 40105 | 账号已锁定（登录失败超限） |
 | `ACCOUNT_DEACTIVATED` | 40106 | 账号已注销 |
 | `EMAIL_NOT_VERIFIED` | 40107 | 邮箱未验证，仅可读操作 |
+| `ACCOUNT_SUSPENDED` | 40108 | 账号处于管理员暂停期 |
+| `ACCOUNT_BANNED` | 40109 | 账号已被管理员永久封禁 |
 | `LOGIN_FAILED` | 40110 | 登录凭据错误 |
 | `CODE_EXPIRED` | 40111 | 验证码过期 |
 | `CODE_INVALID` | 40112 | 验证码错误 |
@@ -37,6 +39,8 @@
 | `DIRECT_MESSAGE_BLOCKED` | 40305 | 私聊双方存在拉黑关系 |
 | `DIRECT_MESSAGE_NOT_ALLOWED` | 40306 | 当前用户不能执行该私聊操作 |
 | `TIP_NOT_ALLOWED` | 40307 | 自我打赏、拉黑关系或其他打赏策略拒绝 |
+| `ADMIN_REQUIRED` | 40308 | 需要管理员角色 |
+| `CANNOT_MODERATE_ADMIN` | 40309 | 不能管理同级或更高等级管理员 |
 | `NOT_FOUND` | 40400 | 通用资源不存在 |
 | `USER_NOT_FOUND` | 40401 | 用户不存在 |
 | `THREAD_NOT_FOUND` | 40402 | 主题帖不存在 |
@@ -51,6 +55,8 @@
 | `DIRECT_CONVERSATION_NOT_FOUND` | 40411 | 私聊会话不存在 |
 | `DIRECT_MESSAGE_NOT_FOUND` | 40412 | 私聊消息不存在 |
 | `STICKER_NOT_FOUND` | 40413 | 表情资产、收藏或导入记录不存在 |
+| `THREAD_CATEGORY_NOT_FOUND` | 40414 | 主题帖分类不存在 |
+| `MOMENT_NOT_FOUND` | 40415 | 动态或动态评论不存在 |
 | `CONFLICT` | 40900 | 通用冲突 |
 | `EMAIL_ALREADY_REGISTERED` | 40901 | 邮箱已被注册 |
 | `USERNAME_TAKEN` | 40902 | 用户名已被占用 |
@@ -65,5 +71,11 @@
 | `STICKER_COLLECTION_VERSION_CONFLICT` | 40911 | 表情收藏夹版本冲突 |
 | `IDEMPOTENCY_KEY_REUSED` | 40912 | 同一幂等键被复用于不同创建请求 |
 | `INSUFFICIENT_WENYOU` | 40913 | 温油钱包余额不足 |
+| `REPORT_ALREADY_PENDING` | 40914 | 同一用户已对同一目标提交待处理举报 |
+| `REPORT_ALREADY_HANDLED` | 40915 | 举报已经结案 |
+| `CONTENT_STATE_CONFLICT` | 40916 | 内容当前状态不允许执行隐藏或恢复 |
+| `SANCTION_STATE_CONFLICT` | 40917 | 账号处罚当前状态冲突 |
+| `THREAD_CATEGORY_ALREADY_EXISTS` | 40918 | 主题帖分类标识或名称已存在 |
+| `TAXONOMY_STATE_CONFLICT` | 40919 | 分类或标签已停用，不能用于新内容 |
 | `RATE_LIMITED` | 42900 | 请求过于频繁 |
 | `INTERNAL_ERROR` | 50000 | 服务器内部错误 |

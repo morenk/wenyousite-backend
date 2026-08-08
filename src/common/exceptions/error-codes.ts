@@ -41,6 +41,10 @@ export const ErrorCode = {
   ACCOUNT_DEACTIVATED: 40106,
   /** 邮箱未验证，仅可读操作 */
   EMAIL_NOT_VERIFIED: 40107,
+  /** 账号处于管理员暂停期 */
+  ACCOUNT_SUSPENDED: 40108,
+  /** 账号已被管理员永久封禁 */
+  ACCOUNT_BANNED: 40109,
   /** 登录凭据错误 */
   LOGIN_FAILED: 40110,
   /** 验证码过期 */
@@ -73,6 +77,10 @@ export const ErrorCode = {
   DIRECT_MESSAGE_NOT_ALLOWED: 40306,
   /** 自我打赏、拉黑关系或其他打赏策略拒绝 */
   TIP_NOT_ALLOWED: 40307,
+  /** 需要管理员角色 */
+  ADMIN_REQUIRED: 40308,
+  /** 不能管理同级或更高等级管理员 */
+  CANNOT_MODERATE_ADMIN: 40309,
 
   // ── 资源不存在 404xx ──
   /** 通用资源不存在 */
@@ -103,6 +111,10 @@ export const ErrorCode = {
   DIRECT_MESSAGE_NOT_FOUND: 40412,
   /** 表情资产、收藏或导入记录不存在 */
   STICKER_NOT_FOUND: 40413,
+  /** 主题帖分类不存在 */
+  THREAD_CATEGORY_NOT_FOUND: 40414,
+  /** 动态或动态评论不存在 */
+  MOMENT_NOT_FOUND: 40415,
 
   // ── 冲突 409xx ──
   /** 通用冲突 */
@@ -133,6 +145,18 @@ export const ErrorCode = {
   IDEMPOTENCY_KEY_REUSED: 40912,
   /** 温油钱包余额不足 */
   INSUFFICIENT_WENYOU: 40913,
+  /** 同一用户已对同一目标提交待处理举报 */
+  REPORT_ALREADY_PENDING: 40914,
+  /** 举报已经结案 */
+  REPORT_ALREADY_HANDLED: 40915,
+  /** 内容当前状态不允许执行隐藏或恢复 */
+  CONTENT_STATE_CONFLICT: 40916,
+  /** 账号处罚当前状态冲突 */
+  SANCTION_STATE_CONFLICT: 40917,
+  /** 主题帖分类标识或名称已存在 */
+  THREAD_CATEGORY_ALREADY_EXISTS: 40918,
+  /** 分类或标签已停用，不能用于新内容 */
+  TAXONOMY_STATE_CONFLICT: 40919,
 
   // ── 限流 429xx ──
   /** 请求过于频繁 */

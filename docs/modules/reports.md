@@ -1,32 +1,26 @@
-# 举报
+# 举报与结案
 
 ## 概述
-举报模块提供用户举报提交和管理员处理功能。**此模块已搁置，后期将重构。**
 
-## 涉及的模型
+举报模块覆盖公开社区中的用户、主题帖和帖子。用户提交时保存脱敏证据快照；管理员通过独立的 `/admin/reports` 队列一次完成驳回或“结案 + 可选处置”。私聊和私密帖不在当前范围内。
 
-| 模型 | 说明 |
-|------|------|
-| `Report` | 举报记录，包含举报人、目标类型、原因、状态、处理人 |
-
-## API 端点
+## API
 
 | 方法 | 路径 | 认证 | 说明 |
 |------|------|------|------|
-| `POST` | `/reports` | `@AuthRead()` | 提交举报 |
-| `GET` | `/reports?status=` | `@AuthRead()` | 管理员查看举报列表 |
-| `PATCH` | `/reports/:id/handle` | `@AuthRead()` | 管理员处理举报 |
+| `POST` | `/reports` | Verified | 提交 `USER / THREAD / POST` 举报；每账号每分钟最多 5 次 |
+| `GET` | `/admin/reports` | Admin | 按状态、目标类型、原因分类游标分页 |
+| `GET` | `/admin/reports/:id` | Admin | 举报、证据快照与目标当前状态 |
+| `POST` | `/admin/reports/:id/resolve` | Admin | 原子驳回或结案，并可选隐藏内容/暂停用户/封禁用户 |
 
-## 核心业务规则
+旧的管理员 `GET /reports` 和 `PATCH /reports/:id/handle` 已移除，避免两套结案语义并存。
 
-- `targetType` 和 `status` 使用原始字符串（非枚举），灵活性高但无类型安全
-- `reporter` 和 `handler` 的 FK 关系设置为 `onDelete: SetNull`，用户删除后举报记录保留
-- 仅 ADMIN 角色可以查看和处理举报（控制器内手动判断 `user.role !== 'ADMIN'`）
-- 已处理的举报（status != 'PENDING'）不可再次处理
-- 列表最多返回 50 条，按 `createdAt` 降序
+## 业务规则
 
-## 设计决策
-
-- 模块标注 `@deprecated`，当前基础实现可工作但不维护，待需求明确后整体重构
-- 原始字符串代替枚举字段，快速原型阶段的取舍，后期应替换为枚举以保障数据一致性
-- 权限检查在控制器层硬编码而非守卫，同样是原型阶段的临时方案
+- `ReportTargetType`: `USER / THREAD / POST`；目标必须是当前可见的公开社区对象，不能举报自己或自己发布的内容。
+- `ReportStatus`: `PENDING / RESOLVED / DISMISSED`。同一举报只能结案一次，并发重复结案返回 `REPORT_ALREADY_HANDLED`。
+- `ReportReasonCode`: `SPAM / HARASSMENT / HATE_OR_THREATS / SEXUAL_CONTENT / VIOLENT_CONTENT / PERSONAL_INFORMATION / ILLEGAL_CONTENT / OTHER`；`OTHER` 必须填写补充说明。
+- 新举报保存 `snapshotVersion=1` 的目标快照。用户快照不保存邮箱，帖子快照保存当时正文以防编辑或删除破坏证据。
+- 同一举报人对同一目标最多保留一条 `PENDING` 举报，由数据库部分唯一索引防并发重复。
+- `DISMISSED` 不能携带处罚；`USER` 只允许暂停/封禁，`THREAD/POST` 只允许隐藏。
+- 举报状态、关联处罚、会话吊销与审计记录在同一 Prisma 事务提交，失败时全部回滚。

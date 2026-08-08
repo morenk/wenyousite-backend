@@ -3,7 +3,6 @@ import {
   BadRequestException,
   CallHandler,
   ExecutionContext,
-  ForbiddenException,
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
@@ -61,10 +60,12 @@ describe('AllExceptionsFilter', () => {
 
   beforeEach(() => {
     filter = new AllExceptionsFilter();
-    jest.spyOn(
-      (filter as unknown as { logger: { error: (...args: unknown[]) => void } }).logger,
-      'error',
-    ).mockImplementation(() => undefined);
+    jest
+      .spyOn(
+        (filter as unknown as { logger: { error: (...args: unknown[]) => void } }).logger,
+        'error',
+      )
+      .mockImplementation(() => undefined);
   });
 
   afterEach(() => jest.restoreAllMocks());
@@ -149,14 +150,15 @@ describe('TransformInterceptor', () => {
   it('普通成功响应加契约头并递归清理注销用户摘要', async () => {
     const { context, response } = httpContext();
     const next = {
-      handle: () => of({
-        author: {
-          id: 'deleted-user',
-          username: '原用户名',
-          avatar: 'https://cdn.example.com/avatar.webp',
-          deletedAt: new Date('2026-01-01T00:00:00.000Z'),
-        },
-      }),
+      handle: () =>
+        of({
+          author: {
+            id: 'deleted-user',
+            username: '原用户名',
+            avatar: 'https://cdn.example.com/avatar.webp',
+            deletedAt: new Date('2026-01-01T00:00:00.000Z'),
+          },
+        }),
     } as CallHandler;
 
     await expect(lastValueFrom(interceptor.intercept(context, next))).resolves.toEqual({
@@ -177,10 +179,13 @@ describe('TransformInterceptor', () => {
   it('分页结果把 items 和 pagination 分别映射到 data 与 meta', async () => {
     const { context } = httpContext();
     const next = {
-      handle: () => of(new PaginatedResult([{ id: 'item-1' }], {
-        cursor: 'item-1',
-        hasMore: true,
-      })),
+      handle: () =>
+        of(
+          new PaginatedResult([{ id: 'item-1' }], {
+            cursor: 'item-1',
+            hasMore: true,
+          }),
+        ),
     } as CallHandler;
 
     await expect(lastValueFrom(interceptor.intercept(context, next))).resolves.toEqual({
@@ -195,12 +200,15 @@ describe('TransformInterceptor', () => {
 describe('认证和权限边界', () => {
   it.each(['ADMIN', 'SUPER_ADMIN'])('AdminGuard 允许 %s', (role) => {
     const { context } = httpContext({ role });
-    expect(new AdminGuard().canActivate(context)).toBe(true);
+    const reflector = { getAllAndOverride: jest.fn().mockReturnValue(undefined) };
+    expect(new AdminGuard(reflector as unknown as Reflector).canActivate(context)).toBe(true);
   });
 
   it('AdminGuard 拒绝缺失用户和普通用户', () => {
-    expect(() => new AdminGuard().canActivate(httpContext().context)).toThrow(ForbiddenException);
-    expect(() => new AdminGuard().canActivate(httpContext({ role: 'USER' }).context)).toThrow(
+    const reflector = { getAllAndOverride: jest.fn().mockReturnValue(undefined) };
+    const guard = new AdminGuard(reflector as unknown as Reflector);
+    expect(() => guard.canActivate(httpContext().context)).toThrow(BusinessException);
+    expect(() => guard.canActivate(httpContext({ role: 'USER' }).context)).toThrow(
       '需要管理员权限',
     );
   });
@@ -212,10 +220,7 @@ describe('认证和权限边界', () => {
 
     reflector.getAllAndOverride.mockReturnValue(true);
     expect(guard.canActivate(unverified)).toBe(true);
-    expect(reflector.getAllAndOverride).toHaveBeenCalledWith(
-      SKIP_VERIFIED_KEY,
-      expect.any(Array),
-    );
+    expect(reflector.getAllAndOverride).toHaveBeenCalledWith(SKIP_VERIFIED_KEY, expect.any(Array));
 
     reflector.getAllAndOverride.mockReturnValue(false);
     expect(() => guard.canActivate(unverified)).toThrow(
@@ -238,18 +243,22 @@ describe('认证和权限边界', () => {
     expect(() => guard.handleRequest(null, null, null, httpContext().context)).toThrow(
       expect.objectContaining({ errorCode: ErrorCode.UNAUTHORIZED }),
     );
-    expect(() => guard.handleRequest(
-      null,
-      null,
-      { name: 'TokenExpiredError' },
-      httpContext(undefined, { headers: { authorization: 'Bearer expired' } }).context,
-    )).toThrow(expect.objectContaining({ errorCode: ErrorCode.TOKEN_EXPIRED }));
-    expect(() => guard.handleRequest(
-      null,
-      null,
-      { name: 'JsonWebTokenError' },
-      httpContext(undefined, { headers: { authorization: 'Bearer invalid' } }).context,
-    )).toThrow(expect.objectContaining({ errorCode: ErrorCode.TOKEN_INVALID }));
+    expect(() =>
+      guard.handleRequest(
+        null,
+        null,
+        { name: 'TokenExpiredError' },
+        httpContext(undefined, { headers: { authorization: 'Bearer expired' } }).context,
+      ),
+    ).toThrow(expect.objectContaining({ errorCode: ErrorCode.TOKEN_EXPIRED }));
+    expect(() =>
+      guard.handleRequest(
+        null,
+        null,
+        { name: 'JsonWebTokenError' },
+        httpContext(undefined, { headers: { authorization: 'Bearer invalid' } }).context,
+      ),
+    ).toThrow(expect.objectContaining({ errorCode: ErrorCode.TOKEN_INVALID }));
   });
 
   it('OptionalJwtAuthGuard 将认证失败或无用户统一降级为匿名', () => {

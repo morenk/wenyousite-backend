@@ -1,47 +1,81 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, Req, ForbiddenException } from '@nestjs/common';
-import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import {
+  ApiConflictResponse,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
-import { ReportsService } from './reports.service';
+import { AdminAuth } from '../auth/decorators/admin-auth.decorator';
+import { Auth } from '../auth/decorators/auth.decorator';
+import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
+import { ApiCursorPaginatedResponse } from '../common/swagger/api-cursor-paginated-response.decorator';
+import { AdminActor, AdminRole } from '../admin/admin-policy.service';
 import { CreateReportDto } from './dto/create-report.dto';
-import { HandleReportDto } from './dto/handle-report.dto';
-import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
-import { ReportResponseDto } from './dto/report-response.dto';
+import { ReportQueryDto } from './dto/report-query.dto';
+import { AdminReportResponseDto, ReportResponseDto } from './dto/report-response.dto';
+import { ResolveReportDto } from './dto/resolve-report.dto';
+import { ReportsService } from './reports.service';
 
-/** 举报控制器：举报提交与管理员处理 */
+function actorFrom(user: CurrentUserPayload): AdminActor {
+  return {
+    id: user.id,
+    username: user.username,
+    role: user.role as AdminRole,
+  };
+}
+
 @ApiTags('Reports')
 @Controller('reports')
 export class ReportsController {
-  constructor(private reportsService: ReportsService) {}
+  constructor(private readonly reports: ReportsService) {}
 
-  /** 用户提交举报 */
   @Post()
   @Auth()
-  @ApiOperation({ summary: '提交举报' })
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiOperation({ summary: '提交公开社区目标举报' })
   @ApiCreatedResponse({ type: ReportResponseDto })
-  async create(@Req() req: FastifyRequest, @Body() dto: CreateReportDto) {
-    const user = req['user'] as { id: string };
-    return this.reportsService.create(user.id, dto.targetType, dto.targetId, dto.reason);
+  @ApiConflictResponse({ description: '已存在相同待处理举报' })
+  create(@CurrentUser() user: CurrentUserPayload, @Body() dto: CreateReportDto) {
+    return this.reports.create(user.id, dto);
   }
+}
 
-  /** 管理员查看举报列表 */
+@ApiTags('Admin Reports')
+@Controller('admin/reports')
+@AdminAuth()
+export class AdminReportsController {
+  constructor(private readonly reports: ReportsService) {}
+
   @Get()
-  @AuthRead()
-  @ApiOperation({ summary: '举报列表（管理员）' })
-  @ApiOkResponse({ type: ReportResponseDto, isArray: true })
-  async findAll(@Req() req: FastifyRequest, @Query('status') status?: string) {
-    const user = req['user'] as { role: string };
-    if (user.role !== 'ADMIN') throw new ForbiddenException('无权限');
-    return this.reportsService.findAll(status);
+  @ApiOperation({ summary: '管理员举报队列' })
+  @ApiCursorPaginatedResponse(AdminReportResponseDto, '管理员举报队列')
+  findAll(@Query() query: ReportQueryDto) {
+    return this.reports.findAll(query);
   }
 
-  /** 管理员处理举报（标记已处理/驳回） */
-  @Patch(':id/handle')
-  @Auth()
-  @ApiOperation({ summary: '处理举报（管理员）' })
-  @ApiOkResponse({ type: ReportResponseDto })
-  async handle(@Req() req: FastifyRequest, @Param('id') id: string, @Body() dto: HandleReportDto) {
-    const user = req['user'] as { id: string; role: string };
-    if (user.role !== 'ADMIN') throw new ForbiddenException('无权限');
-    return this.reportsService.handle(id, user.id, dto.status);
+  @Get(':id')
+  @ApiOperation({ summary: '管理员举报详情' })
+  @ApiOkResponse({ type: AdminReportResponseDto })
+  findOne(@Param('id') id: string) {
+    return this.reports.findOne(id);
+  }
+
+  @Post(':id/resolve')
+  @ApiOperation({ summary: '原子结案并可选执行治理动作' })
+  @ApiOkResponse({ type: AdminReportResponseDto })
+  @ApiConflictResponse({ description: '举报已结案或目标状态冲突' })
+  resolve(
+    @Param('id') id: string,
+    @Body() dto: ResolveReportDto,
+    @CurrentUser() user: CurrentUserPayload,
+    @Req() request: FastifyRequest,
+  ) {
+    return this.reports.resolve(id, actorFrom(user), dto, {
+      ip: request.ip,
+      requestId: request.id,
+    });
   }
 }

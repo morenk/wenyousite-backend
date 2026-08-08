@@ -1,21 +1,30 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsString, MinLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ReportReasonCode, ReportTargetType } from '@prisma/client';
+import { IsEnum, IsOptional, IsString, MaxLength, MinLength, ValidateIf } from 'class-validator';
 import { IsCuid } from '../../common/decorators/is-cuid.decorator';
 
-/** 提交举报 DTO */
+/** 新举报只接受类型化的公开社区目标。 */
 export class CreateReportDto {
-  @ApiProperty({ description: '举报目标类型' })
-  @IsString()
-  @MinLength(1)
-  targetType: string;
+  @ApiProperty({ enum: ReportTargetType })
+  @IsEnum(ReportTargetType)
+  targetType!: ReportTargetType;
 
-  @ApiProperty({ description: '举报目标 ID' })
-  @IsString()
+  @ApiProperty()
   @IsCuid()
-  targetId: string;
+  targetId!: string;
 
-  @ApiProperty({ description: '举报原因' })
+  @ApiProperty({ enum: ReportReasonCode })
+  @IsEnum(ReportReasonCode)
+  reasonCode!: ReportReasonCode;
+
+  @ApiPropertyOptional({ maxLength: 1000, description: '选择 OTHER 时必填' })
+  @ValidateIf(
+    (dto: CreateReportDto) =>
+      dto.reasonCode === ReportReasonCode.OTHER || dto.details !== undefined,
+  )
   @IsString()
   @MinLength(1)
-  reason: string;
+  @MaxLength(1000)
+  @IsOptional({ groups: ['non-other'] })
+  details?: string;
 }
