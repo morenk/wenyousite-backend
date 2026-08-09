@@ -46,6 +46,8 @@ const userSelectPublic = {
   wallet: { select: { receivedTipTotal: true, receivedTipCount: true } },
 };
 
+const USER_WRITE_TRANSACTION_OPTIONS = { maxWait: 5_000, timeout: 15_000 } as const;
+
 interface UserWithProgressAndTips extends Record<string, unknown> {
   id: string;
   deletedAt?: Date | null;
@@ -167,18 +169,6 @@ export class UsersService {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundException('用户不存在');
 
-    if (dto.username && dto.username !== user.username) {
-      if (user.lastUsernameChange) {
-        const cooldownEnd = new Date(user.lastUsernameChange.getTime() + 7 * 24 * 60 * 60 * 1000);
-        if (new Date() < cooldownEnd) {
-          const remaining = Math.ceil((cooldownEnd.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
-          throw new BadRequestException(`用户名修改后需间隔 7 天，剩余 ${remaining} 天`);
-        }
-      }
-      const existing = await this.findByUsername(dto.username);
-      if (existing) throw new ConflictException('用户名已被占用');
-    }
-
     // 空 body 不执行 DB 写
     if (Object.keys(dto).length === 0) {
       const currentUser = await this.prisma.user.findUnique({
@@ -189,16 +179,49 @@ export class UsersService {
     }
 
     try {
-      const result = await this.prisma.user.update({
-        where: { id },
-        data: {
-          ...dto,
-          ...(dto.username && dto.username !== user.username
-            ? { lastUsernameChange: new Date() }
-            : {}),
-        },
-        select: userSelectPrivate,
-      });
+      // 只要请求携带 username 就进入同一用户行锁。否则“客户端认为名称未变”的
+      // 过期资料请求可能在并发改名提交后把旧名称写回，并绕过 7 天冷却。
+      const usernameTouched = dto.username !== undefined;
+      const result = usernameTouched
+        ? await this.prisma.$transaction(async (tx) => {
+            await tx.$queryRaw`SELECT id FROM users WHERE id = ${id} FOR UPDATE`;
+            const current = await tx.user.findUnique({ where: { id } });
+            if (!current) throw new NotFoundException('用户不存在');
+
+            const changingCurrentName = dto.username !== current.username;
+            if (changingCurrentName && current.lastUsernameChange) {
+              const cooldownEnd = new Date(
+                current.lastUsernameChange.getTime() + 7 * 24 * 60 * 60 * 1000,
+              );
+              if (new Date() < cooldownEnd) {
+                const remaining = Math.ceil(
+                  (cooldownEnd.getTime() - Date.now()) / (24 * 60 * 60 * 1000),
+                );
+                throw new BadRequestException(`用户名修改后需间隔 7 天，剩余 ${remaining} 天`);
+              }
+            }
+            if (changingCurrentName) {
+              const existing = await tx.user.findUnique({
+                where: { username: dto.username!, deletedAt: null },
+                select: { id: true },
+              });
+              if (existing && existing.id !== id) throw new ConflictException('用户名已被占用');
+            }
+
+            return tx.user.update({
+              where: { id },
+              data: {
+                ...dto,
+                ...(changingCurrentName ? { lastUsernameChange: new Date() } : {}),
+              },
+              select: userSelectPrivate,
+            });
+          }, USER_WRITE_TRANSACTION_OPTIONS)
+        : await this.prisma.user.update({
+            where: { id },
+            data: dto,
+            select: userSelectPrivate,
+          });
       this.eventEmitter.emit('user.updated', { userId: id });
       return flattenProgressAndTips(result);
     } catch (error: unknown) {

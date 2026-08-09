@@ -67,6 +67,24 @@ describe('NotificationsService', () => {
     );
   });
 
+  it('动态评论通知同时要求动态和目标评论仍未删除', async () => {
+    mockPrisma.notification.findMany.mockResolvedValue([]);
+
+    await service.findAll('u1');
+
+    const conditions = mockPrisma.notification.findMany.mock.calls[0][0].where.AND[0].OR;
+    expect(conditions).toEqual(
+      expect.arrayContaining([
+        {
+          momentId: { not: null },
+          momentCommentId: { not: null },
+          moment: { deletedAt: null },
+          momentComment: { deletedAt: null },
+        },
+      ]),
+    );
+  });
+
   it('findAll 应把历史 new_floor 类型归一为 new_post', async () => {
     mockPrisma.notification.findMany.mockResolvedValue([{ id: 'n-old', type: 'new_floor' }]);
     const result = await service.findAll('u1');

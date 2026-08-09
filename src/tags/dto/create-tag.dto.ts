@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, MinLength, MaxLength, IsOptional, Matches } from 'class-validator';
+import { TAG_NAME_PATTERN } from '../tag-name';
 
 /** 创建主题帖标签 DTO */
 export class CreateTagDto {
@@ -7,7 +8,7 @@ export class CreateTagDto {
   @IsString()
   @MinLength(1)
   @MaxLength(20)
-  @Matches(/^[a-zA-Z0-9_\u4e00-\u9fff#]+$/, {
+  @Matches(TAG_NAME_PATTERN, {
     message: '标签名只能包含字母、数字、下划线、中文和 #',
   })
   name: string;

@@ -4,6 +4,7 @@ import { TagsService } from './tags.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CacheService } from '../redis/cache.service';
 import { ErrorCode } from '../common/exceptions/error-codes';
+import { Prisma } from '@prisma/client';
 
 const mockPrisma = {
   topicTag: {
@@ -61,6 +62,20 @@ describe('TagsService', () => {
     expect(result.name).toBe('无限流');
   });
 
+  it('create 会规范化空白，并把并发唯一键冲突转换为 409', async () => {
+    mockPrisma.topicTag.findUnique.mockResolvedValue(null);
+    mockPrisma.topicTag.create.mockRejectedValue({ code: 'P2002' });
+
+    await expect(service.create({ name: ' 新标签 ' })).rejects.toMatchObject({
+      errorCode: ErrorCode.TAG_ALREADY_EXISTS,
+      status: 409,
+    });
+    expect(mockPrisma.topicTag.findUnique).toHaveBeenCalledWith({ where: { name: '新标签' } });
+    expect(mockPrisma.topicTag.create).toHaveBeenCalledWith({
+      data: { name: '新标签', color: undefined },
+    });
+  });
+
   it('create 重复标签应该返回409', async () => {
     mockPrisma.topicTag.findUnique.mockResolvedValue({ id: 'existing' });
     await expect(service.create({ name: '无限流' })).rejects.toMatchObject({
@@ -85,12 +100,46 @@ describe('TagsService', () => {
   });
 
   it('findOrCreate 应该创建缺失的标签', async () => {
-    mockPrisma.topicTag.findMany.mockResolvedValue([]);
+    mockPrisma.topicTag.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 't1', name: '新标签', isActive: true }]);
     mockPrisma.topicTag.createMany.mockResolvedValue({});
-    mockPrisma.topicTag.findMany.mockResolvedValueOnce([{ id: 't1', name: '新标签' }]);
-    const result = await service.findOrCreate(['新标签']);
+    const result = await service.findOrCreate([' 新标签 ', '新标签']);
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe('新标签');
+    expect(mockPrisma.topicTag.createMany).toHaveBeenCalledWith({
+      data: [{ name: '新标签' }],
+      skipDuplicates: true,
+    });
+  });
+
+  it('findOrCreate 在事务客户端中创建标签，不会提前失效全局缓存', async () => {
+    const tx = {
+      topicTag: {
+        findMany: jest
+          .fn()
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([{ id: 't1', name: '新标签', isActive: true }]),
+        createMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+
+    await expect(
+      service.findOrCreate(['新标签'], tx as unknown as Prisma.TransactionClient),
+    ).resolves.toHaveLength(1);
+
+    expect(tx.topicTag.createMany).toHaveBeenCalledWith({
+      data: [{ name: '新标签' }],
+      skipDuplicates: true,
+    });
+    expect(mockCache.del).not.toHaveBeenCalled();
+  });
+
+  it('findOrCreate 在服务层拒绝非法标签，避免内部调用绕过 DTO', async () => {
+    await expect(service.findOrCreate(['bad tag'])).rejects.toMatchObject({
+      errorCode: ErrorCode.VALIDATION_ERROR,
+    });
+    expect(mockPrisma.topicTag.findMany).not.toHaveBeenCalled();
   });
 
   it('findOrCreate 不应该重新启用已停用标签', async () => {

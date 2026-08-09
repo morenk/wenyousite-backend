@@ -8,6 +8,8 @@ import { DiceService } from '../dice/dice.service';
 import { StickerContentService } from '../stickers/sticker-content.service';
 
 const mockPrisma = {
+  $queryRaw: jest.fn(),
+  $transaction: jest.fn(),
   draft: {
     findMany: jest.fn(),
     findUnique: jest.fn(),
@@ -34,6 +36,9 @@ describe('DraftsService', () => {
     }).compile();
     service = module.get<DraftsService>(DraftsService);
     jest.clearAllMocks();
+    mockPrisma.$transaction.mockImplementation((callback: (tx: typeof mockPrisma) => unknown) =>
+      callback(mockPrisma),
+    );
   });
 
   it('自动保存应该选择空闲 slot', async () => {
@@ -41,6 +46,11 @@ describe('DraftsService', () => {
     mockPrisma.draft.create.mockResolvedValue({ id: 'd1', slot: 2 });
     const result = await service.create({ content: 'test' }, 'u1');
     expect(result.slot).toBe(2);
+    expect(mockPrisma.$queryRaw).toHaveBeenCalled();
+    expect(mockPrisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+      maxWait: 5_000,
+      timeout: 15_000,
+    });
   });
 
   it('指定 slot 应该覆盖旧草稿', async () => {
@@ -93,9 +103,9 @@ describe('DraftsService', () => {
   });
 
   it('正文与待掷骰子同时为空时拒绝保存', async () => {
-    await expect(
-      service.create({ content: '' }, 'u1'),
-    ).rejects.toMatchObject({ errorCode: ErrorCode.BAD_REQUEST });
+    await expect(service.create({ content: '' }, 'u1')).rejects.toMatchObject({
+      errorCode: ErrorCode.BAD_REQUEST,
+    });
     expect(mockPrisma.draft.create).not.toHaveBeenCalled();
     expect(mockPrisma.draft.update).not.toHaveBeenCalled();
   });
@@ -124,6 +134,18 @@ describe('DraftsService', () => {
       { slot: 5 },
     ]);
     await expect(service.create({ content: 'test' }, 'u1')).rejects.toThrow(BadRequestException);
+  });
+
+  it('自动分配遭遇旧写入路径的唯一键竞争时会重新扫描空闲槽位', async () => {
+    mockPrisma.draft.findMany
+      .mockResolvedValueOnce([{ slot: 1 }])
+      .mockResolvedValueOnce([{ slot: 1 }, { slot: 2 }]);
+    mockPrisma.draft.create
+      .mockRejectedValueOnce({ code: 'P2002' })
+      .mockResolvedValueOnce({ id: 'd3', slot: 3 });
+
+    await expect(service.create({ content: 'test' }, 'u1')).resolves.toMatchObject({ slot: 3 });
+    expect(mockPrisma.$transaction).toHaveBeenCalledTimes(2);
   });
 
   it('findById 应该返回草稿', async () => {

@@ -8,8 +8,11 @@ import {
   IsArray,
   IsUUID,
   Matches,
+  ArrayMaxSize,
+  ArrayUnique,
 } from 'class-validator';
 import { CATEGORY_SLUG_PATTERN } from '../../taxonomy/category-slug';
+import { MAX_TAG_NAME_LENGTH, MAX_TAGS_PER_THREAD, TAG_NAME_PATTERN } from '../../tags/tag-name';
 
 /** 创建主题帖草稿 DTO：全部可选，发布时校验完整 */
 export class CreateThreadDto {
@@ -64,10 +67,22 @@ export class CreateThreadDto {
   @MaxLength(100)
   subthreadTitle?: string;
 
-  @ApiPropertyOptional({ example: ['无限流', '穿越'], description: '主题帖标签名称列表' })
+  @ApiPropertyOptional({
+    example: ['无限流', '穿越'],
+    description: '主题帖标签名称列表',
+    maxItems: MAX_TAGS_PER_THREAD,
+  })
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(MAX_TAGS_PER_THREAD)
+  @ArrayUnique()
   @IsString({ each: true })
+  @MinLength(1, { each: true })
+  @MaxLength(MAX_TAG_NAME_LENGTH, { each: true })
+  @Matches(TAG_NAME_PATTERN, {
+    each: true,
+    message: '标签名只能包含字母、数字、下划线、中文和 #',
+  })
   tagNames?: string[];
 
   @ApiPropertyOptional({ enum: ['PUBLIC', 'PRIVATE'], default: 'PUBLIC', description: '可见性' })

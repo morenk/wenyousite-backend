@@ -85,6 +85,7 @@ export class UserActivityService {
     const replies = await this.prisma.post.findMany({
       where: {
         authorId: targetId,
+        kind: 'FLOOR',
         deletedAt: null,
         subthread: { deletedAt: null },
         thread: {

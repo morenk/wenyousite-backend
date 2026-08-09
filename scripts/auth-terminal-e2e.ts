@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { readFileSync } from 'node:fs';
-import { cp, copyFile, mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
+import { cp, copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -14,6 +14,7 @@ import fastifyCookie from '@fastify/cookie';
 import { PrismaClient } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { AuthController } from '../src/auth/auth.controller';
+import { AuthSessionService } from '../src/auth/auth-session.service';
 import { AuthService } from '../src/auth/auth.service';
 import { JwtAuthGuard } from '../src/auth/guards/jwt-auth.guard';
 import { JwtStrategy } from '../src/auth/strategies/jwt.strategy';
@@ -55,7 +56,7 @@ function schemaUrl(databaseUrl: string, schema: string) {
   return url.toString();
 }
 
-async function prepareMigrationWorkspace() {
+async function prepareMigrationWorkspace(schema: string) {
   const root = await mkdtemp(join(tmpdir(), 'wenyousite-auth-terminal-e2e-'));
   const prismaDir = join(root, 'prisma');
   const targetDir = join(prismaDir, 'migrations');
@@ -68,11 +69,19 @@ async function prepareMigrationWorkspace() {
     join(targetDir, 'migration_lock.toml'),
   );
 
+  const copyMigration = async (name: string) => {
+    const migrationDir = join(targetDir, name);
+    await cp(join(sourceMigrations, name), migrationDir, { recursive: true });
+    const migrationPath = join(migrationDir, 'migration.sql');
+    const sql = await readFile(migrationPath, 'utf8');
+    await writeFile(migrationPath, `SET search_path TO "${schema}", public;\n\n${sql}`, 'utf8');
+  };
+
   const entries = await readdir(sourceMigrations, { withFileTypes: true });
   const migrationNames = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
   for (const name of migrationNames) {
     if (TARGET_MIGRATIONS.has(name)) continue;
-    await cp(join(sourceMigrations, name), join(targetDir, name), { recursive: true });
+    await copyMigration(name);
   }
 
   return {
@@ -80,23 +89,19 @@ async function prepareMigrationWorkspace() {
     schemaPath: join(prismaDir, 'schema.prisma'),
     includeTargetMigrations: async () => {
       for (const name of TARGET_MIGRATIONS) {
-        await cp(join(sourceMigrations, name), join(targetDir, name), { recursive: true });
+        await copyMigration(name);
       }
     },
   };
 }
 
 function deployMigrations(schemaPath: string, databaseUrl: string) {
-  execFileSync(
-    'pnpm',
-    ['exec', 'prisma', 'migrate', 'deploy', '--schema', schemaPath],
-    {
-      cwd: process.cwd(),
-      env: { ...process.env, DATABASE_URL: databaseUrl },
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    },
-  );
+  execFileSync('pnpm', ['exec', 'prisma', 'migrate', 'deploy', '--schema', schemaPath], {
+    cwd: process.cwd(),
+    env: { ...process.env, DATABASE_URL: databaseUrl },
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
 }
 
 async function seedLegacyTerminalRows(admin: PrismaClient, schema: string) {
@@ -119,22 +124,39 @@ async function seedLegacyTerminalRows(admin: PrismaClient, schema: string) {
 }
 
 async function verifyTerminalMigrations(admin: PrismaClient, schema: string) {
-  const rows = await admin.$queryRawUnsafe<Array<{
-    id: string;
-    platform: string;
-    revoked_at: Date | null;
-    created_at: Date;
-    session_started_at: Date;
-  }>>(
+  const rows = await admin.$queryRawUnsafe<
+    Array<{
+      id: string;
+      platform: string;
+      revoked_at: Date | null;
+      created_at: Date;
+      session_started_at: Date;
+    }>
+  >(
     `SELECT "id", "platform", "revoked_at", "created_at", "session_started_at"
      FROM "${schema}"."refresh_tokens" ORDER BY "id"`,
   );
   const active = rows.filter((row) => row.revoked_at === null);
-  assert(active.filter((row) => row.platform === 'web').length === 1, '迁移后应只保留一个 Web 登录终端');
-  assert(active.filter((row) => row.platform === 'mobile').length === 1, '迁移后应只保留一个移动端登录终端');
-  assert(active.some((row) => row.id === 'web-new'), 'Web 端应保留最近登录的终端');
-  assert(rows.every((row) => ['web', 'mobile'].includes(row.platform)), '历史平台值应规范化');
-  assert(rows.every((row) => row.session_started_at instanceof Date), '登录时间应完成非空回填');
+  assert(
+    active.filter((row) => row.platform === 'web').length === 1,
+    '迁移后应只保留一个 Web 登录终端',
+  );
+  assert(
+    active.filter((row) => row.platform === 'mobile').length === 1,
+    '迁移后应只保留一个移动端登录终端',
+  );
+  assert(
+    active.some((row) => row.id === 'web-new'),
+    'Web 端应保留最近登录的终端',
+  );
+  assert(
+    rows.every((row) => ['web', 'mobile'].includes(row.platform)),
+    '历史平台值应规范化',
+  );
+  assert(
+    rows.every((row) => row.session_started_at instanceof Date),
+    '登录时间应完成非空回填',
+  );
 
   const history = rows.find((row) => row.id === 'history-web');
   const current = rows.find((row) => row.id === 'web-new');
@@ -221,6 +243,7 @@ async function verifyRuntime(databaseUrl: string) {
     controllers: [AuthController],
     providers: [
       AuthService,
+      AuthSessionService,
       JwtStrategy,
       JwtAuthGuard,
       VerifiedGuard,
@@ -234,7 +257,9 @@ async function verifyRuntime(databaseUrl: string) {
     logger: false,
   });
   app.setGlobalPrefix('api/v1');
-  app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }));
+  app.useGlobalPipes(
+    new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }),
+  );
   app.useGlobalInterceptors(new TransformInterceptor());
   await app.register(fastifyCookie as never);
   await app.init();
@@ -285,9 +310,14 @@ async function verifyRuntime(databaseUrl: string) {
     assert(mobileSessions.statusCode === 200, '移动端应能读取登录终端');
     const initialSessions = mobileSessions.json().data as Array<Record<string, unknown>>;
     assert(initialSessions.length === 2, '应同时存在 Web 和移动端两个登录终端');
-    assert(initialSessions.some((session) => session.platform === 'web'), '列表应包含 Web 端');
     assert(
-      initialSessions.some((session) => session.platform === 'mobile' && session.isCurrent === true),
+      initialSessions.some((session) => session.platform === 'web'),
+      '列表应包含 Web 端',
+    );
+    assert(
+      initialSessions.some(
+        (session) => session.platform === 'mobile' && session.isCurrent === true,
+      ),
       '移动端 access token 应正确标记当前终端',
     );
 
@@ -299,7 +329,10 @@ async function verifyRuntime(databaseUrl: string) {
     });
     assert(mobileRefresh.statusCode === 200, '移动端 refresh 应成功');
     const refreshedMobileBody = mobileRefresh.json();
-    assert(typeof refreshedMobileBody.data?.refreshToken === 'string', '移动端 refresh 应返回新 refresh token');
+    assert(
+      typeof refreshedMobileBody.data?.refreshToken === 'string',
+      '移动端 refresh 应返回新 refresh token',
+    );
     assert(!refreshCookie(mobileRefresh.headers), '移动端 refresh 不应设置 Web cookie');
 
     const secondWebLogin = await server.inject({
@@ -382,15 +415,27 @@ async function verifyRuntime(databaseUrl: string) {
       _count: { _all: true },
     });
     assert(
-      activeRows.length === 1 && activeRows[0].platform === 'web' && activeRows[0]._count._all === 1,
+      activeRows.length === 1 &&
+        activeRows[0].platform === 'web' &&
+        activeRows[0]._count._all === 1,
       '远程退出后数据库应只剩一个活跃 Web 登录终端',
     );
 
     const document = createOpenApiDocument(app);
-    const schemas = document.components?.schemas as Record<string, { required?: string[] }> | undefined;
-    assert(schemas?.SessionResponseDto?.required?.includes('signedInAt'), 'OpenAPI 应声明 signedInAt');
-    assert(schemas?.SessionResponseDto?.required?.includes('lastActiveAt'), 'OpenAPI 应声明 lastActiveAt');
-    assert(!schemas?.AuthResponseDto?.required?.includes('refreshToken'), 'OpenAPI 中 refreshToken 应为可选');
+    const schemas = document.components?.schemas as
+      Record<string, { required?: string[] }> | undefined;
+    assert(
+      schemas?.SessionResponseDto?.required?.includes('signedInAt'),
+      'OpenAPI 应声明 signedInAt',
+    );
+    assert(
+      schemas?.SessionResponseDto?.required?.includes('lastActiveAt'),
+      'OpenAPI 应声明 lastActiveAt',
+    );
+    assert(
+      !schemas?.AuthResponseDto?.required?.includes('refreshToken'),
+      'OpenAPI 中 refreshToken 应为可选',
+    );
   } finally {
     await app.close();
     await prisma.$disconnect().catch(() => undefined);
@@ -410,7 +455,7 @@ async function main() {
   const schema = `auth_terminal_e2e_${process.pid}_${Date.now()}`;
   const isolatedUrl = schemaUrl(originalDatabaseUrl, schema);
   const admin = new PrismaClient({ datasourceUrl: originalDatabaseUrl });
-  const workspace = await prepareMigrationWorkspace();
+  const workspace = await prepareMigrationWorkspace(schema);
   let schemaCreated = false;
   try {
     await admin.$executeRawUnsafe(`CREATE SCHEMA "${schema}"`);

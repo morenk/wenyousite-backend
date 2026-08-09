@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import * as crypto from 'crypto';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { ClientPlatform, normalizeClientPlatform } from './client-platform';
@@ -19,6 +20,26 @@ const userSelectPublic = {
   emailVerified: true,
   level: true,
 } as const;
+
+/**
+ * 登录与刷新会锁定用户行来串行化同平台会话变更。Prisma 默认 5 秒事务时限
+ * 会把等待行锁的时间也计算在内，短时数据库竞争可能因此在提交前误报 P2028。
+ */
+const SESSION_TRANSACTION_OPTIONS = {
+  maxWait: 5_000,
+  timeout: 15_000,
+} as const;
+
+interface PreparedSession {
+  userId: string;
+  family: string;
+  rawRefreshToken: string;
+  tokenHash: string;
+  platform: ClientPlatform;
+  deviceInfo: string | null;
+  sessionStartedAt: Date;
+  expiresAt: Date;
+}
 
 /** 登录终端与令牌轮转用例。 */
 @Injectable()
@@ -43,20 +64,54 @@ export class AuthSessionService {
     return crypto.createHash('sha256').update(token).digest('hex');
   }
 
-  /** 创建登录终端：同一用户同一平台只保留最新终端。用户行锁保证并发登录不会产生重复槽位。 */
-  async createSession(userId: string, deviceInfo: string | null, platform: ClientPlatform = 'web') {
+  private prepareSession(
+    userId: string,
+    deviceInfo: string | null,
+    platform: ClientPlatform,
+  ): PreparedSession {
     const normalizedPlatform = normalizeClientPlatform(platform);
-    const family = crypto.randomUUID();
-    const sessionStartedAt = new Date();
-    const accessToken = await this.jwtService.signAsync(
+    const rawRefreshToken = crypto.randomUUID();
+    return {
+      userId,
+      family: crypto.randomUUID(),
+      rawRefreshToken,
+      tokenHash: this.hashToken(rawRefreshToken),
+      platform: normalizedPlatform,
+      deviceInfo,
+      sessionStartedAt: new Date(),
+      expiresAt: new Date(Date.now() + this.refreshTtl(normalizedPlatform)),
+    };
+  }
+
+  private async replaceSession(tx: Prisma.TransactionClient, session: PreparedSession) {
+    await tx.refreshToken.updateMany({
+      where: { userId: session.userId, platform: session.platform, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    await tx.refreshToken.create({
+      data: {
+        userId: session.userId,
+        tokenHash: session.tokenHash,
+        family: session.family,
+        platform: session.platform,
+        deviceInfo: session.deviceInfo,
+        sessionStartedAt: session.sessionStartedAt,
+        expiresAt: session.expiresAt,
+      },
+    });
+  }
+
+  private signAccessToken(userId: string, family: string) {
+    return this.jwtService.signAsync(
       { sub: userId, sid: family },
       { secret: this.configService.get<string>('jwt.accessSecret')!, expiresIn: '15m' as const },
     );
+  }
 
-    const rawRefreshToken = crypto.randomUUID();
-    const tokenHash = this.hashToken(rawRefreshToken);
-    const ttl = this.refreshTtl(normalizedPlatform);
-    const expiresAt = new Date(Date.now() + ttl);
+  /** 创建登录终端：同一用户同一平台只保留最新终端。用户行锁保证并发登录不会产生重复槽位。 */
+  async createSession(userId: string, deviceInfo: string | null, platform: ClientPlatform = 'web') {
+    const session = this.prepareSession(userId, deviceInfo, platform);
+    const accessToken = await this.signAccessToken(userId, session.family);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`;
@@ -66,30 +121,16 @@ export class AuthSessionService {
       });
       const failure = sanctionFailure(sanction);
       if (failure) throw unauthorized(failure.message, failure.code);
-      await tx.refreshToken.updateMany({
-        where: { userId, platform: normalizedPlatform, revokedAt: null },
-        data: { revokedAt: new Date() },
-      });
-      await tx.refreshToken.create({
-        data: {
-          userId,
-          tokenHash,
-          family,
-          platform: normalizedPlatform,
-          deviceInfo,
-          sessionStartedAt,
-          expiresAt,
-        },
-      });
-    });
+      await this.replaceSession(tx, session);
+    }, SESSION_TRANSACTION_OPTIONS);
 
-    return { accessToken, refreshToken: rawRefreshToken };
+    return { accessToken, refreshToken: session.rawRefreshToken };
   }
 
   /** 登录：验证邮箱或用户名 + 密码，创建新会话（含 5 次失败锁定） */
   async login(dto: LoginDto, deviceInfo?: string, platform: ClientPlatform = 'web') {
     const account = dto.account.trim();
-    const user = await this.prisma.user.findFirst({
+    const initial = await this.prisma.user.findFirst({
       where: {
         OR: [
           // 邮箱统一小写匹配；用户名大小写敏感精确匹配（与注册唯一约束一致）
@@ -97,71 +138,81 @@ export class AuthSessionService {
           { username: account },
         ],
       },
-      select: {
-        ...userSelectPublic,
-        password: true,
-        deletedAt: true,
-        failedLoginAttempts: true,
-        lockedUntil: true,
-        sanctions: {
-          where: activeSanctionWhere(),
-          take: 1,
-          select: { type: true, endsAt: true },
-        },
-      },
+      select: { id: true },
     });
-    if (!user) {
+    if (!initial) {
       throw unauthorized('账号或密码错误', ErrorCode.LOGIN_FAILED);
     }
 
-    if (user.deletedAt) {
-      throw unauthorized('账号或密码错误', ErrorCode.LOGIN_FAILED);
-    }
+    const session = this.prepareSession(initial.id, deviceInfo ?? null, platform);
+    const accessToken = await this.signAccessToken(initial.id, session.family);
+    const result = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM users WHERE id = ${initial.id} FOR UPDATE`;
+      const user = await tx.user.findFirst({
+        where: { id: initial.id },
+        select: {
+          ...userSelectPublic,
+          password: true,
+          deletedAt: true,
+          failedLoginAttempts: true,
+          lockedUntil: true,
+          sanctions: {
+            where: activeSanctionWhere(),
+            take: 1,
+            select: { type: true, endsAt: true },
+          },
+        },
+      });
+      if (!user || user.deletedAt) {
+        return { ok: false as const, message: '账号或密码错误', code: ErrorCode.LOGIN_FAILED };
+      }
+      if (user.lockedUntil && user.lockedUntil > new Date()) {
+        return {
+          ok: false as const,
+          message: '登录过于频繁，请稍后重试',
+          code: ErrorCode.ACCOUNT_LOCKED,
+        };
+      }
 
-    if (user.lockedUntil && user.lockedUntil > new Date()) {
-      throw unauthorized('登录过于频繁，请稍后重试', ErrorCode.ACCOUNT_LOCKED);
-    }
-
-    const valid = await argon2.verify(user.password, dto.password);
-    if (!valid) {
-      const attempts = user.failedLoginAttempts + 1;
-      if (attempts >= 5) {
-        await this.prisma.user.update({
+      const valid = await argon2.verify(user.password, dto.password);
+      if (!valid) {
+        const attempts = user.failedLoginAttempts + 1;
+        const locked = attempts >= 5;
+        await tx.user.update({
           where: { id: user.id },
           data: {
             failedLoginAttempts: attempts,
-            lockedUntil: new Date(Date.now() + 15 * 60 * 1000),
+            ...(locked ? { lockedUntil: new Date(Date.now() + 15 * 60 * 1000) } : {}),
           },
         });
-        throw unauthorized('登录过于频繁，请稍后重试', ErrorCode.ACCOUNT_LOCKED);
+        return locked
+          ? {
+              ok: false as const,
+              message: '登录过于频繁，请稍后重试',
+              code: ErrorCode.ACCOUNT_LOCKED,
+            }
+          : { ok: false as const, message: '账号或密码错误', code: ErrorCode.LOGIN_FAILED };
       }
-      await this.prisma.user.update({
-        where: { id: user.id },
-        data: { failedLoginAttempts: attempts },
-      });
-      throw unauthorized('账号或密码错误', ErrorCode.LOGIN_FAILED);
-    }
 
-    const sanction = sanctionFailure(user.sanctions?.[0]);
-    if (sanction) throw unauthorized(sanction.message, sanction.code);
+      const sanction = sanctionFailure(user.sanctions?.[0]);
+      if (sanction) return { ok: false as const, ...sanction };
 
-    // 登录成功，重置失败计数
-    if (user.failedLoginAttempts > 0 || user.lockedUntil) {
-      await this.prisma.user.update({
-        where: { id: user.id },
-        data: { failedLoginAttempts: 0, lockedUntil: null },
-      });
-    }
+      if (user.failedLoginAttempts > 0 || user.lockedUntil) {
+        await tx.user.update({
+          where: { id: user.id },
+          data: { failedLoginAttempts: 0, lockedUntil: null },
+        });
+      }
+      await this.replaceSession(tx, session);
+      return { ok: true as const, user };
+    }, SESSION_TRANSACTION_OPTIONS);
 
-    const { accessToken, refreshToken } = await this.createSession(
-      user.id,
-      deviceInfo ?? null,
-      platform,
-    );
+    if (!result.ok) throw unauthorized(result.message, result.code);
+    const user = result.user;
 
     return {
       accessToken,
-      refreshToken,
+      refreshToken: session.rawRefreshToken,
       user: {
         id: user.id,
         email: user.email,
@@ -293,7 +344,7 @@ export class AuthSessionService {
         userId: record.userId,
         user: record.user,
       };
-    });
+    }, SESSION_TRANSACTION_OPTIONS);
 
     if (!rotated.ok) {
       throw unauthorized(rotated.message, rotated.code);

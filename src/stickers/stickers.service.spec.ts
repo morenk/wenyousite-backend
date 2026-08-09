@@ -157,18 +157,23 @@ describe('StickersService', () => {
       recent: [expect.objectContaining({ id: 'favorite-1' })],
       pendingImports: [expect.objectContaining({ id: 'import-1', status: 'PROCESSING' })],
     });
-    expect(prisma.userSticker.findMany).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      where: { userId: 'user-1', lastUsedAt: { not: null } },
-    }));
+    expect(prisma.userSticker.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: { userId: 'user-1', lastUsedAt: { not: null } },
+      }),
+    );
   });
 
   it('只能从本人且处理完成的媒体导入', async () => {
     prisma.media.findFirst.mockResolvedValue(null);
 
-    await expect(service.importMedia('user-1', {
-      mediaId: 'media-1',
-      clientRequestId: 'request-1',
-    })).rejects.toMatchObject({ errorCode: ErrorCode.INVALID_STICKER });
+    await expect(
+      service.importMedia('user-1', {
+        mediaId: 'media-1',
+        clientRequestId: 'request-1',
+      }),
+    ).rejects.toMatchObject({ errorCode: ErrorCode.INVALID_STICKER });
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
@@ -176,13 +181,17 @@ describe('StickersService', () => {
     prisma.media.findFirst.mockResolvedValue({ id: 'media-1' });
     prisma.stickerImport.findFirst.mockResolvedValue(pendingImport);
 
-    await expect(service.importMedia('user-1', {
-      mediaId: 'media-1',
-      clientRequestId: 'request-1',
-    })).resolves.toEqual(expect.objectContaining({
-      id: 'import-1',
-      status: 'PROCESSING',
-    }));
+    await expect(
+      service.importMedia('user-1', {
+        mediaId: 'media-1',
+        clientRequestId: 'request-1',
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        id: 'import-1',
+        status: 'PROCESSING',
+      }),
+    );
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
     expect(prisma.userSticker.count).toHaveBeenCalledWith({ where: { userId: 'user-1' } });
     expect(queue.add).toHaveBeenCalledWith(
@@ -215,10 +224,12 @@ describe('StickersService', () => {
       failureMessage: 'queue down',
     });
     queue.add.mockRejectedValue(new Error('queue down'));
-    const loggerWarn = jest.spyOn(
-      (service as unknown as { logger: { warn: (...args: unknown[]) => void } }).logger,
-      'warn',
-    ).mockImplementation(() => undefined);
+    const loggerWarn = jest
+      .spyOn(
+        (service as unknown as { logger: { warn: (...args: unknown[]) => void } }).logger,
+        'warn',
+      )
+      .mockImplementation(() => undefined);
 
     await service.importMedia('user-1', {
       mediaId: 'media-1',
@@ -239,18 +250,18 @@ describe('StickersService', () => {
   it('私聊消息不存在图片或表情时返回 404', async () => {
     prisma.directMessage.findFirst.mockResolvedValue({ mediaId: null, stickerAssetId: null });
 
-    await expect(service.importDirectMessage('user-1', {
-      directMessageId: 'message-1',
-      clientRequestId: 'request-1',
-    })).rejects.toMatchObject({ errorCode: ErrorCode.STICKER_NOT_FOUND });
+    await expect(
+      service.importDirectMessage('user-1', {
+        directMessageId: 'message-1',
+        clientRequestId: 'request-1',
+      }),
+    ).rejects.toMatchObject({ errorCode: ErrorCode.STICKER_NOT_FOUND });
   });
 
   it('私聊已有表情资产时直接收藏且不进入处理队列', async () => {
     prisma.directMessage.findFirst.mockResolvedValue({ mediaId: null, stickerAssetId: 'asset-1' });
     prisma.stickerAsset.findUnique.mockResolvedValue(asset);
-    prisma.userSticker.findUnique
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(favorite);
+    prisma.userSticker.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce(favorite);
     prisma.stickerImport.create.mockResolvedValue({
       ...pendingImport,
       assetId: 'asset-1',
@@ -262,13 +273,17 @@ describe('StickersService', () => {
       status: 'COMPLETED',
     });
 
-    await expect(service.importDirectMessage('user-1', {
-      directMessageId: 'message-1',
-      clientRequestId: 'request-1',
-    })).resolves.toEqual(expect.objectContaining({
-      status: 'COMPLETED',
-      favorite: expect.objectContaining({ id: 'favorite-1' }),
-    }));
+    await expect(
+      service.importDirectMessage('user-1', {
+        directMessageId: 'message-1',
+        clientRequestId: 'request-1',
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        status: 'COMPLETED',
+        favorite: expect.objectContaining({ id: 'favorite-1' }),
+      }),
+    );
     expect(prisma.userSticker.create).toHaveBeenCalledWith({
       data: { userId: 'user-1', assetId: 'asset-1', position: 0 },
     });
@@ -279,28 +294,34 @@ describe('StickersService', () => {
     prisma.post.findUnique.mockResolvedValue({ threadId: 'thread-1', content: '正文' });
     content.extract.mockReturnValue([]);
 
-    await expect(service.importPostImage('user-1', {
-      postId: 'post-1',
-      imageUrl: 'https://cdn.example.com/missing.webp',
-      clientRequestId: 'request-1',
-    })).rejects.toMatchObject({ errorCode: ErrorCode.STICKER_NOT_FOUND });
+    await expect(
+      service.importPostImage('user-1', {
+        postId: 'post-1',
+        imageUrl: 'https://cdn.example.com/missing.webp',
+        clientRequestId: 'request-1',
+      }),
+    ).rejects.toMatchObject({ errorCode: ErrorCode.STICKER_NOT_FOUND });
     expect(access.assertAccessible).toHaveBeenCalledWith('thread-1', 'user-1');
     expect(prisma.media.findFirst).not.toHaveBeenCalled();
   });
 
   it('帖子表情令牌必须与真实资产 URL 匹配', async () => {
     prisma.post.findUnique.mockResolvedValue({ threadId: 'thread-1', content: '正文' });
-    content.extract.mockReturnValue([{
-      url: asset.url,
-      stickerAssetId: 'asset-1',
-    }]);
+    content.extract.mockReturnValue([
+      {
+        url: asset.url,
+        stickerAssetId: 'asset-1',
+      },
+    ]);
     prisma.stickerAsset.findFirst.mockResolvedValue(null);
 
-    await expect(service.importPostImage('user-1', {
-      postId: 'post-1',
-      imageUrl: asset.url,
-      clientRequestId: 'request-1',
-    })).rejects.toMatchObject({ errorCode: ErrorCode.STICKER_NOT_FOUND });
+    await expect(
+      service.importPostImage('user-1', {
+        postId: 'post-1',
+        imageUrl: asset.url,
+        clientRequestId: 'request-1',
+      }),
+    ).rejects.toMatchObject({ errorCode: ErrorCode.STICKER_NOT_FOUND });
     expect(prisma.stickerAsset.findFirst).toHaveBeenCalledWith({
       where: { id: 'asset-1', url: asset.url },
       select: { id: true },
@@ -308,17 +329,21 @@ describe('StickersService', () => {
   });
 
   it('排序拒绝重复 ID 和过期版本', async () => {
-    await expect(service.reorder('user-1', {
-      version: 1,
-      favoriteIds: ['favorite-1', 'favorite-1'],
-    })).rejects.toMatchObject({ errorCode: ErrorCode.INVALID_STICKER });
+    await expect(
+      service.reorder('user-1', {
+        version: 1,
+        favoriteIds: ['favorite-1', 'favorite-1'],
+      }),
+    ).rejects.toMatchObject({ errorCode: ErrorCode.INVALID_STICKER });
     expect(prisma.$transaction).not.toHaveBeenCalled();
 
     prisma.stickerCollection.findUniqueOrThrow.mockResolvedValue({ version: 2 });
-    await expect(service.reorder('user-1', {
-      version: 1,
-      favoriteIds: ['favorite-1'],
-    })).rejects.toMatchObject({ errorCode: ErrorCode.STICKER_COLLECTION_VERSION_CONFLICT });
+    await expect(
+      service.reorder('user-1', {
+        version: 1,
+        favoriteIds: ['favorite-1'],
+      }),
+    ).rejects.toMatchObject({ errorCode: ErrorCode.STICKER_COLLECTION_VERSION_CONFLICT });
   });
 
   it('排序必须包含完整收藏集合并原子递增版本', async () => {
@@ -431,10 +456,12 @@ describe('StickersService', () => {
   });
 
   it('失败原因最多持久化 500 字符', async () => {
-    const loggerWarn = jest.spyOn(
-      (service as unknown as { logger: { warn: (...args: unknown[]) => void } }).logger,
-      'warn',
-    ).mockImplementation(() => undefined);
+    const loggerWarn = jest
+      .spyOn(
+        (service as unknown as { logger: { warn: (...args: unknown[]) => void } }).logger,
+        'warn',
+      )
+      .mockImplementation(() => undefined);
 
     await service.markImportFailed('import-1', new Error('错'.repeat(600)));
 
@@ -443,22 +470,17 @@ describe('StickersService', () => {
     expect(loggerWarn).toHaveBeenCalled();
   });
 
-  it('孤儿资产只有在正文和草稿均无引用时才删除存储及数据库记录', async () => {
-    prisma.stickerAsset.findMany.mockResolvedValue([
-      asset,
-      { ...asset, id: 'asset-2', url: 'https://cdn.example.com/orphan.webp' },
-    ]);
-    prisma.post.findFirst
-      .mockResolvedValueOnce({ id: 'post-1' })
-      .mockResolvedValueOnce(null);
-    prisma.draft.findFirst.mockResolvedValue(null);
-
+  it('定时清理只删除过期终态导入记录，保留可能被 Markdown 引用的资产', async () => {
     await service.cleanupOrphanAssets();
 
-    expect(storage.remove).toHaveBeenCalledTimes(2);
-    expect(storage.remove).toHaveBeenCalledWith(asset.key);
-    expect(storage.remove).toHaveBeenCalledWith(asset.thumbnailKey);
-    expect(prisma.stickerAsset.deleteMany).toHaveBeenCalledTimes(1);
-    expect(prisma.stickerAsset.deleteMany).toHaveBeenCalledWith({ where: { id: 'asset-2' } });
+    expect(prisma.stickerImport.deleteMany).toHaveBeenCalledWith({
+      where: {
+        status: { in: ['COMPLETED', 'FAILED'] },
+        updatedAt: { lt: expect.any(Date) },
+      },
+    });
+    expect(prisma.stickerAsset.findMany).not.toHaveBeenCalled();
+    expect(storage.remove).not.toHaveBeenCalled();
+    expect(prisma.stickerAsset.deleteMany).not.toHaveBeenCalled();
   });
 });

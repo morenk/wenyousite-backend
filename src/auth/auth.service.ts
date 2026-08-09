@@ -1,11 +1,7 @@
-import {
-  Injectable,
-  HttpStatus,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, HttpStatus, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as argon2 from 'argon2';
-import { Prisma } from '@prisma/client';
+import { EmailVerification, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { VerificationCodeService, VERIFICATION_CODE_TTL } from './verification-code.service';
@@ -17,10 +13,25 @@ import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, unauthorized } from '../common/exceptions/business.exception';
 
 const userSelectPublic = {
-  id: true, email: true, username: true, avatar: true,
-  role: true, emailVerified: true,
+  id: true,
+  email: true,
+  username: true,
+  avatar: true,
+  role: true,
+  emailVerified: true,
   level: true,
 } as const;
+
+const MAX_VERIFICATION_ATTEMPTS = 5;
+const AUTH_TRANSACTION_OPTIONS = { maxWait: 5_000, timeout: 15_000 } as const;
+
+type VerificationFailure = {
+  ok: false;
+  message: string;
+  code: ErrorCode;
+};
+
+type VerificationResult<T> = { ok: true; value: T } | VerificationFailure;
 
 @Injectable()
 /** 认证服务：注册、登录、Token 刷新、邮箱验证、密码管理、双端登录终端 */
@@ -34,6 +45,98 @@ export class AuthService {
     private verificationCodeService: VerificationCodeService,
     private sessions: AuthSessionService,
   ) {}
+
+  /**
+   * 在事务内锁定并消费验证码。错误尝试的计数/删除先提交，再在事务外抛错，
+   * 避免异常回滚安全状态；同一验证码的并发请求会被行锁串行化。
+   */
+  private async consumeVerification<T>(
+    options: {
+      where: Prisma.EmailVerificationWhereInput;
+      inputCode: string;
+      missing: Omit<VerificationFailure, 'ok'>;
+      lockUserId?: string;
+    },
+    onVerified: (tx: Prisma.TransactionClient, record: EmailVerification) => Promise<T>,
+  ): Promise<T> {
+    const initial = await this.prisma.emailVerification.findFirst({ where: options.where });
+    if (!initial) {
+      throw unauthorized(options.missing.message, options.missing.code);
+    }
+
+    const result = await this.prisma.$transaction<VerificationResult<T>>(async (tx) => {
+      if (options.lockUserId) {
+        await tx.$queryRaw`SELECT id FROM users WHERE id = ${options.lockUserId} FOR UPDATE`;
+      }
+      await tx.$queryRaw`SELECT id FROM email_verifications WHERE id = ${initial.id} FOR UPDATE`;
+
+      const record = await tx.emailVerification.findFirst({
+        where: { AND: [{ id: initial.id }, options.where] },
+      });
+      const failure = await this.checkVerificationCode(
+        tx,
+        record,
+        options.inputCode,
+        options.missing,
+      );
+      if (failure) return failure;
+
+      const value = await onVerified(tx, record!);
+      await tx.emailVerification.delete({ where: { id: record!.id } });
+      return { ok: true, value };
+    }, AUTH_TRANSACTION_OPTIONS);
+
+    if (!result.ok) {
+      throw unauthorized(result.message, result.code);
+    }
+    return result.value;
+  }
+
+  private async checkVerificationCode(
+    tx: Prisma.TransactionClient,
+    record: EmailVerification | null,
+    inputCode: string,
+    missing: Omit<VerificationFailure, 'ok'>,
+  ): Promise<VerificationFailure | null> {
+    if (!record) return { ok: false, ...missing };
+
+    if (record.expiresAt <= new Date()) {
+      await tx.emailVerification.delete({ where: { id: record.id } });
+      return {
+        ok: false,
+        message: '验证码已过期，请重新获取',
+        code: ErrorCode.CODE_EXPIRED,
+      };
+    }
+
+    if (record.attempts >= MAX_VERIFICATION_ATTEMPTS) {
+      await tx.emailVerification.delete({ where: { id: record.id } });
+      return {
+        ok: false,
+        message: '验证码尝试次数过多，请重新获取',
+        code: ErrorCode.CODE_ATTEMPTS_EXCEEDED,
+      };
+    }
+
+    if (record.token !== inputCode) {
+      const nextAttempts = record.attempts + 1;
+      if (nextAttempts >= MAX_VERIFICATION_ATTEMPTS) {
+        await tx.emailVerification.delete({ where: { id: record.id } });
+        return {
+          ok: false,
+          message: '验证码尝试次数过多，请重新获取',
+          code: ErrorCode.CODE_ATTEMPTS_EXCEEDED,
+        };
+      }
+      await tx.emailVerification.update({
+        where: { id: record.id },
+        data: { attempts: { increment: 1 } },
+      });
+      return { ok: false, message: '验证码错误', code: ErrorCode.CODE_INVALID };
+    }
+
+    return null;
+  }
 
   /** 注册第一步：请求邮箱验证码 */
   async requestCode(rawEmail: string) {
@@ -54,61 +157,68 @@ export class AuthService {
       send: (code) => this.emailService.sendVerification(email, code, 'REGISTRATION'),
     });
 
-    return { emailSent, codeExpiresIn: VERIFICATION_CODE_TTL / 1000, message: '验证码已发送，请查收邮箱' };
+    return {
+      emailSent,
+      codeExpiresIn: VERIFICATION_CODE_TTL / 1000,
+      message: '验证码已发送，请查收邮箱',
+    };
   }
 
   /** 注册第二步：验证邮箱验证码 + 设置用户名密码，一步完成注册 */
-  async verifyAndComplete(dto: VerifyAndCompleteDto, deviceInfo?: string, platform: ClientPlatform = 'web') {
+  async verifyAndComplete(
+    dto: VerifyAndCompleteDto,
+    deviceInfo?: string,
+    platform: ClientPlatform = 'web',
+  ) {
     const email = dto.email.toLowerCase().trim();
-    const record = await this.prisma.emailVerification.findFirst({
-      where: { email, type: 'REGISTRATION' },
-    });
-    if (!record) {
-      throw unauthorized('请先获取邮箱验证码', ErrorCode.NO_CODE_RECORD);
-    }
-
-    if (record.expiresAt <= new Date()) {
-      await this.prisma.emailVerification.delete({ where: { id: record.id } });
-      throw unauthorized('验证码已过期，请重新获取', ErrorCode.CODE_EXPIRED);
-    }
-
-    if (record.token !== dto.code) {
-      if (record.attempts >= 5) {
-        await this.prisma.emailVerification.delete({ where: { id: record.id } });
-        throw unauthorized('验证码尝试次数过多，请重新获取', ErrorCode.CODE_ATTEMPTS_EXCEEDED);
-      }
-      await this.prisma.emailVerification.update({
-        where: { id: record.id },
-        data: { attempts: { increment: 1 } },
-      });
-      throw unauthorized('验证码错误', ErrorCode.CODE_INVALID);
-    }
-
-    const password = await argon2.hash(dto.password, {
-      timeCost: this.configService.get<number>('argon2.timeCost')!,
-      memoryCost: this.configService.get<number>('argon2.memoryCost')!,
-    });
 
     try {
-      const user = await this.prisma.$transaction(async (tx) => {
-        const created = await tx.user.create({
-          data: { email, username: dto.username, password, emailVerified: true },
-          select: userSelectPublic,
-        });
-        await tx.wallet.create({ data: { kind: 'USER', userId: created.id } });
-        await tx.emailVerification.delete({ where: { id: record.id } });
-        return created;
-      });
+      const user = await this.consumeVerification(
+        {
+          where: { email, type: 'REGISTRATION' },
+          inputCode: dto.code,
+          missing: {
+            message: '请先获取邮箱验证码',
+            code: ErrorCode.NO_CODE_RECORD,
+          },
+        },
+        async (tx) => {
+          const password = await argon2.hash(dto.password, {
+            timeCost: this.configService.get<number>('argon2.timeCost')!,
+            memoryCost: this.configService.get<number>('argon2.memoryCost')!,
+          });
+          const created = await tx.user.create({
+            data: { email, username: dto.username, password, emailVerified: true },
+            select: userSelectPublic,
+          });
+          await tx.wallet.create({ data: { kind: 'USER', userId: created.id } });
+          return created;
+        },
+      );
 
-      const { accessToken, refreshToken } = await this.sessions.createSession(user.id, deviceInfo ?? null, platform);
+      const { accessToken, refreshToken } = await this.sessions.createSession(
+        user.id,
+        deviceInfo ?? null,
+        platform,
+      );
       return { accessToken, refreshToken, user, message: '注册成功' };
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-        const target = (e.meta as Record<string, unknown> | null)?.target as string[] | undefined;
-        if (target?.includes('username')) {
+        const rawTarget = (e.meta as Record<string, unknown> | null)?.target;
+        const targets = Array.isArray(rawTarget)
+          ? rawTarget.map(String)
+          : [String(rawTarget ?? '')];
+        if (targets.some((target) => target.includes('username'))) {
           throw new BusinessException(
             ErrorCode.USERNAME_TAKEN,
             '该用户名已被占用',
+            HttpStatus.CONFLICT,
+          );
+        }
+        if (targets.some((target) => target.includes('email'))) {
+          throw new BusinessException(
+            ErrorCode.EMAIL_ALREADY_REGISTERED,
+            '该邮箱已被注册',
             HttpStatus.CONFLICT,
           );
         }
@@ -127,42 +237,30 @@ export class AuthService {
 
   /** 验证邮箱（需登录，按 userId + type 查询避免 token 碰撞） */
   async verifyEmail(userId: string, inputToken: string) {
-    const record = await this.prisma.emailVerification.findFirst({
-      where: { userId, type: 'EMAIL_VERIFY' },
-    });
-    if (!record) throw unauthorized('请先请求验证码', ErrorCode.NO_CODE_RECORD);
-    if (record.expiresAt <= new Date()) {
-      await this.prisma.emailVerification.delete({ where: { id: record.id } });
-      throw unauthorized('验证码已过期，请重新获取', ErrorCode.CODE_EXPIRED);
-    }
-
-    if (record.token !== inputToken) {
-      if (record.attempts >= 5) {
-        await this.prisma.emailVerification.delete({ where: { id: record.id } });
-        throw unauthorized('验证码尝试次数过多，请重新获取', ErrorCode.CODE_ATTEMPTS_EXCEEDED);
-      }
-      await this.prisma.emailVerification.update({
-        where: { id: record.id },
-        data: { attempts: { increment: 1 } },
-      });
-      throw unauthorized('验证码错误', ErrorCode.CODE_INVALID);
-    }
-
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { emailVerified: true },
-    });
-    await this.prisma.emailVerification.delete({ where: { id: record.id } });
-    return { message: '邮箱验证成功' };
+    return this.consumeVerification(
+      {
+        where: { userId, type: 'EMAIL_VERIFY' },
+        inputCode: inputToken,
+        missing: { message: '请先请求验证码', code: ErrorCode.NO_CODE_RECORD },
+        lockUserId: userId,
+      },
+      async (tx) => {
+        await tx.user.update({
+          where: { id: userId },
+          data: { emailVerified: true },
+        });
+        return { message: '邮箱验证成功' };
+      },
+    );
   }
 
   /** 修改密码：旧密码校验 + 吊销全部会话 + 发送通知邮件 */
   async changePassword(userId: string, oldPassword: string, newPassword: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { password: true, email: true },
+      select: { password: true, email: true, deletedAt: true },
     });
-    if (!user) throw unauthorized('登录状态无效', ErrorCode.UNAUTHORIZED);
+    if (!user || user.deletedAt) throw unauthorized('登录状态无效', ErrorCode.UNAUTHORIZED);
 
     if (oldPassword === newPassword) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '新密码不能与旧密码相同');
@@ -176,19 +274,35 @@ export class AuthService {
       memoryCost: this.configService.get<number>('argon2.memoryCost')!,
     });
 
-    await this.prisma.$transaction([
-      this.prisma.user.update({
+    const notificationEmail = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`;
+      const current = await tx.user.findUnique({
+        where: { id: userId },
+        select: { password: true, email: true, deletedAt: true },
+      });
+      if (!current || current.deletedAt) {
+        throw unauthorized('登录状态无效', ErrorCode.UNAUTHORIZED);
+      }
+      if (!(await argon2.verify(current.password, oldPassword))) {
+        throw unauthorized('原密码错误', ErrorCode.WRONG_OLD_PASSWORD);
+      }
+
+      await tx.user.update({
         where: { id: userId },
         data: { password: hashed },
-      }),
-      this.prisma.refreshToken.updateMany({
+      });
+      await tx.refreshToken.updateMany({
         where: { userId, revokedAt: null },
         data: { revokedAt: new Date() },
-      }),
-    ]);
+      });
+      await tx.emailVerification.deleteMany({
+        where: { userId, type: { in: ['PASSWORD_RESET', 'CHANGE_EMAIL'] } },
+      });
+      return current.email;
+    }, AUTH_TRANSACTION_OPTIONS);
 
-    this.emailService.sendPasswordChanged(user.email).catch((err) => {
-      this.logger.error(`密码修改通知邮件发送失败: ${user.email}`, err);
+    this.emailService.sendPasswordChanged(notificationEmail).catch((err) => {
+      this.logger.error('密码修改通知邮件发送失败', err);
     });
 
     return { message: '密码已修改，请重新登录' };
@@ -216,83 +330,108 @@ export class AuthService {
   /** 重置密码 + 吊销全部会话（按 email+type 锚定，避免 token 跨用户碰撞） */
   async resetPassword(rawEmail: string, inputToken: string, newPassword: string) {
     const email = rawEmail.toLowerCase().trim();
-    const record = await this.prisma.emailVerification.findFirst({
-      where: { email, type: 'PASSWORD_RESET' },
+    const user = await this.prisma.user.findUnique({
+      where: { email, deletedAt: null },
+      select: { id: true },
     });
-    if (!record) throw unauthorized('验证码错误', ErrorCode.CODE_INVALID);
-    if (record.expiresAt <= new Date()) {
-      await this.prisma.emailVerification.delete({ where: { id: record.id } });
-      throw unauthorized('验证码已过期，请重新获取', ErrorCode.CODE_EXPIRED);
-    }
+    if (!user) throw unauthorized('验证码错误', ErrorCode.CODE_INVALID);
 
-    if (record.token !== inputToken) {
-      if (record.attempts >= 5) {
-        await this.prisma.emailVerification.delete({ where: { id: record.id } });
-        throw unauthorized('验证码尝试次数过多，请重新获取', ErrorCode.CODE_ATTEMPTS_EXCEEDED);
-      }
-      await this.prisma.emailVerification.update({
-        where: { id: record.id },
-        data: { attempts: { increment: 1 } },
-      });
-      throw unauthorized('验证码错误', ErrorCode.CODE_INVALID);
-    }
+    return this.consumeVerification(
+      {
+        where: { email, userId: user.id, type: 'PASSWORD_RESET' },
+        inputCode: inputToken,
+        missing: { message: '验证码错误', code: ErrorCode.CODE_INVALID },
+        lockUserId: user.id,
+      },
+      async (tx, record) => {
+        const current = await tx.user.findFirst({
+          where: { id: user.id, email, deletedAt: null },
+          select: { id: true },
+        });
+        if (!current) throw unauthorized('验证码错误', ErrorCode.CODE_INVALID);
 
-    const userId = record.userId!;
-    const hashed = await argon2.hash(newPassword, {
-      timeCost: this.configService.get<number>('argon2.timeCost')!,
-      memoryCost: this.configService.get<number>('argon2.memoryCost')!,
-    });
-
-    await this.prisma.$transaction([
-      this.prisma.user.update({
-        where: { id: userId },
-        data: { password: hashed, emailVerified: true },
-      }),
-      this.prisma.refreshToken.updateMany({
-        where: { userId, revokedAt: null },
-        data: { revokedAt: new Date() },
-      }),
-      this.prisma.emailVerification.delete({ where: { id: record.id } }),
-    ]);
-
-    return { message: '密码已重置，请重新登录' };
+        const hashed = await argon2.hash(newPassword, {
+          timeCost: this.configService.get<number>('argon2.timeCost')!,
+          memoryCost: this.configService.get<number>('argon2.memoryCost')!,
+        });
+        await tx.user.update({
+          where: { id: user.id },
+          data: { password: hashed, emailVerified: true },
+        });
+        await tx.refreshToken.updateMany({
+          where: { userId: user.id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        await tx.emailVerification.deleteMany({
+          where: {
+            userId: user.id,
+            type: { in: ['PASSWORD_RESET', 'CHANGE_EMAIL'] },
+            id: { not: record.id },
+          },
+        });
+        return { message: '密码已重置，请重新登录' };
+      },
+    );
   }
 
   /** 更换邮箱第一步：向新邮箱发送 6 位验证码 */
   async requestChangeEmailCode(userId: string, newEmail: string, oldPassword: string) {
     const normalized = newEmail.toLowerCase().trim();
-    const currentUser = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { email: true, password: true },
-    });
-    if (!currentUser) throw unauthorized('登录状态无效', ErrorCode.UNAUTHORIZED);
-    if (currentUser.email === normalized) {
-      throw new BusinessException(ErrorCode.BAD_REQUEST, '新邮箱不能与当前邮箱相同');
+    let code: string;
+    try {
+      code = await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`;
+        const currentUser = await tx.user.findUnique({
+          where: { id: userId },
+          select: { email: true, password: true, deletedAt: true },
+        });
+        if (!currentUser || currentUser.deletedAt) {
+          throw unauthorized('登录状态无效', ErrorCode.UNAUTHORIZED);
+        }
+        if (currentUser.email === normalized) {
+          throw new BusinessException(ErrorCode.BAD_REQUEST, '新邮箱不能与当前邮箱相同');
+        }
+
+        // 与改密码共用用户行锁并在锁内复查，旧密码验证后不能再并发创建换邮箱码。
+        const valid = await argon2.verify(currentUser.password, oldPassword);
+        if (!valid) throw unauthorized('当前密码错误', ErrorCode.WRONG_OLD_PASSWORD);
+
+        const existing = await tx.user.findUnique({
+          where: { email: normalized, deletedAt: null },
+        });
+        if (existing) {
+          throw new BusinessException(
+            ErrorCode.EMAIL_ALREADY_REGISTERED,
+            '该邮箱已被其他用户使用',
+            HttpStatus.CONFLICT,
+          );
+        }
+
+        const prepared = await this.verificationCodeService.prepareInTransaction(
+          {
+            type: 'CHANGE_EMAIL',
+            userId,
+            email: normalized,
+            resendIfSameEmail: true,
+          },
+          tx,
+        );
+        return prepared.code;
+      }, AUTH_TRANSACTION_OPTIONS);
+    } catch (error) {
+      if ((error as { code?: string })?.code === 'P2002') {
+        throw new BusinessException(
+          ErrorCode.CONFLICT,
+          '该邮箱已有换绑请求，请稍后重试',
+          HttpStatus.CONFLICT,
+        );
+      }
+      throw error;
     }
 
-    // 二次认证：校验当前密码，防止会话被劫持后直接改邮箱
-    const valid = await argon2.verify(currentUser.password, oldPassword);
-    if (!valid) throw unauthorized('当前密码错误', ErrorCode.WRONG_OLD_PASSWORD);
-
-    const existing = await this.prisma.user.findUnique({
-      where: { email: normalized, deletedAt: null },
-    });
-    if (existing) {
-      throw new BusinessException(
-        ErrorCode.EMAIL_ALREADY_REGISTERED,
-        '该邮箱已被其他用户使用',
-        HttpStatus.CONFLICT,
-      );
-    }
-
-    await this.verificationCodeService.issue({
-      type: 'CHANGE_EMAIL',
-      userId,
-      email: normalized,
-      resendIfSameEmail: true,
-      label: '更换邮箱验证码',
-      send: (code) => this.emailService.sendVerification(normalized, code, 'CHANGE_EMAIL'),
-    });
+    await this.verificationCodeService.deliver('更换邮箱验证码', () =>
+      this.emailService.sendVerification(normalized, code, 'CHANGE_EMAIL'),
+    );
 
     return { message: '验证码已发送，请查收新邮箱' };
   }
@@ -300,47 +439,64 @@ export class AuthService {
   /** 更换邮箱第二步：验证码确认后更新 email */
   async verifyChangeEmail(userId: string, newEmail: string, inputCode: string) {
     const normalized = newEmail.toLowerCase().trim();
-    const record = await this.prisma.emailVerification.findFirst({
-      where: { userId, type: 'CHANGE_EMAIL', email: normalized },
-    });
-    if (!record) throw unauthorized('请先请求验证码', ErrorCode.NO_CODE_RECORD);
-    if (record.expiresAt <= new Date()) {
-      await this.prisma.emailVerification.delete({ where: { id: record.id } });
-      throw unauthorized('验证码已过期，请重新获取', ErrorCode.CODE_EXPIRED);
-    }
-    if (record.token !== inputCode) {
-      if (record.attempts >= 5) {
-        await this.prisma.emailVerification.delete({ where: { id: record.id } });
-        throw unauthorized('验证码尝试次数过多，请重新获取', ErrorCode.CODE_ATTEMPTS_EXCEEDED);
-      }
-      await this.prisma.emailVerification.update({
-        where: { id: record.id },
-        data: { attempts: { increment: 1 } },
-      });
-      throw unauthorized('验证码错误', ErrorCode.CODE_INVALID);
-    }
+    try {
+      await this.consumeVerification(
+        {
+          where: { userId, type: 'CHANGE_EMAIL', email: normalized },
+          inputCode,
+          missing: { message: '请先请求验证码', code: ErrorCode.NO_CODE_RECORD },
+          lockUserId: userId,
+        },
+        async (tx, record) => {
+          const current = await tx.user.findUnique({
+            where: { id: userId },
+            select: { email: true, deletedAt: true },
+          });
+          if (!current || current.deletedAt) {
+            throw unauthorized('登录状态无效', ErrorCode.UNAUTHORIZED);
+          }
+          if (current.email === normalized) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, '新邮箱不能与当前邮箱相同');
+          }
 
-    const existing = await this.prisma.user.findUnique({
-      where: { email: normalized, deletedAt: null },
-    });
-    if (existing) {
-      throw new BusinessException(
-        ErrorCode.EMAIL_ALREADY_REGISTERED,
-        '该邮箱已被其他用户使用',
-        HttpStatus.CONFLICT,
+          const existing = await tx.user.findFirst({
+            where: { email: normalized, deletedAt: null, id: { not: userId } },
+            select: { id: true },
+          });
+          if (existing) {
+            throw new BusinessException(
+              ErrorCode.EMAIL_ALREADY_REGISTERED,
+              '该邮箱已被其他用户使用',
+              HttpStatus.CONFLICT,
+            );
+          }
+
+          await tx.user.update({
+            where: { id: userId },
+            data: { email: normalized, emailVerified: true },
+          });
+          await tx.refreshToken.updateMany({
+            where: { userId, revokedAt: null },
+            data: { revokedAt: new Date() },
+          });
+          await tx.emailVerification.deleteMany({
+            where: { userId, id: { not: record.id } },
+          });
+        },
       );
+    } catch (error) {
+      if ((error as { code?: string })?.code === 'P2002') {
+        throw new BusinessException(
+          ErrorCode.EMAIL_ALREADY_REGISTERED,
+          '该邮箱已被其他用户使用',
+          HttpStatus.CONFLICT,
+        );
+      }
+      throw error;
     }
-
-    await this.prisma.$transaction([
-      this.prisma.user.update({
-        where: { id: userId },
-        data: { email: normalized, emailVerified: true },
-      }),
-      this.prisma.emailVerification.delete({ where: { id: record.id } }),
-    ]);
 
     this.emailService.sendEmailChanged(normalized).catch((err) => {
-      this.logger.error(`邮箱变更通知发送失败: ${normalized}`, err);
+      this.logger.error('邮箱变更通知发送失败', err);
     });
 
     return { message: '邮箱已成功更换' };
@@ -378,5 +534,4 @@ export class AuthService {
   async revokeSession(userId: string, sessionId: string) {
     return this.sessions.revokeSession(userId, sessionId);
   }
-
 }

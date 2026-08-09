@@ -1,5 +1,9 @@
 import { STICKER_MARKER_PREFIX } from '../stickers/sticker.constants';
-import { extractMarkdownCoverImages, stripVisibleMarkdownImages } from './markdown-cover-images';
+import {
+  extractMarkdownCoverImages,
+  extractMarkdownImageUrls,
+  stripVisibleMarkdownImages,
+} from './markdown-cover-images';
 
 describe('extractMarkdownCoverImages', () => {
   it('按正文顺序提取前三张不重复的普通图片', () => {
@@ -33,9 +37,32 @@ describe('extractMarkdownCoverImages', () => {
     expect(extractMarkdownCoverImages(content)).toEqual(['https://cdn.example.com/cover.jpg']);
   });
 
+  it('emoji 不会让后续代码区遮罩索引偏移', () => {
+    const content = [
+      '🎲 示例 `![代码](https://cdn.example.com/inline.jpg)`',
+      '![封面](https://cdn.example.com/cover.jpg)',
+    ].join('\n');
+
+    expect(extractMarkdownCoverImages(content)).toEqual(['https://cdn.example.com/cover.jpg']);
+  });
+
   it('空正文和非正数上限返回空数组', () => {
     expect(extractMarkdownCoverImages('')).toEqual([]);
     expect(extractMarkdownCoverImages('![图](https://cdn.example.com/a.jpg)', 0)).toEqual([]);
+  });
+
+  it('引用扫描统一支持尖括号 URL，并忽略代码与转义图片', () => {
+    const content = [
+      '![普通](https://cdn.example.com/a.jpg)',
+      '![尖括号](<https://cdn.example.com/b.jpg>)',
+      '`![代码](https://cdn.example.com/code.jpg)`',
+      '\\![转义](https://cdn.example.com/escaped.jpg)',
+    ].join('\n');
+
+    expect(extractMarkdownImageUrls(content)).toEqual([
+      'https://cdn.example.com/a.jpg',
+      'https://cdn.example.com/b.jpg',
+    ]);
   });
 
   it('为封面卡片移除可见图片节点但保留代码和转义内容', () => {

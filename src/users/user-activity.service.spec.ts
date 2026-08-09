@@ -66,12 +66,7 @@ describe('UserActivityService', () => {
     bookmarks.findByUserId.mockReturnValue('result');
 
     expect(service.userBookmarks('target-1', 'viewer-1', 'cursor-1', 12)).toBe('result');
-    expect(bookmarks.findByUserId).toHaveBeenCalledWith(
-      'target-1',
-      'viewer-1',
-      'cursor-1',
-      12,
-    );
+    expect(bookmarks.findByUserId).toHaveBeenCalledWith('target-1', 'viewer-1', 'cursor-1', 12);
   });
 
   it('参与主题目标用户不存在时返回 404', async () => {
@@ -86,19 +81,23 @@ describe('UserActivityService', () => {
   it('未公开玩家徽章时仅本人可查看参与主题', async () => {
     prisma.user.findUnique.mockResolvedValue({ id: 'target-1', showPlayerBadges: false });
 
-    await expect(service.playedThreads({
-      targetId: 'target-1',
-      viewerId: 'viewer-1',
-    })).rejects.toMatchObject({ message: '该用户未公开参与的帖子' });
+    await expect(
+      service.playedThreads({
+        targetId: 'target-1',
+        viewerId: 'viewer-1',
+      }),
+    ).rejects.toMatchObject({ message: '该用户未公开参与的帖子' });
 
     threads.findByPlayedUser.mockResolvedValue('played');
-    await expect(service.playedThreads({
-      targetId: 'target-1',
-      viewerId: 'target-1',
-      cursor: 'cursor-1',
-      limit: 5,
-      visibility: 'PRIVATE',
-    })).resolves.toBe('played');
+    await expect(
+      service.playedThreads({
+        targetId: 'target-1',
+        viewerId: 'target-1',
+        cursor: 'cursor-1',
+        limit: 5,
+        visibility: 'PRIVATE',
+      }),
+    ).resolves.toBe('played');
     expect(threads.findByPlayedUser).toHaveBeenCalledWith(
       'target-1',
       'target-1',
@@ -115,12 +114,7 @@ describe('UserActivityService', () => {
     await expect(service.createdThreads('target-1', 'viewer-1', 'cursor-1', 8)).resolves.toBe(
       'created',
     );
-    expect(threads.findByCreatedUser).toHaveBeenCalledWith(
-      'target-1',
-      'viewer-1',
-      'cursor-1',
-      8,
-    );
+    expect(threads.findByCreatedUser).toHaveBeenCalledWith('target-1', 'viewer-1', 'cursor-1', 8);
   });
 
   it('未公开最近动态时仅本人可查看', async () => {
@@ -134,32 +128,41 @@ describe('UserActivityService', () => {
 
   it('公开最近回复仅查询公开存活内容并生成含骰点结果的预览', async () => {
     prisma.user.findUnique.mockResolvedValue({ id: 'target-1', showRecentReplies: true });
-    prisma.post.findMany.mockResolvedValue([{
-      id: 'post-1',
-      content: '检定结果 [[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20]]',
-      diceRolls: [{
-        nodeId: '550e8400-e29b-41d4-a716-446655440000',
-        notation: '1d20',
-        total: 17,
-      }],
-    }]);
+    prisma.post.findMany.mockResolvedValue([
+      {
+        id: 'post-1',
+        content: '检定结果 [[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20]]',
+        diceRolls: [
+          {
+            nodeId: '550e8400-e29b-41d4-a716-446655440000',
+            notation: '1d20',
+            total: 17,
+          },
+        ],
+      },
+    ]);
 
     const result = await service.recentReplies('target-1', 'viewer-1');
 
-    expect(result[0]).toEqual(expect.objectContaining({
-      id: 'post-1',
-      preview: expect.stringContaining('17'),
-    }));
-    expect(prisma.post.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: {
-        authorId: 'target-1',
-        deletedAt: null,
-        subthread: { deletedAt: null },
-        thread: { published: true, deletedAt: null, visibility: 'PUBLIC' },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-    }));
+    expect(result[0]).toEqual(
+      expect.objectContaining({
+        id: 'post-1',
+        preview: expect.stringContaining('17'),
+      }),
+    );
+    expect(prisma.post.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          authorId: 'target-1',
+          kind: 'FLOOR',
+          deletedAt: null,
+          subthread: { deletedAt: null },
+          thread: { published: true, deletedAt: null, visibility: 'PUBLIC' },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      }),
+    );
   });
 
   it('本人查看最近回复时允许私密主题', async () => {
@@ -167,10 +170,12 @@ describe('UserActivityService', () => {
     prisma.post.findMany.mockResolvedValue([]);
 
     await expect(service.recentReplies('target-1', 'target-1')).resolves.toEqual([]);
-    expect(prisma.post.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({
-        thread: { published: true, deletedAt: null },
+    expect(prisma.post.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          thread: { published: true, deletedAt: null },
+        }),
       }),
-    }));
+    );
   });
 });

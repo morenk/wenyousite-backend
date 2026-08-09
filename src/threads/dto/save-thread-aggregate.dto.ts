@@ -14,6 +14,7 @@ import {
   Matches,
 } from 'class-validator';
 import { CATEGORY_SLUG_PATTERN } from '../../taxonomy/category-slug';
+import { TAG_NAME_PATTERN } from '../../tags/tag-name';
 
 /** 原子保存主题帖编辑器中的元数据、默认正文与标签。 */
 export class SaveThreadAggregateDto {
@@ -72,5 +73,9 @@ export class SaveThreadAggregateDto {
   @IsString({ each: true })
   @MinLength(1, { each: true })
   @MaxLength(20, { each: true })
+  @Matches(TAG_NAME_PATTERN, {
+    each: true,
+    message: '标签名只能包含字母、数字、下划线、中文和 #',
+  })
   tagNames!: string[];
 }

@@ -26,11 +26,9 @@ import { StickerContentService } from '../stickers/sticker-content.service';
 import { ThreadCreateIdempotencyService } from './thread-create-idempotency.service';
 import { initialThreadSmartScore } from './thread-smart-score';
 import { ThreadCategoriesService } from '../taxonomy/thread-categories.service';
-/** 帖子列表 ZSET 键名 */
 const ZSET_BY_CREATED = 'threads:by:created';
 const ZSET_BY_ACTIVITY = 'threads:by:activity';
 const ZSET_BY_SMART = 'threads:by:smart';
-/** 每个用户最多可持有的未发布主题帖草稿数 */
 const MAX_THREAD_DRAFTS = 10;
 /** 主题帖服务：草稿创建、沙盒迭代、发布、CRUD */
 @Injectable()
@@ -65,14 +63,10 @@ export class ThreadsService {
     const hasBody =
       hasVisibleMarkdownContent(parsedContent.contentWithoutDice) || parsedContent.nodes.length > 0;
     await this.stickerContent.assertContentAllowed(userId, parsedContent.content);
-    // 标签定义可先独立解析，但主题、默认子贴及标签关联必须原子提交。
-    const tags =
-      dto.tagNames && dto.tagNames.length > 0
-        ? await this.tagsService.findOrCreate(dto.tagNames)
-        : [];
     let result: { threadId: string };
     try {
       result = await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`;
         const draftCount = await tx.thread.count({
           where: { ownerId: userId, published: false, ...notDeleted },
         });
@@ -82,6 +76,10 @@ export class ThreadsService {
             `草稿数量已达上限（${MAX_THREAD_DRAFTS}/${MAX_THREAD_DRAFTS}），请先发布或删除旧草稿`,
           );
         }
+        const tags =
+          dto.tagNames && dto.tagNames.length > 0
+            ? await this.tagsService.findOrCreate(dto.tagNames, tx)
+            : [];
         const thread = await tx.thread.create({
           data: {
             title,
@@ -114,13 +112,11 @@ export class ThreadsService {
           where: { id: thread.id },
           data: { defaultSubthreadId: subthread.id },
         });
-
         if (tags.length > 0) {
           await tx.threadTopicTag.createMany({
             data: tags.map((tag) => ({ threadId: thread.id, tagId: tag.id })),
           });
         }
-
         return { threadId: thread.id };
       });
     } catch (error: unknown) {
@@ -132,6 +128,10 @@ export class ThreadsService {
       );
       if (replayAfterRace) return replayAfterRace;
       throw error;
+    }
+
+    if (dto.tagNames?.length) {
+      await this.tagsService.invalidateCache().catch(() => {});
     }
 
     const thread = await this.prisma.thread.findUnique({
@@ -253,7 +253,6 @@ export class ThreadsService {
       this.redis
         .hset(`thread:${id}:stats`, 'createdAt', String(updated.createdAt.getTime()))
         .catch(() => {});
-      // 智能排序初始分
       const initScore = initialThreadSmartScore(
         postCount,
         updated.viewCount || 0,
@@ -275,9 +274,9 @@ export class ThreadsService {
 
     let result: any;
     if (!thread.published) {
-      result = this.prisma.thread.delete({ where: { id } });
+      result = await this.prisma.thread.delete({ where: { id } });
     } else {
-      result = this.prisma.thread.update({
+      result = await this.prisma.thread.update({
         where: { id, ...notDeleted },
         data: {
           deletedAt: new Date(),

@@ -111,6 +111,7 @@ const basicTx = () => ({
 /** 为主题帖创建流程准备 $transaction 模拟 */
 const setupThreadTransaction = (prisma: MockPrisma, threadId = 't1', subthreadId = 's1') => {
   const tx = {
+    $queryRaw: jest.fn(),
     thread: {
       count: jest.fn().mockResolvedValue(0),
       create: jest.fn().mockResolvedValue({ id: threadId }),
@@ -135,7 +136,10 @@ const mockBlockFilter = {
     .mockResolvedValue({ blockedByUser: new Set(), blockedByAuthor: new Set() }),
   filterRecipients: jest.fn((ids: string[]) => ids),
 };
-const mockTags = { findOrCreate: jest.fn() };
+const mockTags = {
+  findOrCreate: jest.fn(),
+  invalidateCache: jest.fn().mockResolvedValue(undefined),
+};
 const mockNotificationProducer = { notify: jest.fn().mockResolvedValue(undefined) };
 const mockRedis = {
   hincrby: jest.fn().mockResolvedValue(1),
@@ -221,15 +225,7 @@ describe('发帖全流程集成测试', () => {
     jest.clearAllMocks();
     prisma.post.findMany.mockResolvedValue([]);
     prisma.threadMember.findMany.mockResolvedValue([]);
-    prisma.$transaction.mockImplementation(async (fn: any) =>
-      fn({
-        $queryRaw: jest.fn(),
-        thread: prisma.thread,
-        threadMember: prisma.threadMember,
-        post: prisma.post,
-        diceRoll: prisma.diceRoll,
-      }),
-    );
+    prisma.$transaction.mockImplementation(async (fn: any) => fn(prisma));
 
     const threadAccess = new ThreadAccessService(prisma as any);
     const module: TestingModule = await Test.createTestingModule({
@@ -322,7 +318,7 @@ describe('发帖全流程集成测试', () => {
     });
 
     it('创建草稿：携带标签应同步创建 TopicTag', async () => {
-      setupThreadTransaction(prisma);
+      const tx = setupThreadTransaction(prisma);
       mockTags.findOrCreate.mockResolvedValue([
         { id: 'tag1', name: '科幻' },
         { id: 'tag2', name: '悬疑' },
@@ -340,7 +336,10 @@ describe('发帖全流程集成测试', () => {
         { title: '测试', category: 'RPG', tagNames: ['科幻', '悬疑'] },
         'u1',
       );
-      expect(mockTags.findOrCreate).toHaveBeenCalledWith(['科幻', '悬疑']);
+      expect(mockTags.findOrCreate).toHaveBeenCalledWith(
+        ['科幻', '悬疑'],
+        expect.objectContaining({ thread: tx.thread }),
+      );
       expect(prisma.threadTopicTag.createMany).toHaveBeenCalled();
     });
 
@@ -767,7 +766,14 @@ describe('发帖全流程集成测试', () => {
         ]);
       prisma.subthread.findFirst.mockResolvedValue({ id: 'a' });
       prisma.$transaction.mockImplementation(async (fn: any) => {
-        const tx = { subthread: { update: jest.fn() } };
+        const tx = {
+          $queryRaw: jest.fn(),
+          thread: { findUnique: jest.fn().mockResolvedValue({ defaultSubthreadId: 'a' }) },
+          subthread: {
+            findMany: prisma.subthread.findMany,
+            update: jest.fn(),
+          },
+        };
         return fn(tx);
       });
       const result = await subthreadsService.reorder('t1', ['a', 'b', 'c'], 'u1');

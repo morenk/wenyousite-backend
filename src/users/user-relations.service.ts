@@ -85,14 +85,16 @@ export class UserRelationsService {
       });
       const pending = await tx.directConversation.findUnique({
         where: { firstUserId_secondUserId: { firstUserId, secondUserId } },
-        select: { id: true, status: true },
+        select: { id: true },
       });
-      if (pending?.status === 'PENDING') {
-        await tx.directConversation.update({
-          where: { id: pending.id },
+      if (pending) {
+        const declined = await tx.directConversation.updateMany({
+          where: { id: pending.id, status: 'PENDING' },
           data: { status: 'DECLINED', lastMessageAt: null },
         });
-        await tx.directMessage.deleteMany({ where: { conversationId: pending.id } });
+        if (declined.count === 1) {
+          await tx.directMessage.deleteMany({ where: { conversationId: pending.id } });
+        }
       }
     });
     return { message: '已拉黑' };

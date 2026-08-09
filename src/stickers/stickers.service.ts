@@ -171,8 +171,8 @@ export class StickersService {
         select: { id: true },
       });
       if (
-        favorites.length !== dto.favoriteIds.length
-        || favorites.some((favorite) => !dto.favoriteIds.includes(favorite.id))
+        favorites.length !== dto.favoriteIds.length ||
+        favorites.some((favorite) => !dto.favoriteIds.includes(favorite.id))
       ) {
         throw this.versionConflict('收藏夹内容已变化，请刷新后重试');
       }
@@ -208,7 +208,11 @@ export class StickersService {
     return this.getCollection(userId);
   }
 
-  async assertFavorite(userId: string, assetId: string, tx: Prisma.TransactionClient = this.prisma) {
+  async assertFavorite(
+    userId: string,
+    assetId: string,
+    tx: Prisma.TransactionClient = this.prisma,
+  ) {
     const favorite = await tx.userSticker.findUnique({
       where: { userId_assetId: { userId, assetId } },
       include: { asset: true },
@@ -286,26 +290,9 @@ export class StickersService {
     await this.prisma.stickerImport.deleteMany({
       where: { status: { in: ['COMPLETED', 'FAILED'] }, updatedAt: { lt: cutoff } },
     });
-    const assets = await this.prisma.stickerAsset.findMany({
-      where: {
-        createdAt: { lt: cutoff },
-        favorites: { none: {} },
-        directMessages: { none: {} },
-        momentComments: { none: { deletedAt: null } },
-        imports: { none: {} },
-      },
-      select: { id: true, key: true, thumbnailKey: true, url: true },
-    });
-    for (const asset of assets) {
-      const referenced = await this.hasMarkdownReference(asset.url);
-      if (referenced) continue;
-      try {
-        await Promise.all([this.storage.remove(asset.key), this.storage.remove(asset.thumbnailKey)]);
-        await this.prisma.stickerAsset.deleteMany({ where: { id: asset.id } });
-      } catch (error) {
-        this.logger.warn(`Sticker asset cleanup failed assetId=${asset.id}`, error);
-      }
-    }
+    // 已完成资产还可能被帖子或草稿中的 Markdown 字符串引用。引用扫描与对象删除
+    // 无法在同一事务中原子复核，自动删除会在并发保存正文时造成不可逆的数据丢失。
+    // 建立规范化 StickerAsset 引用账本前，仅清理终态导入记录，保守保留资产。
   }
 
   private async startMediaImport(userId: string, mediaId: string, clientRequestId: string) {
@@ -314,20 +301,22 @@ export class StickersService {
     });
     if (existing) return this.getImport(userId, existing.id);
 
-    const item = await this.prisma.$transaction(async (tx) => {
-      await this.lockCollection(tx, userId);
-      await this.assertCapacity(tx, userId);
-      return tx.stickerImport.create({
-        data: { userId, sourceMediaId: mediaId, clientRequestId },
-      });
-    }).catch(async (error: unknown) => {
-      if ((error as { code?: string })?.code === 'P2002') {
-        return this.prisma.stickerImport.findUniqueOrThrow({
-          where: { userId_clientRequestId: { userId, clientRequestId } },
+    const item = await this.prisma
+      .$transaction(async (tx) => {
+        await this.lockCollection(tx, userId);
+        await this.assertCapacity(tx, userId);
+        return tx.stickerImport.create({
+          data: { userId, sourceMediaId: mediaId, clientRequestId },
         });
-      }
-      throw error;
-    });
+      })
+      .catch(async (error: unknown) => {
+        if ((error as { code?: string })?.code === 'P2002') {
+          return this.prisma.stickerImport.findUniqueOrThrow({
+            where: { userId_clientRequestId: { userId, clientRequestId } },
+          });
+        }
+        throw error;
+      });
     if (item.status === 'PROCESSING') {
       try {
         await this.queue.add('process', { importId: item.id } satisfies StickerProcessJob, {
@@ -352,29 +341,33 @@ export class StickersService {
     const asset = await this.prisma.stickerAsset.findUnique({ where: { id: assetId } });
     if (!asset) throw notFound(ErrorCode.STICKER_NOT_FOUND, '表情资产不存在');
 
-    const importId = await this.prisma.$transaction(async (tx) => {
-      await this.lockCollection(tx, userId);
-      const favorite = await tx.userSticker.findUnique({
-        where: { userId_assetId: { userId, assetId } },
+    const importId = await this.prisma
+      .$transaction(async (tx) => {
+        await this.lockCollection(tx, userId);
+        const favorite = await tx.userSticker.findUnique({
+          where: { userId_assetId: { userId, assetId } },
+        });
+        let alreadySaved = Boolean(favorite);
+        if (!favorite) {
+          await this.assertCapacity(tx, userId);
+          await this.createFavorite(tx, userId, assetId);
+          alreadySaved = false;
+        }
+        const item = await tx.stickerImport.create({
+          data: { userId, clientRequestId, assetId, status: 'COMPLETED', alreadySaved },
+        });
+        return item.id;
+      })
+      .catch(async (error: unknown) => {
+        if ((error as { code?: string })?.code === 'P2002') {
+          return (
+            await this.prisma.stickerImport.findUniqueOrThrow({
+              where: { userId_clientRequestId: { userId, clientRequestId } },
+            })
+          ).id;
+        }
+        throw error;
       });
-      let alreadySaved = Boolean(favorite);
-      if (!favorite) {
-        await this.assertCapacity(tx, userId);
-        await this.createFavorite(tx, userId, assetId);
-        alreadySaved = false;
-      }
-      const item = await tx.stickerImport.create({
-        data: { userId, clientRequestId, assetId, status: 'COMPLETED', alreadySaved },
-      });
-      return item.id;
-    }).catch(async (error: unknown) => {
-      if ((error as { code?: string })?.code === 'P2002') {
-        return (await this.prisma.stickerImport.findUniqueOrThrow({
-          where: { userId_clientRequestId: { userId, clientRequestId } },
-        })).id;
-      }
-      throw error;
-    });
     return this.getImport(userId, importId);
   }
 
@@ -475,13 +468,16 @@ export class StickersService {
     };
   }
 
-  private mapImport(item: {
-    id: string;
-    status: 'PROCESSING' | 'COMPLETED' | 'FAILED';
-    failureCode: string | null;
-    failureMessage: string | null;
-    alreadySaved: boolean;
-  }, favorite: FavoriteRecord | null) {
+  private mapImport(
+    item: {
+      id: string;
+      status: 'PROCESSING' | 'COMPLETED' | 'FAILED';
+      failureCode: string | null;
+      failureMessage: string | null;
+      alreadySaved: boolean;
+    },
+    favorite: FavoriteRecord | null,
+  ) {
     return {
       id: item.id,
       status: item.status,
@@ -490,14 +486,6 @@ export class StickersService {
       failureMessage: item.failureMessage,
       alreadySaved: item.alreadySaved,
     };
-  }
-
-  private async hasMarkdownReference(url: string) {
-    const [post, draft] = await Promise.all([
-      this.prisma.post.findFirst({ where: { deletedAt: null, content: { contains: url } }, select: { id: true } }),
-      this.prisma.draft.findFirst({ where: { content: { contains: url } }, select: { id: true } }),
-    ]);
-    return Boolean(post || draft);
   }
 
   private invalid(message: string) {

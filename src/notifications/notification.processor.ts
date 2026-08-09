@@ -55,7 +55,18 @@ export class NotificationProcessor extends WorkerHost {
   }
 
   async process(job: Job<NotificationJob>): Promise<void> {
-    const { type, recipients, content, postId, threadId, momentId, momentCommentId, fromUserId, payload, eventKey } = job.data;
+    const {
+      type,
+      recipients,
+      content,
+      postId,
+      threadId,
+      momentId,
+      momentCommentId,
+      fromUserId,
+      payload,
+      eventKey,
+    } = job.data;
 
     switch (type) {
       case 'reply':
@@ -133,13 +144,13 @@ export class NotificationProcessor extends WorkerHost {
             });
 
             // 处理器成功但 ACK 丢失时，重试不能再次累加同一个点赞事件。
-            if (
-              eventKey &&
-              notifications.some((notification) =>
-                asLikePayload(notification.payload).eventKeys?.includes(eventKey),
-              )
-            ) {
-              return null;
+            const processed = eventKey
+              ? notifications.find((notification) =>
+                  asLikePayload(notification.payload).eventKeys?.includes(eventKey),
+                )
+              : undefined;
+            if (processed) {
+              return { notificationId: processed.id, eventKey };
             }
 
             const existing = notifications.find((notification) => !notification.isRead);
@@ -261,26 +272,28 @@ export class NotificationProcessor extends WorkerHost {
     if (!eventKey && fromUserId !== undefined) dedupWhere.fromUserId = fromUserId;
     const existing = await this.prisma.notification.findMany({
       where: dedupWhere,
-      select: { userId: true, eventKey: true },
+      select: { id: true, userId: true, eventKey: true },
     });
     let newData = data;
     if (existing.length > 0) {
       const existingKeys = new Set(existing.map((n) => (eventKey ? n.eventKey : n.userId)));
       newData = data.filter(
-        (item) => !existingKeys.has(eventKey ? item.eventKey ?? '' : item.userId),
+        (item) => !existingKeys.has(eventKey ? (item.eventKey ?? '') : item.userId),
       );
       if (newData.length === 0) {
         this.logger.warn(
           `All ${userIds.length} notifications of type '${type}' already exist (retry guard)`,
         );
-        return;
+        if (!eventKey) return;
       }
     }
 
-    await this.prisma.notification.createMany({ data: newData, skipDuplicates: true });
+    if (newData.length > 0) {
+      await this.prisma.notification.createMany({ data: newData, skipDuplicates: true });
+    }
     const stored = await this.prisma.notification.findMany({
       where: eventKey
-        ? { OR: newData.map((item) => ({ userId: item.userId, eventKey: item.eventKey })) }
+        ? { OR: data.map((item) => ({ userId: item.userId, eventKey: item.eventKey })) }
         : {
             userId: { in: newData.map((item) => item.userId) },
             type,
@@ -293,12 +306,16 @@ export class NotificationProcessor extends WorkerHost {
           },
       select: { id: true, userId: true, eventKey: true },
     });
-    await Promise.all(stored.map((notification) => this.pushes.enqueue({
-      userId: notification.userId,
-      kind: 'notification',
-      eventKey: `notification:${notification.eventKey}`,
-      notificationId: notification.id,
-    })));
+    await Promise.all(
+      stored.map((notification) =>
+        this.pushes.enqueue({
+          userId: notification.userId,
+          kind: 'notification',
+          eventKey: `notification:${notification.eventKey ?? notification.id}`,
+          notificationId: notification.id,
+        }),
+      ),
+    );
     this.logger.log(
       `Created ${newData.length} notifications of type '${type}' (${existing.length} duplicates skipped)`,
     );

@@ -2,13 +2,11 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { randomInt } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type VerificationCodeType =
-  | 'REGISTRATION'
-  | 'EMAIL_VERIFY'
-  | 'CHANGE_EMAIL'
-  | 'PASSWORD_RESET';
+  'REGISTRATION' | 'EMAIL_VERIFY' | 'CHANGE_EMAIL' | 'PASSWORD_RESET';
 
 export const VERIFICATION_CODE_TTL = 15 * 60 * 1000; // 验证码统一有效期 15 分钟
 
@@ -24,6 +22,8 @@ interface IssueOptions {
   send: (code: string) => Promise<void>;
 }
 
+type PrepareIssueOptions = Omit<IssueOptions, 'label' | 'send'>;
+
 /** 邮箱验证码服务：生成 / 复用 / 重发 / 作废验证码记录 */
 @Injectable()
 export class VerificationCodeService {
@@ -33,7 +33,7 @@ export class VerificationCodeService {
 
   /** 生成 6 位数字验证码 */
   generateCode(): string {
-    return String(Math.floor(100000 + Math.random() * 900000));
+    return String(randomInt(100000, 1_000_000));
   }
 
   /**
@@ -43,25 +43,45 @@ export class VerificationCodeService {
    * 发送失败不抛错，由 emailSent 标记，调用方决定日志/提示。
    */
   async issue(opts: IssueOptions): Promise<{ code: string; resent: boolean; emailSent: boolean }> {
-    const { type, userId, email, resendIfSameEmail = false, label, send } = opts;
+    const prepared = await this.prepare(opts, this.prisma, true);
+    const emailSent = await this.deliver(opts.label, () => opts.send(prepared.code));
+    return { ...prepared, emailSent };
+  }
+
+  /** 在调用方交互事务内只准备记录；邮件必须等事务提交后再发送。 */
+  prepareInTransaction(opts: PrepareIssueOptions, tx: Prisma.TransactionClient) {
+    return this.prepare(opts, tx, false);
+  }
+
+  /** 提交后发送已准备好的验证码，失败只记脱敏日志。 */
+  deliver(label: string, run: () => Promise<void>) {
+    return this.sendSafely(label, run);
+  }
+
+  private async prepare(
+    opts: PrepareIssueOptions,
+    client: PrismaService | Prisma.TransactionClient,
+    recoverUniqueConflict: boolean,
+  ): Promise<{ code: string; resent: boolean }> {
+    const { type, userId, email, resendIfSameEmail = false } = opts;
     const now = new Date();
 
-    const record = await this.prisma.emailVerification.findFirst({
+    const record = await client.emailVerification.findFirst({
       where: { ...(userId ? { userId, type } : { email, type }) },
     });
 
     if (record && record.expiresAt > now && (!resendIfSameEmail || record.email === email)) {
-      const emailSent = await this.sendSafely(label, email ?? userId ?? '', () => send(record.token));
-      return { code: record.token, resent: true, emailSent };
+      return { code: record.token, resent: true };
     }
 
     if (record) {
-      await this.prisma.emailVerification.delete({ where: { id: record.id } });
+      // deleteMany 让两个并发的过期记录刷新都能继续进入“创建或复用”分支。
+      await client.emailVerification.deleteMany({ where: { id: record.id } });
     }
 
     const code = this.generateCode();
     try {
-      await this.prisma.emailVerification.create({
+      await client.emailVerification.create({
         data: {
           ...(userId ? { userId } : {}),
           ...(email ? { email } : {}),
@@ -73,29 +93,29 @@ export class VerificationCodeService {
     } catch (e) {
       // 并发请求已抢先创建记录，复用其验证码
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-        const existing = await this.prisma.emailVerification.findFirst({
+        // PostgreSQL 中语句错误会使交互事务进入 aborted 状态；事务调用交给
+        // 外层整体映射，只有独立调用才能安全回查并复用抢先创建的记录。
+        if (!recoverUniqueConflict) throw e;
+        const existing = await client.emailVerification.findFirst({
           where: { ...(userId ? { userId, type } : { email, type }) },
         });
         if (existing) {
-          const emailSent = await this.sendSafely(label, email ?? userId ?? '', () => send(existing.token));
-          return { code: existing.token, resent: true, emailSent };
+          return { code: existing.token, resent: true };
         }
       }
       throw e;
     }
 
-    const emailSent = await this.sendSafely(label, email ?? userId ?? '', () => send(code));
-    return { code, resent: false, emailSent };
+    return { code, resent: false };
   }
 
   /** 发送并吞掉异常，返回是否发送成功 */
-  private async sendSafely(label: string, target: string, run: () => Promise<void>): Promise<boolean> {
+  private async sendSafely(label: string, run: () => Promise<void>): Promise<boolean> {
     try {
       await run();
       return true;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.logger.error(`${label}发送失败: ${target} | ${message}`);
+    } catch {
+      this.logger.error(`${label}发送失败`);
       return false;
     }
   }

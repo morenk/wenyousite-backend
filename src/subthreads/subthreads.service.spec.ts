@@ -39,7 +39,7 @@ const mockEventEmitter = { emit: jest.fn() };
 const mockOutbox = { enqueue: jest.fn().mockResolvedValue(undefined) };
 
 /** 创建事务 mock 的辅助函数 */
-const createTxMock = (overrides: Record<string, any> = {}) => ({
+const createTxMock = (overrides: Record<string, unknown> = {}) => ({
   $queryRaw: jest.fn(),
   $queryRawUnsafe: jest.fn(),
   thread: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
@@ -56,9 +56,7 @@ const createTxMock = (overrides: Record<string, any> = {}) => ({
     aggregate: jest.fn().mockResolvedValue({ _max: { sortOrder: 0 } }),
     findFirst: jest.fn().mockResolvedValue(null),
     create: jest.fn().mockResolvedValue({ id: 's1', threadId: 't1', sortOrder: 1 }),
-    findUnique: jest
-      .fn()
-      .mockResolvedValue({ id: 's1', threadId: 't1', _count: { posts: 1 } }),
+    findUnique: jest.fn().mockResolvedValue({ id: 's1', threadId: 't1', _count: { posts: 1 } }),
     update: jest.fn().mockResolvedValue({}),
     ...overrides,
   },
@@ -102,10 +100,16 @@ describe('SubthreadsService', () => {
       mockPrisma.thread.findUnique.mockResolvedValue({ published: true, title: '主题A' });
       mockPrisma.subthread.findFirst.mockResolvedValue({ id: 's1', createRequestHash: 'other' });
 
-      await expect(service.create('t1', {
-        title: '设定区',
-        clientRequestId: '99454040-6a52-4bf3-8bad-42683c4d09be',
-      }, 'u1')).rejects.toMatchObject({
+      await expect(
+        service.create(
+          't1',
+          {
+            title: '设定区',
+            clientRequestId: '99454040-6a52-4bf3-8bad-42683c4d09be',
+          },
+          'u1',
+        ),
+      ).rejects.toMatchObject({
         errorCode: ErrorCode.IDEMPOTENCY_KEY_REUSED,
         status: 409,
       });
@@ -119,7 +123,7 @@ describe('SubthreadsService', () => {
         title: '主题A',
         defaultSubthreadId: 's0',
       });
-      let tx: any;
+      let tx!: ReturnType<typeof createTxMock>;
       mockPrisma.$transaction.mockImplementation(async (fn) => {
         tx = createTxMock();
         return fn(tx);
@@ -253,24 +257,33 @@ describe('SubthreadsService', () => {
 
   describe('reorder', () => {
     it('批量重排应成功', async () => {
-      mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      mockPrisma.subthread.findMany
-        .mockResolvedValueOnce([{ id: 'a' }, { id: 'b' }, { id: 'c' }]) // 验证存在
-        .mockResolvedValueOnce([
-          // 返回结果
-          { id: 'a', title: 'sA', sortOrder: 0 },
-          { id: 'b', title: 'sB', sortOrder: 1 },
-          { id: 'c', title: 'sC', sortOrder: 2 },
-        ]);
-      mockPrisma.thread.findUnique.mockResolvedValue({ defaultSubthreadId: 'a' }); // 默认子贴
+      mockPrisma.subthread.findMany.mockResolvedValue([
+        { id: 'a', title: 'sA', sortOrder: 0 },
+        { id: 'b', title: 'sB', sortOrder: 1 },
+        { id: 'c', title: 'sC', sortOrder: 2 },
+      ]);
+      let tx!: {
+        $queryRaw: jest.Mock;
+        thread: { findUnique: jest.Mock };
+        subthread: { findMany: jest.Mock; update: jest.Mock };
+      };
       mockPrisma.$transaction.mockImplementation(async (fn) => {
-        const tx = { subthread: { update: jest.fn() } };
+        tx = {
+          $queryRaw: jest.fn(),
+          thread: { findUnique: jest.fn().mockResolvedValue({ defaultSubthreadId: 'a' }) },
+          subthread: {
+            findMany: jest.fn().mockResolvedValue([{ id: 'a' }, { id: 'b' }, { id: 'c' }]),
+            update: jest.fn(),
+          },
+        };
         return fn(tx);
       });
 
       const result = await service.reorder('t1', ['a', 'b', 'c'], 'u1');
       expect(result).toHaveLength(3);
       expect(result[0].id).toBe('a');
+      expect(tx.$queryRaw).toHaveBeenCalled();
+      expect(tx.subthread.update).toHaveBeenCalledTimes(6);
     });
 
     it('空列表应拒绝', async () => {
@@ -279,18 +292,62 @@ describe('SubthreadsService', () => {
     });
 
     it('首项不是默认子贴应拒绝', async () => {
-      mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      mockPrisma.subthread.findMany.mockResolvedValue([{ id: 'a' }, { id: 'b' }]);
-      mockPrisma.thread.findUnique.mockResolvedValue({ defaultSubthreadId: 'a' }); // 默认是 a，但请求首项是 b
+      mockPrisma.$transaction.mockImplementation(async (fn) =>
+        fn({
+          $queryRaw: jest.fn(),
+          thread: { findUnique: jest.fn().mockResolvedValue({ defaultSubthreadId: 'a' }) },
+          subthread: {
+            findMany: jest.fn().mockResolvedValue([{ id: 'a' }, { id: 'b' }]),
+            update: jest.fn(),
+          },
+        }),
+      );
 
       await expect(service.reorder('t1', ['b', 'a'], 'u1')).rejects.toThrow(BusinessException);
     });
 
     it('列表含不存在的子贴应拒绝', async () => {
-      mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      mockPrisma.subthread.findMany.mockResolvedValue([{ id: 'a' }]); // 只有 a，但请求含 b
+      mockPrisma.$transaction.mockImplementation(async (fn) =>
+        fn({
+          $queryRaw: jest.fn(),
+          thread: { findUnique: jest.fn().mockResolvedValue({ defaultSubthreadId: 'a' }) },
+          subthread: {
+            findMany: jest.fn().mockResolvedValue([{ id: 'a' }]),
+            update: jest.fn(),
+          },
+        }),
+      );
 
       await expect(service.reorder('t1', ['a', 'b'], 'u1')).rejects.toThrow(BusinessException);
+    });
+
+    it('不完整列表与重复 ID 均拒绝，避免部分排序和唯一键冲突', async () => {
+      mockPrisma.$transaction.mockImplementation(async (fn) =>
+        fn({
+          $queryRaw: jest.fn(),
+          thread: { findUnique: jest.fn().mockResolvedValue({ defaultSubthreadId: 'a' }) },
+          subthread: {
+            findMany: jest.fn().mockResolvedValue([{ id: 'a' }, { id: 'b' }, { id: 'c' }]),
+            update: jest.fn(),
+          },
+        }),
+      );
+
+      await expect(service.reorder('t1', ['a', 'c'], 'u1')).rejects.toMatchObject({
+        errorCode: ErrorCode.BAD_REQUEST,
+      });
+      await expect(service.reorder('t1', ['a', 'a'], 'u1')).rejects.toMatchObject({
+        errorCode: ErrorCode.BAD_REQUEST,
+      });
+    });
+
+    it('数据库排序唯一键竞争转换为稳定 409', async () => {
+      mockPrisma.$transaction.mockRejectedValue({ code: 'P2002' });
+
+      await expect(service.reorder('t1', ['a'], 'u1')).rejects.toMatchObject({
+        errorCode: ErrorCode.CONFLICT,
+        status: 409,
+      });
     });
   });
 

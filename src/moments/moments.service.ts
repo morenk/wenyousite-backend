@@ -6,9 +6,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import { paginate } from '../common/dto/paginated-result';
 import { hashIdempotencyPayload } from '../common/idempotency';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 import { CreateMomentDto, UpdateMomentDto } from './dto/moment-write.dto';
 import { MomentFeedMode } from './dto/moment-query.dto';
 import {
@@ -21,21 +23,20 @@ import {
 } from './moment.mapper';
 
 const MAX_PAGE_SIZE = 30;
+const DISCOVER_SNAPSHOT_LIMIT = 1000;
+const DISCOVER_SNAPSHOT_TTL_SECONDS = 15 * 60;
+const DISCOVER_SNAPSHOT_KEY_PREFIX = 'moments:discover:snapshot:';
 const TEXT_COVER_THEMES = ['ROSE', 'LILAC', 'MINT', 'AMBER'] as const;
 
 type Viewer = { id: string; role?: string };
 
 interface DiscoverRow {
   id: string;
-  score: number;
-  createdAt: Date;
 }
 
 interface DiscoverCursor {
-  score: number;
-  createdAt: string;
-  id: string;
-  asOf: string;
+  snapshotId: string;
+  offset: number;
 }
 
 interface DateCursor {
@@ -53,8 +54,11 @@ function encodeCursor(value: object) {
 
 function decodeDateCursor(cursor: string): DateCursor {
   try {
-    const value = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as Partial<DateCursor>;
-    if (!value.id || !value.createdAt || Number.isNaN(Date.parse(value.createdAt))) throw new Error();
+    const value = JSON.parse(
+      Buffer.from(cursor, 'base64url').toString('utf8'),
+    ) as Partial<DateCursor>;
+    if (!value.id || !value.createdAt || Number.isNaN(Date.parse(value.createdAt)))
+      throw new Error();
     return value as DateCursor;
   } catch {
     throw new BadRequestException('无效的动态分页游标');
@@ -63,16 +67,19 @@ function decodeDateCursor(cursor: string): DateCursor {
 
 function decodeDiscoverCursor(cursor: string): DiscoverCursor {
   try {
-    const value = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as Partial<DiscoverCursor>;
+    const value = JSON.parse(
+      Buffer.from(cursor, 'base64url').toString('utf8'),
+    ) as Partial<DiscoverCursor>;
     if (
-      !value.id ||
-      typeof value.score !== 'number' ||
-      !Number.isFinite(value.score) ||
-      !value.createdAt ||
-      Number.isNaN(Date.parse(value.createdAt)) ||
-      !value.asOf ||
-      Number.isNaN(Date.parse(value.asOf))
-    ) throw new Error();
+      !value.snapshotId ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        value.snapshotId,
+      ) ||
+      !Number.isInteger(value.offset) ||
+      value.offset! < 1 ||
+      value.offset! >= DISCOVER_SNAPSHOT_LIMIT
+    )
+      throw new Error();
     return value as DiscoverCursor;
   } catch {
     throw new BadRequestException('无效的动态分页游标');
@@ -81,14 +88,17 @@ function decodeDiscoverCursor(cursor: string): DiscoverCursor {
 
 function decodeSearchCursor(cursor: string): SearchCursor {
   try {
-    const value = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as Partial<SearchCursor>;
+    const value = JSON.parse(
+      Buffer.from(cursor, 'base64url').toString('utf8'),
+    ) as Partial<SearchCursor>;
     if (
       !value.id ||
       typeof value.relevance !== 'number' ||
       !Number.isFinite(value.relevance) ||
       !value.createdAt ||
       Number.isNaN(Date.parse(value.createdAt))
-    ) throw new Error();
+    )
+      throw new Error();
     return value as SearchCursor;
   } catch {
     throw new BadRequestException('无效的动态搜索游标');
@@ -101,7 +111,10 @@ function escapeLikePattern(keyword: string) {
 
 @Injectable()
 export class MomentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+  ) {}
 
   async list(feed: MomentFeedMode, cursor: string | undefined, limit = 20, viewer?: Viewer) {
     if (feed === MomentFeedMode.FOLLOWING) {
@@ -127,7 +140,9 @@ export class MomentsService {
     const coverMediaId = this.resolveCover(mediaIds, dto.coverMediaId);
     const requestHash = hashIdempotencyPayload({ title, content, mediaIds, coverMediaId });
     const replay = await this.prisma.moment.findUnique({
-      where: { authorId_clientRequestId: { authorId: viewer.id, clientRequestId: dto.clientRequestId } },
+      where: {
+        authorId_clientRequestId: { authorId: viewer.id, clientRequestId: dto.clientRequestId },
+      },
       select: { id: true, createRequestHash: true },
     });
     if (replay) {
@@ -161,11 +176,14 @@ export class MomentsService {
     } catch (error) {
       if ((error as { code?: string }).code !== 'P2002') throw error;
       const raced = await this.prisma.moment.findUnique({
-        where: { authorId_clientRequestId: { authorId: viewer.id, clientRequestId: dto.clientRequestId } },
+        where: {
+          authorId_clientRequestId: { authorId: viewer.id, clientRequestId: dto.clientRequestId },
+        },
         select: { id: true, createRequestHash: true },
       });
       if (!raced) throw new ConflictException('图片已被其他动态使用');
-      if (raced.createRequestHash !== requestHash) throw new ConflictException('同一发布请求不能用于不同动态内容');
+      if (raced.createRequestHash !== requestHash)
+        throw new ConflictException('同一发布请求不能用于不同动态内容');
       createdId = raced.id;
     }
     return this.findById(createdId, viewer);
@@ -214,7 +232,10 @@ export class MomentsService {
   }
 
   async remove(id: string, viewer: Viewer) {
-    const moment = await this.prisma.moment.findUnique({ where: { id }, select: { authorId: true, deletedAt: true } });
+    const moment = await this.prisma.moment.findUnique({
+      where: { id },
+      select: { authorId: true, deletedAt: true },
+    });
     if (!moment || moment.deletedAt) throw new NotFoundException('动态不存在');
     const admin = viewer.role === 'ADMIN' || viewer.role === 'SUPER_ADMIN';
     if (moment.authorId !== viewer.id && !admin) throw new ForbiddenException('无权删除该动态');
@@ -233,13 +254,23 @@ export class MomentsService {
     await this.assertVisible(id, viewer.id);
     return this.prisma.$transaction(async (tx) => {
       if (active) {
-        const created = await tx.momentLike.createMany({ data: [{ momentId: id, userId: viewer.id }], skipDuplicates: true });
-        if (created.count > 0) await tx.moment.update({ where: { id }, data: { likeCount: { increment: 1 } } });
+        const created = await tx.momentLike.createMany({
+          data: [{ momentId: id, userId: viewer.id }],
+          skipDuplicates: true,
+        });
+        if (created.count > 0)
+          await tx.moment.update({ where: { id }, data: { likeCount: { increment: 1 } } });
       } else {
-        const removed = await tx.momentLike.deleteMany({ where: { momentId: id, userId: viewer.id } });
-        if (removed.count > 0) await tx.moment.update({ where: { id }, data: { likeCount: { decrement: 1 } } });
+        const removed = await tx.momentLike.deleteMany({
+          where: { momentId: id, userId: viewer.id },
+        });
+        if (removed.count > 0)
+          await tx.moment.update({ where: { id }, data: { likeCount: { decrement: 1 } } });
       }
-      const moment = await tx.moment.findUniqueOrThrow({ where: { id }, select: { likeCount: true } });
+      const moment = await tx.moment.findUniqueOrThrow({
+        where: { id },
+        select: { likeCount: true },
+      });
       return { momentId: id, count: moment.likeCount, active };
     });
   }
@@ -248,19 +279,32 @@ export class MomentsService {
     await this.assertVisible(id, viewer.id);
     return this.prisma.$transaction(async (tx) => {
       if (active) {
-        const created = await tx.momentBookmark.createMany({ data: [{ momentId: id, userId: viewer.id }], skipDuplicates: true });
-        if (created.count > 0) await tx.moment.update({ where: { id }, data: { bookmarkCount: { increment: 1 } } });
+        const created = await tx.momentBookmark.createMany({
+          data: [{ momentId: id, userId: viewer.id }],
+          skipDuplicates: true,
+        });
+        if (created.count > 0)
+          await tx.moment.update({ where: { id }, data: { bookmarkCount: { increment: 1 } } });
       } else {
-        const removed = await tx.momentBookmark.deleteMany({ where: { momentId: id, userId: viewer.id } });
-        if (removed.count > 0) await tx.moment.update({ where: { id }, data: { bookmarkCount: { decrement: 1 } } });
+        const removed = await tx.momentBookmark.deleteMany({
+          where: { momentId: id, userId: viewer.id },
+        });
+        if (removed.count > 0)
+          await tx.moment.update({ where: { id }, data: { bookmarkCount: { decrement: 1 } } });
       }
-      const moment = await tx.moment.findUniqueOrThrow({ where: { id }, select: { bookmarkCount: true } });
+      const moment = await tx.moment.findUniqueOrThrow({
+        where: { id },
+        select: { bookmarkCount: true },
+      });
       return { momentId: id, count: moment.bookmarkCount, active };
     });
   }
 
   async listUserMoments(userId: string, cursor: string | undefined, limit = 20, viewer?: Viewer) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId, deletedAt: null }, select: { id: true } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId, deletedAt: null },
+      select: { id: true },
+    });
     if (!user) throw new NotFoundException('用户不存在');
     const take = Math.min(limit, MAX_PAGE_SIZE);
     const decoded = cursor ? decodeDateCursor(cursor) : undefined;
@@ -269,7 +313,14 @@ export class MomentsService {
         authorId: userId,
         deletedAt: null,
         ...this.viewerVisibility(viewer?.id),
-        ...(decoded ? { OR: [{ createdAt: { lt: new Date(decoded.createdAt) } }, { createdAt: new Date(decoded.createdAt), id: { lt: decoded.id } }] } : {}),
+        ...(decoded
+          ? {
+              OR: [
+                { createdAt: { lt: new Date(decoded.createdAt) } },
+                { createdAt: new Date(decoded.createdAt), id: { lt: decoded.id } },
+              ],
+            }
+          : {}),
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: take + 1,
@@ -287,11 +338,17 @@ export class MomentsService {
   async listBookmarks(cursor: string | undefined, limit = 20, viewer: Viewer) {
     const take = Math.min(limit, MAX_PAGE_SIZE);
     if (cursor) {
-      const valid = await this.prisma.momentBookmark.findFirst({ where: { id: cursor, userId: viewer.id }, select: { id: true } });
+      const valid = await this.prisma.momentBookmark.findFirst({
+        where: { id: cursor, userId: viewer.id },
+        select: { id: true },
+      });
       if (!valid) throw new BadRequestException('无效的收藏分页游标');
     }
     const bookmarks = await this.prisma.momentBookmark.findMany({
-      where: { userId: viewer.id, moment: { deletedAt: null, ...this.viewerVisibility(viewer.id) } },
+      where: {
+        userId: viewer.id,
+        moment: { deletedAt: null, ...this.viewerVisibility(viewer.id) },
+      },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       cursor: cursor ? { id: cursor } : undefined,
       skip: cursor ? 1 : 0,
@@ -300,10 +357,13 @@ export class MomentsService {
     });
     const hasMore = bookmarks.length > take;
     const page = bookmarks.slice(0, take);
-    return paginate(page.map((bookmark) => mapMomentCard(bookmark.moment as MomentCardRow)), {
-      cursor: page.at(-1)?.id ?? null,
-      hasMore,
-    });
+    return paginate(
+      page.map((bookmark) => mapMomentCard(bookmark.moment as MomentCardRow)),
+      {
+        cursor: page.at(-1)?.id ?? null,
+        hasMore,
+      },
+    );
   }
 
   async search(q: string, cursor: string | undefined, limit = 20, viewer?: Viewer) {
@@ -326,7 +386,9 @@ export class MomentsService {
           OR (ranked.relevance = ${decoded.relevance} AND ranked."createdAt" = ${new Date(decoded.createdAt)} AND ranked.id < ${decoded.id})
         )`
       : Prisma.empty;
-    const ranked = await this.prisma.$queryRaw<Array<{ id: string; relevance: number; createdAt: Date }>>(Prisma.sql`
+    const ranked = await this.prisma.$queryRaw<
+      Array<{ id: string; relevance: number; createdAt: Date }>
+    >(Prisma.sql`
       WITH ranked AS (
         SELECT m.id,
           (similarity(m.title, ${keyword}) * 2 + similarity(m.content, ${keyword}))::double precision AS relevance,
@@ -344,13 +406,25 @@ export class MomentsService {
     `);
     const hasMore = ranked.length > take;
     const page = ranked.slice(0, take);
-    const cards = await this.loadCards(page.map((row) => row.id), viewer?.id);
+    const cards = await this.loadCards(
+      page.map((row) => row.id),
+      viewer?.id,
+    );
     const relevanceById = new Map(page.map((row) => [row.id, row.relevance]));
     const last = page.at(-1);
-    return paginate(cards.map((card) => ({ ...card, relevance: relevanceById.get(card.id) })), {
-      cursor: last ? encodeCursor({ relevance: last.relevance, createdAt: last.createdAt.toISOString(), id: last.id }) : null,
-      hasMore,
-    });
+    return paginate(
+      cards.map((card) => ({ ...card, relevance: relevanceById.get(card.id) })),
+      {
+        cursor: last
+          ? encodeCursor({
+              relevance: last.relevance,
+              createdAt: last.createdAt.toISOString(),
+              id: last.id,
+            })
+          : null,
+        hasMore,
+      },
+    );
   }
 
   async assertVisible(id: string, viewerId?: string) {
@@ -364,8 +438,9 @@ export class MomentsService {
 
   private async listDiscover(cursor: string | undefined, limit: number, viewer?: Viewer) {
     const take = Math.min(limit, MAX_PAGE_SIZE);
-    const decoded = cursor ? decodeDiscoverCursor(cursor) : undefined;
-    const asOf = decoded ? new Date(decoded.asOf) : new Date();
+    if (cursor) return this.listDiscoverSnapshot(cursor, take, viewer);
+
+    const asOf = new Date();
     const scoreExpression = Prisma.sql`(
       1 + m."like_count" * 2 + m."comment_count" * 4 + m."bookmark_count" * 3
         + LN(1 + m."tip_total"::numeric) * 5
@@ -377,33 +452,57 @@ export class MomentsService {
              OR (b."blocker_id" = m."author_id" AND b."blocked_id" = ${viewer.id})
         )`
       : Prisma.empty;
-    const cursorClause = decoded
-      ? Prisma.sql`AND (
-          ranked.score < ${decoded.score}
-          OR (ranked.score = ${decoded.score} AND ranked."createdAt" < ${new Date(decoded.createdAt)})
-          OR (ranked.score = ${decoded.score} AND ranked."createdAt" = ${new Date(decoded.createdAt)} AND ranked.id < ${decoded.id})
-        )`
-      : Prisma.empty;
     const rows = await this.prisma.$queryRaw<DiscoverRow[]>(Prisma.sql`
       WITH ranked AS (
         SELECT m.id, (${scoreExpression})::double precision AS score, m."created_at" AS "createdAt"
         FROM "moments" m
         INNER JOIN "users" u ON u.id = m."author_id" AND u."deleted_at" IS NULL
-        WHERE m."deleted_at" IS NULL ${blockClause}
+        WHERE m."deleted_at" IS NULL AND m."created_at" <= ${asOf} ${blockClause}
       )
-      SELECT id, score, "createdAt" FROM ranked
-      WHERE true ${cursorClause}
+      SELECT id FROM ranked
       ORDER BY score DESC, "createdAt" DESC, id DESC
-      LIMIT ${take + 1}
+      LIMIT ${DISCOVER_SNAPSHOT_LIMIT + 1}
     `);
-    const hasMore = rows.length > take;
-    const page = rows.slice(0, take);
-    const cards = await this.loadCards(page.map((row) => row.id), viewer?.id);
-    const last = page.at(-1);
+    const snapshotRows = rows.slice(0, DISCOVER_SNAPSHOT_LIMIT);
+    const page = snapshotRows.slice(0, take);
+    const hasMore = snapshotRows.length > take;
+    const cards = await this.loadCards(
+      page.map((row) => row.id),
+      viewer?.id,
+    );
+    const snapshotId = hasMore ? randomUUID() : null;
+    if (snapshotId) {
+      const key = this.discoverSnapshotKey(snapshotId);
+      await this.redis.zaddMulti(key, ...snapshotRows.flatMap((row, index) => [index, row.id]));
+      await this.redis.expire(key, DISCOVER_SNAPSHOT_TTL_SECONDS);
+    }
     return paginate(cards, {
-      cursor: last ? encodeCursor({ score: last.score, createdAt: last.createdAt.toISOString(), id: last.id, asOf: asOf.toISOString() }) : null,
+      cursor: snapshotId ? encodeCursor({ snapshotId, offset: page.length }) : null,
       hasMore,
     });
+  }
+
+  private async listDiscoverSnapshot(cursor: string, take: number, viewer?: Viewer) {
+    const decoded = decodeDiscoverCursor(cursor);
+    const key = this.discoverSnapshotKey(decoded.snapshotId);
+    const ids = await this.redis.zrange(key, decoded.offset, decoded.offset + take);
+    if (ids.length === 0) {
+      throw new BadRequestException('动态发现流快照已过期，请刷新后重试');
+    }
+    await this.redis.expire(key, DISCOVER_SNAPSHOT_TTL_SECONDS);
+
+    const hasMore = ids.length > take;
+    const pageIds = ids.slice(0, take);
+    const cards = await this.loadCards(pageIds, viewer?.id);
+    const nextOffset = decoded.offset + pageIds.length;
+    return paginate(cards, {
+      cursor: hasMore ? encodeCursor({ snapshotId: decoded.snapshotId, offset: nextOffset }) : null,
+      hasMore,
+    });
+  }
+
+  private discoverSnapshotKey(snapshotId: string) {
+    return `${DISCOVER_SNAPSHOT_KEY_PREFIX}${snapshotId}`;
   }
 
   private async listFollowing(cursor: string | undefined, limit: number, viewer: Viewer) {
@@ -412,8 +511,18 @@ export class MomentsService {
     const rows = await this.prisma.moment.findMany({
       where: {
         deletedAt: null,
-        author: { followers: { some: { followerId: viewer.id } }, ...this.visibleAuthorWhere(viewer.id) },
-        ...(decoded ? { OR: [{ createdAt: { lt: new Date(decoded.createdAt) } }, { createdAt: new Date(decoded.createdAt), id: { lt: decoded.id } }] } : {}),
+        author: {
+          followers: { some: { followerId: viewer.id } },
+          ...this.visibleAuthorWhere(viewer.id),
+        },
+        ...(decoded
+          ? {
+              OR: [
+                { createdAt: { lt: new Date(decoded.createdAt) } },
+                { createdAt: new Date(decoded.createdAt), id: { lt: decoded.id } },
+              ],
+            }
+          : {}),
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: take + 1,
@@ -431,7 +540,7 @@ export class MomentsService {
   private async loadCards(ids: string[], viewerId?: string) {
     if (ids.length === 0) return [];
     const rows = await this.prisma.moment.findMany({
-      where: { id: { in: ids }, deletedAt: null },
+      where: { id: { in: ids }, deletedAt: null, ...this.viewerVisibility(viewerId) },
       select: this.cardSelect(viewerId),
     });
     const byId = new Map(rows.map((row) => [row.id, mapMomentCard(row as MomentCardRow)]));
@@ -466,7 +575,10 @@ export class MomentsService {
   private detailSelect(viewerId?: string): Prisma.MomentSelect {
     return {
       ...this.cardSelect(viewerId),
-      images: { orderBy: { sortOrder: 'asc' }, select: { sortOrder: true, media: { select: momentMediaSelect } } },
+      images: {
+        orderBy: { sortOrder: 'asc' },
+        select: { sortOrder: true, media: { select: momentMediaSelect } },
+      },
     };
   }
 
@@ -497,8 +609,11 @@ export class MomentsService {
       where: { id: { in: mediaIds }, userId, status: 'COMPLETED' },
       select: { id: true, momentImages: { select: { momentId: true } } },
     });
-    if (media.length !== mediaIds.length) throw new BadRequestException('图片不存在、未处理完成或不属于当前用户');
-    const occupied = media.some((item) => item.momentImages.some((image) => image.momentId !== currentMomentId));
+    if (media.length !== mediaIds.length)
+      throw new BadRequestException('图片不存在、未处理完成或不属于当前用户');
+    const occupied = media.some((item) =>
+      item.momentImages.some((image) => image.momentId !== currentMomentId),
+    );
     if (occupied) throw new ConflictException('图片已用于其他动态');
   }
 

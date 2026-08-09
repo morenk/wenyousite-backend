@@ -1,5 +1,6 @@
 import { Cache } from 'cache-manager';
 import { CacheService } from './cache.service';
+import { paginate } from '../common/dto/paginated-result';
 
 describe('CacheService', () => {
   const cache = {
@@ -9,24 +10,31 @@ describe('CacheService', () => {
     stores: undefined as unknown,
   };
   let service: CacheService;
+  let warn: jest.SpyInstance;
 
   beforeEach(() => {
     jest.clearAllMocks();
     cache.stores = undefined;
     service = new CacheService(cache as unknown as Cache);
-    jest.spyOn(
-      (service as unknown as {
-        logger: {
-          warn: (...args: unknown[]) => void;
-          debug: (...args: unknown[]) => void;
-        };
-      }).logger,
-      'debug',
-    ).mockImplementation(() => undefined);
-    jest.spyOn(
-      (service as unknown as { logger: { warn: (...args: unknown[]) => void } }).logger,
-      'warn',
-    ).mockImplementation(() => undefined);
+    jest
+      .spyOn(
+        (
+          service as unknown as {
+            logger: {
+              warn: (...args: unknown[]) => void;
+              debug: (...args: unknown[]) => void;
+            };
+          }
+        ).logger,
+        'debug',
+      )
+      .mockImplementation(() => undefined);
+    warn = jest
+      .spyOn(
+        (service as unknown as { logger: { warn: (...args: unknown[]) => void } }).logger,
+        'warn',
+      )
+      .mockImplementation(() => undefined);
   });
 
   afterEach(() => jest.restoreAllMocks());
@@ -44,12 +52,27 @@ describe('CacheService', () => {
     await service.set('cache:thread:thread-1', { id: 'thread-1' }, 5_000);
     await service.del('cache:thread:thread-1');
 
+    expect(cache.set).toHaveBeenCalledWith('cache:thread:thread-1', { id: 'thread-1' }, 5_000);
+    expect(cache.del).toHaveBeenCalledWith('cache:thread:thread-1');
+  });
+
+  it('递归序列化分页类实例中的 BigInt', async () => {
+    cache.set.mockResolvedValue(undefined);
+    const result = paginate([{ id: 'thread-1', tipAmount: 12n }], {
+      cursor: 'thread-1',
+      hasMore: false,
+    });
+
+    await service.set('cache:threads:list', result, 5_000);
+
     expect(cache.set).toHaveBeenCalledWith(
-      'cache:thread:thread-1',
-      { id: 'thread-1' },
+      'cache:threads:list',
+      {
+        items: [{ id: 'thread-1', tipAmount: '12' }],
+        pagination: { cursor: 'thread-1', hasMore: false },
+      },
       5_000,
     );
-    expect(cache.del).toHaveBeenCalledWith('cache:thread:thread-1');
   });
 
   it('缓存故障降级而不影响业务请求', async () => {
@@ -60,6 +83,11 @@ describe('CacheService', () => {
     await expect(service.get('key')).resolves.toBeUndefined();
     await expect(service.set('key', 'value')).resolves.toBeUndefined();
     await expect(service.del('key')).resolves.toBeUndefined();
+    expect(warn.mock.calls.map(([message]) => message)).toEqual([
+      '缓存读取失败 key=key reason=Error: redis read failed',
+      '缓存写入失败 key=key reason=Error: redis write failed',
+      '缓存删除失败 key=key reason=Error: redis delete failed',
+    ]);
   });
 
   it('从所有 store 汇总匹配键并并行删除', async () => {
@@ -80,5 +108,6 @@ describe('CacheService', () => {
     cache.stores = [{ keys: jest.fn().mockRejectedValue(new Error('scan failed')) }];
     await expect(service.delByPattern('pattern')).resolves.toBeUndefined();
     expect(cache.del).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith('批量缓存删除失败 pattern=pattern reason=Error: scan failed');
   });
 });

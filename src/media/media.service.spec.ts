@@ -95,10 +95,12 @@ describe('MediaService', () => {
     service = module.get<MediaService>(MediaService);
     (service as any).s3 = mockS3;
     jest.clearAllMocks();
-    jest.spyOn(
-      (service as unknown as { logger: { error: (...args: unknown[]) => void } }).logger,
-      'error',
-    ).mockImplementation(() => undefined);
+    jest
+      .spyOn(
+        (service as unknown as { logger: { error: (...args: unknown[]) => void } }).logger,
+        'error',
+      )
+      .mockImplementation(() => undefined);
     mockRedis.hincrby.mockResolvedValue(1);
     mockPrisma.directMessage.findMany.mockResolvedValue([]);
     mockPrisma.directMessage.findFirst.mockResolvedValue(null);
@@ -176,6 +178,26 @@ describe('MediaService', () => {
       userId: 'u1',
     });
     expect(result.objectKey).toContain('.bin');
+  });
+
+  it('对象键使用密码学随机后缀而不是 Math.random', async () => {
+    const random = jest.spyOn(Math, 'random').mockImplementation(() => {
+      throw new Error('object key must not use Math.random');
+    });
+    mockPrisma.media.create.mockResolvedValue(makeMedia());
+
+    await expect(
+      service.getUploadUrl({
+        filename: 'photo.jpg',
+        contentType: 'image/jpeg',
+        size: 100000,
+        userId: 'u1',
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({ objectKey: expect.stringMatching(/-[0-9a-f]{16}\.jpg$/) }),
+    );
+    expect(random).not.toHaveBeenCalled();
+    random.mockRestore();
   });
 
   // ── confirmUpload ──
@@ -303,10 +325,21 @@ describe('MediaService', () => {
   // ── markFailed ──
 
   it('markFailed 应更新状态为 FAILED', async () => {
-    mockPrisma.media.update.mockResolvedValue(makeMedia({ status: 'FAILED' }));
+    mockPrisma.media.updateMany.mockResolvedValue({ count: 1 });
     await service.markFailed('m1');
-    expect(mockPrisma.media.update).toHaveBeenCalledWith({
-      where: { id: 'm1' },
+    expect(mockPrisma.media.updateMany).toHaveBeenCalledWith({
+      where: { id: 'm1', status: 'PROCESSING' },
+      data: { status: 'FAILED' },
+    });
+  });
+
+  it('markFailed 不会把已完成媒体从 COMPLETED 回退为 FAILED', async () => {
+    mockPrisma.media.updateMany.mockResolvedValue({ count: 0 });
+
+    await service.markFailed('m1');
+
+    expect(mockPrisma.media.updateMany).toHaveBeenCalledWith({
+      where: { id: 'm1', status: 'PROCESSING' },
       data: { status: 'FAILED' },
     });
   });
@@ -345,11 +378,12 @@ describe('MediaService', () => {
 
   // ── 孤儿图片回收 ──
 
-  it('cleanupOrphanByUrl 应立即删除无引用的注销头像及派生图', async () => {
+  it('cleanupOrphanByUrl 可删除无引用的失败媒体及派生图', async () => {
     const url = 'https://test.cos.com/test-bucket/uploads/avatar.jpg';
     mockPrisma.media.findFirst.mockResolvedValue({
       id: 'm-avatar',
       key: 'uploads/avatar.jpg',
+      status: 'FAILED',
     });
     mockPrisma.user.findFirst.mockResolvedValue(null);
     mockPrisma.post.findFirst.mockResolvedValue(null);
@@ -370,11 +404,27 @@ describe('MediaService', () => {
     });
   });
 
+  it('cleanupOrphanByUrl 在引用账本建立前保守保留 COMPLETED 媒体', async () => {
+    const url = 'https://test.cos.com/test-bucket/uploads/avatar.jpg';
+    mockPrisma.media.findFirst.mockResolvedValue({
+      id: 'm-avatar',
+      key: 'uploads/avatar.jpg',
+      status: 'COMPLETED',
+    });
+
+    await expect(service.cleanupOrphanByUrl(url)).resolves.toBe(false);
+
+    expect(mockPrisma.user.findFirst).not.toHaveBeenCalled();
+    expect(mockS3.send).not.toHaveBeenCalled();
+    expect(mockPrisma.media.deleteMany).not.toHaveBeenCalled();
+  });
+
   it('cleanupOrphanByUrl 检测到正文引用时应保留头像文件', async () => {
     const url = 'https://test.cos.com/test-bucket/uploads/avatar.jpg';
     mockPrisma.media.findFirst.mockResolvedValue({
       id: 'm-avatar',
       key: 'uploads/avatar.jpg',
+      status: 'FAILED',
     });
     mockPrisma.user.findFirst.mockResolvedValue(null);
     mockPrisma.post.findFirst.mockResolvedValue({ id: 'p1' });
@@ -386,7 +436,7 @@ describe('MediaService', () => {
     expect(mockPrisma.media.deleteMany).not.toHaveBeenCalled();
   });
 
-  it('cleanupOrphanMedia 应删除无引用的超期 COMPLETED 图片（原图+派生图）', async () => {
+  it('cleanupOrphanMedia 在引用账本建立前不把 COMPLETED 图片列为清理对象', async () => {
     mockPrisma.user.findMany.mockResolvedValue([{ avatar: null }]);
     mockPrisma.post.findMany.mockResolvedValue([
       { id: 'p1', content: '![keep](https://test.cos.com/test-bucket/uploads/keep/a.jpg)' },
@@ -397,6 +447,7 @@ describe('MediaService', () => {
         id: 'm1',
         key: 'uploads/2099/01/01/u1/photo.jpg',
         url: 'https://test.cos.com/test-bucket/uploads/2099/01/01/u1/photo.jpg',
+        status: 'COMPLETED',
       },
     ]);
     mockS3.send.mockResolvedValue({});
@@ -408,17 +459,15 @@ describe('MediaService', () => {
       where: { avatar: { not: null }, deletedAt: null },
       select: { avatar: true },
     });
-    expect(mockS3.send).toHaveBeenCalledTimes(4);
-    const keys = mockS3.send.mock.calls.map(([command]) => command.Key);
-    expect(keys).toEqual([
-      'uploads/2099/01/01/u1/photo.jpg',
-      'uploads/2099/01/01/u1/photo_thumb.webp',
-      'uploads/2099/01/01/u1/photo_feed.webp',
-      'uploads/2099/01/01/u1/photo_md.webp',
-    ]);
-    expect(mockPrisma.media.deleteMany).toHaveBeenCalledWith({
-      where: { id: { in: ['m1'] } },
-    });
+    expect(mockPrisma.media.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.not.arrayContaining([expect.objectContaining({ status: 'COMPLETED' })]),
+        }),
+      }),
+    );
+    expect(mockS3.send).not.toHaveBeenCalled();
+    expect(mockPrisma.media.deleteMany).not.toHaveBeenCalled();
   });
 
   it('cleanupOrphanMedia 应保留仍被引用的图片', async () => {
@@ -435,6 +484,7 @@ describe('MediaService', () => {
         id: 'm1',
         key: 'uploads/2099/01/01/u1/photo.jpg',
         url: 'https://test.cos.com/test-bucket/uploads/2099/01/01/u1/photo.jpg',
+        status: 'FAILED',
       },
     ]);
 
@@ -451,7 +501,7 @@ describe('MediaService', () => {
     mockPrisma.draft.findMany.mockResolvedValue([]);
     mockPrisma.directMessage.findMany.mockResolvedValue([{ id: 'dm1', media: { url } }]);
     mockPrisma.media.findMany.mockResolvedValue([
-      { id: 'm1', key: 'uploads/2099/01/01/u1/private.jpg', url },
+      { id: 'm1', key: 'uploads/2099/01/01/u1/private.jpg', url, status: 'FAILED' },
     ]);
 
     await service.cleanupOrphanMedia();
@@ -467,7 +517,7 @@ describe('MediaService', () => {
     mockPrisma.draft.findMany.mockResolvedValue([]);
     mockPrisma.momentComment.findMany.mockResolvedValue([{ media: { url } }]);
     mockPrisma.media.findMany.mockResolvedValue([
-      { id: 'm1', key: 'uploads/2099/01/01/u1/comment.webp', url },
+      { id: 'm1', key: 'uploads/2099/01/01/u1/comment.webp', url, status: 'FAILED' },
     ]);
 
     await service.cleanupOrphanMedia();
@@ -487,11 +537,13 @@ describe('MediaService', () => {
         id: 'm1',
         key: 'uploads/2099/01/01/u1/stale.jpg',
         url: 'https://test.cos.com/test-bucket/uploads/2099/01/01/u1/stale.jpg',
+        status: 'UPLOADING',
       },
       {
         id: 'm2',
         key: 'uploads/2099/01/01/u1/failed.svg',
         url: 'https://test.cos.com/test-bucket/uploads/2099/01/01/u1/failed.svg',
+        status: 'FAILED',
       },
     ]);
     mockS3.send.mockResolvedValue({});
@@ -512,6 +564,7 @@ describe('MediaService', () => {
         id: 'm1',
         key: 'uploads/2099/01/01/u1/icon.svg',
         url: 'https://test.cos.com/test-bucket/uploads/2099/01/01/u1/icon.svg',
+        status: 'FAILED',
       },
     ]);
     mockS3.send.mockResolvedValue({});
@@ -541,12 +594,27 @@ describe('MediaService', () => {
     mockPrisma.draft.findMany.mockResolvedValue([]);
     const key = 'uploads/2099/01/01/u1/photo.jpg';
     mockPrisma.media.findMany.mockResolvedValue([
-      { id: 'm1', key, url: `https://test.cos.com/test-bucket/${key}` },
+      { id: 'm1', key, url: `https://test.cos.com/test-bucket/${key}`, status: 'FAILED' },
     ]);
     mockS3.send.mockRejectedValue(new Error('delete failed'));
 
     await service.cleanupOrphanMedia();
 
+    expect(mockPrisma.media.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('cleanupOrphanMedia 能识别尖括号 Markdown URL，不误删合法引用', async () => {
+    const url = 'https://test.cos.com/test-bucket/uploads/2099/01/01/u1/angle.jpg';
+    mockPrisma.user.findMany.mockResolvedValue([]);
+    mockPrisma.post.findMany.mockResolvedValue([{ id: 'p1', content: `![keep](<${url}>)` }]);
+    mockPrisma.draft.findMany.mockResolvedValue([]);
+    mockPrisma.media.findMany.mockResolvedValue([
+      { id: 'm1', key: 'uploads/2099/01/01/u1/angle.jpg', url, status: 'FAILED' },
+    ]);
+
+    await service.cleanupOrphanMedia();
+
+    expect(mockS3.send).not.toHaveBeenCalled();
     expect(mockPrisma.media.deleteMany).not.toHaveBeenCalled();
   });
 });

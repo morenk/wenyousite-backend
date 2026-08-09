@@ -71,9 +71,7 @@ export class SubthreadsService {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '子贴正文必须包含可见文字');
     }
     const hasBody = hasText || parsedContent.nodes.length > 0;
-    const generatedDice = thread.published
-      ? this.diceService.rollNodes(parsedContent.nodes)
-      : [];
+    const generatedDice = thread.published ? this.diceService.rollNodes(parsedContent.nodes) : [];
     const postingPolicy = dto.postingPolicy ?? ('PARTICIPANTS' as any);
     const requestHash = hashIdempotencyPayload({
       actorId: userId,
@@ -198,11 +196,13 @@ export class SubthreadsService {
               isSubthreadBody: true,
               authorRole: manager.role,
               authorPlayerMarked: manager.playerMarked,
-              diceRolls: bodyPost.diceRolls.map((roll: { nodeId: string; notation: string; total: number }) => ({
-                nodeId: roll.nodeId,
-                notation: roll.notation,
-                total: roll.total,
-              })),
+              diceRolls: bodyPost.diceRolls.map(
+                (roll: { nodeId: string; notation: string; total: number }) => ({
+                  nodeId: roll.nodeId,
+                  notation: roll.notation,
+                  total: roll.total,
+                }),
+              ),
             } as Prisma.InputJsonValue,
           });
         }
@@ -213,26 +213,28 @@ export class SubthreadsService {
         if (err instanceof BusinessException) throw err;
         if (err?.code === 'P2002') {
           if (dto.clientRequestId) {
-            return this.prisma.subthread.findFirst({
-              where: { threadId, clientRequestId: dto.clientRequestId },
-              include: countNonDeletedPosts(),
-            }).then((existing) => {
-              if (existing?.createRequestHash === requestHash) {
-                return { subthread: existing, bodyPost: null, replayed: true };
-              }
-              if (existing) {
+            return this.prisma.subthread
+              .findFirst({
+                where: { threadId, clientRequestId: dto.clientRequestId },
+                include: countNonDeletedPosts(),
+              })
+              .then((existing) => {
+                if (existing?.createRequestHash === requestHash) {
+                  return { subthread: existing, bodyPost: null, replayed: true };
+                }
+                if (existing) {
+                  throw new BusinessException(
+                    ErrorCode.IDEMPOTENCY_KEY_REUSED,
+                    'clientRequestId 已用于不同的子贴创建请求',
+                    HttpStatus.CONFLICT,
+                  );
+                }
                 throw new BusinessException(
-                  ErrorCode.IDEMPOTENCY_KEY_REUSED,
-                  'clientRequestId 已用于不同的子贴创建请求',
+                  ErrorCode.CONFLICT,
+                  '排序序号冲突，请刷新后重试',
                   HttpStatus.CONFLICT,
                 );
-              }
-              throw new BusinessException(
-                ErrorCode.CONFLICT,
-                '排序序号冲突，请刷新后重试',
-                HttpStatus.CONFLICT,
-              );
-            });
+              });
           }
           // Prisma UNIQUE 约束冲突（并发创建撞 sortOrder）
           throw new BusinessException(
@@ -265,40 +267,58 @@ export class SubthreadsService {
     if (!ids || ids.length === 0) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '请提供要排序的子贴列表');
     }
-
-    // 验证所有子贴属于该帖且未删除
-    const subthreads = await this.prisma.subthread.findMany({
-      where: { threadId, id: { in: ids }, ...notDeleted },
-      select: { id: true },
-    });
-    if (subthreads.length !== ids.length) {
-      throw new BusinessException(ErrorCode.BAD_REQUEST, '子贴列表包含不存在或已删除的子贴');
+    if (new Set(ids).size !== ids.length) {
+      throw new BusinessException(ErrorCode.BAD_REQUEST, '子贴列表不能包含重复项');
     }
 
-    // 列表第一项必须是默认子贴
-    const thread = await this.prisma.thread.findUnique({
-      where: { id: threadId, ...notDeleted },
-      select: { defaultSubthreadId: true },
-    });
-    if (thread?.defaultSubthreadId && ids[0] !== thread.defaultSubthreadId) {
-      throw new BusinessException(ErrorCode.BAD_REQUEST, '默认子贴必须排在第一位');
-    }
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        // 与创建子贴共用主题帖行锁，完整集合校验和两轮更新不可被并发插入打断。
+        await tx.$queryRaw`SELECT id FROM threads WHERE id = ${threadId} FOR UPDATE`;
+        const thread = await tx.thread.findUnique({
+          where: { id: threadId, ...notDeleted },
+          select: { defaultSubthreadId: true },
+        });
+        if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
 
-    // 两轮更新：先设临时负值避免 UNIQUE 冲突，再设最终值
-    await this.prisma.$transaction(async (tx) => {
-      for (let i = 0; i < ids.length; i++) {
-        await tx.subthread.update({
-          where: { id: ids[i] },
-          data: { sortOrder: -(i + 1) },
+        const active = await tx.subthread.findMany({
+          where: { threadId, ...notDeleted },
+          select: { id: true },
         });
+        const requested = new Set(ids);
+        if (active.length !== ids.length || active.some((item) => !requested.has(item.id))) {
+          throw new BusinessException(
+            ErrorCode.BAD_REQUEST,
+            '排序列表必须包含该主题帖的全部未删除子贴',
+          );
+        }
+        if (thread.defaultSubthreadId && ids[0] !== thread.defaultSubthreadId) {
+          throw new BusinessException(ErrorCode.BAD_REQUEST, '默认子贴必须排在第一位');
+        }
+
+        for (let i = 0; i < ids.length; i++) {
+          await tx.subthread.update({
+            where: { id: ids[i] },
+            data: { sortOrder: -(i + 1) },
+          });
+        }
+        for (let i = 0; i < ids.length; i++) {
+          await tx.subthread.update({
+            where: { id: ids[i] },
+            data: { sortOrder: i },
+          });
+        }
+      });
+    } catch (error) {
+      if ((error as { code?: string })?.code === 'P2002') {
+        throw new BusinessException(
+          ErrorCode.CONFLICT,
+          '子贴排序已发生变化，请刷新后重试',
+          HttpStatus.CONFLICT,
+        );
       }
-      for (let i = 0; i < ids.length; i++) {
-        await tx.subthread.update({
-          where: { id: ids[i] },
-          data: { sortOrder: i },
-        });
-      }
-    });
+      throw error;
+    }
 
     return this.prisma.subthread.findMany({
       where: { threadId, ...notDeleted },
@@ -359,6 +379,12 @@ export class SubthreadsService {
           throw new BusinessException(
             ErrorCode.OPTIMISTIC_LOCK_CONFLICT,
             '子贴已被修改，请刷新后重试',
+            HttpStatus.CONFLICT,
+          );
+        if (err?.code === 'P2002')
+          throw new BusinessException(
+            ErrorCode.CONFLICT,
+            '排序序号已被占用，请刷新后重试',
             HttpStatus.CONFLICT,
           );
         throw err;

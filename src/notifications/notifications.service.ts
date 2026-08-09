@@ -56,7 +56,14 @@ function notificationTarget(notification: {
       userId: notification.fromUserId,
     };
   }
-  return { kind: 'none' as const, threadId: null, postId: null, momentId: null, momentCommentId: null, userId: null };
+  return {
+    kind: 'none' as const,
+    threadId: null,
+    postId: null,
+    momentId: null,
+    momentCommentId: null,
+    userId: null,
+  };
 }
 
 /** 站内通知服务：CRUD、未读数、硬删除、标记未读 */
@@ -80,7 +87,17 @@ export class NotificationsService {
         {
           OR: [
             { postId: null, threadId: null, momentId: null },
-            { momentId: { not: null }, moment: { deletedAt: null } },
+            {
+              momentId: { not: null },
+              momentCommentId: null,
+              moment: { deletedAt: null },
+            },
+            {
+              momentId: { not: null },
+              momentCommentId: { not: null },
+              moment: { deletedAt: null },
+              momentComment: { deletedAt: null },
+            },
             { postId: null, threadId: { not: null }, thread: { deletedAt: null } },
             {
               postId: { not: null },
@@ -149,7 +166,13 @@ export class NotificationsService {
     userId: string,
     type: string,
     content: string,
-    opts?: { postId?: string; threadId?: string; momentId?: string; momentCommentId?: string; fromUserId?: string },
+    opts?: {
+      postId?: string;
+      threadId?: string;
+      momentId?: string;
+      momentCommentId?: string;
+      fromUserId?: string;
+    },
   ) {
     return this.prisma.notification.create({
       data: { userId, type: type as any, content, ...opts },

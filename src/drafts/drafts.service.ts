@@ -8,6 +8,8 @@ import { DiceService } from '../dice/dice.service';
 import { hasVisibleMarkdownContent } from '../common/markdown-content';
 import { StickerContentService } from '../stickers/sticker-content.service';
 
+const DRAFT_TRANSACTION_OPTIONS = { maxWait: 5_000, timeout: 15_000 } as const;
+
 /** 草稿服务：用户级 5 槽位全局草稿池 */
 @Injectable()
 export class DraftsService {
@@ -37,32 +39,42 @@ export class DraftsService {
   async create(dto: CreateDraftDto, userId: string) {
     const parsedContent = this.diceService.parseContent(normalizeMarkdownContent(dto.content));
     this.assertSnapshotNotEmpty(parsedContent.contentWithoutDice, parsedContent.nodes.length);
-    let slot = dto.slot;
-
-    if (!slot) {
-      const existing = await this.prisma.draft.findMany({
-        where: { userId },
-        select: { slot: true },
-      });
-      const usedSlots = new Set(existing.map((d) => d.slot));
-      for (let i = 1; i <= 5; i++) {
-        if (!usedSlots.has(i)) {
-          slot = i;
-          break;
+    if (dto.slot === undefined) {
+      await this.stickerContent.assertContentAllowed(userId, parsedContent.content, '');
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          return await this.prisma.$transaction(async (tx) => {
+            await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`;
+            const existing = await tx.draft.findMany({
+              where: { userId },
+              select: { slot: true },
+            });
+            const usedSlots = new Set(existing.map((draft) => draft.slot));
+            const slot = [1, 2, 3, 4, 5].find((candidate) => !usedSlots.has(candidate));
+            if (!slot) throw new BadRequestException('草稿位已满（5/5），请先删除旧草稿');
+            return tx.draft.create({
+              data: { userId, slot, content: parsedContent.content },
+            });
+          }, DRAFT_TRANSACTION_OPTIONS);
+        } catch (error) {
+          if ((error as { code?: string })?.code === 'P2002' && attempt === 0) continue;
+          if ((error as { code?: string })?.code === 'P2002') {
+            throw this.optimisticLockConflict();
+          }
+          throw error;
         }
       }
-      if (!slot) throw new BadRequestException('草稿位已满（5/5），请先删除旧草稿');
+      throw this.optimisticLockConflict();
     }
 
     const existing = await this.prisma.draft.findUnique({
-      where: { userId_slot: { userId, slot } },
+      where: { userId_slot: { userId, slot: dto.slot } },
     });
     await this.stickerContent.assertContentAllowed(
       userId,
       parsedContent.content,
       existing?.content ?? '',
     );
-
     if (existing) {
       if (dto.version === undefined || dto.version !== existing.version) {
         throw this.optimisticLockConflict();
@@ -78,18 +90,18 @@ export class DraftsService {
         });
     }
 
-    return this.prisma.draft.create({
-      data: { userId, slot, content: parsedContent.content },
-    });
+    return this.prisma.draft
+      .create({
+        data: { userId, slot: dto.slot, content: parsedContent.content },
+      })
+      .catch((error) => {
+        if (error?.code === 'P2002') throw this.optimisticLockConflict();
+        throw error;
+      });
   }
 
   /** 更新草稿内容 */
-  async update(
-    id: string,
-    content: string,
-    version: number,
-    userId: string,
-  ) {
+  async update(id: string, content: string, version: number, userId: string) {
     const draft = await this.findById(id, userId);
     if (version !== draft.version) throw this.optimisticLockConflict();
     const parsedContent = this.diceService.parseContent(normalizeMarkdownContent(content));

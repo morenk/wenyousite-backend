@@ -3,7 +3,12 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { UsersService } from './users.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CacheService } from '../redis/cache.service';
-import { NotFoundException, ConflictException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  NotFoundException,
+  ConflictException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 
 const mockPrisma = {
   user: {
@@ -16,13 +21,32 @@ const mockPrisma = {
   media: {
     findUnique: jest.fn(),
   },
-  $transaction: jest.fn((ops: any[]) => Promise.all(ops)),
+  $queryRaw: jest.fn(),
+  $transaction: jest.fn(),
 };
 
 const mockEventEmitter = { emit: jest.fn() };
-const mockCache = { buildKey: jest.fn((...parts: string[]) => parts.join(':')), get: jest.fn().mockResolvedValue(undefined), set: jest.fn().mockResolvedValue(undefined), del: jest.fn().mockResolvedValue(undefined), delByPattern: jest.fn().mockResolvedValue(undefined) };
+const mockCache = {
+  buildKey: jest.fn((...parts: string[]) => parts.join(':')),
+  get: jest.fn().mockResolvedValue(undefined),
+  set: jest.fn().mockResolvedValue(undefined),
+  del: jest.fn().mockResolvedValue(undefined),
+  delByPattern: jest.fn().mockResolvedValue(undefined),
+};
 
-const userFixture = { id: 'u1', username: 'test', email: 'test@example.com', avatar: null, bio: null, role: 'USER', deletedAt: null, lastUsernameChange: null, showRecentReplies: true, showPlayerBadges: true, showBookmarks: true };
+const userFixture = {
+  id: 'u1',
+  username: 'test',
+  email: 'test@example.com',
+  avatar: null,
+  bio: null,
+  role: 'USER',
+  deletedAt: null,
+  lastUsernameChange: null,
+  showRecentReplies: true,
+  showPlayerBadges: true,
+  showBookmarks: true,
+};
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -38,6 +62,10 @@ describe('UsersService', () => {
     }).compile();
     service = module.get<UsersService>(UsersService);
     jest.clearAllMocks();
+    mockPrisma.$transaction.mockImplementation(
+      (input: ((tx: typeof mockPrisma) => unknown) | Iterable<unknown>) =>
+        typeof input === 'function' ? input(mockPrisma) : Promise.all(input),
+    );
   });
 
   it('findById 应该返回用户信息', async () => {
@@ -69,26 +97,40 @@ describe('UsersService', () => {
   it('修改用户名重复应该返回409', async () => {
     mockPrisma.user.findUnique
       .mockResolvedValueOnce({ ...userFixture, username: 'oldname' })
+      .mockResolvedValueOnce({ ...userFixture, username: 'oldname' })
       .mockResolvedValueOnce({ id: 'other' });
-    await expect(
-      service.update('u1', { username: 'newname' }),
-    ).rejects.toThrow(ConflictException);
+    await expect(service.update('u1', { username: 'newname' })).rejects.toThrow(ConflictException);
   });
 
   it('用户名修改间隔不足 7 天应拒绝', async () => {
     const recentChange = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
-    mockPrisma.user.findUnique.mockResolvedValue({ ...userFixture, username: 'oldname', lastUsernameChange: recentChange });
-    await expect(
-      service.update('u1', { username: 'newname' }),
-    ).rejects.toThrow(BadRequestException);
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce({
+        ...userFixture,
+        username: 'oldname',
+        lastUsernameChange: recentChange,
+      })
+      .mockResolvedValueOnce({
+        ...userFixture,
+        username: 'oldname',
+        lastUsernameChange: recentChange,
+      });
+    await expect(service.update('u1', { username: 'newname' })).rejects.toThrow(
+      BadRequestException,
+    );
   });
 
   it('用户名修改超 7 天应成功并更新 lastUsernameChange', async () => {
     const oldChange = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
     mockPrisma.user.findUnique
       .mockResolvedValueOnce({ ...userFixture, username: 'oldname', lastUsernameChange: oldChange }) // find by id
+      .mockResolvedValueOnce({ ...userFixture, username: 'oldname', lastUsernameChange: oldChange }) // 锁内复查
       .mockResolvedValueOnce(null); // find by new username (no conflict)
-    mockPrisma.user.update.mockResolvedValue({ ...userFixture, username: 'newname', lastUsernameChange: new Date() });
+    mockPrisma.user.update.mockResolvedValue({
+      ...userFixture,
+      username: 'newname',
+      lastUsernameChange: new Date(),
+    });
     const result = await service.update('u1', { username: 'newname' });
     expect(result.username).toBe('newname');
   });
@@ -96,9 +138,44 @@ describe('UsersService', () => {
   it('P2002 用户名唯一冲突应捕获并返回 409', async () => {
     mockPrisma.user.findUnique
       .mockResolvedValueOnce({ ...userFixture }) // find by id
+      .mockResolvedValueOnce({ ...userFixture }) // 锁内复查
       .mockResolvedValueOnce(null); // find by new username (no conflict)
     mockPrisma.user.update.mockRejectedValue({ code: 'P2002', meta: { target: ['username'] } });
     await expect(service.update('u1', { username: 'newname' })).rejects.toThrow(ConflictException);
+  });
+
+  it('用户名冷却期在用户行锁内复查，拒绝并发期间发生的第二次修改', async () => {
+    const recentChange = new Date();
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce({ ...userFixture, username: 'oldname', lastUsernameChange: null })
+      .mockResolvedValueOnce({
+        ...userFixture,
+        username: 'peer-change',
+        lastUsernameChange: recentChange,
+      });
+
+    await expect(service.update('u1', { username: 'newname' })).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(mockPrisma.$queryRaw).toHaveBeenCalled();
+    expect(mockPrisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('携带过期旧用户名的资料请求不能在并发改名后把名称写回', async () => {
+    const recentChange = new Date();
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce({ ...userFixture, username: 'oldname', lastUsernameChange: null })
+      .mockResolvedValueOnce({
+        ...userFixture,
+        username: 'peer-change',
+        lastUsernameChange: recentChange,
+      });
+
+    await expect(service.update('u1', { username: 'oldname', bio: '过期资料' })).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(mockPrisma.$queryRaw).toHaveBeenCalled();
+    expect(mockPrisma.user.update).not.toHaveBeenCalled();
   });
 
   it('update 不存在的用户应该返回404', async () => {
@@ -158,9 +235,15 @@ describe('UsersService', () => {
 
   it('setAvatar 应校验 media 归属和 COMPLETED 状态后写入', async () => {
     mockPrisma.media.findUnique.mockResolvedValue({
-      id: 'm1', userId: 'u1', url: 'https://example.com/avatar.jpg', status: 'COMPLETED',
+      id: 'm1',
+      userId: 'u1',
+      url: 'https://example.com/avatar.jpg',
+      status: 'COMPLETED',
     });
-    mockPrisma.user.update.mockResolvedValue({ ...userFixture, avatar: 'https://example.com/avatar.jpg' });
+    mockPrisma.user.update.mockResolvedValue({
+      ...userFixture,
+      avatar: 'https://example.com/avatar.jpg',
+    });
     const result = await service.setAvatar('u1', 'm1');
     expect(result.avatar).toBe('https://example.com/avatar.jpg');
   });
@@ -172,14 +255,20 @@ describe('UsersService', () => {
 
   it('setAvatar 拒绝他人 media', async () => {
     mockPrisma.media.findUnique.mockResolvedValue({
-      id: 'm1', userId: 'otherUser', url: '...', status: 'COMPLETED',
+      id: 'm1',
+      userId: 'otherUser',
+      url: '...',
+      status: 'COMPLETED',
     });
     await expect(service.setAvatar('u1', 'm1')).rejects.toThrow(ForbiddenException);
   });
 
   it('setAvatar 拒绝未处理完成的 media', async () => {
     mockPrisma.media.findUnique.mockResolvedValue({
-      id: 'm1', userId: 'u1', url: '...', status: 'PROCESSING',
+      id: 'm1',
+      userId: 'u1',
+      url: '...',
+      status: 'PROCESSING',
     });
     await expect(service.setAvatar('u1', 'm1')).rejects.toThrow(BadRequestException);
   });

@@ -10,6 +10,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { randomBytes } from 'crypto';
 import {
   S3Client,
   PutObjectCommand,
@@ -22,6 +23,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import sharp from 'sharp';
 import { withMediaVariants } from './media-response.mapper';
+import { extractMarkdownImageUrls } from '../common/markdown-cover-images';
 
 /** 允许的文件类型白名单 */
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'];
@@ -29,12 +31,10 @@ const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'ima
 /** 单文件最大 10MB */
 const MAX_SIZE = 10 * 1024 * 1024;
 
-/** 孤儿图片清理：COMPLETED/FAILED 创建超过该天数且无引用才清理 */
+/** 孤儿图片清理：失败记录创建超过该天数且无引用才清理 */
 const ORPHAN_GRACE_DAYS = 7;
 /** 僵尸上传清理：UPLOADING 创建超过该小时数且未确认则清理 */
 const UPLOADING_STALE_HOURS = 24;
-/** Markdown 图片 URL 提取正则（匹配 ![...](url)） */
-const IMG_URL_PATTERN = /!\[[^\]]*\]\(([^)\s]+)/g;
 /** 单次 S3 批量删除对象上限 */
 const S3_BATCH_DELETE_LIMIT = 1000;
 /** S3 兼容存储不支持无 Content-MD5 的 DeleteObjects，单对象删除限制并发数。 */
@@ -99,7 +99,7 @@ export class MediaService {
 
     const ext = this.sanitizeExt(opts.filename);
     const date = new Date().toISOString().slice(0, 10).replace(/-/g, '/');
-    const randomId = Math.random().toString(36).slice(2, 8);
+    const randomId = randomBytes(8).toString('hex');
     const objectKey = `uploads/${date}/${opts.userId}/${Date.now()}-${randomId}.${ext}`;
 
     const bucket = this.config.get<string>('cos.bucket')!;
@@ -299,8 +299,8 @@ export class MediaService {
       }),
     );
 
-    await this.prisma.media.update({
-      where: { id: mediaId },
+    await this.prisma.media.updateMany({
+      where: { id: mediaId, status: 'PROCESSING' },
       data: {
         width: metadata.width ?? 0,
         height: metadata.height ?? 0,
@@ -316,8 +316,8 @@ export class MediaService {
 
   /** 标记图片处理失败（由 ImageProcessor 在末次重试时调用） */
   async markFailed(mediaId: string) {
-    await this.prisma.media.update({
-      where: { id: mediaId },
+    await this.prisma.media.updateMany({
+      where: { id: mediaId, status: 'PROCESSING' },
       data: { status: 'FAILED' },
     });
     this.logger.warn(`Image processing permanently failed for mediaId=${mediaId}`);
@@ -339,7 +339,7 @@ export class MediaService {
     return contentType?.split(';', 1)[0].trim().toLowerCase() || null;
   }
 
-  /** 孤儿图片回收：清理未确认上传、处理失败、以及未被任何存活内容引用的图片（S3 + DB） */
+  /** 孤儿图片回收：仅清理无存活引用的未确认上传与处理失败记录（S3 + DB） */
   async cleanupOrphanMedia() {
     // 1. 构建存活引用集合：头像 + 未删除帖子的 Markdown 正文 + 草稿
     const referenced = new Set<string>();
@@ -393,7 +393,8 @@ export class MediaService {
       return;
     }
 
-    // 2. 候选：僵尸上传 + 处理失败 + 超期且无引用的已处理图片
+    // 2. 候选：僵尸上传 + 处理失败。COMPLETED 在建立规范化引用账本前保守保留，
+    // 避免 Markdown/头像等字符串引用在扫描与对象删除之间发生竞态。
     const now = Date.now();
     const uploadingCutoff = new Date(now - UPLOADING_STALE_HOURS * 3600000);
     const orphanCutoff = new Date(now - ORPHAN_GRACE_DAYS * 24 * 3600000);
@@ -402,14 +403,13 @@ export class MediaService {
         OR: [
           { status: 'UPLOADING', createdAt: { lt: uploadingCutoff } },
           { status: 'FAILED', createdAt: { lt: orphanCutoff } },
-          { status: 'COMPLETED', createdAt: { lt: orphanCutoff } },
         ],
         stickerImports: { none: { status: 'PROCESSING' } },
       },
-      select: { id: true, key: true, url: true },
+      select: { id: true, key: true, url: true, status: true },
     });
 
-    const victims = stale.filter((m) => !referenced.has(m.url));
+    const victims = stale.filter((m) => m.status !== 'COMPLETED' && !referenced.has(m.url));
     if (victims.length === 0) return;
 
     // 3. 批量删除 S3 对象（含派生图）；原图删除失败的记录保留待下次重试
@@ -446,17 +446,27 @@ export class MediaService {
   }
 
   /**
-   * 注销账号后立即回收原头像。若相同 URL 仍被其他头像、正文或草稿引用则保留，
-   * 删除失败时保留媒体记录，交给每日孤儿清理重试。
+   * 单 URL 保守回收入口。COMPLETED 在规范化引用账本建立前一律保留；其他状态
+   * 仍需确认没有头像、正文、草稿、私聊、动态或导入引用。
    */
   async cleanupOrphanByUrl(url: string): Promise<boolean> {
     const media = await this.prisma.media.findFirst({
       where: { url },
-      select: { id: true, key: true },
+      select: { id: true, key: true, status: true },
     });
     if (!media) return false;
+    // 已完成媒体可能随后被正文、头像等字符串路径复用；没有规范化引用账本时不做即时硬删。
+    if (media.status === 'COMPLETED') return false;
 
-    const [avatarRef, postRef, draftRef, directMessageRef, stickerImportRef, momentImageRef, momentCommentRef] = await Promise.all([
+    const [
+      avatarRef,
+      postRef,
+      draftRef,
+      directMessageRef,
+      stickerImportRef,
+      momentImageRef,
+      momentCommentRef,
+    ] = await Promise.all([
       this.prisma.user.findFirst({
         where: { avatar: url, deletedAt: null },
         select: { id: true },
@@ -486,7 +496,16 @@ export class MediaService {
         select: { id: true },
       }),
     ]);
-    if (avatarRef || postRef || draftRef || directMessageRef || stickerImportRef || momentImageRef || momentCommentRef) return false;
+    if (
+      avatarRef ||
+      postRef ||
+      draftRef ||
+      directMessageRef ||
+      stickerImportRef ||
+      momentImageRef ||
+      momentCommentRef
+    )
+      return false;
 
     const keys = [media.key];
     if (!media.key.toLowerCase().endsWith('.svg')) {
@@ -530,12 +549,8 @@ export class MediaService {
     for (;;) {
       const rows = await page(cursor);
       if (rows.length === 0) break;
-      const re = new RegExp(IMG_URL_PATTERN.source, 'g');
       for (const row of rows) {
-        for (const match of row.content.matchAll(re)) {
-          const url = match[1].replace(/['"]$/, '').trim();
-          if (url) referenced.add(url);
-        }
+        for (const url of extractMarkdownImageUrls(row.content)) referenced.add(url);
       }
       cursor = rows[rows.length - 1].id;
       if (rows.length < SCAN_PAGE_SIZE) break;

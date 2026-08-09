@@ -69,7 +69,10 @@ const mockPrisma = {
   },
 };
 
-const mockTags = { findOrCreate: jest.fn() };
+const mockTags = {
+  findOrCreate: jest.fn(),
+  invalidateCache: jest.fn().mockResolvedValue(undefined),
+};
 const mockThreadAccess = {
   assertAccessible: jest.fn(),
   assertCanManage: jest.fn().mockResolvedValue({ role: 'OWNER' }),
@@ -168,6 +171,7 @@ describe('ThreadsService', () => {
       const threadId = 't1';
       mockPrisma.$transaction.mockImplementation(async (fn) =>
         fn({
+          $queryRaw: jest.fn().mockResolvedValue([]),
           thread: {
             count: jest.fn().mockResolvedValue(0),
             create: jest.fn().mockResolvedValue({ id: threadId }),
@@ -204,6 +208,7 @@ describe('ThreadsService', () => {
       let capturedThreadData: any;
       mockPrisma.$transaction.mockImplementation(async (fn) =>
         fn({
+          $queryRaw: jest.fn().mockResolvedValue([]),
           thread: {
             count: jest.fn().mockResolvedValue(0),
             create: jest.fn().mockImplementation((args: any) => {
@@ -238,8 +243,10 @@ describe('ThreadsService', () => {
 
     it('超过草稿上限（10）时拒绝创建', async () => {
       const threadCreate = jest.fn();
+      const lockUser = jest.fn().mockResolvedValue([]);
       mockPrisma.$transaction.mockImplementation(async (fn) =>
         fn({
+          $queryRaw: lockUser,
           thread: {
             count: jest.fn().mockResolvedValue(10),
             create: threadCreate,
@@ -252,8 +259,12 @@ describe('ThreadsService', () => {
         }),
       );
 
-      await expect(service.create({ title: '测试' }, 'u1')).rejects.toThrow(BusinessException);
+      await expect(service.create({ title: '测试', tagNames: ['奇幻'] }, 'u1')).rejects.toThrow(
+        BusinessException,
+      );
+      expect(lockUser).toHaveBeenCalled();
       expect(threadCreate).not.toHaveBeenCalled();
+      expect(mockTags.findOrCreate).not.toHaveBeenCalled();
     });
   });
 
@@ -1082,6 +1093,21 @@ describe('ThreadsService', () => {
       mockPrisma.thread.delete.mockResolvedValue({ id: 't1' });
       await service.remove('t1', 'u1');
       expect(mockPrisma.thread.delete).toHaveBeenCalledWith({ where: { id: 't1' } });
+    });
+
+    it('数据库删除失败时不得提前清理缓存或发送删除事件', async () => {
+      mockPrisma.thread.findUnique.mockResolvedValue({
+        id: 't1',
+        ownerId: 'u1',
+        published: true,
+      });
+      mockPrisma.thread.update.mockRejectedValue(new Error('database unavailable'));
+
+      await expect(service.remove('t1', 'u1')).rejects.toThrow('database unavailable');
+
+      expect(mockRedis.zrem).not.toHaveBeenCalled();
+      expect(mockRedis.hdelAll).not.toHaveBeenCalled();
+      expect(mockEventEmitter.emit).not.toHaveBeenCalledWith('thread.deleted', expect.anything());
     });
   });
 

@@ -2,15 +2,37 @@ import { Injectable, Inject, Logger } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 
-function cacheSafe<T>(value: T): T {
+function cacheFailureReason(error: unknown): string {
+  const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  return message.replace(/\s+/g, ' ').slice(0, 300);
+}
+
+function cacheSafe<T>(value: T, ancestors = new WeakSet<object>()): T {
   if (typeof value === 'bigint') return value.toString() as T;
-  if (Array.isArray(value)) return value.map((item) => cacheSafe(item)) as T;
   if (!value || typeof value !== 'object') return value;
-  const prototype = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) return value;
-  return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, cacheSafe(item)]),
-  ) as T;
+  if (value instanceof Date || Buffer.isBuffer(value)) return value;
+  if (ancestors.has(value)) throw new TypeError('缓存数据包含循环引用');
+
+  ancestors.add(value);
+  try {
+    if (Array.isArray(value)) {
+      return value.map((item) => cacheSafe(item, ancestors)) as T;
+    }
+
+    const toJSON = (value as { toJSON?: () => unknown }).toJSON;
+    if (typeof toJSON === 'function') {
+      return cacheSafe(toJSON.call(value), ancestors) as T;
+    }
+
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+        key,
+        cacheSafe(item, ancestors),
+      ]),
+    ) as T;
+  } finally {
+    ancestors.delete(value);
+  }
 }
 
 /** 响应缓存服务：封装 cache-manager 的 get/set/del，提供命名空间化的键管理 */
@@ -30,7 +52,7 @@ export class CacheService {
     try {
       return await this.cacheManager.get<T>(key);
     } catch (err) {
-      this.logger.warn(`缓存读取失败 key=${key}`, err);
+      this.logger.warn(`缓存读取失败 key=${key} reason=${cacheFailureReason(err)}`);
       return undefined;
     }
   }
@@ -40,7 +62,7 @@ export class CacheService {
     try {
       await this.cacheManager.set(key, cacheSafe(data), ttlMs);
     } catch (err) {
-      this.logger.warn(`缓存写入失败 key=${key}`, err);
+      this.logger.warn(`缓存写入失败 key=${key} reason=${cacheFailureReason(err)}`);
     }
   }
 
@@ -49,7 +71,7 @@ export class CacheService {
     try {
       await this.cacheManager.del(key);
     } catch (err) {
-      this.logger.warn(`缓存删除失败 key=${key}`, err);
+      this.logger.warn(`缓存删除失败 key=${key} reason=${cacheFailureReason(err)}`);
     }
   }
 
@@ -72,7 +94,7 @@ export class CacheService {
         this.logger.debug(`批量删除缓存 pattern=${pattern} count=${allKeys.length}`);
       }
     } catch (err) {
-      this.logger.warn(`批量缓存删除失败 pattern=${pattern}`, err);
+      this.logger.warn(`批量缓存删除失败 pattern=${pattern} reason=${cacheFailureReason(err)}`);
     }
   }
 }
