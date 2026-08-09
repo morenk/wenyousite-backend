@@ -20,10 +20,7 @@ describe('BookmarksService', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        BookmarksService,
-        { provide: PrismaService, useValue: mockPrisma },
-      ],
+      providers: [BookmarksService, { provide: PrismaService, useValue: mockPrisma }],
     }).compile();
     service = module.get<BookmarksService>(BookmarksService);
     jest.clearAllMocks();
@@ -51,7 +48,20 @@ describe('BookmarksService', () => {
     expect(result.items[0]).toEqual(expect.objectContaining({ bookmarkId: 'bm1' }));
     expect(mockPrisma.userBookmark.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { userId: 'u1', thread: { deletedAt: null } },
+        where: {
+          userId: 'u1',
+          thread: {
+            deletedAt: null,
+            published: true,
+            OR: [
+              { visibility: 'PUBLIC' },
+              {
+                visibility: 'PRIVATE',
+                members: { some: { userId: 'u1' } },
+              },
+            ],
+          },
+        },
         orderBy: { createdAt: 'desc' },
       }),
     );
@@ -67,11 +77,13 @@ describe('BookmarksService', () => {
 
     expect(result.items).toHaveLength(2);
     expect(result.pagination).toEqual({ cursor: 'bm2', hasMore: false });
-    expect(mockPrisma.userBookmark.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      take: 51,
-      cursor: { id: 'bm-before' },
-      skip: 1,
-    }));
+    expect(mockPrisma.userBookmark.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        take: 51,
+        cursor: { id: 'bm-before' },
+        skip: 1,
+      }),
+    );
   });
 
   it('findAll 多取一条判断下一页并移除探测记录', async () => {
@@ -113,12 +125,14 @@ describe('BookmarksService', () => {
 
     await service.findByUserId('target');
 
-    expect(mockPrisma.userBookmark.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: {
-        userId: 'target',
-        thread: { deletedAt: null, published: true, visibility: 'PUBLIC' },
-      },
-    }));
+    expect(mockPrisma.userBookmark.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId: 'target',
+          thread: { deletedAt: null, published: true, visibility: 'PUBLIC' },
+        },
+      }),
+    );
   });
 
   it('其他登录用户可读取公开主题及自己参与的私密主题', async () => {
@@ -131,19 +145,51 @@ describe('BookmarksService', () => {
 
     await service.findByUserId('target', 'viewer');
 
-    expect(mockPrisma.userBookmark.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: {
-        userId: 'target',
-        thread: {
-          deletedAt: null,
-          published: true,
-          OR: [
-            { visibility: 'PUBLIC' },
-            { visibility: 'PRIVATE', members: { some: { userId: 'viewer' } } },
-          ],
+    expect(mockPrisma.userBookmark.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId: 'target',
+          thread: {
+            deletedAt: null,
+            published: true,
+            OR: [
+              { visibility: 'PUBLIC' },
+              { visibility: 'PRIVATE', members: { some: { userId: 'viewer' } } },
+            ],
+          },
         },
-      },
-    }));
+      }),
+    );
+  });
+
+  it('本人也不能读取已经失去成员资格的私密收藏', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 'target',
+      showBookmarks: false,
+      deletedAt: null,
+    });
+    mockPrisma.userBookmark.findMany.mockResolvedValue([]);
+
+    await service.findByUserId('target', 'target');
+
+    expect(mockPrisma.userBookmark.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId: 'target',
+          thread: {
+            deletedAt: null,
+            published: true,
+            OR: [
+              { visibility: 'PUBLIC' },
+              {
+                visibility: 'PRIVATE',
+                members: { some: { userId: 'target' } },
+              },
+            ],
+          },
+        },
+      }),
+    );
   });
 
   it('公开收藏分页返回 bookmark ID 而不是 thread ID', async () => {
@@ -164,7 +210,11 @@ describe('BookmarksService', () => {
   });
 
   it('create 私密帖非参与人返回 404', async () => {
-    mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', visibility: 'PRIVATE', published: true });
+    mockPrisma.thread.findUnique.mockResolvedValue({
+      id: 't1',
+      visibility: 'PRIVATE',
+      published: true,
+    });
     mockPrisma.threadMember.findUnique.mockResolvedValue(null);
 
     await expect(service.create('u1', 't1')).rejects.toMatchObject({

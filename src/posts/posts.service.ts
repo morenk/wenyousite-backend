@@ -305,62 +305,94 @@ export class PostsService {
     );
 
     if (!existing) {
-      const post = await this.prisma.$transaction(async (tx) => {
-        const created = await tx.post.create({
-          data: {
-            threadId: subthread.threadId,
-            subthreadId,
-            authorId: userId,
-            kind: 'BODY',
-            content: normalizedContent,
-          },
-          include: { author: { select: authorSelect } },
-        });
-        if (subthread.thread.published) {
-          await reconcilePublishedDice(tx, this.diceService, created.id, parsedContent.nodes, []);
-        }
-        const activityAt = new Date();
-        await tx.subthread.update({
-          where: { id: subthreadId },
-          data: {
-            lastPostAt: activityAt,
-            thread: { update: { data: { updatedAt: activityAt } } },
-          },
-        });
-        const post = await tx.post.findUniqueOrThrow({
-          where: { id: created.id },
-          include: { author: { select: authorSelect }, ...includeDiceRolls() },
-        });
-        if (subthread.thread.published) {
-          await this.outbox.enqueue(tx, {
-            eventType: 'post.created',
-            aggregateType: 'Post',
-            aggregateId: post.id,
-            eventKey: `post-created:${post.id}`,
-            payload: {
-              postId: post.id,
-              content: normalizedContent,
-              userId,
-              authorUsername: post.author.username,
-              occurredAt: new Date().toISOString(),
-              threadId: subthread.threadId,
-              subthreadId: subthread.id,
-              subthreadTitle: subthread.title,
-              parentPostId: null,
-              replyToPostId: null,
-              isSubthreadBody: true,
-              authorRole: manager.role,
-              authorPlayerMarked: manager.playerMarked,
-              diceRolls: (post.diceRolls ?? []).map((roll) => ({
-                nodeId: roll.nodeId,
-                notation: roll.notation,
-                total: roll.total,
-              })),
-            } as Prisma.InputJsonValue,
+      const post = await this.prisma
+        .$transaction(async (tx) => {
+          // All aggregate writers use the thread row as their serialization lock.
+          // Re-read after acquiring it because the optimistic pre-read above can race.
+          await tx.$queryRaw`SELECT id FROM threads WHERE id = ${subthread.threadId} FOR UPDATE`;
+          const concurrentlyCreated = await tx.post.findFirst({
+            where: { subthreadId, kind: 'BODY', ...notDeleted },
+            select: { id: true },
           });
-        }
-        return post;
-      });
+          if (concurrentlyCreated) {
+            throw new BusinessException(
+              ErrorCode.OPTIMISTIC_LOCK_CONFLICT,
+              '正文已被创建，请刷新后重试',
+              HttpStatus.CONFLICT,
+            );
+          }
+
+          const created = await tx.post.create({
+            data: {
+              threadId: subthread.threadId,
+              subthreadId,
+              authorId: userId,
+              kind: 'BODY',
+              content: normalizedContent,
+            },
+            include: { author: { select: authorSelect } },
+          });
+          if (subthread.thread.published) {
+            await reconcilePublishedDice(tx, this.diceService, created.id, parsedContent.nodes, []);
+          }
+          const activityAt = new Date();
+          await tx.subthread.update({
+            where: { id: subthreadId },
+            data: {
+              lastPostAt: activityAt,
+              thread: { update: { data: { updatedAt: activityAt } } },
+            },
+          });
+          const post = await tx.post.findUniqueOrThrow({
+            where: { id: created.id },
+            include: { author: { select: authorSelect }, ...includeDiceRolls() },
+          });
+          if (subthread.thread.published) {
+            await this.outbox.enqueue(tx, {
+              eventType: 'post.created',
+              aggregateType: 'Post',
+              aggregateId: post.id,
+              eventKey: `post-created:${post.id}`,
+              payload: {
+                postId: post.id,
+                content: normalizedContent,
+                userId,
+                authorUsername: post.author.username,
+                occurredAt: new Date().toISOString(),
+                threadId: subthread.threadId,
+                subthreadId: subthread.id,
+                subthreadTitle: subthread.title,
+                parentPostId: null,
+                replyToPostId: null,
+                isSubthreadBody: true,
+                authorRole: manager.role,
+                authorPlayerMarked: manager.playerMarked,
+                diceRolls: (post.diceRolls ?? []).map((roll) => ({
+                  nodeId: roll.nodeId,
+                  notation: roll.notation,
+                  total: roll.total,
+                })),
+              } as Prisma.InputJsonValue,
+            });
+          }
+          return post;
+        })
+        .catch(async (err) => {
+          if (err?.code !== 'P2002') throw err;
+
+          // The partial unique index is the final guard for writers that do not
+          // share this code path. Only translate the conflict when a body won.
+          const concurrentBody = await this.prisma.post.findFirst({
+            where: { subthreadId, kind: 'BODY', ...notDeleted },
+            select: { id: true },
+          });
+          if (!concurrentBody) throw err;
+          throw new BusinessException(
+            ErrorCode.OPTIMISTIC_LOCK_CONFLICT,
+            '正文已被创建，请刷新后重试',
+            HttpStatus.CONFLICT,
+          );
+        });
       if (subthread.thread.published) {
         await this.stickerContent.recordUsage(userId, stickerAssetIds);
       }

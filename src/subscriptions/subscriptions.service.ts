@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { ThreadAccessService } from '../access/thread-access.service';
+import { publishedThreadVisibilityWhere } from '../access/thread-visibility.where';
 
 /** 订阅服务：玩家可订阅特定用户或整个主题帖 */
 @Injectable()
@@ -86,14 +87,7 @@ export class SubscriptionsService {
     return this.prisma.subscription.findMany({
       where: {
         userId,
-        thread: {
-          deletedAt: null,
-          published: true,
-          OR: [
-            { visibility: 'PUBLIC' },
-            { members: { some: { userId } } },
-          ],
-        },
+        thread: publishedThreadVisibilityWhere(userId),
       },
       include: {
         thread: { select: { id: true, title: true, category: true } },
@@ -107,10 +101,7 @@ export class SubscriptionsService {
     const where: any = { threadId };
     if (excludeUserId) where.userId = { not: excludeUserId };
     if (authorId) {
-      where.OR = [
-        { type: 'THREAD' },
-        { type: 'USER', targetUserId: authorId },
-      ];
+      where.OR = [{ type: 'THREAD' }, { type: 'USER', targetUserId: authorId }];
     }
     return this.prisma.subscription.findMany({
       where,

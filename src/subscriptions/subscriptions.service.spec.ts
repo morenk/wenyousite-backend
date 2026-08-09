@@ -55,7 +55,9 @@ describe('SubscriptionsService', () => {
       .mockResolvedValueOnce({ role: 'PARTICIPANT', playerMarked: true });
     mockPrisma.subscription.create.mockResolvedValue({ id: 's2', type: 'USER' });
 
-    await expect(service.create('u1', 't1', 'USER', 'player1')).resolves.toMatchObject({ id: 's2' });
+    await expect(service.create('u1', 't1', 'USER', 'player1')).resolves.toMatchObject({
+      id: 's2',
+    });
   });
 
   it.each([
@@ -109,7 +111,17 @@ describe('SubscriptionsService', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           userId: 'u1',
-          thread: expect.objectContaining({ published: true, deletedAt: null }),
+          thread: {
+            published: true,
+            deletedAt: null,
+            OR: [
+              { visibility: 'PUBLIC' },
+              {
+                visibility: 'PRIVATE',
+                members: { some: { userId: 'u1' } },
+              },
+            ],
+          },
         }),
       }),
     );

@@ -5,6 +5,7 @@ import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { PaginatedResult, paginate } from '../common/dto/paginated-result';
 import { publicUserSummarySelect } from '../common/user-summary';
+import { publishedThreadVisibilityWhere } from '../access/thread-visibility.where';
 
 const bookmarkThreadInclude = {
   owner: { select: publicUserSummarySelect },
@@ -27,7 +28,7 @@ export class BookmarksService {
   ): Promise<PaginatedResult<OwnBookmarkThread>> {
     const take = Math.min(limit, 50);
     const bookmarks = await this.prisma.userBookmark.findMany({
-      where: { userId, thread: { deletedAt: null } },
+      where: { userId, thread: publishedThreadVisibilityWhere(userId) },
       orderBy: { createdAt: 'desc' },
       take: take + 1,
       cursor: cursor ? { id: cursor } : undefined,
@@ -68,28 +69,10 @@ export class BookmarksService {
     }
 
     const take = Math.min(limit, 50);
-    const isSelf = targetId === viewerId;
-    const visibilityWhere = isSelf
-      ? {}
-      : viewerId
-        ? {
-            OR: [
-              { visibility: 'PUBLIC' as const },
-              {
-                visibility: 'PRIVATE' as const,
-                members: { some: { userId: viewerId } },
-              },
-            ],
-          }
-        : { visibility: 'PUBLIC' as const };
     const bookmarks = await this.prisma.userBookmark.findMany({
       where: {
         userId: targetId,
-        thread: {
-          deletedAt: null,
-          published: true,
-          ...visibilityWhere,
-        },
+        thread: publishedThreadVisibilityWhere(viewerId),
       },
       orderBy: { createdAt: 'desc' },
       take: take + 1,
@@ -106,7 +89,7 @@ export class BookmarksService {
     if (hasMore) bookmarks.pop();
 
     return paginate(
-      bookmarks.map(b => b.thread),
+      bookmarks.map((b) => b.thread),
       { cursor: bookmarks.at(-1)?.id ?? null, hasMore },
     );
   }

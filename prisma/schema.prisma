@@ -447,7 +447,9 @@ model Subthread {
   defaultForThread Thread? @relation("DefaultSubthread")
   posts            Post[]
 
-  @@unique([threadId, sortOrder])
+  // Active sort-order uniqueness is enforced by the partial index
+  // subthreads_thread_id_sort_order_active_key in the migration SQL.
+  @@unique([threadId, id], map: "subthreads_thread_id_id_key")
   @@unique([threadId, clientRequestId])
   @@map("subthreads")
 }
@@ -822,7 +824,7 @@ model Post {
   thread        Thread         @relation(fields: [threadId], references: [id], onDelete: Cascade)
   subthread     Subthread      @relation(fields: [subthreadId], references: [id], onDelete: Cascade)
   author        User           @relation(fields: [authorId], references: [id])
-  parentPost    Post?          @relation("PostReplies", fields: [parentPostId], references: [id])
+  parentPost    Post?          @relation("PostReplies", fields: [parentPostId], references: [id], onDelete: Cascade)
   replyToPost   Post?          @relation("ReplyTo", fields: [replyToPostId], references: [id])
   replies       Post[]         @relation("PostReplies")
   repliedBy     Post[]         @relation("ReplyTo")
@@ -832,6 +834,7 @@ model Post {
 
   @@unique([subthreadId, floorNumber])
   @@unique([authorId, clientRequestId])
+  @@unique([id, subthreadId], map: "posts_id_subthread_id_key")
   @@index([subthreadId, kind, deletedAt, floorNumber], map: "posts_floor_page_idx")
   @@index([subthreadId, kind])
   @@index([subthreadId, createdAt])

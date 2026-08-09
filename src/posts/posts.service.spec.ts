@@ -469,6 +469,7 @@ describe('PostsService', () => {
       expect(result.id).toBe('b1');
       expect(result.kind).toBe('BODY');
       expect(result.floorNumber).toBeNull();
+      expect(mockPrisma.$queryRaw).toHaveBeenCalled();
       expect(mockPrisma.subthread.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 's1' },
@@ -487,6 +488,43 @@ describe('PostsService', () => {
           payload: expect.objectContaining({ postId: 'b1', isSubthreadBody: true }),
         }),
       );
+    });
+
+    it('创建正文取得聚合锁后会复查，避免并发生成第二条 BODY', async () => {
+      mockPrisma.subthread.findUnique.mockResolvedValue({
+        id: 's1',
+        threadId: 't1',
+        title: 'x',
+        thread: { id: 't1', published: true, title: 'x' },
+      });
+      mockPrisma.post.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: 'body-created-by-peer' });
+
+      await expect(service.upsertBody('s1', '新正文', undefined, 'u1')).rejects.toMatchObject({
+        errorCode: ErrorCode.OPTIMISTIC_LOCK_CONFLICT,
+        status: 409,
+      });
+      expect(mockPrisma.$queryRaw).toHaveBeenCalled();
+      expect(mockPrisma.post.create).not.toHaveBeenCalled();
+    });
+
+    it('数据库 BODY 唯一键竞争会转换为可恢复的 409', async () => {
+      mockPrisma.subthread.findUnique.mockResolvedValue({
+        id: 's1',
+        threadId: 't1',
+        title: 'x',
+        thread: { id: 't1', published: true, title: 'x' },
+      });
+      mockPrisma.post.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: 'body-created-by-peer' });
+      mockPrisma.$transaction.mockRejectedValueOnce({ code: 'P2002' });
+
+      await expect(service.upsertBody('s1', '新正文', undefined, 'u1')).rejects.toMatchObject({
+        errorCode: ErrorCode.OPTIMISTIC_LOCK_CONFLICT,
+        status: 409,
+      });
     });
 
     it('更新已有正文（乐观锁 version 匹配）', async () => {
