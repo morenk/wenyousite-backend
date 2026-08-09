@@ -26,6 +26,7 @@
 ```
 
 **优势**：
+
 - 从 `upload-url` 返回开始，`mediaId` 贯穿全链路，不再需要客户端在 `objectKey` 和 `mediaId` 之间跳转
 - Media 记录在 `upload-url` 阶段预建（`UPLOADING`），完整生命周期可追踪
 - 服务端零 IO 压力，大文件上传不占用应用进程内存
@@ -38,31 +39,33 @@
 
 **请求 DTO**：
 
-| 字段 | 类型 | 校验规则 | 说明 |
-|------|------|----------|------|
-| `filename` | `string` | `@MinLength(1) @MaxLength(255)` | 原始文件名，仅用于提取扩展名 |
-| `contentType` | `string` | `@IsIn(ALLOWED_MIME)` | MIME 白名单校验 |
-| `size` | `number` | `@Min(1) @Max(10485760)` | 文件大小（字节），上限 10MB |
+| 字段          | 类型     | 校验规则                        | 说明                         |
+| ------------- | -------- | ------------------------------- | ---------------------------- |
+| `filename`    | `string` | `@MinLength(1) @MaxLength(255)` | 原始文件名，仅用于提取扩展名 |
+| `contentType` | `string` | `@IsIn(ALLOWED_MIME)`           | MIME 白名单校验              |
+| `size`        | `number` | `@Min(1) @Max(10485760)`        | 文件大小（字节），上限 10MB  |
 
 **MIME 白名单**：
 
-| MIME Type | 扩展名 | 支持处理 |
-|-----------|--------|----------|
+| MIME Type    | 扩展名     | 支持处理            |
+| ------------ | ---------- | ------------------- |
 | `image/jpeg` | jpg / jpeg | sharp 缩略图 + 中图 |
-| `image/png` | png | sharp 缩略图 + 中图 |
-| `image/gif` | gif | sharp 缩略图 + 中图 |
-| `image/webp` | webp | sharp 缩略图 + 中图 |
-| `image/avif` | avif | sharp 缩略图 + 中图 |
+| `image/png`  | png        | sharp 缩略图 + 中图 |
+| `image/gif`  | gif        | sharp 缩略图 + 中图 |
+| `image/webp` | webp       | sharp 缩略图 + 中图 |
+| `image/avif` | avif       | sharp 缩略图 + 中图 |
 
 > SVG 不在白名单内。未经净化的 SVG 可能携带脚本或外部资源，并绕过 sharp 的位图解码校验；Web/Flutter 都应在文件选择阶段过滤，服务端仍会拒绝绕过客户端的请求。
 
 **文件名消毒**：
+
 - 只取最后一段作为扩展名：`foo.bar.jpg` → `jpg`
 - 剔除所有非字母数字字符：`image (1).jpg` → `jpg`
 - 非白名单扩展名 / 空扩展名 / 超长扩展名 → fallback 为 `bin`
 - 以上规则有效防御**双重扩展名攻击**（如 `photo.jpg.exe`）
 
 **对象键生成规则**：
+
 ```
 uploads/YYYY/MM/DD/{userId}/{timestamp}-{randomId}.{ext}
 ```
@@ -78,20 +81,22 @@ uploads/YYYY/MM/DD/{userId}/{timestamp}-{randomId}.{ext}
 }
 ```
 
-| 字段 | 用途 |
-|------|------|
-| `uploadUrl` | 预签名 PUT URL，客户端凭此直传文件体 |
-| `mediaId` | **贯穿全链路的媒体追踪 ID**，后续 upload-done / 查询 / 头像设置统一使用 |
-| `objectKey` | S3 对象键（仅供参考，一般不需要手动处理） |
-| `publicUrl` | 拼接生成的公网访问地址 |
+| 字段        | 用途                                                                    |
+| ----------- | ----------------------------------------------------------------------- |
+| `uploadUrl` | 预签名 PUT URL，客户端凭此直传文件体                                    |
+| `mediaId`   | **贯穿全链路的媒体追踪 ID**，后续 upload-done / 查询 / 头像设置统一使用 |
+| `objectKey` | S3 对象键（仅供参考，一般不需要手动处理）                               |
+| `publicUrl` | 拼接生成的公网访问地址                                                  |
 
 **S3 命令参数**：
+
 ```
 PutObjectCommand {
   Bucket, Key, ContentType, ContentLength,
   Expires: 600
 }
 ```
+
 `ContentLength` 参与签名，S3 侧拒绝长度不匹配的 PUT 请求。
 
 ---
@@ -118,11 +123,12 @@ Body: <binary>
 
 ```typescript
 class ConfirmUploadDto {
-  mediaId: string;  // Step 1 返回的 mediaId
+  mediaId: string; // Step 1 返回的 mediaId
 }
 ```
 
 **处理流程**：
+
 1. 根据 `mediaId` 查 Media 记录，校验归属（userId 匹配）
 2. `PROCESSING` / `COMPLETED` 直接返回当前结果，使客户端超时重试不会重复入队
 3. 向 S3 发送 `HeadObjectCommand`，核对实际 `Content-Length`、`Content-Type` 与签发凭证时固化的声明值；缺失、超限或不一致时转 `FAILED`
@@ -130,6 +136,7 @@ class ConfirmUploadDto {
 5. 以 `mediaId` 作为 BullMQ `jobId` 入队；入队失败时条件回滚至 `UPLOADING`，允许客户端重试
 
 **重试策略**：
+
 - 最多 2 次尝试
 - 固定 10 秒间隔
 - 成功任务 24h 后清理，失败任务 7d 后清理
@@ -207,12 +214,12 @@ UPLOADING ──(元数据不合法)──────────────�
 
 ### sharp 参数详解
 
-| 产物 | 参数 | 说明 |
-|------|------|------|
-| **缩略图** | `resize(300, 300, { fit: 'cover' })` | 裁剪填充 300×300，`withoutEnlargement: true` |
-| **缩略图** | `.webp({ quality: 80 })` | 平衡体积与质量 |
-| **中图** | `resize(800, null, { fit: 'inside' })` | 等比缩放至宽度 ≤ 800px |
-| **中图** | `.webp({ quality: 85 })` | 中图质量略高于缩略图 |
+| 产物       | 参数                                   | 说明                                         |
+| ---------- | -------------------------------------- | -------------------------------------------- |
+| **缩略图** | `resize(300, 300, { fit: 'cover' })`   | 裁剪填充 300×300，`withoutEnlargement: true` |
+| **缩略图** | `.webp({ quality: 80 })`               | 平衡体积与质量                               |
+| **中图**   | `resize(800, null, { fit: 'inside' })` | 等比缩放至宽度 ≤ 800px                       |
+| **中图**   | `.webp({ quality: 85 })`               | 中图质量略高于缩略图                         |
 
 ---
 
@@ -225,6 +232,7 @@ UPLOADING ──(元数据不合法)──────────────�
 ```
 
 校验链：
+
 1. media 记录存在 → 404
 2. `media.userId === currentUser` → 403
 3. `media.status === 'COMPLETED'` → 400
@@ -236,14 +244,14 @@ UPLOADING ──(元数据不合法)──────────────�
 
 所有 S3 配置通过 `ConfigService` 以 `cos.*` 前缀读取。
 
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `COS_ENDPOINT` | `https://cn-nb1.rains3.com` | S3 兼容端点地址 |
-| `COS_REGION` | `auto` | 区域标识 |
-| `COS_BUCKET` | `wenyou` | 存储桶名称 |
-| `COS_ACCESS_KEY_ID` | *(空，需设置)* | AccessKey |
-| `COS_SECRET_ACCESS_KEY` | *(空，需设置)* | SecretKey |
-| `UPLOAD_RATE_PER_HOUR` | `60` | 每用户小时上传配额（`upload-url` 超限返回 429） |
+| 变量                    | 默认值                      | 说明                                            |
+| ----------------------- | --------------------------- | ----------------------------------------------- |
+| `COS_ENDPOINT`          | `https://cn-nb1.rains3.com` | S3 兼容端点地址                                 |
+| `COS_REGION`            | `auto`                      | 区域标识                                        |
+| `COS_BUCKET`            | `wenyou`                    | 存储桶名称                                      |
+| `COS_ACCESS_KEY_ID`     | _(空，需设置)_              | AccessKey                                       |
+| `COS_SECRET_ACCESS_KEY` | _(空，需设置)_              | SecretKey                                       |
+| `UPLOAD_RATE_PER_HOUR`  | `60`                        | 每用户小时上传配额（`upload-url` 超限返回 429） |
 
 `forcePathStyle: true` — 路径风格 URL（`{endpoint}/{bucket}/{key}`），兼容所有 S3 兼容实现。
 
@@ -259,8 +267,8 @@ UPLOADING ──(元数据不合法)──────────────�
 
 对象存储无原生引用管理，删除帖子/楼层/头像不会自动删图。每天凌晨 4 点 `CleanupTask` 调用 `MediaService.cleanupOrphanMedia()` 回收：
 
-1. **收集存活引用**：未注销用户的 `users.avatar` + 未删除帖子的 Markdown 正文 + 草稿正文中的图片 URL；账号注销时头像字段立即置空
-2. **候选**：`UPLOADING` 超 24h、`FAILED` 超 7 天、`COMPLETED` 超 7 天且无引用
-3. **删除**：有限并发逐对象删除原图 + `_thumb.webp` + `_md.webp`（SVG 仅自身），兼容要求批量删除携带 `Content-MD5` 的 S3 服务；再删 DB 记录，原图删除失败的记录留待下次重试
+1. **收集存活引用**：未注销用户的 `users.avatar`、未删除帖子的 Markdown 正文、草稿正文、未撤回私聊、未删除动态及动态评论中的图片 URL；账号注销时头像字段立即置空
+2. **候选**：`UPLOADING` 超 24h、`FAILED` 超 7 天；已完成图片暂不进入自动删除候选
+3. **删除**：有限并发删除原图 + `_thumb.webp` + `_feed.webp` + `_md.webp`（SVG 仅自身），兼容要求批量删除携带 `Content-MD5` 的 S3 服务；再删 DB 记录，原图删除失败的记录留待下次重试
 
-> 7 天缓冲期保护"刚上传未发帖"的图；引用集合为空时跳过本轮（安全阀）。
+> `COMPLETED` 图片可能只由头像或 Markdown 字符串引用，扫描与对象删除之间无法原子复核。在建立规范化引用账本前保守保留已完成图片，避免并发保存正文造成不可逆误删；引用集合为空时仍跳过本轮（安全阀）。

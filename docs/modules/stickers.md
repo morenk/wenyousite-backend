@@ -8,15 +8,15 @@
 
 ## API
 
-| 方法 | 路径 | 用途 |
-|------|------|------|
-| GET | `/stickers` | 返回收藏夹版本、最多 200 个收藏、最近 20 个和处理中导入 |
-| POST | `/stickers/imports/media` | 以本人 `COMPLETED` 的 `mediaId` 导入 |
-| POST | `/stickers/imports/direct-message` | 收藏本人参与且未撤回私聊中的图片或表情 |
-| POST | `/stickers/imports/post-image` | 收藏当前可访问帖子正文中的指定站内图片或表情 |
-| GET | `/stickers/imports/:id` | 轮询异步规范化结果 |
-| PUT | `/stickers/reorder` | 使用完整收藏 ID 列表和版本号原子重排 |
-| DELETE | `/stickers/:favoriteId` | 移除自己的收藏 |
+| 方法   | 路径                               | 用途                                                    |
+| ------ | ---------------------------------- | ------------------------------------------------------- |
+| GET    | `/stickers`                        | 返回收藏夹版本、最多 200 个收藏、最近 20 个和处理中导入 |
+| POST   | `/stickers/imports/media`          | 以本人 `COMPLETED` 的 `mediaId` 导入                    |
+| POST   | `/stickers/imports/direct-message` | 收藏本人参与且未撤回私聊中的图片或表情                  |
+| POST   | `/stickers/imports/post-image`     | 收藏当前可访问帖子正文中的指定站内图片或表情            |
+| GET    | `/stickers/imports/:id`            | 轮询异步规范化结果                                      |
+| PUT    | `/stickers/reorder`                | 使用完整收藏 ID 列表和版本号原子重排                    |
+| DELETE | `/stickers/:favoriteId`            | 移除自己的收藏                                          |
 
 导入请求使用 UUID v4 `clientRequestId` 幂等。相同内容按 SHA-256 全局复用资产；用户重复收藏返回 `alreadySaved=true`，不会改变原排序。新收藏排在最前，手动排序使用乐观锁版本，满 200 个时拒绝新增。
 
@@ -28,12 +28,12 @@
 - 动图最长 15 秒、最多 120 帧。所有限制均由服务端最终校验。
 - 列表使用静态 WebP 缩略图；完整动图只在客户端悬停或键盘聚焦时加载。
 
-处理由 BullMQ `sticker` 队列异步完成，失败重试两次。导入记录和没有任何引用的资产保留七天后由定时任务清理。
+处理由 BullMQ `sticker` 队列异步完成，失败重试两次。完成或失败的导入记录保留七天后由定时任务清理。已完成资产可能仍被帖子/草稿中的 Markdown 字符串引用；在建立规范化引用账本前定时任务保守保留资产，不执行自动对象删除，避免扫描与正文并发保存造成误删。
 
 ## 发送协议
 
-- 私聊发送 `stickerAssetId`，服务端校验它仍在发送者收藏中并记录最近使用；响应同时返回 `sticker` 和兼容旧客户端的 `media` 图片字段。纯表情消息不带气泡背景，Web 最大显示 180px；陌生请求在点击前不加载图片。
-- 帖子使用标准 Markdown 图片：`![表情](ASSET_URL "wenyousite-sticker:v1:ASSET_ID")`。旧客户端会把它显示为普通图片，新客户端识别 title 标记后以内联原子节点显示，最大 128px。
+- 私聊发送 `stickerAssetId`，服务端校验它仍在发送者收藏中并记录最近使用；响应同时返回 `sticker` 和兼容旧客户端的 `media` 图片字段。纯表情消息不带气泡背景，Web 最大显示 128px；静态表情优先使用 `thumbnailUrl`，动图使用规范化 `url`。陌生请求在点击前不加载图片。
+- 帖子使用标准 Markdown 图片：`![表情](ASSET_URL "wenyousite-sticker:v1:ASSET_ID")`。其中 URL 指向最长边不超过 512px 的独立规范化资产，不是来源原图；旧客户端会把它显示为普通图片，新客户端识别 title 标记后以内联原子节点显示，最大 128px。
 - 每篇帖子最多 20 个表情。新写入的普通图片必须来自当前用户已完成的站内媒体；历史正文中已有的外链图片可原样保留，但不能新增或复制新的外链图片出现次数。
 - 发送表情只传资产 ID 或已有 URL，不重复上传图片字节，因此私聊和帖子发布只走普通小请求。
 

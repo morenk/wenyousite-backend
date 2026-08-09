@@ -6,20 +6,20 @@
 
 ## 涉及的模型
 
-| 模型 | 用途 |
-|------|------|
+| 模型    | 用途                                                                  |
+| ------- | --------------------------------------------------------------------- |
 | `Draft` | 草稿实体（userId + slot 联合唯一，完整 content 快照，version 乐观锁） |
 
 ## API 端点
 
-| Method | Path | Guard | 描述 |
-|--------|------|-------|------|
-| GET | `/drafts` | AuthRead | 获取当前用户全部草稿（按 slot 排序） |
-| GET | `/drafts/slots` | AuthRead | 草稿槽位使用情况（usedSlots / maxSlots=5 / slots[]） |
-| POST | `/drafts` | Auth | 保存草稿（可指定 slot，不指定自动分配空闲位） |
-| GET | `/drafts/:id` | AuthRead | 获取单条草稿 |
-| PATCH | `/drafts/:id` | Auth | 更新草稿内容 |
-| DELETE | `/drafts/:id` | Auth | 删除草稿 |
+| Method | Path            | Guard    | 描述                                                 |
+| ------ | --------------- | -------- | ---------------------------------------------------- |
+| GET    | `/drafts`       | AuthRead | 获取当前用户全部草稿（按 slot 排序）                 |
+| GET    | `/drafts/slots` | AuthRead | 草稿槽位使用情况（usedSlots / maxSlots=5 / slots[]） |
+| POST   | `/drafts`       | Auth     | 保存草稿（可指定 slot，不指定自动分配空闲位）        |
+| GET    | `/drafts/:id`   | AuthRead | 获取单条草稿                                         |
+| PATCH  | `/drafts/:id`   | Auth     | 更新草稿内容                                         |
+| DELETE | `/drafts/:id`   | Auth     | 删除草稿                                             |
 
 读取端点使用 `@AuthRead()`；写入和删除端点使用 `@Auth()`。
 
@@ -35,10 +35,11 @@
 - 每个用户最多 5 个草稿槽位（slot 1-5），由 `userId + slot` 联合唯一键约束
 - 保存草稿时：
   - 指定 slot：空槽位直接新建；已有草稿必须携带当前 `version` 才能覆盖
-  - 不指定 slot：自动扫描 1-5 找第一个空闲位
+  - 不指定 slot：事务先锁定用户行，再扫描 1-5 找第一个空闲位并创建；兼容旧写入者导致唯一键竞争时只重试一次，仍冲突则返回 409
   - 所有槽位被占满时返回 400 "草稿位已满（5/5），请先删除旧草稿"
 - `PATCH /drafts/:id` 必须携带当前 `version`；覆盖成功后原子递增，版本不匹配或并发竞争返回 HTTP 409、`errorCode=40002`
 - `version` 是跨 Web/Flutter 的并发事实源，不使用 `updatedAt` 比较，避免客户端日期精度和时区差异
+- 自动槽位分配的“查空位 + 创建”属于同一串行化临界区，两个并发自动保存不会选中同一槽位或把数据库唯一键错误暴露成 500
 - 草稿不与子贴绑定，作为全局浮动编辑器缓存
 - 不存在自动覆盖逻辑：满时不自动替换最旧草稿，明确要求用户手动管理
 - 删除为硬删除（物理删除），不使用软删除

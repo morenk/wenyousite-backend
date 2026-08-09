@@ -16141,6 +16141,7 @@
               "穿越"
             ],
             "description": "主题帖标签名称列表",
+            "maxItems": 5,
             "type": "array",
             "items": {
               "type": "string"

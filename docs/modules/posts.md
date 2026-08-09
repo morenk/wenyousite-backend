@@ -6,23 +6,23 @@
 
 ## 涉及的模型
 
-| 模型 | 用途 |
-|------|------|
-| `Post` | 帖子实体（正文 kind=BODY / 楼层 kind=FLOOR / 楼中楼回复） |
-| `DiceRoll` | 由正文内联节点 `nodeId` 关联的服务端正式骰子结果 |
-| `PostMention` | @提及记录（归属帖子，由 PostEventsListener 写入） |
+| 模型          | 用途                                                      |
+| ------------- | --------------------------------------------------------- |
+| `Post`        | 帖子实体（正文 kind=BODY / 楼层 kind=FLOOR / 楼中楼回复） |
+| `DiceRoll`    | 由正文内联节点 `nodeId` 关联的服务端正式骰子结果          |
+| `PostMention` | @提及记录（归属帖子，由 PostEventsListener 写入）         |
 
 ## API 端点
 
-| Method | Path | Guard | 描述 |
-|--------|------|-------|------|
-| GET | `/subthreads/:subthreadId/posts` | Public | 楼层列表（Cursor 分页，仅返回楼层 kind=FLOOR，不含正文；主楼层 parentPostId=null，内嵌每个楼层前 5 条楼中楼回复） |
-| GET | `/posts/:id/replies` | Public | 主楼层的楼中楼回复列表（Cursor 分页；支持 `order=OLDEST|NEWEST` 与 `authorId`；仅接受 parentPostId=null 的 FLOOR） |
-| POST | `/subthreads/:subthreadId/posts` | Auth | 发帖（创建楼层 kind=FLOOR，含楼中楼回复；正文不通过本接口创建） |
-| PUT | `/subthreads/:subthreadId/body` | Auth | upsert 子贴正文（kind=BODY：无正文创建，有正文乐观锁更新，version 不匹配返回 409；仅 OWNER/COLLABORATOR） |
-| GET | `/posts/:id` | Public | 帖子详情（含导航上下文：帖/子贴/父楼） |
-| PATCH | `/posts/:id` | Auth | 编辑帖子（仅作者，乐观锁 version） |
-| DELETE | `/posts/:id` | Auth | 软删除楼层（作者或 OWNER/COLLABORATOR；正文 kind=BODY 不可删） |
+| Method | Path                             | Guard  | 描述                                                                                                              |
+| ------ | -------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------- |
+| GET    | `/subthreads/:subthreadId/posts` | Public | 楼层列表（Cursor 分页，仅返回楼层 kind=FLOOR，不含正文；主楼层 parentPostId=null，内嵌每个楼层前 5 条楼中楼回复） |
+| GET    | `/posts/:id/replies`             | Public | 主楼层的楼中楼回复列表（Cursor 分页；支持 `order=OLDEST                                                           | NEWEST`与`authorId`；仅接受 parentPostId=null 的 FLOOR） |
+| POST   | `/subthreads/:subthreadId/posts` | Auth   | 发帖（创建楼层 kind=FLOOR，含楼中楼回复；正文不通过本接口创建）                                                   |
+| PUT    | `/subthreads/:subthreadId/body`  | Auth   | upsert 子贴正文（kind=BODY：无正文创建，有正文乐观锁更新，version 不匹配返回 409；仅 OWNER/COLLABORATOR）         |
+| GET    | `/posts/:id`                     | Public | 帖子详情（含导航上下文：帖/子贴/父楼）                                                                            |
+| PATCH  | `/posts/:id`                     | Auth   | 编辑帖子（仅作者，乐观锁 version）                                                                                |
+| DELETE | `/posts/:id`                     | Auth   | 软删除楼层（作者或 OWNER/COLLABORATOR；正文 kind=BODY 不可删）                                                    |
 
 ## 响应契约
 
@@ -45,6 +45,8 @@
 - 楼层编号 floorNumber 在事务内通过 `MAX(floorNumber) + 1` 分配，永不复用；普通楼层（kind=FLOOR）从 #1 开始
 - 正文帖（kind=BODY）floorNumber = null，不占楼层号
 - 楼中楼回复 floorNumber = null，通过 parentPostId 关联父楼层
+- 数据库部分唯一索引保证每个子贴最多一个未删除 BODY；软删除历史 BODY 不阻止恢复创建。创建路径还会锁定父 Thread 并重查，冲突统一映射为 409
+- 数据库 CHECK 固化 BODY/主楼层/楼中楼的字段形状，复合外键保证 `threadId` 与子贴所属主题一致，并阻止 parent/replyTo 跨子贴引用；主楼层被硬删除时其楼中楼级联删除，避免留下无楼层号的伪主楼层
 - 楼中楼平级挂载：所有回复共享同一个 parentPostId，无嵌套深度限制；回复目标通过 replyToPostId 追踪
 - parentPostId 必须属于同一子贴且为主楼层（parentPostId=null），否则拒绝
 - replyToPostId 必须属于同一子贴，否则拒绝

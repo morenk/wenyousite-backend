@@ -1,6 +1,6 @@
 # 数据模型
 
-> 39 张表，24 个 Prisma 枚举。除显式标注的 UUID 外，ID 使用 `cuid()` 生成，时间戳使用 `DateTime`。
+> 44 张表，25 个 Prisma 枚举。除显式标注的 UUID 外，ID 使用 `cuid()` 生成，时间戳使用 `DateTime`。
 
 ## 枚举定义
 
@@ -288,7 +288,7 @@
 | viewCount | Int | default 0 | 浏览量 |
 | version | Int | default 1 | 乐观锁版本号 |
 | likeCount | Int | default 0 | 点赞数（反范式，与 thread_likes 表同步） |
-| defaultSubthreadId | String? | unique, FK subthreads (SetNull) | 默认子贴 ID（主题帖创建时自动生成，不可单独删除） |
+| defaultSubthreadId | String? | unique, FK subthreads (SetNull) | 默认子贴 ID（必须属于当前主题帖；主题帖创建时自动生成，不可单独删除） |
 | createdAt | DateTime | — | — |
 | updatedAt | DateTime | @updatedAt | — |
 | deletedAt | DateTime? | — | 软删除时间 |
@@ -326,7 +326,7 @@
 | clientRequestId | UUID? | unique with threadId | 创建子贴的客户端幂等键 |
 | createRequestHash | String? | — | 规范化创建载荷摘要，用于检测键误用 |
 | title | String | — | 子贴标题 |
-| sortOrder | Int | default 0, unique per thread | 排序序号（帖内唯一，默认子贴固定为 0） |
+| sortOrder | Int | default 0, unique per active thread | 排序序号（同一主题帖的未删除子贴中唯一，默认子贴固定为 0；软删除后可复用） |
 | postingPolicy | PostingPolicy | default PARTICIPANTS | 发帖权限策略 |
 | version | Int | default 1 | 乐观锁 |
 | lastPostAt | DateTime? | — | 最后发帖时间 |
@@ -338,13 +338,13 @@
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | String | PK | — |
-| threadId | String | FK threads (Cascade) | — |
+| threadId | String | FK threads (Cascade) | 必须与 subthreadId 所属主题帖一致 |
 | subthreadId | String | FK subthreads (Cascade) | — |
 | authorId | String | FK users | 作者 |
 | kind | PostKind | default FLOOR | BODY=子贴正文（floorNumber=null）/ FLOOR=楼层 |
 | floorNumber | Int? | unique per subthread | 楼层号（正文与楼中楼为 null） |
-| parentPostId | String? | FK posts | 父楼层（楼中楼用） |
-| replyToPostId | String? | FK posts | 被回复的帖子 ID |
+| parentPostId | String? | FK posts (Cascade) | 父楼层（楼中楼用，必须位于同一子贴；父楼层硬删除时级联清理回复） |
+| replyToPostId | String? | FK posts | 被回复的帖子 ID（必须位于同一子贴） |
 | content | String | — | 正文（Markdown，含图片 URL 与内联骰子节点） |
 | version | Int | default 1 | 乐观锁 |
 | deletedAt | DateTime? | — | 软删除时间 |
@@ -355,7 +355,7 @@
 
 索引：`@@index([subthreadId, kind])`, `@@index([subthreadId, createdAt])`, `@@index([threadId, createdAt])`, `@@index([parentPostId, createdAt])`（楼中楼分页），以及 `posts_content_trgm_idx`（GIN + `gin_trgm_ops`，正文子串搜索）。三类 trigram 索引由迁移启用 PostgreSQL `pg_trgm` 扩展。
 
-> 子贴正文不单独建表：每子贴至多一个 `kind=BODY` 的帖子，通过 `PUT /subthreads/:id/body` upsert 维护；楼层接口只返回 `kind=FLOOR`。
+> 子贴正文不单独建表：部分唯一索引保证每个子贴至多一个未删除的 `kind=BODY` 帖子，通过 `PUT /subthreads/:id/body` upsert 维护；楼层接口只返回 `kind=FLOOR`。数据库 CHECK 同时约束 BODY 不得带楼层号/父回复，主楼层必须使用大于 0 的楼层号，楼中楼不得带楼层号；复合外键阻止跨主题、跨子贴引用。
 
 ### dice_rolls — 正式骰子结果
 

@@ -8,29 +8,29 @@
 
 ## 模型
 
-| 模型 | 职责 |
-|------|------|
-| `DirectConversation` | 唯一用户对、请求发起/接收方、会话状态和最后消息时间 |
-| `DirectConversationParticipant` | 每位参与者自己的归档状态 |
-| `DirectMessage` | 正文、单图或独立表情资产关联、客户端幂等键、本人未读和撤回占位 |
+| 模型                            | 职责                                                           |
+| ------------------------------- | -------------------------------------------------------------- |
+| `DirectConversation`            | 唯一用户对、请求发起/接收方、会话状态和最后消息时间            |
+| `DirectConversationParticipant` | 每位参与者自己的归档状态                                       |
+| `DirectMessage`                 | 正文、单图或独立表情资产关联、客户端幂等键、本人未读和撤回占位 |
 
 用户对按 ID 排序写入 `firstUserId/secondUserId`，并以唯一索引保证两人只有一个会话。`requesterId/recipientId` 表示最近一次建立请求时的方向，不参与用户对唯一性。
 
 ## API
 
-| 方法 | 路径 | 守卫 | 用途 |
-|------|------|------|------|
-| GET | `/direct-conversations?view=INBOX\|REQUESTS\|ARCHIVED` | AuthRead | 会话列表，游标分页 |
-| POST | `/direct-conversations` | Auth | 发送首条消息并创建或恢复会话 |
-| GET | `/direct-conversations/unread` | AuthRead | 已接受会话未读数、待处理请求数及合计 |
-| GET | `/direct-conversations/by-user/:userId` | AuthRead | 用户主页发起前查询联系状态 |
-| GET | `/direct-conversations/:id` | AuthRead | 会话详情 |
-| GET | `/direct-conversations/:id/messages` | AuthRead | 历史或 `after` 增量消息，按时间正序 |
-| POST | `/direct-conversations/:id/messages` | Auth | 向已接受会话发送消息 |
-| PATCH | `/direct-conversations/:id/request` | AuthRead | 接受或拒绝请求；接受时额外校验邮箱 |
-| PATCH | `/direct-conversations/:id/archive` | AuthRead | 设置当前参与者的归档状态 |
-| POST | `/direct-conversations/:id/read` | AuthRead | 标记当前用户实际展示到的消息为已读 |
-| DELETE | `/direct-messages/:id` | AuthRead | 发送者十分钟内撤回 |
+| 方法   | 路径                                                   | 守卫     | 用途                                 |
+| ------ | ------------------------------------------------------ | -------- | ------------------------------------ |
+| GET    | `/direct-conversations?view=INBOX\|REQUESTS\|ARCHIVED` | AuthRead | 会话列表，游标分页                   |
+| POST   | `/direct-conversations`                                | Auth     | 发送首条消息并创建或恢复会话         |
+| GET    | `/direct-conversations/unread`                         | AuthRead | 已接受会话未读数、待处理请求数及合计 |
+| GET    | `/direct-conversations/by-user/:userId`                | AuthRead | 用户主页发起前查询联系状态           |
+| GET    | `/direct-conversations/:id`                            | AuthRead | 会话详情                             |
+| GET    | `/direct-conversations/:id/messages`                   | AuthRead | 历史或 `after` 增量消息，按时间正序  |
+| POST   | `/direct-conversations/:id/messages`                   | Auth     | 向已接受会话发送消息                 |
+| PATCH  | `/direct-conversations/:id/request`                    | AuthRead | 接受或拒绝请求；接受时额外校验邮箱   |
+| PATCH  | `/direct-conversations/:id/archive`                    | AuthRead | 设置当前参与者的归档状态             |
+| POST   | `/direct-conversations/:id/read`                       | AuthRead | 标记当前用户实际展示到的消息为已读   |
+| DELETE | `/direct-messages/:id`                                 | AuthRead | 发送者十分钟内撤回                   |
 
 ## 状态与请求规则
 
@@ -46,7 +46,7 @@ NEW ──互相关注──> ACCEPTED
 - 互相关注直接进入 `ACCEPTED`；其他关系只允许一条首条消息，接收方处理前发起方不能继续发送。
 - 拒绝会删除请求中的消息。原发起方不能再次申请；原接收方之后主动联系时可以建立会话。
 - 接收方在待处理状态下主动回复等价于接受请求，并把原首条消息标记为本人已读。
-- 拉黑会原子地把待处理请求改为 `DECLINED` 并删除请求消息。已接受会话历史保留，但双方不能继续发送。
+- 拉黑只在会话仍为 `PENDING` 时条件更新为 `DECLINED`；仅当本次条件更新确实成功才删除请求消息。若会话已被并发接受，则保留已接受历史，避免“接受成功但首条消息被拉黑流程删掉”的竞态。双方仍因拉黑关系不能继续发送。
 - 注销账号的既有历史保留，另一方看到“已注销用户”，会话只读。
 
 ## 消息、已读与撤回
@@ -70,4 +70,4 @@ NEW ──互相关注──> ACCEPTED
 - 每位用户默认最多发送 30 条/分钟，由 `DIRECT_MESSAGE_RATE_PER_MINUTE` 配置。
 - 每位用户默认最多发起 10 个陌生消息请求/天，由 `DIRECT_MESSAGE_REQUEST_RATE_PER_DAY` 配置。
 - 私聊图片沿用媒体模块的 10 MB 上传、MIME 校验和公开 URL；表情资产使用表情模块规范化后的 WebP。客户端必须提示用户不要发送敏感图片；收到的陌生请求图片和表情应在点击前不加载。
-- 未撤回私聊消息的图片计入媒体存活引用；拒绝、取消或撤回释放关联后，由孤儿媒体回收处理。
+- 未撤回私聊消息的图片计入媒体存活引用；拒绝、取消或撤回会释放关系。已完成对象在规范化引用账本建立前仍保守保留，当前不会因一次字符串扫描结果被自动硬删。

@@ -1,40 +1,41 @@
 # 任务队列
 
 ## 概述
+
 后台任务按业务归属拆分：通知队列由 `notifications` 模块拥有，图片队列由 `media` 模块拥有，表情规范化队列由 `stickers` 模块拥有，FCM 队列由 `mobile-push` 模块拥有，`jobs` 模块仅负责定时维护。关键业务事件由 `outbox` 模块可靠分发到业务监听器。
 
 ## 涉及的队列
 
-| 队列名 | 用途 | 并发控制 |
-|--------|------|----------|
-| `notification` | 异步批量写入通知记录 | 3 次重试，指数退避 5s |
-| `image` | sharp 生成缩略图和中图 | 2 次重试，固定退避 10s |
-| `sticker` | sharp 规范化静态/动态 WebP、哈希去重并加入收藏 | 2 次重试，固定退避 10s |
-| `mobile-push` | FCM 隐私通知；投递前复查 mobile 登录终端 | 3 次重试，指数退避 |
+| 队列名         | 用途                                           | 并发控制               |
+| -------------- | ---------------------------------------------- | ---------------------- |
+| `notification` | 异步批量写入通知记录                           | 3 次重试，指数退避 5s  |
+| `image`        | sharp 生成缩略图和中图                         | 2 次重试，固定退避 10s |
+| `sticker`      | sharp 规范化静态/动态 WebP、哈希去重并加入收藏 | 2 次重试，固定退避 10s |
+| `mobile-push`  | FCM 隐私通知；投递前复查 mobile 登录终端       | 3 次重试，指数退避     |
 
 ## 涉及的核心组件
 
-| 组件 | 类型 | 说明 |
-|------|------|------|
-| `OutboxDispatcher` | `@Interval` | 竞争领取并重试可靠领域事件（`src/outbox`） |
-| `PostEventsListener` | `@OnEvent('post.created')` | 协调 @提及、通知和 Redis 投影（`src/post-activity`） |
-| `NotificationProducer/Processor` | BullMQ | 通知任务生产与幂等落库（`src/notifications`） |
-| `ImageProcessor` | `@Processor('image')` | 调用 MediaService 生成衍生图（`src/media`） |
-| `StickerProcessor` | `@Processor('sticker')` | 规范化表情并完成幂等导入（`src/stickers`） |
-| `MobilePushProcessor` | `@Processor('mobile-push')` | 验证终端状态、发送 FCM、停用无效 token（`src/mobile-push`） |
-| `CleanupTask` | `@Cron` | 清理过期 token、已处理 Outbox、僵尸用户、孤儿媒体与孤儿表情资产（`src/jobs`） |
+| 组件                             | 类型                        | 说明                                                                                     |
+| -------------------------------- | --------------------------- | ---------------------------------------------------------------------------------------- |
+| `OutboxDispatcher`               | `@Interval`                 | 竞争领取并重试可靠领域事件（`src/outbox`）                                               |
+| `PostEventsListener`             | `@OnEvent('post.created')`  | 协调 @提及、通知和 Redis 投影（`src/post-activity`）                                     |
+| `NotificationProducer/Processor` | BullMQ                      | 通知任务生产与幂等落库（`src/notifications`）                                            |
+| `ImageProcessor`                 | `@Processor('image')`       | 调用 MediaService 生成衍生图（`src/media`）                                              |
+| `StickerProcessor`               | `@Processor('sticker')`     | 规范化表情并完成幂等导入（`src/stickers`）                                               |
+| `MobilePushProcessor`            | `@Processor('mobile-push')` | 验证终端状态、发送 FCM、停用无效 token（`src/mobile-push`）                              |
+| `CleanupTask`                    | `@Cron`                     | 清理过期 token、已处理 Outbox、僵尸用户、失败/未完成媒体与终态表情导入记录（`src/jobs`） |
 
 ## 枚举
 
-| 枚举 | 值 | 说明 |
-|------|----|------|
-| `NotificationType` | `reply` | 楼中楼回复通知 |
-| `NotificationType` | `mention` | @提及通知 |
-| `NotificationType` | `new_post` | 新正文/楼层通知 |
-| `NotificationType` | `thread_created` | 主题帖创建通知 |
-| `NotificationType` | `follow` | 关注通知 |
-| `NotificationType` | `like` | 点赞通知 |
-| `NotificationType` | `system` | 系统通知 |
+| 枚举               | 值               | 说明            |
+| ------------------ | ---------------- | --------------- |
+| `NotificationType` | `reply`          | 楼中楼回复通知  |
+| `NotificationType` | `mention`        | @提及通知       |
+| `NotificationType` | `new_post`       | 新正文/楼层通知 |
+| `NotificationType` | `thread_created` | 主题帖创建通知  |
+| `NotificationType` | `follow`         | 关注通知        |
+| `NotificationType` | `like`           | 点赞通知        |
+| `NotificationType` | `system`         | 系统通知        |
 
 ## 核心业务规则
 
@@ -65,7 +66,8 @@
 - 清理过期的 `EmailVerification` token
 - 删除注册超过 7 天仍未验证邮箱的用户
 - 清理 7 天前已确认的 Outbox；绝不删除未处理事件
-- 清理 7 天前完成或失败的表情导入记录，以及没有收藏、私聊或帖子引用的孤儿表情资产
+- 清理超过 24 小时未确认的上传和超过 7 天的失败媒体；已完成媒体在建立规范化引用账本前保守保留
+- 清理 7 天前完成或失败的表情导入记录；已完成表情资产可能被 Markdown 字符串引用，在建立规范化引用账本前保守保留，不执行自动对象删除
 - 停用 90 天未更新的移动推送终端；发送时仍会再次核对 refresh-token family 是否活跃
 
 ## 设计决策
