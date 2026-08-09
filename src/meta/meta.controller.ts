@@ -15,6 +15,25 @@ class ApiCapabilitiesResponseDto {
   pushNotifications!: boolean;
 }
 
+class MobilePlatformCompatibilityDto {
+  @ApiProperty({ type: Number, nullable: true, example: 120 })
+  minimumSupportedBuild!: number | null;
+
+  @ApiProperty({ type: Number, nullable: true, example: 135 })
+  recommendedBuild!: number | null;
+
+  @ApiProperty({ type: String, nullable: true, example: 'https://wenyou.site/download' })
+  updateUrl!: string | null;
+}
+
+class MobileCompatibilityDto {
+  @ApiProperty({ type: MobilePlatformCompatibilityDto })
+  android!: MobilePlatformCompatibilityDto;
+
+  @ApiProperty({ type: MobilePlatformCompatibilityDto })
+  ios!: MobilePlatformCompatibilityDto;
+}
+
 class ApiMetaResponseDto {
   @ApiProperty()
   contractVersion!: string;
@@ -27,6 +46,9 @@ class ApiMetaResponseDto {
 
   @ApiProperty({ type: ApiCapabilitiesResponseDto })
   capabilities!: ApiCapabilitiesResponseDto;
+
+  @ApiProperty({ type: MobileCompatibilityDto })
+  mobileCompatibility!: MobileCompatibilityDto;
 }
 
 /** 客户端启动时可读取的稳定协议元数据。 */
@@ -48,6 +70,19 @@ export class MetaController {
         directMessages: true,
         pushNotifications: this.config.get<boolean>('push.enabled') ?? false,
       },
+      mobileCompatibility: {
+        android: this.platformCompatibility('android'),
+        ios: this.platformCompatibility('ios'),
+      },
+    };
+  }
+
+  private platformCompatibility(platform: 'android' | 'ios'): MobilePlatformCompatibilityDto {
+    const prefix = `mobileCompatibility.${platform}`;
+    return {
+      minimumSupportedBuild: this.config.get<number>(`${prefix}.minimumSupportedBuild`) ?? null,
+      recommendedBuild: this.config.get<number>(`${prefix}.recommendedBuild`) ?? null,
+      updateUrl: this.config.get<string>(`${prefix}.updateUrl`) ?? null,
     };
   }
 }

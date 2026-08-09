@@ -398,6 +398,19 @@ test(s1, 'GET /meta 客户端协议元数据', async () => {
   assert(r.code === 0, 'meta 应成功');
   assert(r.data.contractVersion === API_CONTRACT_VERSION, `契约应为 ${API_CONTRACT_VERSION}`);
   assert(r.data.markdownContractVersion === 2, 'Markdown 协议应为 v2');
+  for (const platform of ['android', 'ios']) {
+    const policy = r.data.mobileCompatibility?.[platform];
+    assert(!!policy, `${platform} 应返回移动兼容策略`);
+    assert(
+      policy.minimumSupportedBuild === null || Number.isInteger(policy.minimumSupportedBuild),
+      `${platform} 最低构建号应为整数或 null`,
+    );
+    assert(
+      policy.recommendedBuild === null || Number.isInteger(policy.recommendedBuild),
+      `${platform} 推荐构建号应为整数或 null`,
+    );
+    assert(policy.updateUrl === null || typeof policy.updateUrl === 'string', `${platform} 更新地址应为字符串或 null`);
+  }
 });
 
 test(s1, 'GET /thread-categories 返回动态分类配置', async () => {
@@ -941,8 +954,16 @@ test(s14, 'DELETE /threads/:id 软删除主题帖', async () => {
 });
 
 test(s14, 'POST /auth/logout 登出', async () => {
+  const accessToken = api.token;
+  const refreshToken = api.cookies.get('refreshToken');
+  assert(!!refreshToken, '登出前应存在 refresh token Cookie');
   const r = await api.post('/auth/logout');
   assert(r.code === 0, `登出应成功 (got: ${r.code} ${r.message})`);
+  const refreshResult = await api.expectStatus('/auth/refresh', 'POST', { refreshToken });
+  assert(refreshResult.status === 401, `登出后 refresh token 应失效，实际 ${refreshResult.status}`);
+  api.token = accessToken;
+  const accessResult = await api.expectStatus('/users/me', 'GET');
+  assert(accessResult.status === 401, `登出后 access token 对应终端应失效，实际 ${accessResult.status}`);
 });
 
 // ═══════════════════════════════════════════════════════════════

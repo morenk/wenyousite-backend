@@ -7,6 +7,7 @@ WORKSPACE_DIR=$(cd -- "$BACKEND_DIR/.." && pwd)
 FRONTEND_DIR="$WORKSPACE_DIR/wenyousite-frontend"
 COMPOSE_FILE="$BACKEND_DIR/docker-compose.yml"
 RUNTIME_DIR=/tmp/opencode
+BACKEND_BUILD_SHA=$(git -C "$BACKEND_DIR" rev-parse HEAD)
 
 mkdir -p "$RUNTIME_DIR"
 
@@ -65,12 +66,18 @@ echo "3. 备份并迁移数据库..."
 echo "4. 切换后端宿主机进程..."
 BACKEND_PID=$(ss -tlnp | awk '/:3000 / && /pid=/ { match($0, /pid=([0-9]+)/, a); print a[1]; exit }')
 stop_process "$BACKEND_PID" "后端"
-(cd "$BACKEND_DIR" && setsid nohup env NODE_ENV=production node dist/main </dev/null \
+(cd "$BACKEND_DIR" && setsid nohup env NODE_ENV=production BUILD_SHA="$BACKEND_BUILD_SHA" node dist/main </dev/null \
   > "$RUNTIME_DIR/wenyousite-backend.log" 2>&1 &)
 wait_for_http \
   http://127.0.0.1:3000/api/v1/health \
   "后端" \
   "$RUNTIME_DIR/wenyousite-backend.log"
+DEPLOYED_BUILD_SHA=$(curl --fail --silent --show-error http://127.0.0.1:3000/api/v1/meta | \
+  node -e 'let input=""; process.stdin.on("data", (chunk) => input += chunk).on("end", () => process.stdout.write(JSON.parse(input).data.buildSha ?? ""));')
+if [ "$DEPLOYED_BUILD_SHA" != "$BACKEND_BUILD_SHA" ]; then
+  echo "后端 buildSha 与待部署提交不一致" >&2
+  exit 1
+fi
 
 echo "5. 切换前端宿主机进程..."
 (cd "$FRONTEND_DIR" && cp -a .next/static .next/standalone/.next/ && cp -a public .next/standalone/)

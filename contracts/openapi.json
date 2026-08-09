@@ -1024,7 +1024,7 @@
         },
         "responses": {
           "200": {
-            "description": "登出成功，refreshToken 被撤销，Cookie 被清除",
+            "description": "当前登录终端已撤销，客户端 Cookie 被清除",
             "content": {
               "application/json": {
                 "schema": {
@@ -1065,7 +1065,7 @@
             "bearer": []
           }
         ],
-        "summary": "登出：撤销当前登录终端的 refresh token（Cookie 优先），同时清除客户端 Cookie",
+        "summary": "登出：按 access token 的稳定终端 ID 撤销当前终端，旧客户端回退到 refresh token",
         "tags": [
           "Auth"
         ],
@@ -13857,7 +13857,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "4.3.0-dev.20260808.1",
+    "version": "4.4.0-dev.20260809.1",
     "contact": {}
   },
   "tags": [
@@ -14304,7 +14304,7 @@
           "refreshToken": {
             "type": "string",
             "example": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-            "description": "待撤销的刷新令牌（Cookie 中已有则无需传）"
+            "description": "旧客户端兼容：待撤销的刷新令牌；当前 access token 含 sid 时可省略"
           }
         }
       },
@@ -21199,6 +21199,46 @@
           "pushNotifications"
         ]
       },
+      "MobilePlatformCompatibilityDto": {
+        "type": "object",
+        "properties": {
+          "minimumSupportedBuild": {
+            "type": "number",
+            "nullable": true,
+            "example": 120
+          },
+          "recommendedBuild": {
+            "type": "number",
+            "nullable": true,
+            "example": 135
+          },
+          "updateUrl": {
+            "type": "string",
+            "nullable": true,
+            "example": "https://wenyou.site/download"
+          }
+        },
+        "required": [
+          "minimumSupportedBuild",
+          "recommendedBuild",
+          "updateUrl"
+        ]
+      },
+      "MobileCompatibilityDto": {
+        "type": "object",
+        "properties": {
+          "android": {
+            "$ref": "#/components/schemas/MobilePlatformCompatibilityDto"
+          },
+          "ios": {
+            "$ref": "#/components/schemas/MobilePlatformCompatibilityDto"
+          }
+        },
+        "required": [
+          "android",
+          "ios"
+        ]
+      },
       "ApiMetaResponseDto": {
         "type": "object",
         "properties": {
@@ -21215,13 +21255,17 @@
           },
           "capabilities": {
             "$ref": "#/components/schemas/ApiCapabilitiesResponseDto"
+          },
+          "mobileCompatibility": {
+            "$ref": "#/components/schemas/MobileCompatibilityDto"
           }
         },
         "required": [
           "contractVersion",
           "buildSha",
           "markdownContractVersion",
-          "capabilities"
+          "capabilities",
+          "mobileCompatibility"
         ]
       },
       "WalletResponseDto": {

@@ -616,6 +616,15 @@ describe('AuthService', () => {
         }),
       );
     });
+
+    it('refresh token 不属于活跃终端时拒绝假成功', async () => {
+      mockPrisma.refreshToken.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.logout('u1', 'unknown-refresh-token')).rejects.toMatchObject({
+        errorCode: ErrorCode.SESSION_NOT_FOUND,
+        status: 401,
+      });
+    });
   });
 
   describe('changePassword', () => {

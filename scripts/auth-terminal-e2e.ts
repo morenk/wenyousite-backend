@@ -421,6 +421,34 @@ async function verifyRuntime(databaseUrl: string) {
       '远程退出后数据库应只剩一个活跃 Web 登录终端',
     );
 
+    const selfLogout = await server.inject({
+      method: 'POST',
+      url: '/api/v1/auth/logout',
+      headers: { authorization: `Bearer ${webRefreshBody.data.accessToken}` },
+      payload: {},
+    });
+    assert(selfLogout.statusCode === 200, '不携带 refresh token 时应按 access sid 退出当前终端');
+
+    const revokedWebAccess = await server.inject({
+      method: 'GET',
+      url: '/api/v1/auth/sessions',
+      headers: { authorization: `Bearer ${webRefreshBody.data.accessToken}` },
+    });
+    assert(revokedWebAccess.statusCode === 401, '主动退出后当前 access token 应立即失效');
+
+    const revokedWebRefresh = await server.inject({
+      method: 'POST',
+      url: '/api/v1/auth/refresh',
+      headers: { cookie: refreshedWebCookie },
+      payload: {},
+    });
+    assert(revokedWebRefresh.statusCode === 401, '主动退出后当前 refresh token 应立即失效');
+
+    assert(
+      await prisma.refreshToken.count({ where: { userId: user.id, revokedAt: null } }) === 0,
+      '主动退出后不应保留活跃登录终端',
+    );
+
     const document = createOpenApiDocument(app);
     const schemas = document.components?.schemas as
       Record<string, { required?: string[] }> | undefined;

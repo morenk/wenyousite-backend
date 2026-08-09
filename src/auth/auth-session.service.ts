@@ -373,10 +373,13 @@ export class AuthSessionService {
   /** 登出：撤销当前登录终端的 refresh token */
   async logout(userId: string, rawRefreshToken: string) {
     const tokenHash = this.hashToken(rawRefreshToken);
-    await this.prisma.refreshToken.updateMany({
+    const result = await this.prisma.refreshToken.updateMany({
       where: { userId, tokenHash, revokedAt: null },
       data: { revokedAt: new Date() },
     });
+    if (result.count === 0) {
+      throw unauthorized('登录终端不存在或已失效', ErrorCode.SESSION_NOT_FOUND);
+    }
     return { message: '已登出' };
   }
 

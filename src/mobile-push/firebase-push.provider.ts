@@ -44,11 +44,13 @@ export function buildMobilePushData(message: MobilePushMessage): MobilePushData 
 export class FirebasePushProvider implements OnModuleInit {
   private readonly logger = new Logger(FirebasePushProvider.name);
   private enabled = false;
+  private ttlSeconds = 86_400;
 
   constructor(private readonly config: ConfigService) {}
 
   onModuleInit() {
     this.enabled = this.config.get<boolean>('push.enabled') ?? false;
+    this.ttlSeconds = this.config.get<number>('push.ttlSeconds') ?? 86_400;
     if (!this.enabled) return;
     if (getApps().length === 0) {
       initializeApp({
@@ -66,12 +68,18 @@ export class FirebasePushProvider implements OnModuleInit {
   async send(message: MobilePushMessage) {
     if (!this.enabled) return;
     const body = message.kind === 'direct_message' ? '你有一条新私聊消息' : '你有一条新通知';
+    const expiresAt = Math.floor(Date.now() / 1000) + this.ttlSeconds;
     await getMessaging().send({
       token: message.token,
       notification: { title: '温油站', body },
       data: buildMobilePushData(message),
-      android: { collapseKey: message.collapseKey },
-      apns: { headers: { 'apns-collapse-id': message.collapseKey } },
+      android: { collapseKey: message.collapseKey, ttl: this.ttlSeconds * 1000 },
+      apns: {
+        headers: {
+          'apns-collapse-id': message.collapseKey,
+          'apns-expiration': String(expiresAt),
+        },
+      },
     });
   }
 }

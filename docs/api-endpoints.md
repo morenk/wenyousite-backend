@@ -23,7 +23,7 @@
 | POST | `/auth/reset-password` | public | 用邮箱 + 验证码重置密码，成功后吊销全部 refresh token |
 | POST | `/auth/change-email/request-code` | authenticated | 更换邮箱第一步：向新邮箱发送验证码（限流 1次/分钟） |
 | POST | `/auth/change-email/verify` | verified | 更换邮箱第二步：验证码确认并更新邮箱 |
-| POST | `/auth/logout` | authenticated | 登出：撤销当前登录终端的 refresh token（Cookie 优先），同时清除客户端 Cookie |
+| POST | `/auth/logout` | authenticated | 登出：按 access token 的稳定终端 ID 撤销当前终端，旧客户端回退到 refresh token |
 | GET | `/auth/sessions` | authenticated | 获取当前用户的 Web / 移动客户端活跃登录终端（限流 60 次/分钟） |
 | DELETE | `/auth/sessions/{id}` | authenticated | 退出指定登录终端（限流 60 次/分钟） |
 

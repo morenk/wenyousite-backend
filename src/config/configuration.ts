@@ -1,3 +1,7 @@
+function optionalPositiveInteger(value: string | undefined): number | undefined {
+  return value ? Number.parseInt(value, 10) : undefined;
+}
+
 /** 应用配置：从环境变量读取配置，提供类型安全访问 */
 export default () => ({
   // 服务端口
@@ -80,6 +84,24 @@ export default () => ({
     enabled: process.env.PUSH_ENABLED === 'true',
     firebaseProjectId: process.env.FIREBASE_PROJECT_ID ?? '',
     credentialsPath: process.env.GOOGLE_APPLICATION_CREDENTIALS ?? '',
+    ttlSeconds: parseInt(process.env.MOBILE_PUSH_TTL_SECONDS ?? '86400', 10),
+  },
+
+  mobileCompatibility: {
+    android: {
+      minimumSupportedBuild: optionalPositiveInteger(
+        process.env.MOBILE_ANDROID_MIN_SUPPORTED_BUILD,
+      ),
+      recommendedBuild: optionalPositiveInteger(process.env.MOBILE_ANDROID_RECOMMENDED_BUILD),
+      updateUrl: process.env.MOBILE_ANDROID_UPDATE_URL || undefined,
+    },
+    ios: {
+      minimumSupportedBuild: optionalPositiveInteger(
+        process.env.MOBILE_IOS_MIN_SUPPORTED_BUILD,
+      ),
+      recommendedBuild: optionalPositiveInteger(process.env.MOBILE_IOS_RECOMMENDED_BUILD),
+      updateUrl: process.env.MOBILE_IOS_UPDATE_URL || undefined,
+    },
   },
 
   // 日志：Pino 结构化日志配置

@@ -1,5 +1,17 @@
 import { plainToInstance, Transform } from 'class-transformer';
-import { IsBoolean, IsEnum, IsNumber, IsOptional, IsString, Min, validateSync } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUrl,
+  Matches,
+  Max,
+  Min,
+  ValidateIf,
+  validateSync,
+} from 'class-validator';
 
 /** 环境变量校验器：应用启动时验证必要的环境变量 */
 enum Environment {
@@ -72,6 +84,38 @@ class EnvironmentVariables {
   @IsOptional()
   GOOGLE_APPLICATION_CREDENTIALS: string = '';
 
+  @IsNumber()
+  @IsOptional()
+  @Min(60)
+  @Max(2_419_200)
+  MOBILE_PUSH_TTL_SECONDS: number = 86_400;
+
+  @IsString()
+  @Matches(/^(?:|[1-9]\d*)$/)
+  MOBILE_ANDROID_MIN_SUPPORTED_BUILD: string = '';
+
+  @IsString()
+  @Matches(/^(?:|[1-9]\d*)$/)
+  MOBILE_ANDROID_RECOMMENDED_BUILD: string = '';
+
+  @IsString()
+  @ValidateIf((value: EnvironmentVariables) => value.MOBILE_ANDROID_UPDATE_URL !== '')
+  @IsUrl({ protocols: ['https'], require_protocol: true })
+  MOBILE_ANDROID_UPDATE_URL: string = '';
+
+  @IsString()
+  @Matches(/^(?:|[1-9]\d*)$/)
+  MOBILE_IOS_MIN_SUPPORTED_BUILD: string = '';
+
+  @IsString()
+  @Matches(/^(?:|[1-9]\d*)$/)
+  MOBILE_IOS_RECOMMENDED_BUILD: string = '';
+
+  @IsString()
+  @ValidateIf((value: EnvironmentVariables) => value.MOBILE_IOS_UPDATE_URL !== '')
+  @IsUrl({ protocols: ['https'], require_protocol: true })
+  MOBILE_IOS_UPDATE_URL: string = '';
+
   @IsString()
   @IsOptional()
   COS_ENDPOINT: string = 'https://cn-nb1.rains3.com';
@@ -128,6 +172,29 @@ export function validate(config: Record<string, unknown>) {
 
   if (errors.length > 0) {
     throw new Error(errors.toString());
+  }
+  for (const [platform, minimum, recommended, updateUrl] of [
+    [
+      'Android',
+      validatedConfig.MOBILE_ANDROID_MIN_SUPPORTED_BUILD,
+      validatedConfig.MOBILE_ANDROID_RECOMMENDED_BUILD,
+      validatedConfig.MOBILE_ANDROID_UPDATE_URL,
+    ],
+    [
+      'iOS',
+      validatedConfig.MOBILE_IOS_MIN_SUPPORTED_BUILD,
+      validatedConfig.MOBILE_IOS_RECOMMENDED_BUILD,
+      validatedConfig.MOBILE_IOS_UPDATE_URL,
+    ],
+  ] as const) {
+    const minimumBuild = minimum ? Number(minimum) : undefined;
+    const recommendedBuild = recommended ? Number(recommended) : undefined;
+    if (minimumBuild !== undefined && recommendedBuild !== undefined && recommendedBuild < minimumBuild) {
+      throw new Error(`${platform} 推荐构建号不能低于最低支持构建号`);
+    }
+    if ((minimumBuild !== undefined || recommendedBuild !== undefined) && !updateUrl) {
+      throw new Error(`${platform} 配置构建号策略时必须提供 HTTPS 更新地址`);
+    }
   }
   if (validatedConfig.NODE_ENV === Environment.Production) {
     if (

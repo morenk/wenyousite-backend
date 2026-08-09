@@ -1,5 +1,6 @@
 /** 校验 FCM data v1 JSON Schema 和黄金样例的结构与隐私边界。 */
 
+import Ajv from 'ajv';
 import * as fs from 'node:fs';
 
 type JsonObject = Record<string, unknown>;
@@ -19,30 +20,6 @@ const failures: string[] = [];
 
 function isObject(value: unknown): value is JsonObject {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value));
-}
-
-function validatePayload(value: unknown): string[] {
-  if (!isObject(value)) return ['payload 必须是对象'];
-  if (!Object.values(value).every((item) => typeof item === 'string')) {
-    return ['FCM data 的所有值必须是字符串'];
-  }
-  if (value.schemaVersion !== '1') return ['schemaVersion 必须为字符串 1'];
-
-  const expectedKeys = value.kind === 'notification'
-    ? ['kind', 'notificationId', 'schemaVersion']
-    : value.kind === 'direct_message'
-      ? ['conversationId', 'kind', 'messageId', 'schemaVersion']
-      : null;
-  if (!expectedKeys) return ['kind 必须为 notification 或 direct_message'];
-  if (JSON.stringify(Object.keys(value).sort()) !== JSON.stringify(expectedKeys)) {
-    return ['payload 字段集与 kind 不匹配'];
-  }
-  for (const key of expectedKeys.filter((key) => !['kind', 'schemaVersion'].includes(key))) {
-    if (typeof value[key] !== 'string' || value[key].length === 0) {
-      return [`${key} 必须是非空字符串`];
-    }
-  }
-  return [];
 }
 
 if (schema.$schema !== 'http://json-schema.org/draft-07/schema#') {
@@ -82,12 +59,14 @@ const caseIds = allCases.map((item) => item.id).filter((id): id is string => typ
 if (caseIds.length !== allCases.length || new Set(caseIds).size !== caseIds.length) {
   failures.push('mobile push fixture case id 必须存在且唯一');
 }
+const validatePayload = new Ajv({ allErrors: true, strict: true }).compile(schema);
 for (const fixture of fixtures.validCases ?? []) {
-  const errors = validatePayload(fixture.payload);
-  if (errors.length > 0) failures.push(`${String(fixture.id)} 应合法：${errors.join('; ')}`);
+  if (!validatePayload(fixture.payload)) {
+    failures.push(`${String(fixture.id)} 应合法：${JSON.stringify(validatePayload.errors)}`);
+  }
 }
 for (const fixture of fixtures.invalidCases ?? []) {
-  if (validatePayload(fixture.payload).length === 0) {
+  if (validatePayload(fixture.payload)) {
     failures.push(`${String(fixture.id)} 应被拒绝`);
   }
 }

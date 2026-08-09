@@ -5,6 +5,7 @@ import { FastifyReply, FastifyRequest } from 'fastify';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { ConfigService } from '@nestjs/config';
+import { ErrorCode } from '../common/exceptions/error-codes';
 
 const config = new ConfigService();
 
@@ -40,7 +41,7 @@ describe('AuthController 会话限流', () => {
 });
 
 describe('AuthController 客户端平台契约', () => {
-  const makeReply = () => ({ setCookie: jest.fn() }) as unknown as FastifyReply;
+  const makeReply = () => ({ setCookie: jest.fn(), clearCookie: jest.fn() }) as unknown as FastifyReply;
 
   it('登录缺失或非法平台时按 web 创建会话，并设置 7 天 Cookie', async () => {
     const authService = {
@@ -129,5 +130,56 @@ describe('AuthController 客户端平台契约', () => {
       expect.objectContaining({ maxAge: 7 * 24 * 60 * 60 }),
     );
     expect(result).not.toHaveProperty('refreshToken');
+  });
+
+  it('登出优先按 access token 中的稳定终端 ID 撤销整个终端', async () => {
+    const authService = {
+      revokeSession: jest.fn().mockResolvedValue({ message: '登录终端已退出' }),
+      logout: jest.fn(),
+    } as unknown as AuthService;
+    const controller = new AuthController(authService, config);
+    const reply = makeReply();
+    const request = {
+      user: { id: 'u1', sessionId: 'family-1' },
+      cookies: { refreshToken: 'rotated-token' },
+    } as unknown as FastifyRequest;
+
+    await expect(controller.logout(request, { refreshToken: undefined }, reply)).resolves.toEqual({
+      message: '已登出',
+    });
+
+    expect(authService.revokeSession).toHaveBeenCalledWith('u1', 'family-1');
+    expect(authService.logout).not.toHaveBeenCalled();
+    expect(reply.clearCookie).toHaveBeenCalledWith(
+      'refreshToken',
+      expect.objectContaining({ path: '/api/v1/auth' }),
+    );
+  });
+
+  it('旧 access token 无 sid 时回退到 Cookie 或请求体 refresh token', async () => {
+    const authService = {
+      revokeSession: jest.fn(),
+      logout: jest.fn().mockResolvedValue({ message: '已登出' }),
+    } as unknown as AuthService;
+    const controller = new AuthController(authService, config);
+    const reply = makeReply();
+    const request = { user: { id: 'u1' }, cookies: {} } as unknown as FastifyRequest;
+
+    await controller.logout(request, { refreshToken: 'legacy-token' }, reply);
+
+    expect(authService.logout).toHaveBeenCalledWith('u1', 'legacy-token');
+    expect(authService.revokeSession).not.toHaveBeenCalled();
+  });
+
+  it('无法识别当前终端时拒绝假成功并仍清理 Cookie', async () => {
+    const authService = { revokeSession: jest.fn(), logout: jest.fn() } as unknown as AuthService;
+    const controller = new AuthController(authService, config);
+    const reply = makeReply();
+    const request = { user: { id: 'u1' }, cookies: {} } as unknown as FastifyRequest;
+
+    await expect(
+      controller.logout(request, { refreshToken: undefined }, reply),
+    ).rejects.toMatchObject({ errorCode: ErrorCode.SESSION_NOT_FOUND, status: 401 });
+    expect(reply.clearCookie).toHaveBeenCalled();
   });
 });

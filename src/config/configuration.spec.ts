@@ -25,7 +25,24 @@ describe('configuration', () => {
       argon2: { timeCost: 3, memoryCost: 65_536 },
       upload: { ratePerHour: 60 },
       directMessages: { sendRatePerMinute: 30, requestRatePerDay: 10 },
-      push: { enabled: false, firebaseProjectId: '', credentialsPath: '' },
+      push: {
+        enabled: false,
+        firebaseProjectId: '',
+        credentialsPath: '',
+        ttlSeconds: 86_400,
+      },
+      mobileCompatibility: {
+        android: {
+          minimumSupportedBuild: undefined,
+          recommendedBuild: undefined,
+          updateUrl: undefined,
+        },
+        ios: {
+          minimumSupportedBuild: undefined,
+          recommendedBuild: undefined,
+          updateUrl: undefined,
+        },
+      },
     }));
   });
 
@@ -43,6 +60,13 @@ describe('configuration', () => {
       SES_SMTP_PORT: '587',
       ENABLE_API_DOCS: 'false',
       PUSH_ENABLED: 'true',
+      MOBILE_PUSH_TTL_SECONDS: '172800',
+      MOBILE_ANDROID_MIN_SUPPORTED_BUILD: '120',
+      MOBILE_ANDROID_RECOMMENDED_BUILD: '135',
+      MOBILE_ANDROID_UPDATE_URL: 'https://play.google.com/store/apps/details?id=site.wenyou',
+      MOBILE_IOS_MIN_SUPPORTED_BUILD: '80',
+      MOBILE_IOS_RECOMMENDED_BUILD: '90',
+      MOBILE_IOS_UPDATE_URL: 'https://apps.apple.com/app/id123456789',
       BUILD_SHA: 'abcdef',
       LOG_FILE_DIR: '/tmp/wenyou-logs',
     });
@@ -61,6 +85,19 @@ describe('configuration', () => {
     expect(result.ses.port).toBe(587);
     expect(result.app).toEqual(expect.objectContaining({ apiDocsEnabled: false, buildSha: 'abcdef' }));
     expect(result.push.enabled).toBe(true);
+    expect(result.push.ttlSeconds).toBe(172_800);
+    expect(result.mobileCompatibility).toEqual({
+      android: {
+        minimumSupportedBuild: 120,
+        recommendedBuild: 135,
+        updateUrl: 'https://play.google.com/store/apps/details?id=site.wenyou',
+      },
+      ios: {
+        minimumSupportedBuild: 80,
+        recommendedBuild: 90,
+        updateUrl: 'https://apps.apple.com/app/id123456789',
+      },
+    });
     expect(result.log.fileDir).toBe('/tmp/wenyou-logs');
   });
 

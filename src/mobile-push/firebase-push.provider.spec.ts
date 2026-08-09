@@ -50,6 +50,7 @@ describe('FirebasePushProvider', () => {
     config.get.mockImplementation((key: string) => ({
       'push.enabled': false,
       'push.firebaseProjectId': 'project-1',
+      'push.ttlSeconds': 86_400,
     })[key]);
     (getApps as jest.Mock).mockReturnValue([]);
     (applicationDefault as jest.Mock).mockReturnValue({ credential: 'default' });
@@ -115,7 +116,11 @@ describe('FirebasePushProvider', () => {
   });
 
   it.each(fixtures.validCases)('发送 $id 时匹配 push v1 黄金样例', async ({ payload }) => {
-    config.get.mockImplementation((key: string) => key === 'push.enabled' ? true : 'project-1');
+    config.get.mockImplementation((key: string) => ({
+      'push.enabled': true,
+      'push.firebaseProjectId': 'project-1',
+      'push.ttlSeconds': 86_400,
+    })[key]);
     (getApps as jest.Mock).mockReturnValue([{ name: '[DEFAULT]' }]);
     const provider = new FirebasePushProvider(config as unknown as ConfigService);
     jest.spyOn(
@@ -124,6 +129,7 @@ describe('FirebasePushProvider', () => {
     ).mockImplementation(() => undefined);
     provider.onModuleInit();
     const message = messageForPayload(payload);
+    const dateNow = jest.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
 
     expect(buildMobilePushData(message)).toEqual(payload);
     await provider.send(message);
@@ -135,8 +141,14 @@ describe('FirebasePushProvider', () => {
         body: payload.kind === 'direct_message' ? '你有一条新私聊消息' : '你有一条新通知',
       },
       data: payload,
-      android: { collapseKey: message.collapseKey },
-      apns: { headers: { 'apns-collapse-id': message.collapseKey } },
+      android: { collapseKey: message.collapseKey, ttl: 86_400_000 },
+      apns: {
+        headers: {
+          'apns-collapse-id': message.collapseKey,
+          'apns-expiration': '1700086400',
+        },
+      },
     });
+    dateNow.mockRestore();
   });
 });

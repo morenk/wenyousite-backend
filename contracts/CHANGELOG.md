@@ -1,5 +1,10 @@
 # API 合同变更
 
+## 4.4.0-dev.20260809.1
+
+- `/meta` 向后兼容新增 Android/iOS 分平台最低支持构建号、推荐构建号和更新地址；未配置时显式返回 `null`。
+- `/auth/logout` 优先按 access token 的稳定终端 ID 撤销整个当前终端，旧客户端继续兼容 Cookie 或请求体 refresh token；无法识别终端时不再静默成功。
+
 ## 4.3.0-dev.20260808.1
 
 - 动态评论向后兼容新增可选 `mediaId` / `stickerAssetId`；正文、图片、表情至少提供一项，图片与表情互斥且每条最多一个媒体。

@@ -147,6 +147,26 @@ if (!Array.isArray(document.servers) || document.servers.length === 0) {
   failures.push('OpenAPI servers 不能为空');
 }
 
+const metaSchema = document.components?.schemas?.ApiMetaResponseDto;
+const mobileCompatibilitySchema = document.components?.schemas?.MobileCompatibilityDto;
+const platformCompatibilitySchema = document.components?.schemas?.MobilePlatformCompatibilityDto;
+if (!metaSchema?.required?.includes('mobileCompatibility')) {
+  failures.push('ApiMetaResponseDto.mobileCompatibility 必须为必填字段');
+}
+for (const platform of ['android', 'ios']) {
+  if (!mobileCompatibilitySchema?.required?.includes(platform)) {
+    failures.push(`MobileCompatibilityDto.${platform} 必须为必填字段`);
+  }
+}
+for (const field of ['minimumSupportedBuild', 'recommendedBuild', 'updateUrl']) {
+  if (!platformCompatibilitySchema?.required?.includes(field)) {
+    failures.push(`MobilePlatformCompatibilityDto.${field} 必须为必填字段`);
+  }
+  if (platformCompatibilitySchema?.properties?.[field]?.nullable !== true) {
+    failures.push(`MobilePlatformCompatibilityDto.${field} 必须显式 nullable`);
+  }
+}
+
 const anonymousSchemaBudget = 0;
 if (anonymousSuccessSchemas > anonymousSchemaBudget) {
   failures.push(

@@ -213,15 +213,19 @@ export class AuthController {
   @AuthRead()
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '登出：撤销当前登录终端的 refresh token（Cookie 优先），同时清除客户端 Cookie' })
-  @ApiOkResponse({ type: MessageResponseDto, description: '登出成功，refreshToken 被撤销，Cookie 被清除' })
+  @ApiOperation({ summary: '登出：按 access token 的稳定终端 ID 撤销当前终端，旧客户端回退到 refresh token' })
+  @ApiOkResponse({ type: MessageResponseDto, description: '当前登录终端已撤销，客户端 Cookie 被清除' })
   async logout(@Req() req: FastifyRequest, @Body() dto: LogoutDto, @Res({ passthrough: true }) res: FastifyReply) {
-    const user = req['user'] as { id: string };
+    const user = req['user'] as { id: string; sessionId?: string };
     const token = req.cookies?.refreshToken ?? dto.refreshToken;
-    if (token) {
-      await this.authService.logout(user.id, token);
-    }
     res.clearCookie('refreshToken', this.cookieBase);
+    if (user.sessionId) {
+      await this.authService.revokeSession(user.id, user.sessionId);
+    } else if (token) {
+      await this.authService.logout(user.id, token);
+    } else {
+      throw unauthorized('登录终端不存在或已失效', ErrorCode.SESSION_NOT_FOUND);
+    }
     return { message: '已登出' };
   }
 

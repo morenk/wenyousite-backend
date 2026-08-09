@@ -24,6 +24,7 @@ describe('环境变量校验', () => {
       AUTH_REFRESH_WEB_TTL_DAYS: 14,
       AUTH_REFRESH_MOBILE_TTL_DAYS: 30,
       PUSH_ENABLED: false,
+      MOBILE_PUSH_TTL_SECONDS: 86_400,
     }));
   });
 
@@ -92,5 +93,55 @@ describe('环境变量校验', () => {
       FIREBASE_PROJECT_ID: 'project-1',
       GOOGLE_APPLICATION_CREDENTIALS: '/run/secrets/firebase.json',
     }).PUSH_ENABLED).toBe(true);
+  });
+
+  it('接受分平台移动构建策略和 HTTPS 更新地址', () => {
+    const result = validate({
+      DATABASE_URL: databaseUrl,
+      MOBILE_ANDROID_MIN_SUPPORTED_BUILD: '120',
+      MOBILE_ANDROID_RECOMMENDED_BUILD: '135',
+      MOBILE_ANDROID_UPDATE_URL: 'https://play.google.com/store/apps/details?id=site.wenyou',
+      MOBILE_IOS_RECOMMENDED_BUILD: '90',
+      MOBILE_IOS_UPDATE_URL: 'https://apps.apple.com/app/id123456789',
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      MOBILE_ANDROID_MIN_SUPPORTED_BUILD: '120',
+      MOBILE_ANDROID_RECOMMENDED_BUILD: '135',
+      MOBILE_IOS_RECOMMENDED_BUILD: '90',
+    }));
+  });
+
+  it('拒绝非法构建号、推荐值倒挂和缺失或非 HTTPS 的更新地址', () => {
+    expect(() => validate({
+      DATABASE_URL: databaseUrl,
+      MOBILE_ANDROID_MIN_SUPPORTED_BUILD: '0',
+    })).toThrow();
+    expect(() => validate({
+      DATABASE_URL: databaseUrl,
+      MOBILE_ANDROID_MIN_SUPPORTED_BUILD: '120',
+      MOBILE_ANDROID_RECOMMENDED_BUILD: '119',
+      MOBILE_ANDROID_UPDATE_URL: 'https://wenyou.site/download',
+    })).toThrow('推荐构建号不能低于最低支持构建号');
+    expect(() => validate({
+      DATABASE_URL: databaseUrl,
+      MOBILE_IOS_RECOMMENDED_BUILD: '90',
+    })).toThrow('必须提供 HTTPS 更新地址');
+    expect(() => validate({
+      DATABASE_URL: databaseUrl,
+      MOBILE_IOS_RECOMMENDED_BUILD: '90',
+      MOBILE_IOS_UPDATE_URL: 'http://wenyou.site/download',
+    })).toThrow();
+  });
+
+  it('限制移动推送 TTL 为 60 秒至 28 天', () => {
+    expect(() => validate({
+      DATABASE_URL: databaseUrl,
+      MOBILE_PUSH_TTL_SECONDS: '59',
+    })).toThrow();
+    expect(() => validate({
+      DATABASE_URL: databaseUrl,
+      MOBILE_PUSH_TTL_SECONDS: String(28 * 24 * 60 * 60 + 1),
+    })).toThrow();
   });
 });
