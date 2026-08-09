@@ -2,7 +2,7 @@
 
 ## 1. 项目与事实源
 
-- 本仓库提供温油站 NestJS API；主要技术为 TypeScript、NestJS、Prisma、PostgreSQL、Redis、BullMQ、Vitest。
+- 本仓库提供温油站 NestJS API；主要技术为 TypeScript、NestJS、Prisma、PostgreSQL、Redis、BullMQ、Jest。
 - 公网运行拓扑以工作区 [README](../README.md) 为唯一事实源；命令以 `package.json`，数据模型以 `prisma/schema.prisma`，接口以生成的 OpenAPI 为准。
 - 修改前先读受影响模块、测试及 [架构文档](docs/architecture.md)。已有设计细节放在 `docs/`，不要复制进本文件。
 - Web 与 Flutter 都消费该 API；可观察契约变化必须同时考虑两个客户端。
@@ -36,7 +36,7 @@
 
 ### API 契约
 
-- DTO、Swagger 装饰器与实际响应必须一致；OpenAPI 是 Web/Flutter 共享契约的唯一机器可读来源。
+- DTO、Swagger 装饰器与实际响应必须一致；OpenAPI 是 Web/Flutter 共享 HTTP API 的机器事实源。Markdown 与移动推送分别使用 `contracts/` 下的 schema/fixtures，不能从 OpenAPI 推断其正文协议。
 - 新增或变更可观察接口时，同步更新 DTO、Swagger、测试、`docs/api-contract.md`、已提交 OpenAPI，以及需要的客户端说明。
 - 破坏性变化优先通过兼容字段或新端点演进；确需破坏兼容时，更新 API 版本与变更记录，并明确客户端迁移顺序。
 - 不要手改生成产物来伪造契约通过；从源 DTO/Swagger 修正后重新生成。
@@ -102,7 +102,7 @@ pnpm docs:check
 
 ### 后端切换规则
 
-- 纯后端变化只切换 3000；契约同时变化时先切换并验证后端，再让前端/Flutter 同步契约。
+- 纯后端变化只切换 3000；契约同时变化时先切换并验证后端，再同步现有 Web 契约。Flutter 仓库建立前只维护待接入规范，不声称客户端门禁已经执行。
 - `pnpm check` 已完成构建；源码未再变化时不要重复 build。
 - 依赖或 Prisma 生成器变化时先执行 `pnpm install`/`pnpm prisma:generate` 等对应步骤，以 `package.json` 为准。
 - 数据库与 Redis 由后端仓库唯一的 Compose 管理；不要在工作区创建第二套基础设施。
@@ -115,7 +115,8 @@ npx prisma migrate deploy
 backend_pid="$(ss -tlnp | sed -n 's/.*:3000 .*pid=\([0-9][0-9]*\).*/\1/p' | head -n 1)"
 test -n "$backend_pid" && kill "$backend_pid"
 mkdir -p /tmp/opencode
-setsid nohup env NODE_ENV=production node dist/main </dev/null \
+backend_build_sha="$(git rev-parse HEAD)"
+setsid nohup env NODE_ENV=production BUILD_SHA="$backend_build_sha" node dist/main </dev/null \
   >/tmp/opencode/wenyousite-backend.log 2>&1 &
 ```
 
@@ -141,6 +142,8 @@ bash scripts/deploy.sh
 - [后端架构](docs/architecture.md)
 - [API 契约规范](docs/api-contract.md)
 - [前端接入指南](docs/frontend-guide.md)
+- [Flutter / 原生移动端接入](docs/mobile-client-guide.md)
+- [移动端界面待接入规范](docs/mobile-ui-contract.md)
 - [数据模型](docs/data-model.md)
 - [部署脚本](scripts/deploy.sh)
 

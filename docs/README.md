@@ -10,13 +10,14 @@
 
 | 文档 | 内容 |
 |------|------|
-| [前端接入指南](./frontend-guide.md) | 认证流程、分页约定、核心业务示例、错误码速查 |
+| [前端接入指南](./frontend-guide.md) | 认证流程、分页约定、核心业务示例、生成错误码入口 |
 | [API 端点表](./api-endpoints.md) | API 方法、路径、守卫和参数说明 |
 | [API 参数校验规范](./api-validation.md) | 全局校验管道、DTO 编写规范、参数类型约束细则 |
 | [后端架构与模块边界](./architecture.md) | 分层规则、事务 Outbox、API 契约和自动门禁 |
 | [API 契约发布流程](./api-contract.md) | OpenAPI 事实源、版本、生成与客户端同步规则 |
 | [Flutter / 原生移动端接入](./mobile-client-guide.md) | 安全存储、刷新、幂等、分页、媒体和 FCM |
-| [Flutter 移动端界面与可读性契约](./mobile-ui-contract.md) | 字体、文字缩放、阅读列、原生导航、正文语义与视觉验收 |
+| [Flutter 移动端界面与可读性待接入规范](./mobile-ui-contract.md) | 尚待客户端工程落实的字体、缩放、导航与视觉验收 |
+| [历史发布记录](./history/README.md) | 已完成迁移和兼容窗口，仅供追溯，不定义现行行为 |
 | [数据模型](./data-model.md) | 表、枚举、字段说明和关系 |
 | [图片上传管线](./image-upload.md) | 预签名上传 → S3 直传 → 确认 → sharp 缩略图 |
 | [通知投递规则](./notification-delivery.md) | 7 类通知的触发条件和接收者矩阵 |
@@ -52,5 +53,5 @@
 - **想知道某张表有哪些字段？** → [数据模型](./data-model.md)
 - **想知道上传图片的完整流程？** → [图片上传管线](./image-upload.md)
 - **Flutter 如何安全接入？** → [Flutter / 原生移动端接入](./mobile-client-guide.md)
-- **Flutter 的字号、阅读宽度和移动布局怎么验收？** → [Flutter 移动端界面与可读性契约](./mobile-ui-contract.md)
+- **Flutter 的字号、阅读宽度和移动布局如何接入？** → [Flutter 移动端界面与可读性待接入规范](./mobile-ui-contract.md)
 - **想知道什么情况会收到通知？** → [通知投递规则](./notification-delivery.md)

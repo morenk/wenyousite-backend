@@ -26,7 +26,7 @@ pnpm openapi:check
 pnpm docs:check
 ```
 
-`openapi:check` 同时检查实时导出与已提交产物一致，因此忘记重新导出会直接失败。生成文件必须随实现提交，客户端仓库通过同步脚本固定到同一份字节内容。
+`openapi:check` 同时检查实时导出与已提交产物一致，因此忘记重新导出会直接失败。生成文件必须随实现提交；现有 Web 仓库通过同步脚本固定同一份字节内容，Flutter 仓库建立后必须采用等价门禁。
 
 ## OpenAPI 约束
 
@@ -40,4 +40,4 @@ pnpm docs:check
 
 ## 客户端消费
 
-Web 与 Flutter 不直接下载线上 `/api/docs-json`。发布分支同步固定的 `contracts/openapi.json` 后再生成客户端，生成器版本也应锁定。生成结果的 diff 属于契约评审的一部分；出现非预期删除、nullable/required 变化或大量匿名模型时阻止合并。
+Web 与 Flutter 不直接下载线上 `/api/docs-json`。发布分支同步固定的 `contracts/openapi.json` 后再生成客户端，生成器版本也应锁定。生成结果的 diff 属于契约评审的一部分；出现非预期删除、nullable/required 变化或大量匿名模型时阻止合并。当前只有 Web 仓库和 Dart-Dio 生成烟雾实际消费该产物，不能把尚未建立的 Flutter 应用测试描述为已通过。

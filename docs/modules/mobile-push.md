@@ -27,4 +27,6 @@ FCM `data` 使用独立的 [`mobile-push-v1.schema.json`](../../contracts/mobile
 
 私聊事件在消息事务中写入 Outbox，通知事件在通知落库后入队。发送前再次确认 mobile refresh-token family 仍活跃；退出登录、同端新登录、token 失效或清理任务停用记录后不再投递。FCM 报告 token 无效时永久停用，瞬时错误才重试。
 
+通知按 `notificationId`、私聊按 `conversationId` 设置 Android/APNs collapse key。TTL 由 `MOBILE_PUSH_TTL_SECONDS` 配置，默认 86400 秒、允许 60 秒至 28 天。折叠、延迟和丢失属于正常提示通道语义，客户端必须重新读取通知、私聊和未读数 API，不能把每条推送当作可靠事件日志。
+
 `PUSH_ENABLED=false` 是安全默认值。启用时必须配置 Firebase project 与应用默认凭据；`/meta.capabilities.pushNotifications` 同步反映运行能力。消息正文只使用通用提示与最小导航 data，避免在锁屏泄露私聊或通知内容。

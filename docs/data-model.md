@@ -194,7 +194,7 @@
 >
 > Web 端通过 httpOnly Cookie 存储 refreshToken；移动端通过响应体获取。
 >
-> 发布批次 `auth-login-terminal-2026-08-05` 的迁移数据量、锁风险、部署顺序和失败恢复步骤见 `docs/modules/auth.md` 的“数据迁移与兼容”。
+> 登录终端迁移的数据量、锁风险和当时的恢复步骤见 [`docs/history/auth-login-terminal-2026-08-05.md`](./history/auth-login-terminal-2026-08-05.md)。该记录不定义当前发布流程。
 
 ### mobile_devices — 原生移动推送终端
 
@@ -379,7 +379,7 @@
 
 点赞从楼层迁移到主题帖时曾直接执行 `prisma db push`，对应代码提交没有迁移文件。`zzz_20260805110000_reconcile_unmigrated_schema_changes` 为迁移链补齐等价前滚：旧 `post_likes` 按 `(threadId, userId)` 去重迁入 `thread_likes`，据此重算 `threads.like_count`，最后移除旧表和 `posts.like_count`。已通过 db push 对齐的数据库执行该迁移时不会重复写入点赞记录。
 
-兼容桥会先检查 `_prisma_migrations` 和旧表是否存在：已对齐数据库跳过临时字段回填和点赞全表重算。需要修复的旧库中，耗时与 `subthreads/posts` 或 `post_likes/threads` 行数线性相关；`ALTER TABLE` 和最终 `DROP` 会短暂取得表锁，应在发布维护窗口内执行。本轮三条迁移均显式使用 PostgreSQL 事务，失败时回滚整条迁移并可在排除锁等待等原因后重试；回填使用唯一索引、`ON CONFLICT DO NOTHING` 和派生计数，可重复执行。
+兼容桥会先检查 `_prisma_migrations` 和旧表是否存在：已对齐数据库跳过临时字段回填和点赞全表重算。需要修复的旧库中，耗时与 `subthreads/posts` 或 `post_likes/threads` 行数线性相关；`ALTER TABLE` 和最终 `DROP` 会短暂取得表锁，应在发布维护窗口内执行。相关三条迁移均显式使用 PostgreSQL 事务，失败时回滚整条迁移并可在排除锁等待等原因后重试；回填使用唯一索引、`ON CONFLICT DO NOTHING` 和派生计数，可重复执行。
 
 ### thread_likes — 点赞记录
 

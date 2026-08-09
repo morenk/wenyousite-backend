@@ -62,14 +62,11 @@
 - `post.created` 事件携带发帖时 `authorRole` 与 `authorPlayerMarked` 快照，订阅通知不读取异步处理时的当前角色
 - 通知和最近动态摘要会在原文位置显示 `表达式=总计`；纯骰子帖也能生成摘要。编辑骰子节点不发射 `post.created`
 
-## 创建幂等切片验收
+## 创建幂等
 
-- [x] OpenAPI 创建 DTO 暴露可选 UUID `clientRequestId`
-- [x] 相同作者和请求 ID 的相同载荷只创建一个 Post，并返回首次响应
-- [x] 重试不重复分配楼层号；`eventKey=post-created:{postId}` 保证 Outbox 事件幂等
-- [x] 同一请求 ID 复用为不同载荷返回 409
-- [x] 数据库唯一约束兜底并发双请求
-- [x] 全量测试、迁移、生产构建、提交、重启与健康检查通过
+- OpenAPI 创建 DTO 暴露可选 UUID `clientRequestId`；相同作者、请求 ID 和载荷只创建一个 Post 并返回首次响应。
+- 重试不重复分配楼层号，`eventKey=post-created:{postId}` 保证 Outbox 事件幂等；同一请求 ID 用于不同载荷返回 409。
+- 数据库唯一约束兜底并发双请求。
 - 楼层列表按 floorNumber ASC 排序（主楼层），楼中楼按 createdAt ASC、id ASC 稳定排序；`parentPostId + createdAt` 复合索引支撑上百条回复的分页读取
 - 独立楼中楼可切换 `OLDEST` / `NEWEST` 稳定顺序；`authorId` 只允许筛选当前仍为帖内玩家、楼主或协作者的用户，角色不再符合时返回空页。排序与作者均属于游标查询条件，客户端切换后必须从第一页重新读取。
 - 独立楼中楼阅读页复用 `GET /posts/:id` 获取原楼层及主题帖/子贴导航上下文，再用 `GET /posts/:id/replies` 分页读取回复；replies 接口拒绝以正文或楼中楼回复作为讨论根

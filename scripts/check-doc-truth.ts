@@ -18,6 +18,65 @@ for (const [file, pattern, message] of checks) {
   if (pattern.test(source)) failures.push(`${file}: ${message}`);
 }
 
+const moduleGuides = fs.readdirSync('docs/modules')
+  .filter((name) => name.endsWith('.md'))
+  .map((name) => path.join('docs/modules', name));
+const currentGuides = [
+  'docs/architecture.md',
+  'docs/data-model.md',
+  'docs/frontend-guide.md',
+  'docs/mobile-client-guide.md',
+  'docs/mobile-ui-contract.md',
+  ...moduleGuides,
+];
+const historicalPlanningPatterns: Array<[RegExp, string]> = [
+  [/本次迭代|本轮迭代|本轮补充|后续迭代/, '混入迭代计划'],
+  [/发布批次|跨端发布批次|批次标识/, '混入发布批次记录'],
+  [/^##[^\n]*合同迁移[^\n]*$/m, '混入已完成合同迁移章节'],
+  [/^#{2,4}[^\n]*验证记录[^\n]*$/m, '混入一次性验证记录'],
+  [/Phase\s*\d|Roadmap/i, '混入阶段或路线图'],
+  [/^\s*- \[[ xX]\]\s+/m, '混入任务清单'],
+];
+for (const file of currentGuides) {
+  const source = fs.readFileSync(file, 'utf8');
+  for (const [pattern, message] of historicalPlanningPatterns) {
+    if (pattern.test(source)) failures.push(`${file}: ${message}`);
+  }
+}
+
+const openApiSource = fs.readFileSync('src/common/swagger/openapi-document.ts', 'utf8');
+const contractVersion = openApiSource.match(/API_CONTRACT_VERSION\s*=\s*'([^']+)'/)?.[1];
+if (!contractVersion) {
+  failures.push('无法从 openapi-document.ts 读取 API_CONTRACT_VERSION');
+} else {
+  for (const file of ['docs/architecture.md', 'docs/frontend-guide.md']) {
+    if (fs.readFileSync(file, 'utf8').includes(contractVersion)) {
+      failures.push(`${file}: 手写复制当前契约版本 ${contractVersion}`);
+    }
+  }
+}
+
+if (/Vitest/.test(fs.readFileSync('AGENTS.md', 'utf8'))) {
+  failures.push('AGENTS.md: 后端测试框架仍误写为 Vitest');
+}
+const frontendGuide = fs.readFileSync('docs/frontend-guide.md', 'utf8');
+if (/错误码速查|\|\s*code\s*\|\s*含义\s*\|/i.test(frontendGuide)) {
+  failures.push('docs/frontend-guide.md: 仍维护手写错误码速查表');
+}
+const mobileGuide = fs.readFileSync('docs/mobile-client-guide.md', 'utf8');
+for (const claim of [
+  'mobileCompatibility',
+  'X-Client-Platform: mobile',
+  'SESSION_NOT_FOUND',
+  'DELETE /api/v1/mobile/devices/current',
+  'getInitialMessage',
+]) {
+  if (!mobileGuide.includes(claim)) failures.push(`docs/mobile-client-guide.md: 缺少 ${claim}`);
+}
+if (!fs.readFileSync('docs/mobile-ui-contract.md', 'utf8').includes('pending-client-integration')) {
+  failures.push('docs/mobile-ui-contract.md: 未明确标记为待客户端接入');
+}
+
 const backendFixture = fs.readFileSync('contracts/markdown-v2-fixtures.json', 'utf8');
 const frontendFixture = path.resolve('../wenyousite-frontend/contracts/markdown-v2-fixtures.json');
 if (fs.existsSync(frontendFixture) && fs.readFileSync(frontendFixture, 'utf8') !== backendFixture) {

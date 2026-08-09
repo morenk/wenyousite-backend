@@ -59,7 +59,7 @@ OutboxDispatcher（FOR UPDATE SKIP LOCKED）
 
 运行时成功响应统一为 `{ code, message, data, meta? }`，错误响应统一为 `{ code, message, data: null }`。Swagger 构建阶段使用同一 envelope 包装 2xx JSON schema，并为所有操作补充 `ApiErrorEnvelope` 兜底响应；命令型空结果使用 `MessageResponseDto`。
 
-当前开发契约版本为 `4.3.0-dev.20260808.1`。4.3 为动态评论补充单张图片或单个收藏表情；4.2 为帖子与动态回复串补充排序、作者筛选和动态回复者候选；4.1 新增纯文本动态、两层楼中楼、动态搜索和加油；4.0 将主题帖分类改为管理员维护的数据库配置，并为平台级主题标签补充管理员治理字段。主题标签名称仍允许已验证用户从发帖流程扩展，管理员负责描述、颜色、顺序和启停；分类则只能由管理员维护。破坏性接口变更必须递增 `API_CONTRACT_VERSION`，更新 [契约变更记录](../contracts/CHANGELOG.md)，重新导出受版本控制的 `contracts/openapi.json`，并同步生成 Web/Flutter 客户端。`BusinessErrorCode` 由后端 `ErrorCode` 自动写入 OpenAPI，客户端不得复制一份无校验的错误码表。
+当前契约版本由源码 `API_CONTRACT_VERSION`、`/meta` 和响应头共同暴露，历史变化只记录在 [契约变更记录](../contracts/CHANGELOG.md)。破坏性接口变更必须递增版本并同步受版本控制的 OpenAPI 与客户端生成类型。`BusinessErrorCode` 由后端 `ErrorCode` 自动写入 OpenAPI，客户端不得复制无校验的错误码表。
 
 `pnpm openapi:check` 校验：
 

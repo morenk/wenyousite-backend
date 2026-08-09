@@ -192,13 +192,13 @@ Web 端响应体不暴露 refresh token；服务端通过 `Set-Cookie` 写入 ht
 - 注册、登录时客户端通过 `X-Client-Platform: web|mobile` 声明平台；未知或缺失值一律归为 `web`。该请求头只是客户端生命周期声明，不是可信的设备指纹或安全凭据
 - 刷新时平台取自服务端已有登录终端记录，忽略请求头，避免把 Web 终端升级成 30 天移动端终端
 - Web 端 refresh token 有效期 7 天，移动端 30 天，登录和轮转时自动按平台计算
-- `/auth/refresh` 和 `/auth/logout` 优先从 Cookie 读取 token，Cookie 缺失时回退到请求体
+- `/auth/refresh` 优先从 Cookie 读取 token，Cookie 缺失时回退到请求体；`/auth/logout` 优先按 access token 的稳定终端 ID 撤销整个终端，旧 token 才回退到 Cookie/请求体
 
 ### 登录终端管理
 
 - `GET /auth/sessions` 最多返回 Web 与移动端各一个活跃登录终端，含 `isCurrent`、`platform`、稳定登录时间、最近轮转时间和过期时间；接口独立限流 60 次/分钟
 - `DELETE /auth/sessions/:id` 按稳定终端 ID 退出整个终端；暂时兼容旧客户端传 refresh token 记录 ID
-- `POST /auth/logout` 退出当前登录终端并清除 Cookie
+- `POST /auth/logout` 退出当前登录终端并清除 Cookie；无法从 sid 或旧 refresh token 识别有效终端时返回 `SESSION_NOT_FOUND`，不静默成功
 - access token 包含稳定终端 ID `sid`。JWT 守卫会在每次受保护请求中检查该终端仍活跃，因此被远程退出或被同端新登录替换后，尚未自然过期的 access token 也会立即失效
 - `signedInAt` 在 refresh token 轮转时保持不变；`lastActiveAt` 代表最近一次登录或刷新时间，不代表每次 API 请求活动时间
 
@@ -213,56 +213,7 @@ Web 端响应体不暴露 refresh token；服务端通过 `Set-Cookie` 写入 ht
 - 已撤销记录保留到自身过期后再清理，确保盗用检测有历史依据
 - 改密码、重置密码或注销账号会退出全部登录终端；退出某一终端不影响另一端
 
-### 数据迁移与兼容
-
-- 前后端共同发布批次标识：`auth-login-terminal-2026-08-05`
-- 上线双端约束的迁移会把未知平台归为 `web`、撤销已过期记录，并对每个用户/平台只保留最新活跃记录；已有同端重复登录会被退出
-- `sessionStartedAt` 从同一用户、同一 `family` 的最早 `createdAt` 回填；旧客户端可继续读取 `createdAt`，新客户端应改用 `signedInAt`
-- 数据库继续保留 `deviceInfo`、`createdAt` 等旧字段，认证响应的 `refreshToken` 改为可选：旧客户端可在兼容窗口内继续工作，Web 客户端必须只依赖 httpOnly Cookie，原生移动端继续从响应体读取 refresh token
-- 新版 access token 带 `sid`；部署前签发的无 `sid` access token 最多兼容其剩余 15 分钟
-
-#### 数据量与锁风险
-
-- 迁移只扫描 `refresh_tokens`。设发布前记录总量为 `N`：平台清洗、过期撤销和登录时间回填均为 `O(N)`，同端去重和 family 聚合会排序/聚合，成本取决于 `N` 与数据库可用内存；发布前必须用下列 SQL 记录实际总量、活跃量、异常平台量和重复槽位数，不以开发库数据代替生产估算
-
-```sql
-SELECT
-  COUNT(*) AS total_rows,
-  COUNT(*) FILTER (WHERE revoked_at IS NULL) AS active_rows,
-  COUNT(*) FILTER (WHERE platform IS NULL OR platform NOT IN ('web', 'mobile')) AS invalid_platform_rows
-FROM refresh_tokens;
-
-SELECT user_id, COALESCE(platform, '<null>') AS platform, COUNT(*) AS active_count
-FROM refresh_tokens
-WHERE revoked_at IS NULL
-GROUP BY user_id, platform
-HAVING COUNT(*) > 1
-ORDER BY active_count DESC;
-```
-
-- `UPDATE` 会锁定命中的 token 行；`ALTER COLUMN ... SET NOT NULL`、检查约束校验和非并发 `CREATE UNIQUE INDEX` 会扫描表并可能短暂阻塞登录、刷新、登出等写入。若 `N` 已达到十万级、查询存在长事务或预演耗时超过维护窗口，应先停止发布并改为分批回填、`NOT VALID`/后续校验和 `CREATE INDEX CONCURRENTLY` 的独立发布方案
-- `20260805143000_add_session_started_at` 与 `20260805150000_scope_refresh_token_platform_check` 显式使用事务；较早的双端去重迁移由幂等清洗语句组成，但不是整文件原子事务，失败时必须检查已执行到哪一步
-
-#### 发布顺序与兼容窗口
-
-1. 确认数据库备份可恢复，记录上述预检结果，执行 `prisma migrate status`、`pnpm check` 和 `pnpm test:e2e:auth-terminal`
-2. 临时排空登录、刷新、登出和登录终端管理写流量，避免旧后端在唯一索引创建前后继续制造同端重复记录
-3. 执行 `prisma migrate deploy`，确认三条登录终端迁移成功，再启动新后端；不得让新后端运行在旧 Schema 上
-4. 烟雾验证 Web 登录、移动端登录、双端并存、同端替换、refresh、登录终端列表和远程退出；观察认证 401/409/5xx 与数据库锁等待
-5. 先发布 Web，再通知原生移动端升级；移动端必须发送 `X-Client-Platform: mobile`，且只在移动端响应体读取 refresh token
-
-兼容窗口至少覆盖旧 access token 的最长剩余 15 分钟，并建议覆盖一个 Web refresh 周期。窗口内不删除 `deviceInfo`、`createdAt` 或移动端响应体的 `refreshToken`；未来删除必须另开 contract 阶段。
-
-#### 失败恢复与回滚
-
-- 迁移失败时保持旧应用版本，不继续客户端发布；检查 `_prisma_migrations`、表约束和重复活跃记录。只有核对数据库实际状态后才可使用 `prisma migrate resolve`，默认以前滚修复为主，禁止直接标记成功或盲目执行下迁移
-- 显式事务内失败会自动回滚该迁移；较早去重迁移若部分完成，可在修复锁等待/数据异常后重试其幂等 SQL并以前滚迁移补齐。若出现不可接受的数据偏差，使用发布前备份恢复
-- 新增列和旧字段共存，因此应用可以回滚到上一后端/Web 构建，Schema 保持向前版本即可；迁移已经撤销的过期或同端重复 token 不做反向恢复，受影响用户重新登录
-
-#### 验证记录
-
-- 2026-08-05：`pnpm test:e2e:auth-terminal` 已在本机 PostgreSQL 的临时 Schema 中完成旧数据注入、全迁移链回放、约束验证和真实 Nest/Fastify 双端 API 流程；测试结束自动删除临时 Schema，未触碰 `public` 数据
-- 同一测试运行时生成 OpenAPI，确认 `SessionResponseDto.signedInAt/lastActiveAt` 为必填、`AuthResponseDto.refreshToken` 为可选
+历史登录终端迁移、锁风险和当时的发布证据已归档到 [登录终端迁移记录](../history/auth-login-terminal-2026-08-05.md)，不属于当前发布步骤。
 
 ### 通用规则
 
@@ -302,7 +253,7 @@ ORDER BY active_count DESC;
 | 输入验证码返回 "验证码已过期，请重新获取"    | 引导重新调用 `request-code` 或 `resend-verification` 获取新码                                                |
 | 邮箱验证                                     | `POST /auth/resend-verification` 获取验证码 → `POST /auth/verify-email` 完成验证                             |
 | 改密码/重置密码后                            | 全部登录终端被退出，前端清除本地认证状态并引导重新登录                                                       |
-| Web 登出                                     | 调用 `POST /auth/logout`；仅服务端成功后清除本地状态，避免 Cookie 未撤销却显示已退出                         |
+| Web 登出                                     | 调用 `POST /auth/logout`；服务端按 sid 撤销终端并清除 Cookie，前端随后清除本地 access token                  |
 | 收到 401 "登录终端已失效，请重新登录"        | 当前终端被远程退出或被同端新登录替换，清除本地认证状态并跳转登录页                                           |
 | Web refresh 轮转                             | 浏览器自动接收新 httpOnly Cookie；响应体只更新 access token 和 user，不读取 refresh token                    |
 | 登录终端列表                                 | 只展示 `platform` 对应的“Web 端登录/移动端登录”，不要展示 `deviceInfo` 原始标识符                            |
