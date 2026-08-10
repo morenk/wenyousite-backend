@@ -63,15 +63,15 @@ docker compose -f "$COMPOSE_FILE" up -d --wait
 echo "3. 备份并迁移数据库..."
 (cd "$BACKEND_DIR" && bash scripts/backup.sh && pnpm exec prisma migrate deploy)
 
-echo "4. 切换后端宿主机进程..."
-BACKEND_PID=$(ss -tlnp | awk '/:3000 / && /pid=/ { match($0, /pid=([0-9]+)/, a); print a[1]; exit }')
-stop_process "$BACKEND_PID" "后端"
-(cd "$BACKEND_DIR" && setsid nohup env NODE_ENV=production BUILD_SHA="$BACKEND_BUILD_SHA" node dist/main </dev/null \
-  > "$RUNTIME_DIR/wenyousite-backend.log" 2>&1 &)
-wait_for_http \
+echo "4. 通过 systemd 切换后端..."
+systemctl restart wenyousite-backend.service
+if ! wait_for_http \
   http://127.0.0.1:3000/api/v1/health \
   "后端" \
-  "$RUNTIME_DIR/wenyousite-backend.log"
+  ""; then
+  journalctl -u wenyousite-backend.service --no-pager -n 100 >&2
+  exit 1
+fi
 DEPLOYED_BUILD_SHA=$(curl --fail --silent --show-error http://127.0.0.1:3000/api/v1/meta | \
   node -e 'let input=""; process.stdin.on("data", (chunk) => input += chunk).on("end", () => process.stdout.write(JSON.parse(input).data.buildSha ?? ""));')
 if [ "$DEPLOYED_BUILD_SHA" != "$BACKEND_BUILD_SHA" ]; then

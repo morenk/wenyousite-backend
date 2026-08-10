@@ -87,7 +87,7 @@ pnpm docs:check
 
 ## 4. 公网开发环境交付
 
-`wenyou.site` 当前是**单一公网开发环境**，没有真实用户。后端以 production build 监听 `3000`，仅代表稳定运行方式，不等同于正式生产发布，不需要维护窗口或发布审批。
+`wenyou.site` 当前是**单一公网开发环境**，没有真实用户。后端由宿主机 `wenyousite-backend.service` 托管 production build 并监听 `3000`，仅代表稳定运行方式，不等同于正式生产发布，不需要维护窗口或发布审批。
 
 代码任务的默认完成链路：
 
@@ -112,12 +112,7 @@ pnpm docs:check
 ```bash
 cd /root/wenyousite/wenyousite-backend
 npx prisma migrate deploy
-backend_pid="$(ss -tlnp | sed -n 's/.*:3000 .*pid=\([0-9][0-9]*\).*/\1/p' | head -n 1)"
-test -n "$backend_pid" && kill "$backend_pid"
-mkdir -p /tmp/opencode
-backend_build_sha="$(git rev-parse HEAD)"
-setsid nohup env NODE_ENV=production BUILD_SHA="$backend_build_sha" node dist/main </dev/null \
-  >/tmp/opencode/wenyousite-backend.log 2>&1 &
+systemctl restart wenyousite-backend.service
 ```
 
 切换后至少验证：
@@ -125,7 +120,7 @@ setsid nohup env NODE_ENV=production BUILD_SHA="$backend_build_sha" node dist/ma
 ```bash
 curl --fail --silent --show-error http://127.0.0.1:3000/api/v1/health >/dev/null
 curl --fail --silent --show-error https://wenyou.site/api/v1/health >/dev/null
-tail -n 100 /tmp/opencode/wenyousite-backend.log
+journalctl -u wenyousite-backend.service --no-pager -n 100
 ```
 
 再验证本次实际受影响接口。启动失败、持续 5xx、迁移失败或关键路径失败时，停止扩大变更并优先前滚修复。

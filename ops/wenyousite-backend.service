@@ -1,0 +1,22 @@
+[Unit]
+Description=Wenyou Site NestJS backend
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/root/wenyousite/wenyousite-backend
+ExecStart=/usr/local/sbin/wenyousite-backend-start
+Restart=on-failure
+RestartSec=2s
+TimeoutStopSec=15s
+KillSignal=SIGTERM
+NoNewPrivileges=true
+LimitNOFILE=65535
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

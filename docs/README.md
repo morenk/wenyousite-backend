@@ -16,6 +16,7 @@
 | [后端架构与模块边界](./architecture.md) | 分层规则、事务 Outbox、API 契约和自动门禁 |
 | [API 契约发布流程](./api-contract.md) | OpenAPI 事实源、版本、生成与客户端同步规则 |
 | [Flutter / 原生移动端接入](./mobile-client-guide.md) | 安全存储、刷新、幂等、分页、媒体和 FCM |
+| [移动端私有发布运维](./mobile-release-operations.md) | Windows 构建验签、RainS3 直传与 VPS /meta 晋级 |
 | [Flutter 移动端界面与可读性待接入规范](./mobile-ui-contract.md) | 尚待客户端工程落实的字体、缩放、导航与视觉验收 |
 | [历史发布记录](./history/README.md) | 已完成迁移和兼容窗口，仅供追溯，不定义现行行为 |
 | [数据模型](./data-model.md) | 表、枚举、字段说明和关系 |
@@ -53,5 +54,6 @@
 - **想知道某张表有哪些字段？** → [数据模型](./data-model.md)
 - **想知道上传图片的完整流程？** → [图片上传管线](./image-upload.md)
 - **Flutter 如何安全接入？** → [Flutter / 原生移动端接入](./mobile-client-guide.md)
+- **Android 如何从开发机发布到 RainS3？** → [移动端私有发布运维](./mobile-release-operations.md)
 - **Flutter 的字号、阅读宽度和移动布局如何接入？** → [Flutter 移动端界面与可读性待接入规范](./mobile-ui-contract.md)
 - **想知道什么情况会收到通知？** → [通知投递规则](./notification-delivery.md)

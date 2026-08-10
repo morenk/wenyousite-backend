@@ -1,15 +1,20 @@
 wenyou.site {
-    handle_path /api/v1/* {
-        reverse_proxy api:3000
-    }
-    handle {
-        reverse_proxy web:3001
-    }
+	handle /api/v1/* {
+		reverse_proxy localhost:3000
+	}
+	handle /_next/webpack-hmr* {
+		reverse_proxy localhost:3001
+	}
+	handle {
+		reverse_proxy localhost:3001
+	}
 
-    header X-Content-Type-Options "nosniff"
-    header X-Frame-Options "DENY"
+	header X-Content-Type-Options "nosniff"
+	header X-Frame-Options "DENY"
 
-    request_body {
-        max_size 10MB
-    }
+	request_body {
+		max_size 10MB
+	}
+
+	encode gzip zstd
 }
