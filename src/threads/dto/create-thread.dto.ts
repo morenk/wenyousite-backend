@@ -37,7 +37,7 @@ export class CreateThreadDto {
   title?: string;
 
   @ApiPropertyOptional({
-    example: 'DEDUCTION',
+    example: 'MYSTERY',
     description: '管理员配置的主题帖分类 slug；草稿可暂不选择',
   })
   @IsOptional()

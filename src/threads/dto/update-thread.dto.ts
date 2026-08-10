@@ -21,7 +21,7 @@ export class UpdateThreadDto {
   @MaxLength(100)
   title?: string;
 
-  @ApiPropertyOptional({ example: 'DEDUCTION', description: '管理员配置的分类 slug' })
+  @ApiPropertyOptional({ example: 'MYSTERY', description: '管理员配置的分类 slug' })
   @IsOptional()
   @IsString()
   @Matches(CATEGORY_SLUG_PATTERN)

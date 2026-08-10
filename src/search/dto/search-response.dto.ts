@@ -45,7 +45,7 @@ export class SearchThreadResponseDto {
   @ApiProperty({ description: '主题帖标题' })
   title: string;
 
-  @ApiProperty({ type: String, nullable: true, example: 'DEDUCTION', description: '动态分类 slug' })
+  @ApiProperty({ type: String, nullable: true, example: 'MYSTERY', description: '动态分类 slug' })
   category: string | null;
 
   @ApiProperty({ format: 'date-time', description: '创建时间' })

@@ -282,6 +282,7 @@ function assert(condition: boolean, message: string) {
 
 let threadId = '';
 let subthreadId = '';
+let activeCategorySlug = '';
 let postId = '';
 let draftId = '';
 let draftVersion = 0;
@@ -416,10 +417,8 @@ test(s1, 'GET /meta 客户端协议元数据', async () => {
 test(s1, 'GET /thread-categories 返回动态分类配置', async () => {
   const r = await api.get('/thread-categories');
   assert(r.code === 0 && Array.isArray(r.data), '分类列表应成功');
-  assert(
-    r.data.some((item: { slug?: string }) => item.slug === 'DEDUCTION'),
-    '应保留旧分类',
-  );
+  activeCategorySlug = r.data[0]?.slug ?? '';
+  assert(!!activeCategorySlug, '测试环境应至少有一个启用分类');
   assert(
     r.data.every((item: { isActive?: boolean }) => item.isActive === true),
     '只返回启用分类',
@@ -547,7 +546,7 @@ test(s3, 'POST /threads 创建草稿帖', async () => {
   const title = `E2E 测试帖 ${Date.now()}`;
   const r = await api.post('/threads', {
     title,
-    category: 'DEDUCTION',
+    category: activeCategorySlug,
     visibility: 'PUBLIC',
     content: '帖子正文内容',
     clientRequestId,
@@ -556,7 +555,7 @@ test(s3, 'POST /threads 创建草稿帖', async () => {
   threadId = r.data.id;
   const replay = await api.post('/threads', {
     title,
-    category: 'DEDUCTION',
+    category: activeCategorySlug,
     visibility: 'PUBLIC',
     content: '帖子正文内容',
     clientRequestId,
@@ -915,7 +914,7 @@ test(s12, 'POST /auth/login 短密码 → 400', async () => {
 test(s12, 'POST /threads 超长标题 → 400', async () => {
   const { status } = await api.expectStatus('/threads', 'POST', {
     title: 'a'.repeat(101),
-    category: 'DEDUCTION',
+    category: activeCategorySlug,
   });
   assert(status === 400, `期望 400, 实际 ${status}`);
 });

@@ -1,0 +1,66 @@
+{
+  "contract": "wenyousite-thread-category",
+  "version": 1,
+  "description": "Web、Flutter 与后端共用的动态主题帖分类黄金用例；客户端必须以发现接口为显示事实源，不得把任何现有 slug 固化为枚举。",
+  "definitions": [
+    {
+      "id": "category-story-room",
+      "slug": "STORY_ROOM",
+      "name": "叙事剧场",
+      "description": "共同讲述角色与世界的故事",
+      "color": "#6A4A72",
+      "icon": null,
+      "sortOrder": 10,
+      "isActive": true,
+      "mergedIntoId": null,
+      "createdAt": "2026-08-09T00:00:00.000Z",
+      "updatedAt": "2026-08-09T01:00:00.000Z"
+    },
+    {
+      "id": "category-world-design",
+      "slug": "WORLD_DESIGN",
+      "name": "世界构筑",
+      "description": null,
+      "color": null,
+      "icon": null,
+      "sortOrder": 20,
+      "isActive": true,
+      "mergedIntoId": null,
+      "createdAt": "2026-08-09T00:00:00.000Z",
+      "updatedAt": "2026-08-09T00:00:00.000Z"
+    }
+  ],
+  "expectedDiscoveryOrder": [
+    "STORY_ROOM",
+    "WORLD_DESIGN"
+  ],
+  "presentationCases": [
+    {
+      "id": "renamed-category-uses-current-registry-name",
+      "threadCategory": "STORY_ROOM",
+      "expected": {
+        "label": "叙事剧场",
+        "color": "#6A4A72",
+        "selectable": true
+      }
+    },
+    {
+      "id": "unknown-historical-slug-remains-readable",
+      "threadCategory": "ARCHIVED_WORLD",
+      "expected": {
+        "label": "ARCHIVED_WORLD",
+        "color": null,
+        "selectable": false
+      }
+    },
+    {
+      "id": "uncategorized-draft",
+      "threadCategory": null,
+      "expected": {
+        "label": "未分类",
+        "color": null,
+        "selectable": false
+      }
+    }
+  ]
+}

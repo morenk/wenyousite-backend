@@ -66,18 +66,18 @@ export class UpdateThreadCategoryDto {
   @MaxLength(50)
   name?: string;
 
-  @ApiPropertyOptional({ maxLength: 200, nullable: true })
+  @ApiPropertyOptional({ type: String, maxLength: 200, nullable: true })
   @IsOptional()
   @IsString()
   @MaxLength(200)
   description?: string | null;
 
-  @ApiPropertyOptional({ example: '#7C3AED', nullable: true })
+  @ApiPropertyOptional({ type: String, example: '#7C3AED', nullable: true })
   @IsOptional()
   @Matches(/^#[0-9a-fA-F]{6}$/)
   color?: string | null;
 
-  @ApiPropertyOptional({ maxLength: 50, nullable: true })
+  @ApiPropertyOptional({ type: String, maxLength: 50, nullable: true })
   @IsOptional()
   @IsString()
   @MaxLength(50)

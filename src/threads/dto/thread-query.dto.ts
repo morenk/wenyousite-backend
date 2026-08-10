@@ -16,7 +16,7 @@ export class ThreadQueryDto extends CursorPaginationDto {
   @IsIn(['all', 'playing'])
   filter?: string = 'all';
 
-  @ApiPropertyOptional({ example: 'DEDUCTION', description: '按动态分类 slug 筛选' })
+  @ApiPropertyOptional({ example: 'MYSTERY', description: '按动态分类 slug 筛选' })
   @IsOptional()
   @IsString()
   @Matches(CATEGORY_SLUG_PATTERN)

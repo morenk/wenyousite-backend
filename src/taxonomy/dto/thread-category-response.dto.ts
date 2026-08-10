@@ -25,6 +25,13 @@ export class ThreadCategoryResponseDto {
   @ApiProperty()
   isActive!: boolean;
 
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: '合并目标分类 ID；未合并时为 null',
+  })
+  mergedIntoId!: string | null;
+
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date;
 
