@@ -1,8 +1,8 @@
 # Flutter / 原生移动端接入
 
-本文定义原生移动客户端需要遵循的 HTTP、安全、重试和推送生命周期。字段与端点以 [`contracts/openapi.json`](../contracts/openapi.json) 为机器事实源；Markdown 与 FCM data 分别以 `contracts/` 下的 fixtures/schema 为准。当前工作区没有 Flutter 工程，因此“客户端测试”表示接入 Flutter 仓库后必须建立的验收项，不代表已经执行。
+本文定义原生移动客户端需要遵循的 HTTP、安全、重试和推送生命周期。字段与端点以 [`contracts/openapi.json`](../contracts/openapi.json) 为机器事实源；移动端 V1 范围与黄金旅程分别以 [`mobile-v1-operation-coverage.json`](../contracts/mobile-v1-operation-coverage.json) 和 [`mobile-v1-golden-fixtures.json`](../contracts/mobile-v1-golden-fixtures.json) 为准；动态分类、Markdown 与 FCM data 继续使用各自独立 fixtures/schema。
 
-界面、文字缩放和页面状态的待接入规范见 [`mobile-ui-contract.md`](./mobile-ui-contract.md)。
+界面、字体、文字缩放和页面状态由公开 `wenyousite-foundation` 维护；仓库边界与入口见 [`mobile-ui-contract.md`](./mobile-ui-contract.md)，实际版本以 Flutter 客户端的 `foundation.lock.json` 为准。
 
 ## 启动、构建兼容与诊断
 
@@ -19,10 +19,12 @@
 
 服务端配置映射如下；配置任一构建号时必须同时提供该平台的 HTTPS 更新地址，且推荐构建号不能低于最低支持构建号：
 
-| 平台 | 最低构建号 | 推荐构建号 | 更新地址 |
-| --- | --- | --- | --- |
+| 平台    | 最低构建号                           | 推荐构建号                         | 更新地址                    |
+| ------- | ------------------------------------ | ---------------------------------- | --------------------------- |
 | Android | `MOBILE_ANDROID_MIN_SUPPORTED_BUILD` | `MOBILE_ANDROID_RECOMMENDED_BUILD` | `MOBILE_ANDROID_UPDATE_URL` |
-| iOS | `MOBILE_IOS_MIN_SUPPORTED_BUILD` | `MOBILE_IOS_RECOMMENDED_BUILD` | `MOBILE_IOS_UPDATE_URL` |
+| iOS     | `MOBILE_IOS_MIN_SUPPORTED_BUILD`     | `MOBILE_IOS_RECOMMENDED_BUILD`     | `MOBILE_IOS_UPDATE_URL`     |
+
+当前私有测试发布不要求移动端仓库位于 VPS。Android release APK 由开发机通过发布脚本上传到 `wenyou.site`，iOS 由 TestFlight 托管；构建、签名、三版本保留和故障处理见 [`mobile-release-operations.md`](./mobile-release-operations.md)。
 
 ## 认证与安全存储
 
@@ -43,14 +45,14 @@ OpenAPI 为兼容 Web 把该头标为 optional；省略或传未知值会创建 
 
 客户端按生成的错误码名称分支，不使用数字区间或 `message` 文案：
 
-| 错误 | 客户端行为 |
-| --- | --- |
-| `TOKEN_EXPIRED` | 单飞刷新并重放一次 |
-| `TOKEN_INVALID`、`TOKEN_REVOKED`、`TOKEN_THEFT_DETECTED`、`SESSION_NOT_FOUND` | 清除本地会话并重新登录 |
-| `ACCOUNT_DEACTIVATED`、`ACCOUNT_SUSPENDED`、`ACCOUNT_BANNED` | 清除 token，展示对应不可用终态 |
-| `EMAIL_NOT_VERIFIED` | 保留只读会话，引导完成邮箱验证 |
-| `ACCOUNT_LOCKED`、`LOGIN_FAILED`、验证码和旧密码错误 | 展示当前表单错误，不触发 refresh |
-| 未知 401 | 不循环刷新；清除当前会话并展示通用重新登录状态 |
+| 错误                                                                          | 客户端行为                                     |
+| ----------------------------------------------------------------------------- | ---------------------------------------------- |
+| `TOKEN_EXPIRED`                                                               | 单飞刷新并重放一次                             |
+| `TOKEN_INVALID`、`TOKEN_REVOKED`、`TOKEN_THEFT_DETECTED`、`SESSION_NOT_FOUND` | 清除本地会话并重新登录                         |
+| `ACCOUNT_DEACTIVATED`、`ACCOUNT_SUSPENDED`、`ACCOUNT_BANNED`                  | 清除 token，展示对应不可用终态                 |
+| `EMAIL_NOT_VERIFIED`                                                          | 保留只读会话，引导完成邮箱验证                 |
+| `ACCOUNT_LOCKED`、`LOGIN_FAILED`、验证码和旧密码错误                          | 展示当前表单错误，不触发 refresh               |
+| 未知 401                                                                      | 不循环刷新；清除当前会话并展示通用重新登录状态 |
 
 ### 主动退出
 
@@ -69,9 +71,11 @@ OpenAPI 为兼容 Web 把该头标为 optional；省略或传未知值会创建 
 - 网络超时不是创建失败，使用原键重试。
 - 相同键和相同载荷返回原结果；同键不同载荷返回 `IDEMPOTENCY_KEY_REUSED`，此时停止自动重试。
 - 本地待发送记录保存 `clientRequestId + normalized payload + state`，服务端确认后再删除。
-- 仅 GET、幂等 PUT/DELETE 和携带稳定幂等键的创建请求可自动重试。
+- 仅 GET/HEAD、幂等 PUT/DELETE 和携带稳定幂等键的创建请求可自动重试；只处理网络错误与 5xx，原请求之外最多两次并加入抖动。4xx、429、普通 POST/PATCH 和幂等键冲突不自动重试。
 
 `meta.cursor` 是不透明字符串。筛选或排序变化时清空 cursor；收到 `INVALID_CURSOR` 时清空列表并从首页加载。动态发现流 cursor 绑定服务端快照，快照空闲 15 分钟后失效，客户端刷新即可取得新快照。收到 `RATE_LIMITED` 时遵守 `Retry-After` 并加入随机抖动。
+
+用户公开资料的 `accountStatus` 只用于显示“暂时封禁 / 永久封禁”，客户端不得推算或展示处罚截止时间。主题帖快捷收藏继续只传 `threadId` 即可进入默认收藏夹；支持分类管理的客户端再读取 `/bookmarks/folders`、传可选 `folderId` 并使用 `PATCH /bookmarks/:id` 移动，收藏夹名称只在本人界面展示。
 
 ## 媒体、Markdown、动态与温油
 
@@ -79,7 +83,7 @@ OpenAPI 为兼容 Web 把该头标为 optional；省略或传未知值会创建 
 - 主题帖、楼层和回复使用 Markdown v2。客户端必须消费 [`markdown-v2-fixtures.json`](../contracts/markdown-v2-fixtures.json) 与 [`markdown-v2-nodes-fixtures.json`](../contracts/markdown-v2-nodes-fixtures.json)，覆盖规范化、可见文本、扩展节点和 round-trip。
 - 动态的标题、正文和评论是纯文本，不进入 Markdown 渲染链路。动态最多九张图片；评论可使用文字、单张图片或单个收藏表情，图片与表情互斥。
 - 动态楼中楼只有两层视觉结构；筛选回复者时仍保留所属主评论上下文。未知作者、删除媒体和未知枚举都必须安全降级。
-- 主题帖分类来自 `GET /thread-categories`，保存稳定 `slug`；草稿可为空，发布前选择启用项。未知或停用 slug 只作历史展示。
+- 主题帖分类来自 `GET /thread-categories`，保存稳定 `slug`；草稿可为空，发布前选择启用项。Flutter 必须消费 [`thread-category-v1-fixtures.json`](../contracts/thread-category-v1-fixtures.json)：重命名后按注册表当前名称展示，未知或停用 slug 显示原值且不可新选，空值显示“未分类”。任何现有 slug、名称、颜色和分类数量都不得复制为客户端枚举或回退常量。
 - 每日启动可调用 `POST /wallet/check-in`；只有 `claimedNow=true` 时展示本次领取。所有温油金额都是十进制整数字符串，不转换为浮点数；打赏继续复用稳定幂等键。
 
 ## FCM 设备与消息生命周期
@@ -109,4 +113,4 @@ Content-Type: application/json
 
 ## 接入验收
 
-后端当前门禁负责 OpenAPI、错误码、Markdown fixtures 和 push schema/fixtures。Flutter 工程接入时还必须补齐：生成代码的 format/analyze、认证状态机、并发刷新、退出撤销、分平台构建策略、动态快照失效、媒体降级、冷启动推送、权限切换、token 更新及未知契约降级测试。
+后端门禁负责 OpenAPI、错误码、196 项移动覆盖清单、V1 协议旅程、动态分类、Markdown fixtures 和 push schema/fixtures。Flutter 必须共同消费这些产物，并为标为 `implemented` 的 operationId 提供运行时代码和自动测试证据。

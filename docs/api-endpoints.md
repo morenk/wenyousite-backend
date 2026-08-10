@@ -76,6 +76,9 @@
 |---|---|---|---|
 | GET | `/bookmarks` | authenticated | 我的收藏列表（Cursor 分页） |
 | POST | `/bookmarks` | authenticated | 收藏主题帖 |
+| GET | `/bookmarks/folders` | authenticated | 获取我的收藏夹分类 |
+| POST | `/bookmarks/folders` | authenticated | 新建收藏夹分类 |
+| PATCH | `/bookmarks/{id}` | authenticated | 移动收藏到其他收藏夹 |
 | DELETE | `/bookmarks/{id}` | authenticated | 取消收藏 |
 
 ## Threads
@@ -174,7 +177,7 @@
 
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
-| POST | `/reports` | verified | 提交公开社区目标举报 |
+| POST | `/reports` | verified | 提交社区内容、用户或自己收到的私聊消息举报（Web/移动端兼容） |
 
 ## Admin Reports
 
@@ -183,6 +186,66 @@
 | GET | `/admin/reports` | admin | 管理员举报队列 |
 | GET | `/admin/reports/{id}` | admin | 管理员举报详情 |
 | POST | `/admin/reports/{id}/resolve` | admin | 原子结案并可选执行治理动作 |
+
+## Admin Auth
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| POST | `/admin/auth/challenge` | public | 管理员密码校验后发送邮箱二次验证码 |
+| POST | `/admin/auth/verify` | public | 验证邮箱验证码并建立独立管理员 Cookie 会话 |
+| GET | `/admin/auth/session` | admin | 读取并续活当前管理员会话，同时轮发 CSRF token |
+| POST | `/admin/auth/logout` | admin | 撤销当前管理员会话 |
+| POST | `/admin/auth/step-up/challenge` | admin | 为高风险站务操作发送邮箱确认码 |
+| POST | `/admin/auth/step-up/verify` | admin | 确认高风险操作，10 分钟内免重复验证 |
+
+## Admin Accounts
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/admin/accounts` | admin | 管理员账号、会话和待处理邀请 |
+| POST | `/admin/accounts/invites` | admin | 邀请现有温油账号成为管理员 |
+| DELETE | `/admin/accounts/invites/{id}` | admin | 取消待处理管理员邀请 |
+| DELETE | `/admin/accounts/{id}` | admin | 撤销普通管理员身份并注销其会话 |
+| POST | `/admin/accounts/transfer-super-admin` | admin | 把唯一超级管理员身份移交给另一名管理员 |
+| POST | `/admin-invitations/{token}/accept` | verified | 当前温油账号接受管理员邀请（Web） |
+
+## Admin Cases
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/admin/cases` | admin | 按同一目标聚合后的治理案件队列 |
+| GET | `/admin/cases/{id}` | admin | 案件证据、举报人、决定和申诉轨迹 |
+| POST | `/admin/cases/{id}/resolve` | admin | 以公开说明和规则分类原子结案 |
+
+## Admin Appeals
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/admin/appeals` | admin | 申诉处理队列 |
+| POST | `/admin/appeals/{id}/resolve` | admin | 维持或推翻治理决定；推翻会恢复内容或解除处罚 |
+
+## Moderation Appeals
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/moderation/decisions/mine` | verified | 当前用户近 30 天可申诉的治理决定（Web/移动端兼容） |
+| POST | `/moderation/appeals` | verified | 对自己的治理决定提交一次申诉（Web/移动端兼容） |
+
+## Admin Operations
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/admin/operations/settings` | admin | 读取注册、内容写入和维护公告状态 |
+| PATCH | `/admin/operations/settings` | admin | 更新紧急开关和定时维护公告 |
+
+## Admin Campaigns
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/admin/notification-campaigns` | admin | 定时站内通知历史和状态 |
+| POST | `/admin/notification-campaigns` | admin | 新建立即或定时发送的站内通知 |
+| POST | `/admin/notification-campaigns/preview` | admin | 预估通知接收人数 |
+| DELETE | `/admin/notification-campaigns/{id}` | admin | 取消尚未开始发送的通知计划 |
 
 ## Admin
 
@@ -202,10 +265,11 @@
 | GET | `/admin/users/{id}` | admin | 管理员用户详情 |
 | POST | `/admin/users/{id}/sanctions` | admin | 暂停或永久封禁用户 |
 | POST | `/admin/users/{id}/sanctions/current/revoke` | admin | 解除用户当前处罚 |
-| PATCH | `/admin/users/{id}/role` | admin | 授予或撤销管理员角色（超级管理员） |
+| PATCH | `/admin/users/{id}/role` | admin | 撤销管理员角色；授予请使用邀请流程（超级管理员） |
 | POST | `/admin/content/{type}/{id}/hide` | admin | 隐藏主题帖、帖子、动态或动态评论 |
 | POST | `/admin/content/{type}/{id}/restore` | admin | 恢复由管理员隐藏的主题帖、帖子、动态或动态评论 |
 | GET | `/admin/audit-logs` | admin | 管理员审计日志 |
+| GET | `/admin/audit-logs/export` | admin | 按当前筛选导出管理员审计日志 CSV（最多 10000 条） |
 
 ## Admin Dashboard
 

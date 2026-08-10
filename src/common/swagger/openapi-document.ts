@@ -5,7 +5,7 @@ import { applyErrorResponseEnvelope } from './error-response-envelope';
 import { applyResponseHeaders } from './response-headers';
 
 /** 破坏性 API 变更时递增；Web 与 Flutter 生成客户端均记录该版本。 */
-export const API_CONTRACT_VERSION = '4.4.0-dev.20260809.1';
+export const API_CONTRACT_VERSION = '4.5.0-dev.20260809.1';
 
 type AuthMode = 'public' | 'optional' | 'authenticated' | 'verified' | 'admin';
 
@@ -23,9 +23,10 @@ function applyAuthSemantics(document: ReturnType<typeof SwaggerModule.createDocu
         AuthMode | undefined;
       if (mode === 'public') operation.security = [];
       if (mode === 'optional') operation.security = [{ bearer: [] }, {}];
-      if (mode === 'authenticated' || mode === 'verified' || mode === 'admin') {
+      if (mode === 'authenticated' || mode === 'verified') {
         operation.security = [{ bearer: [] }];
       }
+      if (mode === 'admin') operation.security = [{ adminSession: [], adminCsrf: [] }];
     }
   }
   return document;
@@ -40,6 +41,11 @@ export function createOpenApiDocument(app: INestApplication) {
     .addServer('https://wenyou.site', '公网开发环境')
     .addServer('http://127.0.0.1:3000', '本地开发环境')
     .addBearerAuth()
+    .addCookieAuth('__Secure-wenyou-admin-session', {
+      type: 'apiKey',
+      in: 'cookie',
+    }, 'adminSession')
+    .addApiKey({ type: 'apiKey', in: 'header', name: 'X-CSRF-Token' }, 'adminCsrf')
     .addTag('Auth', '认证 — 注册、登录、Token 刷新、登录终端管理')
     .addTag('Users', '用户 — 资料、关注、拉黑')
     .addTag('Threads', '主题帖 — CRUD、成员管理、私密帖、邀请')
@@ -59,6 +65,13 @@ export function createOpenApiDocument(app: INestApplication) {
     .addTag('Admin Reports', '管理后台 — 举报队列与原子结案')
     .addTag('Health', '健康检查 — 数据库连通')
     .addTag('Admin', '管理后台 — 能力、系统通知与用户搜索')
+    .addTag('Admin Auth', '管理后台 — 独立会话、邮箱二次验证与高风险确认')
+    .addTag('Admin Accounts', '管理后台 — 邀请、撤权和超级管理员移交')
+    .addTag('Admin Cases', '管理后台 — 聚合举报、证据与治理决定')
+    .addTag('Admin Appeals', '管理后台 — 申诉复核与决定撤销')
+    .addTag('Moderation Appeals', '用户 — 查询治理决定与提交申诉')
+    .addTag('Admin Operations', '管理后台 — 紧急开关、维护公告和系统状态')
+    .addTag('Admin Campaigns', '管理后台 — 定时站内通知与接收范围预估')
     .addTag('Admin Moderation', '管理后台 — 用户处罚、内容处置与审计')
     .addTag('Admin Dashboard', '管理后台 — 活跃、增长、治理和分布指标')
     .addTag('Admin Taxonomy', '管理后台 — 主题帖分类和平台标签配置')

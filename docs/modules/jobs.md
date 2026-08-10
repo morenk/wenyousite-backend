@@ -20,6 +20,7 @@
 | `OutboxDispatcher`               | `@Interval`                 | 竞争领取并重试可靠领域事件（`src/outbox`）                                               |
 | `PostEventsListener`             | `@OnEvent('post.created')`  | 协调 @提及、通知和 Redis 投影（`src/post-activity`）                                     |
 | `NotificationProducer/Processor` | BullMQ                      | 通知任务生产与幂等落库（`src/notifications`）                                            |
+| `NotificationCampaignService`    | `@Interval` + BullMQ        | 每 30 秒领取到期站内通知活动，按 500 人分批并以活动事件键幂等投递                         |
 | `ImageProcessor`                 | `@Processor('image')`       | 调用 MediaService 生成衍生图（`src/media`）                                              |
 | `StickerProcessor`               | `@Processor('sticker')`     | 规范化表情并完成幂等导入（`src/stickers`）                                               |
 | `MobilePushProcessor`            | `@Processor('mobile-push')` | 验证终端状态、发送 FCM、停用无效 token（`src/mobile-push`）                              |

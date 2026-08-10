@@ -1,0 +1,1610 @@
+{
+  "schemaVersion": 1,
+  "contractVersion": "4.5.0-dev.20260809.1",
+  "counts": {
+    "total": 196,
+    "v1": 92,
+    "deferred": 54,
+    "notApplicable": 49,
+    "infrastructure": 1
+  },
+  "operations": [
+    {
+      "operationId": "healthCheck",
+      "method": "GET",
+      "path": "/api/v1/health",
+      "module": "infrastructure",
+      "disposition": "infrastructure",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "authRequestCode",
+      "method": "POST",
+      "path": "/api/v1/auth/register/request-code",
+      "module": "auth",
+      "disposition": "v1",
+      "status": "implemented",
+      "evidence": [
+        "test/features/auth/auth_repository_test.dart"
+      ]
+    },
+    {
+      "operationId": "authVerifyAndComplete",
+      "method": "POST",
+      "path": "/api/v1/auth/register/verify-and-complete",
+      "module": "auth",
+      "disposition": "v1",
+      "status": "implemented",
+      "evidence": [
+        "test/features/auth/auth_repository_test.dart"
+      ]
+    },
+    {
+      "operationId": "authLogin",
+      "method": "POST",
+      "path": "/api/v1/auth/login",
+      "module": "auth",
+      "disposition": "v1",
+      "status": "implemented",
+      "evidence": [
+        "test/features/auth/auth_repository_test.dart"
+      ]
+    },
+    {
+      "operationId": "authRefresh",
+      "method": "POST",
+      "path": "/api/v1/auth/refresh",
+      "module": "auth",
+      "disposition": "v1",
+      "status": "implemented",
+      "evidence": [
+        "test/core/network/session_controller_test.dart",
+        "test/core/network/session_remote_test.dart"
+      ]
+    },
+    {
+      "operationId": "authVerifyEmail",
+      "method": "POST",
+      "path": "/api/v1/auth/verify-email",
+      "module": "auth",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "authResendVerification",
+      "method": "POST",
+      "path": "/api/v1/auth/resend-verification",
+      "module": "auth",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "authChangePassword",
+      "method": "POST",
+      "path": "/api/v1/auth/change-password",
+      "module": "auth",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "authForgotPassword",
+      "method": "POST",
+      "path": "/api/v1/auth/forgot-password",
+      "module": "auth",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "authResetPassword",
+      "method": "POST",
+      "path": "/api/v1/auth/reset-password",
+      "module": "auth",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "authRequestChangeEmailCode",
+      "method": "POST",
+      "path": "/api/v1/auth/change-email/request-code",
+      "module": "auth",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "authVerifyChangeEmail",
+      "method": "POST",
+      "path": "/api/v1/auth/change-email/verify",
+      "module": "auth",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "authLogout",
+      "method": "POST",
+      "path": "/api/v1/auth/logout",
+      "module": "auth",
+      "disposition": "v1",
+      "status": "implemented",
+      "evidence": [
+        "test/features/auth/logout_controller_test.dart",
+        "test/core/network/session_remote_test.dart"
+      ]
+    },
+    {
+      "operationId": "authListSessions",
+      "method": "GET",
+      "path": "/api/v1/auth/sessions",
+      "module": "auth",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "authRevokeSession",
+      "method": "DELETE",
+      "path": "/api/v1/auth/sessions/{id}",
+      "module": "auth",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "usersSearch",
+      "method": "GET",
+      "path": "/api/v1/users/search",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "usersMentionCandidates",
+      "method": "GET",
+      "path": "/api/v1/users/mention-candidates",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "usersGetMe",
+      "method": "GET",
+      "path": "/api/v1/users/me",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "usersUpdateMe",
+      "method": "PATCH",
+      "path": "/api/v1/users/me",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "usersDeleteMe",
+      "method": "DELETE",
+      "path": "/api/v1/users/me",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "usersSetAvatar",
+      "method": "PATCH",
+      "path": "/api/v1/users/me/avatar",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "usersRemoveAvatar",
+      "method": "DELETE",
+      "path": "/api/v1/users/me/avatar",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "usersGetUserBookmarks",
+      "method": "GET",
+      "path": "/api/v1/users/{id}/bookmarks",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "usersGetUserPlayedThreads",
+      "method": "GET",
+      "path": "/api/v1/users/{id}/played-threads",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "usersGetUserCreatedThreads",
+      "method": "GET",
+      "path": "/api/v1/users/{id}/created-threads",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "usersGetUserRecentReplies",
+      "method": "GET",
+      "path": "/api/v1/users/{id}/recent-replies",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "usersGetUser",
+      "method": "GET",
+      "path": "/api/v1/users/{id}",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "usersFollowFollow",
+      "method": "POST",
+      "path": "/api/v1/users/follow/{id}",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "usersFollowUnfollow",
+      "method": "DELETE",
+      "path": "/api/v1/users/follow/{id}",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "usersFollowFollowing",
+      "method": "GET",
+      "path": "/api/v1/users/following",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "usersFollowFollowers",
+      "method": "GET",
+      "path": "/api/v1/users/followers",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "usersFollowUserFollowing",
+      "method": "GET",
+      "path": "/api/v1/users/{id}/following",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "usersFollowUserFollowers",
+      "method": "GET",
+      "path": "/api/v1/users/{id}/followers",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "usersFollowBlock",
+      "method": "POST",
+      "path": "/api/v1/users/me/block/{id}",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "usersFollowUnblock",
+      "method": "DELETE",
+      "path": "/api/v1/users/me/block/{id}",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "usersFollowBlocks",
+      "method": "GET",
+      "path": "/api/v1/users/me/blocks",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "notificationsFindAll",
+      "method": "GET",
+      "path": "/api/v1/notifications",
+      "module": "notifications",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "notificationsUnreadCount",
+      "method": "GET",
+      "path": "/api/v1/notifications/unread",
+      "module": "notifications",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "notificationsSetReadStatus",
+      "method": "PATCH",
+      "path": "/api/v1/notifications/{id}",
+      "module": "notifications",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "notificationsRemove",
+      "method": "DELETE",
+      "path": "/api/v1/notifications/{id}",
+      "module": "notifications",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "notificationsMarkAllAsRead",
+      "method": "POST",
+      "path": "/api/v1/notifications/read-all",
+      "module": "notifications",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "mobileDeviceRegister",
+      "method": "PUT",
+      "path": "/api/v1/mobile/devices/current",
+      "module": "notifications",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "mobileDeviceUnregister",
+      "method": "DELETE",
+      "path": "/api/v1/mobile/devices/current",
+      "module": "notifications",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "bookmarksFindAll",
+      "method": "GET",
+      "path": "/api/v1/bookmarks",
+      "module": "social",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "bookmarksCreate",
+      "method": "POST",
+      "path": "/api/v1/bookmarks",
+      "module": "social",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "bookmarksFindFolders",
+      "method": "GET",
+      "path": "/api/v1/bookmarks/folders",
+      "module": "social",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "bookmarksCreateFolder",
+      "method": "POST",
+      "path": "/api/v1/bookmarks/folders",
+      "module": "social",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "bookmarksMove",
+      "method": "PATCH",
+      "path": "/api/v1/bookmarks/{id}",
+      "module": "social",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "bookmarksRemove",
+      "method": "DELETE",
+      "path": "/api/v1/bookmarks/{id}",
+      "module": "social",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "threadsFindDrafts",
+      "method": "GET",
+      "path": "/api/v1/threads/draft",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "threadsFindAll",
+      "method": "GET",
+      "path": "/api/v1/threads",
+      "module": "home",
+      "disposition": "v1",
+      "status": "implemented",
+      "evidence": [
+        "test/features/home/home_repository_test.dart",
+        "test/features/home/home_feed_controller_test.dart"
+      ]
+    },
+    {
+      "operationId": "threadsCreate",
+      "method": "POST",
+      "path": "/api/v1/threads",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "threadsFindById",
+      "method": "GET",
+      "path": "/api/v1/threads/{id}",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "threadsUpdate",
+      "method": "PATCH",
+      "path": "/api/v1/threads/{id}",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "threadsRemove",
+      "method": "DELETE",
+      "path": "/api/v1/threads/{id}",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "threadsSaveAggregate",
+      "method": "PATCH",
+      "path": "/api/v1/threads/{id}/aggregate",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "threadsLike",
+      "method": "POST",
+      "path": "/api/v1/threads/{id}/like",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "threadsUnlike",
+      "method": "DELETE",
+      "path": "/api/v1/threads/{id}/like",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "threadsCreateInviteLink",
+      "method": "POST",
+      "path": "/api/v1/threads/{id}/invite-link",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "threadsPreviewInviteLink",
+      "method": "GET",
+      "path": "/api/v1/threads/join-by-link/{token}",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "threadsJoinByInviteLink",
+      "method": "POST",
+      "path": "/api/v1/threads/join-by-link/{token}",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "threadMembersFindAll",
+      "method": "GET",
+      "path": "/api/v1/threads/{threadId}/members",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "threadMembersJoin",
+      "method": "POST",
+      "path": "/api/v1/threads/{threadId}/members/join",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "threadMembersUpdateMember",
+      "method": "PATCH",
+      "path": "/api/v1/threads/{threadId}/members/{userId}",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "threadMembersExitMember",
+      "method": "DELETE",
+      "path": "/api/v1/threads/{threadId}/members/me",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "threadTagsFindAll",
+      "method": "GET",
+      "path": "/api/v1/threads/{threadId}/tags",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "threadTagsAdd",
+      "method": "POST",
+      "path": "/api/v1/threads/{threadId}/tags",
+      "module": "threads",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "threadTagsRemove",
+      "method": "DELETE",
+      "path": "/api/v1/threads/{threadId}/tags/{tagId}",
+      "module": "threads",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "tagsSearch",
+      "method": "GET",
+      "path": "/api/v1/tags",
+      "module": "editor",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "tagsCreate",
+      "method": "POST",
+      "path": "/api/v1/tags",
+      "module": "editor",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "tagsGetById",
+      "method": "GET",
+      "path": "/api/v1/tags/{id}",
+      "module": "editor",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "stickersGetCollection",
+      "method": "GET",
+      "path": "/api/v1/stickers",
+      "module": "editor",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "stickersImportMedia",
+      "method": "POST",
+      "path": "/api/v1/stickers/imports/media",
+      "module": "editor",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "stickersImportDirectMessage",
+      "method": "POST",
+      "path": "/api/v1/stickers/imports/direct-message",
+      "module": "editor",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "stickersImportPostImage",
+      "method": "POST",
+      "path": "/api/v1/stickers/imports/post-image",
+      "module": "editor",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "stickersGetImport",
+      "method": "GET",
+      "path": "/api/v1/stickers/imports/{id}",
+      "module": "editor",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "stickersReorder",
+      "method": "PUT",
+      "path": "/api/v1/stickers/reorder",
+      "module": "editor",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "stickersRemove",
+      "method": "DELETE",
+      "path": "/api/v1/stickers/{favoriteId}",
+      "module": "editor",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "threadCategoriesList",
+      "method": "GET",
+      "path": "/api/v1/thread-categories",
+      "module": "home",
+      "disposition": "v1",
+      "status": "implemented",
+      "evidence": [
+        "test/features/home/home_repository_test.dart",
+        "test/features/home/home_feed_controller_test.dart"
+      ]
+    },
+    {
+      "operationId": "subthreadsFindAll",
+      "method": "GET",
+      "path": "/api/v1/threads/{threadId}/subthreads",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "subthreadsCreate",
+      "method": "POST",
+      "path": "/api/v1/threads/{threadId}/subthreads",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "subthreadsFindById",
+      "method": "GET",
+      "path": "/api/v1/subthreads/{id}",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "subthreadsUpdate",
+      "method": "PATCH",
+      "path": "/api/v1/subthreads/{id}",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "subthreadsRemove",
+      "method": "DELETE",
+      "path": "/api/v1/subthreads/{id}",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "subthreadsReorder",
+      "method": "PUT",
+      "path": "/api/v1/threads/{threadId}/subthreads/reorder",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "postsFindFloors",
+      "method": "GET",
+      "path": "/api/v1/subthreads/{subthreadId}/posts",
+      "module": "posts",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "postsCreate",
+      "method": "POST",
+      "path": "/api/v1/subthreads/{subthreadId}/posts",
+      "module": "posts",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "postsFindReplies",
+      "method": "GET",
+      "path": "/api/v1/posts/{id}/replies",
+      "module": "posts",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "postsUpsertBody",
+      "method": "PUT",
+      "path": "/api/v1/subthreads/{subthreadId}/body",
+      "module": "posts",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "postsFindById",
+      "method": "GET",
+      "path": "/api/v1/posts/{id}",
+      "module": "posts",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "postsUpdate",
+      "method": "PATCH",
+      "path": "/api/v1/posts/{id}",
+      "module": "posts",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "postsRemove",
+      "method": "DELETE",
+      "path": "/api/v1/posts/{id}",
+      "module": "posts",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "draftsFindAll",
+      "method": "GET",
+      "path": "/api/v1/drafts",
+      "module": "drafts",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "draftsCreate",
+      "method": "POST",
+      "path": "/api/v1/drafts",
+      "module": "drafts",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "draftsSlotUsage",
+      "method": "GET",
+      "path": "/api/v1/drafts/slots",
+      "module": "drafts",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "draftsFindById",
+      "method": "GET",
+      "path": "/api/v1/drafts/{id}",
+      "module": "drafts",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "draftsUpdate",
+      "method": "PATCH",
+      "path": "/api/v1/drafts/{id}",
+      "module": "drafts",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "draftsRemove",
+      "method": "DELETE",
+      "path": "/api/v1/drafts/{id}",
+      "module": "drafts",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "subscriptionsFindAll",
+      "method": "GET",
+      "path": "/api/v1/subscriptions",
+      "module": "social",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "subscriptionsCreate",
+      "method": "POST",
+      "path": "/api/v1/subscriptions",
+      "module": "social",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "subscriptionsRemove",
+      "method": "DELETE",
+      "path": "/api/v1/subscriptions/{id}",
+      "module": "social",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "reportsCreate",
+      "method": "POST",
+      "path": "/api/v1/reports",
+      "module": "moderation",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "adminReportsFindAll",
+      "method": "GET",
+      "path": "/api/v1/admin/reports",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminReportsFindOne",
+      "method": "GET",
+      "path": "/api/v1/admin/reports/{id}",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminReportsResolve",
+      "method": "POST",
+      "path": "/api/v1/admin/reports/{id}/resolve",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminAuthChallenge",
+      "method": "POST",
+      "path": "/api/v1/admin/auth/challenge",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminAuthVerify",
+      "method": "POST",
+      "path": "/api/v1/admin/auth/verify",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminAuthSession",
+      "method": "GET",
+      "path": "/api/v1/admin/auth/session",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminAuthLogout",
+      "method": "POST",
+      "path": "/api/v1/admin/auth/logout",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminAuthStepUpChallenge",
+      "method": "POST",
+      "path": "/api/v1/admin/auth/step-up/challenge",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminAuthVerifyStepUp",
+      "method": "POST",
+      "path": "/api/v1/admin/auth/step-up/verify",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminAccountsList",
+      "method": "GET",
+      "path": "/api/v1/admin/accounts",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminAccountsInvite",
+      "method": "POST",
+      "path": "/api/v1/admin/accounts/invites",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminAccountsCancel",
+      "method": "DELETE",
+      "path": "/api/v1/admin/accounts/invites/{id}",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminAccountsRevoke",
+      "method": "DELETE",
+      "path": "/api/v1/admin/accounts/{id}",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminAccountsTransfer",
+      "method": "POST",
+      "path": "/api/v1/admin/accounts/transfer-super-admin",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminInviteAcceptanceAccept",
+      "method": "POST",
+      "path": "/api/v1/admin-invitations/{token}/accept",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "moderationCasesList",
+      "method": "GET",
+      "path": "/api/v1/admin/cases",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "moderationCasesGet",
+      "method": "GET",
+      "path": "/api/v1/admin/cases/{id}",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "moderationCasesResolve",
+      "method": "POST",
+      "path": "/api/v1/admin/cases/{id}/resolve",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminModerationAppealsList",
+      "method": "GET",
+      "path": "/api/v1/admin/appeals",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminModerationAppealsResolve",
+      "method": "POST",
+      "path": "/api/v1/admin/appeals/{id}/resolve",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "userModerationAppealsMine",
+      "method": "GET",
+      "path": "/api/v1/moderation/decisions/mine",
+      "module": "moderation",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "userModerationAppealsAppeal",
+      "method": "POST",
+      "path": "/api/v1/moderation/appeals",
+      "module": "moderation",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "siteOperationalSettingsGet",
+      "method": "GET",
+      "path": "/api/v1/admin/operations/settings",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "siteOperationalSettingsUpdate",
+      "method": "PATCH",
+      "path": "/api/v1/admin/operations/settings",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "notificationCampaignList",
+      "method": "GET",
+      "path": "/api/v1/admin/notification-campaigns",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "notificationCampaignCreate",
+      "method": "POST",
+      "path": "/api/v1/admin/notification-campaigns",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "notificationCampaignPreview",
+      "method": "POST",
+      "path": "/api/v1/admin/notification-campaigns/preview",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "notificationCampaignCancel",
+      "method": "DELETE",
+      "path": "/api/v1/admin/notification-campaigns/{id}",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminIndex",
+      "method": "GET",
+      "path": "/api/v1/admin",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminSendSystemNotification",
+      "method": "POST",
+      "path": "/api/v1/admin/notifications/system",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminPreviewRecipients",
+      "method": "POST",
+      "path": "/api/v1/admin/notifications/system/preview",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminGetHistory",
+      "method": "GET",
+      "path": "/api/v1/admin/notifications/system/history",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminSearchUsers",
+      "method": "GET",
+      "path": "/api/v1/admin/users/search",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminModerationListUsers",
+      "method": "GET",
+      "path": "/api/v1/admin/users",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminModerationGetUser",
+      "method": "GET",
+      "path": "/api/v1/admin/users/{id}",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminModerationSanctionUser",
+      "method": "POST",
+      "path": "/api/v1/admin/users/{id}/sanctions",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminModerationRevokeSanction",
+      "method": "POST",
+      "path": "/api/v1/admin/users/{id}/sanctions/current/revoke",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminModerationUpdateRole",
+      "method": "PATCH",
+      "path": "/api/v1/admin/users/{id}/role",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminModerationHideContent",
+      "method": "POST",
+      "path": "/api/v1/admin/content/{type}/{id}/hide",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminModerationRestoreContent",
+      "method": "POST",
+      "path": "/api/v1/admin/content/{type}/{id}/restore",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminModerationListAuditLogs",
+      "method": "GET",
+      "path": "/api/v1/admin/audit-logs",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminModerationExportAuditLogs",
+      "method": "GET",
+      "path": "/api/v1/admin/audit-logs/export",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminDashboardOverview",
+      "method": "GET",
+      "path": "/api/v1/admin/dashboard/overview",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminDashboardTimeseries",
+      "method": "GET",
+      "path": "/api/v1/admin/dashboard/timeseries",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminDashboardDistributions",
+      "method": "GET",
+      "path": "/api/v1/admin/dashboard/distributions",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminTaxonomyListCategories",
+      "method": "GET",
+      "path": "/api/v1/admin/thread-categories",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminTaxonomyCreateCategory",
+      "method": "POST",
+      "path": "/api/v1/admin/thread-categories",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminTaxonomyUpdateCategory",
+      "method": "PATCH",
+      "path": "/api/v1/admin/thread-categories/{id}",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminTaxonomyListTags",
+      "method": "GET",
+      "path": "/api/v1/admin/tags",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminTaxonomyCreateTag",
+      "method": "POST",
+      "path": "/api/v1/admin/tags",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminTaxonomyUpdateTag",
+      "method": "PATCH",
+      "path": "/api/v1/admin/tags/{id}",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "searchSearchMoments",
+      "method": "GET",
+      "path": "/api/v1/search/moments",
+      "module": "search",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "searchSearchThreads",
+      "method": "GET",
+      "path": "/api/v1/search/threads",
+      "module": "search",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "searchSearchUsers",
+      "method": "GET",
+      "path": "/api/v1/search/users",
+      "module": "search",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "searchSearchPosts",
+      "method": "GET",
+      "path": "/api/v1/search/posts",
+      "module": "search",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "searchSearch",
+      "method": "GET",
+      "path": "/api/v1/search",
+      "module": "search",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "threadSearchSearchPosts",
+      "method": "GET",
+      "path": "/api/v1/threads/{threadId}/search/posts",
+      "module": "search",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "momentsList",
+      "method": "GET",
+      "path": "/api/v1/moments",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsCreate",
+      "method": "POST",
+      "path": "/api/v1/moments",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsBookmarks",
+      "method": "GET",
+      "path": "/api/v1/moments/bookmarks",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsDetail",
+      "method": "GET",
+      "path": "/api/v1/moments/{id}",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsUpdate",
+      "method": "PATCH",
+      "path": "/api/v1/moments/{id}",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsRemove",
+      "method": "DELETE",
+      "path": "/api/v1/moments/{id}",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsLike",
+      "method": "POST",
+      "path": "/api/v1/moments/{id}/like",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsUnlike",
+      "method": "DELETE",
+      "path": "/api/v1/moments/{id}/like",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsBookmark",
+      "method": "POST",
+      "path": "/api/v1/moments/{id}/bookmark",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsUnbookmark",
+      "method": "DELETE",
+      "path": "/api/v1/moments/{id}/bookmark",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsCommentsList",
+      "method": "GET",
+      "path": "/api/v1/moments/{id}/comments",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsCreateComment",
+      "method": "POST",
+      "path": "/api/v1/moments/{id}/comments",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsCommentAuthors",
+      "method": "GET",
+      "path": "/api/v1/moments/{id}/comment-authors",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsReplies",
+      "method": "GET",
+      "path": "/api/v1/moments/{id}/comments/{commentId}/replies",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsRemoveComment",
+      "method": "DELETE",
+      "path": "/api/v1/moments/{id}/comments/{commentId}",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "userMomentsList",
+      "method": "GET",
+      "path": "/api/v1/users/{id}/moments",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "mediaGetUploadUrl",
+      "method": "POST",
+      "path": "/api/v1/media/upload-url",
+      "module": "media",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "mediaConfirmUpload",
+      "method": "POST",
+      "path": "/api/v1/media/upload-done",
+      "module": "media",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "mediaGetMedia",
+      "method": "GET",
+      "path": "/api/v1/media/{id}",
+      "module": "media",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "directConversationsFindAll",
+      "method": "GET",
+      "path": "/api/v1/direct-conversations",
+      "module": "direct-messages",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "directConversationsCreate",
+      "method": "POST",
+      "path": "/api/v1/direct-conversations",
+      "module": "direct-messages",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "directConversationsUnread",
+      "method": "GET",
+      "path": "/api/v1/direct-conversations/unread",
+      "module": "direct-messages",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "directConversationsFindByUser",
+      "method": "GET",
+      "path": "/api/v1/direct-conversations/by-user/{userId}",
+      "module": "direct-messages",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "directConversationsFindById",
+      "method": "GET",
+      "path": "/api/v1/direct-conversations/{id}",
+      "module": "direct-messages",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "directConversationsMessages",
+      "method": "GET",
+      "path": "/api/v1/direct-conversations/{id}/messages",
+      "module": "direct-messages",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "directConversationsSend",
+      "method": "POST",
+      "path": "/api/v1/direct-conversations/{id}/messages",
+      "module": "direct-messages",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "directConversationsHandleRequest",
+      "method": "PATCH",
+      "path": "/api/v1/direct-conversations/{id}/request",
+      "module": "direct-messages",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "directConversationsArchive",
+      "method": "PATCH",
+      "path": "/api/v1/direct-conversations/{id}/archive",
+      "module": "direct-messages",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "directConversationsMarkRead",
+      "method": "POST",
+      "path": "/api/v1/direct-conversations/{id}/read",
+      "module": "direct-messages",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "directMessagesRecall",
+      "method": "DELETE",
+      "path": "/api/v1/direct-messages/{id}",
+      "module": "direct-messages",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "metaGetMeta",
+      "method": "GET",
+      "path": "/api/v1/meta",
+      "module": "app-shell",
+      "disposition": "v1",
+      "status": "implemented",
+      "evidence": [
+        "test/mobile_update_test.dart",
+        "test/app_shell_test.dart"
+      ]
+    },
+    {
+      "operationId": "economyGetWallet",
+      "method": "GET",
+      "path": "/api/v1/wallet",
+      "module": "economy",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "economyCheckIn",
+      "method": "POST",
+      "path": "/api/v1/wallet/check-in",
+      "module": "economy",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "economyTransactions",
+      "method": "GET",
+      "path": "/api/v1/wallet/transactions",
+      "module": "economy",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "economyTipThread",
+      "method": "POST",
+      "path": "/api/v1/threads/{id}/tips",
+      "module": "economy",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "economyTipUser",
+      "method": "POST",
+      "path": "/api/v1/users/{id}/tips",
+      "module": "economy",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "economyTipMoment",
+      "method": "POST",
+      "path": "/api/v1/moments/{id}/tips",
+      "module": "economy",
+      "disposition": "deferred",
+      "status": "deferred"
+    }
+  ]
+}

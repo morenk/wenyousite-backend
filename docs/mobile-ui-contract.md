@@ -1,66 +1,21 @@
-# Flutter 移动端界面与可读性待接入规范
+# Flutter 设计基础边界
 
-状态：`pending-client-integration`。本文记录原生移动端接入时需要落实的稳定界面语义；当前工作区没有 Flutter 工程、平台资产或客户端测试，因此不得把本文描述为已经通过验收的运行事实。
+状态：`external-source`
 
-## 契约边界
+后端不再维护移动端审美、字体、布局和编辑器工具栏的副本。跨端共享 Token、体验能力及 Flutter 平台规范由公开仓库
+[`morenk/wenyousite-foundation`](https://github.com/morenk/wenyousite-foundation) 统一维护：
 
-| 层级 | 事实源 | 约束 |
-| --- | --- | --- |
-| HTTP API | `contracts/openapi.json` | 不改变字段、认证、分页和幂等语义 |
-| 正文与推送 | Markdown fixtures、mobile-push schema/fixtures | 必须通过黄金样例并保留 unknown fallback |
-| 界面语义 | 本文 | 保持信息层级、可读性、状态和操作名称 |
-| 平台实现 | Flutter 客户端仓库 | 固定 SDK、依赖、字体资产、路由和平台权限 |
+- [共享设计基础](https://github.com/morenk/wenyousite-foundation/blob/main/docs/foundation.md)
+- [Flutter / mobile profile](https://github.com/morenk/wenyousite-foundation/blob/main/docs/platforms/mobile.md)
+- [跨端图片呈现契约](https://github.com/morenk/wenyousite-foundation/blob/main/docs/images.md)
+- [机器契约](https://github.com/morenk/wenyousite-foundation/blob/main/contracts/foundation.v1.json)
+- [审美指导 skill](https://github.com/morenk/wenyousite-foundation/tree/main/skills/wenyou-design)
 
-API、安全存储、版本检查、重试和推送生命周期以 [`mobile-client-guide.md`](./mobile-client-guide.md) 为准。Flutter 仓库建立后，应在该仓库固定 Flutter/Dart 版本、生成器版本、字体文件版本/许可证及测试命令。
+Flutter 客户端的 `foundation.lock.json` 决定实际生效版本；本文件只提供仓库发现入口，不固定或转录色值、字体版本、能力矩阵和验收表。
 
-## 可读性与字体
+边界保持如下：
 
-- 正文默认目标为 17sp、约 1.85 行高；嵌套回复和普通私聊目标为 16sp、约 1.75 行高；元数据不低于 13sp。
-- 保留系统 `TextScaler`。文字缩放到 200% 时允许页面增高、换行和布局切换，不得裁掉正文、标签、错误或主要操作。
-- Markdown `strong` 使用真实粗体；链接、删除线、引用、代码和禁用状态必须有足够对比度，不能只靠颜色传达状态。
-- Noto Sans SC、LXGW WenKai 和 Nunito 是当前设计候选，不是已打包事实。接入前必须确认字体文件、真实字重、许可证、体积和平台降级方案，不能依赖运行时下载或合成粗体。
-
-## 阅读列与输入
-
-- 320–599dp 手机的正文左右留白目标为 16–20dp，每行约 18–24 个汉字，不通过硬换行实现。
-- 600dp 及以上设备使用居中的最大阅读列，正文不随横屏无限拉宽。
-- 编辑器和发布结果使用一致的标题、正文、强调、引用与代码尺度。
-- 长 URL、连续英文、表格和代码块在自身容器内换行或横向滚动，不能撑宽整个页面。
-- 常用控件命中区域不小于 44×44dp；软键盘、物理键盘、读屏标签和系统返回都必须可用。
-
-## 页面与导航
-
-- 手机不复制 PC Web 的固定侧栏。创建、编辑、私聊和需要集中输入的流程使用独立全屏页面。
-- 私聊使用“会话列表 → 单个会话”；600dp 以上可切换为双栏。窄屏不得把标签或会话名挤成逐字竖排。
-- 全局导航必须能发现“动态/发现、搜索、创建、通知、私聊、收藏、钱包和个人资料”；当前位置和未读数不能只靠颜色表示。
-- 通知和 FCM 点击只按服务端 target/data 导航，并重新拉取权威内容；未知目标进入对应消息中心。
-
-最低页面集合包括：
-
-- 主题帖列表/详情、子贴、楼层与两层回复、创建/编辑和动态分类状态。
-- 动态发现/关注流、动态详情、创建/编辑、两层评论、回复者筛选、单图/表情评论及快照过期刷新。
-- 私聊列表、消息请求、单个会话、通知中心和推送落地。
-- 钱包、每日签到、用户/主题帖/动态加油及余额不足状态。
-- 图片处理中、衍生图缺失、表情失效、未知枚举和无权限内容的安全降级。
-
-## 内容和状态
-
-- 主题帖正文逐条通过 Markdown v2 两份 fixtures；未知扩展节点显示安全且可复制的文本，不执行其中 URL 或代码。
-- 动态和私聊正文是纯文本，不进入 Markdown 渲染。动态无图封面根据服务端 `textCoverTheme` 绘制，不自行发明持久化值。
-- loading、error、empty、success 都有明确状态；错误说明发生的事实和可执行下一步，不用服务端 `message` 做业务分支。
-- 动态分类、停用 slug、删除媒体、推送未知版本和错误码 unknown 都有可恢复降级路径。
-
-## 接入验收矩阵
-
-| 维度 | 必测值 |
-| --- | --- |
-| 手机宽度 | 320、360、390dp |
-| 大屏 | 600dp、横屏 |
-| 文字缩放 | 100%、130%、200% |
-| 字体 | 候选字体正常、资产加载失败降级 |
-| 内容 | 长中文、连续英文、长 URL、粗体、引用、代码、表格、图片、骰子、表情、提及 |
-| 业务 | 主题帖、动态、评论媒体、私聊、通知、钱包和加油 |
-| 输入环境 | 软键盘、物理键盘、系统返回、读屏 |
-| 平台生命周期 | Android/iOS 权限、前后台、冷启动推送、网络恢复 |
-
-失败条件包括：关闭用户缩放、正文低于基线、文字或主要按钮被裁切、导航文字竖排、阅读列无限变宽、编辑器与发布结果明显不一致，以及任一 Markdown/推送黄金样例无法安全降级。
+- HTTP 字段、认证、分页、幂等、媒体、错误码与 FCM 生命周期仍以本仓库的 [`mobile-client-guide.md`](./mobile-client-guide.md)、OpenAPI 和 fixtures/schema 为准。
+- Markdown 存储与安全降级仍由本仓库的两份 Markdown v2 黄金语料定义；设计基础只规定能力是否直接可发现，不改变内容协议。
+- Flutter 的字体资产、平台布局、文字缩放、48dp 触控、安全区和视觉验收由基础仓库 mobile profile 与客户端实现负责。
+- 新增 API/数据协议回到后端；新增跨端视觉或体验语义先在基础仓库发布版本，再升级客户端锁。

@@ -1,6 +1,6 @@
 # 数据模型
 
-> 44 张表，25 个 Prisma 枚举。除显式标注的 UUID 外，ID 使用 `cuid()` 生成，时间戳使用 `DateTime`。
+> 55 张表，31 个 Prisma 枚举。除显式标注的 UUID 外，ID 使用 `cuid()` 生成，时间戳使用 `DateTime`。
 
 ## 枚举定义
 
@@ -27,7 +27,7 @@
 | `ADMIN` | 管理员 |
 | `SUPER_ADMIN` | 超级管理员（站长） |
 
-治理相关枚举：`ReportTargetType` 为 `USER / THREAD / POST`，`ReportStatus` 为 `PENDING / RESOLVED / DISMISSED`，`UserSanctionType` 为 `SUSPENSION / BAN`。`ContentRemovalSource` 用于区分作者、楼主、帖内管理者和站务隐藏；`AuditAction / AuditTargetType` 固定管理员审计分类。
+治理相关枚举：`ReportTargetType` 为 `USER / THREAD / POST / MOMENT / MOMENT_COMMENT / DIRECT_MESSAGE`，`ReportStatus` 为 `PENDING / RESOLVED / DISMISSED`，案件状态为 `OPEN / RESOLVED / DISMISSED`，申诉状态为 `PENDING / UPHELD / OVERTURNED`，`UserSanctionType` 为 `SUSPENSION / BAN`。`ContentRemovalSource` 用于区分作者、楼主、帖内管理者和站务隐藏；`AuditAction / AuditTargetType` 固定管理员审计分类。
 
 ### MemberRole — 帖内角色
 
@@ -265,9 +265,10 @@
 | icon | String? | VarChar(50) | 客户端图标键 |
 | sortOrder | Int | default 0 | 展示顺序 |
 | isActive | Boolean | default true | 是否允许新选择；停用不删除历史关联 |
+| mergedIntoId | String? | self FK (SetNull) | 合并目标分类；未合并为 null，响应契约显式保留 |
 | createdAt / updatedAt | DateTime | — | 审计时间 |
 
-旧 `DEDUCTION / NATION / RPG` 作为初始配置迁移保留。公开接口只返回启用项，管理接口返回全部配置。
+旧三类数据由迁移一次性写入注册表并保留原 slug，以维持历史主题帖外键和旧客户端链接；它们不再是运行时代码常量。显示名称、描述、颜色、排序和启停状态均以本表为唯一事实源。公开接口只返回启用项，管理接口返回全部配置。
 
 ### threads — 主题帖
 
@@ -446,6 +447,12 @@
 
 唯一索引为 `(userId, threadId, targetUserId) NULLS NOT DISTINCT`，保证 THREAD 的空目标也唯一；CHECK 约束要求 THREAD 目标为空、USER 目标非空。`@@index([userId, type])` 支撑列表查询。
 
+### bookmark_folders / user_bookmarks — 主题帖收藏夹
+
+`bookmark_folders` 保存用户私有分类：`userId + name` 唯一，`isDefault` 标识不可缺少的默认收藏夹，数据库部分唯一索引保证每个用户最多一个默认夹。`user_bookmarks.folderId` 为必填外键并按收藏夹和创建时间建立索引；`userId + threadId` 仍保持唯一，因此同一主题帖不能重复放入多个收藏夹，只能移动分类。
+
+迁移为所有已有用户创建“默认收藏夹”并回填历史收藏；新用户注册事务同步创建。删除用户级联删除收藏夹和收藏，删除主题帖仍级联删除对应收藏。
+
 ### topic_tags — 平台全局标签
 
 | 字段 | 类型 | 约束 | 说明 |
@@ -456,6 +463,7 @@
 | description | String? | VarChar(200) | 管理员配置的描述 |
 | sortOrder | Int | default 0 | 展示顺序 |
 | isActive | Boolean | default true | 是否允许搜索和新关联 |
+| mergedIntoId | String? | self FK (SetNull) | 合并目标标签；未合并为 null，响应契约显式保留 |
 | createdAt / updatedAt | DateTime | — | — |
 
 ### thread_topic_tags — 主题帖-标签关联
@@ -548,7 +556,7 @@
 |------|------|------|------|
 | id | String | PK | — |
 | reporterId | String? | FK users (SetNull) | 举报人 |
-| targetType | ReportTargetType | — | 举报目标类型（POST/THREAD/USER） |
+| targetType | ReportTargetType | — | 用户、公开内容或当前用户收到的私聊消息 |
 | targetId | String | — | 举报目标 ID |
 | reasonCode | ReportReasonCode | default OTHER | 结构化举报原因 |
 | details | String? | — | 补充说明；旧自由文本原因迁移到此字段 |
@@ -558,8 +566,15 @@
 | handledAt | DateTime? | — | 处理时间 |
 | resolutionNote | String? | — | 结案理由，同时作为关联处罚理由 |
 | createdAt / updatedAt | DateTime | — | — |
+| caseId | String? | FK moderation_cases | 聚合案件；迁移前历史记录允许为空 |
 
-数据库部分唯一索引保证同一举报人对同一目标最多一条待处理举报。
+数据库部分唯一索引保证同一举报人对同一目标最多一条待处理举报；另一个部分唯一索引保证同一目标最多一个开放案件。
+
+### moderation_cases / moderation_decisions / moderation_appeals
+
+- `moderation_cases` 按 `targetType + targetId` 聚合开放举报，记录状态、结案管理员和时间。
+- `moderation_decisions` 保存实际动作、政策原因、用户可见说明、内部备注、执行管理员和是否仍生效；推翻只把原决定标为失效，不覆盖历史。
+- `moderation_appeals` 以 `decisionId` 唯一约束保证一个决定最多申诉一次，保存申诉人、陈述、复核结果和处理管理员。
 
 ### user_sanctions — 账号处罚
 
@@ -578,6 +593,19 @@
 | reason | String? | — | 管理动作理由 |
 | detail | String? | — | 迁移前历史详情，只读保留 |
 | metadata | Json? | — | 新操作的结构化脱敏详情 |
-| ip | String? | — | 操作 IP |
-| requestId | String? | — | 关联 HTTP 请求 ID |
+| ip | String? | — | 仅兼容迁移前记录；新记录固定为空 |
+| requestId | String? | — | 仅兼容迁移前记录；新记录固定为空 |
 | createdAt | DateTime | — | — |
+
+新记录的 IP 与 request ID 写入一对一 `audit_sensitive_contexts`，并带一年后 `expiresAt`；永久审计主体只保存治理事实。
+
+### 管理员安全模型
+
+- `admin_auth_challenges`：登录/step-up 邮件验证码哈希、尝试次数、过期和消费时间。
+- `admin_sessions`：独立后台会话 token 哈希、空闲活动、绝对过期、近期验证和撤销时间；部分唯一索引限制每用户一个活动会话。
+- `admin_invites`：邀请目标、邀请人、token 哈希、状态和过期/接受/取消时间；每用户最多一个待处理邀请。
+- `admin_security_events`：登录与近期验证安全事件，携带独立到期时间。
+
+### system_notification_campaigns / site_operational_settings
+
+`system_notification_campaigns` 保存通知正文、目标、JSON 受众、排期、投递状态、预估和实际人数；通知记录通过 `campaignId` 关联并以事件键幂等。`site_operational_settings` 使用固定 `default` 主键保存注册暂停、内容写入暂停和维护公告窗口。

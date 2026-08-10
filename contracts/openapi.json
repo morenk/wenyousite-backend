@@ -64,7 +64,9 @@
         "summary": "健康检查，返回各依赖服务状态",
         "tags": [
           "Health"
-        ]
+        ],
+        "x-auth-mode": "public",
+        "security": []
       }
     },
     "/api/v1/auth/register/request-code": {
@@ -3441,6 +3443,15 @@
               "example": 20,
               "type": "number"
             }
+          },
+          {
+            "name": "folderId",
+            "required": false,
+            "in": "query",
+            "description": "只返回指定收藏夹中的主题帖；不传时返回全部",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -3628,7 +3639,212 @@
         "x-auth-mode": "authenticated"
       }
     },
+    "/api/v1/bookmarks/folders": {
+      "get": {
+        "operationId": "bookmarksFindFolders",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookmarksFindFolders200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "获取我的收藏夹分类",
+        "tags": [
+          "Bookmarks"
+        ],
+        "x-auth-mode": "authenticated"
+      },
+      "post": {
+        "operationId": "bookmarksCreateFolder",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBookmarkFolderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookmarksCreateFolder201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "新建收藏夹分类",
+        "tags": [
+          "Bookmarks"
+        ],
+        "x-auth-mode": "authenticated"
+      }
+    },
     "/api/v1/bookmarks/{id}": {
+      "patch": {
+        "operationId": "bookmarksMove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveBookmarkDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookmarksMove200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "收藏或收藏夹不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "移动收藏到其他收藏夹",
+        "tags": [
+          "Bookmarks"
+        ],
+        "x-auth-mode": "authenticated"
+      },
       "delete": {
         "operationId": "bookmarksRemove",
         "parameters": [
@@ -3844,7 +4060,7 @@
             "in": "query",
             "description": "按动态分类 slug 筛选",
             "schema": {
-              "example": "DEDUCTION",
+              "example": "MYSTERY",
               "type": "string"
             }
           },
@@ -8187,7 +8403,7 @@
             "bearer": []
           }
         ],
-        "summary": "提交公开社区目标举报",
+        "summary": "提交社区内容、用户或自己收到的私聊消息举报（Web/移动端兼容）",
         "tags": [
           "Reports"
         ],
@@ -8198,6 +8414,15 @@
       "get": {
         "operationId": "adminReportsFindAll",
         "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "cursor",
             "required": false,
@@ -8243,7 +8468,8 @@
                 "THREAD",
                 "POST",
                 "MOMENT",
-                "MOMENT_COMMENT"
+                "MOMENT_COMMENT",
+                "DIRECT_MESSAGE"
               ]
             }
           },
@@ -8260,6 +8486,8 @@
                 "SEXUAL_CONTENT",
                 "VIOLENT_CONTENT",
                 "PERSONAL_INFORMATION",
+                "IMPERSONATION_OR_FRAUD",
+                "INTELLECTUAL_PROPERTY",
                 "ILLEGAL_CONTENT",
                 "OTHER"
               ]
@@ -8306,7 +8534,8 @@
         },
         "security": [
           {
-            "bearer": []
+            "adminSession": [],
+            "adminCsrf": []
           }
         ],
         "summary": "管理员举报队列",
@@ -8321,6 +8550,15 @@
       "get": {
         "operationId": "adminReportsFindOne",
         "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "id",
             "required": true,
@@ -8370,7 +8608,8 @@
         },
         "security": [
           {
-            "bearer": []
+            "adminSession": [],
+            "adminCsrf": []
           }
         ],
         "summary": "管理员举报详情",
@@ -8384,6 +8623,15 @@
       "post": {
         "operationId": "adminReportsResolve",
         "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "id",
             "required": true,
@@ -8461,7 +8709,8 @@
         },
         "security": [
           {
-            "bearer": []
+            "adminSession": [],
+            "adminCsrf": []
           }
         ],
         "summary": "原子结案并可选执行治理动作",
@@ -8471,10 +8720,1968 @@
         "x-auth-mode": "admin"
       }
     },
+    "/api/v1/admin/auth/challenge": {
+      "post": {
+        "operationId": "adminAuthChallenge",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminLoginChallengeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAuthChallenge200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "管理员密码校验后发送邮箱二次验证码",
+        "tags": [
+          "Admin Auth"
+        ],
+        "x-auth-mode": "public",
+        "security": []
+      }
+    },
+    "/api/v1/admin/auth/verify": {
+      "post": {
+        "operationId": "adminAuthVerify",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminChallengeVerifyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAuthVerify200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "验证邮箱验证码并建立独立管理员 Cookie 会话",
+        "tags": [
+          "Admin Auth"
+        ],
+        "x-auth-mode": "public",
+        "security": []
+      }
+    },
+    "/api/v1/admin/auth/session": {
+      "get": {
+        "operationId": "adminAuthSession",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAuthSession200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "读取并续活当前管理员会话，同时轮发 CSRF token",
+        "tags": [
+          "Admin Auth"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/auth/logout": {
+      "post": {
+        "operationId": "adminAuthLogout",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAuthLogout200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "撤销当前管理员会话",
+        "tags": [
+          "Admin Auth"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/auth/step-up/challenge": {
+      "post": {
+        "operationId": "adminAuthStepUpChallenge",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAuthStepUpChallenge200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "为高风险站务操作发送邮箱确认码",
+        "tags": [
+          "Admin Auth"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/auth/step-up/verify": {
+      "post": {
+        "operationId": "adminAuthVerifyStepUp",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminChallengeVerifyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAuthVerifyStepUp200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "确认高风险操作，10 分钟内免重复验证",
+        "tags": [
+          "Admin Auth"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/accounts": {
+      "get": {
+        "operationId": "adminAccountsList",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAccountsList200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "管理员账号、会话和待处理邀请",
+        "tags": [
+          "Admin Accounts"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/accounts/invites": {
+      "post": {
+        "operationId": "adminAccountsInvite",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAdminInviteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAccountsInvite201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "邀请现有温油账号成为管理员",
+        "tags": [
+          "Admin Accounts"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/accounts/invites/{id}": {
+      "delete": {
+        "operationId": "adminAccountsCancel",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminAccountReasonDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAccountsCancel200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "取消待处理管理员邀请",
+        "tags": [
+          "Admin Accounts"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/accounts/{id}": {
+      "delete": {
+        "operationId": "adminAccountsRevoke",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminAccountReasonDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAccountsRevoke200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "撤销普通管理员身份并注销其会话",
+        "tags": [
+          "Admin Accounts"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/accounts/transfer-super-admin": {
+      "post": {
+        "operationId": "adminAccountsTransfer",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferSuperAdminDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAccountsTransfer201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "把唯一超级管理员身份移交给另一名管理员",
+        "tags": [
+          "Admin Accounts"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin-invitations/{token}/accept": {
+      "post": {
+        "operationId": "adminInviteAcceptanceAccept",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminInviteAcceptanceAccept201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "当前温油账号接受管理员邀请（Web）",
+        "tags": [
+          "Admin Accounts"
+        ],
+        "x-auth-mode": "verified"
+      }
+    },
+    "/api/v1/admin/cases": {
+      "get": {
+        "operationId": "moderationCasesList",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
+            "schema": {
+              "example": "clxabc123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（默认 20，最大 50）",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "OPEN",
+                "RESOLVED",
+                "DISMISSED"
+              ]
+            }
+          },
+          {
+            "name": "targetType",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "USER",
+                "THREAD",
+                "POST",
+                "MOMENT",
+                "MOMENT_COMMENT",
+                "DIRECT_MESSAGE"
+              ]
+            }
+          },
+          {
+            "name": "reasonCode",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "SPAM",
+                "HARASSMENT",
+                "HATE_OR_THREATS",
+                "SEXUAL_CONTENT",
+                "VIOLENT_CONTENT",
+                "PERSONAL_INFORMATION",
+                "IMPERSONATION_OR_FRAUD",
+                "INTELLECTUAL_PROPERTY",
+                "ILLEGAL_CONTENT",
+                "OTHER"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "治理案件队列",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModerationCasesList200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "按同一目标聚合后的治理案件队列",
+        "tags": [
+          "Admin Cases"
+        ],
+        "x-auth-mode": "admin",
+        "x-pagination": "cursor"
+      }
+    },
+    "/api/v1/admin/cases/{id}": {
+      "get": {
+        "operationId": "moderationCasesGet",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModerationCasesGet200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "案件证据、举报人、决定和申诉轨迹",
+        "tags": [
+          "Admin Cases"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/cases/{id}/resolve": {
+      "post": {
+        "operationId": "moderationCasesResolve",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveModerationCaseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModerationCasesResolve201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "以公开说明和规则分类原子结案",
+        "tags": [
+          "Admin Cases"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/appeals": {
+      "get": {
+        "operationId": "adminModerationAppealsList",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
+            "schema": {
+              "example": "clxabc123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（默认 20，最大 50）",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "UPHELD",
+                "OVERTURNED"
+              ]
+            }
+          },
+          {
+            "name": "targetType",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "USER",
+                "THREAD",
+                "POST",
+                "MOMENT",
+                "MOMENT_COMMENT",
+                "DIRECT_MESSAGE"
+              ]
+            }
+          },
+          {
+            "name": "action",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "HIDE_CONTENT",
+                "SUSPEND_USER",
+                "BAN_USER"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "申诉处理队列",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminModerationAppealsList200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "申诉处理队列",
+        "tags": [
+          "Admin Appeals"
+        ],
+        "x-auth-mode": "admin",
+        "x-pagination": "cursor"
+      }
+    },
+    "/api/v1/admin/appeals/{id}/resolve": {
+      "post": {
+        "operationId": "adminModerationAppealsResolve",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveModerationAppealDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminModerationAppealsResolve201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "维持或推翻治理决定；推翻会恢复内容或解除处罚",
+        "tags": [
+          "Admin Appeals"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/moderation/decisions/mine": {
+      "get": {
+        "operationId": "userModerationAppealsMine",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserModerationAppealsMine200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "当前用户近 30 天可申诉的治理决定（Web/移动端兼容）",
+        "tags": [
+          "Moderation Appeals"
+        ],
+        "x-auth-mode": "verified"
+      }
+    },
+    "/api/v1/moderation/appeals": {
+      "post": {
+        "operationId": "userModerationAppealsAppeal",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateModerationAppealDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserModerationAppealsAppeal201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "对自己的治理决定提交一次申诉（Web/移动端兼容）",
+        "tags": [
+          "Moderation Appeals"
+        ],
+        "x-auth-mode": "verified"
+      }
+    },
+    "/api/v1/admin/operations/settings": {
+      "get": {
+        "operationId": "siteOperationalSettingsGet",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteOperationalSettingsGet200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "读取注册、内容写入和维护公告状态",
+        "tags": [
+          "Admin Operations"
+        ],
+        "x-auth-mode": "admin"
+      },
+      "patch": {
+        "operationId": "siteOperationalSettingsUpdate",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSiteSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteOperationalSettingsUpdate200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "更新紧急开关和定时维护公告",
+        "tags": [
+          "Admin Operations"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/notification-campaigns": {
+      "get": {
+        "operationId": "notificationCampaignList",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
+            "schema": {
+              "example": "clxabc123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（默认 20，最大 50）",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "标题或正文关键词",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "SCHEDULED",
+                "SENDING",
+                "SENT",
+                "CANCELED",
+                "FAILED"
+              ]
+            }
+          },
+          {
+            "name": "destination",
+            "required": false,
+            "in": "query",
+            "description": "是否配置主题帖跳转目标",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "THREAD",
+                "NONE"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "通知计划历史",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationCampaignList200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "定时站内通知历史和状态",
+        "tags": [
+          "Admin Campaigns"
+        ],
+        "x-auth-mode": "admin",
+        "x-pagination": "cursor"
+      },
+      "post": {
+        "operationId": "notificationCampaignCreate",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNotificationCampaignDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationCampaignCreate201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "新建立即或定时发送的站内通知",
+        "tags": [
+          "Admin Campaigns"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/notification-campaigns/preview": {
+      "post": {
+        "operationId": "notificationCampaignPreview",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationAudienceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationCampaignPreview200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "预估通知接收人数",
+        "tags": [
+          "Admin Campaigns"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/notification-campaigns/{id}": {
+      "delete": {
+        "operationId": "notificationCampaignCancel",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationCampaignCancel200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "取消尚未开始发送的通知计划",
+        "tags": [
+          "Admin Campaigns"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
     "/api/v1/admin": {
       "get": {
         "operationId": "adminIndex",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "",
@@ -8515,7 +10722,8 @@
         },
         "security": [
           {
-            "bearer": []
+            "adminSession": [],
+            "adminCsrf": []
           }
         ],
         "summary": "当前管理员能力",
@@ -8528,7 +10736,17 @@
     "/api/v1/admin/notifications/system": {
       "post": {
         "operationId": "adminSendSystemNotification",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -8579,7 +10797,8 @@
         },
         "security": [
           {
-            "bearer": []
+            "adminSession": [],
+            "adminCsrf": []
           }
         ],
         "summary": "发送系统通知（管理员，手动指定 / 条件筛选 / 全站广播）",
@@ -8592,7 +10811,17 @@
     "/api/v1/admin/notifications/system/preview": {
       "post": {
         "operationId": "adminPreviewRecipients",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -8643,7 +10872,8 @@
         },
         "security": [
           {
-            "bearer": []
+            "adminSession": [],
+            "adminCsrf": []
           }
         ],
         "summary": "预览系统通知接收者人数",
@@ -8657,6 +10887,15 @@
       "get": {
         "operationId": "adminGetHistory",
         "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "cursor",
             "required": false,
@@ -8707,7 +10946,8 @@
         },
         "security": [
           {
-            "bearer": []
+            "adminSession": [],
+            "adminCsrf": []
           }
         ],
         "summary": "系统通知发送历史",
@@ -8721,6 +10961,15 @@
       "get": {
         "operationId": "adminSearchUsers",
         "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "q",
             "required": true,
@@ -8771,7 +11020,8 @@
         },
         "security": [
           {
-            "bearer": []
+            "adminSession": [],
+            "adminCsrf": []
           }
         ],
         "summary": "用户搜索（管理员用）",
@@ -8785,6 +11035,15 @@
       "get": {
         "operationId": "adminModerationListUsers",
         "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "cursor",
             "required": false,
@@ -8882,7 +11141,8 @@
         },
         "security": [
           {
-            "bearer": []
+            "adminSession": [],
+            "adminCsrf": []
           }
         ],
         "summary": "管理员用户列表",
@@ -8897,6 +11157,15 @@
       "get": {
         "operationId": "adminModerationGetUser",
         "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "id",
             "required": true,
@@ -8946,7 +11215,8 @@
         },
         "security": [
           {
-            "bearer": []
+            "adminSession": [],
+            "adminCsrf": []
           }
         ],
         "summary": "管理员用户详情",
@@ -8960,6 +11230,15 @@
       "post": {
         "operationId": "adminModerationSanctionUser",
         "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "id",
             "required": true,
@@ -9019,7 +11298,8 @@
         },
         "security": [
           {
-            "bearer": []
+            "adminSession": [],
+            "adminCsrf": []
           }
         ],
         "summary": "暂停或永久封禁用户",
@@ -9033,6 +11313,15 @@
       "post": {
         "operationId": "adminModerationRevokeSanction",
         "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "id",
             "required": true,
@@ -9092,7 +11381,8 @@
         },
         "security": [
           {
-            "bearer": []
+            "adminSession": [],
+            "adminCsrf": []
           }
         ],
         "summary": "解除用户当前处罚",
@@ -9107,9 +11397,27 @@
         "operationId": "adminModerationUpdateRole",
         "parameters": [
           {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "id",
             "required": true,
             "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -9165,10 +11473,11 @@
         },
         "security": [
           {
-            "bearer": []
+            "adminSession": [],
+            "adminCsrf": []
           }
         ],
-        "summary": "授予或撤销管理员角色（超级管理员）",
+        "summary": "撤销管理员角色；授予请使用邀请流程（超级管理员）",
         "tags": [
           "Admin Moderation"
         ],
@@ -9179,6 +11488,15 @@
       "post": {
         "operationId": "adminModerationHideContent",
         "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "type",
             "required": true,
@@ -9252,7 +11570,8 @@
         },
         "security": [
           {
-            "bearer": []
+            "adminSession": [],
+            "adminCsrf": []
           }
         ],
         "summary": "隐藏主题帖、帖子、动态或动态评论",
@@ -9266,6 +11585,15 @@
       "post": {
         "operationId": "adminModerationRestoreContent",
         "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "type",
             "required": true,
@@ -9339,7 +11667,8 @@
         },
         "security": [
           {
-            "bearer": []
+            "adminSession": [],
+            "adminCsrf": []
           }
         ],
         "summary": "恢复由管理员隐藏的主题帖、帖子、动态或动态评论",
@@ -9353,6 +11682,15 @@
       "get": {
         "operationId": "adminModerationListAuditLogs",
         "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "cursor",
             "required": false,
@@ -9395,7 +11733,24 @@
                 "THREAD_CATEGORY_CREATED",
                 "THREAD_CATEGORY_UPDATED",
                 "TAG_CREATED",
-                "TAG_UPDATED"
+                "TAG_UPDATED",
+                "ADMIN_INVITED",
+                "ADMIN_INVITE_ACCEPTED",
+                "ADMIN_INVITE_CANCELED",
+                "SUPER_ADMIN_TRANSFERRED",
+                "ADMIN_SESSION_REVOKED",
+                "CASE_RESOLVED",
+                "CASE_DISMISSED",
+                "APPEAL_SUBMITTED",
+                "APPEAL_UPHELD",
+                "APPEAL_OVERTURNED",
+                "USER_SESSIONS_REVOKED",
+                "PASSWORD_RESET_REQUESTED_BY_ADMIN",
+                "NOTIFICATION_CAMPAIGN_SCHEDULED",
+                "NOTIFICATION_CAMPAIGN_CANCELED",
+                "THREAD_CATEGORY_MERGED",
+                "TAG_MERGED",
+                "SITE_SETTINGS_UPDATED"
               ]
             }
           },
@@ -9414,7 +11769,14 @@
                 "REPORT",
                 "SYSTEM_NOTIFICATION",
                 "THREAD_CATEGORY",
-                "TAG"
+                "TAG",
+                "MODERATION_CASE",
+                "MODERATION_DECISION",
+                "MODERATION_APPEAL",
+                "ADMIN_INVITE",
+                "ADMIN_SESSION",
+                "NOTIFICATION_CAMPAIGN",
+                "SITE_SETTINGS"
               ]
             }
           },
@@ -9493,7 +11855,8 @@
         },
         "security": [
           {
-            "bearer": []
+            "adminSession": [],
+            "adminCsrf": []
           }
         ],
         "summary": "管理员审计日志",
@@ -9504,10 +11867,208 @@
         "x-pagination": "cursor"
       }
     },
+    "/api/v1/admin/audit-logs/export": {
+      "get": {
+        "operationId": "adminModerationExportAuditLogs",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
+            "schema": {
+              "example": "clxabc123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（默认 20，最大 50）",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "action",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "SUPER_ADMIN_BOOTSTRAPPED",
+                "ADMIN_ROLE_GRANTED",
+                "ADMIN_ROLE_REVOKED",
+                "USER_SUSPENDED",
+                "USER_BANNED",
+                "USER_SANCTION_REVOKED",
+                "CONTENT_HIDDEN",
+                "CONTENT_RESTORED",
+                "REPORT_RESOLVED",
+                "REPORT_DISMISSED",
+                "SYSTEM_NOTIFICATION_SENT",
+                "THREAD_CATEGORY_CREATED",
+                "THREAD_CATEGORY_UPDATED",
+                "TAG_CREATED",
+                "TAG_UPDATED",
+                "ADMIN_INVITED",
+                "ADMIN_INVITE_ACCEPTED",
+                "ADMIN_INVITE_CANCELED",
+                "SUPER_ADMIN_TRANSFERRED",
+                "ADMIN_SESSION_REVOKED",
+                "CASE_RESOLVED",
+                "CASE_DISMISSED",
+                "APPEAL_SUBMITTED",
+                "APPEAL_UPHELD",
+                "APPEAL_OVERTURNED",
+                "USER_SESSIONS_REVOKED",
+                "PASSWORD_RESET_REQUESTED_BY_ADMIN",
+                "NOTIFICATION_CAMPAIGN_SCHEDULED",
+                "NOTIFICATION_CAMPAIGN_CANCELED",
+                "THREAD_CATEGORY_MERGED",
+                "TAG_MERGED",
+                "SITE_SETTINGS_UPDATED"
+              ]
+            }
+          },
+          {
+            "name": "targetType",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "USER",
+                "THREAD",
+                "POST",
+                "MOMENT",
+                "MOMENT_COMMENT",
+                "REPORT",
+                "SYSTEM_NOTIFICATION",
+                "THREAD_CATEGORY",
+                "TAG",
+                "MODERATION_CASE",
+                "MODERATION_DECISION",
+                "MODERATION_APPEAL",
+                "ADMIN_INVITE",
+                "ADMIN_SESSION",
+                "NOTIFICATION_CAMPAIGN",
+                "SITE_SETTINGS"
+              ]
+            }
+          },
+          {
+            "name": "targetId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "actorId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "createdAfter",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "createdBefore",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "UTF-8 CSV，包含 BOM 并防止表格公式注入",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "按当前筛选导出管理员审计日志 CSV（最多 10000 条）",
+        "tags": [
+          "Admin Moderation"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
     "/api/v1/admin/dashboard/overview": {
       "get": {
         "operationId": "adminDashboardOverview",
         "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "from",
             "required": false,
@@ -9569,7 +12130,8 @@
         },
         "security": [
           {
-            "bearer": []
+            "adminSession": [],
+            "adminCsrf": []
           }
         ],
         "summary": "管理看板概览、环比区间和 DAU/WAU/MAU",
@@ -9583,6 +12145,15 @@
       "get": {
         "operationId": "adminDashboardTimeseries",
         "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "from",
             "required": false,
@@ -9644,7 +12215,8 @@
         },
         "security": [
           {
-            "bearer": []
+            "adminSession": [],
+            "adminCsrf": []
           }
         ],
         "summary": "管理看板按日时间序列",
@@ -9657,7 +12229,17 @@
     "/api/v1/admin/dashboard/distributions": {
       "get": {
         "operationId": "adminDashboardDistributions",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "",
@@ -9698,7 +12280,8 @@
         },
         "security": [
           {
-            "bearer": []
+            "adminSession": [],
+            "adminCsrf": []
           }
         ],
         "summary": "用户、举报、内容和处罚分布",
@@ -9711,7 +12294,17 @@
     "/api/v1/admin/thread-categories": {
       "get": {
         "operationId": "adminTaxonomyListCategories",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "",
@@ -9752,7 +12345,8 @@
         },
         "security": [
           {
-            "bearer": []
+            "adminSession": [],
+            "adminCsrf": []
           }
         ],
         "summary": "管理员主题帖分类列表（含停用项）",
@@ -9763,7 +12357,17 @@
       },
       "post": {
         "operationId": "adminTaxonomyCreateCategory",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -9814,7 +12418,8 @@
         },
         "security": [
           {
-            "bearer": []
+            "adminSession": [],
+            "adminCsrf": []
           }
         ],
         "summary": "新增主题帖分类",
@@ -9828,6 +12433,15 @@
       "patch": {
         "operationId": "adminTaxonomyUpdateCategory",
         "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "id",
             "required": true,
@@ -9887,7 +12501,8 @@
         },
         "security": [
           {
-            "bearer": []
+            "adminSession": [],
+            "adminCsrf": []
           }
         ],
         "summary": "编辑、排序或停用主题帖分类",
@@ -9900,7 +12515,17 @@
     "/api/v1/admin/tags": {
       "get": {
         "operationId": "adminTaxonomyListTags",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "",
@@ -9941,7 +12566,8 @@
         },
         "security": [
           {
-            "bearer": []
+            "adminSession": [],
+            "adminCsrf": []
           }
         ],
         "summary": "管理员标签列表（含停用项）",
@@ -9952,7 +12578,17 @@
       },
       "post": {
         "operationId": "adminTaxonomyCreateTag",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -10003,7 +12639,8 @@
         },
         "security": [
           {
-            "bearer": []
+            "adminSession": [],
+            "adminCsrf": []
           }
         ],
         "summary": "新增平台标签",
@@ -10017,6 +12654,15 @@
       "patch": {
         "operationId": "adminTaxonomyUpdateTag",
         "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "id",
             "required": true,
@@ -10076,7 +12722,8 @@
         },
         "security": [
           {
-            "bearer": []
+            "adminSession": [],
+            "adminCsrf": []
           }
         ],
         "summary": "编辑、排序或停用平台标签",
@@ -13857,7 +16504,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "4.4.0-dev.20260809.1",
+    "version": "4.5.0-dev.20260809.1",
     "contact": {}
   },
   "tags": [
@@ -13938,6 +16585,34 @@
       "description": "管理后台 — 能力、系统通知与用户搜索"
     },
     {
+      "name": "Admin Auth",
+      "description": "管理后台 — 独立会话、邮箱二次验证与高风险确认"
+    },
+    {
+      "name": "Admin Accounts",
+      "description": "管理后台 — 邀请、撤权和超级管理员移交"
+    },
+    {
+      "name": "Admin Cases",
+      "description": "管理后台 — 聚合举报、证据与治理决定"
+    },
+    {
+      "name": "Admin Appeals",
+      "description": "管理后台 — 申诉复核与决定撤销"
+    },
+    {
+      "name": "Moderation Appeals",
+      "description": "用户 — 查询治理决定与提交申诉"
+    },
+    {
+      "name": "Admin Operations",
+      "description": "管理后台 — 紧急开关、维护公告和系统状态"
+    },
+    {
+      "name": "Admin Campaigns",
+      "description": "管理后台 — 定时站内通知与接收范围预估"
+    },
+    {
       "name": "Admin Moderation",
       "description": "管理后台 — 用户处罚、内容处置与审计"
     },
@@ -13966,6 +16641,16 @@
         "scheme": "bearer",
         "bearerFormat": "JWT",
         "type": "http"
+      },
+      "adminSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Secure-wenyou-admin-session"
+      },
+      "adminCsrf": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-CSRF-Token"
       }
     },
     "schemas": {
@@ -14762,7 +17447,7 @@
           "category": {
             "type": "string",
             "nullable": true,
-            "example": "DEDUCTION",
+            "example": "MYSTERY",
             "description": "动态分类 slug"
           },
           "status": {
@@ -14813,6 +17498,10 @@
           "bookmarkId": {
             "type": "string",
             "description": "查看自己的收藏时返回收藏记录 ID"
+          },
+          "bookmarkFolderId": {
+            "type": "string",
+            "description": "查看自己的收藏时返回所属收藏夹 ID"
           }
         },
         "required": [
@@ -14943,7 +17632,7 @@
           "category": {
             "type": "string",
             "nullable": true,
-            "example": "DEDUCTION",
+            "example": "MYSTERY",
             "description": "动态分类 slug"
           },
           "status": {
@@ -15181,6 +17870,15 @@
           },
           "_count": {
             "$ref": "#/components/schemas/UserSocialCountResponseDto"
+          },
+          "accountStatus": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "SUSPENDED",
+              "BANNED"
+            ],
+            "description": "公开账号状态；只区分有效的临时或永久封禁，不包含处罚截止时间"
           },
           "isFollowing": {
             "type": "boolean"
@@ -15772,7 +18470,7 @@
           "category": {
             "type": "string",
             "nullable": true,
-            "example": "DEDUCTION",
+            "example": "MYSTERY",
             "description": "动态分类 slug"
           },
           "status": {
@@ -15823,6 +18521,10 @@
           "bookmarkId": {
             "type": "string",
             "description": "收藏记录 ID"
+          },
+          "bookmarkFolderId": {
+            "type": "string",
+            "description": "所属收藏夹 ID"
           }
         },
         "required": [
@@ -15841,6 +18543,49 @@
           "_count"
         ]
       },
+      "BookmarkFolderResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "bookmarkCount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "isDefault",
+          "bookmarkCount",
+          "createdAt"
+        ]
+      },
+      "CreateBookmarkFolderDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "跑团资料",
+            "minLength": 1,
+            "maxLength": 24
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
       "CreateBookmarkDto": {
         "type": "object",
         "properties": {
@@ -15848,6 +18593,10 @@
             "type": "string",
             "example": "clxthread001...",
             "description": "要收藏的主题帖 ID"
+          },
+          "folderId": {
+            "type": "string",
+            "description": "目标收藏夹 ID；不传时归入默认收藏夹"
           }
         },
         "required": [
@@ -15866,6 +18615,10 @@
           "threadId": {
             "type": "string"
           },
+          "folderId": {
+            "type": "string",
+            "description": "所属收藏夹 ID"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -15875,7 +18628,20 @@
           "id",
           "userId",
           "threadId",
+          "folderId",
           "createdAt"
+        ]
+      },
+      "MoveBookmarkDto": {
+        "type": "object",
+        "properties": {
+          "folderId": {
+            "type": "string",
+            "description": "要移入的收藏夹 ID"
+          }
+        },
+        "required": [
+          "folderId"
         ]
       },
       "DraftDefaultSubthreadResponseDto": {
@@ -15922,7 +18688,7 @@
           "category": {
             "type": "string",
             "nullable": true,
-            "example": "DEDUCTION",
+            "example": "MYSTERY",
             "description": "动态分类 slug"
           },
           "status": {
@@ -16007,7 +18773,7 @@
           "category": {
             "type": "string",
             "nullable": true,
-            "example": "DEDUCTION",
+            "example": "MYSTERY",
             "description": "动态分类 slug"
           },
           "status": {
@@ -16119,7 +18885,7 @@
           },
           "category": {
             "type": "string",
-            "example": "DEDUCTION",
+            "example": "MYSTERY",
             "description": "管理员配置的主题帖分类 slug；草稿可暂不选择"
           },
           "content": {
@@ -16419,7 +19185,7 @@
           "category": {
             "type": "string",
             "nullable": true,
-            "example": "DEDUCTION",
+            "example": "MYSTERY",
             "description": "动态分类 slug"
           },
           "status": {
@@ -16511,6 +19277,11 @@
             "type": "string",
             "nullable": true
           },
+          "bookmarkFolderId": {
+            "type": "string",
+            "nullable": true,
+            "description": "当前收藏所属收藏夹 ID"
+          },
           "isLiked": {
             "type": "boolean"
           },
@@ -16563,7 +19334,7 @@
           },
           "category": {
             "type": "string",
-            "example": "DEDUCTION",
+            "example": "MYSTERY",
             "description": "管理员配置的分类 slug"
           },
           "status": {
@@ -16610,7 +19381,7 @@
           },
           "category": {
             "type": "string",
-            "example": "DEDUCTION",
+            "example": "MYSTERY",
             "description": "管理员配置的分类 slug"
           },
           "status": {
@@ -16749,7 +19520,7 @@
           "category": {
             "type": "string",
             "nullable": true,
-            "example": "DEDUCTION",
+            "example": "MYSTERY",
             "description": "动态分类 slug"
           },
           "status": {
@@ -16950,6 +19721,11 @@
           "isActive": {
             "type": "boolean"
           },
+          "mergedIntoId": {
+            "type": "string",
+            "nullable": true,
+            "description": "合并目标标签 ID；未合并时为 null"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -16966,6 +19742,7 @@
           "description",
           "sortOrder",
           "isActive",
+          "mergedIntoId",
           "createdAt",
           "updatedAt"
         ]
@@ -17247,6 +20024,11 @@
           "isActive": {
             "type": "boolean"
           },
+          "mergedIntoId": {
+            "type": "string",
+            "nullable": true,
+            "description": "合并目标分类 ID；未合并时为 null"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -17265,6 +20047,7 @@
           "icon",
           "sortOrder",
           "isActive",
+          "mergedIntoId",
           "createdAt",
           "updatedAt"
         ]
@@ -18182,7 +20965,7 @@
           "category": {
             "type": "string",
             "nullable": true,
-            "example": "DEDUCTION",
+            "example": "MYSTERY",
             "description": "动态分类 slug"
           }
         },
@@ -18271,7 +21054,8 @@
               "THREAD",
               "POST",
               "MOMENT",
-              "MOMENT_COMMENT"
+              "MOMENT_COMMENT",
+              "DIRECT_MESSAGE"
             ]
           },
           "targetId": {
@@ -18286,6 +21070,8 @@
               "SEXUAL_CONTENT",
               "VIOLENT_CONTENT",
               "PERSONAL_INFORMATION",
+              "IMPERSONATION_OR_FRAUD",
+              "INTELLECTUAL_PROPERTY",
               "ILLEGAL_CONTENT",
               "OTHER"
             ]
@@ -18319,7 +21105,8 @@
               "THREAD",
               "POST",
               "MOMENT",
-              "MOMENT_COMMENT"
+              "MOMENT_COMMENT",
+              "DIRECT_MESSAGE"
             ]
           },
           "targetId": {
@@ -18334,6 +21121,8 @@
               "SEXUAL_CONTENT",
               "VIOLENT_CONTENT",
               "PERSONAL_INFORMATION",
+              "IMPERSONATION_OR_FRAUD",
+              "INTELLECTUAL_PROPERTY",
               "ILLEGAL_CONTENT",
               "OTHER"
             ]
@@ -18434,7 +21223,8 @@
               "THREAD",
               "POST",
               "MOMENT",
-              "MOMENT_COMMENT"
+              "MOMENT_COMMENT",
+              "DIRECT_MESSAGE"
             ]
           },
           "targetId": {
@@ -18449,6 +21239,8 @@
               "SEXUAL_CONTENT",
               "VIOLENT_CONTENT",
               "PERSONAL_INFORMATION",
+              "IMPERSONATION_OR_FRAUD",
+              "INTELLECTUAL_PROPERTY",
               "ILLEGAL_CONTENT",
               "OTHER"
             ]
@@ -18570,6 +21362,652 @@
           "note"
         ]
       },
+      "AdminLoginChallengeDto": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "type": "string",
+            "example": "admin@example.com",
+            "description": "管理员邮箱或用户名"
+          },
+          "password": {
+            "type": "string",
+            "example": "SecurePass123!",
+            "minLength": 8
+          }
+        },
+        "required": [
+          "account",
+          "password"
+        ]
+      },
+      "AdminChallengeResponseDto": {
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expiresIn": {
+            "type": "number",
+            "example": 600
+          }
+        },
+        "required": [
+          "challengeId",
+          "expiresIn"
+        ]
+      },
+      "AdminChallengeVerifyDto": {
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "example": "123456",
+            "pattern": "^\\d{6}$"
+          }
+        },
+        "required": [
+          "challengeId",
+          "code"
+        ]
+      },
+      "AdminSessionResponseDto": {
+        "type": "object",
+        "properties": {
+          "session": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "user": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "csrfToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "session",
+          "user",
+          "csrfToken"
+        ]
+      },
+      "AdminStepUpResponseDto": {
+        "type": "object",
+        "properties": {
+          "elevatedUntil": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "elevatedUntil"
+        ]
+      },
+      "AdminAccountsResponseDto": {
+        "type": "object",
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "invites": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        },
+        "required": [
+          "accounts",
+          "invites"
+        ]
+      },
+      "CreateAdminInviteDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "description": "已验证邮箱的现有温油账号 ID"
+          }
+        },
+        "required": [
+          "userId"
+        ]
+      },
+      "AdminInviteCreatedResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "expiresAt"
+        ]
+      },
+      "AdminAccountReasonDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "TransferSuperAdminDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "userId": {
+            "type": "string",
+            "description": "接任超级管理员的现有管理员 ID"
+          }
+        },
+        "required": [
+          "reason",
+          "userId"
+        ]
+      },
+      "ModerationCaseResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "targetType": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "THREAD",
+              "POST",
+              "MOMENT",
+              "MOMENT_COMMENT",
+              "DIRECT_MESSAGE"
+            ]
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "RESOLVED",
+              "DISMISSED"
+            ]
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reports": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "decisions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        },
+        "required": [
+          "id",
+          "targetType",
+          "targetId",
+          "status",
+          "createdAt",
+          "updatedAt",
+          "reports",
+          "decisions"
+        ]
+      },
+      "ResolveModerationCaseDto": {
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "RESOLVED",
+              "DISMISSED"
+            ]
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "HIDE_CONTENT",
+              "SUSPEND_USER",
+              "BAN_USER"
+            ]
+          },
+          "policyCode": {
+            "type": "string",
+            "enum": [
+              "SPAM",
+              "HARASSMENT",
+              "HATE_OR_THREATS",
+              "SEXUAL_CONTENT",
+              "VIOLENT_CONTENT",
+              "PERSONAL_INFORMATION",
+              "IMPERSONATION_OR_FRAUD",
+              "INTELLECTUAL_PROPERTY",
+              "ILLEGAL_CONTENT",
+              "OTHER"
+            ],
+            "description": "适用的站务规则分类"
+          },
+          "publicExplanation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "向被处置用户公开"
+          },
+          "internalNote": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "仅管理员可见"
+          },
+          "suspendUntil": {
+            "type": "string",
+            "format": "date-time",
+            "description": "暂停账号时必填"
+          }
+        },
+        "required": [
+          "outcome",
+          "policyCode",
+          "publicExplanation"
+        ]
+      },
+      "ModerationAppealResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "statement": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "UPHELD",
+              "OVERTURNED"
+            ]
+          },
+          "decision": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "appellant": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "statement",
+          "status",
+          "decision",
+          "appellant",
+          "createdAt"
+        ]
+      },
+      "ResolveModerationAppealDto": {
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "UPHELD",
+              "OVERTURNED"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "outcome",
+          "note"
+        ]
+      },
+      "ModerationDecisionPublicResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "targetType": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "THREAD",
+              "POST",
+              "MOMENT",
+              "MOMENT_COMMENT",
+              "DIRECT_MESSAGE"
+            ]
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "HIDE_CONTENT",
+              "SUSPEND_USER",
+              "BAN_USER"
+            ]
+          },
+          "policyCode": {
+            "type": "string",
+            "enum": [
+              "SPAM",
+              "HARASSMENT",
+              "HATE_OR_THREATS",
+              "SEXUAL_CONTENT",
+              "VIOLENT_CONTENT",
+              "PERSONAL_INFORMATION",
+              "IMPERSONATION_OR_FRAUD",
+              "INTELLECTUAL_PROPERTY",
+              "ILLEGAL_CONTENT",
+              "OTHER"
+            ]
+          },
+          "publicExplanation": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "appeal": {
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "targetType",
+          "targetId",
+          "action",
+          "policyCode",
+          "publicExplanation",
+          "active",
+          "appeal",
+          "createdAt"
+        ]
+      },
+      "CreateModerationAppealDto": {
+        "type": "object",
+        "properties": {
+          "decisionId": {
+            "type": "string"
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "decisionId",
+          "statement"
+        ]
+      },
+      "SiteOperationalSettingsResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "registrationPausedUntil": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "contentWritesPausedUntil": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "maintenanceTitle": {
+            "type": "string",
+            "nullable": true
+          },
+          "maintenanceContent": {
+            "type": "string",
+            "nullable": true
+          },
+          "maintenanceStartsAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "maintenanceEndsAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "updatedAt"
+        ]
+      },
+      "UpdateSiteSettingsDto": {
+        "type": "object",
+        "properties": {
+          "registrationPausedUntil": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "contentWritesPausedUntil": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "maintenanceTitle": {
+            "type": "string",
+            "maxLength": 60,
+            "nullable": true
+          },
+          "maintenanceContent": {
+            "type": "string",
+            "maxLength": 500,
+            "nullable": true
+          },
+          "maintenanceStartsAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "maintenanceEndsAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "NotificationCampaignResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "SCHEDULED",
+              "SENDING",
+              "SENT",
+              "CANCELED",
+              "FAILED"
+            ]
+          },
+          "scheduledAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "estimatedCount": {
+            "type": "number"
+          },
+          "recipientCount": {
+            "type": "number"
+          },
+          "audienceRole": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "ADMIN",
+              "SUPER_ADMIN"
+            ]
+          },
+          "createdBy": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "content",
+          "status",
+          "scheduledAt",
+          "estimatedCount",
+          "recipientCount",
+          "createdAt"
+        ]
+      },
+      "NotificationAudienceDto": {
+        "type": "object",
+        "properties": {
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "USER",
+                "ADMIN",
+                "SUPER_ADMIN"
+              ]
+            }
+          },
+          "emailVerified": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AdminRecipientCountResponseDto": {
+        "type": "object",
+        "properties": {
+          "recipientCount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "estimatedCount": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "recipientCount"
+        ]
+      },
+      "CreateNotificationCampaignDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "scheduledAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "audience": {
+            "$ref": "#/components/schemas/NotificationAudienceDto"
+          },
+          "destinationType": {
+            "type": "string",
+            "enum": [
+              "THREAD"
+            ]
+          },
+          "destinationId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "content",
+          "scheduledAt"
+        ]
+      },
       "AdminCapabilityResponseDto": {
         "type": "object",
         "properties": {
@@ -18654,22 +22092,6 @@
         },
         "required": [
           "content"
-        ]
-      },
-      "AdminRecipientCountResponseDto": {
-        "type": "object",
-        "properties": {
-          "recipientCount": {
-            "type": "number",
-            "minimum": 0
-          },
-          "estimatedCount": {
-            "type": "number",
-            "minimum": 0
-          }
-        },
-        "required": [
-          "recipientCount"
         ]
       },
       "AdminNotificationUserResponseDto": {
@@ -19057,7 +22479,24 @@
               "THREAD_CATEGORY_CREATED",
               "THREAD_CATEGORY_UPDATED",
               "TAG_CREATED",
-              "TAG_UPDATED"
+              "TAG_UPDATED",
+              "ADMIN_INVITED",
+              "ADMIN_INVITE_ACCEPTED",
+              "ADMIN_INVITE_CANCELED",
+              "SUPER_ADMIN_TRANSFERRED",
+              "ADMIN_SESSION_REVOKED",
+              "CASE_RESOLVED",
+              "CASE_DISMISSED",
+              "APPEAL_SUBMITTED",
+              "APPEAL_UPHELD",
+              "APPEAL_OVERTURNED",
+              "USER_SESSIONS_REVOKED",
+              "PASSWORD_RESET_REQUESTED_BY_ADMIN",
+              "NOTIFICATION_CAMPAIGN_SCHEDULED",
+              "NOTIFICATION_CAMPAIGN_CANCELED",
+              "THREAD_CATEGORY_MERGED",
+              "TAG_MERGED",
+              "SITE_SETTINGS_UPDATED"
             ]
           },
           "targetType": {
@@ -19071,7 +22510,14 @@
               "REPORT",
               "SYSTEM_NOTIFICATION",
               "THREAD_CATEGORY",
-              "TAG"
+              "TAG",
+              "MODERATION_CASE",
+              "MODERATION_DECISION",
+              "MODERATION_APPEAL",
+              "ADMIN_INVITE",
+              "ADMIN_SESSION",
+              "NOTIFICATION_CAMPAIGN",
+              "SITE_SETTINGS"
             ]
           },
           "targetId": {
@@ -19439,17 +22885,17 @@
             "maxLength": 50
           },
           "description": {
-            "type": "object",
+            "type": "string",
             "maxLength": 200,
             "nullable": true
           },
           "color": {
-            "type": "object",
+            "type": "string",
             "example": "#7C3AED",
             "nullable": true
           },
           "icon": {
-            "type": "object",
+            "type": "string",
             "maxLength": 50,
             "nullable": true
           },
@@ -19511,12 +22957,12 @@
             "maxLength": 20
           },
           "color": {
-            "type": "object",
+            "type": "string",
             "example": "#FF6B6B",
             "nullable": true
           },
           "description": {
-            "type": "object",
+            "type": "string",
             "maxLength": 200,
             "nullable": true
           },
@@ -19736,7 +23182,7 @@
           "category": {
             "type": "string",
             "nullable": true,
-            "example": "DEDUCTION",
+            "example": "MYSTERY",
             "description": "动态分类 slug"
           },
           "createdAt": {
@@ -22501,6 +25947,45 @@
           }
         ]
       },
+      "BookmarksFindFolders200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/BookmarkFolderResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "BookmarksCreateFolder201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/BookmarkFolderResponseDto"
+              }
+            }
+          }
+        ]
+      },
       "BookmarksRemove200Response": {
         "allOf": [
           {
@@ -22514,6 +25999,24 @@
             "properties": {
               "data": {
                 "$ref": "#/components/schemas/MessageResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "BookmarksMove200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/BookmarkResponseDto"
               }
             }
           }
@@ -23561,6 +27064,468 @@
             "properties": {
               "data": {
                 "$ref": "#/components/schemas/AdminReportResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminAuthChallenge200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AdminChallengeResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminAuthVerify200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AdminSessionResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminAuthSession200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AdminSessionResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminAuthLogout200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MessageResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminAuthStepUpChallenge200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AdminChallengeResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminAuthVerifyStepUp200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AdminStepUpResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminAccountsList200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AdminAccountsResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminAccountsInvite201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AdminInviteCreatedResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminAccountsCancel200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MessageResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminAccountsRevoke200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MessageResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminAccountsTransfer201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MessageResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminInviteAcceptanceAccept201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MessageResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "ModerationCasesList200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ModerationCaseResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ModerationCasesGet200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/ModerationCaseResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "ModerationCasesResolve201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/ModerationCaseResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminModerationAppealsList200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ModerationAppealResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AdminModerationAppealsResolve201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/ModerationAppealResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "UserModerationAppealsMine200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ModerationDecisionPublicResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "UserModerationAppealsAppeal201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/ModerationAppealResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "SiteOperationalSettingsGet200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/SiteOperationalSettingsResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "SiteOperationalSettingsUpdate200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/SiteOperationalSettingsResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "NotificationCampaignList200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/NotificationCampaignResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "NotificationCampaignCreate201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/NotificationCampaignResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "NotificationCampaignPreview200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AdminRecipientCountResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "NotificationCampaignCancel200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MessageResponseDto"
               }
             }
           }
@@ -24820,6 +28785,10 @@
           40114,
           40115,
           40116,
+          40117,
+          40118,
+          40119,
+          40120,
           40300,
           40301,
           40302,
@@ -24830,6 +28799,7 @@
           40307,
           40308,
           40309,
+          40310,
           40400,
           40401,
           40402,
@@ -24846,6 +28816,9 @@
           40413,
           40414,
           40415,
+          40416,
+          40417,
+          40418,
           40900,
           40901,
           40902,
@@ -24866,6 +28839,12 @@
           40917,
           40918,
           40919,
+          40920,
+          40921,
+          40922,
+          40923,
+          40924,
+          40925,
           42900,
           50000
         ],
@@ -24898,6 +28877,10 @@
           "NO_CODE_RECORD",
           "SESSION_NOT_FOUND",
           "WRONG_OLD_PASSWORD",
+          "ADMIN_SESSION_REQUIRED",
+          "ADMIN_SESSION_EXPIRED",
+          "ADMIN_CHALLENGE_INVALID",
+          "APPEAL_TOKEN_INVALID",
           "FORBIDDEN",
           "NOT_THREAD_OWNER",
           "NOT_COLLABORATOR",
@@ -24908,6 +28891,7 @@
           "TIP_NOT_ALLOWED",
           "ADMIN_REQUIRED",
           "CANNOT_MODERATE_ADMIN",
+          "ADMIN_STEP_UP_REQUIRED",
           "NOT_FOUND",
           "USER_NOT_FOUND",
           "THREAD_NOT_FOUND",
@@ -24924,6 +28908,9 @@
           "STICKER_NOT_FOUND",
           "THREAD_CATEGORY_NOT_FOUND",
           "MOMENT_NOT_FOUND",
+          "MODERATION_CASE_NOT_FOUND",
+          "MODERATION_DECISION_NOT_FOUND",
+          "MODERATION_APPEAL_NOT_FOUND",
           "CONFLICT",
           "EMAIL_ALREADY_REGISTERED",
           "USERNAME_TAKEN",
@@ -24944,6 +28931,12 @@
           "SANCTION_STATE_CONFLICT",
           "THREAD_CATEGORY_ALREADY_EXISTS",
           "TAXONOMY_STATE_CONFLICT",
+          "MODERATION_CASE_ALREADY_CLOSED",
+          "APPEAL_ALREADY_SUBMITTED",
+          "APPEAL_WINDOW_CLOSED",
+          "ADMIN_INVITE_CONFLICT",
+          "REGISTRATION_PAUSED",
+          "CONTENT_WRITES_PAUSED",
           "RATE_LIMITED",
           "INTERNAL_ERROR"
         ]

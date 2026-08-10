@@ -1,9 +1,22 @@
 # API 合同变更
 
+## 4.5.0-dev.20260809.1
+
+- 新增 29 个 operationId：收藏夹分类 3 个；独立管理认证、管理员账号邀请/移交、聚合治理案件、申诉复核、站务开关、通知活动和审计导出共 26 个。移动端覆盖清单把全部 196 个接口唯一分类为 V1 92、deferred 54、管理端不适用 49、基础设施 1。
+- 公开用户资料向后兼容新增 `accountStatus=ACTIVE|SUSPENDED|BANNED`；只暴露当前处罚类别，不返回原因或截止时间。
+- 主题帖收藏新增私有收藏夹 `id/name/isDefault/bookmarkCount/createdAt`，收藏记录新增 `folderId`，列表支持可选分类筛选与移动；`POST /bookmarks` 的 `folderId` 可选，旧客户端不传时自动归入默认收藏夹。
+- 管理端主题分类列表合并公开展示字段与内部状态字段，治理案件响应合并目标、证据、举报计数、决定及处置动作，避免客户端跨接口拼装同一行数据。
+- 管理员申诉列表向后兼容新增目标类型与处置动作筛选，继续使用同一不透明游标语义。
+- 管理员通知活动列表向后兼容新增关键词、状态与主题帖跳转目标筛选。
+- 新增 `ADMIN_SESSION_REQUIRED`、`ADMIN_SESSION_EXPIRED`、`ADMIN_CHALLENGE_INVALID`、`APPEAL_TOKEN_INVALID`、`ADMIN_STEP_UP_REQUIRED`、治理资源不存在/冲突、管理员邀请冲突、`REGISTRATION_PAUSED` 与 `CONTENT_WRITES_PAUSED` 等具名错误码。
+- 新增移动端 V1 协议黄金 fixture，固定认证状态机、退出清理、重试矩阵、游标、动态分类、媒体降级、幂等和未知枚举行为；OpenAPI 内容变化必须同时改变版本，禁止同版本不同内容。
+- 所有新增查询参数均为可选；用户端举报、决定与申诉契约不变，既有 Web/移动端调用无需迁移。
+
 ## 4.4.0-dev.20260809.1
 
 - `/meta` 向后兼容新增 Android/iOS 分平台最低支持构建号、推荐构建号和更新地址；未配置时显式返回 `null`。
 - `/auth/logout` 优先按 access token 的稳定终端 ID 撤销整个当前终端，旧客户端继续兼容 Cookie 或请求体 refresh token；无法识别终端时不再静默成功。
+- 新增动态主题帖分类 v1 黄金用例，固定重命名、未知历史 slug、空分类和服务端排序的跨端降级行为；HTTP 字段不变。
 
 ## 4.3.0-dev.20260808.1
 

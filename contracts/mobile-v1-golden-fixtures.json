@@ -1,0 +1,248 @@
+{
+  "contract": "wenyousite-mobile-v1",
+  "version": 1,
+  "contractVersion": "4.5.0-dev.20260809.1",
+  "description": "后端与 Flutter 共同消费的移动端 V1 协议旅程；固定状态转换，不固定界面截图。",
+  "compatibility": [
+    {
+      "id": "compatible-same-major",
+      "clientMajor": 4,
+      "serverVersion": "4.5.0-dev.20260809.1",
+      "expected": "compatible"
+    },
+    {
+      "id": "incompatible-new-major",
+      "clientMajor": 4,
+      "serverVersion": "5.0.0",
+      "expected": "blocked"
+    },
+    {
+      "id": "diagnostic-response-headers",
+      "headers": ["X-Request-ID", "X-API-Contract-Version"],
+      "expected": "capture"
+    }
+  ],
+  "authentication": [
+    {
+      "id": "expired-access-token",
+      "httpStatus": 401,
+      "businessCode": 40101,
+      "expectedKind": "tokenExpired",
+      "sessionAction": "refreshSingleFlight",
+      "maxReplayCount": 1
+    },
+    {
+      "id": "invalid-access-token",
+      "httpStatus": 401,
+      "businessCode": 40102,
+      "expectedKind": "tokenInvalid",
+      "sessionAction": "clear"
+    },
+    {
+      "id": "revoked-or-stolen-token",
+      "httpStatus": 401,
+      "businessCodes": [40103, 40104],
+      "expectedKinds": ["tokenRevoked", "tokenTheftDetected"],
+      "sessionAction": "clear"
+    },
+    {
+      "id": "terminal-account-state",
+      "httpStatus": 401,
+      "businessCodes": [40106, 40108, 40109, 40115],
+      "expectedKinds": [
+        "accountDeactivated",
+        "accountSuspended",
+        "accountBanned",
+        "sessionNotFound"
+      ],
+      "sessionAction": "clear"
+    },
+    {
+      "id": "email-not-verified",
+      "httpStatus": 401,
+      "businessCode": 40107,
+      "expectedKind": "emailNotVerified",
+      "sessionAction": "retainReadOnly"
+    },
+    {
+      "id": "form-auth-errors",
+      "httpStatus": 401,
+      "businessCodes": [40105, 40110, 40111, 40112, 40113, 40114, 40116],
+      "sessionAction": "formError",
+      "preserveExistingSession": true
+    },
+    {
+      "id": "unknown-401",
+      "httpStatus": 401,
+      "businessCode": null,
+      "expectedKind": "unauthorized",
+      "sessionAction": "clear"
+    },
+    {
+      "id": "explicit-logout-transient-failure",
+      "requestFailure": "networkOr5xx",
+      "refreshOn40101": true,
+      "maxRevokeReplayCount": 1,
+      "sessionAction": "clear",
+      "warning": "serverSessionMayRemain"
+    },
+    {
+      "id": "registration-paused",
+      "httpStatus": 409,
+      "businessCode": 40924,
+      "expectedKind": "registrationPaused",
+      "sessionAction": "formError"
+    },
+    {
+      "id": "content-writes-paused",
+      "httpStatus": 409,
+      "businessCode": 40925,
+      "expectedKind": "contentWritesPaused",
+      "sessionAction": "retain"
+    }
+  ],
+  "retry": [
+    {
+      "id": "retry-get-network",
+      "method": "GET",
+      "failure": "network",
+      "expectedExtraAttempts": 2
+    },
+    {
+      "id": "retry-head-5xx",
+      "method": "HEAD",
+      "failure": "5xx",
+      "expectedExtraAttempts": 2
+    },
+    {
+      "id": "retry-idempotent-put-delete",
+      "methods": ["PUT", "DELETE"],
+      "failure": "networkOr5xx",
+      "expectedExtraAttempts": 2
+    },
+    {
+      "id": "retry-stable-create",
+      "method": "POST",
+      "stableClientRequestId": true,
+      "failure": "networkOr5xx",
+      "expectedExtraAttempts": 2
+    },
+    {
+      "id": "no-retry-unsafe-or-client-errors",
+      "methods": ["POST", "PATCH"],
+      "failures": ["4xx", "429", "idempotencyConflict"],
+      "stableClientRequestId": false,
+      "expectedExtraAttempts": 0
+    },
+    {
+      "id": "rate-limit-retry-after",
+      "httpStatus": 429,
+      "retryAfter": "42",
+      "expectedDurationSeconds": 42,
+      "automaticRetry": false
+    }
+  ],
+  "pagination": [
+    {
+      "id": "opaque-cursor",
+      "cursor": "opaque-value",
+      "clientBehavior": "preserveVerbatim"
+    },
+    {
+      "id": "invalid-cursor",
+      "businessCode": 40007,
+      "clientBehavior": "clearAndReloadFirstPage"
+    }
+  ],
+  "categories": [
+    {
+      "id": "category-current-name",
+      "slug": "story",
+      "storedName": "旧名称",
+      "registryName": "共同创作",
+      "expectedDisplay": "共同创作",
+      "selectable": true
+    },
+    {
+      "id": "category-unknown-history",
+      "slug": "legacy-unknown",
+      "expectedDisplay": "legacy-unknown",
+      "selectable": false
+    },
+    {
+      "id": "category-null",
+      "slug": null,
+      "expectedDisplay": "未分类",
+      "selectable": false
+    },
+    {
+      "id": "category-stable-sort",
+      "items": [
+        { "slug": "b", "name": "乙", "sortOrder": 10 },
+        { "slug": "a", "name": "甲", "sortOrder": 10 },
+        { "slug": "first", "name": "优先", "sortOrder": 1 }
+      ],
+      "expectedSlugs": ["first", "a", "b"]
+    }
+  ],
+  "media": [
+    {
+      "id": "media-processing",
+      "status": "PROCESSING",
+      "expectedDisplay": "processing"
+    },
+    {
+      "id": "media-feed-fallback",
+      "status": "COMPLETED",
+      "thumbnailUrl": null,
+      "mediumUrl": "https://cdn.example/medium.jpg",
+      "url": "https://cdn.example/original.jpg",
+      "expectedUrl": "https://cdn.example/medium.jpg"
+    },
+    {
+      "id": "media-detail-fallback",
+      "status": "COMPLETED",
+      "mediumUrl": null,
+      "url": "https://cdn.example/original.jpg",
+      "expectedUrl": "https://cdn.example/original.jpg"
+    },
+    {
+      "id": "media-failed",
+      "status": "FAILED",
+      "expectedDisplay": "failed"
+    }
+  ],
+  "idempotency": [
+    {
+      "id": "stable-client-request-id",
+      "operation": "create",
+      "sameUserIntent": true,
+      "expected": "reuseUuidV4"
+    },
+    {
+      "id": "new-intent-new-request-id",
+      "operation": "create",
+      "sameUserIntent": false,
+      "expected": "newUuidV4"
+    },
+    {
+      "id": "idempotency-key-conflict",
+      "businessCode": 40912,
+      "expectedKind": "idempotencyConflict",
+      "automaticRetry": false
+    },
+    {
+      "id": "optimistic-lock-conflict",
+      "businessCode": 40002,
+      "expectedKind": "optimisticLockConflict",
+      "automaticRetry": false
+    }
+  ],
+  "unknownEnums": [
+    {
+      "id": "unknown-enum-display",
+      "wireValue": "FUTURE_VALUE",
+      "expected": "unknownFallback"
+    }
+  ]
+}

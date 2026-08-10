@@ -138,7 +138,7 @@ bash scripts/deploy.sh
 - [API 契约规范](docs/api-contract.md)
 - [前端接入指南](docs/frontend-guide.md)
 - [Flutter / 原生移动端接入](docs/mobile-client-guide.md)
-- [移动端界面待接入规范](docs/mobile-ui-contract.md)
+- [Flutter 设计基础边界](docs/mobile-ui-contract.md)
 - [数据模型](docs/data-model.md)
 - [部署脚本](scripts/deploy.sh)
 

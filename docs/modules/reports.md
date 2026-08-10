@@ -1,26 +1,25 @@
-# 举报与结案
+# 举报、决定与申诉
 
-## 概述
+## 范围
 
-举报模块覆盖公开社区中的用户、主题帖和帖子。用户提交时保存脱敏证据快照；管理员通过独立的 `/admin/reports` 队列一次完成驳回或“结案 + 可选处置”。私聊和私密帖不在当前范围内。
+已验证用户可以举报用户、主题帖、楼层、动态、动态评论和自己收到的私聊消息。举报端点保持普通 Bearer 认证和平台无关 JSON，Web 已接入，移动端可直接复用同一契约。
 
-## API
+## 用户 API
 
-| 方法 | 路径 | 认证 | 说明 |
-|------|------|------|------|
-| `POST` | `/reports` | Verified | 提交 `USER / THREAD / POST` 举报；每账号每分钟最多 5 次 |
-| `GET` | `/admin/reports` | Admin | 按状态、目标类型、原因分类游标分页 |
-| `GET` | `/admin/reports/:id` | Admin | 举报、证据快照与目标当前状态 |
-| `POST` | `/admin/reports/:id/resolve` | Admin | 原子驳回或结案，并可选隐藏内容/暂停用户/封禁用户 |
-
-旧的管理员 `GET /reports` 和 `PATCH /reports/:id/handle` 已移除，避免两套结案语义并存。
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `POST` | `/reports` | 提交举报；每账号每分钟最多 5 次 |
+| `GET` | `/moderation/decisions/mine` | 查询对当前用户生效或与其内容有关的公开决定 |
+| `POST` | `/moderation/appeals` | 对一个决定提交申诉 |
 
 ## 业务规则
 
-- `ReportTargetType`: `USER / THREAD / POST`；目标必须是当前可见的公开社区对象，不能举报自己或自己发布的内容。
-- `ReportStatus`: `PENDING / RESOLVED / DISMISSED`。同一举报只能结案一次，并发重复结案返回 `REPORT_ALREADY_HANDLED`。
-- `ReportReasonCode`: `SPAM / HARASSMENT / HATE_OR_THREATS / SEXUAL_CONTENT / VIOLENT_CONTENT / PERSONAL_INFORMATION / ILLEGAL_CONTENT / OTHER`；`OTHER` 必须填写补充说明。
-- 新举报保存 `snapshotVersion=1` 的目标快照。用户快照不保存邮箱，帖子快照保存当时正文以防编辑或删除破坏证据。
-- 同一举报人对同一目标最多保留一条 `PENDING` 举报，由数据库部分唯一索引防并发重复。
-- `DISMISSED` 不能携带处罚；`USER` 只允许暂停/封禁，`THREAD/POST` 只允许隐藏。
-- 举报状态、关联处罚、会话吊销与审计记录在同一 Prisma 事务提交，失败时全部回滚。
+- `ReportTargetType` 为 `USER / THREAD / POST / MOMENT / MOMENT_COMMENT / DIRECT_MESSAGE`。私聊只允许消息接收者举报。
+- 不能举报自己或自己的内容；公开内容必须存在且当前可见。
+- 原因包括垃圾信息、骚扰、仇恨威胁、色情、暴力、个人信息、冒充诈骗、知识产权、违法内容和其他；`OTHER` 必须填写说明。
+- 新举报保存版本化目标快照。用户快照不含邮箱，内容快照保留提交时文本，避免后续编辑或删除破坏证据。
+- 同一举报人对同一目标只能有一条待处理举报；所有人的同目标举报聚合进同一个开放案件，两层约束均由数据库部分唯一索引防并发重复。
+- 决定公开说明对受影响用户可见，内部备注只在站务台出现。
+- 每个决定最多申诉一次，且需在决定创建后 30 天内提交。申诉处理保留原决定，推翻时撤销对应内容隐藏或用户处罚。
+
+管理员案件和申诉 API、事务边界与权限规则见 `docs/modules/admin.md`。

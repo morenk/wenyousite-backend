@@ -31,6 +31,10 @@
 | `NO_CODE_RECORD` | 40114 | 缺少验证码记录（需先获取） |
 | `SESSION_NOT_FOUND` | 40115 | 会话不存在 |
 | `WRONG_OLD_PASSWORD` | 40116 | 旧密码错误（改密码时） |
+| `ADMIN_SESSION_REQUIRED` | 40117 | 需要独立的 Web 管理会话 |
+| `ADMIN_SESSION_EXPIRED` | 40118 | 管理会话已过期或被撤销 |
+| `ADMIN_CHALLENGE_INVALID` | 40119 | 管理登录或二次验证挑战无效 |
+| `APPEAL_TOKEN_INVALID` | 40120 | 仅限申诉接口的访问令牌无效 |
 | `FORBIDDEN` | 40300 | 通用权限不足 |
 | `NOT_THREAD_OWNER` | 40301 | 非主题帖所有者 |
 | `NOT_COLLABORATOR` | 40302 | 非主题帖协作者 |
@@ -41,6 +45,7 @@
 | `TIP_NOT_ALLOWED` | 40307 | 自我打赏、拉黑关系或其他打赏策略拒绝 |
 | `ADMIN_REQUIRED` | 40308 | 需要管理员角色 |
 | `CANNOT_MODERATE_ADMIN` | 40309 | 不能管理同级或更高等级管理员 |
+| `ADMIN_STEP_UP_REQUIRED` | 40310 | 当前管理会话需要重新验证邮箱 |
 | `NOT_FOUND` | 40400 | 通用资源不存在 |
 | `USER_NOT_FOUND` | 40401 | 用户不存在 |
 | `THREAD_NOT_FOUND` | 40402 | 主题帖不存在 |
@@ -57,6 +62,9 @@
 | `STICKER_NOT_FOUND` | 40413 | 表情资产、收藏或导入记录不存在 |
 | `THREAD_CATEGORY_NOT_FOUND` | 40414 | 主题帖分类不存在 |
 | `MOMENT_NOT_FOUND` | 40415 | 动态或动态评论不存在 |
+| `MODERATION_CASE_NOT_FOUND` | 40416 | 治理案件不存在 |
+| `MODERATION_DECISION_NOT_FOUND` | 40417 | 治理决定不存在 |
+| `MODERATION_APPEAL_NOT_FOUND` | 40418 | 申诉不存在 |
 | `CONFLICT` | 40900 | 通用冲突 |
 | `EMAIL_ALREADY_REGISTERED` | 40901 | 邮箱已被注册 |
 | `USERNAME_TAKEN` | 40902 | 用户名已被占用 |
@@ -77,5 +85,11 @@
 | `SANCTION_STATE_CONFLICT` | 40917 | 账号处罚当前状态冲突 |
 | `THREAD_CATEGORY_ALREADY_EXISTS` | 40918 | 主题帖分类标识或名称已存在 |
 | `TAXONOMY_STATE_CONFLICT` | 40919 | 分类或标签已停用，不能用于新内容 |
+| `MODERATION_CASE_ALREADY_CLOSED` | 40920 | 治理案件已被其他管理员结案 |
+| `APPEAL_ALREADY_SUBMITTED` | 40921 | 同一治理决定已经提交申诉 |
+| `APPEAL_WINDOW_CLOSED` | 40922 | 治理决定已超过申诉期限 |
+| `ADMIN_INVITE_CONFLICT` | 40923 | 管理员邀请已存在或已经处理 |
+| `REGISTRATION_PAUSED` | 40924 | 注册被站务临时暂停 |
+| `CONTENT_WRITES_PAUSED` | 40925 | 用户内容写入被站务临时暂停 |
 | `RATE_LIMITED` | 42900 | 请求过于频繁 |
 | `INTERNAL_ERROR` | 50000 | 服务器内部错误 |

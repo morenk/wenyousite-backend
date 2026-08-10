@@ -15,7 +15,7 @@
 - `MINOR`：向后兼容的新端点、可选字段、错误码或能力。
 - `PATCH/dev`：文档、schema 精度和非破坏性修正。
 
-每次契约变化更新 `API_CONTRACT_VERSION` 与 [`contracts/CHANGELOG.md`](../contracts/CHANGELOG.md)。运行时通过 `/api/v1/meta` 与 `X-API-Contract-Version` 暴露版本。
+每次契约内容变化必须更新 `API_CONTRACT_VERSION` 与 [`contracts/CHANGELOG.md`](../contracts/CHANGELOG.md)。`openapi:check` 会与 Git 中上一份冻结产物比较，拒绝同版本不同内容；运行时通过 `/api/v1/meta` 与 `X-API-Contract-Version` 暴露版本。
 
 ## 本地流程
 
@@ -40,4 +40,6 @@ pnpm docs:check
 
 ## 客户端消费
 
-Web 与 Flutter 不直接下载线上 `/api/docs-json`。发布分支同步固定的 `contracts/openapi.json` 后再生成客户端，生成器版本也应锁定。生成结果的 diff 属于契约评审的一部分；出现非预期删除、nullable/required 变化或大量匿名模型时阻止合并。当前只有 Web 仓库和 Dart-Dio 生成烟雾实际消费该产物，不能把尚未建立的 Flutter 应用测试描述为已通过。
+Web 与 Flutter 不直接下载线上 `/api/docs-json`。发布分支同步固定的 `contracts/openapi.json` 后再生成客户端，生成器版本也应锁定。生成结果的 diff 属于契约评审的一部分；出现非预期删除、nullable/required 变化或大量匿名模型时阻止合并。
+
+移动端范围以 [`mobile-v1-operation-coverage.json`](../contracts/mobile-v1-operation-coverage.json) 为唯一覆盖清单，以 [`mobile-v1-golden-fixtures.json`](../contracts/mobile-v1-golden-fixtures.json) 固定跨端协议旅程。196 个 operationId 必须全部且仅分类一次；状态改为 `implemented` 时必须记录自动测试证据。

@@ -28,16 +28,24 @@ function resolveReference(reference: string): unknown {
     .slice(2)
     .split('/')
     .map((part) => part.replace(/~1/g, '/').replace(/~0/g, '~'))
-    .reduce<unknown>((current, part) =>
-      current && typeof current === 'object' ? (current as Record<string, unknown>)[part] : undefined,
-    document);
+    .reduce<unknown>(
+      (current, part) =>
+        current && typeof current === 'object'
+          ? (current as Record<string, unknown>)[part]
+          : undefined,
+      document,
+    );
 }
 
 function visit(value: unknown, location: string): void {
   if (!value || typeof value !== 'object') return;
   if ('$ref' in value) {
     const reference = (value as { $ref?: unknown }).$ref;
-    if (typeof reference === 'string' && reference.startsWith('#/') && !resolveReference(reference)) {
+    if (
+      typeof reference === 'string' &&
+      reference.startsWith('#/') &&
+      !resolveReference(reference)
+    ) {
       failures.push(`${location}: 无法解析引用 ${reference}`);
     }
   }
@@ -54,7 +62,8 @@ for (const [route, pathItem] of Object.entries(document.paths ?? {})) {
     const label = `${method.toUpperCase()} ${route}`;
     const operationId = operation.operationId;
     if (!operationId) failures.push(`${label}: 缺少 operationId`);
-    else if (operationIds.has(operationId)) failures.push(`${label}: operationId 重复 (${operationId})`);
+    else if (operationIds.has(operationId))
+      failures.push(`${label}: operationId 重复 (${operationId})`);
     else {
       operationIds.add(operationId);
       if (!/^[a-z][A-Za-z0-9]*$/.test(operationId) || operationId.includes('Controller')) {
@@ -63,15 +72,26 @@ for (const [route, pathItem] of Object.entries(document.paths ?? {})) {
     }
 
     const authMode = operation['x-auth-mode'];
+    const allowedAuthModes = ['public', 'optional', 'authenticated', 'verified', 'admin'];
+    if (!allowedAuthModes.includes(authMode)) {
+      failures.push(`${label}: 缺少或使用了未知的 x-auth-mode (${String(authMode)})`);
+    }
     const security = operation.security ?? [];
     const hasBearer = security.some((entry: any) => Array.isArray(entry?.bearer));
+    const hasAdminSession = security.some(
+      (entry: any) => Array.isArray(entry?.adminSession) && Array.isArray(entry?.adminCsrf),
+    );
     const hasAnonymous = security.some((entry: any) => Object.keys(entry ?? {}).length === 0);
-    if (authMode === 'public' && security.length !== 0) failures.push(`${label}: public 操作不应声明鉴权`);
+    if (authMode === 'public' && security.length !== 0)
+      failures.push(`${label}: public 操作不应声明鉴权`);
     if (authMode === 'optional' && (!hasBearer || !hasAnonymous)) {
       failures.push(`${label}: optional 操作必须同时声明 bearer 与匿名访问`);
     }
-    if (['authenticated', 'verified', 'admin'].includes(authMode) && (!hasBearer || hasAnonymous)) {
+    if (['authenticated', 'verified'].includes(authMode) && (!hasBearer || hasAnonymous)) {
       failures.push(`${label}: ${authMode} 操作必须声明 bearer 鉴权`);
+    }
+    if (authMode === 'admin' && (!hasAdminSession || hasAnonymous || hasBearer)) {
+      failures.push(`${label}: admin 操作必须声明独立管理员 Cookie 与 CSRF 鉴权`);
     }
 
     for (const parameter of operation.parameters ?? []) {
@@ -112,6 +132,16 @@ for (const [route, pathItem] of Object.entries(document.paths ?? {})) {
         failures.push(`${label} ${status}: 错误响应未引用 ApiErrorEnvelope`);
       }
       if (!/^2\d\d$/.test(status) || status === '204' || status === '205') continue;
+      const contentTypes = Object.keys(response?.content ?? {});
+      if (!contentTypes.includes('application/json')) {
+        const hasTypedDownload = contentTypes.some(
+          (contentType) => response?.content?.[contentType]?.schema?.type === 'string',
+        );
+        if (!hasTypedDownload) {
+          failures.push(`${label} ${status}: 非 JSON 成功响应必须声明字符串下载 schema`);
+        }
+        continue;
+      }
       const schema = response?.content?.['application/json']?.schema;
       if (!schema?.$ref) {
         failures.push(`${label} ${status}: 成功响应必须引用具名 envelope schema`);
@@ -120,12 +150,10 @@ for (const [route, pathItem] of Object.entries(document.paths ?? {})) {
       }
       const component = resolveReference(schema.$ref) as any;
       const allOf = component?.allOf;
-      const expectedEnvelope = operation['x-pagination'] === 'cursor'
-        ? paginatedEnvelopeRef
-        : successEnvelopeRef;
+      const expectedEnvelope =
+        operation['x-pagination'] === 'cursor' ? paginatedEnvelopeRef : successEnvelopeRef;
       const wrapped =
-        Array.isArray(allOf) &&
-        allOf.some((part: any) => part?.$ref === expectedEnvelope);
+        Array.isArray(allOf) && allOf.some((part: any) => part?.$ref === expectedEnvelope);
       const dataSchema = allOf?.find((part: any) => part?.properties?.data)?.properties?.data;
       if (!wrapped || dataSchema === undefined) {
         failures.push(`${label} ${status}: 成功 JSON 响应未声明统一 envelope/data`);

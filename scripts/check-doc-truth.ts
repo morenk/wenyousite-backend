@@ -70,11 +70,16 @@ for (const claim of [
   'SESSION_NOT_FOUND',
   'DELETE /api/v1/mobile/devices/current',
   'getInitialMessage',
+  'thread-category-v1-fixtures.json',
 ]) {
   if (!mobileGuide.includes(claim)) failures.push(`docs/mobile-client-guide.md: 缺少 ${claim}`);
 }
-if (!fs.readFileSync('docs/mobile-ui-contract.md', 'utf8').includes('pending-client-integration')) {
-  failures.push('docs/mobile-ui-contract.md: 未明确标记为待客户端接入');
+const mobileUiBoundary = fs.readFileSync('docs/mobile-ui-contract.md', 'utf8');
+for (const claim of ['external-source', 'morenk/wenyousite-foundation', 'foundation.lock.json']) {
+  if (!mobileUiBoundary.includes(claim)) failures.push(`docs/mobile-ui-contract.md: 缺少 ${claim}`);
+}
+if (mobileUiBoundary.includes('pending-client-integration')) {
+  failures.push('docs/mobile-ui-contract.md: 仍把已接入的 Flutter 设计基础标记为待接入');
 }
 
 const backendFixture = fs.readFileSync('contracts/markdown-v2-fixtures.json', 'utf8');
