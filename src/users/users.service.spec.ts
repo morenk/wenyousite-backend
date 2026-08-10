@@ -46,6 +46,7 @@ const userFixture = {
   showRecentReplies: true,
   showPlayerBadges: true,
   showBookmarks: true,
+  sanctions: [],
 };
 
 describe('UsersService', () => {
@@ -74,6 +75,22 @@ describe('UsersService', () => {
     const result = await service.findById('u1');
     expect(result.id).toBe('u1');
     expect(result.username).toBe('test');
+    expect(result.accountStatus).toBe('ACTIVE');
+  });
+
+  it.each([
+    ['SUSPENSION', 'SUSPENDED'],
+    ['BAN', 'BANNED'],
+  ] as const)('findById 把当前有效处罚映射为公开账号状态 %s', async (type, expected) => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      ...userFixture,
+      sanctions: [{ type, endsAt: type === 'SUSPENSION' ? new Date(Date.now() + 60_000) : null }],
+    });
+
+    const result = await service.findById('u1');
+
+    expect(result.accountStatus).toBe(expected);
+    expect(result.sanctions).toBeUndefined();
   });
 
   it('findById 用户不存在应该返回404', async () => {

@@ -114,6 +114,12 @@ export class PublicUserResponseDto {
   @ApiPropertyOptional({ type: UserSocialCountResponseDto })
   _count?: UserSocialCountResponseDto;
 
+  @ApiPropertyOptional({
+    enum: ['ACTIVE', 'SUSPENDED', 'BANNED'],
+    description: '公开账号状态；只区分有效的临时或永久封禁，不包含处罚截止时间',
+  })
+  accountStatus?: 'ACTIVE' | 'SUSPENDED' | 'BANNED';
+
   @ApiPropertyOptional()
   isFollowing?: boolean;
 

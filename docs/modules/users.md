@@ -59,6 +59,7 @@
 | `showRecentReplies` | ✓                      | ✓                       | 隐私：是否公开最近动态       |
 | `showPlayerBadges`  | ✓                      | ✓                       | 隐私：是否公开玩家标记       |
 | `showBookmarks`     | ✓                      | ✓                       | 隐私：是否公开收藏           |
+| `accountStatus`     | ✗                      | ✓                       | ACTIVE / SUSPENDED / BANNED；不含截止时间或原因 |
 | `_count.following`  | ✓                      | ✓                       | 关注数                       |
 | `_count.followers`  | ✓                      | ✓                       | 粉丝数                       |
 | `isFollowing`       | —                      | ✓ (仅登录)              | 查看者是否关注了目标用户     |
@@ -78,7 +79,8 @@
 ## 核心业务规则
 
 - `findMe` 返回完整字段（email、emailVerified、隐私开关等），另附 `_count.following` / `_count.followers`
-- `findById` 排除 email / emailVerified / updatedAt / deletedAt 字段，仅返回公开信息。登录后额外返回 4 个关系字段
+- `findById` 排除 email / emailVerified / updatedAt / deletedAt 字段，仅返回公开信息。登录后额外返回 4 个关系字段；所有查看者都可见派生的 `accountStatus`
+- `accountStatus` 只根据当前有效处罚派生为 `ACTIVE / SUSPENDED / BANNED`，不暴露处罚原因、起止时间或管理员信息；临时处罚缓存不会晚于其结束时间失效
 - 已注销用户（deletedAt 非 null）的公开资料被屏蔽为 `{ id, username: '已注销用户', isDeactivated: true }`；帖子作者、楼主、成员、关注关系、收藏、搜索与通知中的用户摘要同样统一输出 `username: '已注销用户', avatar: null`
 - 注销时使用不含原用户名/邮箱的内部墓碑值释放两个唯一键，允许原用户或他人日后复用；墓碑值不得进入公开 API
 - 注销事务同时将 `users.avatar` 置空。已完成媒体还可能被 Markdown 字符串引用，在建立规范化引用账本前不执行即时对象硬删；注销不因对象存储清理失败而回滚，采用“宁可暂留、不可误删”的保守策略

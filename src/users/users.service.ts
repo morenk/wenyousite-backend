@@ -11,6 +11,8 @@ import { CacheService } from '../redis/cache.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { DEACTIVATED_USER_NAME } from '../common/user-summary';
 import { progressionFor } from '../progression/progression.constants';
+import { UserSanctionType } from '@prisma/client';
+import { activeSanctionWhere } from '../auth/account-sanction';
 
 const userSelectPrivate = {
   id: true,
@@ -31,7 +33,7 @@ const userSelectPrivate = {
   wallet: { select: { receivedTipTotal: true, receivedTipCount: true } },
 };
 
-const userSelectPublic = {
+const userSelectPublic = () => ({
   id: true,
   username: true,
   avatar: true,
@@ -44,7 +46,13 @@ const userSelectPublic = {
   level: true,
   createdAt: true,
   wallet: { select: { receivedTipTotal: true, receivedTipCount: true } },
-};
+  sanctions: {
+    where: activeSanctionWhere(),
+    select: { type: true, endsAt: true },
+    orderBy: { createdAt: 'desc' as const },
+    take: 1,
+  },
+});
 
 const USER_WRITE_TRANSACTION_OPTIONS = { maxWait: 5_000, timeout: 15_000 } as const;
 
@@ -56,6 +64,10 @@ interface UserWithProgressAndTips extends Record<string, unknown> {
     receivedTipTotal: bigint;
     receivedTipCount: number;
   } | null;
+  sanctions?: Array<{
+    type: UserSanctionType;
+    endsAt: Date | null;
+  }>;
 }
 
 const flattenProgressAndTips = (user: UserWithProgressAndTips): Record<string, unknown> => {
@@ -70,11 +82,26 @@ const flattenProgressAndTips = (user: UserWithProgressAndTips): Record<string, u
 
 const maskDeactivated = (user: UserWithProgressAndTips): Record<string, unknown> => {
   if (!user.deletedAt) {
-    const rest = { ...user };
+    const { sanctions, ...rest } = user;
     delete rest.deletedAt;
-    return flattenProgressAndTips(rest);
+    const type = sanctions?.[0]?.type;
+    return {
+      ...flattenProgressAndTips(rest),
+      accountStatus:
+        type === UserSanctionType.BAN
+          ? 'BANNED'
+          : type === UserSanctionType.SUSPENSION
+            ? 'SUSPENDED'
+            : 'ACTIVE',
+    };
   }
   return { id: user.id, username: DEACTIVATED_USER_NAME, isDeactivated: true };
+};
+
+const publicProfileCacheTtl = (user: UserWithProgressAndTips): number => {
+  const endsAt = user.sanctions?.[0]?.endsAt;
+  if (!endsAt) return 300_000;
+  return Math.max(1_000, Math.min(300_000, endsAt.getTime() - Date.now()));
 };
 
 /** 用户服务：用户资料查询与更新 */
@@ -108,18 +135,18 @@ export class UsersService {
 
       const user = await this.prisma.user.findUnique({
         where: { id },
-        select: { ...userSelectPublic, _count: { select: { following: true, followers: true } } },
+        select: { ...userSelectPublic(), _count: { select: { following: true, followers: true } } },
       });
       if (!user) throw new NotFoundException('用户不存在');
       const masked = maskDeactivated(user);
-      this.cache.set(cacheKey, masked, 300000).catch(() => {}); // 5 min
+      this.cache.set(cacheKey, masked, publicProfileCacheTtl(user)).catch(() => {});
       return masked;
     }
 
     const user = await this.prisma.user.findUnique({
       where: { id },
       select: {
-        ...userSelectPublic,
+        ...userSelectPublic(),
         _count: { select: { following: true, followers: true } },
       },
     });
