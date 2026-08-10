@@ -7,12 +7,21 @@ const mockPrisma = {
   userBookmark: {
     findMany: jest.fn(),
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     create: jest.fn(),
+    update: jest.fn(),
     delete: jest.fn(),
+  },
+  bookmarkFolder: {
+    upsert: jest.fn(),
+    findMany: jest.fn(),
+    findFirst: jest.fn(),
+    create: jest.fn(),
   },
   user: { findUnique: jest.fn() },
   thread: { findUnique: jest.fn() },
   threadMember: { findUnique: jest.fn() },
+  $transaction: jest.fn(),
 };
 
 describe('BookmarksService', () => {
@@ -24,6 +33,15 @@ describe('BookmarksService', () => {
     }).compile();
     service = module.get<BookmarksService>(BookmarksService);
     jest.clearAllMocks();
+    mockPrisma.$transaction.mockImplementation((fn: (tx: typeof mockPrisma) => unknown) =>
+      fn(mockPrisma),
+    );
+    mockPrisma.bookmarkFolder.upsert.mockResolvedValue({
+      id: 'cfolderdefault000000000001',
+      userId: 'u1',
+      name: '默认收藏夹',
+      isDefault: true,
+    });
   });
 
   it('findAll 返回值附带 bookmarkId（供取消收藏）', async () => {
@@ -259,7 +277,110 @@ describe('BookmarksService', () => {
 
     await expect(service.create('u1', 't1')).resolves.toEqual({ id: 'bm1' });
     expect(mockPrisma.userBookmark.create).toHaveBeenCalledWith({
-      data: { userId: 'u1', threadId: 't1' },
+      data: {
+        userId: 'u1',
+        threadId: 't1',
+        folderId: 'cfolderdefault000000000001',
+      },
+    });
+  });
+
+  it('不指定收藏夹时自动归入默认收藏夹', async () => {
+    mockPrisma.thread.findUnique.mockResolvedValue({
+      id: 't1',
+      visibility: 'PUBLIC',
+      published: true,
+    });
+    mockPrisma.userBookmark.findUnique.mockResolvedValue(null);
+    mockPrisma.userBookmark.create.mockResolvedValue({ id: 'bm1' });
+
+    await service.create('u1', 't1');
+
+    expect(mockPrisma.bookmarkFolder.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId_name: { userId: 'u1', name: '默认收藏夹' },
+        },
+      }),
+    );
+  });
+
+  it('可以创建收藏夹并返回收藏数量', async () => {
+    mockPrisma.bookmarkFolder.create.mockResolvedValue({
+      id: 'cfoldercustom00000000001',
+      userId: 'u1',
+      name: '跑团资料',
+      isDefault: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    await expect(service.createFolder('u1', '  跑团资料  ')).resolves.toMatchObject({
+      name: '跑团资料',
+      bookmarkCount: 0,
+    });
+    expect(mockPrisma.bookmarkFolder.create).toHaveBeenCalledWith({
+      data: { userId: 'u1', name: '跑团资料' },
+    });
+  });
+
+  it('收藏夹列表只返回公开字段和收藏数量', async () => {
+    mockPrisma.bookmarkFolder.findMany.mockResolvedValue([
+      {
+        id: 'cfolderdefault000000000001',
+        userId: 'u1',
+        name: '默认收藏夹',
+        isDefault: true,
+        createdAt: new Date('2026-08-09T00:00:00.000Z'),
+        updatedAt: new Date('2026-08-09T00:00:00.000Z'),
+        _count: { bookmarks: 3 },
+      },
+    ]);
+
+    const result = await service.findFolders('u1');
+
+    expect(result).toEqual([
+      {
+        id: 'cfolderdefault000000000001',
+        name: '默认收藏夹',
+        isDefault: true,
+        createdAt: new Date('2026-08-09T00:00:00.000Z'),
+        bookmarkCount: 3,
+      },
+    ]);
+    expect(result[0]).not.toHaveProperty('userId');
+    expect(result[0]).not.toHaveProperty('updatedAt');
+  });
+
+  it('按收藏夹筛选时校验归属并只查询该分类', async () => {
+    mockPrisma.bookmarkFolder.findFirst.mockResolvedValue({ id: 'cfoldercustom00000000001' });
+    mockPrisma.userBookmark.findMany.mockResolvedValue([]);
+
+    await service.findAll('u1', undefined, 20, 'cfoldercustom00000000001');
+
+    expect(mockPrisma.bookmarkFolder.findFirst).toHaveBeenCalledWith({
+      where: { id: 'cfoldercustom00000000001', userId: 'u1' },
+    });
+    expect(mockPrisma.userBookmark.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ folderId: 'cfoldercustom00000000001' }),
+      }),
+    );
+  });
+
+  it('只能把自己的收藏移动到自己的收藏夹', async () => {
+    mockPrisma.userBookmark.findFirst.mockResolvedValue({ id: 'bm1', userId: 'u1' });
+    mockPrisma.bookmarkFolder.findFirst.mockResolvedValue({ id: 'cfoldercustom00000000001' });
+    mockPrisma.userBookmark.update.mockResolvedValue({
+      id: 'bm1',
+      folderId: 'cfoldercustom00000000001',
+    });
+
+    await service.move('bm1', 'u1', 'cfoldercustom00000000001');
+
+    expect(mockPrisma.userBookmark.update).toHaveBeenCalledWith({
+      where: { id: 'bm1' },
+      data: { folderId: 'cfoldercustom00000000001' },
     });
   });
 

@@ -297,6 +297,7 @@ model User {
   sentNotifications             Notification[]                  @relation("NotificationFromUser")
   reportedReports               Report[]                        @relation("Reporter")
   bookmarks                     UserBookmark[]
+  bookmarkFolders               BookmarkFolder[]
   handledReports                Report[]                        @relation("Handler")
   auditLogs                     AuditLog[]                      @relation("AuditActor")
   sanctions                     UserSanction[]                  @relation("SanctionedUser")
@@ -674,13 +675,32 @@ model UserBookmark {
   id        String   @id @default(cuid())
   userId    String   @map("user_id")
   threadId  String   @map("thread_id")
+  folderId  String   @map("folder_id")
   createdAt DateTime @default(now()) @map("created_at")
 
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  thread Thread         @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  folder BookmarkFolder @relation(fields: [folderId], references: [id], onDelete: Restrict)
 
   @@unique([userId, threadId])
+  @@index([folderId, createdAt(sort: Desc)])
   @@map("user_bookmarks")
+}
+
+model BookmarkFolder {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  name      String   @db.VarChar(24)
+  isDefault Boolean  @default(false) @map("is_default")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookmarks UserBookmark[]
+
+  @@unique([userId, name])
+  @@index([userId, createdAt])
+  @@map("bookmark_folders")
 }
 
 model Moment {

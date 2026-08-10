@@ -2,26 +2,33 @@
 
 ## 概述
 
-用户收藏主题帖以便快速返回访问。支持公开帖和私密帖收藏，私密帖仅参与人可收藏。
+用户收藏主题帖以便快速返回访问。收藏可按用户私有收藏夹分类；每个账号始终有一个“默认收藏夹”，不指定分类的旧客户端和快捷收藏都会落入默认夹。支持公开帖和私密帖收藏，私密帖仅参与人可收藏。
 
 ## 涉及的模型
 
 | 模型 | 用途 |
 |------|------|
 | `UserBookmark` | 用户收藏记录（userId + threadId 联合唯一） |
+| `BookmarkFolder` | 用户私有收藏夹；名称在账号内唯一 |
 
 ## API 端点
 
 | Method | Path | Guard | 描述 |
 |--------|------|-------|------|
-| GET | `/bookmarks?cursor=&limit=` | AuthRead | 我的收藏列表（Cursor 分页），包含帖详情 |
-| POST | `/bookmarks` | AuthRead | 收藏主题帖 |
+| GET | `/bookmarks?cursor=&limit=&folderId=` | AuthRead | 我的收藏列表；folderId 可选，不传返回全部 |
+| GET | `/bookmarks/folders` | AuthRead | 我的收藏夹分类与每夹收藏数量 |
+| POST | `/bookmarks/folders` | AuthRead | 新建收藏夹分类 |
+| POST | `/bookmarks` | AuthRead | 收藏主题帖；folderId 可选，不传进入默认夹 |
+| PATCH | `/bookmarks/:id` | AuthRead | 把一条收藏移动到自己的其他收藏夹 |
 | DELETE | `/bookmarks/:id` | AuthRead | 取消收藏（按收藏记录 ID） |
 
 ## 核心业务规则
 
 - 收藏列表仅返回当前用户仍可访问的已发布收藏：公开帖，或当前用户仍是成员的私密帖；按收藏时间倒序排列
-- `GET /bookmarks` 每条返回 `{ ...thread, bookmarkId }`（bookmarkId 为收藏记录 ID，供前端取消收藏 DELETE /bookmarks/:id）
+- `GET /bookmarks` 每条返回 `{ ...thread, bookmarkId, bookmarkFolderId }`；不传 `folderId` 保持历史“全部收藏”语义
+- 迁移会为已有账号创建“默认收藏夹”并回填历史收藏；新账号注册时在同一事务创建默认夹，服务层仍有幂等补偿
+- 自定义收藏夹名称 trim 后长度为 1–24 个字符，同一账号不可重名；分类和名称不通过公开用户收藏接口暴露
+- 移动收藏同时校验收藏与目标收藏夹都属于当前用户
 - 公开帖：任何人都可收藏
 - 私密帖：仅参与人可收藏（非参与人尝试收藏 → 404）
 - 已收藏的帖重复收藏 → 409 Conflict
@@ -33,3 +40,4 @@
 - **收藏与参与解耦**：收藏是用户主动行为（"我想常回来看看"），参与是被标记为玩家（"楼主认可我"）。两者独立
 - **私密帖收藏强制校验**：防止用户通过邀请链接进入后收藏，之后被取消参与人身份仍能通过收藏入口访问
 - **按收藏记录 ID 删除**：post 可被多次收藏，用记录 ID 精确定位，避免歧义
+- **兼容默认分类**：`POST /bookmarks` 的 `folderId` 是可选字段，未升级客户端无需迁移即可继续收藏

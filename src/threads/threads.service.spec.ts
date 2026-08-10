@@ -683,7 +683,7 @@ describe('ThreadsService', () => {
       expect(result.isLiked).toBe(true);
       expect(mockPrisma.userBookmark.findUnique).toHaveBeenCalledWith({
         where: { userId_threadId: { userId: 'u1', threadId: 't1' } },
-        select: { id: true },
+        select: { id: true, folderId: true },
       });
       expect(mockPrisma.threadLike.findUnique).toHaveBeenCalledWith({
         where: { threadId_userId: { userId: 'u1', threadId: 't1' } },

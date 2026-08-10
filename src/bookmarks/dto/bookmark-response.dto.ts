@@ -11,6 +11,9 @@ export class BookmarkResponseDto {
   @ApiProperty()
   threadId!: string;
 
+  @ApiProperty({ description: '所属收藏夹 ID' })
+  folderId!: string;
+
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date;
 }

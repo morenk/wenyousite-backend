@@ -199,6 +199,9 @@ export class ThreadDetailResponseDto {
   @ApiPropertyOptional({ type: String, nullable: true })
   bookmarkId?: string | null;
 
+  @ApiPropertyOptional({ type: String, nullable: true, description: '当前收藏所属收藏夹 ID' })
+  bookmarkFolderId?: string | null;
+
   @ApiPropertyOptional()
   isLiked?: boolean;
 

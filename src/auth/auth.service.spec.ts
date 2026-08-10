@@ -285,7 +285,12 @@ describe('AuthService', () => {
       });
       expect(mockPrisma.user.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ emailVerified: true }),
+          data: expect.objectContaining({
+            emailVerified: true,
+            bookmarkFolders: {
+              create: { name: '默认收藏夹', isDefault: true },
+            },
+          }),
         }),
       );
     });

@@ -136,11 +136,17 @@ export class BookmarkThreadResponseDto {
 
   @ApiPropertyOptional({ description: '查看自己的收藏时返回收藏记录 ID' })
   bookmarkId?: string;
+
+  @ApiPropertyOptional({ description: '查看自己的收藏时返回所属收藏夹 ID' })
+  bookmarkFolderId?: string;
 }
 
 export class OwnBookmarkThreadResponseDto extends BookmarkThreadResponseDto {
   @ApiProperty({ description: '收藏记录 ID' })
   declare bookmarkId: string;
+
+  @ApiProperty({ description: '所属收藏夹 ID' })
+  declare bookmarkFolderId: string;
 }
 
 class DraftDefaultSubthreadResponseDto {

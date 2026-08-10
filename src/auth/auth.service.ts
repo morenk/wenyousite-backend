@@ -188,7 +188,15 @@ export class AuthService {
             memoryCost: this.configService.get<number>('argon2.memoryCost')!,
           });
           const created = await tx.user.create({
-            data: { email, username: dto.username, password, emailVerified: true },
+            data: {
+              email,
+              username: dto.username,
+              password,
+              emailVerified: true,
+              bookmarkFolders: {
+                create: { name: '默认收藏夹', isDefault: true },
+              },
+            },
             select: userSelectPublic,
           });
           await tx.wallet.create({ data: { kind: 'USER', userId: created.id } });

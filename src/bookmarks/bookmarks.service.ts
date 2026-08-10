@@ -13,7 +13,9 @@ const bookmarkThreadInclude = {
 } satisfies Prisma.ThreadInclude;
 
 type BookmarkThread = Prisma.ThreadGetPayload<{ include: typeof bookmarkThreadInclude }>;
-type OwnBookmarkThread = BookmarkThread & { bookmarkId: string };
+type OwnBookmarkThread = BookmarkThread & { bookmarkId: string; bookmarkFolderId: string };
+
+export const DEFAULT_BOOKMARK_FOLDER_NAME = '默认收藏夹';
 
 /** 收藏服务：CRUD + 可见性过滤 */
 @Injectable()
@@ -25,10 +27,16 @@ export class BookmarksService {
     userId: string,
     cursor?: string,
     limit = 20,
+    folderId?: string,
   ): Promise<PaginatedResult<OwnBookmarkThread>> {
+    if (folderId) await this.requireOwnedFolder(userId, folderId);
     const take = Math.min(limit, 50);
     const bookmarks = await this.prisma.userBookmark.findMany({
-      where: { userId, thread: publishedThreadVisibilityWhere(userId) },
+      where: {
+        userId,
+        ...(folderId ? { folderId } : {}),
+        thread: publishedThreadVisibilityWhere(userId),
+      },
       orderBy: { createdAt: 'desc' },
       take: take + 1,
       cursor: cursor ? { id: cursor } : undefined,
@@ -44,12 +52,57 @@ export class BookmarksService {
     if (hasMore) bookmarks.pop();
 
     return paginate(
-      bookmarks.map((b) => ({ ...b.thread, bookmarkId: b.id })),
+      bookmarks.map((b) => ({
+        ...b.thread,
+        bookmarkId: b.id,
+        bookmarkFolderId: b.folderId,
+      })),
       {
         cursor: bookmarks.at(-1)?.id ?? null,
         hasMore,
       },
     );
+  }
+
+  /** 当前用户的收藏夹；默认收藏夹始终位于首位。 */
+  async findFolders(userId: string) {
+    await this.ensureDefaultFolder(this.prisma, userId);
+    const folders = await this.prisma.bookmarkFolder.findMany({
+      where: { userId },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+      include: { _count: { select: { bookmarks: true } } },
+    });
+    return folders.map((folder) => ({
+      id: folder.id,
+      name: folder.name,
+      isDefault: folder.isDefault,
+      createdAt: folder.createdAt,
+      bookmarkCount: folder._count.bookmarks,
+    }));
+  }
+
+  /** 新建自定义收藏夹。 */
+  async createFolder(userId: string, rawName: string) {
+    const name = rawName.trim();
+    if (!name) throw new BusinessException(ErrorCode.BAD_REQUEST, '收藏夹名称不能为空');
+    await this.ensureDefaultFolder(this.prisma, userId);
+    try {
+      const folder = await this.prisma.bookmarkFolder.create({
+        data: { userId, name },
+      });
+      return {
+        id: folder.id,
+        name: folder.name,
+        isDefault: folder.isDefault,
+        createdAt: folder.createdAt,
+        bookmarkCount: 0,
+      };
+    } catch (error: unknown) {
+      if ((error as { code?: string })?.code === 'P2002') {
+        throw new BusinessException(ErrorCode.CONFLICT, '已存在同名收藏夹', 409);
+      }
+      throw error;
+    }
   }
 
   /** 查看指定用户的公开收藏（受 showBookmarks 隐私开关控制） */
@@ -95,7 +148,7 @@ export class BookmarksService {
   }
 
   /** 收藏主题帖 */
-  async create(userId: string, threadId: string) {
+  async create(userId: string, threadId: string, folderId?: string) {
     const thread = await this.prisma.thread.findUnique({
       where: { id: threadId, deletedAt: null },
       select: { id: true, visibility: true, published: true },
@@ -111,15 +164,36 @@ export class BookmarksService {
       if (!member) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
     }
 
-    const existing = await this.prisma.userBookmark.findUnique({
-      where: { userId_threadId: { userId, threadId } },
-    });
-    if (existing) {
-      throw new BusinessException(ErrorCode.CONFLICT, '已收藏该主题帖', 409);
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const targetFolder = folderId
+          ? await this.requireOwnedFolder(userId, folderId, tx)
+          : await this.ensureDefaultFolder(tx, userId);
+        const existing = await tx.userBookmark.findUnique({
+          where: { userId_threadId: { userId, threadId } },
+        });
+        if (existing) {
+          throw new BusinessException(ErrorCode.CONFLICT, '已收藏该主题帖', 409);
+        }
+        return tx.userBookmark.create({
+          data: { userId, threadId, folderId: targetFolder.id },
+        });
+      });
+    } catch (error: unknown) {
+      if ((error as { code?: string })?.code === 'P2002') {
+        throw new BusinessException(ErrorCode.CONFLICT, '已收藏该主题帖', 409);
+      }
+      throw error;
     }
+  }
 
-    return this.prisma.userBookmark.create({
-      data: { userId, threadId },
+  /** 调整一条收藏的所属收藏夹。 */
+  async move(id: string, userId: string, folderId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const bookmark = await tx.userBookmark.findFirst({ where: { id, userId } });
+      if (!bookmark) throw notFound(ErrorCode.NOT_FOUND, '收藏不存在');
+      await this.requireOwnedFolder(userId, folderId, tx);
+      return tx.userBookmark.update({ where: { id }, data: { folderId } });
     });
   }
 
@@ -130,5 +204,31 @@ export class BookmarksService {
       throw notFound(ErrorCode.NOT_FOUND, '收藏不存在');
     }
     return this.prisma.userBookmark.delete({ where: { id } });
+  }
+
+  private ensureDefaultFolder(client: Prisma.TransactionClient | PrismaService, userId: string) {
+    return client.bookmarkFolder.upsert({
+      where: {
+        userId_name: { userId, name: DEFAULT_BOOKMARK_FOLDER_NAME },
+      },
+      update: {},
+      create: {
+        userId,
+        name: DEFAULT_BOOKMARK_FOLDER_NAME,
+        isDefault: true,
+      },
+    });
+  }
+
+  private async requireOwnedFolder(
+    userId: string,
+    folderId: string,
+    client: Prisma.TransactionClient | PrismaService = this.prisma,
+  ) {
+    const folder = await client.bookmarkFolder.findFirst({
+      where: { id: folderId, userId },
+    });
+    if (!folder) throw notFound(ErrorCode.NOT_FOUND, '收藏夹不存在');
+    return folder;
   }
 }

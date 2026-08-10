@@ -98,7 +98,7 @@ export class ThreadQueryService {
       const [bookmark, like, currentMembership] = await Promise.all([
         this.prisma.userBookmark.findUnique({
           where: { userId_threadId: { userId, threadId: id } },
-          select: { id: true },
+          select: { id: true, folderId: true },
         }),
         this.prisma.threadLike.findUnique({
           where: { threadId_userId: { userId, threadId: id } },
@@ -115,6 +115,7 @@ export class ThreadQueryService {
         ...responseThread,
         isBookmarked: !!bookmark,
         bookmarkId: bookmark?.id ?? null,
+        bookmarkFolderId: bookmark?.folderId ?? null,
         isLiked: !!like,
         currentMembership,
         capabilities: {
