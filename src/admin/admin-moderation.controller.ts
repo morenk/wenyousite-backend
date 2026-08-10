@@ -1,7 +1,7 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
-import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { FastifyRequest } from 'fastify';
-import { AdminAuth, SuperAdminAuth } from '../auth/decorators/admin-auth.decorator';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, Res } from '@nestjs/common';
+import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiProduces, ApiTags } from '@nestjs/swagger';
+import { FastifyReply, FastifyRequest } from 'fastify';
+import { AdminAuth, SuperAdminStepUpAuth } from '../auth/decorators/admin-auth.decorator';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { ApiCursorPaginatedResponse } from '../common/swagger/api-cursor-paginated-response.decorator';
 import { AdminActor, AdminRole } from './admin-policy.service';
@@ -83,8 +83,8 @@ export class AdminModerationController {
   }
 
   @Patch('users/:id/role')
-  @SuperAdminAuth()
-  @ApiOperation({ summary: '授予或撤销管理员角色（超级管理员）' })
+  @SuperAdminStepUpAuth()
+  @ApiOperation({ summary: '撤销管理员角色；授予请使用邀请流程（超级管理员）' })
   @ApiOkResponse({ type: AdminUserModerationResponseDto })
   updateRole(
     @Param('id') id: string,
@@ -142,5 +142,21 @@ export class AdminModerationController {
   @ApiCursorPaginatedResponse(AdminAuditLogResponseDto, '不可变管理员审计日志')
   listAuditLogs(@Query() query: AuditLogQueryDto) {
     return this.queries.listAuditLogs(query);
+  }
+
+  @Get('audit-logs/export')
+  @ApiOperation({ summary: '按当前筛选导出管理员审计日志 CSV（最多 10000 条）' })
+  @ApiProduces('text/csv')
+  @ApiOkResponse({
+    description: 'UTF-8 CSV，包含 BOM 并防止表格公式注入',
+    schema: { type: 'string', format: 'binary' },
+  })
+  async exportAuditLogs(@Query() query: AuditLogQueryDto, @Res() reply: FastifyReply) {
+    const csv = await this.queries.exportAuditLogs(query);
+    const date = new Date().toISOString().slice(0, 10);
+    return reply
+      .header('Content-Type', 'text/csv; charset=utf-8')
+      .header('Content-Disposition', `attachment; filename="wenyou-audit-${date}.csv"`)
+      .send(csv);
   }
 }

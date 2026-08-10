@@ -65,6 +65,36 @@ class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
+  WEB_APP_URL: string = 'http://localhost:3001';
+
+  @IsString()
+  @IsOptional()
+  ADMIN_WEB_ENTRY_URL: string = '';
+
+  @IsNumber()
+  @IsOptional()
+  @Min(5)
+  @Max(120)
+  ADMIN_SESSION_IDLE_MINUTES: number = 30;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(1)
+  @Max(24)
+  ADMIN_SESSION_ABSOLUTE_HOURS: number = 8;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(5)
+  @Max(30)
+  ADMIN_STEP_UP_MINUTES: number = 10;
+
+  @IsString()
+  @IsOptional()
+  ADMIN_CHALLENGE_PEPPER: string = '';
+
+  @IsString()
+  @IsOptional()
   BUILD_SHA: string = '';
 
   @IsBoolean()
@@ -204,6 +234,13 @@ export function validate(config: Record<string, unknown>) {
       validatedConfig.JWT_ACCESS_SECRET.length < 24
     ) {
       throw new Error('生产环境 JWT_ACCESS_SECRET 必须是至少 24 字符的非默认随机值');
+    }
+    if (validatedConfig.ADMIN_CHALLENGE_PEPPER && (
+      validatedConfig.ADMIN_CHALLENGE_PEPPER.startsWith('dev-') ||
+      validatedConfig.ADMIN_CHALLENGE_PEPPER.startsWith('change-me') ||
+      validatedConfig.ADMIN_CHALLENGE_PEPPER.length < 32
+    )) {
+      throw new Error('生产环境 ADMIN_CHALLENGE_PEPPER 必须是至少 32 字符的独立随机值');
     }
     if (
       validatedConfig.PUSH_ENABLED &&

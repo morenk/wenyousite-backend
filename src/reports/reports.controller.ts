@@ -35,7 +35,7 @@ export class ReportsController {
   @Post()
   @Auth()
   @Throttle({ default: { limit: 5, ttl: 60000 } })
-  @ApiOperation({ summary: '提交公开社区目标举报' })
+  @ApiOperation({ summary: '提交社区内容、用户或自己收到的私聊消息举报（Web/移动端兼容）' })
   @ApiCreatedResponse({ type: ReportResponseDto })
   @ApiConflictResponse({ description: '已存在相同待处理举报' })
   create(@CurrentUser() user: CurrentUserPayload, @Body() dto: CreateReportDto) {

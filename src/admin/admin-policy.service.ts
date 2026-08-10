@@ -21,6 +21,7 @@ export const ADMIN_CAPABILITIES = {
     'ADMIN_ROLE_MANAGE',
     'ADMIN_SANCTION',
     'TAXONOMY_MANAGE',
+    'ADMIN_ACCOUNT_MANAGE',
   ],
 } as const;
 

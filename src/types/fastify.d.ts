@@ -10,6 +10,8 @@ declare module 'fastify' {
       role?: string;
       emailVerified?: boolean;
       sessionId?: string;
+      adminSessionId?: string;
+      elevatedUntil?: string;
     };
   }
 }

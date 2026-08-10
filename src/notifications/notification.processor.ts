@@ -66,6 +66,7 @@ export class NotificationProcessor extends WorkerHost {
       fromUserId,
       payload,
       eventKey,
+      campaignId,
     } = job.data;
 
     switch (type) {
@@ -88,6 +89,7 @@ export class NotificationProcessor extends WorkerHost {
           fromUserId,
           payload,
           eventKey,
+          campaignId,
         );
         break;
       case 'like':
@@ -248,6 +250,7 @@ export class NotificationProcessor extends WorkerHost {
     fromUserId?: string,
     payload?: Record<string, unknown> | null,
     eventKey?: string,
+    campaignId?: string,
   ) {
     if (userIds.length === 0) return;
     const startedAt = new Date();
@@ -256,6 +259,7 @@ export class NotificationProcessor extends WorkerHost {
       userId,
       type,
       content,
+      campaignId,
       postId,
       threadId,
       momentId,

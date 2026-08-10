@@ -11,10 +11,15 @@ describe('ReportsService', () => {
     $transaction: jest.fn(),
     report: {
       create: jest.fn(),
+      findFirst: jest.fn(),
       findMany: jest.fn(),
       findUnique: jest.fn(),
       updateMany: jest.fn(),
       findUniqueOrThrow: jest.fn(),
+    },
+    moderationCase: {
+      findFirst: jest.fn(),
+      create: jest.fn(),
     },
     user: { findUnique: jest.fn() },
     thread: { findFirst: jest.fn(), findUnique: jest.fn() },
@@ -35,6 +40,7 @@ describe('ReportsService', () => {
       callback(prisma),
     );
     audit.record.mockResolvedValue({});
+    prisma.moderationCase.findFirst.mockResolvedValue({ id: 'case-1' });
     service = new ReportsService(
       prisma as unknown as PrismaService,
       moderation as unknown as ModerationService,
@@ -93,6 +99,7 @@ describe('ReportsService', () => {
       role: UserRole.USER,
     });
     prisma.report.create.mockRejectedValue({ code: 'P2002' });
+    prisma.report.findFirst.mockResolvedValue({ id: 'report-existing' });
     await expect(
       service.create('cm2234567890123456789012', {
         targetType: ReportTargetType.USER,
@@ -100,6 +107,28 @@ describe('ReportsService', () => {
         reasonCode: ReportReasonCode.SPAM,
       }),
     ).rejects.toMatchObject({ errorCode: ErrorCode.REPORT_ALREADY_PENDING });
+  });
+
+  it('并发首次举报同一目标时重试并聚合进已创建案件', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'cm1234567890123456789012',
+      username: 'target',
+      avatar: null,
+      role: UserRole.USER,
+    });
+    prisma.report.findFirst.mockResolvedValue(null);
+    prisma.report.create
+      .mockRejectedValueOnce({ code: 'P2002' })
+      .mockResolvedValueOnce({ id: 'report-2', caseId: 'case-1' });
+
+    await expect(
+      service.create('cm3234567890123456789012', {
+        targetType: ReportTargetType.USER,
+        targetId: 'cm1234567890123456789012',
+        reasonCode: ReportReasonCode.SPAM,
+      }),
+    ).resolves.toMatchObject({ id: 'report-2', caseId: 'case-1' });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
   });
 
   it('驳回举报时原子更新状态并写审计', async () => {

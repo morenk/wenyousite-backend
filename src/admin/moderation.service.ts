@@ -91,6 +91,7 @@ export class ModerationService {
     dto: SanctionUserDto,
     context: AdminRequestContext,
     reportId?: string,
+    decisionId?: string,
   ) {
     await tx.$queryRaw`SELECT id FROM users WHERE id = ${targetId} FOR UPDATE`;
     const target = await tx.user.findUnique({
@@ -158,6 +159,7 @@ export class ModerationService {
         createdById: actor.id,
         startsAt: now,
         endsAt,
+        decisionId: decisionId ?? null,
       },
     });
     await tx.refreshToken.updateMany({
@@ -238,6 +240,9 @@ export class ModerationService {
     reason: string,
     context: AdminRequestContext,
   ) {
+    if (role === UserRole.ADMIN) {
+      throw new BusinessException(ErrorCode.BAD_REQUEST, '新增管理员必须使用邀请流程');
+    }
     await this.prisma.$transaction(async (tx) => {
       const target = await tx.user.findUnique({
         where: { id: targetId },
@@ -267,10 +272,7 @@ export class ModerationService {
       await this.audit.record(
         {
           actorId: actor.id,
-          action:
-            role === UserRole.ADMIN
-              ? AuditAction.ADMIN_ROLE_GRANTED
-              : AuditAction.ADMIN_ROLE_REVOKED,
+          action: AuditAction.ADMIN_ROLE_REVOKED,
           targetType: AuditTargetType.USER,
           targetId,
           reason: reason.trim(),

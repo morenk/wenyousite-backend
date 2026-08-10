@@ -29,6 +29,7 @@ function isUniqueConflict(error: unknown): boolean {
 function categoryMetadata(value: {
   slug: string;
   name: string;
+  description: string | null;
   color: string | null;
   icon: string | null;
   sortOrder: number;
@@ -37,6 +38,7 @@ function categoryMetadata(value: {
   return {
     slug: value.slug,
     name: value.name,
+    description: value.description,
     color: value.color,
     icon: value.icon,
     sortOrder: value.sortOrder,

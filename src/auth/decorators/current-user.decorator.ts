@@ -7,6 +7,8 @@ export interface CurrentUserPayload {
   role?: 'USER' | 'ADMIN' | 'SUPER_ADMIN';
   emailVerified?: boolean;
   sessionId?: string;
+  adminSessionId?: string;
+  elevatedUntil?: string;
 }
 
 export const CurrentUser = createParamDecorator(

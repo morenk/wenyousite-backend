@@ -14,6 +14,7 @@ export interface NotificationJob {
   fromUserId?: string;
   payload?: Record<string, unknown> | null;
   eventKey?: string;
+  campaignId?: string;
 }
 
 /** 通知生产者：将通知任务推入队列 */
@@ -35,6 +36,7 @@ export class NotificationProducer {
       payload?: Record<string, unknown>;
       /** 同一业务事件的稳定键；处理器会按收件人拼接，保证队列重试幂等。 */
       eventKey?: string;
+      campaignId?: string;
     },
   ) {
     if (recipients.length === 0) return;

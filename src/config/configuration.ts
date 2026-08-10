@@ -78,6 +78,19 @@ export default () => ({
       .split(',')
       .map((origin) => origin.trim())
       .filter(Boolean),
+    webUrl: process.env.WEB_APP_URL ?? 'http://localhost:3001',
+    adminWebEntryUrl: process.env.ADMIN_WEB_ENTRY_URL ?? '',
+  },
+
+  admin: {
+    idleMinutes: parseInt(process.env.ADMIN_SESSION_IDLE_MINUTES ?? '30', 10),
+    absoluteHours: parseInt(process.env.ADMIN_SESSION_ABSOLUTE_HOURS ?? '8', 10),
+    stepUpMinutes: parseInt(process.env.ADMIN_STEP_UP_MINUTES ?? '10', 10),
+    challengePepper:
+      process.env.ADMIN_CHALLENGE_PEPPER ??
+      (process.env.NODE_ENV === 'production'
+        ? `${process.env.JWT_ACCESS_SECRET}:wenyou-admin-challenge-v1`
+        : 'dev-admin-pepper-change-me'),
   },
 
   push: {

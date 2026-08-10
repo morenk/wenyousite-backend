@@ -85,6 +85,56 @@ describe('AdminTaxonomyService', () => {
     expect(audit.record).not.toHaveBeenCalled();
   });
 
+  it('重命名分类时保留 slug、记录前后值并使公开缓存失效', async () => {
+    const existing = {
+      id: 'legacy_rpg',
+      slug: 'RPG',
+      name: '角色扮演',
+      description: null,
+      color: '#704C65',
+      icon: null,
+      sortOrder: 30,
+      isActive: true,
+    };
+    const updated = { ...existing, name: '叙事角色扮演', description: '共同讲述角色故事' };
+    tx.threadCategoryDefinition.findUnique.mockResolvedValue(existing);
+    tx.threadCategoryDefinition.update.mockResolvedValue(updated);
+
+    await expect(
+      service.updateCategory(
+        { id: 'admin1' },
+        existing.id,
+        { name: ' 叙事角色扮演 ', description: '共同讲述角色故事' },
+        { requestId: 'req-rename' },
+      ),
+    ).resolves.toEqual(updated);
+
+    expect(tx.threadCategoryDefinition.update).toHaveBeenCalledWith({
+      where: { id: existing.id },
+      data: { name: '叙事角色扮演', description: '共同讲述角色故事' },
+    });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: AuditAction.THREAD_CATEGORY_UPDATED,
+        targetId: existing.id,
+        metadata: expect.objectContaining({
+          previous: expect.objectContaining({
+            name: '角色扮演',
+            description: null,
+            slug: 'RPG',
+          }),
+          current: expect.objectContaining({
+            name: '叙事角色扮演',
+            description: '共同讲述角色故事',
+            slug: 'RPG',
+          }),
+        }),
+      }),
+      tx,
+    );
+    expect(categories.invalidateCache).toHaveBeenCalled();
+  });
+
   it('管理员可以新增标签并使公开标签缓存失效', async () => {
     const created = {
       id: 'tag1',

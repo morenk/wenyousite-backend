@@ -21,8 +21,8 @@ export interface AuditInput {
 export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
 
-  record(input: AuditInput, client: AuditClient = this.prisma) {
-    return client.auditLog.create({
+  async record(input: AuditInput, client: AuditClient = this.prisma) {
+    const audit = await client.auditLog.create({
       data: {
         actorId: input.actorId ?? null,
         action: input.action,
@@ -32,9 +32,21 @@ export class AuditService {
         reason: input.reason ?? null,
         metadata:
           input.metadata == null ? Prisma.JsonNull : (input.metadata as Prisma.InputJsonValue),
-        ip: input.ip ?? null,
-        requestId: input.requestId ?? null,
+        // 请求上下文单独保存并自动过期，永久审计主体不留 IP 等敏感信息。
+        ip: null,
+        requestId: null,
       },
     });
+    if (input.ip || input.requestId) {
+      await client.auditSensitiveContext.create({
+        data: {
+          auditId: audit.id,
+          ip: input.ip ?? null,
+          requestId: input.requestId ?? null,
+          expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+        },
+      });
+    }
+    return audit;
   }
 }

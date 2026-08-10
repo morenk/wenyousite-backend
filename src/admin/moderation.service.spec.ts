@@ -248,30 +248,11 @@ describe('ModerationService', () => {
     ).rejects.toMatchObject({ errorCode: ErrorCode.CONTENT_STATE_CONFLICT });
   });
 
-  it('超级管理员调整角色时吊销目标会话并返回最新状态', async () => {
+  it('新增管理员必须使用邀请流程', async () => {
     const root = { id: 'root-1', username: 'root', role: UserRole.SUPER_ADMIN } as const;
-    prisma.user.findUnique.mockResolvedValue({
-      id: 'user-1',
-      role: UserRole.USER,
-      deletedAt: null,
-    });
-    prisma.user.update.mockResolvedValue({ id: 'user-1', role: UserRole.ADMIN });
-    queries.getUser.mockResolvedValue({
-      id: 'user-1',
-      role: UserRole.ADMIN,
-      moderationStatus: 'ACTIVE',
-      currentSanction: null,
-    });
-
     await expect(
       service.updateRole(root, 'user-1', UserRole.ADMIN, '加入协管', {}),
-    ).resolves.toMatchObject({ role: UserRole.ADMIN, moderationStatus: 'ACTIVE' });
-    expect(prisma.refreshToken.updateMany).toHaveBeenCalled();
-    expect(audit.record).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'ADMIN_ROLE_GRANTED',
-      }),
-      prisma,
-    );
+    ).rejects.toMatchObject({ errorCode: ErrorCode.BAD_REQUEST });
+    expect(prisma.user.update).not.toHaveBeenCalled();
   });
 });

@@ -48,8 +48,50 @@ export class ReportsService {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '选择其他原因时必须填写补充说明');
     }
     const targetSnapshot = await this.buildTargetSnapshot(reporterId, dto.targetType, dto.targetId);
-    return this.prisma.report
-      .create({
+    try {
+      return await this.createInOpenCase(reporterId, dto, targetSnapshot);
+    } catch (error: unknown) {
+      if ((error as { code?: string })?.code !== 'P2002') throw error;
+      const duplicate = await this.prisma.report.findFirst({
+        where: {
+          reporterId,
+          targetType: dto.targetType,
+          targetId: dto.targetId,
+          status: ReportStatus.PENDING,
+        },
+        select: { id: true },
+      });
+      if (duplicate) {
+        throw reportConflict(ErrorCode.REPORT_ALREADY_PENDING, '已提交过相同的待处理举报');
+      }
+      // 两名用户同时首次举报同一目标时，开放案件的部分唯一索引只允许一个创建者。
+      // 等获胜事务提交后重试，第二份举报应聚合进同一案件而不是被误判为重复举报。
+      try {
+        return await this.createInOpenCase(reporterId, dto, targetSnapshot);
+      } catch (retryError: unknown) {
+        if ((retryError as { code?: string })?.code === 'P2002') {
+          throw reportConflict(ErrorCode.REPORT_ALREADY_PENDING, '已提交过相同的待处理举报');
+        }
+        throw retryError;
+      }
+    }
+  }
+
+  private createInOpenCase(
+    reporterId: string,
+    dto: CreateReportDto,
+    targetSnapshot: Record<string, unknown>,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      let moderationCase = await tx.moderationCase.findFirst({
+        where: { targetType: dto.targetType, targetId: dto.targetId, status: 'OPEN' },
+        select: { id: true },
+      });
+      moderationCase ??= await tx.moderationCase.create({
+        data: { targetType: dto.targetType, targetId: dto.targetId },
+        select: { id: true },
+      });
+      return tx.report.create({
         data: {
           reporterId,
           targetType: dto.targetType,
@@ -57,14 +99,10 @@ export class ReportsService {
           reasonCode: dto.reasonCode,
           details: dto.details?.trim() ?? null,
           targetSnapshot: targetSnapshot as Prisma.InputJsonValue,
+          caseId: moderationCase.id,
         },
-      })
-      .catch((error: unknown) => {
-        if ((error as { code?: string })?.code === 'P2002') {
-          throw reportConflict(ErrorCode.REPORT_ALREADY_PENDING, '已提交过相同的待处理举报');
-        }
-        throw error;
       });
+    });
   }
 
   async findAll(query: ReportQueryDto) {
@@ -265,6 +303,27 @@ export class ReportsService {
       if (comment.authorId === reporterId) throw new BusinessException(ErrorCode.BAD_REQUEST, '不能举报自己的评论');
       return { snapshotVersion: 1, targetType, capturedAt, comment };
     }
+    if (targetType === ReportTargetType.DIRECT_MESSAGE) {
+      const directMessage = await this.prisma.directMessage.findFirst({
+        where: { id: targetId, recipientId: reporterId },
+        select: {
+          id: true,
+          conversationId: true,
+          senderId: true,
+          recipientId: true,
+          content: true,
+          recalledAt: true,
+          createdAt: true,
+          sender: { select: { id: true, username: true } },
+          media: { select: { id: true, url: true, contentType: true } },
+          sticker: { select: { id: true, url: true } },
+        },
+      });
+      if (!directMessage) {
+        throw notFound(ErrorCode.NOT_FOUND, '只能举报自己收到的私聊消息');
+      }
+      return { snapshotVersion: 1, targetType, capturedAt, directMessage };
+    }
     const post = await this.prisma.post.findFirst({
       where: {
         id: targetId,
@@ -317,6 +376,15 @@ export class ReportsService {
             deactivated: Boolean(user.deletedAt),
             currentSanction: user.sanctions[0] ?? null,
           }
+        : { exists: false };
+    }
+    if (targetType === ReportTargetType.DIRECT_MESSAGE) {
+      const directMessage = await this.prisma.directMessage.findUnique({
+        where: { id: targetId },
+        select: { id: true, recalledAt: true },
+      });
+      return directMessage
+        ? { exists: true, recalled: Boolean(directMessage.recalledAt) }
         : { exists: false };
     }
     const record =

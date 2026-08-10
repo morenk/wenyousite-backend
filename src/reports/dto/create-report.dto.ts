@@ -3,7 +3,7 @@ import { ReportReasonCode, ReportTargetType } from '@prisma/client';
 import { IsEnum, IsOptional, IsString, MaxLength, MinLength, ValidateIf } from 'class-validator';
 import { IsCuid } from '../../common/decorators/is-cuid.decorator';
 
-/** 新举报只接受类型化的公开社区目标。 */
+/** 类型化举报目标；私聊仅允许举报自己收到的单条消息。 */
 export class CreateReportDto {
   @ApiProperty({ enum: ReportTargetType })
   @IsEnum(ReportTargetType)

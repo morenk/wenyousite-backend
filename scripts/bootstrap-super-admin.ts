@@ -1,4 +1,5 @@
 import { AuditAction, AuditTargetType, PrismaClient, UserRole } from '@prisma/client';
+import { acquireSuperAdminBootstrapLock } from '../src/admin/bootstrap-super-admin-lock';
 
 function readEmail(argv: string[]) {
   const inline = argv.find((arg) => arg.startsWith('--email='));
@@ -17,7 +18,7 @@ async function main() {
   try {
     const result = await prisma.$transaction(async (tx) => {
       // 跨目标账号串行化 bootstrap，避免并发创建两个超级管理员。
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(864208081)`;
+      await acquireSuperAdminBootstrapLock(tx);
       const existing = await tx.user.findFirst({
         where: { role: UserRole.SUPER_ADMIN, deletedAt: null },
         select: { id: true },

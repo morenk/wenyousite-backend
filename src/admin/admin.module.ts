@@ -13,11 +13,27 @@ import { TagsModule } from '../tags/tags.module';
 import { TaxonomyModule } from '../taxonomy/taxonomy.module';
 import { AdminTaxonomyController } from './admin-taxonomy.controller';
 import { AdminTaxonomyService } from './admin-taxonomy.service';
+import { AdminAuthController } from './admin-auth.controller';
+import { AdminAccountsController, AdminInviteAcceptanceController } from './admin-accounts.controller';
+import { AdminAccountsService } from './admin-accounts.service';
+import { AdminModerationAppealsController, ModerationCasesController, UserModerationAppealsController } from './moderation-cases.controller';
+import { ModerationCasesService } from './moderation-cases.service';
+import { SiteOperationalSettingsController } from './site-operational-settings.controller';
+import { NotificationCampaignController } from './notification-campaign.controller';
+import { NotificationCampaignService } from './notification-campaign.service';
 
 /** 管理后台模块：系统通知发送、预览、历史、用户搜索 */
 @Module({
   imports: [NotificationsModule, TagsModule, TaxonomyModule],
   controllers: [
+    AdminAuthController,
+    AdminAccountsController,
+    AdminInviteAcceptanceController,
+    ModerationCasesController,
+    AdminModerationAppealsController,
+    UserModerationAppealsController,
+    SiteOperationalSettingsController,
+    NotificationCampaignController,
     AdminController,
     AdminModerationController,
     AdminDashboardController,
@@ -31,6 +47,9 @@ import { AdminTaxonomyService } from './admin-taxonomy.service';
     AdminModerationQueryService,
     AdminDashboardService,
     AdminTaxonomyService,
+    AdminAccountsService,
+    ModerationCasesService,
+    NotificationCampaignService,
   ],
   exports: [AdminPolicyService, AuditService, ModerationService],
 })

@@ -127,6 +127,7 @@ enum ReportTargetType {
   POST
   MOMENT
   MOMENT_COMMENT
+  DIRECT_MESSAGE
 }
 
 enum ReportStatus {
@@ -142,8 +143,53 @@ enum ReportReasonCode {
   SEXUAL_CONTENT
   VIOLENT_CONTENT
   PERSONAL_INFORMATION
+  IMPERSONATION_OR_FRAUD
+  INTELLECTUAL_PROPERTY
   ILLEGAL_CONTENT
   OTHER
+}
+
+enum ModerationCaseStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+enum ModerationDecisionAction {
+  HIDE_CONTENT
+  SUSPEND_USER
+  BAN_USER
+}
+
+enum ModerationAppealStatus {
+  PENDING
+  UPHELD
+  OVERTURNED
+}
+
+enum AdminInviteStatus {
+  PENDING
+  ACCEPTED
+  CANCELED
+  EXPIRED
+}
+
+enum AdminSecurityEventType {
+  LOGIN_CHALLENGE_CREATED
+  LOGIN_SUCCEEDED
+  LOGIN_FAILED
+  SESSION_REVOKED
+  STEP_UP_SUCCEEDED
+  STEP_UP_FAILED
+  PRIVATE_EVIDENCE_VIEWED
+}
+
+enum NotificationCampaignStatus {
+  SCHEDULED
+  SENDING
+  SENT
+  CANCELED
+  FAILED
 }
 
 enum UserSanctionType {
@@ -174,6 +220,23 @@ enum AuditAction {
   THREAD_CATEGORY_UPDATED
   TAG_CREATED
   TAG_UPDATED
+  ADMIN_INVITED
+  ADMIN_INVITE_ACCEPTED
+  ADMIN_INVITE_CANCELED
+  SUPER_ADMIN_TRANSFERRED
+  ADMIN_SESSION_REVOKED
+  CASE_RESOLVED
+  CASE_DISMISSED
+  APPEAL_SUBMITTED
+  APPEAL_UPHELD
+  APPEAL_OVERTURNED
+  USER_SESSIONS_REVOKED
+  PASSWORD_RESET_REQUESTED_BY_ADMIN
+  NOTIFICATION_CAMPAIGN_SCHEDULED
+  NOTIFICATION_CAMPAIGN_CANCELED
+  THREAD_CATEGORY_MERGED
+  TAG_MERGED
+  SITE_SETTINGS_UPDATED
 }
 
 enum AuditTargetType {
@@ -186,6 +249,13 @@ enum AuditTargetType {
   SYSTEM_NOTIFICATION
   THREAD_CATEGORY
   TAG
+  MODERATION_CASE
+  MODERATION_DECISION
+  MODERATION_APPEAL
+  ADMIN_INVITE
+  ADMIN_SESSION
+  NOTIFICATION_CAMPAIGN
+  SITE_SETTINGS
 }
 
 model User {
@@ -255,6 +325,17 @@ model User {
   momentLikes                   MomentLike[]
   momentBookmarks               MomentBookmark[]
   momentComments                MomentComment[]
+  adminSessions                 AdminSession[]
+  adminChallenges               AdminAuthChallenge[]
+  adminInvitesReceived          AdminInvite[]                   @relation("AdminInviteTarget")
+  adminInvitesSent              AdminInvite[]                   @relation("AdminInviteSender")
+  adminSecurityEvents           AdminSecurityEvent[]
+  moderationCasesResolved       ModerationCase[]                @relation("ModerationCaseResolver")
+  moderationDecisionsCreated    ModerationDecision[]            @relation("ModerationDecisionActor")
+  moderationDecisionsReversed   ModerationDecision[]            @relation("ModerationDecisionReverser")
+  moderationAppeals             ModerationAppeal[]              @relation("ModerationAppealAppellant")
+  moderationAppealsHandled      ModerationAppeal[]              @relation("ModerationAppealHandler")
+  notificationCampaigns         SystemNotificationCampaign[]
 
   @@index([username(ops: raw("gin_trgm_ops"))], type: Gin, map: "users_username_trgm_idx")
   @@map("users")
@@ -298,6 +379,78 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+model AdminAuthChallenge {
+  id         String    @id @default(cuid())
+  userId     String    @map("user_id")
+  purpose    String    @db.VarChar(32)
+  codeHash   String    @map("code_hash") @db.VarChar(64)
+  attempts   Int       @default(0)
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose, createdAt(sort: Desc)])
+  @@index([expiresAt])
+  @@map("admin_auth_challenges")
+}
+
+model AdminSession {
+  id            String    @id @default(cuid())
+  userId        String    @map("user_id")
+  tokenHash     String    @unique @map("token_hash") @db.VarChar(64)
+  ip            String?
+  userAgent     String?   @map("user_agent") @db.VarChar(512)
+  lastActiveAt  DateTime  @default(now()) @map("last_active_at")
+  elevatedUntil DateTime? @map("elevated_until")
+  expiresAt     DateTime  @map("expires_at")
+  revokedAt     DateTime? @map("revoked_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt, revokedAt])
+  @@map("admin_sessions")
+}
+
+model AdminInvite {
+  id          String            @id @default(cuid())
+  userId      String            @map("user_id")
+  invitedById String            @map("invited_by_id")
+  tokenHash   String            @unique @map("token_hash") @db.VarChar(64)
+  status      AdminInviteStatus @default(PENDING)
+  expiresAt   DateTime          @map("expires_at")
+  acceptedAt  DateTime?         @map("accepted_at")
+  canceledAt  DateTime?         @map("canceled_at")
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  user      User @relation("AdminInviteTarget", fields: [userId], references: [id], onDelete: Cascade)
+  invitedBy User @relation("AdminInviteSender", fields: [invitedById], references: [id], onDelete: Restrict)
+
+  @@index([userId, status, expiresAt])
+  @@index([invitedById, createdAt(sort: Desc)])
+  @@map("admin_invites")
+}
+
+model AdminSecurityEvent {
+  id        String                 @id @default(cuid())
+  userId    String?                @map("user_id")
+  type      AdminSecurityEventType
+  ip        String?
+  userAgent String?                @map("user_agent") @db.VarChar(512)
+  metadata  Json?
+  expiresAt DateTime               @map("expires_at")
+  createdAt DateTime               @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
+  @@index([expiresAt])
+  @@map("admin_security_events")
+}
+
 model MobileDevice {
   id         String         @id @default(cuid())
   userId     String         @map("user_id")
@@ -332,18 +485,21 @@ model UserBlock {
 }
 
 model ThreadCategoryDefinition {
-  id          String   @id @default(cuid())
-  slug        String   @unique @db.VarChar(50)
-  name        String   @unique @db.VarChar(50)
-  description String?  @db.VarChar(200)
-  color       String?  @db.VarChar(7)
-  icon        String?  @db.VarChar(50)
-  sortOrder   Int      @default(0) @map("sort_order")
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id           String   @id @default(cuid())
+  slug         String   @unique @db.VarChar(50)
+  name         String   @unique @db.VarChar(50)
+  description  String?  @db.VarChar(200)
+  color        String?  @db.VarChar(7)
+  icon         String?  @db.VarChar(50)
+  sortOrder    Int      @default(0) @map("sort_order")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  mergedIntoId String?  @map("merged_into_id")
 
-  threads Thread[]
+  threads    Thread[]
+  mergedInto ThreadCategoryDefinition?  @relation("ThreadCategoryMerges", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedFrom ThreadCategoryDefinition[] @relation("ThreadCategoryMerges")
 
   @@index([isActive, sortOrder, name])
   @@map("thread_category_definitions")
@@ -455,16 +611,19 @@ model Subthread {
 }
 
 model TopicTag {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  color       String?  @db.VarChar(7)
-  description String?  @db.VarChar(200)
-  sortOrder   Int      @default(0) @map("sort_order")
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id           String   @id @default(cuid())
+  name         String   @unique
+  color        String?  @db.VarChar(7)
+  description  String?  @db.VarChar(200)
+  sortOrder    Int      @default(0) @map("sort_order")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  mergedIntoId String?  @map("merged_into_id")
 
-  threads ThreadTopicTag[]
+  threads    ThreadTopicTag[]
+  mergedInto TopicTag?        @relation("TopicTagMerges", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedFrom TopicTag[]       @relation("TopicTagMerges")
 
   @@index([isActive, sortOrder, name])
   @@map("topic_tags")
@@ -907,17 +1066,39 @@ model Notification {
   eventKey        String           @default(dbgenerated("(gen_random_uuid())::text")) @map("event_key")
   isRead          Boolean          @default(false) @map("is_read")
   createdAt       DateTime         @default(now()) @map("created_at")
+  campaignId      String?          @map("campaign_id")
 
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  post          Post?          @relation(fields: [postId], references: [id], onDelete: SetNull)
-  thread        Thread?        @relation(fields: [threadId], references: [id], onDelete: SetNull)
-  moment        Moment?        @relation(fields: [momentId], references: [id], onDelete: SetNull)
-  momentComment MomentComment? @relation(fields: [momentCommentId], references: [id], onDelete: SetNull)
-  fromUser      User?          @relation("NotificationFromUser", fields: [fromUserId], references: [id], onDelete: SetNull)
+  user          User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post          Post?                       @relation(fields: [postId], references: [id], onDelete: SetNull)
+  thread        Thread?                     @relation(fields: [threadId], references: [id], onDelete: SetNull)
+  moment        Moment?                     @relation(fields: [momentId], references: [id], onDelete: SetNull)
+  momentComment MomentComment?              @relation(fields: [momentCommentId], references: [id], onDelete: SetNull)
+  fromUser      User?                       @relation("NotificationFromUser", fields: [fromUserId], references: [id], onDelete: SetNull)
+  campaign      SystemNotificationCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
 
   @@unique([userId, eventKey])
   @@index([userId, isRead, createdAt])
+  @@index([campaignId, isRead])
   @@map("notifications")
+}
+
+model ModerationCase {
+  id           String               @id @default(cuid())
+  targetType   ReportTargetType     @map("target_type")
+  targetId     String               @map("target_id")
+  status       ModerationCaseStatus @default(OPEN)
+  resolvedById String?              @map("resolved_by_id")
+  resolvedAt   DateTime?            @map("resolved_at")
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+
+  resolvedBy User?                @relation("ModerationCaseResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  reports    Report[]
+  decisions  ModerationDecision[]
+
+  @@index([status, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([targetType, targetId, createdAt(sort: Desc)])
+  @@map("moderation_cases")
 }
 
 model Report {
@@ -934,15 +1115,65 @@ model Report {
   resolutionNote String?          @map("resolution_note")
   createdAt      DateTime         @default(now()) @map("created_at")
   updatedAt      DateTime         @updatedAt @map("updated_at")
+  caseId         String?          @map("case_id")
 
-  reporter  User?          @relation("Reporter", fields: [reporterId], references: [id], onDelete: SetNull)
-  handler   User?          @relation("Handler", fields: [handledBy], references: [id], onDelete: SetNull)
+  reporter  User?           @relation("Reporter", fields: [reporterId], references: [id], onDelete: SetNull)
+  handler   User?           @relation("Handler", fields: [handledBy], references: [id], onDelete: SetNull)
   audits    AuditLog[]
   sanctions UserSanction[]
+  case      ModerationCase? @relation(fields: [caseId], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt(sort: Desc), id(sort: Desc)])
   @@index([targetType, targetId, createdAt(sort: Desc)])
+  @@index([caseId, createdAt])
   @@map("reports")
+}
+
+model ModerationDecision {
+  id                String                   @id @default(cuid())
+  caseId            String?                  @map("case_id")
+  targetType        ReportTargetType         @map("target_type")
+  targetId          String                   @map("target_id")
+  action            ModerationDecisionAction
+  policyCode        ReportReasonCode         @map("policy_code")
+  publicExplanation String                   @map("public_explanation") @db.VarChar(500)
+  internalNote      String?                  @map("internal_note") @db.VarChar(1000)
+  actorId           String                   @map("actor_id")
+  active            Boolean                  @default(true)
+  reversedAt        DateTime?                @map("reversed_at")
+  reversedById      String?                  @map("reversed_by_id")
+  createdAt         DateTime                 @default(now()) @map("created_at")
+
+  case       ModerationCase?   @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  actor      User              @relation("ModerationDecisionActor", fields: [actorId], references: [id], onDelete: Restrict)
+  reversedBy User?             @relation("ModerationDecisionReverser", fields: [reversedById], references: [id], onDelete: SetNull)
+  appeal     ModerationAppeal?
+  sanction   UserSanction?
+
+  @@index([targetType, targetId, active, createdAt(sort: Desc)])
+  @@index([caseId, createdAt])
+  @@map("moderation_decisions")
+}
+
+model ModerationAppeal {
+  id          String                 @id @default(cuid())
+  decisionId  String                 @unique @map("decision_id")
+  appellantId String                 @map("appellant_id")
+  statement   String                 @db.VarChar(2000)
+  status      ModerationAppealStatus @default(PENDING)
+  handledById String?                @map("handled_by_id")
+  handledNote String?                @map("handled_note") @db.VarChar(1000)
+  handledAt   DateTime?              @map("handled_at")
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @updatedAt @map("updated_at")
+
+  decision  ModerationDecision @relation(fields: [decisionId], references: [id], onDelete: Restrict)
+  appellant User               @relation("ModerationAppealAppellant", fields: [appellantId], references: [id], onDelete: Restrict)
+  handledBy User?              @relation("ModerationAppealHandler", fields: [handledById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([appellantId, createdAt(sort: Desc)])
+  @@map("moderation_appeals")
 }
 
 model AuditLog {
@@ -959,8 +1190,9 @@ model AuditLog {
   requestId  String?         @map("request_id")
   createdAt  DateTime        @default(now()) @map("created_at")
 
-  actor  User?   @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
-  report Report? @relation(fields: [reportId], references: [id], onDelete: SetNull)
+  actor            User?                  @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  report           Report?                @relation(fields: [reportId], references: [id], onDelete: SetNull)
+  sensitiveContext AuditSensitiveContext?
 
   @@index([createdAt(sort: Desc), id(sort: Desc)])
   @@index([actorId, createdAt(sort: Desc)])
@@ -968,6 +1200,18 @@ model AuditLog {
   @@index([action, createdAt(sort: Desc)])
   @@index([reportId, createdAt(sort: Desc)])
   @@map("audit_logs")
+}
+
+model AuditSensitiveContext {
+  auditId   String   @id @map("audit_id")
+  ip        String?
+  requestId String?  @map("request_id")
+  expiresAt DateTime @map("expires_at")
+
+  audit AuditLog @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@map("audit_sensitive_contexts")
 }
 
 model UserSanction {
@@ -983,16 +1227,58 @@ model UserSanction {
   revokedById  String?          @map("revoked_by_id")
   revokeReason String?          @map("revoke_reason")
   createdAt    DateTime         @default(now()) @map("created_at")
+  decisionId   String?          @unique @map("decision_id")
 
-  user      User    @relation("SanctionedUser", fields: [userId], references: [id], onDelete: Cascade)
-  createdBy User    @relation("SanctionCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  revokedBy User?   @relation("SanctionRevoker", fields: [revokedById], references: [id], onDelete: SetNull)
-  report    Report? @relation(fields: [reportId], references: [id], onDelete: SetNull)
+  user      User                @relation("SanctionedUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy User                @relation("SanctionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  revokedBy User?               @relation("SanctionRevoker", fields: [revokedById], references: [id], onDelete: SetNull)
+  report    Report?             @relation(fields: [reportId], references: [id], onDelete: SetNull)
+  decision  ModerationDecision? @relation(fields: [decisionId], references: [id], onDelete: SetNull)
 
   @@index([userId, revokedAt, endsAt])
   @@index([createdById, createdAt(sort: Desc)])
   @@index([reportId])
   @@map("user_sanctions")
+}
+
+model SystemNotificationCampaign {
+  id              String                     @id @default(cuid())
+  createdById     String                     @map("created_by_id")
+  title           String                     @db.VarChar(60)
+  content         String                     @db.VarChar(1000)
+  destinationType String?                    @map("destination_type") @db.VarChar(32)
+  destinationId   String?                    @map("destination_id")
+  audience        Json
+  status          NotificationCampaignStatus @default(SCHEDULED)
+  scheduledAt     DateTime                   @map("scheduled_at")
+  startedAt       DateTime?                  @map("started_at")
+  sentAt          DateTime?                  @map("sent_at")
+  canceledAt      DateTime?                  @map("canceled_at")
+  estimatedCount  Int                        @default(0) @map("estimated_count")
+  recipientCount  Int                        @default(0) @map("recipient_count")
+  failureMessage  String?                    @map("failure_message")
+  createdAt       DateTime                   @default(now()) @map("created_at")
+  updatedAt       DateTime                   @updatedAt @map("updated_at")
+
+  createdBy     User           @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  notifications Notification[]
+
+  @@index([status, scheduledAt])
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
+  @@map("system_notification_campaigns")
+}
+
+model SiteOperationalSettings {
+  id                       String    @id @default("default")
+  registrationPausedUntil  DateTime? @map("registration_paused_until")
+  contentWritesPausedUntil DateTime? @map("content_writes_paused_until")
+  maintenanceTitle         String?   @map("maintenance_title") @db.VarChar(60)
+  maintenanceContent       String?   @map("maintenance_content") @db.VarChar(500)
+  maintenanceStartsAt      DateTime? @map("maintenance_starts_at")
+  maintenanceEndsAt        DateTime? @map("maintenance_ends_at")
+  updatedAt                DateTime  @updatedAt @map("updated_at")
+
+  @@map("site_operational_settings")
 }
 
 model UserFollow {

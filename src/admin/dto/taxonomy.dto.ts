@@ -58,12 +58,12 @@ export class UpdateManagedTagDto {
   @Matches(TAG_NAME_PATTERN)
   name?: string;
 
-  @ApiPropertyOptional({ example: '#FF6B6B', nullable: true })
+  @ApiPropertyOptional({ type: String, example: '#FF6B6B', nullable: true })
   @IsOptional()
   @Matches(/^#[0-9a-fA-F]{6}$/)
   color?: string | null;
 
-  @ApiPropertyOptional({ maxLength: 200, nullable: true })
+  @ApiPropertyOptional({ type: String, maxLength: 200, nullable: true })
   @IsOptional()
   @IsString()
   @MaxLength(200)

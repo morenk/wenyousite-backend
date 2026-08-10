@@ -59,6 +59,14 @@ export const ErrorCode = {
   SESSION_NOT_FOUND: 40115,
   /** 旧密码错误（改密码时） */
   WRONG_OLD_PASSWORD: 40116,
+  /** 需要独立的 Web 管理会话 */
+  ADMIN_SESSION_REQUIRED: 40117,
+  /** 管理会话已过期或被撤销 */
+  ADMIN_SESSION_EXPIRED: 40118,
+  /** 管理登录或二次验证挑战无效 */
+  ADMIN_CHALLENGE_INVALID: 40119,
+  /** 仅限申诉接口的访问令牌无效 */
+  APPEAL_TOKEN_INVALID: 40120,
 
   // ── 权限 403xx ──
   /** 通用权限不足 */
@@ -81,6 +89,8 @@ export const ErrorCode = {
   ADMIN_REQUIRED: 40308,
   /** 不能管理同级或更高等级管理员 */
   CANNOT_MODERATE_ADMIN: 40309,
+  /** 当前管理会话需要重新验证邮箱 */
+  ADMIN_STEP_UP_REQUIRED: 40310,
 
   // ── 资源不存在 404xx ──
   /** 通用资源不存在 */
@@ -115,6 +125,12 @@ export const ErrorCode = {
   THREAD_CATEGORY_NOT_FOUND: 40414,
   /** 动态或动态评论不存在 */
   MOMENT_NOT_FOUND: 40415,
+  /** 治理案件不存在 */
+  MODERATION_CASE_NOT_FOUND: 40416,
+  /** 治理决定不存在 */
+  MODERATION_DECISION_NOT_FOUND: 40417,
+  /** 申诉不存在 */
+  MODERATION_APPEAL_NOT_FOUND: 40418,
 
   // ── 冲突 409xx ──
   /** 通用冲突 */
@@ -157,6 +173,18 @@ export const ErrorCode = {
   THREAD_CATEGORY_ALREADY_EXISTS: 40918,
   /** 分类或标签已停用，不能用于新内容 */
   TAXONOMY_STATE_CONFLICT: 40919,
+  /** 治理案件已被其他管理员结案 */
+  MODERATION_CASE_ALREADY_CLOSED: 40920,
+  /** 同一治理决定已经提交申诉 */
+  APPEAL_ALREADY_SUBMITTED: 40921,
+  /** 治理决定已超过申诉期限 */
+  APPEAL_WINDOW_CLOSED: 40922,
+  /** 管理员邀请已存在或已经处理 */
+  ADMIN_INVITE_CONFLICT: 40923,
+  /** 注册被站务临时暂停 */
+  REGISTRATION_PAUSED: 40924,
+  /** 用户内容写入被站务临时暂停 */
+  CONTENT_WRITES_PAUSED: 40925,
 
   // ── 限流 429xx ──
   /** 请求过于频繁 */

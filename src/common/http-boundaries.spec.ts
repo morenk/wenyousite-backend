@@ -198,17 +198,39 @@ describe('TransformInterceptor', () => {
 });
 
 describe('认证和权限边界', () => {
-  it.each(['ADMIN', 'SUPER_ADMIN'])('AdminGuard 允许 %s', (role) => {
+  it.each(['ADMIN', 'SUPER_ADMIN'])('AdminGuard 允许 %s', async (role) => {
     const { context } = httpContext({ role });
     const reflector = { getAllAndOverride: jest.fn().mockReturnValue(undefined) };
-    expect(new AdminGuard(reflector as unknown as Reflector).canActivate(context)).toBe(true);
+    const adminAuth = {
+      validateSession: jest.fn().mockResolvedValue({ id: 'admin-1', role }),
+      requireStepUp: jest.fn(),
+    };
+    await expect(
+      new AdminGuard(reflector as unknown as Reflector, adminAuth as never).canActivate(context),
+    ).resolves.toBe(true);
   });
 
-  it('AdminGuard 拒绝缺失用户和普通用户', () => {
+  it('AdminGuard 拒绝缺失会话和普通用户', async () => {
     const reflector = { getAllAndOverride: jest.fn().mockReturnValue(undefined) };
-    const guard = new AdminGuard(reflector as unknown as Reflector);
-    expect(() => guard.canActivate(httpContext().context)).toThrow(BusinessException);
-    expect(() => guard.canActivate(httpContext({ role: 'USER' }).context)).toThrow(
+    const missingSession = {
+      validateSession: jest.fn().mockRejectedValue(new BusinessException(40117, '需要管理员会话', 401)),
+      requireStepUp: jest.fn(),
+    };
+    await expect(
+      new AdminGuard(reflector as unknown as Reflector, missingSession as never).canActivate(
+        httpContext().context,
+      ),
+    ).rejects.toThrow(BusinessException);
+
+    const normalUser = {
+      validateSession: jest.fn().mockResolvedValue({ id: 'user-1', role: 'USER' }),
+      requireStepUp: jest.fn(),
+    };
+    await expect(
+      new AdminGuard(reflector as unknown as Reflector, normalUser as never).canActivate(
+        httpContext({ role: 'USER' }).context,
+      ),
+    ).rejects.toThrow(
       '需要管理员权限',
     );
   });

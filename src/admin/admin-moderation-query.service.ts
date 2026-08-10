@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, UserSanctionType } from '@prisma/client';
+import { stringify } from 'csv-stringify/sync';
 import { paginate } from '../common/dto/paginated-result';
 import { notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
@@ -118,17 +119,7 @@ export class AdminModerationQueryService {
   }
 
   async listAuditLogs(query: AuditLogQueryDto) {
-    const where: Prisma.AuditLogWhereInput = {};
-    if (query.action) where.action = query.action;
-    if (query.targetType) where.targetType = query.targetType;
-    if (query.targetId) where.targetId = query.targetId;
-    if (query.actorId) where.actorId = query.actorId;
-    if (query.createdAfter || query.createdBefore) {
-      where.createdAt = {
-        ...(query.createdAfter ? { gte: new Date(query.createdAfter) } : {}),
-        ...(query.createdBefore ? { lte: new Date(query.createdBefore) } : {}),
-      };
-    }
+    const where = this.auditWhere(query);
     const take = Math.min(query.limit ?? 20, 50);
     const logs = await this.prisma.auditLog.findMany({
       where,
@@ -151,5 +142,72 @@ export class AdminModerationQueryService {
     const hasMore = logs.length > take;
     if (hasMore) logs.pop();
     return paginate(logs, { cursor: logs.at(-1)?.id ?? null, hasMore });
+  }
+
+  async exportAuditLogs(query: AuditLogQueryDto) {
+    const logs = await this.prisma.auditLog.findMany({
+      where: this.auditWhere(query),
+      select: {
+        id: true,
+        action: true,
+        targetType: true,
+        targetId: true,
+        reportId: true,
+        reason: true,
+        metadata: true,
+        createdAt: true,
+        actor: { select: { id: true, username: true, role: true } },
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: 10_000,
+    });
+    return stringify(
+      logs.map((log) => ({
+        id: log.id,
+        createdAt: log.createdAt.toISOString(),
+        action: log.action,
+        actorId: log.actor?.id ?? '',
+        actorUsername: log.actor?.username ?? 'system',
+        actorRole: log.actor?.role ?? '',
+        targetType: log.targetType,
+        targetId: log.targetId ?? '',
+        reportId: log.reportId ?? '',
+        reason: log.reason ?? '',
+        metadata: log.metadata ? JSON.stringify(log.metadata) : '',
+      })),
+      {
+        bom: true,
+        header: true,
+        escape_formulas: true,
+        columns: [
+          'id',
+          'createdAt',
+          'action',
+          'actorId',
+          'actorUsername',
+          'actorRole',
+          'targetType',
+          'targetId',
+          'reportId',
+          'reason',
+          'metadata',
+        ],
+      },
+    );
+  }
+
+  private auditWhere(query: AuditLogQueryDto): Prisma.AuditLogWhereInput {
+    const where: Prisma.AuditLogWhereInput = {};
+    if (query.action) where.action = query.action;
+    if (query.targetType) where.targetType = query.targetType;
+    if (query.targetId) where.targetId = query.targetId;
+    if (query.actorId) where.actorId = query.actorId;
+    if (query.createdAfter || query.createdBefore) {
+      where.createdAt = {
+        ...(query.createdAfter ? { gte: new Date(query.createdAfter) } : {}),
+        ...(query.createdBefore ? { lte: new Date(query.createdBefore) } : {}),
+      };
+    }
+    return where;
   }
 }
