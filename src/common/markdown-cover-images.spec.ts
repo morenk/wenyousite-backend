@@ -6,7 +6,7 @@ import {
 } from './markdown-cover-images';
 
 describe('extractMarkdownCoverImages', () => {
-  it('按正文顺序提取前三张不重复的普通图片', () => {
+  it('只提取正文中第一张普通图片', () => {
     const content = [
       '![一](https://cdn.example.com/one.jpg)',
       '![重复](https://cdn.example.com/one.jpg)',
@@ -15,11 +15,7 @@ describe('extractMarkdownCoverImages', () => {
       '![四](https://cdn.example.com/four.jpg)',
     ].join('\n');
 
-    expect(extractMarkdownCoverImages(content)).toEqual([
-      'https://cdn.example.com/one.jpg',
-      'https://cdn.example.com/two.png',
-      'https://cdn.example.com/three.webp',
-    ]);
+    expect(extractMarkdownCoverImages(content)).toEqual(['https://cdn.example.com/one.jpg']);
   });
 
   it('忽略收藏表情、代码块、行内代码和转义图片语法', () => {
@@ -46,9 +42,8 @@ describe('extractMarkdownCoverImages', () => {
     expect(extractMarkdownCoverImages(content)).toEqual(['https://cdn.example.com/cover.jpg']);
   });
 
-  it('空正文和非正数上限返回空数组', () => {
+  it('空正文返回空数组', () => {
     expect(extractMarkdownCoverImages('')).toEqual([]);
-    expect(extractMarkdownCoverImages('![图](https://cdn.example.com/a.jpg)', 0)).toEqual([]);
   });
 
   it('引用扫描统一支持尖括号 URL，并忽略代码与转义图片', () => {

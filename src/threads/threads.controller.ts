@@ -64,7 +64,9 @@ export class ThreadsController {
   @Get()
   @OptionalAuth()
   @ApiOperation({
-    summary: '主题帖列表（仅已发布帖），支持排序、分区、状态及标签筛选',
+    summary: '首页主题帖发现列表，排除已注销楼主的帖子',
+    description:
+      '仅返回楼主账号未注销的已发布主题帖，支持排序、分区、状态及标签筛选。已注销楼主的历史公开帖仅可通过显式搜索找到。',
   })
   @ApiCursorPaginatedResponse(
     HomeThreadListItemResponseDto,

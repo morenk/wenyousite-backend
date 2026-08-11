@@ -98,6 +98,7 @@ describe('SearchService', () => {
             {
               content: [
                 '![封面](https://cdn.example.com/cover.jpg)',
+                '![第二张](https://cdn.example.com/second.jpg)',
                 '![表情](https://cdn.example.com/sticker.webp "wenyousite-sticker:v1:asset")',
               ].join('\n'),
             },
@@ -136,6 +137,32 @@ describe('SearchService', () => {
     );
     expect(mockPrisma.user.findMany).not.toHaveBeenCalled();
     expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('用户显式搜索主题帖时保留已注销楼主的公开历史帖', async () => {
+    mockPrisma.thread.findMany.mockResolvedValue([
+      {
+        id: 't-deactivated-owner',
+        title: '可搜索的历史帖',
+        owner: {
+          id: 'u-deactivated',
+          username: 'deleted_deactivated',
+          avatar: null,
+          level: 1,
+          deletedAt: new Date('2026-08-11T00:00:00.000Z'),
+        },
+        _count: { members: 1, posts: 1 },
+        defaultSubthread: { posts: [] },
+      },
+    ]);
+    mockPrisma.threadMember.groupBy.mockResolvedValue([]);
+
+    const threads = await service.searchThreads('历史');
+
+    expect(threads).toHaveLength(1);
+    expect(threads[0].id).toBe('t-deactivated-owner');
+    const where = mockPrisma.thread.findMany.mock.calls[0][0].where;
+    expect(where).not.toHaveProperty('owner');
   });
 
   it('楼层正文不足两个有效字符时拒绝查询数据库', async () => {
@@ -182,6 +209,33 @@ describe('SearchService', () => {
     expect(sql).toContain('p."kind" = \'FLOOR\'');
     expect(sql).toContain('t."visibility" = \'PUBLIC\'');
     expect(sql).toContain('s."deleted_at" IS NULL');
+  });
+
+  it('用户显式搜索正文时保留已注销作者的公开历史楼层', async () => {
+    const rankedRow = {
+      id: 'p-deactivated-author',
+      relevance: 0.9,
+      createdAt: new Date('2026-08-11T00:00:00.000Z'),
+    };
+    mockPrisma.$queryRaw.mockResolvedValue([rankedRow]);
+    mockPrisma.post.findMany.mockResolvedValue([
+      {
+        ...postDetail(rankedRow.id),
+        author: {
+          id: 'u-deactivated',
+          username: 'deleted_deactivated',
+          avatar: null,
+          level: 1,
+          deletedAt: new Date('2026-08-11T00:00:00.000Z'),
+        },
+      },
+    ]);
+
+    const page = await service.searchPosts('历史');
+
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0].id).toBe(rankedRow.id);
+    expect(lastRawSql()).not.toContain('users');
   });
 
   it('下一页游标应参与相关度、时间和 ID 的稳定排序条件', async () => {

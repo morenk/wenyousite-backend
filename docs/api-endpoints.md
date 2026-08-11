@@ -86,7 +86,7 @@
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
 | GET | `/threads/draft` | authenticated | 我的草稿箱列表（未发布帖，仅自己可见） |
-| GET | `/threads` | optional | 主题帖列表（仅已发布帖），支持排序、分区、状态及标签筛选 |
+| GET | `/threads` | optional | 首页主题帖发现列表，排除已注销楼主的帖子 |
 | POST | `/threads` | verified | 创建主题帖草稿（published=false）。在沙盒内逐步添加子贴/楼层后通过 PATCH 发布 |
 | GET | `/threads/{id}` | optional | 主题帖详情（含 全部子贴列表 + 楼层数 + 参与人数） |
 | PATCH | `/threads/{id}` | verified | 修改/发布主题帖（仅 OWNER/COLLABORATOR）。设置 published=true 发布，带乐观锁 version |

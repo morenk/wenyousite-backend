@@ -23,6 +23,7 @@ import {
 } from '../common/markdown-cover-images';
 
 const ZSET_BY_SMART = 'threads:by:smart';
+const DISCOVERABLE_THREAD_OWNER_WHERE = { is: { deletedAt: null } } as const;
 
 /** 主题帖读模型：详情、列表、草稿箱和用户主题聚合查询。 */
 @Injectable()
@@ -151,6 +152,7 @@ export class ThreadQueryService {
       `filter:${query.filter ?? 'all'}`,
       `limit:${Math.min(query.limit ?? 20, 50)}`,
       'shape:covers-v1',
+      'policy:active-owner-v1',
     );
     const cacheableFirstPage = !query.cursor && query.filter !== 'playing';
 
@@ -169,7 +171,11 @@ export class ThreadQueryService {
       return result;
     }
 
-    const where: any = { ...notDeleted, published: true };
+    const where: any = {
+      ...notDeleted,
+      published: true,
+      owner: DISCOVERABLE_THREAD_OWNER_WHERE,
+    };
 
     if (query.filter === 'playing') {
       if (!userId) return paginate([], { cursor: null, hasMore: false });
@@ -273,7 +279,11 @@ export class ThreadQueryService {
     }
     const zsetSize = await this.redis.zcard(ZSET_BY_SMART);
 
-    const where: any = { ...notDeleted, published: true };
+    const where: any = {
+      ...notDeleted,
+      published: true,
+      owner: DISCOVERABLE_THREAD_OWNER_WHERE,
+    };
     if (query.filter === 'playing') {
       if (!userId) return paginate([], { cursor: null, hasMore: false });
       where.members = { some: { userId, playerMarked: true } };

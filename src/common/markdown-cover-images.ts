@@ -57,20 +57,18 @@ export function extractMarkdownImageUrls(content: string): string[] {
   return extractMarkdownImages(content).map((image) => image.url);
 }
 
-/** 提取适合主题帖列表封面的普通 Markdown 图片，保持正文顺序并去重。 */
-export function extractMarkdownCoverImages(content: string, limit = 3): string[] {
-  if (!content || limit <= 0) return [];
+/** 提取主题帖列表封面，只返回正文中的第一张普通 Markdown 图片。 */
+export function extractMarkdownCoverImages(content: string): string[] {
+  if (!content) return [];
 
-  const urls: string[] = [];
   for (const { url, title } of extractMarkdownImages(content)) {
     // 畸形或旧版表情标记也不应在信息流中被放大为主题封面。
     if (!url || title?.includes('wenyousite-sticker:')) continue;
 
-    urls.push(url);
-    if (urls.length >= limit) break;
+    return [url];
   }
 
-  return urls;
+  return [];
 }
 
 /** 移除代码边界外的图片节点，供已有可视封面的卡片生成不重复的文字摘要。 */

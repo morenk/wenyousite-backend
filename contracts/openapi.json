@@ -4017,6 +4017,7 @@
     },
     "/api/v1/threads": {
       "get": {
+        "description": "仅返回楼主账号未注销的已发布主题帖，支持排序、分区、状态及标签筛选。已注销楼主的历史公开帖仅可通过显式搜索找到。",
         "operationId": "threadsFindAll",
         "parameters": [
           {
@@ -4152,7 +4153,7 @@
             }
           }
         },
-        "summary": "主题帖列表（仅已发布帖），支持排序、分区、状态及标签筛选",
+        "summary": "首页主题帖发现列表，排除已注销楼主的帖子",
         "tags": [
           "Threads"
         ],
@@ -16504,7 +16505,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "4.5.0-dev.20260809.1",
+    "version": "4.5.2-dev.20260811.1",
     "contact": {}
   },
   "tags": [
@@ -18841,8 +18842,8 @@
             "description": "首页列表正文预览"
           },
           "coverImages": {
-            "maxItems": 3,
-            "description": "默认主贴正文中的普通图片 URL，按出现顺序返回，最多 3 张",
+            "maxItems": 1,
+            "description": "默认主贴正文中的第一张普通图片 URL；无图时返回空数组",
             "type": "array",
             "items": {
               "type": "string"
@@ -23207,8 +23208,8 @@
             ]
           },
           "coverImages": {
-            "maxItems": 3,
-            "description": "默认主贴正文中的普通图片 URL，按出现顺序返回，最多 3 张",
+            "maxItems": 1,
+            "description": "默认主贴正文中的第一张普通图片 URL；无图时返回空数组",
             "type": "array",
             "items": {
               "type": "string"

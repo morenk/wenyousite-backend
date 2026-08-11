@@ -280,11 +280,16 @@ describe('ThreadsService', () => {
   });
 
   describe('findAll', () => {
-    it('只展示已发布帖', async () => {
+    it('只展示已发布且楼主未注销的帖子', async () => {
       mockPrisma.thread.findMany.mockResolvedValue([]);
       await service.findAll({ sort: 'newest' } as any);
       expect(mockPrisma.thread.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: expect.objectContaining({ published: true }) }),
+        expect.objectContaining({
+          where: expect.objectContaining({
+            published: true,
+            owner: { is: { deletedAt: null } },
+          }),
+        }),
       );
     });
 
@@ -315,6 +320,7 @@ describe('ThreadsService', () => {
         'filter:all',
         'limit:20',
         'shape:covers-v1',
+        'policy:active-owner-v1',
       );
     });
 
@@ -342,6 +348,7 @@ describe('ThreadsService', () => {
         'filter:all',
         'limit:20',
         'shape:covers-v1',
+        'policy:active-owner-v1',
       );
     });
 
@@ -372,7 +379,7 @@ describe('ThreadsService', () => {
 
       expect(page.items[0]).toMatchObject({
         preview: '正文',
-        coverImages: ['https://cdn.example.com/one.jpg', 'https://cdn.example.com/two.jpg'],
+        coverImages: ['https://cdn.example.com/one.jpg'],
         defaultSubthread: { id: 's-cover', title: '主贴' },
       });
       expect(page.items[0].defaultSubthread).not.toHaveProperty('posts');
@@ -507,6 +514,21 @@ describe('ThreadsService', () => {
         expect(mockPrisma.thread.findMany).toHaveBeenCalledWith(
           expect.objectContaining({
             where: expect.objectContaining({ status: 'FINISHED' }),
+          }),
+        );
+      });
+
+      it('智能排序同样排除已注销楼主的帖子', async () => {
+        mockRedis.zrevrange.mockResolvedValue(['t1']);
+        mockPrisma.thread.findMany.mockResolvedValue([]);
+
+        await service.findAll({ sort: 'recommended' } as any);
+
+        expect(mockPrisma.thread.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({
+              owner: { is: { deletedAt: null } },
+            }),
           }),
         );
       });

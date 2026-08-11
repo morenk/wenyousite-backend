@@ -59,8 +59,8 @@ export class SearchThreadResponseDto {
 
   @ApiProperty({
     type: [String],
-    maxItems: 3,
-    description: '默认主贴正文中的普通图片 URL，按出现顺序返回，最多 3 张',
+    maxItems: 1,
+    description: '默认主贴正文中的第一张普通图片 URL；无图时返回空数组',
   })
   coverImages: string[];
 }
