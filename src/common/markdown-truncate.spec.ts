@@ -62,6 +62,12 @@ describe('truncateMarkdown', () => {
     expect(truncateMarkdown('1. 有序')).toBe('有序');
   });
 
+  it('站内传送门摘要保留自定义名称，裸链接使用默认名称', () => {
+    const threadId = 'cmsewdo0h000x7qv6aa77ll1v';
+    expect(truncateMarkdown(`[设定 A](/threads/${threadId})`)).toBe('设定 A');
+    expect(truncateMarkdown(`入口 https://wenyou.site/threads/${threadId}`)).toBe('入口 传送门');
+  });
+
   it('Milkdown 硬换行（行尾反斜杠）还原为换行，不残留反斜杠', () => {
     expect(truncateMarkdown('<看看呢>\\\n\\>看看呢<\n\n<\n\n\\>'))
       .toBe('<看看呢>\n>看看呢<\n\n<\n\n>');

@@ -21,10 +21,11 @@ import { ModerationCasesService } from './moderation-cases.service';
 import { SiteOperationalSettingsController } from './site-operational-settings.controller';
 import { NotificationCampaignController } from './notification-campaign.controller';
 import { NotificationCampaignService } from './notification-campaign.service';
+import { AuthModule } from '../auth/auth.module';
 
 /** 管理后台模块：系统通知发送、预览、历史、用户搜索 */
 @Module({
-  imports: [NotificationsModule, TagsModule, TaxonomyModule],
+  imports: [NotificationsModule, TagsModule, TaxonomyModule, AuthModule],
   controllers: [
     AdminAuthController,
     AdminAccountsController,

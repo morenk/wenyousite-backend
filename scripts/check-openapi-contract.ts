@@ -72,12 +72,13 @@ for (const [route, pathItem] of Object.entries(document.paths ?? {})) {
     }
 
     const authMode = operation['x-auth-mode'];
-    const allowedAuthModes = ['public', 'optional', 'authenticated', 'verified', 'admin'];
+    const allowedAuthModes = ['public', 'optional', 'authenticated', 'verified', 'appeal', 'admin'];
     if (!allowedAuthModes.includes(authMode)) {
       failures.push(`${label}: 缺少或使用了未知的 x-auth-mode (${String(authMode)})`);
     }
     const security = operation.security ?? [];
     const hasBearer = security.some((entry: any) => Array.isArray(entry?.bearer));
+    const hasAppealBearer = security.some((entry: any) => Array.isArray(entry?.appealBearer));
     const hasAdminSession = security.some(
       (entry: any) => Array.isArray(entry?.adminSession) && Array.isArray(entry?.adminCsrf),
     );
@@ -89,6 +90,9 @@ for (const [route, pathItem] of Object.entries(document.paths ?? {})) {
     }
     if (['authenticated', 'verified'].includes(authMode) && (!hasBearer || hasAnonymous)) {
       failures.push(`${label}: ${authMode} 操作必须声明 bearer 鉴权`);
+    }
+    if (authMode === 'appeal' && (!hasBearer || !hasAppealBearer || hasAnonymous)) {
+      failures.push(`${label}: appeal 操作必须同时声明普通与申诉专用 bearer 鉴权`);
     }
     if (authMode === 'admin' && (!hasAdminSession || hasAnonymous || hasBearer)) {
       failures.push(`${label}: admin 操作必须声明独立管理员 Cookie 与 CSRF 鉴权`);

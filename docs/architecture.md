@@ -66,7 +66,7 @@ OutboxDispatcher（FOR UPDATE SKIP LOCKED）
 - 每个操作都有唯一 `operationId`；
 - 每个 2xx JSON 响应引用以 `operationId + 状态码` 命名的具名 envelope schema；
 - 分页响应必须引用带 `meta.cursor` / `meta.hasMore` 的分页 envelope；
-- Public / OptionalAuth / Bearer / Admin 的 `security` 与 `x-auth-mode` 一致；
+- Public / OptionalAuth / Bearer / Appeal / Admin 的 `security` 与 `x-auth-mode` 一致；
 - 本地 `$ref` 均可解析；
 - 查询参数不得生成空 schema，OpenAPI 必须声明生产与本地 server；
 - 已提交的 `contracts/openapi.json` 必须与代码实时导出结果逐字节一致；

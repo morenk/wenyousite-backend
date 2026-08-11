@@ -1,5 +1,18 @@
 # API 合同变更
 
+## 4.7.0-dev.20260811.1
+
+- 新增 `POST /moderation/appeal-token`：账号密码校验成功后签发 15 分钟、仅限申诉接口使用的 Bearer JWT。普通有效会话与该专用凭据均可读取本人近 30 天决定并提交申诉，被暂停或封禁账号不再因普通 JWT 的处罚前置检查而失去申诉入口。
+- `GET /moderation/decisions/mine` 与 `POST /moderation/appeals` 新增 `appeal` 认证模式，并以 OpenAPI 的两个可选 security requirement 明确普通 `bearer` 与 `appealBearer` 是“二选一”，不是同时携带。
+- `POST /moderation/appeals` 的成功响应现按声明返回必填 `decision` 与 `appellant`，且只投影公开字段；修正生成客户端收到 201 后仍可能反序列化失败的问题。
+- 可选认证端点只在完全未携带 Authorization 时匿名放行；主动携带的过期或无效 Token 返回稳定 `TOKEN_EXPIRED` / `TOKEN_INVALID`。刷新响应补齐既有必填 `user.level`。
+
+## 4.6.0-dev.20260811.1
+
+- 新增 `wenyousite-internal-reference` v1 黄金契约，固定主题帖、子贴、楼层、楼中楼讨论和具体回复的规范地址；同源绝对地址统一规范化为相对地址。
+- 动态正文与评论字段仍为字符串且长度边界不变，但客户端可选择性识别 `[名称](站内主题坐标)` 与裸站内主题坐标；其他 Markdown 继续按普通文本显示，旧客户端无需迁移。
+- 动态列表的 `contentExcerpt` 将显式传送门降级为其名称、裸传送门降级为“传送门”；服务端不解析目标标题或权限元数据，不新增批量解析接口。
+
 ## 4.5.2-dev.20260811.1
 
 - `GET /threads` 首页发现列表不再返回已注销楼主的主题帖；`GET /search/threads`、`GET /search/posts` 与兼容聚合搜索仍可显式找到这些公开历史内容。响应字段形状不变。

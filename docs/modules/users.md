@@ -73,7 +73,8 @@
 `@OptionalAuth()` 装饰器应用 `OptionalJwtAuthGuard`：
 
 - 请求携带有效 Bearer Token 时，解析并挂载 `req.user`，后续逻辑以此提供个性数据
-- 无 Token 或 Token 过期/无效时，不抛异常，`req.user` 为 `undefined`，返回纯公开数据
+- 完全无 Token 时匿名放行，`req.user` 为 `undefined`，返回纯公开数据
+- 主动携带过期或无效 Token 时返回稳定 401，防止客户端误把认证故障当成匿名成功
 - 适用于需要区分"登录用户"和"未登录用户"返回不同字段的公开端点
 
 ## 核心业务规则

@@ -366,6 +366,7 @@ export class AuthSessionService {
         avatar: rotated.user.avatar,
         role: rotated.user.role,
         emailVerified: rotated.user.emailVerified,
+        level: rotated.user.level,
       },
     };
   }

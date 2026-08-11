@@ -1,12 +1,16 @@
-import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
-import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query, Req } from '@nestjs/common';
+import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { FastifyRequest } from 'fastify';
 import { AdminAuth, AdminStepUpAuth } from '../auth/decorators/admin-auth.decorator';
-import { Auth } from '../auth/decorators/auth.decorator';
+import { AppealAuth } from '../auth/decorators/appeal-auth.decorator';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
+import { AppealAccessService } from '../auth/appeal-access.service';
+import { Public } from '../common/decorators/public.decorator';
 import { AdminActor, AdminRole } from './admin-policy.service';
 import {
   CreateModerationAppealDto,
+  IssueAppealTokenDto,
   ModerationAppealQueryDto,
   ModerationCaseQueryDto,
   ResolveModerationAppealDto,
@@ -14,7 +18,7 @@ import {
 } from './dto/moderation-case.dto';
 import { ModerationCasesService } from './moderation-cases.service';
 import { ApiCursorPaginatedResponse } from '../common/swagger/api-cursor-paginated-response.decorator';
-import { ModerationAppealResponseDto, ModerationCaseResponseDto, ModerationDecisionPublicResponseDto } from './dto/admin-station-response.dto';
+import { AppealAccessTokenResponseDto, ModerationAppealResponseDto, ModerationCaseResponseDto, ModerationDecisionPublicResponseDto } from './dto/admin-station-response.dto';
 
 function actorFrom(user: CurrentUserPayload): AdminActor {
   return { id: user.id, username: user.username, role: user.role as AdminRole };
@@ -87,19 +91,33 @@ export class AdminModerationAppealsController {
 @ApiTags('Moderation Appeals')
 @Controller('moderation')
 export class UserModerationAppealsController {
-  constructor(private readonly cases: ModerationCasesService) {}
+  constructor(
+    private readonly cases: ModerationCasesService,
+    private readonly appealAccess: AppealAccessService,
+  ) {}
+
+  @Post('appeal-token')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @ApiOperation({ summary: '校验账号密码并签发 15 分钟申诉专用凭据' })
+  @ApiOkResponse({ type: AppealAccessTokenResponseDto })
+  @ApiUnauthorizedResponse({ description: '账号密码错误、账号锁定或邮箱未验证' })
+  issueToken(@Body() dto: IssueAppealTokenDto) {
+    return this.appealAccess.issue(dto.account, dto.password);
+  }
 
   @Get('decisions/mine')
-  @Auth()
-  @ApiOperation({ summary: '当前用户近 30 天可申诉的治理决定（Web/移动端兼容）' })
+  @AppealAuth()
+  @ApiOperation({ summary: '以普通或申诉专用凭据读取近 30 天本人治理决定' })
   @ApiOkResponse({ type: ModerationDecisionPublicResponseDto, isArray: true })
   mine(@CurrentUser() user: CurrentUserPayload) {
     return this.cases.listMyDecisions(user.id);
   }
 
   @Post('appeals')
-  @Auth()
-  @ApiOperation({ summary: '对自己的治理决定提交一次申诉（Web/移动端兼容）' })
+  @AppealAuth()
+  @ApiOperation({ summary: '以普通或申诉专用凭据对本人治理决定提交一次申诉' })
   @ApiCreatedResponse({ type: ModerationAppealResponseDto })
   appeal(@CurrentUser() user: CurrentUserPayload, @Body() dto: CreateModerationAppealDto) {
     return this.cases.createAppeal(user.id, dto.decisionId, dto.statement);

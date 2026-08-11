@@ -353,6 +353,7 @@ describe('AuthService', () => {
       avatar: null,
       role: 'USER',
       emailVerified: false,
+      level: 3,
       deletedAt: null,
       failedLoginAttempts: 0,
       lockedUntil: null,
@@ -530,6 +531,7 @@ describe('AuthService', () => {
           avatar: null,
           role: 'USER',
           emailVerified: false,
+          level: 3,
           deletedAt: null,
         },
       });
@@ -541,6 +543,7 @@ describe('AuthService', () => {
       expect(result.accessToken).toBe('new-at');
       expect(result.refreshToken).toBeDefined();
       expect(result.platform).toBe('web');
+      expect(result.user.level).toBe(3);
       expect(mockJwt.signAsync).toHaveBeenCalledWith({ sub: 'u1', sid: 'f1' }, expect.any(Object));
       expect(mockPrisma.$queryRaw).toHaveBeenCalled();
       expect(mockPrisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {

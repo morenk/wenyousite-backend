@@ -10068,6 +10068,84 @@
         "x-auth-mode": "admin"
       }
     },
+    "/api/v1/moderation/appeal-token": {
+      "post": {
+        "operationId": "userModerationAppealsIssueToken",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueAppealTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserModerationAppealsIssueToken200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "账号密码错误、账号锁定或邮箱未验证",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "校验账号密码并签发 15 分钟申诉专用凭据",
+        "tags": [
+          "Moderation Appeals"
+        ],
+        "x-auth-mode": "public",
+        "security": []
+      }
+    },
     "/api/v1/moderation/decisions/mine": {
       "get": {
         "operationId": "userModerationAppealsMine",
@@ -10113,13 +10191,16 @@
         "security": [
           {
             "bearer": []
+          },
+          {
+            "appealBearer": []
           }
         ],
-        "summary": "当前用户近 30 天可申诉的治理决定（Web/移动端兼容）",
+        "summary": "以普通或申诉专用凭据读取近 30 天本人治理决定",
         "tags": [
           "Moderation Appeals"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "appeal"
       }
     },
     "/api/v1/moderation/appeals": {
@@ -10177,13 +10258,16 @@
         "security": [
           {
             "bearer": []
+          },
+          {
+            "appealBearer": []
           }
         ],
-        "summary": "对自己的治理决定提交一次申诉（Web/移动端兼容）",
+        "summary": "以普通或申诉专用凭据对本人治理决定提交一次申诉",
         "tags": [
           "Moderation Appeals"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "appeal"
       }
     },
     "/api/v1/admin/operations/settings": {
@@ -16505,7 +16589,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "4.5.2-dev.20260811.1",
+    "version": "4.7.0-dev.20260811.1",
     "contact": {}
   },
   "tags": [
@@ -16641,6 +16725,11 @@
       "bearer": {
         "scheme": "bearer",
         "bearerFormat": "JWT",
+        "type": "http"
+      },
+      "appealBearer": {
+        "scheme": "bearer",
+        "bearerFormat": "Appeal JWT",
         "type": "http"
       },
       "adminSession": {
@@ -21651,6 +21740,86 @@
           "publicExplanation"
         ]
       },
+      "ModerationAppealDecisionResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "targetType": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "THREAD",
+              "POST",
+              "MOMENT",
+              "MOMENT_COMMENT",
+              "DIRECT_MESSAGE"
+            ]
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "HIDE_CONTENT",
+              "SUSPEND_USER",
+              "BAN_USER"
+            ]
+          },
+          "policyCode": {
+            "type": "string",
+            "enum": [
+              "SPAM",
+              "HARASSMENT",
+              "HATE_OR_THREATS",
+              "SEXUAL_CONTENT",
+              "VIOLENT_CONTENT",
+              "PERSONAL_INFORMATION",
+              "IMPERSONATION_OR_FRAUD",
+              "INTELLECTUAL_PROPERTY",
+              "ILLEGAL_CONTENT",
+              "OTHER"
+            ]
+          },
+          "publicExplanation": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "targetType",
+          "targetId",
+          "action",
+          "policyCode",
+          "publicExplanation",
+          "active",
+          "createdAt"
+        ]
+      },
+      "ModerationAppealAppellantResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "username"
+        ]
+      },
       "ModerationAppealResponseDto": {
         "type": "object",
         "properties": {
@@ -21669,12 +21838,10 @@
             ]
           },
           "decision": {
-            "type": "object",
-            "additionalProperties": true
+            "$ref": "#/components/schemas/ModerationAppealDecisionResponseDto"
           },
           "appellant": {
-            "type": "object",
-            "additionalProperties": true
+            "$ref": "#/components/schemas/ModerationAppealAppellantResponseDto"
           },
           "createdAt": {
             "format": "date-time",
@@ -21709,6 +21876,40 @@
         "required": [
           "outcome",
           "note"
+        ]
+      },
+      "IssueAppealTokenDto": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "type": "string",
+            "description": "邮箱或大小写敏感的用户名"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8
+          }
+        },
+        "required": [
+          "account",
+          "password"
+        ]
+      },
+      "AppealAccessTokenResponseDto": {
+        "type": "object",
+        "properties": {
+          "appealToken": {
+            "type": "string",
+            "description": "仅可用于用户申诉接口的短期 Bearer JWT"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "appealToken",
+          "expiresAt"
         ]
       },
       "ModerationDecisionPublicResponseDto": {
@@ -23037,7 +23238,7 @@
           },
           "contentExcerpt": {
             "type": "string",
-            "description": "纯文本正文摘要"
+            "description": "正文纯文本摘要；传送门降级为自定义名称或默认名称“传送门”"
           },
           "coverType": {
             "type": "string",
@@ -23416,7 +23617,7 @@
           },
           "contentExcerpt": {
             "type": "string",
-            "description": "纯文本正文摘要"
+            "description": "正文纯文本摘要；传送门降级为自定义名称或默认名称“传送门”"
           },
           "coverType": {
             "type": "string",
@@ -23512,7 +23713,7 @@
             "type": "string",
             "maxLength": 1000,
             "default": "",
-            "description": "动态正文，纯文本"
+            "description": "动态正文字串；可按 internal-reference v1 嵌入命名站内传送门，其他 Markdown 按普通文本处理"
           },
           "mediaIds": {
             "maxItems": 9,
@@ -23557,7 +23758,7 @@
           },
           "contentExcerpt": {
             "type": "string",
-            "description": "纯文本正文摘要"
+            "description": "正文纯文本摘要；传送门降级为自定义名称或默认名称“传送门”"
           },
           "coverType": {
             "type": "string",
@@ -23621,7 +23822,7 @@
           },
           "content": {
             "type": "string",
-            "description": "完整纯文本正文"
+            "description": "完整正文字串；可包含 internal-reference v1 站内传送门语法"
           },
           "images": {
             "type": "array",
@@ -23675,7 +23876,8 @@
           },
           "content": {
             "type": "string",
-            "maxLength": 1000
+            "maxLength": 1000,
+            "description": "动态正文字串；站内传送门语法见 internal-reference v1，其他 Markdown 按普通文本处理"
           },
           "mediaIds": {
             "maxItems": 9,
@@ -23960,7 +24162,7 @@
           "content": {
             "type": "string",
             "maxLength": 500,
-            "description": "评论纯文本；与图片或表情至少提供一项"
+            "description": "评论字串；可按 internal-reference v1 嵌入命名站内传送门；与图片或表情至少提供一项"
           },
           "mediaId": {
             "type": "string",
@@ -27377,6 +27579,24 @@
             "properties": {
               "data": {
                 "$ref": "#/components/schemas/ModerationAppealResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "UserModerationAppealsIssueToken200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AppealAccessTokenResponseDto"
               }
             }
           }

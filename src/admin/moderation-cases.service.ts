@@ -31,6 +31,26 @@ import {
 
 const APPEAL_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
+const publicAppealSelect = {
+  id: true,
+  statement: true,
+  status: true,
+  createdAt: true,
+  decision: {
+    select: {
+      id: true,
+      targetType: true,
+      targetId: true,
+      action: true,
+      policyCode: true,
+      publicExplanation: true,
+      active: true,
+      createdAt: true,
+    },
+  },
+  appellant: { select: { id: true, username: true } },
+} satisfies Prisma.ModerationAppealSelect;
+
 function conflict(code: number, message: string) {
   return new BusinessException(code, message, HttpStatus.CONFLICT);
 }
@@ -272,6 +292,7 @@ export class ModerationCasesService {
     const appeal = await this.prisma.$transaction(async (tx) => {
       const created = await tx.moderationAppeal.create({
         data: { decisionId, appellantId: userId, statement: statement.trim() },
+        select: publicAppealSelect,
       });
       await this.audit.record(
         {

@@ -10,6 +10,7 @@ import {
   IsDateString,
   IsEnum,
   IsIn,
+  IsNotEmpty,
   IsOptional,
   IsString,
   MaxLength,
@@ -77,6 +78,18 @@ export class CreateModerationAppealDto {
   @MinLength(10)
   @MaxLength(2000)
   statement!: string;
+}
+
+export class IssueAppealTokenDto {
+  @ApiProperty({ description: '邮箱或大小写敏感的用户名' })
+  @IsString()
+  @IsNotEmpty()
+  account!: string;
+
+  @ApiProperty({ minLength: 8 })
+  @IsString()
+  @MinLength(8)
+  password!: string;
 }
 
 export class ModerationAppealQueryDto extends CursorPaginationDto {

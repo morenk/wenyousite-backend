@@ -23,7 +23,11 @@ export class CreateMomentDto {
   @MaxLength(40)
   title!: string;
 
-  @ApiPropertyOptional({ maxLength: 1000, default: '', description: '动态正文，纯文本' })
+  @ApiPropertyOptional({
+    maxLength: 1000,
+    default: '',
+    description: '动态正文字串；可按 internal-reference v1 嵌入命名站内传送门，其他 Markdown 按普通文本处理',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(1000)
@@ -55,7 +59,10 @@ export class UpdateMomentDto {
   @MaxLength(40)
   title?: string;
 
-  @ApiPropertyOptional({ maxLength: 1000 })
+  @ApiPropertyOptional({
+    maxLength: 1000,
+    description: '动态正文字串；站内传送门语法见 internal-reference v1，其他 Markdown 按普通文本处理',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(1000)
@@ -83,7 +90,10 @@ export class UpdateMomentDto {
 }
 
 export class CreateMomentCommentDto {
-  @ApiPropertyOptional({ maxLength: 500, description: '评论纯文本；与图片或表情至少提供一项' })
+  @ApiPropertyOptional({
+    maxLength: 500,
+    description: '评论字串；可按 internal-reference v1 嵌入命名站内传送门；与图片或表情至少提供一项',
+  })
   @IsOptional()
   @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString()

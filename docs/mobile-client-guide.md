@@ -1,6 +1,6 @@
 # Flutter / 原生移动端接入
 
-本文定义原生移动客户端需要遵循的 HTTP、安全、重试和推送生命周期。字段与端点以 [`contracts/openapi.json`](../contracts/openapi.json) 为机器事实源；移动端 V1 范围与黄金旅程分别以 [`mobile-v1-operation-coverage.json`](../contracts/mobile-v1-operation-coverage.json) 和 [`mobile-v1-golden-fixtures.json`](../contracts/mobile-v1-golden-fixtures.json) 为准；动态分类、Markdown 与 FCM data 继续使用各自独立 fixtures/schema。
+本文定义原生移动客户端需要遵循的 HTTP、安全、重试和推送生命周期。字段与端点以 [`contracts/openapi.json`](../contracts/openapi.json) 为机器事实源；移动端 V1 范围与黄金旅程分别以 [`mobile-v1-operation-coverage.json`](../contracts/mobile-v1-operation-coverage.json) 和 [`mobile-v1-golden-fixtures.json`](../contracts/mobile-v1-golden-fixtures.json) 为准；动态分类、Markdown、站内传送门与 FCM data 继续使用各自独立 fixtures/schema。
 
 界面、字体、文字缩放和页面状态由公开 `wenyousite-foundation` 维护；仓库边界与入口见 [`mobile-ui-contract.md`](./mobile-ui-contract.md)，实际版本以 Flutter 客户端的 `foundation.lock.json` 为准。
 
@@ -41,6 +41,17 @@ OpenAPI 为兼容 Web 把该头标为 optional；省略或传未知值会创建 
 - 多个请求同时收到 `TOKEN_EXPIRED` 时只允许一个 refresh 在途，其余请求等待结果。
 - 刷新成功后原子替换两个 token，并只重放一次原请求；刷新失败或重放仍为 401 时停止自动重试。
 
+### 被处罚账号申诉
+
+普通 access token 在账号暂停或封禁后会返回 `ACCOUNT_SUSPENDED` / `ACCOUNT_BANNED`，不得再用它直接请求申诉接口。申诉流程使用独立且受限的凭据：
+
+1. 用户主动输入账号密码，调用 `POST /api/v1/moderation/appeal-token`。
+2. 将响应 `appealToken` 仅保存于当前申诉流程的安全内存或安全存储中；它有效 15 分钟、不可刷新、不替代普通会话。
+3. 以 `Authorization: Bearer <appealToken>` 调用 `GET /api/v1/moderation/decisions/mine` 和 `POST /api/v1/moderation/appeals`。普通未受处罚会话仍可使用原 access token 调用同一接口。
+4. 收到 `APPEAL_TOKEN_INVALID` 时只清理申诉凭据并重新验证账号；不得因此恢复、清理或刷新普通会话。退出申诉流程后主动清理该凭据。
+
+申诉凭据不得发送给任何其他接口。客户端生成器应把 OpenAPI 的 `bearer` 与 `appealBearer` 两个 security requirement 解释为二选一。
+
 ### 401 状态机
 
 客户端按生成的错误码名称分支，不使用数字区间或 `message` 文案：
@@ -52,6 +63,7 @@ OpenAPI 为兼容 Web 把该头标为 optional；省略或传未知值会创建 
 | `ACCOUNT_DEACTIVATED`、`ACCOUNT_SUSPENDED`、`ACCOUNT_BANNED`                  | 清除 token，展示对应不可用终态                 |
 | `EMAIL_NOT_VERIFIED`                                                          | 保留只读会话，引导完成邮箱验证                 |
 | `ACCOUNT_LOCKED`、`LOGIN_FAILED`、验证码和旧密码错误                          | 展示当前表单错误，不触发 refresh               |
+| `APPEAL_TOKEN_INVALID`                                                        | 仅清理申诉凭据并重新验证，不修改普通会话       |
 | 未知 401                                                                      | 不循环刷新；清除当前会话并展示通用重新登录状态 |
 
 ### 主动退出
@@ -81,7 +93,8 @@ OpenAPI 为兼容 Web 把该头标为 optional；省略或传未知值会创建 
 
 - 上传遵循“预签名 PUT → `upload-done` → 查询状态”；仅在 `COMPLETED` 后使用衍生图，列表优先 `thumbnailUrl`，详情优先 `mediumUrl`，为空或失败时回退 `url`。不得猜测对象键。
 - 主题帖、楼层和回复使用 Markdown v2。客户端必须消费 [`markdown-v2-fixtures.json`](../contracts/markdown-v2-fixtures.json) 与 [`markdown-v2-nodes-fixtures.json`](../contracts/markdown-v2-nodes-fixtures.json)，覆盖规范化、可见文本、扩展节点和 round-trip。
-- 动态的标题、正文和评论是纯文本，不进入 Markdown 渲染链路。动态最多九张图片；评论可使用文字、单张图片或单个收藏表情，图片与表情互斥。
+- 动态标题保持纯文本；正文和评论仍是字符串，不进入通用 Markdown 渲染链路，但应消费 [`internal-reference-v1-fixtures.json`](../contracts/internal-reference-v1-fixtures.json)，只识别 `[名称](站内主题坐标)` 与裸站内主题坐标。其他 Markdown/外链保持字面文本。传送门同页导航、目标不可见时交给既有详情错误态，不预取目标元数据。
+- 动态最多九张图片；评论可使用文字、单张图片或单个收藏表情，图片与表情互斥。
 - 动态楼中楼只有两层视觉结构；筛选回复者时仍保留所属主评论上下文。未知作者、删除媒体和未知枚举都必须安全降级。
 - 主题帖分类来自 `GET /thread-categories`，保存稳定 `slug`；草稿可为空，发布前选择启用项。Flutter 必须消费 [`thread-category-v1-fixtures.json`](../contracts/thread-category-v1-fixtures.json)：重命名后按注册表当前名称展示，未知或停用 slug 显示原值且不可新选，空值显示“未分类”。任何现有 slug、名称、颜色和分类数量都不得复制为客户端枚举或回退常量。
 - 每日启动可调用 `POST /wallet/check-in`；只有 `claimedNow=true` 时展示本次领取。所有温油金额都是十进制整数字符串，不转换为浮点数；打赏继续复用稳定幂等键。
@@ -113,4 +126,4 @@ Content-Type: application/json
 
 ## 接入验收
 
-后端门禁负责 OpenAPI、错误码、196 项移动覆盖清单、V1 协议旅程、动态分类、Markdown fixtures 和 push schema/fixtures。Flutter 必须共同消费这些产物，并为标为 `implemented` 的 operationId 提供运行时代码和自动测试证据。
+后端门禁负责 OpenAPI、错误码、197 项移动覆盖清单、V1 协议旅程、动态分类、Markdown、站内传送门 fixtures 和 push schema/fixtures。Flutter 必须共同消费这些产物，并为标为 `implemented` 的 operationId 提供运行时代码和自动测试证据。

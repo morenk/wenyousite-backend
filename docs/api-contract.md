@@ -31,7 +31,7 @@ pnpm docs:check
 ## OpenAPI 约束
 
 - OpenAPI 3.0.x、稳定且唯一的 lowerCamel `operationId`。
-- 每个操作显式标注 `public` / `optional` / `authenticated` / `verified` / `admin` 认证模式。
+- 每个操作显式标注 `public` / `optional` / `authenticated` / `verified` / `appeal` / `admin` 认证模式。`appeal` 的两个 Bearer security requirement 是二选一。
 - 每个成功响应引用具名 envelope component；分页 envelope 必含 `meta.cursor` 和 `meta.hasMore`。
 - 错误统一为 `ApiErrorEnvelope`，业务代码只依赖 `BusinessErrorCode`。
 - 每个响应显式声明 `X-Request-ID` 和 `X-API-Contract-Version`；显式 429 响应额外声明 `Retry-After`。
@@ -42,4 +42,4 @@ pnpm docs:check
 
 Web 与 Flutter 不直接下载线上 `/api/docs-json`。发布分支同步固定的 `contracts/openapi.json` 后再生成客户端，生成器版本也应锁定。生成结果的 diff 属于契约评审的一部分；出现非预期删除、nullable/required 变化或大量匿名模型时阻止合并。
 
-移动端范围以 [`mobile-v1-operation-coverage.json`](../contracts/mobile-v1-operation-coverage.json) 为唯一覆盖清单，以 [`mobile-v1-golden-fixtures.json`](../contracts/mobile-v1-golden-fixtures.json) 固定跨端协议旅程。196 个 operationId 必须全部且仅分类一次；状态改为 `implemented` 时必须记录自动测试证据。
+移动端范围以 [`mobile-v1-operation-coverage.json`](../contracts/mobile-v1-operation-coverage.json) 为唯一覆盖清单，以 [`mobile-v1-golden-fixtures.json`](../contracts/mobile-v1-golden-fixtures.json) 固定跨端协议旅程。197 个 operationId 必须全部且仅分类一次；状态改为 `implemented` 时必须记录自动测试证据。

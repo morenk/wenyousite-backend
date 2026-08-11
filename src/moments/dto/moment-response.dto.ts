@@ -50,7 +50,7 @@ export class MomentCardResponseDto {
   @ApiProperty()
   title!: string;
 
-  @ApiProperty({ description: '纯文本正文摘要' })
+  @ApiProperty({ description: '正文纯文本摘要；传送门降级为自定义名称或默认名称“传送门”' })
   contentExcerpt!: string;
 
   @ApiProperty({ enum: ['IMAGE', 'TEXT'] })
@@ -91,7 +91,7 @@ export class MomentCardResponseDto {
 }
 
 export class MomentDetailResponseDto extends MomentCardResponseDto {
-  @ApiProperty({ description: '完整纯文本正文' })
+  @ApiProperty({ description: '完整正文字串；可包含 internal-reference v1 站内传送门语法' })
   content!: string;
 
   @ApiProperty({ type: [MomentMediaResponseDto] })

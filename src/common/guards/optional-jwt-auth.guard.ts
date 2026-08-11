@@ -1,20 +1,27 @@
 import { Injectable, ExecutionContext } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { ErrorCode } from '../exceptions/error-codes';
+import { unauthorized } from '../exceptions/business.exception';
 
-/** 可选 JWT 认证守卫：有 Token 且有效则挂载 req.user，否则放行（不抛异常） */
+/** 可选 JWT：未携带凭据时匿名放行，主动携带的无效凭据必须返回稳定 401。 */
 @Injectable()
 export class OptionalJwtAuthGuard extends AuthGuard('jwt') {
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    try {
-      const result = await super.canActivate(context);
-      return result as boolean;
-    } catch {
-      // Token 不存在 / 已过期 / 已注销等所有情况均放行
-      return true;
-    }
+  canActivate(context: ExecutionContext) {
+    const request = context.switchToHttp().getRequest<{ headers?: { authorization?: string } }>();
+    if (!request.headers?.authorization) return true;
+    return super.canActivate(context);
   }
 
-  handleRequest(err: any, user: any) {
-    return user ?? null;
+  handleRequest<TUser = unknown>(
+    err: unknown,
+    user: TUser | false | null | undefined,
+    info?: { name?: unknown },
+  ): TUser {
+    if (err) throw err;
+    if (user) return user;
+    if (info?.name === 'TokenExpiredError') {
+      throw unauthorized('访问令牌已过期', ErrorCode.TOKEN_EXPIRED);
+    }
+    throw unauthorized('访问令牌无效', ErrorCode.TOKEN_INVALID);
   }
 }

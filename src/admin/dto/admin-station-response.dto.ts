@@ -104,6 +104,48 @@ export class ModerationDecisionPublicResponseDto {
   createdAt!: Date;
 }
 
+export class AppealAccessTokenResponseDto {
+  @ApiProperty({ description: '仅可用于用户申诉接口的短期 Bearer JWT' })
+  appealToken!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  expiresAt!: Date;
+}
+
+class ModerationAppealDecisionResponseDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty({ enum: ReportTargetType })
+  targetType!: ReportTargetType;
+
+  @ApiProperty()
+  targetId!: string;
+
+  @ApiProperty({ enum: ModerationDecisionAction })
+  action!: ModerationDecisionAction;
+
+  @ApiProperty({ enum: ReportReasonCode })
+  policyCode!: ReportReasonCode;
+
+  @ApiProperty()
+  publicExplanation!: string;
+
+  @ApiProperty()
+  active!: boolean;
+
+  @ApiProperty({ format: 'date-time' })
+  createdAt!: Date;
+}
+
+class ModerationAppealAppellantResponseDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  username!: string;
+}
+
 export class ModerationAppealResponseDto {
   @ApiProperty()
   id!: string;
@@ -114,11 +156,11 @@ export class ModerationAppealResponseDto {
   @ApiProperty({ enum: ModerationAppealStatus })
   status!: ModerationAppealStatus;
 
-  @ApiProperty({ type: 'object', additionalProperties: true })
-  decision!: Record<string, unknown>;
+  @ApiProperty({ type: ModerationAppealDecisionResponseDto })
+  decision!: ModerationAppealDecisionResponseDto;
 
-  @ApiProperty({ type: 'object', additionalProperties: true })
-  appellant!: Record<string, unknown>;
+  @ApiProperty({ type: ModerationAppealAppellantResponseDto })
+  appellant!: ModerationAppealAppellantResponseDto;
 
   @ApiProperty({ format: 'date-time' })
   createdAt!: Date;

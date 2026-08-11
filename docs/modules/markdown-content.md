@@ -9,6 +9,8 @@
 
 v2 在 v1 规范化基础上增加收藏表情的标准 Markdown 图片标记与发布安全边界。旧客户端无需识别扩展标记，也能按普通图片显示。
 
+主题坐标链接仍是普通 Markdown 链接；Web/移动端可额外按 [`站内传送门 v1`](./internal-references.md) 统一其内联视觉和同页导航，不改变 Markdown v2 的存储、解析或可见性规则。
+
 ## 格式版本
 
 - 协议标识：`wenyousite-markdown`

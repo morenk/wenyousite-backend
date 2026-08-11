@@ -1,0 +1,135 @@
+const PRODUCTION_ORIGIN = 'https://wenyou.site';
+export const INTERNAL_REFERENCE_DEFAULT_LABEL = '传送门';
+
+const ID_RE = /^[a-z0-9]{20,32}$/u;
+const THREAD_ROUTE_RE = /^\/threads\/([^/]+)$/u;
+const DISCUSSION_ROUTE_RE = /^\/threads\/([^/]+)\/posts\/([^/]+)\/replies$/u;
+const TRAILING_PUNCTUATION_RE = /[.,!?;:，。！？；：、]+$/u;
+const REFERENCE_CANDIDATE_RE = /\[([^\]\r\n]+)\]\(([^)\r\n]+)\)|https:\/\/wenyou\.site\/threads\/[a-z0-9_-]+(?:\/posts\/[a-z0-9_-]+\/replies)?(?:\?[^\s<>\])}.,!;:，。！？；：、]+)?|\/threads\/[a-z0-9_-]+(?:\/posts\/[a-z0-9_-]+\/replies)?(?:\?[^\s<>\])}.,!;:，。！？；：、]+)?/giu;
+const RELATIVE_REFERENCE_BOUNDARY_RE = /[\s([{"'，。！？；：、]/u;
+
+export type InternalReferenceKind =
+  | 'THREAD'
+  | 'SUBTHREAD'
+  | 'FLOOR'
+  | 'DISCUSSION'
+  | 'REPLY';
+
+export interface InternalReference {
+  kind: InternalReferenceKind;
+  threadId: string;
+  subthreadId?: string;
+  floorPostId?: string;
+  postId?: string;
+  href: string;
+}
+
+function isValidId(value: string | null): value is string {
+  return !!value && ID_RE.test(value);
+}
+
+function hasOnlyQuery(url: URL, allowed: string | null): boolean {
+  const keys = [...url.searchParams.keys()];
+  return allowed === null
+    ? keys.length === 0
+    : keys.length === 1 && keys[0] === allowed && url.searchParams.getAll(allowed).length === 1;
+}
+
+/** 识别并规范化 v1 站内主题坐标；不查询目标是否存在，避免元数据泄漏。 */
+export function parseInternalReference(input: string): InternalReference | null {
+  const trimmed = input.trim();
+  if (!trimmed || trimmed.includes('#')) return null;
+
+  const relative = trimmed.startsWith('/') && !trimmed.startsWith('//');
+  let url: URL;
+  try {
+    url = new URL(trimmed, PRODUCTION_ORIGIN);
+  } catch {
+    return null;
+  }
+  if (!relative && (url.protocol !== 'https:' || url.origin !== PRODUCTION_ORIGIN)) return null;
+
+  const threadRoute = THREAD_ROUTE_RE.exec(url.pathname);
+  if (threadRoute) {
+    let threadId: string;
+    try {
+      threadId = decodeURIComponent(threadRoute[1]);
+    } catch {
+      return null;
+    }
+    if (!isValidId(threadId)) return null;
+    const subthreadId = url.searchParams.get('subthread');
+    const postId = url.searchParams.get('post');
+    if (subthreadId !== null) {
+      if (!isValidId(subthreadId) || !hasOnlyQuery(url, 'subthread')) return null;
+      return {
+        kind: 'SUBTHREAD',
+        threadId,
+        subthreadId,
+        href: `/threads/${threadId}?subthread=${subthreadId}`,
+      };
+    }
+    if (postId !== null) {
+      if (!isValidId(postId) || !hasOnlyQuery(url, 'post')) return null;
+      return {
+        kind: 'FLOOR',
+        threadId,
+        postId,
+        href: `/threads/${threadId}?post=${postId}`,
+      };
+    }
+    return hasOnlyQuery(url, null)
+      ? { kind: 'THREAD', threadId, href: `/threads/${threadId}` }
+      : null;
+  }
+
+  const discussionRoute = DISCUSSION_ROUTE_RE.exec(url.pathname);
+  if (!discussionRoute) return null;
+  let threadId: string;
+  let floorPostId: string;
+  try {
+    threadId = decodeURIComponent(discussionRoute[1]);
+    floorPostId = decodeURIComponent(discussionRoute[2]);
+  } catch {
+    return null;
+  }
+  if (!isValidId(threadId) || !isValidId(floorPostId)) return null;
+  const postId = url.searchParams.get('post');
+  const baseHref = `/threads/${threadId}/posts/${floorPostId}/replies`;
+  if (postId !== null) {
+    if (!isValidId(postId) || !hasOnlyQuery(url, 'post')) return null;
+    return { kind: 'REPLY', threadId, floorPostId, postId, href: `${baseHref}?post=${postId}` };
+  }
+  return hasOnlyQuery(url, null)
+    ? { kind: 'DISCUSSION', threadId, floorPostId, href: baseHref }
+    : null;
+}
+
+/**
+ * 动态、评论和摘要中的传送门降级：自定义名称保留，裸站内链接统一显示“传送门”。
+ * 其他 Markdown/外链保持字面文本，交由各自既有管线处理。
+ */
+export function formatInternalReferencePreview(value: string): string {
+  return value.replace(
+    REFERENCE_CANDIDATE_RE,
+    (
+      candidate,
+      label: string | undefined,
+      markdownHref: string | undefined,
+      offset: number,
+      source: string,
+    ) => {
+      if (
+        !markdownHref
+        && candidate.startsWith('/')
+        && offset > 0
+        && !RELATIVE_REFERENCE_BOUNDARY_RE.test(source[offset - 1])
+      ) return candidate;
+      const href = markdownHref?.trim() ?? candidate;
+      const trailing = markdownHref ? '' : candidate.match(TRAILING_PUNCTUATION_RE)?.[0] ?? '';
+      const reference = parseInternalReference(trailing ? href.slice(0, -trailing.length) : href);
+      if (!reference) return candidate;
+      return `${label?.trim() || INTERNAL_REFERENCE_DEFAULT_LABEL}${trailing}`;
+    },
+  );
+}

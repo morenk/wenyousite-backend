@@ -283,9 +283,16 @@ describe('认证和权限边界', () => {
     ).toThrow(expect.objectContaining({ errorCode: ErrorCode.TOKEN_INVALID }));
   });
 
-  it('OptionalJwtAuthGuard 将认证失败或无用户统一降级为匿名', () => {
+  it('OptionalJwtAuthGuard 仅在未携带凭据时匿名放行，坏令牌返回稳定 401', () => {
     const guard = new OptionalJwtAuthGuard();
-    expect(guard.handleRequest(new Error('invalid'), undefined)).toBeNull();
+    expect(guard.canActivate(httpContext().context)).toBe(true);
+    expect(() => guard.handleRequest(new Error('invalid'), undefined)).toThrow('invalid');
+    expect(() =>
+      guard.handleRequest(null, undefined, { name: 'TokenExpiredError' }),
+    ).toThrow(expect.objectContaining({ errorCode: ErrorCode.TOKEN_EXPIRED }));
+    expect(() => guard.handleRequest(null, undefined)).toThrow(
+      expect.objectContaining({ errorCode: ErrorCode.TOKEN_INVALID }),
+    );
     expect(guard.handleRequest(null, { id: 'user-1' })).toEqual({ id: 'user-1' });
   });
 });

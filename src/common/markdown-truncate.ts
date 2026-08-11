@@ -1,5 +1,6 @@
 /** Markdown 安全截断：保证不在标记内部截断，尽量在句子或段落边界处 */
 import removeMd from 'remove-markdown';
+import { formatInternalReferencePreview } from './internal-reference';
 
 /** Milkdown 会转义、且 remove-markdown 会误判为语法的 ASCII 标点集合（与 unsafe.js 转义范围一致） */
 const ESCAPE_CHARS = [...`!"#$%&'()*+,-./:;<=>?@[\\]^_\`{|}~`];
@@ -27,12 +28,13 @@ export function truncateMarkdown(md: string, maxLen = 100, minLen = 50): string 
   const withoutEmptyParagraphMarkers = md.replace(/^ {0,3}<br\s*\/?>(?:[\t ]*)$/gim, '\n');
   // 图片只以统一占位进入摘要，避免 Milkdown 的比例 alt（如 1.00）泄漏为正文。
   const withImagePlaceholders = withoutEmptyParagraphMarkers.replace(/!\[[^\]]*\]\([^)]*\)/g, '[图片]');
+  const withInternalReferenceLabels = formatInternalReferencePreview(withImagePlaceholders);
   // Milkdown 会把字面 < > * _ ` ~ 等转义为 \< \> \* ...。清理前先替换为私有区占位符，
   // 让 remove-markdown 只清理真正的 Markdown 语法：
   // - 避免转义标点被强调/删除线/行内代码等正则误删后残留孤立反斜杠（如 a\*b\*c 变成 a\b\c）
   // - 避免字面 < ... > 跨行被当成 HTML 标签整段吞掉（回复只有 < 和 > 时预览变空）
   // - 真实 Markdown（**加粗**、# 标题、> 引用等）仍照常清理
-  const protectedContent = withImagePlaceholders
+  const protectedContent = withInternalReferenceLabels
     .replace(/\\([!-/:-@[-`{-~])/g, (_, c) => ESCAPE_MAP.get(c) ?? c)
     .replace(/</g, LT_PLACEHOLDER);
   const plain = restorePlaceholders(removeMd(protectedContent))

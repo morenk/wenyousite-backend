@@ -1,0 +1,96 @@
+{
+  "contract": "wenyousite-internal-reference",
+  "version": 1,
+  "productionOrigin": "https://wenyou.site",
+  "defaultLabel": "传送门",
+  "cases": [
+    {
+      "id": "thread-relative",
+      "input": "/threads/cmsewdo0h000x7qv6aa77ll1v",
+      "recognized": true,
+      "kind": "THREAD",
+      "canonical": "/threads/cmsewdo0h000x7qv6aa77ll1v"
+    },
+    {
+      "id": "thread-absolute",
+      "input": "https://wenyou.site/threads/cmsewdo0h000x7qv6aa77ll1v",
+      "recognized": true,
+      "kind": "THREAD",
+      "canonical": "/threads/cmsewdo0h000x7qv6aa77ll1v"
+    },
+    {
+      "id": "subthread",
+      "input": "/threads/cmsewdo0h000x7qv6aa77ll1v?subthread=cmsewdp4i00147qv6gjc85l9p",
+      "recognized": true,
+      "kind": "SUBTHREAD",
+      "canonical": "/threads/cmsewdo0h000x7qv6aa77ll1v?subthread=cmsewdp4i00147qv6gjc85l9p"
+    },
+    {
+      "id": "floor",
+      "input": "/threads/cmsewdo0h000x7qv6aa77ll1v?post=cmsewdqcr001a7qv6cy0y38bd",
+      "recognized": true,
+      "kind": "FLOOR",
+      "canonical": "/threads/cmsewdo0h000x7qv6aa77ll1v?post=cmsewdqcr001a7qv6cy0y38bd"
+    },
+    {
+      "id": "discussion",
+      "input": "/threads/cmsewdo0h000x7qv6aa77ll1v/posts/cmsewdrqj001h7qv6dwfca3fe/replies",
+      "recognized": true,
+      "kind": "DISCUSSION",
+      "canonical": "/threads/cmsewdo0h000x7qv6aa77ll1v/posts/cmsewdrqj001h7qv6dwfca3fe/replies"
+    },
+    {
+      "id": "reply-absolute",
+      "input": "https://wenyou.site/threads/cmsewdo0h000x7qv6aa77ll1v/posts/cmsewdrqj001h7qv6dwfca3fe/replies?post=cmsewdt0w001n7qv6f6ttylff",
+      "recognized": true,
+      "kind": "REPLY",
+      "canonical": "/threads/cmsewdo0h000x7qv6aa77ll1v/posts/cmsewdrqj001h7qv6dwfca3fe/replies?post=cmsewdt0w001n7qv6f6ttylff"
+    },
+    {
+      "id": "external-origin",
+      "input": "https://example.com/threads/cmsewdo0h000x7qv6aa77ll1v",
+      "recognized": false
+    },
+    {
+      "id": "ambiguous-thread-query",
+      "input": "/threads/cmsewdo0h000x7qv6aa77ll1v?subthread=cmsewdp4i00147qv6gjc85l9p&post=cmsewdqcr001a7qv6cy0y38bd",
+      "recognized": false
+    },
+    {
+      "id": "unknown-query",
+      "input": "/threads/cmsewdo0h000x7qv6aa77ll1v?from=feed",
+      "recognized": false
+    },
+    {
+      "id": "non-thread-route",
+      "input": "/moments/cmsewdo0h000x7qv6aa77ll1v",
+      "recognized": false
+    }
+  ],
+  "renderingCases": [
+    {
+      "id": "custom-label",
+      "source": "参见 [设定 A](/threads/cmsewdo0h000x7qv6aa77ll1v?post=cmsewdqcr001a7qv6cy0y38bd)。",
+      "visibleText": "参见 设定 A。",
+      "portalCount": 1
+    },
+    {
+      "id": "bare-absolute",
+      "source": "入口：https://wenyou.site/threads/cmsewdo0h000x7qv6aa77ll1v/posts/cmsewdrqj001h7qv6dwfca3fe/replies",
+      "visibleText": "入口：传送门",
+      "portalCount": 1
+    },
+    {
+      "id": "ordinary-markdown-is-literal-in-plain-content",
+      "source": "**不是粗体**，外链 [官网](https://example.com)。",
+      "visibleText": "**不是粗体**，外链 [官网](https://example.com)。",
+      "portalCount": 0
+    },
+    {
+      "id": "external-thread-shaped-url-is-literal",
+      "source": "外链：https://example.com/threads/cmsewdo0h000x7qv6aa77ll1v",
+      "visibleText": "外链：https://example.com/threads/cmsewdo0h000x7qv6aa77ll1v",
+      "portalCount": 0
+    }
+  ]
+}

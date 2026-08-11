@@ -5,9 +5,9 @@ import { applyErrorResponseEnvelope } from './error-response-envelope';
 import { applyResponseHeaders } from './response-headers';
 
 /** 破坏性 API 变更时递增；Web 与 Flutter 生成客户端均记录该版本。 */
-export const API_CONTRACT_VERSION = '4.5.2-dev.20260811.1';
+export const API_CONTRACT_VERSION = '4.7.0-dev.20260811.1';
 
-type AuthMode = 'public' | 'optional' | 'authenticated' | 'verified' | 'admin';
+type AuthMode = 'public' | 'optional' | 'authenticated' | 'verified' | 'appeal' | 'admin';
 
 function lowerFirst(value: string): string {
   return value.length === 0 ? value : value[0].toLowerCase() + value.slice(1);
@@ -26,6 +26,7 @@ function applyAuthSemantics(document: ReturnType<typeof SwaggerModule.createDocu
       if (mode === 'authenticated' || mode === 'verified') {
         operation.security = [{ bearer: [] }];
       }
+      if (mode === 'appeal') operation.security = [{ bearer: [] }, { appealBearer: [] }];
       if (mode === 'admin') operation.security = [{ adminSession: [], adminCsrf: [] }];
     }
   }
@@ -41,6 +42,10 @@ export function createOpenApiDocument(app: INestApplication) {
     .addServer('https://wenyou.site', '公网开发环境')
     .addServer('http://127.0.0.1:3000', '本地开发环境')
     .addBearerAuth()
+    .addBearerAuth(
+      { type: 'http', scheme: 'bearer', bearerFormat: 'Appeal JWT' },
+      'appealBearer',
+    )
     .addCookieAuth('__Secure-wenyou-admin-session', {
       type: 'apiKey',
       in: 'cookie',

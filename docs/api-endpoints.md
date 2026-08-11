@@ -228,8 +228,9 @@
 
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
-| GET | `/moderation/decisions/mine` | verified | 当前用户近 30 天可申诉的治理决定（Web/移动端兼容） |
-| POST | `/moderation/appeals` | verified | 对自己的治理决定提交一次申诉（Web/移动端兼容） |
+| POST | `/moderation/appeal-token` | public | 校验账号密码并签发 15 分钟申诉专用凭据 |
+| GET | `/moderation/decisions/mine` | appeal | 以普通或申诉专用凭据读取近 30 天本人治理决定 |
+| POST | `/moderation/appeals` | appeal | 以普通或申诉专用凭据对本人治理决定提交一次申诉 |
 
 ## Admin Operations
 

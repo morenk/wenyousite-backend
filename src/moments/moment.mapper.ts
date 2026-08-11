@@ -1,5 +1,6 @@
 import { publicUserSummarySelect } from '../common/user-summary';
 import { mediaVariantUrls } from '../media/media-response.mapper';
+import { formatInternalReferencePreview } from '../common/internal-reference';
 
 export const momentAuthorSelect = publicUserSummarySelect;
 
@@ -56,7 +57,7 @@ function mapMedia(media: MediaRow) {
 }
 
 function excerpt(value: string, length = 160) {
-  const characters = Array.from(value.trim());
+  const characters = Array.from(formatInternalReferencePreview(value).trim());
   return characters.length > length ? `${characters.slice(0, length).join('')}…` : characters.join('');
 }
 
