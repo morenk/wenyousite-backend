@@ -1,0 +1,145 @@
+{
+  "contract": "wenyousite-markdown-editor-roundtrip",
+  "version": 1,
+  "markdownContractVersion": 2,
+  "description": "Web 与 Flutter 编辑器共用的结构化编辑和源码保留黄金语料；只固定现有 Markdown v2 的编辑体验，不定义新的存储语法。",
+  "modes": {
+    "structured": "客户端应恢复为结构化编辑状态，并序列化为 serialized",
+    "source-preserve": "客户端可按源码编辑，但不得改写或丢失 serialized"
+  },
+  "cases": [
+    {
+      "id": "paragraphs",
+      "capabilities": ["paragraph"],
+      "mode": "structured",
+      "markdown": "第一段\n\n第二段",
+      "serialized": "第一段\n\n第二段"
+    },
+    {
+      "id": "bold",
+      "capabilities": ["bold"],
+      "mode": "structured",
+      "markdown": "普通 **粗体** 普通",
+      "serialized": "普通 **粗体** 普通"
+    },
+    {
+      "id": "italic",
+      "capabilities": ["italic"],
+      "mode": "structured",
+      "markdown": "普通 *斜体* 普通",
+      "serialized": "普通 *斜体* 普通"
+    },
+    {
+      "id": "strikethrough",
+      "capabilities": ["strikethrough"],
+      "mode": "structured",
+      "markdown": "保留 ~~删除线~~ 语义",
+      "serialized": "保留 ~~删除线~~ 语义"
+    },
+    {
+      "id": "nested-emphasis",
+      "capabilities": ["bold", "italic"],
+      "mode": "structured",
+      "markdown": "***粗斜体***",
+      "serialized": "***粗斜体***"
+    },
+    {
+      "id": "inline-code",
+      "capabilities": ["inline-code"],
+      "mode": "structured",
+      "markdown": "运行 ``a`b`` 查看结果",
+      "serialized": "运行 ``a`b`` 查看结果"
+    },
+    {
+      "id": "safe-link",
+      "capabilities": ["link"],
+      "mode": "structured",
+      "markdown": "查看 [站内帮助](https://wenyou.site/help)",
+      "serialized": "查看 [站内帮助](https://wenyou.site/help)"
+    },
+    {
+      "id": "creatable-headings",
+      "capabilities": ["heading"],
+      "mode": "structured",
+      "markdown": "## 二级标题\n### 三级标题",
+      "serialized": "## 二级标题\n### 三级标题"
+    },
+    {
+      "id": "historical-heading-levels",
+      "capabilities": ["heading"],
+      "mode": "structured",
+      "markdown": "# 一级标题\n#### 四级标题\n##### 五级标题\n###### 六级标题",
+      "serialized": "# 一级标题\n#### 四级标题\n##### 五级标题\n###### 六级标题"
+    },
+    {
+      "id": "blockquote",
+      "capabilities": ["quote"],
+      "mode": "structured",
+      "markdown": "> 引用内容",
+      "serialized": "> 引用内容"
+    },
+    {
+      "id": "bullet-list",
+      "capabilities": ["bullet-list"],
+      "mode": "structured",
+      "markdown": "- 第一项\n- 第二项",
+      "serialized": "- 第一项\n- 第二项"
+    },
+    {
+      "id": "ordered-list",
+      "capabilities": ["ordered-list"],
+      "mode": "structured",
+      "markdown": "1. 第一项\n1. 第二项",
+      "serialized": "1. 第一项\n1. 第二项"
+    },
+    {
+      "id": "nested-list",
+      "capabilities": ["bullet-list"],
+      "mode": "structured",
+      "markdown": "- 第一层\n  - 第二层",
+      "serialized": "- 第一层\n  - 第二层"
+    },
+    {
+      "id": "empty-paragraph",
+      "capabilities": ["paragraph"],
+      "mode": "structured",
+      "markdown": "第一段\n<br />\n第二段",
+      "serialized": "第一段\n<br />\n第二段"
+    },
+    {
+      "id": "horizontal-rule",
+      "capabilities": ["hr"],
+      "mode": "structured",
+      "markdown": "上文\n---\n下文",
+      "serialized": "上文\n---\n下文"
+    },
+    {
+      "id": "task-list-source",
+      "capabilities": ["task-list"],
+      "mode": "source-preserve",
+      "markdown": "- [ ] 未完成\n- [x] 已完成",
+      "serialized": "- [ ] 未完成\n- [x] 已完成"
+    },
+    {
+      "id": "fenced-code-source",
+      "capabilities": ["code-block"],
+      "mode": "source-preserve",
+      "markdown": "```ts\nconst answer = 42;\n```",
+      "serialized": "```ts\nconst answer = 42;\n```"
+    },
+    {
+      "id": "table-source",
+      "capabilities": ["table"],
+      "mode": "source-preserve",
+      "markdown": "| 名称 | 数值 |\n| --- | ---: |\n| 骰子 | 20 |",
+      "serialized": "| 名称 | 数值 |\n| --- | ---: |\n| 骰子 | 20 |"
+    },
+    {
+      "id": "hard-break-source",
+      "capabilities": ["hard-break"],
+      "mode": "source-preserve",
+      "markdown": "第一行  \n第二行",
+      "serialized": "第一行  \n第二行"
+    }
+  ]
+}

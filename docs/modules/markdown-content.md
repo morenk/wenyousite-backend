@@ -2,10 +2,11 @@
 
 ## 目标与范围
 
-本模块定义 Web、后端与 Flutter 共用的正文存储协议。机器契约分为两层；自然语言文档只解释规则，不能覆盖黄金语料的预期结果：
+本模块定义 Web、后端与 Flutter 共用的正文存储协议。机器契约分为三层；自然语言文档只解释规则，不能覆盖黄金语料的预期结果：
 
 1. [`contracts/markdown-v2-fixtures.json`](../../contracts/markdown-v2-fixtures.json) 固定正文的 `canonical` 与 `visible`，用于写入规范化和发布可见性。
 2. [`contracts/markdown-v2-nodes-fixtures.json`](../../contracts/markdown-v2-nodes-fixtures.json) 固定扩展节点的 `nodes`、`serialized` 和复制身份规则，用于解析、序列化与编辑器 round-trip。
+3. [`contracts/markdown-editor-roundtrip-v1-fixtures.json`](../../contracts/markdown-editor-roundtrip-v1-fixtures.json) 固定普通 Markdown 的结构化编辑与源码保留样例；它不新增存储语法，因此仍从属于 Markdown v2。
 
 v2 在 v1 规范化基础上增加收藏表情的标准 Markdown 图片标记与发布安全边界。旧客户端无需识别扩展标记，也能按普通图片显示。
 
@@ -44,8 +45,9 @@ v2 在 v1 规范化基础上增加收藏表情的标准 Markdown 图片标记与
 ## 跨端执行方式
 
 - 后端是写入和发布校验的最终权威。
-- Web 和 Flutter 必须加载或复制同版本的两层黄金语料：逐条验证 `canonical` / `visible`，以及 mention、`@全体玩家`、dice、sticker、普通图片的 parse / serialize / round-trip。
+- Web 和 Flutter 必须加载或复制同版本的三层黄金语料：逐条验证 `canonical` / `visible`，mention、`@全体玩家`、dice、sticker、普通图片的 parse / serialize / round-trip，以及普通 Markdown 的结构化编辑或源码保留。
 - 扩展节点不得在围栏代码、成对行内代码或反斜杠转义位置解析。骰子复制粘贴生成新 `nodeId`，剪切粘贴保留；提及 `userId` 和表情 `assetId` 在复制时保留。
+- `structured` 样例应恢复成编辑器结构并安全序列化；`source-preserve` 样例允许以源码形式编辑，但任何保存路径都不得静默改写或删除。
 - 任一规则变更必须新增/修改语料并提升协议版本；不得只修改某一端的正则。
 
 ## 后端写入边界
@@ -58,4 +60,5 @@ v2 在 v1 规范化基础上增加收藏表情的标准 Markdown 图片标记与
 
 - 黄金语料必须是合法 JSON 且 case id 唯一；规范化函数通过全部 canonical case，可见性函数通过全部 visible case。
 - 扩展节点语料覆盖解析、序列化、代码边界、转义和复制身份规则。
+- 编辑器往返语料覆盖常用行内/块级结构、历史标题层级、空段落，以及任务列表、代码块、表格和硬换行的源码保留。
 - 帖子创建、正文 upsert、帖子编辑及草稿写入在进入持久化和下游事件前统一规范化。
