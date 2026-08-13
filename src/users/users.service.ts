@@ -13,12 +13,23 @@ import { DEACTIVATED_USER_NAME } from '../common/user-summary';
 import { progressionFor } from '../progression/progression.constants';
 import { UserSanctionType } from '@prisma/client';
 import { activeSanctionWhere } from '../auth/account-sanction';
+import { mediaVariantUrls } from '../media/media-response.mapper';
+
+const profileCoverMediaSelect = {
+  id: true,
+  url: true,
+  status: true,
+  contentType: true,
+  width: true,
+  height: true,
+} as const;
 
 const userSelectPrivate = {
   id: true,
   email: true,
   username: true,
   avatar: true,
+  profileCoverMedia: { select: profileCoverMediaSelect },
   bio: true,
   role: true,
   showRecentReplies: true,
@@ -37,6 +48,7 @@ const userSelectPublic = () => ({
   id: true,
   username: true,
   avatar: true,
+  profileCoverMedia: { select: profileCoverMediaSelect },
   bio: true,
   role: true,
   showRecentReplies: true,
@@ -64,6 +76,14 @@ interface UserWithProgressAndTips extends Record<string, unknown> {
     receivedTipTotal: bigint;
     receivedTipCount: number;
   } | null;
+  profileCoverMedia?: {
+    id: string;
+    url: string;
+    status: string;
+    contentType: string | null;
+    width: number | null;
+    height: number | null;
+  } | null;
   sanctions?: Array<{
     type: UserSanctionType;
     endsAt: Date | null;
@@ -71,9 +91,17 @@ interface UserWithProgressAndTips extends Record<string, unknown> {
 }
 
 const flattenProgressAndTips = (user: UserWithProgressAndTips): Record<string, unknown> => {
-  const { wallet, ...fields } = user;
+  const { wallet, profileCoverMedia, ...fields } = user;
   return {
     ...fields,
+    profileCover: profileCoverMedia
+      ? {
+          url: profileCoverMedia.url,
+          mediumUrl: mediaVariantUrls(profileCoverMedia).mediumUrl,
+          width: profileCoverMedia.width,
+          height: profileCoverMedia.height,
+        }
+      : null,
     ...(typeof fields.experience === 'number' ? progressionFor(fields.experience) : {}),
     receivedTipTotal: (wallet?.receivedTipTotal ?? 0n).toString(),
     receivedTipCount: wallet?.receivedTipCount ?? 0,
@@ -305,6 +333,42 @@ export class UsersService {
       });
   }
 
+  /** 绑定/移除个人主页背景图；图片必须属于本人、已处理完成且接近 3:1。 */
+  async setProfileCover(userId: string, mediaId: string | null) {
+    if (mediaId === null) {
+      const result = await this.prisma.user.update({
+        where: { id: userId },
+        data: { profileCoverMediaId: null },
+        select: userSelectPrivate,
+      });
+      this.eventEmitter.emit('user.updated', { userId });
+      return flattenProgressAndTips(result);
+    }
+
+    const media = await this.prisma.media.findUnique({ where: { id: mediaId } });
+    if (!media) throw new NotFoundException('媒体记录不存在');
+    if (media.userId !== userId) throw new ForbiddenException('无权使用此图片');
+    if (media.status !== 'COMPLETED') {
+      throw new BadRequestException(
+        `图片尚未处理完成（当前状态: ${media.status}），请稍后重试或查询 GET /media/${media.id}`,
+      );
+    }
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(media.contentType ?? '')) {
+      throw new BadRequestException('主页背景仅支持 jpg/png/webp 格式');
+    }
+    if (!media.width || !media.height || Math.abs(media.width / media.height - 3) > 0.03) {
+      throw new BadRequestException('主页背景必须裁剪为 3:1');
+    }
+
+    const result = await this.prisma.user.update({
+      where: { id: userId },
+      data: { profileCoverMediaId: media.id },
+      select: userSelectPrivate,
+    });
+    this.eventEmitter.emit('user.updated', { userId });
+    return flattenProgressAndTips(result);
+  }
+
   async deactivate(id: string) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundException('用户不存在');
@@ -323,6 +387,7 @@ export class UsersService {
           username: releasedUsername,
           email: releasedEmail,
           avatar: null,
+          profileCoverMediaId: null,
         },
       }),
       this.prisma.refreshToken.updateMany({

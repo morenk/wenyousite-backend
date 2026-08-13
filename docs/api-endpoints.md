@@ -38,9 +38,12 @@
 | DELETE | `/users/me` | verified | 注销当前账号 |
 | PATCH | `/users/me/avatar` | verified | 设置头像（传入 mediaId，校验归属和 COMPLETED 状态） |
 | DELETE | `/users/me/avatar` | verified | 移除头像（置空 user.avatar，回到首字母占位） |
+| PATCH | `/users/me/profile-cover` | verified | 设置个人主页背景图（传入 3:1 图片的 mediaId） |
+| DELETE | `/users/me/profile-cover` | verified | 移除个人主页背景图并恢复默认背景 |
 | GET | `/users/{id}/bookmarks` | optional | 查看用户的收藏列表（受 showBookmarks 隐私开关控制） |
 | GET | `/users/{id}/played-threads` | optional | 查看用户参与的帖子（仅已被授予玩家身份的帖子；他人仅可见公开帖） |
 | GET | `/users/{id}/created-threads` | optional | 查看用户创建的主题帖（本人可见全部含私密帖，他人仅见 PUBLIC 已发布帖） |
+| GET | `/users/{id}/activity-summary` | optional | 获取用户主页创作活动汇总 |
 | GET | `/users/{id}/recent-replies` | optional | 查看用户最近 10 条回复（受 showRecentReplies 隐私开关控制） |
 | GET | `/users/{id}` | optional | 获取指定用户的公开资料。登录后额外返回关注/拉黑关系 |
 | POST | `/users/follow/{id}` | verified | 关注用户 |

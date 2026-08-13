@@ -9,6 +9,20 @@ class UserSocialCountResponseDto {
   followers!: number;
 }
 
+export class ProfileCoverResponseDto {
+  @ApiProperty({ description: '背景图原图地址' })
+  url!: string;
+
+  @ApiProperty({ type: String, nullable: true, description: '800px WebP 中图地址' })
+  mediumUrl!: string | null;
+
+  @ApiProperty({ type: Number, nullable: true })
+  width!: number | null;
+
+  @ApiProperty({ type: Number, nullable: true })
+  height!: number | null;
+}
+
 export class PrivateUserResponseDto {
   @ApiProperty()
   id!: string;
@@ -21,6 +35,9 @@ export class PrivateUserResponseDto {
 
   @ApiProperty({ type: String, nullable: true })
   avatar!: string | null;
+
+  @ApiProperty({ type: ProfileCoverResponseDto, nullable: true })
+  profileCover!: ProfileCoverResponseDto | null;
 
   @ApiProperty({ type: String, nullable: true })
   bio!: string | null;
@@ -84,6 +101,9 @@ export class PublicUserResponseDto {
   @ApiPropertyOptional({ type: String, nullable: true })
   avatar?: string | null;
 
+  @ApiPropertyOptional({ type: ProfileCoverResponseDto, nullable: true })
+  profileCover?: ProfileCoverResponseDto | null;
+
   @ApiPropertyOptional({ type: String, nullable: true })
   bio?: string | null;
 
@@ -134,6 +154,30 @@ export class PublicUserResponseDto {
 
   @ApiPropertyOptional()
   isDeactivated?: boolean;
+}
+
+export class UserActivitySummaryResponseDto {
+  @ApiProperty({ minimum: 0, description: '当前查看者可见的未删除动态数' })
+  momentCount!: number;
+
+  @ApiProperty({ minimum: 0, description: '当前查看者可见的已发布自建主题数' })
+  createdThreadCount!: number;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    minimum: 0,
+    description: '当前查看者可见的玩家身份参与主题数；未公开时为 null',
+  })
+  playedThreadCount!: number | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    minimum: 0,
+    description: '当前查看者可见的存活楼层/楼中楼回复数；未公开时为 null',
+  })
+  replyCount!: number | null;
 }
 
 class RecentReplyThreadResponseDto {

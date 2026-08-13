@@ -264,6 +264,7 @@ model User {
   username            String    @unique
   password            String
   avatar              String?
+  profileCoverMediaId String?   @unique @map("profile_cover_media_id")
   bio                 String?
   role                UserRole  @default(USER)
   emailVerified       Boolean   @default(false) @map("email_verified")
@@ -304,6 +305,7 @@ model User {
   sanctionsCreated              UserSanction[]                  @relation("SanctionCreator")
   sanctionsRevoked              UserSanction[]                  @relation("SanctionRevoker")
   media                         Media[]
+  profileCoverMedia             Media?                          @relation("UserProfileCover", fields: [profileCoverMediaId], references: [id], onDelete: SetNull)
   refreshTokens                 RefreshToken[]
   directConversationsAsFirst    DirectConversation[]            @relation("DirectConversationFirstUser")
   directConversationsAsSecond   DirectConversation[]            @relation("DirectConversationSecondUser")
@@ -830,12 +832,13 @@ model Media {
   status      MediaStatus @default(UPLOADING)
   createdAt   DateTime    @default(now()) @map("created_at")
 
-  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  directMessage  DirectMessage?
-  stickerImports StickerImport[]
-  momentImages   MomentImage[]
-  momentCovers   Moment[]        @relation("MomentCover")
-  momentComment  MomentComment?
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  directMessage    DirectMessage?
+  stickerImports   StickerImport[]
+  momentImages     MomentImage[]
+  momentCovers     Moment[]        @relation("MomentCover")
+  momentComment    MomentComment?
+  profileCoverUser User?           @relation("UserProfileCover")
 
   @@index([status, createdAt])
   @@map("media")

@@ -1834,6 +1834,176 @@
         "x-auth-mode": "verified"
       }
     },
+    "/api/v1/users/me/profile-cover": {
+      "patch": {
+        "operationId": "usersSetProfileCover",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetProfileCoverDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新后的用户资料（含新背景图）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsersSetProfileCover200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "未登录或 Token 无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "mediaId 不存在或未完成处理",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "设置个人主页背景图（传入 3:1 图片的 mediaId）",
+        "tags": [
+          "Users"
+        ],
+        "x-auth-mode": "verified"
+      },
+      "delete": {
+        "operationId": "usersRemoveProfileCover",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "更新后的用户资料（profileCover 为 null）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsersRemoveProfileCover200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "未登录或 Token 无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "移除个人主页背景图并恢复默认背景",
+        "tags": [
+          "Users"
+        ],
+        "x-auth-mode": "verified"
+      }
+    },
     "/api/v1/users/{id}/bookmarks": {
       "get": {
         "operationId": "usersGetUserBookmarks",
@@ -2151,6 +2321,88 @@
         ],
         "x-auth-mode": "optional",
         "x-pagination": "cursor",
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
+      }
+    },
+    "/api/v1/users/{id}/activity-summary": {
+      "get": {
+        "operationId": "usersGetUserActivitySummary",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "按当前查看者权限统计动态、创建主题、参与主题和回复总数",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsersGetUserActivitySummary200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "用户不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "获取用户主页创作活动汇总",
+        "tags": [
+          "Users"
+        ],
+        "x-auth-mode": "optional",
         "security": [
           {
             "bearer": []
@@ -16589,7 +16841,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "4.7.0-dev.20260811.1",
+    "version": "4.8.0-dev.20260813.2",
     "contact": {}
   },
   "tags": [
@@ -17234,6 +17486,34 @@
           "canMentionAllPlayers"
         ]
       },
+      "ProfileCoverResponseDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "背景图原图地址"
+          },
+          "mediumUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "800px WebP 中图地址"
+          },
+          "width": {
+            "type": "number",
+            "nullable": true
+          },
+          "height": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "url",
+          "mediumUrl",
+          "width",
+          "height"
+        ]
+      },
       "UserSocialCountResponseDto": {
         "type": "object",
         "properties": {
@@ -17267,6 +17547,15 @@
           "avatar": {
             "type": "string",
             "nullable": true
+          },
+          "profileCover": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProfileCoverResponseDto"
+              }
+            ]
           },
           "bio": {
             "type": "string",
@@ -17340,6 +17629,7 @@
           "email",
           "username",
           "avatar",
+          "profileCover",
           "bio",
           "role",
           "level",
@@ -17408,6 +17698,15 @@
           "avatar": {
             "type": "string",
             "nullable": true
+          },
+          "profileCover": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProfileCoverResponseDto"
+              }
+            ]
           },
           "bio": {
             "type": "string",
@@ -17478,6 +17777,7 @@
           "email",
           "username",
           "avatar",
+          "profileCover",
           "bio",
           "role",
           "level",
@@ -17496,6 +17796,19 @@
         ]
       },
       "SetAvatarDto": {
+        "type": "object",
+        "properties": {
+          "mediaId": {
+            "type": "string",
+            "example": "clxabc123...",
+            "description": "upload-url 返回的 mediaId"
+          }
+        },
+        "required": [
+          "mediaId"
+        ]
+      },
+      "SetProfileCoverDto": {
         "type": "object",
         "properties": {
           "mediaId": {
@@ -17808,6 +18121,39 @@
           "_count"
         ]
       },
+      "UserActivitySummaryResponseDto": {
+        "type": "object",
+        "properties": {
+          "momentCount": {
+            "type": "number",
+            "minimum": 0,
+            "description": "当前查看者可见的未删除动态数"
+          },
+          "createdThreadCount": {
+            "type": "number",
+            "minimum": 0,
+            "description": "当前查看者可见的已发布自建主题数"
+          },
+          "playedThreadCount": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0,
+            "description": "当前查看者可见的玩家身份参与主题数；未公开时为 null"
+          },
+          "replyCount": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0,
+            "description": "当前查看者可见的存活楼层/楼中楼回复数；未公开时为 null"
+          }
+        },
+        "required": [
+          "momentCount",
+          "createdThreadCount",
+          "playedThreadCount",
+          "replyCount"
+        ]
+      },
       "RecentReplyThreadResponseDto": {
         "type": "object",
         "properties": {
@@ -17919,6 +18265,15 @@
           "avatar": {
             "type": "string",
             "nullable": true
+          },
+          "profileCover": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProfileCoverResponseDto"
+              }
+            ]
           },
           "bio": {
             "type": "string",
@@ -25703,6 +26058,42 @@
           }
         ]
       },
+      "UsersRemoveProfileCover200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/PrivateUserResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "UsersSetProfileCover200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/PrivateUserResponseDto"
+              }
+            }
+          }
+        ]
+      },
       "UsersGetUserBookmarks200Response": {
         "allOf": [
           {
@@ -25761,6 +26152,24 @@
                 "items": {
                   "$ref": "#/components/schemas/ThreadListItemResponseDto"
                 }
+              }
+            }
+          }
+        ]
+      },
+      "UsersGetUserActivitySummary200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/UserActivitySummaryResponseDto"
               }
             }
           }

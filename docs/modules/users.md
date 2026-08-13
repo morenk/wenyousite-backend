@@ -12,6 +12,7 @@
 | `UserFollow`   | 关注关系（followerId → followingId，联合唯一） |
 | `UserBlock`    | 拉黑关系（blockerId → blockedId，联合唯一）    |
 | `UserBookmark` | 用户收藏关系（userId → threadId，联合唯一）    |
+| `Media`        | 个人主页 3:1 背景图（User 可空一对一引用）    |
 
 | 枚举       | 值                       |
 | ---------- | ------------------------ |
@@ -26,11 +27,14 @@
 | PATCH  | `/users/me`                  | Auth         | 修改当前用户资料（用户名、Bio、隐私设置），5次/分钟限流，需邮箱已验证                                                                                        |
 | PATCH  | `/users/me/avatar`           | Auth         | 设置头像（传入 mediaId，校验归属 + 状态 COMPLETED），需邮箱已验证                                                                                            |
 | DELETE | `/users/me/avatar`           | Auth         | 移除头像（置空 `user.avatar`，回到首字母占位），需邮箱已验证                                                                                                 |
+| PATCH  | `/users/me/profile-cover`    | Auth         | 设置个人主页背景图（传入 mediaId，校验归属、完成状态、格式与 3:1 比例），需邮箱已验证                                                                         |
+| DELETE | `/users/me/profile-cover`    | Auth         | 移除个人主页背景图并恢复客户端默认背景，需邮箱已验证                                                                                                         |
 | DELETE | `/users/me`                  | Auth         | 注销当前账号（软删除，设置 deletedAt），需邮箱已验证                                                                                                         |
 | GET    | `/users/:id`                 | OptionalAuth | 获取指定用户的公开资料（不含邮箱）。登录后额外返回 isFollowing / isFollowedBy / isBlocked / isBlockedBy                                                      |
 | GET    | `/users/:id/bookmarks`       | OptionalAuth | 查看用户的公开收藏，Cursor 分页。受 showBookmarks 控制                                                                                                       |
 | GET    | `/users/:id/played-threads`  | OptionalAuth | 查看用户获得玩家身份的非自建主题帖，支持 `visibility=PUBLIC\|PRIVATE` 分类和 Cursor 分页。本人可见公开帖和私密帖；他人仅见公开帖，并受 showPlayerBadges 控制 |
 | GET    | `/users/:id/created-threads` | OptionalAuth | 查看用户创建的主题帖（本人可见全部含私密帖，他人仅见 PUBLIC 已发布帖），按创建时间倒序，Cursor 分页                                                          |
+| GET    | `/users/:id/activity-summary` | OptionalAuth | 用户主页创作汇总：动态、创建主题、玩家身份参与主题、回复总数；遵守拉黑、内容可见性与资料隐私                                                        |
 | GET    | `/users/:id/recent-replies`  | OptionalAuth | 查看用户最近 10 条回复（仅 PUBLIC 帖）。受 showRecentReplies 控制                                                                                            |
 | POST   | `/users/follow/:id`          | Auth         | 关注指定用户                                                                                                                                                 |
 | DELETE | `/users/follow/:id`          | Auth         | 取消关注                                                                                                                                                     |
@@ -49,6 +53,7 @@
 | `id`                | ✓                      | ✓                       | 用户唯一标识                 |
 | `username`          | ✓                      | ✓                       | 用户名                       |
 | `avatar`            | ✓                      | ✓                       | 头像 URL                     |
+| `profileCover`      | ✓                      | ✓                       | 可空背景图（原图/中图/尺寸） |
 | `bio`               | ✓                      | ✓                       | 个人简介                     |
 | `role`              | ✓                      | ✓                       | 权限角色                     |
 | `email`             | ✓                      | ✗                       | 仅本人可见                   |
@@ -84,13 +89,14 @@
 - `accountStatus` 只根据当前有效处罚派生为 `ACTIVE / SUSPENDED / BANNED`，不暴露处罚原因、起止时间或管理员信息；临时处罚缓存不会晚于其结束时间失效
 - 已注销用户（deletedAt 非 null）的公开资料被屏蔽为 `{ id, username: '已注销用户', isDeactivated: true }`；帖子作者、楼主、成员、关注关系、收藏、搜索与通知中的用户摘要同样统一输出 `username: '已注销用户', avatar: null`
 - 注销时使用不含原用户名/邮箱的内部墓碑值释放两个唯一键，允许原用户或他人日后复用；墓碑值不得进入公开 API
-- 注销事务同时将 `users.avatar` 置空。已完成媒体还可能被 Markdown 字符串引用，在建立规范化引用账本前不执行即时对象硬删；注销不因对象存储清理失败而回滚，采用“宁可暂留、不可误删”的保守策略
+- 注销事务同时将 `users.avatar` 与 `profileCoverMediaId` 置空。已完成媒体还可能被 Markdown 字符串引用，在建立规范化引用账本前不执行即时对象硬删；注销不因对象存储清理失败而回滚，采用“宁可暂留、不可误删”的保守策略
 - `GET /users/:id` 返回 `_count.following` 和 `_count.followers`，供前端展示社交数据
 - 更新用户名时事务锁定当前用户行并重新读取冷却时间，再检查唯一性和写入；冲突返回 409，DB 层 P2002 同样转 409 防止并发改名竞态
 - 用户名修改需间隔 7 天以上，不足时返回剩余天数提示；两个并发请求不能同时绕过同一份旧时间戳
 - 用户名规则：2-24 位，字母 + 数字 + 中文，禁止标点符号和特殊字符（注册与修改一致）
 - 用户名/简介按 **Markdown 原样存储**（不做 HTML 转义/剥除），XSS 由各端渲染层净化（web 端 react-markdown 默认剥离原始 HTML 标签；移动端需使用 markdown 渲染器或对渲染输出净化）
 - 头像仅可通过 `PATCH /users/me/avatar` 设置（传入 mediaId），不可通过 `PATCH /users/me` 直接修改
+- 主页背景仅可通过 `PATCH /users/me/profile-cover` 设置：媒体必须属于本人、状态为 `COMPLETED`、类型为 jpg/png/webp，宽高比允许在 3:1 上下 1% 内浮动；`DELETE` 只解除引用，不删除媒体
 - 隐私开关（showRecentReplies / showPlayerBadges / showBookmarks）可通过 `PATCH /users/me` 修改
 - 空 body 的 PATCH /users/me 不执行数据库写入，直接返回当前信息
 - 资料修改限流 5 次/分钟
@@ -104,6 +110,7 @@
 - 公开收藏 (`GET /users/:id/bookmarks`)：受 `showBookmarks` 控制，关闭时返回 404；未发布帖不显示；私密帖仅对其参与人可见；本人始终可见；Cursor 分页
 - 参与帖子 (`GET /users/:id/played-threads`)：只有被帖子管理者授予玩家身份（`playerMarked=true`）才算参与，仅回复过而生成的候选成员关系不计入。列表始终排除自己创建的帖（`ownerId = targetId`），按加入时间倒序并使用 Cursor 分页。本人可用 `visibility=PUBLIC|PRIVATE` 分类查看已获玩家身份的公开帖或私密帖；他人查看时只返回 PUBLIC 帖，并受 `showPlayerBadges` 控制。非本人请求 PRIVATE 分类固定返回空列表
 - 创建帖子 (`GET /users/:id/created-threads`)：无隐私开关，由帖本身 visibility 控制——本人可见全部已发布帖（含 PRIVATE），他人仅见 PUBLIC 帖；按创建时间倒序排列；Cursor 分页
+- 活动汇总 (`GET /users/:id/activity-summary`)：动态数过滤删除内容与当前查看者的双向拉黑关系；创建/参与主题数与对应列表采用相同的已发布、未删除、PUBLIC/PRIVATE 范围；参与数排除自建帖。`showPlayerBadges` 或 `showRecentReplies` 对他人关闭时，对应计数返回 `null` 且不执行受保护统计；本人始终可见。
 - 最近动态 (`GET /users/:id/recent-replies`)：受 `showRecentReplies` 控制，关闭时返回 404；他人只看到 PUBLIC 帖，本人可看到自己在已发布 PUBLIC/PRIVATE 帖中的记录。仅返回 `kind=FLOOR` 的楼层/楼中楼回复，排除默认正文 `BODY`；固定返回最近 10 条不分页。每条含 `preview`（Markdown 剥离后的纯文本截断，使用 `truncateMarkdown`）和 `parentPostId`（为 null 则为楼层回复，非 null 则为楼中楼）
 
 ## 隐私开关行为详解

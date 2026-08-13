@@ -1,5 +1,15 @@
 # API 合同变更
 
+## 4.8.0-dev.20260813.2
+
+- 新增 `GET /users/:id/activity-summary`，按当前查看者的可见范围返回动态、创建主题、玩家身份参与主题和楼层回复总数。
+- `playedThreadCount` 与 `replyCount` 在对应资料隐私关闭且查看者非本人时返回 `null`；动态统计继续遵守双向拉黑过滤，主题统计继续遵守公开/私密可见性。
+
+## 4.8.0-dev.20260813.1
+
+- 当前用户与公开用户资料向后兼容新增可空的 `profileCover`，包含原图、中图和原始尺寸；已注销用户仍只返回最小墓碑资料。
+- 新增 `PATCH /users/me/profile-cover` 与 `DELETE /users/me/profile-cover`，复用现有媒体上传链路，以本人已完成的 3:1 jpg/png/webp 媒体设置或移除个人主页背景图。
+
 ## 4.7.0-dev.20260811.1
 
 - 新增 `POST /moderation/appeal-token`：账号密码校验成功后签发 15 分钟、仅限申诉接口使用的 Bearer JWT。普通有效会话与该专用凭据均可读取本人近 30 天决定并提交申诉，被暂停或封禁账号不再因普通 JWT 的处罚前置检查而失去申诉入口。

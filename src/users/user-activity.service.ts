@@ -71,6 +71,70 @@ export class UserActivityService {
     return this.threads.findByCreatedUser(targetId, viewerId, cursor, limit);
   }
 
+  async activitySummary(targetId: string, viewerId?: string) {
+    const target = await this.prisma.user.findUnique({
+      where: { id: targetId, deletedAt: null },
+      select: { id: true, showPlayerBadges: true, showRecentReplies: true },
+    });
+    if (!target) throw new NotFoundException('用户不存在');
+
+    const isSelf = targetId === viewerId;
+    const publicVisibility = isSelf ? {} : { visibility: 'PUBLIC' as const };
+    const visibleMomentAuthor = viewerId
+      ? {
+          author: {
+            userBlocks: { none: { blockedId: viewerId } },
+            blockedBy: { none: { blockerId: viewerId } },
+          },
+        }
+      : {};
+
+    const [momentCount, createdThreadCount, playedThreadCount, replyCount] = await Promise.all([
+      this.prisma.moment.count({
+        where: { authorId: targetId, deletedAt: null, ...visibleMomentAuthor },
+      }),
+      this.prisma.thread.count({
+        where: {
+          ownerId: targetId,
+          published: true,
+          deletedAt: null,
+          ...publicVisibility,
+        },
+      }),
+      isSelf || target.showPlayerBadges
+        ? this.prisma.threadMember.count({
+            where: {
+              userId: targetId,
+              playerMarked: true,
+              thread: {
+                ownerId: { not: targetId },
+                published: true,
+                deletedAt: null,
+                ...publicVisibility,
+              },
+            },
+          })
+        : Promise.resolve(null),
+      isSelf || target.showRecentReplies
+        ? this.prisma.post.count({
+            where: {
+              authorId: targetId,
+              kind: 'FLOOR',
+              deletedAt: null,
+              subthread: { deletedAt: null },
+              thread: {
+                published: true,
+                deletedAt: null,
+                ...publicVisibility,
+              },
+            },
+          })
+        : Promise.resolve(null),
+    ]);
+
+    return { momentCount, createdThreadCount, playedThreadCount, replyCount };
+  }
+
   async recentReplies(targetId: string, viewerId?: string) {
     const target = await this.prisma.user.findUnique({
       where: { id: targetId, deletedAt: null },

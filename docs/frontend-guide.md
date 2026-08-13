@@ -281,6 +281,8 @@ POST   /threads/join-by-link/:token   通过 16 位 token 幂等加入私密帖
 
 用户主页 `GET /users/:id/played-threads`：仅返回用户已被授予玩家身份（`playerMarked=true`）的非自建帖子，回复生成的普通成员关系不计入；本人可用 `visibility=PUBLIC|PRIVATE` 分类，查看他人时只返回 PUBLIC 帖。
 
+用户主页概览使用 `GET /users/:id/activity-summary` 获取精确创作统计：`momentCount`、`createdThreadCount`、`playedThreadCount`、`replyCount`。后两项受现有资料隐私控制，查看者无权时为 `null`，客户端应显示“未公开”而不是当作 0；不要为了统计提前拉取并遍历分页列表。
+
 ### 4.6 通知
 
 ```
@@ -316,6 +318,30 @@ S3 预签名直传，不经过后端中转：
 ```
 
 文件限制：仅允许 jpg/jpeg、png、gif、webp、avif，最大 10MB；明确拒绝 SVG/BMP。处理完成后响应中的 `thumbnailUrl`（300×300 WebP）和 `mediumUrl`（最长边 800 WebP）可直接用于列表与详情，处理中为 `null`。
+
+### 5.1 主页背景图
+
+主页背景复用上述上传链路，但绑定前由客户端裁剪为 3:1（Web 当前输出 1920×640 WebP，质量 0.92）：
+
+```text
+PATCH  /users/me/profile-cover  { "mediaId": "<completed-media-id>" }
+DELETE /users/me/profile-cover
+```
+
+服务端会复核媒体属于当前用户、状态为 `COMPLETED`、MIME 为 jpg/png/webp 且宽高比接近 3:1。`GET /users/me` 的 `profileCover` 为必填可空字段；有效用户的 `GET /users/:id` 同样返回该字段，已注销用户仍只返回最小墓碑资料。
+
+```json
+{
+  "profileCover": {
+    "url": "https://cdn.example.com/profile-cover.webp",
+    "mediumUrl": "https://cdn.example.com/profile-cover_md.webp",
+    "width": 1920,
+    "height": 640
+  }
+}
+```
+
+主页背景应通过 `srcset` 在显式 `mediumUrl`（当前最长边 800px）和 `url` 原图之间按视口与 DPR 自适应选择，以兼顾普通屏幕带宽和高 DPR 屏幕清晰度；候选图失败或 `mediumUrl` 为空时回退 `url`。客户端不要从原图 URL 自行拼接派生地址。移除背景仅解除用户引用并返回 `profileCover: null`。
 
 ---
 

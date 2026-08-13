@@ -8,7 +8,10 @@ import { UserActivityService } from './user-activity.service';
 describe('UserActivityService', () => {
   const prisma = {
     user: { findMany: jest.fn(), findUnique: jest.fn() },
-    post: { findMany: jest.fn() },
+    post: { findMany: jest.fn(), count: jest.fn() },
+    moment: { count: jest.fn() },
+    thread: { count: jest.fn() },
+    threadMember: { count: jest.fn() },
   };
   const bookmarks = { findByUserId: jest.fn() };
   const threads = { findByPlayedUser: jest.fn(), findByCreatedUser: jest.fn() };
@@ -115,6 +118,104 @@ describe('UserActivityService', () => {
       'created',
     );
     expect(threads.findByCreatedUser).toHaveBeenCalledWith('target-1', 'viewer-1', 'cursor-1', 8);
+  });
+
+  it('活动汇总按他人可见范围统计四类创作数据', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'target-1',
+      showPlayerBadges: true,
+      showRecentReplies: true,
+    });
+    prisma.moment.count.mockResolvedValue(7);
+    prisma.thread.count.mockResolvedValue(3);
+    prisma.threadMember.count.mockResolvedValue(4);
+    prisma.post.count.mockResolvedValue(28);
+
+    await expect(service.activitySummary('target-1', 'viewer-1')).resolves.toEqual({
+      momentCount: 7,
+      createdThreadCount: 3,
+      playedThreadCount: 4,
+      replyCount: 28,
+    });
+    expect(prisma.moment.count).toHaveBeenCalledWith({
+      where: {
+        authorId: 'target-1',
+        deletedAt: null,
+        author: {
+          userBlocks: { none: { blockedId: 'viewer-1' } },
+          blockedBy: { none: { blockerId: 'viewer-1' } },
+        },
+      },
+    });
+    expect(prisma.thread.count).toHaveBeenCalledWith({
+      where: {
+        ownerId: 'target-1',
+        published: true,
+        deletedAt: null,
+        visibility: 'PUBLIC',
+      },
+    });
+    expect(prisma.threadMember.count).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        userId: 'target-1',
+        playerMarked: true,
+        thread: expect.objectContaining({ visibility: 'PUBLIC' }),
+      }),
+    });
+    expect(prisma.post.count).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        authorId: 'target-1',
+        kind: 'FLOOR',
+        thread: expect.objectContaining({ visibility: 'PUBLIC' }),
+      }),
+    });
+  });
+
+  it('他人不可见的参与和回复统计返回 null 且不执行计数', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'target-1',
+      showPlayerBadges: false,
+      showRecentReplies: false,
+    });
+    prisma.moment.count.mockResolvedValue(2);
+    prisma.thread.count.mockResolvedValue(1);
+
+    await expect(service.activitySummary('target-1', 'viewer-1')).resolves.toEqual({
+      momentCount: 2,
+      createdThreadCount: 1,
+      playedThreadCount: null,
+      replyCount: null,
+    });
+    expect(prisma.threadMember.count).not.toHaveBeenCalled();
+    expect(prisma.post.count).not.toHaveBeenCalled();
+  });
+
+  it('本人可查看私密主题范围内的活动汇总', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'target-1',
+      showPlayerBadges: false,
+      showRecentReplies: false,
+    });
+    prisma.moment.count.mockResolvedValue(2);
+    prisma.thread.count.mockResolvedValue(5);
+    prisma.threadMember.count.mockResolvedValue(6);
+    prisma.post.count.mockResolvedValue(30);
+
+    await service.activitySummary('target-1', 'target-1');
+
+    expect(prisma.thread.count).toHaveBeenCalledWith({
+      where: { ownerId: 'target-1', published: true, deletedAt: null },
+    });
+    expect(prisma.threadMember.count).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        thread: expect.not.objectContaining({ visibility: expect.anything() }),
+      }),
+    });
+    expect(prisma.post.count).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        thread: expect.not.objectContaining({ visibility: expect.anything() }),
+      }),
+    });
   });
 
   it('未公开最近动态时仅本人可查看', async () => {

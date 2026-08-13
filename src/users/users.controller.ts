@@ -21,6 +21,7 @@ import { Throttle } from '@nestjs/throttler';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { SetAvatarDto } from './dto/set-avatar.dto';
+import { SetProfileCoverDto } from './dto/set-profile-cover.dto';
 import { Auth, AuthRead, OptionalAuth } from '../auth/decorators/auth.decorator';
 import { MentionCandidatesResponseDto } from './dto/mention-candidate.dto';
 import { PlayedThreadsQueryDto } from './dto/played-threads-query.dto';
@@ -39,6 +40,7 @@ import {
   PrivateUserResponseDto,
   PublicUserResponseDto,
   RecentReplyResponseDto,
+  UserActivitySummaryResponseDto,
 } from './dto/user-response.dto';
 import { PostAuthorResponseDto } from '../posts/dto/post-response.dto';
 import { CursorPaginationDto } from '../common/dto/pagination.dto';
@@ -126,6 +128,36 @@ export class UsersController {
     return this.usersService.setAvatar(user.id, null);
   }
 
+  @Patch('me/profile-cover')
+  @Auth()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '设置个人主页背景图（传入 3:1 图片的 mediaId）' })
+  @ApiOkResponse({
+    type: PrivateUserResponseDto,
+    description: '更新后的用户资料（含新背景图）',
+  })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
+  @ApiNotFoundResponse({ description: 'mediaId 不存在或未完成处理' })
+  async setProfileCover(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() dto: SetProfileCoverDto,
+  ) {
+    return this.usersService.setProfileCover(user.id, dto.mediaId);
+  }
+
+  @Delete('me/profile-cover')
+  @Auth()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '移除个人主页背景图并恢复默认背景' })
+  @ApiOkResponse({
+    type: PrivateUserResponseDto,
+    description: '更新后的用户资料（profileCover 为 null）',
+  })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
+  async removeProfileCover(@CurrentUser() user: CurrentUserPayload) {
+    return this.usersService.setProfileCover(user.id, null);
+  }
+
   @Delete('me')
   @Auth()
   @ApiBearerAuth()
@@ -191,6 +223,21 @@ export class UsersController {
       query.cursor,
       query.limit,
     );
+  }
+
+  @Get(':id/activity-summary')
+  @OptionalAuth()
+  @ApiOperation({ summary: '获取用户主页创作活动汇总' })
+  @ApiOkResponse({
+    type: UserActivitySummaryResponseDto,
+    description: '按当前查看者权限统计动态、创建主题、参与主题和回复总数',
+  })
+  @ApiNotFoundResponse({ description: '用户不存在' })
+  async getUserActivitySummary(
+    @Param('id') id: string,
+    @CurrentUser() viewer: CurrentUserPayload | undefined,
+  ) {
+    return this.activity.activitySummary(id, viewer?.id);
   }
 
   @Get(':id/recent-replies')

@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "4.7.0-dev.20260811.1",
+  "contractVersion": "4.8.0-dev.20260813.2",
   "counts": {
-    "total": 197,
-    "v1": 92,
+    "total": 200,
+    "v1": 95,
     "deferred": 55,
     "notApplicable": 49,
     "infrastructure": 1
@@ -203,6 +203,22 @@
       "status": "planned"
     },
     {
+      "operationId": "usersSetProfileCover",
+      "method": "PATCH",
+      "path": "/api/v1/users/me/profile-cover",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "usersRemoveProfileCover",
+      "method": "DELETE",
+      "path": "/api/v1/users/me/profile-cover",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
       "operationId": "usersGetUserBookmarks",
       "method": "GET",
       "path": "/api/v1/users/{id}/bookmarks",
@@ -222,6 +238,14 @@
       "operationId": "usersGetUserCreatedThreads",
       "method": "GET",
       "path": "/api/v1/users/{id}/created-threads",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "usersGetUserActivitySummary",
+      "method": "GET",
+      "path": "/api/v1/users/{id}/activity-summary",
       "module": "users",
       "disposition": "v1",
       "status": "planned"
