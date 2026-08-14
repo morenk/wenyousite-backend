@@ -131,7 +131,7 @@ export class UsersController {
   @Patch('me/profile-cover')
   @Auth()
   @ApiBearerAuth()
-  @ApiOperation({ summary: '设置个人主页双画幅背景图（Web 3:1 + 移动端 2:1）' })
+  @ApiOperation({ summary: '设置个人主页双画幅背景图（电脑端 3:1、移动端 2:1）' })
   @ApiOkResponse({
     type: PrivateUserResponseDto,
     description: '更新后的用户资料（含新背景图）',
