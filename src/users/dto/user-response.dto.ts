@@ -9,7 +9,7 @@ class UserSocialCountResponseDto {
   followers!: number;
 }
 
-export class ProfileCoverResponseDto {
+export class ProfileCoverVariantResponseDto {
   @ApiProperty({ description: '背景图原图地址' })
   url!: string;
 
@@ -21,6 +21,15 @@ export class ProfileCoverResponseDto {
 
   @ApiProperty({ type: Number, nullable: true })
   height!: number | null;
+}
+
+export class ProfileCoverResponseDto extends ProfileCoverVariantResponseDto {
+  @ApiProperty({
+    type: ProfileCoverVariantResponseDto,
+    nullable: true,
+    description: '移动端 2:1 裁切；历史背景图可能为空',
+  })
+  mobile!: ProfileCoverVariantResponseDto | null;
 }
 
 export class PrivateUserResponseDto {

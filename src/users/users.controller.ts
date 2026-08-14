@@ -131,7 +131,7 @@ export class UsersController {
   @Patch('me/profile-cover')
   @Auth()
   @ApiBearerAuth()
-  @ApiOperation({ summary: '设置个人主页背景图（传入 3:1 图片的 mediaId）' })
+  @ApiOperation({ summary: '设置个人主页双画幅背景图（Web 3:1 + 移动端 2:1）' })
   @ApiOkResponse({
     type: PrivateUserResponseDto,
     description: '更新后的用户资料（含新背景图）',
@@ -142,7 +142,7 @@ export class UsersController {
     @CurrentUser() user: CurrentUserPayload,
     @Body() dto: SetProfileCoverDto,
   ) {
-    return this.usersService.setProfileCover(user.id, dto.mediaId);
+    return this.usersService.setProfileCover(user.id, dto.mediaId, dto.mobileMediaId);
   }
 
   @Delete('me/profile-cover')

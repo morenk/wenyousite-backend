@@ -321,14 +321,17 @@ S3 预签名直传，不经过后端中转：
 
 ### 5.1 主页背景图
 
-主页背景复用上述上传链路，但绑定前由客户端裁剪为 3:1（Web 当前输出 1920×640 WebP，质量 0.92）：
+主页背景复用上述上传链路。客户端从同一原图分别裁剪 Web 3:1（1920×640）和移动端 2:1（1600×800），均输出质量 0.92 的 WebP：
 
 ```text
-PATCH  /users/me/profile-cover  { "mediaId": "<completed-media-id>" }
+PATCH  /users/me/profile-cover  {
+  "mediaId": "<completed-web-media-id>",
+  "mobileMediaId": "<completed-mobile-media-id>"
+}
 DELETE /users/me/profile-cover
 ```
 
-服务端会复核媒体属于当前用户、状态为 `COMPLETED`、MIME 为 jpg/png/webp 且宽高比接近 3:1。`GET /users/me` 的 `profileCover` 为必填可空字段；有效用户的 `GET /users/:id` 同样返回该字段，已注销用户仍只返回最小墓碑资料。
+服务端会复核两张媒体属于当前用户、状态为 `COMPLETED`、MIME 为 jpg/png/webp，并分别接近 3:1 与 2:1；验证通过后原子绑定。为兼容旧客户端，`mobileMediaId` 可省略，但会清空旧移动裁切，防止新旧构图混用。`GET /users/me` 的 `profileCover` 为必填可空字段；有效用户的 `GET /users/:id` 同样返回该字段，已注销用户仍只返回最小墓碑资料。
 
 ```json
 {
@@ -336,12 +339,18 @@ DELETE /users/me/profile-cover
     "url": "https://cdn.example.com/profile-cover.webp",
     "mediumUrl": "https://cdn.example.com/profile-cover_md.webp",
     "width": 1920,
-    "height": 640
+    "height": 640,
+    "mobile": {
+      "url": "https://cdn.example.com/profile-cover-mobile.webp",
+      "mediumUrl": "https://cdn.example.com/profile-cover-mobile_md.webp",
+      "width": 1600,
+      "height": 800
+    }
   }
 }
 ```
 
-主页背景应通过 `srcset` 在显式 `mediumUrl`（当前最长边 800px）和 `url` 原图之间按视口与 DPR 自适应选择，以兼顾普通屏幕带宽和高 DPR 屏幕清晰度；候选图失败或 `mediumUrl` 为空时回退 `url`。客户端不要从原图 URL 自行拼接派生地址。移除背景仅解除用户引用并返回 `profileCover: null`。
+Web 使用根级 3:1 资产；移动端优先使用 `mobile`，历史数据中该字段为 `null` 时回退根级 Web 资产。每套资产都应通过 `srcset` 在显式 `mediumUrl`（当前最长边 800px）和 `url` 原图之间按视口与 DPR 自适应选择；候选图失败或 `mediumUrl` 为空时回退 `url`。客户端不要从原图 URL 自行拼接派生地址。移除背景会解除两套用户引用并返回 `profileCover: null`。服务端不保留上传前原图与裁切参数，再次调整需重新选择文件。
 
 ---
 

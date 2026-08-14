@@ -46,7 +46,7 @@
 - 处理成功后仅以条件更新把仍为 `PROCESSING` 的 Media 写入 `width`、`height`、`size`、`status=COMPLETED`
 - 处理失败（末次重试耗尽）仅把仍为 `PROCESSING` 的记录标记 `FAILED`；迟到任务不能覆盖已经完成或已被其他流程迁移的状态
 - 头像设置通过 `PATCH /users/me/avatar` 使用 `mediaId`，校验 `status=COMPLETED`
-- 个人主页背景图通过 `PATCH /users/me/profile-cover` 使用 `mediaId`，额外校验本人归属、jpg/png/webp 与 3:1 宽高比；客户端先裁剪为固定比例再上传
+- 个人主页背景图通过 `PATCH /users/me/profile-cover` 同时绑定 Web `mediaId` 与可选 `mobileMediaId`，额外校验本人归属、jpg/png/webp，以及 3:1 / 2:1 宽高比；客户端从同一原图分别裁剪成品后上传
 
 ## MediaStatus 状态机
 

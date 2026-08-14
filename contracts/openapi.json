@@ -1927,7 +1927,7 @@
             "bearer": []
           }
         ],
-        "summary": "设置个人主页背景图（传入 3:1 图片的 mediaId）",
+        "summary": "设置个人主页双画幅背景图（电脑端 3:1、移动端 2:1）",
         "tags": [
           "Users"
         ],
@@ -17029,7 +17029,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "4.9.0-dev.20260814.2",
+    "version": "4.10.0-dev.20260814.1",
     "contact": {}
   },
   "tags": [
@@ -17674,7 +17674,7 @@
           "canMentionAllPlayers"
         ]
       },
-      "ProfileCoverResponseDto": {
+      "ProfileCoverVariantResponseDto": {
         "type": "object",
         "properties": {
           "url": {
@@ -17700,6 +17700,45 @@
           "mediumUrl",
           "width",
           "height"
+        ]
+      },
+      "ProfileCoverResponseDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "背景图原图地址"
+          },
+          "mediumUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "800px WebP 中图地址"
+          },
+          "width": {
+            "type": "number",
+            "nullable": true
+          },
+          "height": {
+            "type": "number",
+            "nullable": true
+          },
+          "mobile": {
+            "nullable": true,
+            "description": "移动端 2:1 裁切；历史背景图可能为空",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProfileCoverVariantResponseDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "url",
+          "mediumUrl",
+          "width",
+          "height",
+          "mobile"
         ]
       },
       "UserSocialCountResponseDto": {
@@ -18002,7 +18041,12 @@
           "mediaId": {
             "type": "string",
             "example": "clxabc123...",
-            "description": "upload-url 返回的 mediaId"
+            "description": "电脑端 3:1 背景图 mediaId"
+          },
+          "mobileMediaId": {
+            "type": "string",
+            "example": "clxmobile456...",
+            "description": "移动端 2:1 背景图 mediaId；旧客户端省略时会清空移动端裁切"
           }
         },
         "required": [

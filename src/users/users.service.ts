@@ -30,6 +30,7 @@ const userSelectPrivate = {
   username: true,
   avatar: true,
   profileCoverMedia: { select: profileCoverMediaSelect },
+  profileCoverMobileMedia: { select: profileCoverMediaSelect },
   bio: true,
   role: true,
   showRecentReplies: true,
@@ -49,6 +50,7 @@ const userSelectPublic = () => ({
   username: true,
   avatar: true,
   profileCoverMedia: { select: profileCoverMediaSelect },
+  profileCoverMobileMedia: { select: profileCoverMediaSelect },
   bio: true,
   role: true,
   showRecentReplies: true,
@@ -84,6 +86,14 @@ interface UserWithProgressAndTips extends Record<string, unknown> {
     width: number | null;
     height: number | null;
   } | null;
+  profileCoverMobileMedia?: {
+    id: string;
+    url: string;
+    status: string;
+    contentType: string | null;
+    width: number | null;
+    height: number | null;
+  } | null;
   sanctions?: Array<{
     type: UserSanctionType;
     endsAt: Date | null;
@@ -91,7 +101,7 @@ interface UserWithProgressAndTips extends Record<string, unknown> {
 }
 
 const flattenProgressAndTips = (user: UserWithProgressAndTips): Record<string, unknown> => {
-  const { wallet, profileCoverMedia, ...fields } = user;
+  const { wallet, profileCoverMedia, profileCoverMobileMedia, ...fields } = user;
   return {
     ...fields,
     profileCover: profileCoverMedia
@@ -100,6 +110,14 @@ const flattenProgressAndTips = (user: UserWithProgressAndTips): Record<string, u
           mediumUrl: mediaVariantUrls(profileCoverMedia).mediumUrl,
           width: profileCoverMedia.width,
           height: profileCoverMedia.height,
+          mobile: profileCoverMobileMedia
+            ? {
+                url: profileCoverMobileMedia.url,
+                mediumUrl: mediaVariantUrls(profileCoverMobileMedia).mediumUrl,
+                width: profileCoverMobileMedia.width,
+                height: profileCoverMobileMedia.height,
+              }
+            : null,
         }
       : null,
     ...(typeof fields.experience === 'number' ? progressionFor(fields.experience) : {}),
@@ -333,40 +351,61 @@ export class UsersService {
       });
   }
 
-  /** 绑定/移除个人主页背景图；图片必须属于本人、已处理完成且接近 3:1。 */
-  async setProfileCover(userId: string, mediaId: string | null) {
+  /** 绑定/移除个人主页双画幅背景图；电脑端为 3:1，移动端为 2:1。 */
+  async setProfileCover(userId: string, mediaId: string | null, mobileMediaId?: string | null) {
     if (mediaId === null) {
       const result = await this.prisma.user.update({
         where: { id: userId },
-        data: { profileCoverMediaId: null },
+        data: { profileCoverMediaId: null, profileCoverMobileMediaId: null },
         select: userSelectPrivate,
       });
       this.eventEmitter.emit('user.updated', { userId });
       return flattenProgressAndTips(result);
     }
 
-    const media = await this.prisma.media.findUnique({ where: { id: mediaId } });
-    if (!media) throw new NotFoundException('媒体记录不存在');
-    if (media.userId !== userId) throw new ForbiddenException('无权使用此图片');
-    if (media.status !== 'COMPLETED') {
-      throw new BadRequestException(
-        `图片尚未处理完成（当前状态: ${media.status}），请稍后重试或查询 GET /media/${media.id}`,
-      );
-    }
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(media.contentType ?? '')) {
-      throw new BadRequestException('主页背景仅支持 jpg/png/webp 格式');
-    }
-    if (!media.width || !media.height || Math.abs(media.width / media.height - 3) > 0.03) {
-      throw new BadRequestException('主页背景必须裁剪为 3:1');
-    }
+    const webMedia = await this.validateProfileCoverMedia(userId, mediaId, 3, '电脑端');
+    const mobileMedia = mobileMediaId
+      ? await this.validateProfileCoverMedia(userId, mobileMediaId, 2, '移动端')
+      : null;
 
     const result = await this.prisma.user.update({
       where: { id: userId },
-      data: { profileCoverMediaId: media.id },
+      data: {
+        profileCoverMediaId: webMedia.id,
+        profileCoverMobileMediaId: mobileMedia?.id ?? null,
+      },
       select: userSelectPrivate,
     });
     this.eventEmitter.emit('user.updated', { userId });
     return flattenProgressAndTips(result);
+  }
+
+  private async validateProfileCoverMedia(
+    userId: string,
+    mediaId: string,
+    expectedRatio: 2 | 3,
+    surfaceLabel: '电脑端' | '移动端',
+  ) {
+    const media = await this.prisma.media.findUnique({ where: { id: mediaId } });
+    if (!media) throw new NotFoundException(`${surfaceLabel}背景媒体记录不存在`);
+    if (media.userId !== userId) throw new ForbiddenException(`无权使用此${surfaceLabel}背景`);
+    if (media.status !== 'COMPLETED') {
+      throw new BadRequestException(
+        `${surfaceLabel}背景尚未处理完成（当前状态: ${media.status}），请稍后重试或查询 GET /media/${media.id}`,
+      );
+    }
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(media.contentType ?? '')) {
+      throw new BadRequestException(`${surfaceLabel}背景仅支持 jpg/png/webp 格式`);
+    }
+    const tolerance = expectedRatio * 0.01;
+    if (
+      !media.width ||
+      !media.height ||
+      Math.abs(media.width / media.height - expectedRatio) > tolerance
+    ) {
+      throw new BadRequestException(`${surfaceLabel}背景必须裁剪为 ${expectedRatio}:1`);
+    }
+    return media;
   }
 
   async deactivate(id: string) {
@@ -388,6 +427,7 @@ export class UsersService {
           email: releasedEmail,
           avatar: null,
           profileCoverMediaId: null,
+          profileCoverMobileMediaId: null,
         },
       }),
       this.prisma.refreshToken.updateMany({

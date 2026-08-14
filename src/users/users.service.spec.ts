@@ -40,6 +40,7 @@ const userFixture = {
   email: 'test@example.com',
   avatar: null,
   profileCoverMedia: null,
+  profileCoverMobileMedia: null,
   bio: null,
   role: 'USER',
   deletedAt: null,
@@ -224,6 +225,7 @@ describe('UsersService', () => {
         email: 'deleted_user_abcdefghijklmnop@deleted.invalid',
         avatar: null,
         profileCoverMediaId: null,
+        profileCoverMobileMediaId: null,
         deletedAt: expect.any(Date),
       }),
     });
@@ -299,7 +301,60 @@ describe('UsersService', () => {
     expect(mockPrisma.media.findUnique).not.toHaveBeenCalled();
   });
 
-  it('setProfileCover 应校验图片后绑定 3:1 背景图', async () => {
+  it('setProfileCover 应校验并同时绑定 3:1 与 2:1 双画幅背景图', async () => {
+    const webCoverMedia = {
+      id: 'cover-1',
+      userId: 'u1',
+      url: 'https://example.com/cover-web.webp',
+      status: 'COMPLETED',
+      contentType: 'image/webp',
+      width: 1920,
+      height: 640,
+    };
+    const mobileCoverMedia = {
+      id: 'cover-mobile-1',
+      userId: 'u1',
+      url: 'https://example.com/cover-mobile.webp',
+      status: 'COMPLETED',
+      contentType: 'image/webp',
+      width: 1600,
+      height: 800,
+    };
+    mockPrisma.media.findUnique
+      .mockResolvedValueOnce(webCoverMedia)
+      .mockResolvedValueOnce(mobileCoverMedia);
+    mockPrisma.user.update.mockResolvedValue({
+      ...userFixture,
+      profileCoverMedia: webCoverMedia,
+      profileCoverMobileMedia: mobileCoverMedia,
+    });
+
+    const result = await service.setProfileCover('u1', 'cover-1', 'cover-mobile-1');
+
+    expect(mockPrisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'u1' },
+        data: {
+          profileCoverMediaId: 'cover-1',
+          profileCoverMobileMediaId: 'cover-mobile-1',
+        },
+      }),
+    );
+    expect(result.profileCover).toEqual({
+      url: 'https://example.com/cover-web.webp',
+      mediumUrl: 'https://example.com/cover-web_md.webp',
+      width: 1920,
+      height: 640,
+      mobile: {
+        url: 'https://example.com/cover-mobile.webp',
+        mediumUrl: 'https://example.com/cover-mobile_md.webp',
+        width: 1600,
+        height: 800,
+      },
+    });
+  });
+
+  it('setProfileCover 兼容旧请求并清空旧移动端裁切', async () => {
     const coverMedia = {
       id: 'cover-1',
       userId: 'u1',
@@ -319,21 +374,20 @@ describe('UsersService', () => {
 
     expect(mockPrisma.user.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: 'u1' },
-        data: { profileCoverMediaId: 'cover-1' },
+        data: { profileCoverMediaId: 'cover-1', profileCoverMobileMediaId: null },
       }),
     );
-    expect(result.profileCover).toEqual({
-      url: 'https://example.com/cover.webp',
-      mediumUrl: 'https://example.com/cover_md.webp',
-      width: 1440,
-      height: 480,
-    });
+    expect(result.profileCover).toEqual(
+      expect.objectContaining({
+        url: 'https://example.com/cover.webp',
+        mobile: null,
+      }),
+    );
   });
 
   it.each([
-    [{ contentType: 'image/gif', width: 1440, height: 480 }, '主页背景仅支持'],
-    [{ contentType: 'image/webp', width: 1200, height: 500 }, '主页背景必须裁剪为 3:1'],
+    [{ contentType: 'image/gif', width: 1440, height: 480 }, '电脑端背景仅支持'],
+    [{ contentType: 'image/webp', width: 1200, height: 500 }, '电脑端背景必须裁剪为 3:1'],
   ])('setProfileCover 拒绝不符合背景图契约的媒体', async (overrides, message) => {
     mockPrisma.media.findUnique.mockResolvedValue({
       id: 'cover-1',
@@ -347,14 +401,48 @@ describe('UsersService', () => {
     expect(mockPrisma.user.update).not.toHaveBeenCalled();
   });
 
+  it.each([
+    [{ contentType: 'image/gif', width: 1600, height: 800 }, '移动端背景仅支持'],
+    [{ contentType: 'image/webp', width: 1600, height: 700 }, '移动端背景必须裁剪为 2:1'],
+  ])('setProfileCover 拒绝无效移动端裁切且不覆盖旧背景', async (overrides, message) => {
+    mockPrisma.media.findUnique
+      .mockResolvedValueOnce({
+        id: 'cover-1',
+        userId: 'u1',
+        url: 'https://example.com/cover.webp',
+        status: 'COMPLETED',
+        contentType: 'image/webp',
+        width: 1920,
+        height: 640,
+      })
+      .mockResolvedValueOnce({
+        id: 'cover-mobile-1',
+        userId: 'u1',
+        url: 'https://example.com/cover-mobile.webp',
+        status: 'COMPLETED',
+        ...overrides,
+      });
+
+    await expect(service.setProfileCover('u1', 'cover-1', 'cover-mobile-1')).rejects.toThrow(
+      message,
+    );
+    expect(mockPrisma.user.update).not.toHaveBeenCalled();
+  });
+
   it('setProfileCover(null) 应移除背景图且不查询 media', async () => {
-    mockPrisma.user.update.mockResolvedValue({ ...userFixture, profileCoverMedia: null });
+    mockPrisma.user.update.mockResolvedValue({
+      ...userFixture,
+      profileCoverMedia: null,
+      profileCoverMobileMedia: null,
+    });
 
     const result = await service.setProfileCover('u1', null);
 
     expect(result.profileCover).toBeNull();
     expect(mockPrisma.user.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { profileCoverMediaId: null } }),
+      expect.objectContaining({
+        data: { profileCoverMediaId: null, profileCoverMobileMediaId: null },
+      }),
     );
     expect(mockPrisma.media.findUnique).not.toHaveBeenCalled();
   });

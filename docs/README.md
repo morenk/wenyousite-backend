@@ -16,8 +16,8 @@
 | [后端架构与模块边界](./architecture.md)                              | 分层规则、事务 Outbox、API 契约和自动门禁               |
 | [API 契约发布流程](./api-contract.md)                                | OpenAPI 事实源、版本、生成与客户端同步规则              |
 | [Flutter / 原生移动端接入](./mobile-client-guide.md)                 | 安全存储、刷新、幂等、分页、媒体和 FCM                  |
-| [移动端 V1 覆盖清单](../contracts/mobile-v1-operation-coverage.json) | 197 个 operationId 的 V1、延期、管理端与基础设施分类    |
-| [移动端 V1 黄金旅程](../contracts/mobile-v1-golden-fixtures.json)    | 认证、重试、分类、媒体和幂等的跨端 fixture              |
+| [移动端 V1 覆盖清单](../contracts/mobile-v1-operation-coverage.json) | 202 个 operationId 的 V1、延期、管理端与基础设施分类    |
+| [移动端 V1 黄金旅程](../contracts/mobile-v1-golden-fixtures.json)    | 认证、重试、分类、媒体、双画幅背景和幂等的跨端 fixture  |
 | [移动端私有发布运维](./mobile-release-operations.md)                 | Windows 构建验签、RainS3 直传与 VPS `/meta` 晋级       |
 | [Flutter 设计基础边界](./mobile-ui-contract.md)                      | 中央设计仓库入口及后端/客户端职责边界                   |
 | [历史发布记录](./history/README.md)                                  | 已完成迁移和兼容窗口，仅供追溯，不定义现行行为          |

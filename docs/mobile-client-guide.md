@@ -93,6 +93,7 @@ OpenAPI 为兼容 Web 把该头标为 optional；省略或传未知值会创建 
 ## 媒体、Markdown、动态与温油
 
 - 上传遵循“预签名 PUT → `upload-done` → 查询状态”；仅在 `COMPLETED` 后使用衍生图，列表优先 `thumbnailUrl`，详情优先 `mediumUrl`，为空或失败时回退 `url`。不得猜测对象键。
+- 个人主页背景包含根级 Web 3:1 资产和可空 `mobile` 2:1 资产；移动端优先选择 `mobile`，历史数据为空时回退根级资产，整体为 null 时不预留背景舞台。双画幅设置与移除仍是 planned，客户端实现前也必须消费 `mobile-v1-golden-fixtures.json` 的 `profileCovers` 旅程。
 - 主题帖、楼层和回复使用 Markdown v2。客户端必须消费 [`markdown-v2-fixtures.json`](../contracts/markdown-v2-fixtures.json) 与 [`markdown-v2-nodes-fixtures.json`](../contracts/markdown-v2-nodes-fixtures.json)，覆盖规范化、可见文本、扩展节点和 round-trip。
 - 动态标题保持纯文本；正文和评论仍是字符串，不进入通用 Markdown 渲染链路，但应消费 [`internal-reference-v1-fixtures.json`](../contracts/internal-reference-v1-fixtures.json)，只识别 `[名称](站内主题坐标)` 与裸站内主题坐标。其他 Markdown/外链保持字面文本。传送门同页导航、目标不可见时交给既有详情错误态，不预取目标元数据。
 - 动态最多九张图片；评论可使用文字、单张图片或单个收藏表情，图片与表情互斥。
@@ -127,4 +128,4 @@ Content-Type: application/json
 
 ## 接入验收
 
-后端门禁负责 OpenAPI、错误码、197 项移动覆盖清单、V1 协议旅程、动态分类、Markdown、站内传送门 fixtures 和 push schema/fixtures。Flutter 必须共同消费这些产物，并为标为 `implemented` 的 operationId 提供运行时代码和自动测试证据。
+后端门禁负责 OpenAPI、错误码、202 项移动覆盖清单、V1 协议旅程、动态分类、Markdown、站内传送门 fixtures 和 push schema/fixtures。Flutter 必须共同消费这些产物，并为标为 `implemented` 的 operationId 提供运行时代码和自动测试证据。

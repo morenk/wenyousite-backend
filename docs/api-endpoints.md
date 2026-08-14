@@ -38,7 +38,7 @@
 | DELETE | `/users/me` | verified | 注销当前账号 |
 | PATCH | `/users/me/avatar` | verified | 设置头像（传入 mediaId，校验归属和 COMPLETED 状态） |
 | DELETE | `/users/me/avatar` | verified | 移除头像（置空 user.avatar，回到首字母占位） |
-| PATCH | `/users/me/profile-cover` | verified | 设置个人主页背景图（传入 3:1 图片的 mediaId） |
+| PATCH | `/users/me/profile-cover` | verified | 设置个人主页双画幅背景图（Web 3:1 + 移动端 2:1） |
 | DELETE | `/users/me/profile-cover` | verified | 移除个人主页背景图并恢复默认背景 |
 | GET | `/users/{id}/bookmarks` | optional | 查看用户的收藏列表（受 showBookmarks 隐私开关控制） |
 | GET | `/users/{id}/played-threads` | optional | 查看用户参与的帖子（仅已被授予玩家身份的帖子；他人仅可见公开帖） |

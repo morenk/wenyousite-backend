@@ -27,8 +27,8 @@
 | PATCH  | `/users/me`                  | Auth         | 修改当前用户资料（用户名、Bio、隐私设置），5次/分钟限流，需邮箱已验证                                                                                        |
 | PATCH  | `/users/me/avatar`           | Auth         | 设置头像（传入 mediaId，校验归属 + 状态 COMPLETED），需邮箱已验证                                                                                            |
 | DELETE | `/users/me/avatar`           | Auth         | 移除头像（置空 `user.avatar`，回到首字母占位），需邮箱已验证                                                                                                 |
-| PATCH  | `/users/me/profile-cover`    | Auth         | 设置个人主页背景图（传入 mediaId，校验归属、完成状态、格式与 3:1 比例），需邮箱已验证                                                                         |
-| DELETE | `/users/me/profile-cover`    | Auth         | 移除个人主页背景图并恢复客户端默认背景，需邮箱已验证                                                                                                         |
+| PATCH  | `/users/me/profile-cover`    | Auth         | 设置个人主页双画幅背景图（`mediaId` 为 Web 3:1，`mobileMediaId` 为移动端 2:1），需邮箱已验证                                                                   |
+| DELETE | `/users/me/profile-cover`    | Auth         | 同时移除两端个人主页背景图并恢复客户端默认背景，需邮箱已验证                                                                                                 |
 | DELETE | `/users/me`                  | Auth         | 注销当前账号（软删除，设置 deletedAt），需邮箱已验证                                                                                                         |
 | GET    | `/users/:id`                 | OptionalAuth | 获取指定用户的公开资料（不含邮箱）。登录后额外返回 isFollowing / isFollowedBy / isBlocked / isBlockedBy                                                      |
 | GET    | `/users/:id/bookmarks`       | OptionalAuth | 查看用户的公开收藏，Cursor 分页。受 showBookmarks 控制                                                                                                       |
@@ -53,7 +53,7 @@
 | `id`                | ✓                      | ✓                       | 用户唯一标识                 |
 | `username`          | ✓                      | ✓                       | 用户名                       |
 | `avatar`            | ✓                      | ✓                       | 头像 URL                     |
-| `profileCover`      | ✓                      | ✓                       | 可空背景图（原图/中图/尺寸） |
+| `profileCover`      | ✓                      | ✓                       | 可空背景图（根级 Web 3:1 + 可空 `mobile` 2:1） |
 | `bio`               | ✓                      | ✓                       | 个人简介                     |
 | `role`              | ✓                      | ✓                       | 权限角色                     |
 | `email`             | ✓                      | ✗                       | 仅本人可见                   |
@@ -89,14 +89,14 @@
 - `accountStatus` 只根据当前有效处罚派生为 `ACTIVE / SUSPENDED / BANNED`，不暴露处罚原因、起止时间或管理员信息；临时处罚缓存不会晚于其结束时间失效
 - 已注销用户（deletedAt 非 null）的公开资料被屏蔽为 `{ id, username: '已注销用户', isDeactivated: true }`；帖子作者、楼主、成员、关注关系、收藏、搜索与通知中的用户摘要同样统一输出 `username: '已注销用户', avatar: null`
 - 注销时使用不含原用户名/邮箱的内部墓碑值释放两个唯一键，允许原用户或他人日后复用；墓碑值不得进入公开 API
-- 注销事务同时将 `users.avatar` 与 `profileCoverMediaId` 置空。已完成媒体还可能被 Markdown 字符串引用，在建立规范化引用账本前不执行即时对象硬删；注销不因对象存储清理失败而回滚，采用“宁可暂留、不可误删”的保守策略
+- 注销事务同时将 `users.avatar`、`profileCoverMediaId` 与 `profileCoverMobileMediaId` 置空。已完成媒体还可能被 Markdown 字符串引用，在建立规范化引用账本前不执行即时对象硬删；注销不因对象存储清理失败而回滚，采用“宁可暂留、不可误删”的保守策略
 - `GET /users/:id` 返回 `_count.following` 和 `_count.followers`，供前端展示社交数据
 - 更新用户名时事务锁定当前用户行并重新读取冷却时间，再检查唯一性和写入；冲突返回 409，DB 层 P2002 同样转 409 防止并发改名竞态
 - 用户名修改需间隔 7 天以上，不足时返回剩余天数提示；两个并发请求不能同时绕过同一份旧时间戳
 - 用户名规则：2-24 位，字母 + 数字 + 中文，禁止标点符号和特殊字符（注册与修改一致）
 - 用户名/简介按 **Markdown 原样存储**（不做 HTML 转义/剥除），XSS 由各端渲染层净化（web 端 react-markdown 默认剥离原始 HTML 标签；移动端需使用 markdown 渲染器或对渲染输出净化）
 - 头像仅可通过 `PATCH /users/me/avatar` 设置（传入 mediaId），不可通过 `PATCH /users/me` 直接修改
-- 主页背景仅可通过 `PATCH /users/me/profile-cover` 设置：媒体必须属于本人、状态为 `COMPLETED`、类型为 jpg/png/webp，宽高比允许在 3:1 上下 1% 内浮动；`DELETE` 只解除引用，不删除媒体
+- 主页背景仅可通过 `PATCH /users/me/profile-cover` 设置：Web `mediaId` 必须接近 3:1，可选 `mobileMediaId` 必须接近 2:1；两者都必须属于本人、状态为 `COMPLETED` 且为 jpg/png/webp。绑定一次写入，旧客户端省略移动 ID 时清空移动裁切；`DELETE` 同时解除两套引用但不删除媒体
 - 隐私开关（showRecentReplies / showPlayerBadges / showBookmarks）可通过 `PATCH /users/me` 修改
 - 空 body 的 PATCH /users/me 不执行数据库写入，直接返回当前信息
 - 资料修改限流 5 次/分钟

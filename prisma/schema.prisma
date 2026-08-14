@@ -264,7 +264,8 @@ model User {
   username            String    @unique
   password            String
   avatar              String?
-  profileCoverMediaId String?   @unique @map("profile_cover_media_id")
+  profileCoverMediaId       String? @unique @map("profile_cover_media_id")
+  profileCoverMobileMediaId String? @unique @map("profile_cover_mobile_media_id")
   bio                 String?
   role                UserRole  @default(USER)
   emailVerified       Boolean   @default(false) @map("email_verified")
@@ -306,6 +307,7 @@ model User {
   sanctionsRevoked              UserSanction[]                  @relation("SanctionRevoker")
   media                         Media[]
   profileCoverMedia             Media?                          @relation("UserProfileCover", fields: [profileCoverMediaId], references: [id], onDelete: SetNull)
+  profileCoverMobileMedia       Media?                          @relation("UserProfileCoverMobile", fields: [profileCoverMobileMediaId], references: [id], onDelete: SetNull)
   refreshTokens                 RefreshToken[]
   directConversationsAsFirst    DirectConversation[]            @relation("DirectConversationFirstUser")
   directConversationsAsSecond   DirectConversation[]            @relation("DirectConversationSecondUser")
@@ -838,7 +840,8 @@ model Media {
   momentImages     MomentImage[]
   momentCovers     Moment[]        @relation("MomentCover")
   momentComment    MomentComment?
-  profileCoverUser User?           @relation("UserProfileCover")
+  profileCoverUser       User? @relation("UserProfileCover")
+  profileCoverMobileUser User? @relation("UserProfileCoverMobile")
 
   @@index([status, createdAt])
   @@map("media")

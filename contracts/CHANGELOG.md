@@ -1,5 +1,11 @@
 # API 合同变更
 
+## 4.10.0-dev.20260814.1
+
+- 个人主页背景扩展为同源双画幅：保留电脑端 3:1 字段，并新增可空的移动端 2:1 资产；历史背景继续兼容为 `mobile: null`。
+- `PATCH /users/me/profile-cover` 新增可选 `mobileMediaId`，新客户端同时绑定两套已完成媒体，旧客户端省略时清空移动裁切；移除背景会同时解除两套引用。
+- 移动 V1 黄金旅程新增双画幅选择、Web 回退、原子替换、旧请求和双清理用例；Flutter 业务入口仍保持 planned。
+
 ## 4.9.0-dev.20260814.2
 
 - 新增 `POST /moderation/content/:type/:id/hide`，供前台与移动端管理员直接使用普通 Bearer 登录态隐藏内容；服务端实时校验 `ADMIN / SUPER_ADMIN` 角色，不要求独立站务 Cookie、CSRF 或邮件 step-up。

@@ -53,12 +53,47 @@ for (const section of [
   'pagination',
   'categories',
   'media',
+  'profileCovers',
   'idempotency',
   'unknownEnums',
 ]) {
   if (!Array.isArray(fixture[section]) || fixture[section].length === 0) {
     failures.push(`黄金 fixture 缺少 ${section} 用例`);
   }
+}
+
+const profileCoverCases = new Map(
+  (fixture.profileCovers as Array<Record<string, any>>).map((item) => [item.id, item]),
+);
+for (const id of [
+  'profile-cover-mobile-present',
+  'profile-cover-mobile-missing',
+  'profile-cover-empty',
+  'profile-cover-dual-write',
+  'profile-cover-legacy-write',
+  'profile-cover-remove',
+]) {
+  if (!profileCoverCases.has(id)) failures.push(`黄金 fixture 缺少双画幅用例 ${id}`);
+}
+const mobilePresent = profileCoverCases.get('profile-cover-mobile-present');
+if (
+  mobilePresent?.profileCover?.width / mobilePresent?.profileCover?.height !== 3 ||
+  mobilePresent?.profileCover?.mobile?.width / mobilePresent?.profileCover?.mobile?.height !== 2 ||
+  mobilePresent?.expectedSurface !== 'mobile'
+) {
+  failures.push('profile-cover-mobile-present 必须固定 Web 3:1、移动端 2:1 与移动优先');
+}
+const mobileMissing = profileCoverCases.get('profile-cover-mobile-missing');
+if (mobileMissing?.profileCover?.mobile !== null || mobileMissing?.expectedSurface !== 'web') {
+  failures.push('profile-cover-mobile-missing 必须固定移动裁切为空时回退 Web');
+}
+const dualWrite = profileCoverCases.get('profile-cover-dual-write');
+if (!dualWrite?.request?.mediaId || !dualWrite?.request?.mobileMediaId) {
+  failures.push('profile-cover-dual-write 必须同时包含 Web 与移动 mediaId');
+}
+const legacyWrite = profileCoverCases.get('profile-cover-legacy-write');
+if (!legacyWrite?.request?.mediaId || 'mobileMediaId' in (legacyWrite?.request ?? {})) {
+  failures.push('profile-cover-legacy-write 必须固定省略 mobileMediaId 的旧请求');
 }
 const caseIds = Object.values(fixture)
   .filter(Array.isArray)

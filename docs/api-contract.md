@@ -42,4 +42,4 @@ pnpm docs:check
 
 Web 与 Flutter 不直接下载线上 `/api/docs-json`。发布分支同步固定的 `contracts/openapi.json` 后再生成客户端，生成器版本也应锁定。生成结果的 diff 属于契约评审的一部分；出现非预期删除、nullable/required 变化或大量匿名模型时阻止合并。
 
-移动端范围以 [`mobile-v1-operation-coverage.json`](../contracts/mobile-v1-operation-coverage.json) 为唯一覆盖清单，以 [`mobile-v1-golden-fixtures.json`](../contracts/mobile-v1-golden-fixtures.json) 固定跨端协议旅程。197 个 operationId 必须全部且仅分类一次；状态改为 `implemented` 时必须记录自动测试证据。
+移动端范围以 [`mobile-v1-operation-coverage.json`](../contracts/mobile-v1-operation-coverage.json) 为唯一覆盖清单，以 [`mobile-v1-golden-fixtures.json`](../contracts/mobile-v1-golden-fixtures.json) 固定跨端协议旅程。202 个 operationId 必须全部且仅分类一次；状态改为 `implemented` 时必须记录自动测试证据。
