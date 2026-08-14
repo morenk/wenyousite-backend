@@ -25,6 +25,7 @@
 | `GET` | `/admin/users`、`/admin/users/:id` | 用户与有效处罚 |
 | `POST` | `/admin/users/:id/sanctions` | 临时暂停或永久封禁 |
 | `POST` | `/admin/users/:id/sanctions/current/revoke` | 解除当前处罚 |
+| `POST` | `/admin/content/:type/:id/hide`、`/restore` | 直接隐藏或恢复主题帖、帖子、动态及动态评论 |
 | `GET / POST` | `/admin/accounts`、`/admin/accounts/invites` | 管理员列表与邀请 |
 | `DELETE` | `/admin/accounts/:id` | 撤销普通管理员身份和后台会话 |
 | `POST` | `/admin/accounts/transfer-super-admin` | 移交唯一超级管理员身份 |
@@ -40,6 +41,8 @@
 案件、申诉、用户、审计与通知活动列表均使用不透明游标分页；客户端必须把响应 `meta.cursor` 原样用于下一页，切换任一筛选条件后从第一页重新查询。案件支持状态、目标类型与举报原因组合筛选；申诉支持状态、目标类型与处置动作；用户支持关键词、角色与处罚状态；审计支持动作、目标类型、操作者、目标与时间区间；通知活动支持关键词、发送状态与跳转目标。可选查询参数保持向后兼容，未传时不缩小结果集。
 
 主题帖分类以注册表管理：`slug` 创建后不可修改，作为主题帖外键和 Web/移动端契约中的稳定标识；管理员可随时修改名称、描述、颜色、排序和启停状态。更新分类会失效公开分类缓存，历史主题帖继续通过原 slug 关联并立即显示新的展示信息。
+
+直接内容处置与案件结案复用同一个 `ModerationService`：隐藏只接受当前公开可见且尚未删除的内容，写入 `deletedAt / removalSource=ADMIN / removedById / removalReason`；恢复只接受由管理员隐藏的记录，且父级主题帖、子贴或动态仍须可见。两条路径都会原子写审计，并在提交后失效主题帖排行、楼层/回复或动态投影。作者主动删除的内容不能通过站务接口改写来源或恢复。
 
 ## 案件、决定与申诉
 
