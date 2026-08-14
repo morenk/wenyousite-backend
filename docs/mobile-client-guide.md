@@ -38,6 +38,7 @@ OpenAPI 为兼容 Web 把该头标为 optional；省略或传未知值会创建 
 
 - access token 与 refresh token 存入 iOS Keychain / Android Keystore 封装的安全存储，不使用 SharedPreferences、普通文件或日志。
 - 所有受保护请求携带 `Authorization: Bearer <accessToken>`。
+- 管理员在移动端行使内容隐藏等客户端权力时继续使用同一普通 access token；`POST /moderation/content/:type/:id/hide` 会实时校验 `ADMIN / SUPER_ADMIN`，不建立站务 Cookie 会话，也不执行邮件 step-up。普通用户收到 `ADMIN_REQUIRED` 时不得显示或重试该能力。
 - 多个请求同时收到 `TOKEN_EXPIRED` 时只允许一个 refresh 在途，其余请求等待结果。
 - 刷新成功后原子替换两个 token，并只重放一次原请求；刷新失败或重放仍为 401 时停止自动重试。
 

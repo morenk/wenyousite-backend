@@ -6,6 +6,8 @@
 
 站务台使用独立的 HttpOnly Cookie 会话，普通用户 Bearer JWT 不能调用 `/admin/**`。登录需密码加邮件验证码；会话 30 分钟空闲失效、8 小时绝对失效，并限制每个管理员只有一个活动会话。账号管理、处罚、申诉推翻和运行开关等高风险操作还需最近 10 分钟内完成邮件 step-up。所有后台写请求同时校验 `X-CSRF-Token`。
 
+前台与移动端的权力性功能使用独立的 `AdminBearerAuth` 边界：复用普通 Bearer 登录态并从数据库实时读取角色，只允许 `ADMIN / SUPER_ADMIN`，不要求独立站务会话、CSRF 或邮件 step-up。该边界只作用于明确声明的客户端权力接口，不放宽 `/admin/**`。
+
 - `ADMIN`：案件、申诉、用户处罚、通知活动、分类标签、运行设置与审计读取。
 - `SUPER_ADMIN`：包含全部管理员能力，并管理邀请、管理员撤销和超级管理员移交。
 - 不允许处罚自己；普通管理员不能处罚管理员；任何管理员都不能处罚超级管理员。
@@ -26,6 +28,7 @@
 | `POST` | `/admin/users/:id/sanctions` | 临时暂停或永久封禁 |
 | `POST` | `/admin/users/:id/sanctions/current/revoke` | 解除当前处罚 |
 | `POST` | `/admin/content/:type/:id/hide`、`/restore` | 直接隐藏或恢复主题帖、帖子、动态及动态评论 |
+| `POST` | `/moderation/content/:type/:id/hide` | 前台/移动端管理员以普通 Bearer 直接隐藏内容 |
 | `GET` | `/admin/content/hidden` | 分页读取当前仍由管理员隐藏的内容及恢复可用状态 |
 | `GET / POST` | `/admin/accounts`、`/admin/accounts/invites` | 管理员列表与邀请 |
 | `DELETE` | `/admin/accounts/:id` | 撤销普通管理员身份和后台会话 |

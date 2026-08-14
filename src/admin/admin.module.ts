@@ -14,14 +14,22 @@ import { TaxonomyModule } from '../taxonomy/taxonomy.module';
 import { AdminTaxonomyController } from './admin-taxonomy.controller';
 import { AdminTaxonomyService } from './admin-taxonomy.service';
 import { AdminAuthController } from './admin-auth.controller';
-import { AdminAccountsController, AdminInviteAcceptanceController } from './admin-accounts.controller';
+import {
+  AdminAccountsController,
+  AdminInviteAcceptanceController,
+} from './admin-accounts.controller';
 import { AdminAccountsService } from './admin-accounts.service';
-import { AdminModerationAppealsController, ModerationCasesController, UserModerationAppealsController } from './moderation-cases.controller';
+import {
+  AdminModerationAppealsController,
+  ModerationCasesController,
+  UserModerationAppealsController,
+} from './moderation-cases.controller';
 import { ModerationCasesService } from './moderation-cases.service';
 import { SiteOperationalSettingsController } from './site-operational-settings.controller';
 import { NotificationCampaignController } from './notification-campaign.controller';
 import { NotificationCampaignService } from './notification-campaign.service';
 import { AuthModule } from '../auth/auth.module';
+import { ClientContentModerationController } from './client-content-moderation.controller';
 
 /** 管理后台模块：系统通知发送、预览、历史、用户搜索 */
 @Module({
@@ -37,6 +45,7 @@ import { AuthModule } from '../auth/auth.module';
     NotificationCampaignController,
     AdminController,
     AdminModerationController,
+    ClientContentModerationController,
     AdminDashboardController,
     AdminTaxonomyController,
   ],

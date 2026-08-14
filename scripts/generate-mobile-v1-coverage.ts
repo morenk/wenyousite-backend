@@ -127,6 +127,7 @@ function moduleFor(operation: Operation, disposition: Disposition): string {
   if (id.startsWith('direct')) return 'direct-messages';
   if (id.startsWith('economy')) return 'economy';
   if (id.startsWith('reports') || id.startsWith('userModeration')) return 'moderation';
+  if (id.startsWith('clientContentModeration')) return 'moderation';
   throw new Error(`无法为 ${id} 选择移动端模块`);
 }
 

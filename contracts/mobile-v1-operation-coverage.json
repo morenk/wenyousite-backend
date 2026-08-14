@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "4.9.0-dev.20260814.1",
+  "contractVersion": "4.9.0-dev.20260814.2",
   "counts": {
-    "total": 201,
-    "v1": 95,
+    "total": 202,
+    "v1": 96,
     "deferred": 55,
     "notApplicable": 50,
     "infrastructure": 1
@@ -1225,6 +1225,14 @@
       "module": "admin",
       "disposition": "not_applicable",
       "status": "not_applicable"
+    },
+    {
+      "operationId": "clientContentModerationHide",
+      "method": "POST",
+      "path": "/api/v1/moderation/content/{type}/{id}/hide",
+      "module": "moderation",
+      "disposition": "v1",
+      "status": "planned"
     },
     {
       "operationId": "adminDashboardOverview",

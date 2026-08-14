@@ -1,7 +1,7 @@
 {
   "contract": "wenyousite-mobile-v1",
   "version": 1,
-  "contractVersion": "4.9.0-dev.20260814.1",
+  "contractVersion": "4.9.0-dev.20260814.2",
   "description": "后端与 Flutter 共同消费的移动端 V1 协议旅程；固定状态转换，不固定界面截图。",
   "compatibility": [
     {
@@ -76,10 +76,7 @@
       "ordinaryAccessBusinessCodes": [40108, 40109],
       "credentialExchangeOperation": "userModerationAppealsIssueToken",
       "appealTokenTtlSeconds": 900,
-      "allowedOperations": [
-        "userModerationAppealsMine",
-        "userModerationAppealsAppeal"
-      ],
+      "allowedOperations": ["userModerationAppealsMine", "userModerationAppealsAppeal"],
       "ordinarySessionAction": "preserveTerminalState",
       "appealCredentialStorage": "separateSecureScope"
     },
@@ -90,6 +87,16 @@
       "expectedKind": "appealTokenInvalid",
       "appealCredentialAction": "clearAndReauthenticate",
       "ordinarySessionAction": "preserve"
+    },
+    {
+      "id": "admin-client-authority",
+      "operation": "clientContentModerationHide",
+      "credential": "ordinaryAccessToken",
+      "allowedRoles": ["ADMIN", "SUPER_ADMIN"],
+      "stationSessionRequired": false,
+      "csrfRequired": false,
+      "emailStepUpRequired": false,
+      "forbiddenBusinessCode": 40308
     },
     {
       "id": "unknown-401",

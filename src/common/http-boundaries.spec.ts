@@ -15,6 +15,7 @@ import { BusinessException } from './exceptions/business.exception';
 import { ErrorCode } from './exceptions/error-codes';
 import { AllExceptionsFilter } from './filters/all-exceptions.filter';
 import { AdminGuard } from './guards/admin.guard';
+import { AdminBearerGuard } from './guards/admin-bearer.guard';
 import { OptionalJwtAuthGuard } from './guards/optional-jwt-auth.guard';
 import { SKIP_VERIFIED_KEY, VerifiedGuard } from './guards/verified.guard';
 import { TransformInterceptor } from './interceptors/response.interceptor';
@@ -213,7 +214,9 @@ describe('认证和权限边界', () => {
   it('AdminGuard 拒绝缺失会话和普通用户', async () => {
     const reflector = { getAllAndOverride: jest.fn().mockReturnValue(undefined) };
     const missingSession = {
-      validateSession: jest.fn().mockRejectedValue(new BusinessException(40117, '需要管理员会话', 401)),
+      validateSession: jest
+        .fn()
+        .mockRejectedValue(new BusinessException(40117, '需要管理员会话', 401)),
       requireStepUp: jest.fn(),
     };
     await expect(
@@ -230,9 +233,30 @@ describe('认证和权限边界', () => {
       new AdminGuard(reflector as unknown as Reflector, normalUser as never).canActivate(
         httpContext({ role: 'USER' }).context,
       ),
-    ).rejects.toThrow(
-      '需要管理员权限',
+    ).rejects.toThrow('需要管理员权限');
+  });
+
+  it.each(['ADMIN', 'SUPER_ADMIN'])('AdminBearerGuard 允许普通登录态中的 %s', (role) => {
+    const reflector = { getAllAndOverride: jest.fn().mockReturnValue(undefined) };
+    const guard = new AdminBearerGuard(reflector as unknown as Reflector);
+
+    expect(guard.canActivate(httpContext({ role }).context)).toBe(true);
+  });
+
+  it('AdminBearerGuard 拒绝普通用户并尊重显式角色范围', () => {
+    const reflector = { getAllAndOverride: jest.fn() };
+    const guard = new AdminBearerGuard(reflector as unknown as Reflector);
+
+    reflector.getAllAndOverride.mockReturnValue(undefined);
+    expect(() => guard.canActivate(httpContext({ role: 'USER' }).context)).toThrow(
+      expect.objectContaining({ errorCode: ErrorCode.ADMIN_REQUIRED }),
     );
+
+    reflector.getAllAndOverride.mockReturnValue(['SUPER_ADMIN']);
+    expect(() => guard.canActivate(httpContext({ role: 'ADMIN' }).context)).toThrow(
+      expect.objectContaining({ errorCode: ErrorCode.ADMIN_REQUIRED }),
+    );
+    expect(guard.canActivate(httpContext({ role: 'SUPER_ADMIN' }).context)).toBe(true);
   });
 
   it('VerifiedGuard 尊重跳过元数据且拒绝未验证用户', () => {
@@ -287,9 +311,9 @@ describe('认证和权限边界', () => {
     const guard = new OptionalJwtAuthGuard();
     expect(guard.canActivate(httpContext().context)).toBe(true);
     expect(() => guard.handleRequest(new Error('invalid'), undefined)).toThrow('invalid');
-    expect(() =>
-      guard.handleRequest(null, undefined, { name: 'TokenExpiredError' }),
-    ).toThrow(expect.objectContaining({ errorCode: ErrorCode.TOKEN_EXPIRED }));
+    expect(() => guard.handleRequest(null, undefined, { name: 'TokenExpiredError' })).toThrow(
+      expect.objectContaining({ errorCode: ErrorCode.TOKEN_EXPIRED }),
+    );
     expect(() => guard.handleRequest(null, undefined)).toThrow(
       expect.objectContaining({ errorCode: ErrorCode.TOKEN_INVALID }),
     );

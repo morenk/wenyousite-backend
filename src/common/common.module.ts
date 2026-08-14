@@ -4,6 +4,7 @@ import { TransformInterceptor } from './interceptors/response.interceptor';
 import { AllExceptionsFilter } from './filters/all-exceptions.filter';
 import { OptionalJwtAuthGuard } from './guards/optional-jwt-auth.guard';
 import { AdminGuard } from './guards/admin.guard';
+import { AdminBearerGuard } from './guards/admin-bearer.guard';
 import { AdminAuthService } from '../admin/admin-auth.service';
 import { SiteOperationalSettingsService } from '../admin/site-operational-settings.service';
 import { OperationalSettingsGuard } from './guards/operational-settings.guard';
@@ -20,12 +21,14 @@ import { AuditService } from '../admin/audit.service';
     AuditService,
     SiteOperationalSettingsService,
     AdminGuard,
+    AdminBearerGuard,
     { provide: APP_GUARD, useClass: OperationalSettingsGuard },
   ],
   exports: [
     OptionalJwtAuthGuard,
     AdminAuthService,
     AdminGuard,
+    AdminBearerGuard,
     AuditService,
     SiteOperationalSettingsService,
   ],

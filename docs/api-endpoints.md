@@ -276,6 +276,12 @@
 | GET | `/admin/audit-logs` | admin | 管理员审计日志 |
 | GET | `/admin/audit-logs/export` | admin | 按当前筛选导出管理员审计日志 CSV（最多 10000 条） |
 
+## Client Moderation
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| POST | `/moderation/content/{type}/{id}/hide` | verified | 管理员在前台或移动端直接隐藏内容，无需独立站务会话 |
+
 ## Admin Dashboard
 
 | 方法 | 路径 | 鉴权 | 说明 |

@@ -410,7 +410,10 @@ test(s1, 'GET /meta 客户端协议元数据', async () => {
       policy.recommendedBuild === null || Number.isInteger(policy.recommendedBuild),
       `${platform} 推荐构建号应为整数或 null`,
     );
-    assert(policy.updateUrl === null || typeof policy.updateUrl === 'string', `${platform} 更新地址应为字符串或 null`);
+    assert(
+      policy.updateUrl === null || typeof policy.updateUrl === 'string',
+      `${platform} 更新地址应为字符串或 null`,
+    );
   }
 });
 
@@ -926,6 +929,19 @@ test(s12, 'POST /subthreads/:id/posts 空内容 → 400', async () => {
   assert(status === 400, `期望 400, 实际 ${status}`);
 });
 
+test(s12, '普通用户不能调用前台管理员隐藏接口 → 403', async () => {
+  const { status, json } = await api.expectStatus(
+    `/moderation/content/thread/${threadId}/hide`,
+    'POST',
+    { reason: '普通用户越权请求' },
+  );
+  assert(status === 403, `期望 403, 实际 ${status}`);
+  assert(
+    (json as { code?: number }).code === 40308,
+    `期望 ADMIN_REQUIRED(40308), 实际 ${(json as { code?: number }).code}`,
+  );
+});
+
 test(s12, 'GET /threads/:id 不存在 → 404', async () => {
   const { status } = await api.expectStatus('/threads/nonexistent-id-x', 'GET');
   assert(status === 404, `期望 404, 实际 ${status}`);
@@ -962,7 +978,10 @@ test(s14, 'POST /auth/logout 登出', async () => {
   assert(refreshResult.status === 401, `登出后 refresh token 应失效，实际 ${refreshResult.status}`);
   api.token = accessToken;
   const accessResult = await api.expectStatus('/users/me', 'GET');
-  assert(accessResult.status === 401, `登出后 access token 对应终端应失效，实际 ${accessResult.status}`);
+  assert(
+    accessResult.status === 401,
+    `登出后 access token 对应终端应失效，实际 ${accessResult.status}`,
+  );
 });
 
 // ═══════════════════════════════════════════════════════════════

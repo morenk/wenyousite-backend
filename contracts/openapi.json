@@ -12494,6 +12494,93 @@
         "x-auth-mode": "admin"
       }
     },
+    "/api/v1/moderation/content/{type}/{id}/hide": {
+      "post": {
+        "operationId": "clientContentModerationHide",
+        "parameters": [
+          {
+            "name": "type",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "thread",
+                "post",
+                "moment",
+                "moment_comment"
+              ]
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModerateContentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientContentModerationHide200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "管理员在前台或移动端直接隐藏内容，无需独立站务会话",
+        "tags": [
+          "Client Moderation"
+        ],
+        "x-auth-mode": "verified"
+      }
+    },
     "/api/v1/admin/dashboard/overview": {
       "get": {
         "operationId": "adminDashboardOverview",
@@ -16942,7 +17029,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "4.9.0-dev.20260814.1",
+    "version": "4.9.0-dev.20260814.2",
     "contact": {}
   },
   "tags": [
@@ -28611,6 +28698,24 @@
                 "items": {
                   "$ref": "#/components/schemas/AdminAuditLogResponseDto"
                 }
+              }
+            }
+          }
+        ]
+      },
+      "ClientContentModerationHide200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AdminContentModerationResponseDto"
               }
             }
           }
