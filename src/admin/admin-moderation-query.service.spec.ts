@@ -7,6 +7,10 @@ describe('AdminModerationQueryService', () => {
   const prisma = {
     user: { findMany: jest.fn(), findUnique: jest.fn() },
     auditLog: { findMany: jest.fn() },
+    thread: { findMany: jest.fn() },
+    post: { findMany: jest.fn() },
+    moment: { findMany: jest.fn() },
+    momentComment: { findMany: jest.fn() },
   };
   let service: AdminModerationQueryService;
 
@@ -102,6 +106,76 @@ describe('AdminModerationQueryService', () => {
     prisma.user.findUnique.mockResolvedValue(null);
     await expect(service.getUser('missing')).rejects.toMatchObject({
       errorCode: ErrorCode.USER_NOT_FOUND,
+    });
+  });
+
+  it('按当前删除状态聚合隐藏内容并标出父级导致的恢复阻塞', async () => {
+    const threadHiddenAt = new Date('2026-08-14T10:00:00.000Z');
+    const postHiddenAt = new Date('2026-08-14T09:00:00.000Z');
+    prisma.thread.findMany.mockResolvedValue([
+      {
+        id: 'thread-1',
+        title: '被隐藏的主题',
+        published: true,
+        visibility: 'PUBLIC',
+        deletedAt: threadHiddenAt,
+        removalReason: '主题处置理由',
+        removedById: 'admin-1',
+        owner: { id: 'user-1', username: '楼主' },
+      },
+    ]);
+    prisma.post.findMany.mockResolvedValue([
+      {
+        id: 'post-1',
+        content: '被隐藏的楼层内容',
+        parentPostId: null,
+        deletedAt: postHiddenAt,
+        removalReason: '楼层处置理由',
+        removedById: 'admin-1',
+        author: { id: 'user-2', username: '作者' },
+        thread: {
+          id: 'thread-2',
+          title: '父主题',
+          published: true,
+          visibility: 'PUBLIC',
+          deletedAt: threadHiddenAt,
+        },
+        subthread: { deletedAt: null },
+      },
+    ]);
+    prisma.moment.findMany.mockResolvedValue([]);
+    prisma.momentComment.findMany.mockResolvedValue([]);
+    prisma.user.findMany.mockResolvedValue([{ id: 'admin-1', username: '站务' }]);
+
+    const result = await service.listHiddenContent({ limit: 20 });
+
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        targetType: 'THREAD',
+        targetId: 'thread-1',
+        canRestore: true,
+        moderator: { id: 'admin-1', username: '站务' },
+      }),
+      expect.objectContaining({
+        targetType: 'POST',
+        targetId: 'post-1',
+        canRestore: false,
+        restoreBlockedReason: '父级主题帖或子贴仍不可见，请先恢复父级内容',
+      }),
+    ]);
+    expect(result.pagination.hasMore).toBe(false);
+    expect(result.pagination.cursor).toEqual(expect.any(String));
+    expect(prisma.thread.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ removalSource: 'ADMIN', deletedAt: { not: null } }),
+      }),
+    );
+  });
+
+  it('拒绝形状无效的隐藏内容游标', async () => {
+    await expect(service.listHiddenContent({ cursor: 'not-a-cursor' })).rejects.toMatchObject({
+      errorCode: ErrorCode.INVALID_CURSOR,
+      status: 400,
     });
   });
 

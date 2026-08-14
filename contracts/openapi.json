@@ -11918,6 +11918,107 @@
         "x-auth-mode": "admin"
       }
     },
+    "/api/v1/admin/content/hidden": {
+      "get": {
+        "operationId": "adminModerationListHiddenContent",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
+            "schema": {
+              "example": "clxabc123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（默认 20，最大 50）",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "targetType",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "THREAD",
+                "POST",
+                "MOMENT",
+                "MOMENT_COMMENT"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "当前隐藏内容列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminModerationListHiddenContent200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "当前仍由管理员隐藏的内容列表",
+        "tags": [
+          "Admin Moderation"
+        ],
+        "x-auth-mode": "admin",
+        "x-pagination": "cursor"
+      }
+    },
     "/api/v1/admin/content/{type}/{id}/restore": {
       "post": {
         "operationId": "adminModerationRestoreContent",
@@ -16841,7 +16942,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "4.8.0-dev.20260813.2",
+    "version": "4.9.0-dev.20260814.1",
     "contact": {}
   },
   "tags": [
@@ -22989,6 +23090,99 @@
           "deletedAt"
         ]
       },
+      "AdminHiddenContentUserResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "username"
+        ]
+      },
+      "AdminHiddenContentResponseDto": {
+        "type": "object",
+        "properties": {
+          "targetType": {
+            "type": "string",
+            "enum": [
+              "THREAD",
+              "POST",
+              "MOMENT",
+              "MOMENT_COMMENT"
+            ]
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "author": {
+            "$ref": "#/components/schemas/AdminHiddenContentUserResponseDto"
+          },
+          "moderator": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminHiddenContentUserResponseDto"
+              }
+            ]
+          },
+          "hiddenAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "canRestore": {
+            "type": "boolean"
+          },
+          "restoreBlockedReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "threadId": {
+            "type": "string",
+            "nullable": true
+          },
+          "parentPostId": {
+            "type": "string",
+            "nullable": true
+          },
+          "momentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "parentCommentId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "targetType",
+          "targetId",
+          "summary",
+          "author",
+          "moderator",
+          "hiddenAt",
+          "reason",
+          "canRestore",
+          "restoreBlockedReason",
+          "threadId",
+          "parentPostId",
+          "momentId",
+          "parentCommentId"
+        ]
+      },
       "AdminAuditActorResponseDto": {
         "type": "object",
         "properties": {
@@ -28357,6 +28551,27 @@
             "properties": {
               "data": {
                 "$ref": "#/components/schemas/AdminContentModerationResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminModerationListHiddenContent200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AdminHiddenContentResponseDto"
+                }
               }
             }
           }

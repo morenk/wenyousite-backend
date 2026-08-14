@@ -69,6 +69,55 @@ export class AdminContentModerationResponseDto {
   deletedAt!: Date | null;
 }
 
+export class AdminHiddenContentUserResponseDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  username!: string;
+}
+
+export class AdminHiddenContentResponseDto {
+  @ApiProperty({ enum: ['THREAD', 'POST', 'MOMENT', 'MOMENT_COMMENT'] })
+  targetType!: 'THREAD' | 'POST' | 'MOMENT' | 'MOMENT_COMMENT';
+
+  @ApiProperty()
+  targetId!: string;
+
+  @ApiProperty()
+  summary!: string;
+
+  @ApiProperty({ type: AdminHiddenContentUserResponseDto })
+  author!: AdminHiddenContentUserResponseDto;
+
+  @ApiProperty({ type: AdminHiddenContentUserResponseDto, nullable: true })
+  moderator!: AdminHiddenContentUserResponseDto | null;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  hiddenAt!: Date;
+
+  @ApiProperty({ type: String, nullable: true })
+  reason!: string | null;
+
+  @ApiProperty()
+  canRestore!: boolean;
+
+  @ApiProperty({ type: String, nullable: true })
+  restoreBlockedReason!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  threadId!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  parentPostId!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  momentId!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  parentCommentId!: string | null;
+}
+
 export class AdminAuditActorResponseDto {
   @ApiProperty()
   id!: string;

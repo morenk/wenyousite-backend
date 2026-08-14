@@ -26,6 +26,7 @@
 | `POST` | `/admin/users/:id/sanctions` | 临时暂停或永久封禁 |
 | `POST` | `/admin/users/:id/sanctions/current/revoke` | 解除当前处罚 |
 | `POST` | `/admin/content/:type/:id/hide`、`/restore` | 直接隐藏或恢复主题帖、帖子、动态及动态评论 |
+| `GET` | `/admin/content/hidden` | 分页读取当前仍由管理员隐藏的内容及恢复可用状态 |
 | `GET / POST` | `/admin/accounts`、`/admin/accounts/invites` | 管理员列表与邀请 |
 | `DELETE` | `/admin/accounts/:id` | 撤销普通管理员身份和后台会话 |
 | `POST` | `/admin/accounts/transfer-super-admin` | 移交唯一超级管理员身份 |
@@ -43,6 +44,8 @@
 主题帖分类以注册表管理：`slug` 创建后不可修改，作为主题帖外键和 Web/移动端契约中的稳定标识；管理员可随时修改名称、描述、颜色、排序和启停状态。更新分类会失效公开分类缓存，历史主题帖继续通过原 slug 关联并立即显示新的展示信息。
 
 直接内容处置与案件结案复用同一个 `ModerationService`：隐藏只接受当前公开可见且尚未删除的内容，写入 `deletedAt / removalSource=ADMIN / removedById / removalReason`；恢复只接受由管理员隐藏的记录，且父级主题帖、子贴或动态仍须可见。两条路径都会原子写审计，并在提交后失效主题帖排行、楼层/回复或动态投影。作者主动删除的内容不能通过站务接口改写来源或恢复。
+
+当前隐藏内容列表直接聚合四类内容表中 `removalSource=ADMIN` 且 `deletedAt` 非空的记录，不以历史审计动作推断当前状态，因此已经恢复的内容不会残留。列表按隐藏时间使用不透明游标分页；帖子或评论的父级仍不可见时返回 `canRestore=false` 与中文阻塞原因，管理员应先恢复父级内容。
 
 ## 案件、决定与申诉
 

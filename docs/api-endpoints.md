@@ -271,6 +271,7 @@
 | POST | `/admin/users/{id}/sanctions/current/revoke` | admin | 解除用户当前处罚 |
 | PATCH | `/admin/users/{id}/role` | admin | 撤销管理员角色；授予请使用邀请流程（超级管理员） |
 | POST | `/admin/content/{type}/{id}/hide` | admin | 隐藏主题帖、帖子、动态或动态评论 |
+| GET | `/admin/content/hidden` | admin | 当前仍由管理员隐藏的内容列表 |
 | POST | `/admin/content/{type}/{id}/restore` | admin | 恢复由管理员隐藏的主题帖、帖子、动态或动态评论 |
 | GET | `/admin/audit-logs` | admin | 管理员审计日志 |
 | GET | `/admin/audit-logs/export` | admin | 按当前筛选导出管理员审计日志 CSV（最多 10000 条） |

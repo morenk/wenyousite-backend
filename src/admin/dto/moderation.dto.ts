@@ -106,6 +106,13 @@ export class AuditLogQueryDto extends CursorPaginationDto {
   createdBefore?: string;
 }
 
+export class AdminHiddenContentQueryDto extends CursorPaginationDto {
+  @ApiPropertyOptional({ enum: ['THREAD', 'POST', 'MOMENT', 'MOMENT_COMMENT'] })
+  @IsOptional()
+  @IsIn(['THREAD', 'POST', 'MOMENT', 'MOMENT_COMMENT'])
+  targetType?: 'THREAD' | 'POST' | 'MOMENT' | 'MOMENT_COMMENT';
+}
+
 export class AdminContentParamsDto {
   @ApiProperty({ enum: ['thread', 'post', 'moment', 'moment_comment'] })
   @IsIn(['thread', 'post', 'moment', 'moment_comment'])

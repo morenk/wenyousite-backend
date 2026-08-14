@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "4.8.0-dev.20260813.2",
+  "contractVersion": "4.9.0-dev.20260814.1",
   "counts": {
-    "total": 200,
+    "total": 201,
     "v1": 95,
     "deferred": 55,
-    "notApplicable": 49,
+    "notApplicable": 50,
     "infrastructure": 1
   },
   "operations": [
@@ -1190,6 +1190,14 @@
       "operationId": "adminModerationHideContent",
       "method": "POST",
       "path": "/api/v1/admin/content/{type}/{id}/hide",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminModerationListHiddenContent",
+      "method": "GET",
+      "path": "/api/v1/admin/content/hidden",
       "module": "admin",
       "disposition": "not_applicable",
       "status": "not_applicable"

@@ -1,5 +1,11 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, Req, Res } from '@nestjs/common';
-import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiProduces, ApiTags } from '@nestjs/swagger';
+import {
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiProduces,
+  ApiTags,
+} from '@nestjs/swagger';
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { AdminAuth, SuperAdminStepUpAuth } from '../auth/decorators/admin-auth.decorator';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
@@ -7,6 +13,7 @@ import { ApiCursorPaginatedResponse } from '../common/swagger/api-cursor-paginat
 import { AdminActor, AdminRole } from './admin-policy.service';
 import {
   AdminContentParamsDto,
+  AdminHiddenContentQueryDto,
   AdminUserQueryDto,
   AuditLogQueryDto,
   ModerateContentDto,
@@ -17,6 +24,7 @@ import {
 import {
   AdminAuditLogResponseDto,
   AdminContentModerationResponseDto,
+  AdminHiddenContentResponseDto,
   AdminUserModerationResponseDto,
   AdminUserSanctionResponseDto,
 } from './dto/moderation-response.dto';
@@ -117,6 +125,13 @@ export class AdminModerationController {
       dto.reason,
       requestContext(request),
     );
+  }
+
+  @Get('content/hidden')
+  @ApiOperation({ summary: '当前仍由管理员隐藏的内容列表' })
+  @ApiCursorPaginatedResponse(AdminHiddenContentResponseDto, '当前隐藏内容列表')
+  listHiddenContent(@Query() query: AdminHiddenContentQueryDto) {
+    return this.queries.listHiddenContent(query);
   }
 
   @Post('content/:type/:id/restore')
