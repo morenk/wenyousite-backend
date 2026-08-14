@@ -13377,15 +13377,54 @@
               "maxLength": 100,
               "type": "string"
             }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "上一页返回的不透明游标",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数；旧客户端省略时保持最多 50 条，新客户端建议显式传 20",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 50,
+              "type": "number"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "主题帖结果，最多 50 条",
+            "description": "完整主题帖列表卡片，按标题相关度游标分页；meta 含 cursor/hasMore",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SearchSearchThreads200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "搜索游标无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
                 }
               }
             },
@@ -13422,6 +13461,7 @@
           "Search"
         ],
         "x-auth-mode": "public",
+        "x-pagination": "cursor",
         "security": []
       }
     },
@@ -17029,7 +17069,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "4.10.0-dev.20260814.1",
+    "version": "4.11.0-dev.20260814.1",
     "contact": {}
   },
   "tags": [
@@ -24005,61 +24045,14 @@
           "updatedAt"
         ]
       },
-      "SearchThreadOwnerResponseDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "用户 ID"
-          },
-          "username": {
-            "type": "string",
-            "description": "用户名"
-          },
-          "avatar": {
-            "type": "string",
-            "nullable": true,
-            "description": "头像 URL"
-          }
-        },
-        "required": [
-          "id",
-          "username",
-          "avatar"
-        ]
-      },
-      "SearchThreadCountResponseDto": {
-        "type": "object",
-        "properties": {
-          "members": {
-            "type": "number",
-            "description": "参与人数"
-          },
-          "posts": {
-            "type": "number",
-            "description": "帖子数"
-          },
-          "players": {
-            "type": "number",
-            "description": "已标记玩家数"
-          }
-        },
-        "required": [
-          "members",
-          "posts",
-          "players"
-        ]
-      },
       "SearchThreadResponseDto": {
         "type": "object",
         "properties": {
           "id": {
-            "type": "string",
-            "description": "主题帖 ID"
+            "type": "string"
           },
           "title": {
-            "type": "string",
-            "description": "主题帖标题"
+            "type": "string"
           },
           "category": {
             "type": "string",
@@ -24067,26 +24060,69 @@
             "example": "MYSTERY",
             "description": "动态分类 slug"
           },
-          "createdAt": {
-            "format": "date-time",
+          "status": {
             "type": "string",
-            "description": "创建时间"
+            "enum": [
+              "RECRUITING",
+              "CLOSED",
+              "FINISHED"
+            ]
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "PUBLIC",
+              "PRIVATE"
+            ]
+          },
+          "published": {
+            "type": "boolean"
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "tipTotal": {
+            "type": "string",
+            "pattern": "^\\d+$",
+            "description": "用户投入的累计打赏升数"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deletedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
           },
           "owner": {
-            "description": "楼主信息",
+            "$ref": "#/components/schemas/PostAuthorResponseDto"
+          },
+          "defaultSubthread": {
+            "nullable": true,
+            "type": "object",
             "allOf": [
               {
-                "$ref": "#/components/schemas/SearchThreadOwnerResponseDto"
+                "$ref": "#/components/schemas/ThreadListDefaultSubthreadResponseDto"
               }
             ]
           },
+          "topicTags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ThreadTagRelationResponseDto"
+            }
+          },
           "_count": {
-            "description": "主题帖统计",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SearchThreadCountResponseDto"
-              }
-            ]
+            "$ref": "#/components/schemas/ThreadListCountResponseDto"
+          },
+          "preview": {
+            "type": "string",
+            "description": "首页列表正文预览"
           },
           "coverImages": {
             "maxItems": 1,
@@ -24095,14 +24131,27 @@
             "items": {
               "type": "string"
             }
+          },
+          "relevance": {
+            "type": "number",
+            "description": "仅说明本次查询的标题相关度；客户端不得作为稳定业务字段依赖"
           }
         },
         "required": [
           "id",
           "title",
           "category",
+          "status",
+          "visibility",
+          "published",
+          "pinned",
+          "tipTotal",
           "createdAt",
+          "updatedAt",
+          "deletedAt",
           "owner",
+          "defaultSubthread",
+          "topicTags",
           "_count",
           "coverImages"
         ]
@@ -28957,7 +29006,7 @@
       "SearchSearchThreads200Response": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
           },
           {
             "type": "object",

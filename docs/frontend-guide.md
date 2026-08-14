@@ -424,7 +424,7 @@ DELETE /users/me/block/:id    取消拉黑
 ## 10. 搜索
 
 ```
-GET /search/threads?q=关键词
+GET /search/threads?q=关键词&cursor=&limit=20
 GET /search/users?q=关键词
 GET /search/posts?q=关键词&cursor=&limit=20
 GET /threads/:threadId/search/posts?q=关键词&cursor=&limit=20
@@ -439,7 +439,7 @@ GET /threads/:threadId/search/posts?q=关键词&cursor=&limit=20
 }
 ```
 
-三个全站分类端点供 Tab 按需请求，避免默认执行正文搜索。楼层关键词至少 2 个字符，每页最多 20 条、每个主题帖最多 3 条，按相关度优先排序；继续加载时透传 `meta.cursor`。用户结果排除已注销账号且不返回邮箱等敏感资料；主题帖与全站正文结果仅搜索已发布的公开帖内容。主题帖搜索结果的 `coverImages` 始终为数组，仅提供默认主贴正文中的第一张普通图片 URL，无图时为空数组。
+四个全站分类端点供 Tab 按需请求，避免默认执行正文搜索。动态与楼层关键词至少 2 个字符；主题帖与楼层搜索按相关度优先并使用游标分页，继续加载时透传 `meta.cursor`。楼层每页最多 20 条、每个主题帖最多 3 条。用户结果排除已注销账号且不返回邮箱等敏感资料；主题帖与全站正文结果仅搜索已发布的公开帖内容。主题帖搜索返回与 `GET /threads` 相同的完整列表卡片字段，`coverImages` 始终为数组且只提供默认主贴正文中的第一张普通图片 URL，无图时为空数组。分页客户端应显式传 `limit=20`；省略时为兼容旧客户端最多返回 50 条。
 
 `GET /threads` 是发现流契约，服务端保证排除已注销楼主的帖子；主题帖和正文搜索是显式找帖契约，仍保留已注销作者的公开历史内容。客户端不应将搜索结果自动回填到首页列表缓存。
 
