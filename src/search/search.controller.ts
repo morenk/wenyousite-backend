@@ -1,10 +1,5 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import {
-  ApiBadRequestResponse,
-  ApiOkResponse,
-  ApiOperation,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBadRequestResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SearchService } from './search.service';
 import { Public } from '../common/decorators/public.decorator';
 import {
@@ -16,6 +11,7 @@ import {
 import {
   SearchKeywordQueryDto,
   SearchPostsQueryDto,
+  SearchThreadsQueryDto,
 } from './dto/search-query.dto';
 import { ApiCursorPaginatedResponse } from '../common/swagger/api-cursor-paginated-response.decorator';
 import { OptionalAuth } from '../auth/decorators/auth.decorator';
@@ -47,15 +43,23 @@ export class SearchController {
   @Get('threads')
   @Public()
   @ApiOperation({ summary: '按标题搜索公开主题帖' })
-  @ApiOkResponse({ type: SearchThreadResponseDto, isArray: true, description: '主题帖结果，最多 50 条' })
-  async searchThreads(@Query() query: SearchKeywordQueryDto) {
-    return this.searchService.searchThreads(query.q);
+  @ApiCursorPaginatedResponse(
+    SearchThreadResponseDto,
+    '完整主题帖列表卡片，按标题相关度游标分页；meta 含 cursor/hasMore',
+  )
+  @ApiBadRequestResponse({ description: '搜索游标无效' })
+  async searchThreads(@Query() query: SearchThreadsQueryDto) {
+    return this.searchService.searchThreads(query.q, query.cursor, query.limit);
   }
 
   @Get('users')
   @Public()
   @ApiOperation({ summary: '按用户名搜索未注销用户' })
-  @ApiOkResponse({ type: SearchUserResponseDto, isArray: true, description: '用户结果，最多 20 条' })
+  @ApiOkResponse({
+    type: SearchUserResponseDto,
+    isArray: true,
+    description: '用户结果，最多 20 条',
+  })
   async searchUsers(@Query() query: SearchKeywordQueryDto) {
     return this.searchService.searchUsers(query.q);
   }

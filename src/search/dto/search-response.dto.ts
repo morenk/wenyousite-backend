@@ -1,4 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { HomeThreadListItemResponseDto } from '../../threads/dto/thread-list-response.dto';
 
 export class SearchUserResponseDto {
   @ApiProperty({ description: '用户 ID' })
@@ -22,47 +23,12 @@ class SearchAuthorResponseDto {
   username: string;
 }
 
-class SearchThreadOwnerResponseDto extends SearchAuthorResponseDto {
-  @ApiProperty({ type: String, nullable: true, description: '头像 URL' })
-  avatar: string | null;
-}
-
-class SearchThreadCountResponseDto {
-  @ApiProperty({ description: '参与人数' })
-  members: number;
-
-  @ApiProperty({ description: '帖子数' })
-  posts: number;
-
-  @ApiProperty({ description: '已标记玩家数' })
-  players: number;
-}
-
-export class SearchThreadResponseDto {
-  @ApiProperty({ description: '主题帖 ID' })
-  id: string;
-
-  @ApiProperty({ description: '主题帖标题' })
-  title: string;
-
-  @ApiProperty({ type: String, nullable: true, example: 'MYSTERY', description: '动态分类 slug' })
-  category: string | null;
-
-  @ApiProperty({ format: 'date-time', description: '创建时间' })
-  createdAt: Date;
-
-  @ApiProperty({ type: SearchThreadOwnerResponseDto, description: '楼主信息' })
-  owner: SearchThreadOwnerResponseDto;
-
-  @ApiProperty({ type: SearchThreadCountResponseDto, description: '主题帖统计' })
-  _count: SearchThreadCountResponseDto;
-
-  @ApiProperty({
-    type: [String],
-    maxItems: 1,
-    description: '默认主贴正文中的第一张普通图片 URL；无图时返回空数组',
+export class SearchThreadResponseDto extends HomeThreadListItemResponseDto {
+  @ApiPropertyOptional({
+    type: Number,
+    description: '仅说明本次查询的标题相关度；客户端不得作为稳定业务字段依赖',
   })
-  coverImages: string[];
+  relevance?: number;
 }
 
 class SearchThreadReferenceResponseDto {

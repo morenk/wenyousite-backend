@@ -1,12 +1,12 @@
 import { BadRequestException, HttpStatus, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { attachPlayerCounts, authorSelect, notDeleted } from '../common/prisma-helpers';
+import { attachPlayerCounts, authorSelect } from '../common/prisma-helpers';
 import { paginate } from '../common/dto/paginated-result';
 import { ThreadAccessService } from '../access/thread-access.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
-import { extractMarkdownCoverImages } from '../common/markdown-cover-images';
+import { mapThreadListCard, threadListCardInclude } from '../threads/thread-list-card';
 
 const SEARCH_POST_LIMIT = 20;
 const SEARCH_POSTS_PER_THREAD = 3;
@@ -27,6 +27,18 @@ interface RankedPostRow {
   id: string;
   relevance: number;
   createdAt: Date;
+}
+
+interface RankedThreadRow {
+  id: string;
+  relevance: number;
+  createdAt: Date;
+}
+
+interface SearchThreadCursor {
+  relevance: number;
+  createdAt: string;
+  id: string;
 }
 interface SearchPostCursor {
   relevance: number;
@@ -52,6 +64,16 @@ function encodePostCursor(row: RankedPostRow): string {
   ).toString('base64url');
 }
 
+function encodeThreadCursor(row: RankedThreadRow): string {
+  return Buffer.from(
+    JSON.stringify({
+      relevance: row.relevance,
+      createdAt: row.createdAt.toISOString(),
+      id: row.id,
+    } satisfies SearchThreadCursor),
+  ).toString('base64url');
+}
+
 function decodePostCursor(cursor: string): SearchPostCursor {
   try {
     const value = JSON.parse(
@@ -73,6 +95,31 @@ function decodePostCursor(cursor: string): SearchPostCursor {
   }
 }
 
+function decodeThreadCursor(cursor: string): SearchThreadCursor {
+  try {
+    const value = JSON.parse(
+      Buffer.from(cursor, 'base64url').toString('utf8'),
+    ) as Partial<SearchThreadCursor>;
+    if (
+      typeof value.relevance !== 'number' ||
+      !Number.isFinite(value.relevance) ||
+      typeof value.createdAt !== 'string' ||
+      Number.isNaN(Date.parse(value.createdAt)) ||
+      typeof value.id !== 'string' ||
+      value.id.length === 0
+    ) {
+      throw new Error('invalid cursor shape');
+    }
+    return value as SearchThreadCursor;
+  } catch {
+    throw new BusinessException(
+      ErrorCode.INVALID_CURSOR,
+      '无效的主题帖搜索游标',
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+}
+
 /** 搜索服务：分类查询用户、公开主题帖，以及全站或单帖楼层内容。 */
 @Injectable()
 export class SearchService {
@@ -90,12 +137,12 @@ export class SearchService {
       keywordLength(keyword) >= MIN_POST_SEARCH_LENGTH
         ? this.searchPosts(keyword).then((page) => page.items)
         : Promise.resolve([]);
-    const [users, threads, posts] = await Promise.all([
+    const [users, threadPage, posts] = await Promise.all([
       this.searchUsers(keyword),
-      this.searchThreads(keyword),
+      this.searchThreads(keyword, undefined, 50),
       postsPromise,
     ]);
-    return { users, threads, posts };
+    return { users, threads: threadPage.items, posts };
   }
 
   async searchUsers(q: string) {
@@ -112,42 +159,75 @@ export class SearchService {
     });
   }
 
-  async searchThreads(q: string) {
+  async searchThreads(q: string, cursor?: string, limit = 50) {
     const keyword = q?.trim() ?? '';
-    if (!keyword) return [];
-    const threads = await this.prisma.thread.findMany({
-      where: {
-        deletedAt: null,
-        published: true,
-        visibility: 'PUBLIC',
-        title: { contains: keyword, mode: 'insensitive' },
-      },
-      select: {
-        id: true,
-        title: true,
-        category: true,
-        createdAt: true,
-        owner: { select: authorSelect },
-        _count: { select: { members: true, posts: true } },
-        defaultSubthread: {
-          select: {
-            posts: {
-              where: { kind: 'BODY', ...notDeleted },
-              take: 1,
-              orderBy: { createdAt: 'asc' },
-              select: { content: true },
+    if (!keyword) return paginate([], { cursor: null, hasMore: false });
+    const take = Math.max(1, Math.min(limit, 50));
+    const decodedCursor = cursor ? decodeThreadCursor(cursor) : undefined;
+    const cursorDate = decodedCursor ? new Date(decodedCursor.createdAt) : undefined;
+    const cursorCondition =
+      decodedCursor && cursorDate
+        ? Prisma.sql`
+          AND (
+            ranked.relevance < ${decodedCursor.relevance}
+            OR (ranked.relevance = ${decodedCursor.relevance} AND ranked."createdAt" < ${cursorDate})
+            OR (
+              ranked.relevance = ${decodedCursor.relevance}
+              AND ranked."createdAt" = ${cursorDate}
+              AND ranked.id < ${decodedCursor.id}
+            )
+          )`
+        : Prisma.empty;
+    const likePattern = `%${escapeLikePattern(keyword)}%`;
+    const rankedRows = await this.prisma.$queryRaw<RankedThreadRow[]>(Prisma.sql`
+      WITH ranked AS (
+        SELECT
+          t.id,
+          similarity(t.title, ${keyword})::double precision AS relevance,
+          t."created_at" AS "createdAt"
+        FROM "threads" t
+        WHERE t."deleted_at" IS NULL
+          AND t."published" = true
+          AND t."visibility" = 'PUBLIC'
+          AND t.title ILIKE ${likePattern} ESCAPE '\\'
+      )
+      SELECT ranked.id, ranked.relevance, ranked."createdAt"
+      FROM ranked
+      WHERE true
+      ${cursorCondition}
+      ORDER BY ranked.relevance DESC, ranked."createdAt" DESC, ranked.id DESC
+      LIMIT ${take + 1}
+    `);
+    const hasMore = rankedRows.length > take;
+    const pageRows = rankedRows.slice(0, take);
+    const ids = pageRows.map((row) => row.id);
+    const unorderedThreads =
+      ids.length > 0
+        ? await this.prisma.thread.findMany({
+            where: {
+              id: { in: ids },
+              deletedAt: null,
+              published: true,
+              visibility: 'PUBLIC',
             },
-          },
-        },
-      },
-      take: 50,
-      orderBy: { updatedAt: 'desc' },
+            include: threadListCardInclude,
+          })
+        : [];
+    await attachPlayerCounts(this.prisma, unorderedThreads);
+    const threadById = new Map(
+      unorderedThreads.map((thread) => [thread.id, mapThreadListCard(thread)]),
+    );
+    const relevanceById = new Map(pageRows.map((row) => [row.id, row.relevance]));
+    const threads = ids.flatMap((id) => {
+      const thread = threadById.get(id);
+      return thread ? [{ ...thread, relevance: relevanceById.get(id) }] : [];
     });
-    await attachPlayerCounts(this.prisma, threads);
-    return threads.map(({ defaultSubthread, ...thread }) => ({
-      ...thread,
-      coverImages: extractMarkdownCoverImages(defaultSubthread?.posts[0]?.content ?? ''),
-    }));
+    const lastRow = pageRows.at(-1);
+
+    return paginate(threads, {
+      cursor: lastRow ? encodeThreadCursor(lastRow) : null,
+      hasMore,
+    });
   }
 
   /**

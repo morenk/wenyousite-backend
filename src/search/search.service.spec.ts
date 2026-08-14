@@ -27,6 +27,36 @@ const postDetail = (id: string) => ({
   thread: { id: `thread-${id}`, title: `主题 ${id}` },
   subthread: { id: 's1', title: '主讨论区' },
 });
+
+const threadCardRow = (id: string, overrides: Record<string, unknown> = {}) => ({
+  id,
+  title: `主题 ${id}`,
+  category: 'MYSTERY',
+  status: 'RECRUITING',
+  visibility: 'PUBLIC',
+  published: true,
+  pinned: false,
+  tipTotal: 0n,
+  createdAt: new Date('2026-08-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-08-02T00:00:00.000Z'),
+  deletedAt: null,
+  owner: {
+    id: 'u1',
+    username: '测试用户',
+    avatar: null,
+    level: 1,
+    deletedAt: null,
+  },
+  defaultSubthread: {
+    id: `sub-${id}`,
+    title: '主贴',
+    lastPostAt: null,
+    posts: [{ content: '正文' }],
+  },
+  topicTags: [],
+  _count: { members: 1, posts: 1 },
+  ...overrides,
+});
 function lastRawSql(): string {
   const query = mockPrisma.$queryRaw.mock.calls.at(-1)?.[0] as { strings?: string[] };
   return query?.strings?.join(' ') ?? '';
@@ -87,13 +117,21 @@ describe('SearchService', () => {
     expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
   });
 
-  it('主题帖分类只查询公开已发布主题并合并玩家计数', async () => {
-    mockPrisma.thread.findMany.mockResolvedValue([
+  it('主题帖分类按相关度分页并返回首页完整卡片', async () => {
+    mockPrisma.$queryRaw.mockResolvedValue([
       {
         id: 't1',
-        title: '测试帖',
+        relevance: 0.85,
+        createdAt: new Date('2026-08-01T00:00:00.000Z'),
+      },
+    ]);
+    mockPrisma.thread.findMany.mockResolvedValue([
+      threadCardRow('t1', {
         _count: { members: 5, posts: 3 },
         defaultSubthread: {
+          id: 's1',
+          title: '主贴',
+          lastPostAt: null,
           posts: [
             {
               content: [
@@ -104,26 +142,41 @@ describe('SearchService', () => {
             },
           ],
         },
-      },
+      }),
     ]);
     mockPrisma.threadMember.groupBy.mockResolvedValue([{ threadId: 't1', _count: 2 }]);
 
-    const threads = await service.searchThreads('测试');
+    const page = await service.searchThreads('测试', undefined, 20);
+    const threads = page.items;
 
     expect(threads[0]._count).toEqual({ members: 5, posts: 3, players: 2 });
     expect(threads[0].coverImages).toEqual(['https://cdn.example.com/cover.jpg']);
-    expect(threads[0]).not.toHaveProperty('defaultSubthread');
+    expect(threads[0]).toMatchObject({
+      preview: '',
+      status: 'RECRUITING',
+      topicTags: [],
+      defaultSubthread: { id: 's1', title: '主贴', lastPostAt: null },
+      relevance: 0.85,
+    });
+    expect(threads[0].defaultSubthread).not.toHaveProperty('posts');
+    expect(threads[0]).not.toHaveProperty('clientRequestId');
+    expect(threads[0]).not.toHaveProperty('createRequestHash');
+    expect(threads[0]).not.toHaveProperty('ownerId');
+    expect(page.pagination).toEqual({ cursor: expect.any(String), hasMore: false });
     expect(mockPrisma.thread.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
+          id: { in: ['t1'] },
           deletedAt: null,
           published: true,
           visibility: 'PUBLIC',
-          title: { contains: '测试', mode: 'insensitive' },
         },
-        select: expect.objectContaining({
+        include: expect.objectContaining({
           defaultSubthread: {
             select: {
+              id: true,
+              title: true,
+              lastPostAt: true,
               posts: {
                 where: { kind: 'BODY', deletedAt: null },
                 take: 1,
@@ -135,14 +188,24 @@ describe('SearchService', () => {
         }),
       }),
     );
+    const sql = lastRawSql();
+    expect(sql).toContain('similarity(t.title');
+    expect(sql).toContain('t."published" = true');
+    expect(sql).toContain('t."visibility" = \'PUBLIC\'');
+    expect(sql).not.toContain('INNER JOIN "users"');
     expect(mockPrisma.user.findMany).not.toHaveBeenCalled();
-    expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
   });
 
   it('用户显式搜索主题帖时保留已注销楼主的公开历史帖', async () => {
-    mockPrisma.thread.findMany.mockResolvedValue([
+    mockPrisma.$queryRaw.mockResolvedValue([
       {
         id: 't-deactivated-owner',
+        relevance: 0.8,
+        createdAt: new Date('2026-08-01T00:00:00.000Z'),
+      },
+    ]);
+    mockPrisma.thread.findMany.mockResolvedValue([
+      threadCardRow('t-deactivated-owner', {
         title: '可搜索的历史帖',
         owner: {
           id: 'u-deactivated',
@@ -152,17 +215,69 @@ describe('SearchService', () => {
           deletedAt: new Date('2026-08-11T00:00:00.000Z'),
         },
         _count: { members: 1, posts: 1 },
-        defaultSubthread: { posts: [] },
-      },
+        defaultSubthread: null,
+      }),
     ]);
     mockPrisma.threadMember.groupBy.mockResolvedValue([]);
 
-    const threads = await service.searchThreads('历史');
+    const page = await service.searchThreads('历史');
+    const threads = page.items;
 
     expect(threads).toHaveLength(1);
     expect(threads[0].id).toBe('t-deactivated-owner');
     const where = mockPrisma.thread.findMany.mock.calls[0][0].where;
     expect(where).not.toHaveProperty('owner');
+    expect(lastRawSql()).not.toContain('INNER JOIN "users"');
+  });
+
+  it('主题帖搜索使用相关度、时间和 ID 游标继续翻页', async () => {
+    const firstRow = {
+      id: 't1',
+      relevance: 0.75,
+      createdAt: new Date('2026-08-01T00:00:00.000Z'),
+    };
+    mockPrisma.$queryRaw.mockResolvedValue([firstRow]);
+    mockPrisma.thread.findMany.mockResolvedValue([threadCardRow('t1')]);
+    const firstPage = await service.searchThreads('测试', undefined, 20);
+
+    mockPrisma.$queryRaw.mockResolvedValue([]);
+    await service.searchThreads('测试', firstPage.pagination.cursor ?? undefined, 20);
+
+    const sql = lastRawSql();
+    expect(sql).toContain('ranked.relevance <');
+    expect(sql).toContain('ranked."createdAt" <');
+    expect(sql).toContain('ranked.id <');
+  });
+
+  it('主题帖搜索按请求页大小返回 hasMore 并保持相关度顺序', async () => {
+    const rankedRows = Array.from({ length: 21 }, (_, index) => ({
+      id: `t${index + 1}`,
+      relevance: 1 - index / 100,
+      createdAt: new Date(`2026-08-01T00:${String(index).padStart(2, '0')}:00.000Z`),
+    }));
+    mockPrisma.$queryRaw.mockResolvedValue(rankedRows);
+    mockPrisma.thread.findMany.mockResolvedValue(
+      rankedRows
+        .slice(0, 20)
+        .reverse()
+        .map((row) => threadCardRow(row.id)),
+    );
+
+    const page = await service.searchThreads('测试', undefined, 20);
+
+    expect(page.items).toHaveLength(20);
+    expect(page.items[0].id).toBe('t1');
+    expect(page.items[19].id).toBe('t20');
+    expect(page.pagination).toEqual({ cursor: expect.any(String), hasMore: true });
+    expect(lastRawValues()).toContain(21);
+  });
+
+  it('无法解析的主题帖搜索游标返回稳定业务错误码', async () => {
+    await expect(service.searchThreads('测试', 'not-a-cursor', 20)).rejects.toMatchObject({
+      errorCode: ErrorCode.INVALID_CURSOR,
+      status: 400,
+    });
+    expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
   });
 
   it('楼层正文不足两个有效字符时拒绝查询数据库', async () => {
@@ -303,13 +418,22 @@ describe('SearchService', () => {
 
   it('兼容搜索在单字符时仅返回用户和主题帖，不执行楼层扫描', async () => {
     mockPrisma.user.findMany.mockResolvedValue([{ id: 'u1' }]);
-    mockPrisma.thread.findMany.mockResolvedValue([{ id: 't1', _count: {} }]);
+    mockPrisma.$queryRaw.mockResolvedValue([
+      {
+        id: 't1',
+        relevance: 0,
+        createdAt: new Date('2026-08-01T00:00:00.000Z'),
+      },
+    ]);
+    mockPrisma.thread.findMany.mockResolvedValue([threadCardRow('t1')]);
 
     const result = await service.search('字');
 
     expect(result.users).toHaveLength(1);
     expect(result.threads).toHaveLength(1);
     expect(result.posts).toEqual([]);
-    expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
+    expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(lastRawSql()).toContain('FROM "threads"');
+    expect(lastRawSql()).not.toContain('FROM "posts"');
   });
 });

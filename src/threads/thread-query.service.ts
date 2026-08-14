@@ -16,11 +16,11 @@ import {
   includeSubthreads,
   mapSubthreadBody,
 } from '../common/prisma-helpers';
-import { truncateMarkdown } from '../common/markdown-truncate';
 import {
-  extractMarkdownCoverImages,
-  stripVisibleMarkdownImages,
-} from '../common/markdown-cover-images';
+  mapThreadListCard,
+  threadListCardInclude,
+  type ThreadListCardRow,
+} from './thread-list-card';
 
 const ZSET_BY_SMART = 'threads:by:smart';
 const DISCOVERABLE_THREAD_OWNER_WHERE = { is: { deletedAt: null } } as const;
@@ -211,21 +211,7 @@ export class ThreadQueryService {
       take: take + 1,
       cursor: query.cursor ? { id: query.cursor } : undefined,
       skip: query.cursor ? 1 : 0,
-      include: {
-        owner: { select: authorSelect },
-        defaultSubthread: {
-          include: {
-            posts: {
-              where: { kind: 'BODY', ...notDeleted },
-              take: 1,
-              orderBy: { createdAt: 'asc' },
-              select: { content: true },
-            },
-          },
-        },
-        topicTags: { include: { tag: true } },
-        ...countMembersAndPosts(),
-      },
+      include: threadListCardInclude,
     });
 
     const hasMore = threads.length > take;
@@ -233,24 +219,7 @@ export class ThreadQueryService {
 
     await attachPlayerCounts(this.prisma, threads);
 
-    const items = threads.map((t: any) => {
-      const bodyContent = t.defaultSubthread?.posts?.[0]?.content ?? '';
-      const coverImages = extractMarkdownCoverImages(bodyContent);
-      const preview = bodyContent
-        ? truncateMarkdown(
-            coverImages.length > 0 ? stripVisibleMarkdownImages(bodyContent) : bodyContent,
-          )
-        : '';
-      // 移除 defaultSubthread.posts 全量，仅保留 preview
-      const rest = { ...(t.defaultSubthread ?? {}) };
-      delete rest.posts;
-      return {
-        ...t,
-        preview,
-        coverImages,
-        defaultSubthread: t.defaultSubthread ? rest : null,
-      };
-    });
+    const items = threads.map(mapThreadListCard);
 
     const result = paginate(items, {
       cursor: items.length > 0 ? items[items.length - 1].id : null,
@@ -304,7 +273,7 @@ export class ThreadQueryService {
     // 若前缀内可见帖仍不足以切够 take 个，扩大扫描窗口继续取（补偿过滤损耗）
     let scanEnd = consumed + take * 5;
     let ids: string[] = [];
-    let threads: any[] = [];
+    let threads: ThreadListCardRow[] = [];
 
     for (;;) {
       const batch = await this.redis.zrevrange(ZSET_BY_SMART, 0, scanEnd - 1);
@@ -329,24 +298,7 @@ export class ThreadQueryService {
 
     await attachPlayerCounts(this.prisma, sliced);
 
-    const items = sliced.map((t: any) => {
-      const bodyContent = t.defaultSubthread?.posts?.[0]?.content ?? '';
-      const coverImages = extractMarkdownCoverImages(bodyContent);
-      const preview = bodyContent
-        ? truncateMarkdown(
-            coverImages.length > 0 ? stripVisibleMarkdownImages(bodyContent) : bodyContent,
-          )
-        : '';
-      // 移除 defaultSubthread.posts 全量，仅保留 preview
-      const rest = { ...(t.defaultSubthread ?? {}) };
-      delete rest.posts;
-      return {
-        ...t,
-        preview,
-        coverImages,
-        defaultSubthread: t.defaultSubthread ? rest : null,
-      };
-    });
+    const items = sliced.map(mapThreadListCard);
 
     return paginate(items, { cursor: nextCursor, hasMore });
   }
@@ -355,21 +307,7 @@ export class ThreadQueryService {
   private async fetchSmartThreads(ids: string[], where: Record<string, unknown>) {
     return this.prisma.thread.findMany({
       where: { ...where, id: { in: ids } },
-      include: {
-        owner: { select: authorSelect },
-        defaultSubthread: {
-          include: {
-            posts: {
-              where: { kind: 'BODY', ...notDeleted },
-              take: 1,
-              orderBy: { createdAt: 'asc' },
-              select: { content: true },
-            },
-          },
-        },
-        topicTags: { include: { tag: true } },
-        ...countMembersAndPosts(),
-      },
+      include: threadListCardInclude,
     });
   }
 
