@@ -242,6 +242,8 @@ GET /subthreads/:id/posts?limit=20
 
 评论响应会返回互斥的 `media` / `sticker`；图片或表情评论的 `content` 可以是空字符串，删除后正文和媒体都返回 `null`。旧客户端可忽略新增字段并继续发布纯文字评论。
 
+通知或站内深链接需要定位具体评论时，使用 `GET /moments/:id/comments/:commentId/context`。`commentId` 可以是主评论或楼中楼，响应中的 `root` 用于把回复串注入当前列表，`target` 用于展开、高亮和滚动，`replyCount` 用于保留完整回复计数。目标已删除、因拉黑不可见或不属于该动态时返回 404；不要为定位目标遍历全部评论分页。
+
 ```
 GET /posts/:id/replies?limit=20    // 获取某楼层的全部回复（分页）
 POST /subthreads/:id/posts         // 发楼中楼回复

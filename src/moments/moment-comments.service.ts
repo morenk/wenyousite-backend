@@ -92,9 +92,7 @@ export class MomentCommentsService {
                 replies: {
                   some: {
                     deletedAt: null,
-                    ...(excludedAuthors.length
-                      ? { authorId: { notIn: excludedAuthors } }
-                      : {}),
+                    ...(excludedAuthors.length ? { authorId: { notIn: excludedAuthors } } : {}),
                   },
                 },
               },
@@ -103,10 +101,7 @@ export class MomentCommentsService {
           ...(authorId
             ? [
                 {
-                  OR: [
-                    { authorId, deletedAt: null },
-                    { replies: { some: visibleReplyWhere } },
-                  ],
+                  OR: [{ authorId, deletedAt: null }, { replies: { some: visibleReplyWhere } }],
                 },
               ]
             : []),
@@ -133,14 +128,17 @@ export class MomentCommentsService {
     });
     const hasMore = rows.length > take;
     const page = rows.slice(0, take);
-    return paginate(page.map((row) => ({
-      ...mapMomentComment(row, viewer, moment.authorId),
-      replyCount: row._count.replies,
-      replies: row.replies.map((reply) => mapMomentComment(reply, viewer, moment.authorId)),
-    })), {
-      cursor: page.at(-1)?.id ?? null,
-      hasMore,
-    });
+    return paginate(
+      page.map((row) => ({
+        ...mapMomentComment(row, viewer, moment.authorId),
+        replyCount: row._count.replies,
+        replies: row.replies.map((reply) => mapMomentComment(reply, viewer, moment.authorId)),
+      })),
+      {
+        cursor: page.at(-1)?.id ?? null,
+        hasMore,
+      },
+    );
   }
 
   async listReplies(
@@ -177,10 +175,13 @@ export class MomentCommentsService {
     });
     const hasMore = rows.length > take;
     const page = rows.slice(0, take);
-    return paginate(page.map((row) => mapMomentComment(row, viewer, moment.authorId)), {
-      cursor: page.at(-1)?.id ?? null,
-      hasMore,
-    });
+    return paginate(
+      page.map((row) => mapMomentComment(row, viewer, moment.authorId)),
+      {
+        cursor: page.at(-1)?.id ?? null,
+        hasMore,
+      },
+    );
   }
 
   async listAuthors(momentId: string, viewer?: Viewer) {
@@ -198,9 +199,56 @@ export class MomentCommentsService {
     });
     return rows
       .map((row) => row.author)
-      .sort((first, second) =>
-        first.username.localeCompare(second.username, 'zh-CN') || first.id.localeCompare(second.id),
+      .sort(
+        (first, second) =>
+          first.username.localeCompare(second.username, 'zh-CN') ||
+          first.id.localeCompare(second.id),
       );
+  }
+
+  async findContext(momentId: string, commentId: string, viewer?: Viewer) {
+    const moment = await this.moments.assertVisible(momentId, viewer?.id);
+    const excludedAuthors = await this.excludedAuthorIds(viewer?.id);
+    const visibleAuthorWhere = excludedAuthors.length
+      ? { authorId: { notIn: excludedAuthors } }
+      : {};
+    const target = await this.prisma.momentComment.findFirst({
+      where: {
+        id: commentId,
+        momentId,
+        deletedAt: null,
+        ...visibleAuthorWhere,
+      },
+      select: commentSelect,
+    });
+    if (!target) throw new NotFoundException('目标评论不存在或不可见');
+
+    const rootCommentId = target.parentCommentId ?? target.id;
+    const root = target.parentCommentId
+      ? await this.prisma.momentComment.findFirst({
+          where: {
+            id: rootCommentId,
+            momentId,
+            parentCommentId: null,
+            ...visibleAuthorWhere,
+          },
+          select: commentSelect,
+        })
+      : target;
+    if (!root) throw new NotFoundException('目标评论不存在或不可见');
+
+    const replyCount = await this.prisma.momentComment.count({
+      where: {
+        parentCommentId: rootCommentId,
+        deletedAt: null,
+        ...visibleAuthorWhere,
+      },
+    });
+    return {
+      root: mapMomentComment(root, viewer, moment.authorId),
+      target: mapMomentComment(target, viewer, moment.authorId),
+      replyCount,
+    };
   }
 
   async create(momentId: string, dto: CreateMomentCommentDto, viewer: Viewer) {
@@ -233,11 +281,14 @@ export class MomentCommentsService {
       replyToCommentId: replyTarget?.id ?? null,
     });
     const replay = await this.prisma.momentComment.findUnique({
-      where: { authorId_clientRequestId: { authorId: viewer.id, clientRequestId: dto.clientRequestId } },
+      where: {
+        authorId_clientRequestId: { authorId: viewer.id, clientRequestId: dto.clientRequestId },
+      },
       select: { id: true, createRequestHash: true },
     });
     if (replay) {
-      if (replay.createRequestHash !== requestHash) throw new ConflictException('同一评论请求不能用于不同内容');
+      if (replay.createRequestHash !== requestHash)
+        throw new ConflictException('同一评论请求不能用于不同内容');
       return this.findMapped(replay.id, viewer, moment.authorId);
     }
 
@@ -262,7 +313,10 @@ export class MomentCommentsService {
           select: { id: true },
         });
         if (stickerAssetId) await this.stickers.recordUsage(viewer.id, stickerAssetId, tx);
-        await tx.moment.update({ where: { id: momentId }, data: { commentCount: { increment: 1 } } });
+        await tx.moment.update({
+          where: { id: momentId },
+          data: { commentCount: { increment: 1 } },
+        });
         if (recipientId !== viewer.id) {
           await this.outbox.enqueue(tx, {
             eventType: 'moment.comment.created',
@@ -286,11 +340,14 @@ export class MomentCommentsService {
     } catch (error) {
       if ((error as { code?: string }).code !== 'P2002') throw error;
       const raced = await this.prisma.momentComment.findUnique({
-        where: { authorId_clientRequestId: { authorId: viewer.id, clientRequestId: dto.clientRequestId } },
+        where: {
+          authorId_clientRequestId: { authorId: viewer.id, clientRequestId: dto.clientRequestId },
+        },
         select: { id: true, createRequestHash: true },
       });
       if (!raced) throw new ConflictException('图片已用于其他评论');
-      if (raced.createRequestHash !== requestHash) throw new ConflictException('同一评论请求不能用于不同内容');
+      if (raced.createRequestHash !== requestHash)
+        throw new ConflictException('同一评论请求不能用于不同内容');
       createdId = raced.id;
     }
     return this.findMapped(createdId, viewer, moment.authorId);
@@ -299,7 +356,11 @@ export class MomentCommentsService {
   async remove(momentId: string, commentId: string, viewer: Viewer) {
     const comment = await this.prisma.momentComment.findFirst({
       where: { id: commentId, momentId },
-      select: { authorId: true, deletedAt: true, moment: { select: { authorId: true, deletedAt: true } } },
+      select: {
+        authorId: true,
+        deletedAt: true,
+        moment: { select: { authorId: true, deletedAt: true } },
+      },
     });
     if (!comment || comment.moment.deletedAt) throw new NotFoundException('评论不存在');
     const admin = viewer.role === 'ADMIN' || viewer.role === 'SUPER_ADMIN';
@@ -312,24 +373,40 @@ export class MomentCommentsService {
         where: { id: commentId, deletedAt: null },
         data: {
           deletedAt: new Date(),
-          removalSource: admin && comment.authorId !== viewer.id ? 'ADMIN' : comment.moment.authorId === viewer.id && comment.authorId !== viewer.id ? 'OWNER' : 'AUTHOR',
+          removalSource:
+            admin && comment.authorId !== viewer.id
+              ? 'ADMIN'
+              : comment.moment.authorId === viewer.id && comment.authorId !== viewer.id
+                ? 'OWNER'
+                : 'AUTHOR',
           removedById: viewer.id,
         },
       });
       if (removed.count > 0) {
-        await tx.moment.update({ where: { id: momentId }, data: { commentCount: { decrement: 1 } } });
+        await tx.moment.update({
+          where: { id: momentId },
+          data: { commentCount: { decrement: 1 } },
+        });
       }
     });
     return { message: '评论已删除' };
   }
 
   private async findMapped(id: string, viewer: Viewer, momentAuthorId: string) {
-    const row = await this.prisma.momentComment.findUnique({ where: { id }, select: commentSelect });
+    const row = await this.prisma.momentComment.findUnique({
+      where: { id },
+      select: commentSelect,
+    });
     if (!row) throw new NotFoundException('评论不存在');
     return mapMomentComment(row, viewer, momentAuthorId);
   }
 
-  private async assertCursor(id: string, momentId: string, root: boolean, parentCommentId?: string) {
+  private async assertCursor(
+    id: string,
+    momentId: string,
+    root: boolean,
+    parentCommentId?: string,
+  ) {
     const row = await this.prisma.momentComment.findFirst({
       where: { id, momentId, parentCommentId: root ? null : parentCommentId },
       select: { id: true },
@@ -343,13 +420,20 @@ export class MomentCommentsService {
       where: { OR: [{ blockerId: viewerId }, { blockedId: viewerId }] },
       select: { blockerId: true, blockedId: true },
     });
-    return [...new Set(rows.map((row) => row.blockerId === viewerId ? row.blockedId : row.blockerId))];
+    return [
+      ...new Set(rows.map((row) => (row.blockerId === viewerId ? row.blockedId : row.blockerId))),
+    ];
   }
 
   private async assertUsersCanInteract(firstId: string, secondId: string) {
     if (firstId === secondId) return;
     const block = await this.prisma.userBlock.findFirst({
-      where: { OR: [{ blockerId: firstId, blockedId: secondId }, { blockerId: secondId, blockedId: firstId }] },
+      where: {
+        OR: [
+          { blockerId: firstId, blockedId: secondId },
+          { blockerId: secondId, blockedId: firstId },
+        ],
+      },
       select: { id: true },
     });
     if (block) throw new ForbiddenException('存在拉黑关系，不能回复');

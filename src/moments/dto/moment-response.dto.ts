@@ -154,13 +154,25 @@ export class MomentCommentResponseDto {
   @ApiProperty({ type: PostAuthorResponseDto })
   author!: PostAuthorResponseDto;
 
-  @ApiProperty({ type: String, nullable: true, description: '图片/表情评论可为空字符串；删除后为 null' })
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: '图片/表情评论可为空字符串；删除后为 null',
+  })
   content!: string | null;
 
-  @ApiProperty({ type: MomentMediaResponseDto, nullable: true, description: '每条评论最多一张普通图片' })
+  @ApiProperty({
+    type: MomentMediaResponseDto,
+    nullable: true,
+    description: '每条评论最多一张普通图片',
+  })
   media!: MomentMediaResponseDto | null;
 
-  @ApiProperty({ type: MomentStickerResponseDto, nullable: true, description: '每条评论最多一个表情；与 media 互斥' })
+  @ApiProperty({
+    type: MomentStickerResponseDto,
+    nullable: true,
+    description: '每条评论最多一个表情；与 media 互斥',
+  })
   sticker!: MomentStickerResponseDto | null;
 
   @ApiProperty({ type: String, nullable: true, description: '楼中楼统一指向主评论' })
@@ -183,8 +195,28 @@ export class MomentRootCommentResponseDto extends MomentCommentResponseDto {
   @ApiProperty({ minimum: 0 })
   replyCount!: number;
 
-  @ApiProperty({ type: [MomentCommentResponseDto], description: '按当前筛选与顺序返回的前三条可见楼中楼预览' })
+  @ApiProperty({
+    type: [MomentCommentResponseDto],
+    description: '按当前筛选与顺序返回的前三条可见楼中楼预览',
+  })
   replies!: MomentCommentResponseDto[];
+}
+
+export class MomentCommentContextResponseDto {
+  @ApiProperty({
+    type: MomentCommentResponseDto,
+    description: '目标所在的主评论；主评论已删除但仍有可见回复时返回墓碑内容',
+  })
+  root!: MomentCommentResponseDto;
+
+  @ApiProperty({
+    type: MomentCommentResponseDto,
+    description: '需要精确定位的可见主评论或楼中楼回复',
+  })
+  target!: MomentCommentResponseDto;
+
+  @ApiProperty({ minimum: 0, description: '该主评论下当前查看者可见的楼中楼回复数' })
+  replyCount!: number;
 }
 
 export class MomentDeleteResponseDto {
@@ -193,6 +225,9 @@ export class MomentDeleteResponseDto {
 }
 
 export class MomentSearchResponseDto extends MomentCardResponseDto {
-  @ApiPropertyOptional({ type: Number, description: '仅用于说明结果相关度；客户端不得作为稳定业务字段依赖' })
+  @ApiPropertyOptional({
+    type: Number,
+    description: '仅用于说明结果相关度；客户端不得作为稳定业务字段依赖',
+  })
   relevance?: number;
 }

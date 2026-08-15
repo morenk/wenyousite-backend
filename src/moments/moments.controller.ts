@@ -20,6 +20,7 @@ import { MomentFeedQueryDto } from './dto/moment-query.dto';
 import {
   MomentActionResponseDto,
   MomentCardResponseDto,
+  MomentCommentContextResponseDto,
   MomentCommentResponseDto,
   MomentDeleteResponseDto,
   MomentDetailResponseDto,
@@ -80,7 +81,11 @@ export class MomentsController {
   @ApiOperation({ summary: '编辑自己的动态，使用 version 乐观锁' })
   @ApiOkResponse({ type: MomentDetailResponseDto })
   @ApiConflictResponse({ description: '版本冲突或图片已被其他动态使用' })
-  update(@Param('id') id: string, @Body() dto: UpdateMomentDto, @CurrentUser() user: CurrentUserPayload) {
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateMomentDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
     return this.moments.update(id, dto, user);
   }
 
@@ -133,7 +138,11 @@ export class MomentsController {
   @OptionalAuth()
   @ApiOperation({ summary: '主评论列表，支持顺序与作者筛选并内嵌三条楼中楼' })
   @ApiCursorPaginatedResponse(MomentRootCommentResponseDto, '主评论游标分页')
-  commentsList(@Param('id') id: string, @Query() query: ReplyQueryDto, @CurrentUser() user?: CurrentUserPayload) {
+  commentsList(
+    @Param('id') id: string,
+    @Query() query: ReplyQueryDto,
+    @CurrentUser() user?: CurrentUserPayload,
+  ) {
     return this.comments.listRoots(
       id,
       query.cursor,
@@ -157,15 +166,37 @@ export class MomentsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '发表文字、单图或单表情评论；回复统一归入两层楼中楼' })
   @ApiCreatedResponse({ type: MomentCommentResponseDto })
-  createComment(@Param('id') id: string, @Body() dto: CreateMomentCommentDto, @CurrentUser() user: CurrentUserPayload) {
+  createComment(
+    @Param('id') id: string,
+    @Body() dto: CreateMomentCommentDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
     return this.comments.create(id, dto, user);
+  }
+
+  @Get(':id/comments/:commentId/context')
+  @OptionalAuth()
+  @ApiOperation({ summary: '按评论 ID 获取动态主评论与精确定位目标' })
+  @ApiOkResponse({ type: MomentCommentContextResponseDto })
+  @ApiNotFoundResponse({ description: '动态或目标评论不存在、已删除或因拉黑不可见' })
+  commentContext(
+    @Param('id') id: string,
+    @Param('commentId') commentId: string,
+    @CurrentUser() user?: CurrentUserPayload,
+  ) {
+    return this.comments.findContext(id, commentId, user);
   }
 
   @Get(':id/comments/:commentId/replies')
   @OptionalAuth()
   @ApiOperation({ summary: '分页获取某主评论的楼中楼，支持顺序与作者筛选' })
   @ApiCursorPaginatedResponse(MomentCommentResponseDto, '楼中楼游标分页')
-  replies(@Param('id') id: string, @Param('commentId') commentId: string, @Query() query: ReplyQueryDto, @CurrentUser() user?: CurrentUserPayload) {
+  replies(
+    @Param('id') id: string,
+    @Param('commentId') commentId: string,
+    @Query() query: ReplyQueryDto,
+    @CurrentUser() user?: CurrentUserPayload,
+  ) {
     return this.comments.listReplies(
       id,
       commentId,
@@ -183,7 +214,11 @@ export class MomentsController {
   @ApiOperation({ summary: '评论作者、动态作者或管理员软删除评论' })
   @ApiOkResponse({ type: MomentDeleteResponseDto })
   @ApiForbiddenResponse({ description: '无删除权限' })
-  removeComment(@Param('id') id: string, @Param('commentId') commentId: string, @CurrentUser() user: CurrentUserPayload) {
+  removeComment(
+    @Param('id') id: string,
+    @Param('commentId') commentId: string,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
     return this.comments.remove(id, commentId, user);
   }
 }
@@ -197,7 +232,11 @@ export class UserMomentsController {
   @OptionalAuth()
   @ApiOperation({ summary: '用户公开动态列表' })
   @ApiCursorPaginatedResponse(MomentCardResponseDto, '用户动态游标分页')
-  list(@Param('id') id: string, @Query() query: CursorPaginationDto, @CurrentUser() user?: CurrentUserPayload) {
+  list(
+    @Param('id') id: string,
+    @Query() query: CursorPaginationDto,
+    @CurrentUser() user?: CurrentUserPayload,
+  ) {
     return this.moments.listUserMoments(id, query.cursor, query.limit, user);
   }
 }

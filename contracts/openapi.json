@@ -14809,6 +14809,96 @@
         ]
       }
     },
+    "/api/v1/moments/{id}/comments/{commentId}/context": {
+      "get": {
+        "operationId": "momentsCommentContext",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "commentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsCommentContext200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "动态或目标评论不存在、已删除或因拉黑不可见",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "按评论 ID 获取动态主评论与精确定位目标",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "optional",
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
+      }
+    },
     "/api/v1/moments/{id}/comments/{commentId}/replies": {
       "get": {
         "operationId": "momentsReplies",
@@ -17069,7 +17159,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "4.12.0-dev.20260814.1",
+    "version": "4.13.0-dev.20260815.1",
     "contact": {}
   },
   "tags": [
@@ -24915,6 +25005,37 @@
           "clientRequestId"
         ]
       },
+      "MomentCommentContextResponseDto": {
+        "type": "object",
+        "properties": {
+          "root": {
+            "description": "目标所在的主评论；主评论已删除但仍有可见回复时返回墓碑内容",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MomentCommentResponseDto"
+              }
+            ]
+          },
+          "target": {
+            "description": "需要精确定位的可见主评论或楼中楼回复",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MomentCommentResponseDto"
+              }
+            ]
+          },
+          "replyCount": {
+            "type": "number",
+            "minimum": 0,
+            "description": "该主评论下当前查看者可见的楼中楼回复数"
+          }
+        },
+        "required": [
+          "root",
+          "target",
+          "replyCount"
+        ]
+      },
       "CreateUploadUrlDto": {
         "type": "object",
         "properties": {
@@ -29346,6 +29467,24 @@
                 "items": {
                   "$ref": "#/components/schemas/PostAuthorResponseDto"
                 }
+              }
+            }
+          }
+        ]
+      },
+      "MomentsCommentContext200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MomentCommentContextResponseDto"
               }
             }
           }

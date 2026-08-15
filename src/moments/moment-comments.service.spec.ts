@@ -38,6 +38,7 @@ function createContext() {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
       findMany: jest.fn(),
+      count: jest.fn(),
     },
     userBlock: { findFirst: jest.fn(), findMany: jest.fn() },
     $transaction: jest.fn(async (callback: (value: typeof tx) => unknown) => callback(tx)),
@@ -149,6 +150,95 @@ describe('MomentCommentsService', () => {
     );
   });
 
+  it('按楼中楼 ID 返回可直接注入的主评论上下文', async () => {
+    const { service, prisma } = createContext();
+    prisma.userBlock.findMany.mockResolvedValue([]);
+    prisma.momentComment.findFirst.mockResolvedValueOnce(commentRow()).mockResolvedValueOnce(
+      commentRow({
+        id: 'root-comment',
+        authorId: 'root-author',
+        author: author('root-author'),
+        parentCommentId: null,
+        replyToComment: null,
+        deletedAt: new Date('2026-08-08T13:00:00.000Z'),
+      }),
+    );
+    prisma.momentComment.count.mockResolvedValue(7);
+
+    const result = await service.findContext('moment-1', 'comment-new', { id: 'viewer' });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        root: expect.objectContaining({ id: 'root-comment', deleted: true, content: null }),
+        target: expect.objectContaining({ id: 'comment-new', parentCommentId: 'root-comment' }),
+        replyCount: 7,
+      }),
+    );
+    expect(prisma.momentComment.findFirst).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'comment-new',
+          momentId: 'moment-1',
+          deletedAt: null,
+        }),
+      }),
+    );
+  });
+
+  it('按主评论 ID 返回自身作为目标', async () => {
+    const { service, prisma } = createContext();
+    prisma.userBlock.findMany.mockResolvedValue([]);
+    prisma.momentComment.findFirst.mockResolvedValue(
+      commentRow({
+        id: 'root-comment',
+        parentCommentId: null,
+        replyToComment: null,
+      }),
+    );
+    prisma.momentComment.count.mockResolvedValue(2);
+
+    const result = await service.findContext('moment-1', 'root-comment');
+
+    expect(result.root.id).toBe('root-comment');
+    expect(result.target.id).toBe('root-comment');
+    expect(prisma.momentComment.findFirst).toHaveBeenCalledTimes(1);
+  });
+
+  it('目标已删除或其作者被拉黑时不返回评论上下文', async () => {
+    const { service, prisma } = createContext();
+    prisma.userBlock.findMany.mockResolvedValue([
+      { blockerId: 'viewer', blockedId: 'blocked-author' },
+    ]);
+    prisma.momentComment.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.findContext('moment-1', 'hidden-comment', { id: 'viewer' }),
+    ).rejects.toThrow('目标评论不存在或不可见');
+    expect(prisma.momentComment.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'hidden-comment',
+          deletedAt: null,
+          authorId: { notIn: ['blocked-author'] },
+        }),
+      }),
+    );
+  });
+
+  it('楼中楼所属主评论作者被拉黑时不返回上下文', async () => {
+    const { service, prisma } = createContext();
+    prisma.userBlock.findMany.mockResolvedValue([
+      { blockerId: 'viewer', blockedId: 'blocked-root-author' },
+    ]);
+    prisma.momentComment.findFirst.mockResolvedValueOnce(commentRow()).mockResolvedValueOnce(null);
+
+    await expect(service.findContext('moment-1', 'comment-new', { id: 'viewer' })).rejects.toThrow(
+      '目标评论不存在或不可见',
+    );
+    expect(prisma.momentComment.count).not.toHaveBeenCalled();
+  });
+
   it('回复楼中楼时统一归入主评论，并通知实际被回复者', async () => {
     const { service, prisma, tx, outbox } = createContext();
     prisma.momentComment.findFirst.mockResolvedValue({
@@ -157,9 +247,7 @@ describe('MomentCommentsService', () => {
       parentCommentId: 'root-comment',
     });
     prisma.userBlock.findFirst.mockResolvedValue(null);
-    prisma.momentComment.findUnique
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(commentRow());
+    prisma.momentComment.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce(commentRow());
     tx.momentComment.create.mockResolvedValue({ id: 'comment-new' });
 
     const result = await service.create(
@@ -193,9 +281,8 @@ describe('MomentCommentsService', () => {
 
   it('允许只发一张已完成且未占用的图片，并把媒体写入幂等载荷', async () => {
     const { service, prisma, tx } = createContext();
-    prisma.momentComment.findUnique
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(commentRow({
+    prisma.momentComment.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce(
+      commentRow({
         content: '',
         parentCommentId: null,
         replyToComment: null,
@@ -206,7 +293,8 @@ describe('MomentCommentsService', () => {
           width: 800,
           height: 1200,
         },
-      }));
+      }),
+    );
     tx.media.findUnique.mockResolvedValue({
       userId: 'viewer',
       status: 'COMPLETED',
@@ -225,17 +313,18 @@ describe('MomentCommentsService', () => {
       { id: 'viewer' },
     );
 
-    expect(tx.momentComment.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ content: '', mediaId: 'media-1', stickerAssetId: null }),
-    }));
+    expect(tx.momentComment.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ content: '', mediaId: 'media-1', stickerAssetId: null }),
+      }),
+    );
     expect(result.media).toEqual(expect.objectContaining({ id: 'media-1' }));
   });
 
   it('允许收藏表情评论并记录最近使用', async () => {
     const { service, prisma, tx, stickers } = createContext();
-    prisma.momentComment.findUnique
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(commentRow({
+    prisma.momentComment.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce(
+      commentRow({
         content: '',
         parentCommentId: null,
         replyToComment: null,
@@ -249,7 +338,8 @@ describe('MomentCommentsService', () => {
           frameCount: 8,
           durationMs: 900,
         },
-      }));
+      }),
+    );
     tx.momentComment.create.mockResolvedValue({ id: 'comment-new' });
 
     const result = await service.create(
@@ -270,13 +360,16 @@ describe('MomentCommentsService', () => {
     const { service } = createContext();
     const clientRequestId = '00000000-0000-4000-8000-000000000001';
 
-    await expect(service.create('moment-1', { clientRequestId }, { id: 'viewer' }))
-      .rejects.toBeInstanceOf(BadRequestException);
-    await expect(service.create(
-      'moment-1',
-      { content: '文字', mediaId: 'media-1', stickerAssetId: 'sticker-1', clientRequestId },
-      { id: 'viewer' },
-    )).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      service.create('moment-1', { clientRequestId }, { id: 'viewer' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      service.create(
+        'moment-1',
+        { content: '文字', mediaId: 'media-1', stickerAssetId: 'sticker-1', clientRequestId },
+        { id: 'viewer' },
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('存在双向任一拉黑关系时禁止回复', async () => {
@@ -310,9 +403,9 @@ describe('MomentCommentsService', () => {
     });
     tx.momentComment.updateMany.mockResolvedValue({ count: 1 });
 
-    await expect(
-      service.remove('moment-1', 'comment-1', { id: 'moment-owner' }),
-    ).resolves.toEqual({ message: '评论已删除' });
+    await expect(service.remove('moment-1', 'comment-1', { id: 'moment-owner' })).resolves.toEqual({
+      message: '评论已删除',
+    });
     expect(tx.momentComment.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ removalSource: 'OWNER' }) }),
     );

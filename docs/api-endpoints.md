@@ -329,6 +329,7 @@
 | GET | `/moments/{id}/comments` | optional | 主评论列表，支持顺序与作者筛选并内嵌三条楼中楼 |
 | POST | `/moments/{id}/comments` | verified | 发表文字、单图或单表情评论；回复统一归入两层楼中楼 |
 | GET | `/moments/{id}/comment-authors` | optional | 获取当前可见动态回复串中的作者候选 |
+| GET | `/moments/{id}/comments/{commentId}/context` | optional | 按评论 ID 获取动态主评论与精确定位目标 |
 | GET | `/moments/{id}/comments/{commentId}/replies` | optional | 分页获取某主评论的楼中楼，支持顺序与作者筛选 |
 | DELETE | `/moments/{id}/comments/{commentId}` | verified | 评论作者、动态作者或管理员软删除评论 |
 | GET | `/users/{id}/moments` | optional | 用户公开动态列表 |

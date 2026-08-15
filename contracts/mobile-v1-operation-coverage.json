@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "4.12.0-dev.20260814.1",
+  "contractVersion": "4.13.0-dev.20260815.1",
   "counts": {
-    "total": 202,
+    "total": 203,
     "v1": 96,
-    "deferred": 55,
+    "deferred": 56,
     "notApplicable": 50,
     "infrastructure": 1
   },
@@ -1454,6 +1454,14 @@
       "operationId": "momentsCommentAuthors",
       "method": "GET",
       "path": "/api/v1/moments/{id}/comment-authors",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsCommentContext",
+      "method": "GET",
+      "path": "/api/v1/moments/{id}/comments/{commentId}/context",
       "module": "moments",
       "disposition": "deferred",
       "status": "deferred"
