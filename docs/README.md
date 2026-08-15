@@ -16,8 +16,8 @@
 | [后端架构与模块边界](./architecture.md)                              | 分层规则、事务 Outbox、API 契约和自动门禁               |
 | [API 契约发布流程](./api-contract.md)                                | OpenAPI 事实源、版本、生成与客户端同步规则              |
 | [Flutter / 原生移动端接入](./mobile-client-guide.md)                 | 安全存储、刷新、幂等、分页、媒体和 FCM                  |
-| [移动端 V1 覆盖清单](../contracts/mobile-v1-operation-coverage.json) | 202 个 operationId 的 V1、延期、管理端与基础设施分类    |
-| [移动端 V1 黄金旅程](../contracts/mobile-v1-golden-fixtures.json)    | 认证、重试、分类、媒体、双画幅背景和幂等的跨端 fixture  |
+| [移动端 V1 覆盖清单](../contracts/mobile-v1-operation-coverage.json) | 全部 operationId 的 V1、延期、管理端与基础设施分类      |
+| [移动端 V1 黄金旅程](../contracts/mobile-v1-golden-fixtures.json)    | 认证、重试、媒体、动态定位、双画幅背景和幂等跨端 fixture |
 | [移动端私有发布运维](./mobile-release-operations.md)                 | Windows 构建验签、RainS3 直传与 VPS `/meta` 晋级       |
 | [Flutter 设计基础边界](./mobile-ui-contract.md)                      | 中央设计仓库入口及后端/客户端职责边界                   |
 | [历史发布记录](./history/README.md)                                  | 已完成迁移和兼容窗口，仅供追溯，不定义现行行为          |
@@ -35,7 +35,7 @@
 | [threads](./modules/threads.md)                 | 主题帖     | CRUD、成员管理、私密帖、邀请链接、置顶                 |
 | [subthreads](./modules/subthreads.md)           | 子贴       | CRUD、排序、发帖权限策略                               |
 | [posts](./modules/posts.md)                     | 楼层       | 发帖、楼中楼、编辑、软删除、点赞、@提及                |
-| [internal-references](./modules/internal-references.md) | 站内传送门 | 主题、子贴、楼层与回复的统一坐标及跨端降级规则         |
+| [internal-references](./modules/internal-references.md) | 站内传送门 | 帖子坐标、私密邀请、编辑器粘贴及跨端降级规则           |
 | [dice](./modules/dice.md)                       | 骰子       | 表达式协议、服务端投掷、结果不可变、草稿发布结算       |
 | [drafts](./modules/drafts.md)                   | 草稿       | 用户级全局 5 槽位草稿池                                |
 | [notifications](./modules/notifications.md)     | 通知       | 列表、未读数、已读                                     |

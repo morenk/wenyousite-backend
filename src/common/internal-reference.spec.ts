@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   formatInternalReferencePreview,
+  INTERNAL_REFERENCE_DEFAULT_LABEL,
   parseInternalReference,
 } from './internal-reference';
 
@@ -18,13 +19,20 @@ type Fixture = {
     source: string;
     visibleText: string;
   }>;
+  editorPasteCases: Array<{
+    id: string;
+    clipboardText: string;
+    selectedText: string;
+    handled: boolean;
+    kind?: string;
+    canonical?: string;
+    label?: string;
+    serialized?: string;
+  }>;
 };
 
 const fixture = JSON.parse(
-  readFileSync(
-    resolve(__dirname, '../../contracts/internal-reference-v1-fixtures.json'),
-    'utf8',
-  ),
+  readFileSync(resolve(__dirname, '../../contracts/internal-reference-v1-fixtures.json'), 'utf8'),
 ) as Fixture;
 
 describe('internal reference contract', () => {
@@ -40,4 +48,19 @@ describe('internal reference contract', () => {
   it.each(fixture.renderingCases)('$id preview', ({ source, visibleText }) => {
     expect(formatInternalReferencePreview(source)).toBe(visibleText);
   });
+
+  it.each(fixture.editorPasteCases)(
+    '$id editor paste',
+    ({ clipboardText, selectedText, handled, kind, canonical, label, serialized }) => {
+      const parsed = parseInternalReference(clipboardText.trim());
+      expect(!!parsed).toBe(handled);
+      if (!handled) return;
+
+      expect(parsed?.kind).toBe(kind);
+      expect(parsed?.href).toBe(canonical);
+      const resolvedLabel = selectedText.trim() || INTERNAL_REFERENCE_DEFAULT_LABEL;
+      expect(resolvedLabel).toBe(label);
+      expect(`[${resolvedLabel}](${parsed?.href})`).toBe(serialized);
+    },
+  );
 });

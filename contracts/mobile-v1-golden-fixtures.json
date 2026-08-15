@@ -1,7 +1,7 @@
 {
   "contract": "wenyousite-mobile-v1",
   "version": 1,
-  "contractVersion": "4.13.0-dev.20260815.1",
+  "contractVersion": "4.13.1-dev.20260815.1",
   "description": "后端与 Flutter 共同消费的移动端 V1 协议旅程；固定状态转换，不固定界面截图。",
   "compatibility": [
     {
@@ -291,6 +291,112 @@
       "id": "profile-cover-remove",
       "operation": "usersRemoveProfileCover",
       "expectedMutation": "clearBoth"
+    }
+  ],
+  "momentCommentNavigation": [
+    {
+      "id": "moment-comment-root-target",
+      "notificationTarget": {
+        "kind": "moment",
+        "momentId": "moment-1",
+        "momentCommentId": "root-1"
+      },
+      "contextRequest": {
+        "operationId": "momentsCommentContext",
+        "commentId": "root-1"
+      },
+      "contextResponse": {
+        "rootId": "root-1",
+        "rootDeleted": false,
+        "targetId": "root-1",
+        "targetParentCommentId": null,
+        "replyCount": 2
+      },
+      "expected": {
+        "injectRoot": true,
+        "injectTargetReply": false,
+        "expandReplies": false,
+        "focusId": "root-1",
+        "scanPagination": false
+      }
+    },
+    {
+      "id": "moment-comment-reply-target",
+      "notificationTarget": {
+        "kind": "moment",
+        "momentId": "moment-1",
+        "momentCommentId": "reply-1"
+      },
+      "contextRequest": {
+        "operationId": "momentsCommentContext",
+        "commentId": "reply-1"
+      },
+      "contextResponse": {
+        "rootId": "root-1",
+        "rootDeleted": false,
+        "targetId": "reply-1",
+        "targetParentCommentId": "root-1",
+        "replyCount": 7
+      },
+      "expected": {
+        "injectRoot": true,
+        "injectTargetReply": true,
+        "expandReplies": true,
+        "focusId": "reply-1",
+        "scanPagination": false
+      }
+    },
+    {
+      "id": "moment-comment-tombstone-root",
+      "notificationTarget": {
+        "kind": "moment",
+        "momentId": "moment-1",
+        "momentCommentId": "reply-1"
+      },
+      "contextRequest": {
+        "operationId": "momentsCommentContext",
+        "commentId": "reply-1"
+      },
+      "contextResponse": {
+        "rootId": "root-1",
+        "rootDeleted": true,
+        "targetId": "reply-1",
+        "targetParentCommentId": "root-1",
+        "replyCount": 1
+      },
+      "expected": {
+        "preserveRootTombstone": true,
+        "injectTargetReply": true,
+        "expandReplies": true,
+        "focusId": "reply-1",
+        "scanPagination": false
+      }
+    },
+    {
+      "id": "moment-comment-target-unavailable",
+      "contextRequest": {
+        "operationId": "momentsCommentContext",
+        "commentId": "hidden-comment"
+      },
+      "httpStatus": 404,
+      "expected": {
+        "keepMomentDetail": true,
+        "keepOrdinaryComments": true,
+        "retryContext": false
+      }
+    },
+    {
+      "id": "moment-comment-context-transient-failure",
+      "contextRequest": {
+        "operationId": "momentsCommentContext",
+        "commentId": "reply-1"
+      },
+      "httpStatus": 503,
+      "expected": {
+        "keepMomentDetail": true,
+        "keepOrdinaryComments": true,
+        "retryContext": true
+      }
     }
   ],
   "idempotency": [

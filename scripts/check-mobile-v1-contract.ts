@@ -6,7 +6,7 @@ const coverage = JSON.parse(fs.readFileSync(coveragePath, 'utf8')) as Record<str
 const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as Record<string, any>;
 const failures: string[] = [];
 
-const expectedCounts = { total: 203, v1: 96, deferred: 56, notApplicable: 50, infrastructure: 1 };
+const expectedCounts = { total: 203, v1: 97, deferred: 55, notApplicable: 50, infrastructure: 1 };
 for (const [name, expected] of Object.entries(expectedCounts)) {
   if (coverage.counts?.[name] !== expected) {
     failures.push(
@@ -54,6 +54,7 @@ for (const section of [
   'categories',
   'media',
   'profileCovers',
+  'momentCommentNavigation',
   'idempotency',
   'unknownEnums',
 ]) {
@@ -94,6 +95,58 @@ if (!dualWrite?.request?.mediaId || !dualWrite?.request?.mobileMediaId) {
 const legacyWrite = profileCoverCases.get('profile-cover-legacy-write');
 if (!legacyWrite?.request?.mediaId || 'mobileMediaId' in (legacyWrite?.request ?? {})) {
   failures.push('profile-cover-legacy-write 必须固定省略 mobileMediaId 的旧请求');
+}
+const momentNavigationCases = new Map(
+  (fixture.momentCommentNavigation as Array<Record<string, any>>).map((item) => [item.id, item]),
+);
+for (const id of [
+  'moment-comment-root-target',
+  'moment-comment-reply-target',
+  'moment-comment-tombstone-root',
+  'moment-comment-target-unavailable',
+  'moment-comment-context-transient-failure',
+]) {
+  if (!momentNavigationCases.has(id)) failures.push(`黄金 fixture 缺少动态评论定位用例 ${id}`);
+}
+const rootTarget = momentNavigationCases.get('moment-comment-root-target');
+if (
+  rootTarget?.contextRequest?.operationId !== 'momentsCommentContext' ||
+  rootTarget?.contextResponse?.rootId !== rootTarget?.contextResponse?.targetId ||
+  rootTarget?.expected?.scanPagination !== false
+) {
+  failures.push('moment-comment-root-target 必须直接注入并定位主评论且不得扫描分页');
+}
+const replyTarget = momentNavigationCases.get('moment-comment-reply-target');
+if (
+  replyTarget?.contextResponse?.targetParentCommentId !== replyTarget?.contextResponse?.rootId ||
+  replyTarget?.expected?.injectTargetReply !== true ||
+  replyTarget?.expected?.expandReplies !== true ||
+  replyTarget?.expected?.scanPagination !== false
+) {
+  failures.push('moment-comment-reply-target 必须注入所属主评论与目标楼中楼且不得扫描分页');
+}
+const tombstoneRoot = momentNavigationCases.get('moment-comment-tombstone-root');
+if (
+  tombstoneRoot?.contextResponse?.rootDeleted !== true ||
+  tombstoneRoot?.expected?.preserveRootTombstone !== true
+) {
+  failures.push('moment-comment-tombstone-root 必须保留已删除主评论墓碑上下文');
+}
+const unavailableTarget = momentNavigationCases.get('moment-comment-target-unavailable');
+if (
+  unavailableTarget?.httpStatus !== 404 ||
+  unavailableTarget?.expected?.keepMomentDetail !== true ||
+  unavailableTarget?.expected?.retryContext !== false
+) {
+  failures.push('moment-comment-target-unavailable 必须保留动态详情且不自动重试定位');
+}
+const transientFailure = momentNavigationCases.get('moment-comment-context-transient-failure');
+if (
+  transientFailure?.httpStatus !== 503 ||
+  transientFailure?.expected?.keepMomentDetail !== true ||
+  transientFailure?.expected?.retryContext !== true
+) {
+  failures.push('moment-comment-context-transient-failure 必须保留动态详情并允许重试定位');
 }
 const caseIds = Object.values(fixture)
   .filter(Array.isArray)

@@ -8,4 +8,6 @@
 
 楼中楼只有两层视觉结构。回复可指向同一主评论下的任意评论，服务端将 `parentCommentId` 统一固定到主评论，并通过 `replyToComment` 保留实际回复目标。主评论默认最新优先，回复默认时间正序；两类列表都可通过 `order=OLDEST|NEWEST` 切换，并可用 `authorId` 只看某位实际回复者。筛选楼中楼时仍返回所属主评论作为上下文，但内嵌回复与计数只覆盖目标作者。`GET /moments/:id/comment-authors` 返回当前查看者可见的实际评论作者候选，并排除双向拉黑用户。
 
+`GET /moments/:id/comments/:commentId/context` 接受主评论或楼中楼 ID，返回可直接注入页面的 `root`、精确 `target` 与当前查看者可见的 `replyCount`，供通知等稳定 ID 入口定位首屏之外的评论。客户端不得为定位遍历评论或回复分页；目标是楼中楼时展开 `root` 并定位 `target`。目标不存在、已删除或因双向拉黑不可见时返回 404；若主评论已删除但目标楼中楼仍可见，则返回不含正文的墓碑主评论以保留层级。移动端状态转换由 [`mobile-v1-golden-fixtures.json`](../../contracts/mobile-v1-golden-fixtures.json) 的 `momentCommentNavigation` 固定。
+
 动态加油沿用钱包的金额、分成、事务重试和幂等规则。动态页只公开累计总额，不公开加油者名单；评论、回复与加油通过可靠事件链路通知目标用户。

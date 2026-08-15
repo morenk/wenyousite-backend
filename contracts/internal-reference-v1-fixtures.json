@@ -122,5 +122,61 @@
       "visibleText": "外链：https://example.com/threads/cmsewdo0h000x7qv6aa77ll1v",
       "portalCount": 0
     }
+  ],
+  "editorPasteCases": [
+    {
+      "id": "paste-invite-absolute-default-label",
+      "clipboardText": "https://wenyou.site/join/AbCdEfGh_123-XYZ",
+      "selectedText": "",
+      "handled": true,
+      "kind": "INVITE",
+      "canonical": "/join/AbCdEfGh_123-XYZ",
+      "label": "传送门",
+      "serialized": "[传送门](/join/AbCdEfGh_123-XYZ)"
+    },
+    {
+      "id": "paste-invite-relative-selected-label",
+      "clipboardText": "/join/AbCdEfGh_123-XYZ",
+      "selectedText": "私密团入口",
+      "handled": true,
+      "kind": "INVITE",
+      "canonical": "/join/AbCdEfGh_123-XYZ",
+      "label": "私密团入口",
+      "serialized": "[私密团入口](/join/AbCdEfGh_123-XYZ)"
+    },
+    {
+      "id": "paste-thread-trims-clipboard",
+      "clipboardText": "  https://wenyou.site/threads/cmsewdo0h000x7qv6aa77ll1v  ",
+      "selectedText": "  设定入口  ",
+      "handled": true,
+      "kind": "THREAD",
+      "canonical": "/threads/cmsewdo0h000x7qv6aa77ll1v",
+      "label": "设定入口",
+      "serialized": "[设定入口](/threads/cmsewdo0h000x7qv6aa77ll1v)"
+    },
+    {
+      "id": "paste-invite-invalid-token-falls-through",
+      "clipboardText": "/join/too-short",
+      "selectedText": "",
+      "handled": false
+    },
+    {
+      "id": "paste-invite-query-falls-through",
+      "clipboardText": "/join/AbCdEfGh_123-XYZ?from=share",
+      "selectedText": "",
+      "handled": false
+    },
+    {
+      "id": "paste-mixed-text-falls-through",
+      "clipboardText": "入口 https://wenyou.site/join/AbCdEfGh_123-XYZ",
+      "selectedText": "",
+      "handled": false
+    },
+    {
+      "id": "paste-external-link-falls-through",
+      "clipboardText": "https://example.com/threads/cmsewdo0h000x7qv6aa77ll1v",
+      "selectedText": "",
+      "handled": false
+    }
   ]
 }

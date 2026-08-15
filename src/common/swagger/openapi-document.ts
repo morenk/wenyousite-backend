@@ -5,7 +5,7 @@ import { applyErrorResponseEnvelope } from './error-response-envelope';
 import { applyResponseHeaders } from './response-headers';
 
 /** 破坏性 API 变更时递增；Web 与 Flutter 生成客户端均记录该版本。 */
-export const API_CONTRACT_VERSION = '4.13.0-dev.20260815.1';
+export const API_CONTRACT_VERSION = '4.13.1-dev.20260815.1';
 
 type AuthMode = 'public' | 'optional' | 'authenticated' | 'verified' | 'appeal' | 'admin';
 
@@ -42,14 +42,15 @@ export function createOpenApiDocument(app: INestApplication) {
     .addServer('https://wenyou.site', '公网开发环境')
     .addServer('http://127.0.0.1:3000', '本地开发环境')
     .addBearerAuth()
-    .addBearerAuth(
-      { type: 'http', scheme: 'bearer', bearerFormat: 'Appeal JWT' },
-      'appealBearer',
+    .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'Appeal JWT' }, 'appealBearer')
+    .addCookieAuth(
+      '__Secure-wenyou-admin-session',
+      {
+        type: 'apiKey',
+        in: 'cookie',
+      },
+      'adminSession',
     )
-    .addCookieAuth('__Secure-wenyou-admin-session', {
-      type: 'apiKey',
-      in: 'cookie',
-    }, 'adminSession')
     .addApiKey({ type: 'apiKey', in: 'header', name: 'X-CSRF-Token' }, 'adminCsrf')
     .addTag('Auth', '认证 — 注册、登录、Token 刷新、登录终端管理')
     .addTag('Users', '用户 — 资料、关注、拉黑')

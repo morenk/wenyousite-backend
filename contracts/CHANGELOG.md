@@ -1,5 +1,11 @@
 # API 合同变更
 
+## 4.13.1-dev.20260815.1
+
+- 站内传送门 v1 新增 `editorPasteCases` 机器旅程，固定单独粘贴主题或私密邀请地址时的规范化、选区名称、默认名称，以及非法邀请、混合文本和站外链接的普通粘贴降级。
+- 移动 V1 黄金旅程新增 `momentCommentNavigation`，固定主评论、楼中楼、墓碑主评论、404 与临时失败的定位状态；`momentsCommentContext` 单独提升为移动 V1 planned 能力。
+- 移动接入指南明确邀请 token 的凭据边界和动态通知定位流程；手写文档不再复制易漂移的 operationId 总数。HTTP 字段、状态码和旧客户端行为不变。
+
 ## 4.13.0-dev.20260815.1
 
 - 新增 `GET /moments/:id/comments/:commentId/context`，按主评论或楼中楼 ID 返回可直接定位的 `root`、`target` 与当前可见 `replyCount`，客户端无需遍历评论分页。

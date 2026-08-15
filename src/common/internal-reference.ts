@@ -7,7 +7,8 @@ const THREAD_ROUTE_RE = /^\/threads\/([^/]+)$/u;
 const DISCUSSION_ROUTE_RE = /^\/threads\/([^/]+)\/posts\/([^/]+)\/replies$/u;
 const INVITE_ROUTE_RE = /^\/join\/([^/]+)$/u;
 const TRAILING_PUNCTUATION_RE = /[.,!?;:，。！？；：、]+$/u;
-const REFERENCE_CANDIDATE_RE = /\[([^\]\r\n]+)\]\(([^)\r\n]+)\)|https:\/\/wenyou\.site\/(?:threads\/[a-z0-9_-]+(?:\/posts\/[a-z0-9_-]+\/replies)?|join\/[a-z0-9_-]+)(?:\?[^\s<>\])}.,!;:，。！？；：、]+)?|\/(?:threads\/[a-z0-9_-]+(?:\/posts\/[a-z0-9_-]+\/replies)?|join\/[a-z0-9_-]+)(?:\?[^\s<>\])}.,!;:，。！？；：、]+)?/giu;
+const REFERENCE_CANDIDATE_RE =
+  /\[([^\]\r\n]+)\]\(([^)\r\n]+)\)|https:\/\/wenyou\.site\/(?:threads\/[a-z0-9_-]+(?:\/posts\/[a-z0-9_-]+\/replies)?|join\/[a-z0-9_-]+)(?:\?[^\s<>\])}.,!;:，。！？；：、]+)?|\/(?:threads\/[a-z0-9_-]+(?:\/posts\/[a-z0-9_-]+\/replies)?|join\/[a-z0-9_-]+)(?:\?[^\s<>\])}.,!;:，。！？；：、]+)?/giu;
 const RELATIVE_REFERENCE_BOUNDARY_RE = /[\s([{"'，。！？；：、]/u;
 
 export type InternalReference =
@@ -29,7 +30,7 @@ function hasOnlyQuery(url: URL, allowed: string | null): boolean {
     : keys.length === 1 && keys[0] === allowed && url.searchParams.getAll(allowed).length === 1;
 }
 
-/** 识别并规范化 v1 站内主题坐标；不查询目标是否存在，避免元数据泄漏。 */
+/** 识别并规范化 v1 站内坐标；不查询目标是否存在，避免元数据泄漏。 */
 export function parseInternalReference(input: string): InternalReference | null {
   const trimmed = input.trim();
   if (!trimmed || trimmed.includes('#')) return null;
@@ -128,13 +129,14 @@ export function formatInternalReferencePreview(value: string): string {
       source: string,
     ) => {
       if (
-        !markdownHref
-        && candidate.startsWith('/')
-        && offset > 0
-        && !RELATIVE_REFERENCE_BOUNDARY_RE.test(source[offset - 1])
-      ) return candidate;
+        !markdownHref &&
+        candidate.startsWith('/') &&
+        offset > 0 &&
+        !RELATIVE_REFERENCE_BOUNDARY_RE.test(source[offset - 1])
+      )
+        return candidate;
       const href = markdownHref?.trim() ?? candidate;
-      const trailing = markdownHref ? '' : candidate.match(TRAILING_PUNCTUATION_RE)?.[0] ?? '';
+      const trailing = markdownHref ? '' : (candidate.match(TRAILING_PUNCTUATION_RE)?.[0] ?? '');
       const reference = parseInternalReference(trailing ? href.slice(0, -trailing.length) : href);
       if (!reference) return candidate;
       return `${label?.trim() || INTERNAL_REFERENCE_DEFAULT_LABEL}${trailing}`;

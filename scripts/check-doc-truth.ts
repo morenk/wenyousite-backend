@@ -7,9 +7,17 @@ const checks: Array<[string, RegExp, string]> = [
   ['docs/frontend-guide.md', /\/notifications\/:id\/read/, '仍引用旧通知已读路由'],
   ['docs/frontend-guide.md', /未读通知数[^\n]*\{\s*count\s*:/, '仍声明旧 count 字段'],
   ['docs/frontend-guide.md', /jpg\/png\/gif\/webp\/bmp\/svg/i, '仍把 BMP/SVG 写入上传白名单'],
-  ['docs/frontend-guide.md', /accessToken[^\n]*localStorage/i, '仍建议把 access token 写入 localStorage'],
+  [
+    'docs/frontend-guide.md',
+    /accessToken[^\n]*localStorage/i,
+    '仍建议把 access token 写入 localStorage',
+  ],
   ['docs/api-validation.md', /"statusCode"\s*:\s*400/, '仍展示 Nest 原始异常而非统一 envelope'],
-  ['docs/api-validation.md', /所有数据库主键\/外键 ID 字段必须添加[\s\S]{0,160}@IsUUID/, '仍把 CUID 主键描述为 UUID'],
+  [
+    'docs/api-validation.md',
+    /所有数据库主键\/外键 ID 字段必须添加[\s\S]{0,160}@IsUUID/,
+    '仍把 CUID 主键描述为 UUID',
+  ],
   ['docs/notification-delivery.md', /PostsService\.like\(\)/, '仍引用已经迁移的点赞服务'],
   ['docs/modules/direct-messages.md', /不支持[^\n。]*推送/, '仍声称私聊不支持推送'],
 ];
@@ -18,7 +26,8 @@ for (const [file, pattern, message] of checks) {
   if (pattern.test(source)) failures.push(`${file}: ${message}`);
 }
 
-const moduleGuides = fs.readdirSync('docs/modules')
+const moduleGuides = fs
+  .readdirSync('docs/modules')
   .filter((name) => name.endsWith('.md'))
   .map((name) => path.join('docs/modules', name));
 const currentGuides = [
@@ -71,8 +80,17 @@ for (const claim of [
   'DELETE /api/v1/mobile/devices/current',
   'getInitialMessage',
   'thread-category-v1-fixtures.json',
+  'editorPasteCases',
+  '/join/{token}',
+  'momentsCommentContext',
+  'momentCommentNavigation',
 ]) {
   if (!mobileGuide.includes(claim)) failures.push(`docs/mobile-client-guide.md: 缺少 ${claim}`);
+}
+for (const file of ['docs/README.md', 'docs/api-contract.md', 'docs/mobile-client-guide.md']) {
+  if (/\b\d+\s*(?:个 operationId|项移动覆盖清单)/u.test(fs.readFileSync(file, 'utf8'))) {
+    failures.push(`${file}: 不应手写复制易漂移的 operationId 总数`);
+  }
 }
 const mobileUiBoundary = fs.readFileSync('docs/mobile-ui-contract.md', 'utf8');
 for (const claim of ['external-source', 'morenk/wenyousite-foundation', 'foundation.lock.json']) {

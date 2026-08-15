@@ -100,6 +100,9 @@ const deferredOperations = new Set([
   'threadTagsRemove',
 ]);
 
+// 动态模块整体仍按原阶段延期，但评论上下文是通知精确定位的跨模块 V1 契约。
+const v1Operations = new Set(['momentsCommentContext']);
+
 function moduleFor(operation: Operation, disposition: Disposition): string {
   if (disposition === 'infrastructure') return 'infrastructure';
   if (disposition === 'not_applicable') return 'admin';
@@ -135,6 +138,7 @@ function dispositionFor(operation: Operation): Disposition {
   const primaryTag = operation.tags[0] ?? '';
   if (operation.operationId === 'healthCheck') return 'infrastructure';
   if (adminTags.has(primaryTag)) return 'not_applicable';
+  if (v1Operations.has(operation.operationId)) return 'v1';
   if (deferredTags.has(primaryTag) || deferredOperations.has(operation.operationId)) {
     return 'deferred';
   }
