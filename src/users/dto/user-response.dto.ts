@@ -81,9 +81,6 @@ export class PrivateUserResponseDto {
   @ApiProperty()
   showBookmarks!: boolean;
 
-  @ApiProperty()
-  emailVerified!: boolean;
-
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   deletedAt!: Date | null;
 

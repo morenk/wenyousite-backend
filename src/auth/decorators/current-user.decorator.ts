@@ -5,7 +5,6 @@ export interface CurrentUserPayload {
   id: string;
   username?: string;
   role?: 'USER' | 'ADMIN' | 'SUPER_ADMIN';
-  emailVerified?: boolean;
   sessionId?: string;
   adminSessionId?: string;
   elevatedUntil?: string;

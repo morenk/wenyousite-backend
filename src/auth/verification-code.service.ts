@@ -1,4 +1,4 @@
-/** 邮箱验证码服务：统一"生成 / 复用 / 重发 / 作废"验证码记录，供注册、验证邮箱、换邮箱、重置密码复用 */
+/** 邮箱验证码服务：统一生成、复用、重发和作废注册/换绑/重置验证码记录。 */
 
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -6,7 +6,7 @@ import { randomInt } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type VerificationCodeType =
-  'REGISTRATION' | 'EMAIL_VERIFY' | 'CHANGE_EMAIL' | 'PASSWORD_RESET';
+  'REGISTRATION' | 'CHANGE_EMAIL' | 'PASSWORD_RESET';
 
 export const VERIFICATION_CODE_TTL = 15 * 60 * 1000; // 验证码统一有效期 15 分钟
 

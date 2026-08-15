@@ -35,15 +35,13 @@ export class EmailService {
   }
 
   /** 发送 6 位数字验证码 */
-  async sendVerification(to: string, code: string, type: 'REGISTRATION' | 'EMAIL_VERIFY' | 'CHANGE_EMAIL' = 'REGISTRATION') {
+  async sendVerification(to: string, code: string, type: 'REGISTRATION' | 'CHANGE_EMAIL' = 'REGISTRATION') {
     const subjectMap: Record<string, string> = {
       REGISTRATION: '温油站 — 注册验证码',
-      EMAIL_VERIFY: '温油站 — 邮箱验证',
       CHANGE_EMAIL: '温油站 — 更换邮箱验证码',
     };
     const bodyMap: Record<string, string> = {
       REGISTRATION: '6 位数字，15 分钟内有效。用于完成注册。',
-      EMAIL_VERIFY: '6 位数字，15 分钟内有效。',
       CHANGE_EMAIL: '6 位数字，15 分钟内有效。用于更换绑定邮箱。',
     };
     const from = this.config.get<string>('ses.from');

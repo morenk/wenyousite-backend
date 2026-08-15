@@ -23,7 +23,6 @@ interface AppealPrincipal {
   id: string;
   username: string;
   role: UserRole;
-  emailVerified: boolean;
 }
 
 function tokenSecret(accessSecret: string): Buffer {
@@ -44,10 +43,6 @@ export class AppealAccessService {
 
   async issue(accountInput: string, password: string) {
     const user = await this.verifyCredentials(accountInput, password);
-    if (!user.emailVerified) {
-      throw unauthorized('请先完成邮箱验证', ErrorCode.EMAIL_NOT_VERIFIED);
-    }
-
     const issuedAt = Date.now();
     const appealToken = await this.jwt.signAsync(
       { sub: user.id, purpose: APPEAL_TOKEN_PURPOSE } satisfies AppealTokenPayload,
@@ -100,18 +95,16 @@ export class AppealAccessService {
         id: true,
         username: true,
         role: true,
-        emailVerified: true,
         deletedAt: true,
       },
     });
-    if (!user || user.deletedAt || !user.emailVerified) {
+    if (!user || user.deletedAt) {
       throw unauthorized('申诉访问令牌无效或已过期', ErrorCode.APPEAL_TOKEN_INVALID);
     }
     return {
       id: user.id,
       username: user.username,
       role: user.role,
-      emailVerified: user.emailVerified,
     };
   }
 
@@ -133,7 +126,6 @@ export class AppealAccessService {
           id: true,
           username: true,
           role: true,
-          emailVerified: true,
           password: true,
           deletedAt: true,
           failedLoginAttempts: true,
@@ -185,7 +177,6 @@ export class AppealAccessService {
       id: result.user.id,
       username: result.user.username,
       role: result.user.role,
-      emailVerified: result.user.emailVerified,
     };
   }
 

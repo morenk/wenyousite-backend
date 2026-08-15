@@ -2,14 +2,13 @@ import { applyDecorators, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiExtension } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
-import { VerifiedGuard } from '../../common/guards/verified.guard';
 
-/** @Auth() — JWT 登录 + 邮箱验证，用于所有写操作 */
+/** @Auth() — JWT 登录，用于所有写操作或敏感操作 */
 export function Auth() {
   return applyDecorators(
-    UseGuards(JwtAuthGuard, VerifiedGuard),
+    UseGuards(JwtAuthGuard),
     ApiBearerAuth(),
-    ApiExtension('x-auth-mode', 'verified'),
+    ApiExtension('x-auth-mode', 'authenticated'),
   );
 }
 

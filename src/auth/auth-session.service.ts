@@ -17,7 +17,6 @@ const userSelectPublic = {
   username: true,
   avatar: true,
   role: true,
-  emailVerified: true,
   level: true,
 } as const;
 
@@ -219,7 +218,6 @@ export class AuthSessionService {
         username: user.username,
         avatar: user.avatar,
         role: user.role,
-        emailVerified: user.emailVerified,
         level: user.level,
       },
     };
@@ -365,7 +363,6 @@ export class AuthSessionService {
         username: rotated.user.username,
         avatar: rotated.user.avatar,
         role: rotated.user.role,
-        emailVerified: rotated.user.emailVerified,
         level: rotated.user.level,
       },
     };

@@ -45,7 +45,6 @@ describe('AppealAccessService', () => {
       id: 'user-1',
       username: 'tester',
       role: UserRole.USER,
-      emailVerified: true,
       password,
       deletedAt: null,
       failedLoginAttempts: 0,
@@ -89,7 +88,6 @@ describe('AppealAccessService', () => {
       id: 'user-1',
       username: 'tester',
       role: UserRole.USER,
-      emailVerified: true,
       password,
       deletedAt: null,
       failedLoginAttempts: 4,
@@ -121,13 +119,12 @@ describe('AppealAccessService', () => {
     });
   });
 
-  it('有效申诉凭据恢复最小用户主体，注销或未验证账号不可继续使用', async () => {
+  it('有效申诉凭据恢复最小用户主体，注销账号不可继续使用', async () => {
     jwt.verifyAsync.mockResolvedValue({ sub: 'user-1', purpose: 'moderation-appeal' });
     prisma.user.findUnique.mockResolvedValue({
       id: 'user-1',
       username: 'tester',
       role: UserRole.USER,
-      emailVerified: true,
       deletedAt: null,
     });
 
@@ -135,14 +132,12 @@ describe('AppealAccessService', () => {
       id: 'user-1',
       username: 'tester',
       role: UserRole.USER,
-      emailVerified: true,
     });
 
     prisma.user.findUnique.mockResolvedValue({
       id: 'user-1',
       username: 'tester',
       role: UserRole.USER,
-      emailVerified: true,
       deletedAt: new Date(),
     });
     await expect(service.authenticate('valid')).rejects.toMatchObject({

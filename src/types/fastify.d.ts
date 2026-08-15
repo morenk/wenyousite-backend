@@ -8,7 +8,6 @@ declare module 'fastify' {
       email?: string;
       username?: string;
       role?: string;
-      emailVerified?: boolean;
       sessionId?: string;
       adminSessionId?: string;
       elevatedUntil?: string;

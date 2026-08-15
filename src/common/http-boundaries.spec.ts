@@ -17,7 +17,6 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
 import { AdminGuard } from './guards/admin.guard';
 import { AdminBearerGuard } from './guards/admin-bearer.guard';
 import { OptionalJwtAuthGuard } from './guards/optional-jwt-auth.guard';
-import { SKIP_VERIFIED_KEY, VerifiedGuard } from './guards/verified.guard';
 import { TransformInterceptor } from './interceptors/response.interceptor';
 import { ParseUUIDPipe } from './pipes/uuid-validation.pipe';
 import { API_CONTRACT_VERSION } from './swagger/openapi-document';
@@ -75,7 +74,7 @@ describe('AllExceptionsFilter', () => {
     const { host, response } = httpContext();
 
     filter.catch(
-      new BusinessException(ErrorCode.EMAIL_NOT_VERIFIED, '请先验证邮箱', HttpStatus.FORBIDDEN),
+      new BusinessException(ErrorCode.ACCOUNT_LOCKED, '账号已锁定', HttpStatus.FORBIDDEN),
       host,
     );
 
@@ -83,8 +82,8 @@ describe('AllExceptionsFilter', () => {
     expect(response.header).toHaveBeenCalledWith('X-API-Contract-Version', API_CONTRACT_VERSION);
     expect(response.status).toHaveBeenCalledWith(HttpStatus.FORBIDDEN);
     expect(response.send).toHaveBeenCalledWith({
-      code: ErrorCode.EMAIL_NOT_VERIFIED,
-      message: '请先验证邮箱',
+      code: ErrorCode.ACCOUNT_LOCKED,
+      message: '账号已锁定',
       data: null,
     });
   });
@@ -257,22 +256,6 @@ describe('认证和权限边界', () => {
       expect.objectContaining({ errorCode: ErrorCode.ADMIN_REQUIRED }),
     );
     expect(guard.canActivate(httpContext({ role: 'SUPER_ADMIN' }).context)).toBe(true);
-  });
-
-  it('VerifiedGuard 尊重跳过元数据且拒绝未验证用户', () => {
-    const reflector = { getAllAndOverride: jest.fn() };
-    const guard = new VerifiedGuard(reflector as unknown as Reflector);
-    const unverified = httpContext({ emailVerified: false }).context;
-
-    reflector.getAllAndOverride.mockReturnValue(true);
-    expect(guard.canActivate(unverified)).toBe(true);
-    expect(reflector.getAllAndOverride).toHaveBeenCalledWith(SKIP_VERIFIED_KEY, expect.any(Array));
-
-    reflector.getAllAndOverride.mockReturnValue(false);
-    expect(() => guard.canActivate(unverified)).toThrow(
-      expect.objectContaining({ errorCode: ErrorCode.EMAIL_NOT_VERIFIED }),
-    );
-    expect(guard.canActivate(httpContext().context)).toBe(true);
   });
 
   it('JwtAuthGuard 公开路由直接放行', () => {

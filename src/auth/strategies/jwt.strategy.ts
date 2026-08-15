@@ -33,7 +33,6 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
           username: true,
           avatar: true,
           role: true,
-          emailVerified: true,
           deletedAt: true,
           sanctions: {
             where: activeSanctionWhere(),
@@ -72,7 +71,6 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       username: user.username,
       avatar: user.avatar,
       role: user.role,
-      emailVerified: user.emailVerified,
       deletedAt: user.deletedAt,
       sessionId: payload.sid,
     };

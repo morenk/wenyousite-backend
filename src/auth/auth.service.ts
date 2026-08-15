@@ -18,7 +18,6 @@ const userSelectPublic = {
   username: true,
   avatar: true,
   role: true,
-  emailVerified: true,
   level: true,
 } as const;
 
@@ -34,7 +33,7 @@ type VerificationFailure = {
 type VerificationResult<T> = { ok: true; value: T } | VerificationFailure;
 
 @Injectable()
-/** 认证服务：注册、登录、Token 刷新、邮箱验证、密码管理、双端登录终端 */
+/** 认证服务：注册验证码、登录、Token 刷新、密码管理、双端登录终端 */
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
@@ -192,7 +191,6 @@ export class AuthService {
               email,
               username: dto.username,
               password,
-              emailVerified: true,
               bookmarkFolders: {
                 create: { name: '默认收藏夹', isDefault: true },
               },
@@ -241,25 +239,6 @@ export class AuthService {
 
   async refresh(rawRefreshToken: string) {
     return this.sessions.refresh(rawRefreshToken);
-  }
-
-  /** 验证邮箱（需登录，按 userId + type 查询避免 token 碰撞） */
-  async verifyEmail(userId: string, inputToken: string) {
-    return this.consumeVerification(
-      {
-        where: { userId, type: 'EMAIL_VERIFY' },
-        inputCode: inputToken,
-        missing: { message: '请先请求验证码', code: ErrorCode.NO_CODE_RECORD },
-        lockUserId: userId,
-      },
-      async (tx) => {
-        await tx.user.update({
-          where: { id: userId },
-          data: { emailVerified: true },
-        });
-        return { message: '邮箱验证成功' };
-      },
-    );
   }
 
   /** 修改密码：旧密码校验 + 吊销全部会话 + 发送通知邮件 */
@@ -364,7 +343,7 @@ export class AuthService {
         });
         await tx.user.update({
           where: { id: user.id },
-          data: { password: hashed, emailVerified: true },
+          data: { password: hashed },
         });
         await tx.refreshToken.updateMany({
           where: { userId: user.id, revokedAt: null },
@@ -481,7 +460,7 @@ export class AuthService {
 
           await tx.user.update({
             where: { id: userId },
-            data: { email: normalized, emailVerified: true },
+            data: { email: normalized },
           });
           await tx.refreshToken.updateMany({
             where: { userId, revokedAt: null },
@@ -508,27 +487,6 @@ export class AuthService {
     });
 
     return { message: '邮箱已成功更换' };
-  }
-
-  /** 重发验证邮件 */
-  async resendVerification(rawEmail: string) {
-    const email = rawEmail.toLowerCase().trim();
-    const user = await this.prisma.user.findUnique({
-      where: { email, deletedAt: null },
-    });
-    if (!user || user.emailVerified) {
-      return { emailSent: true, message: '如果该邮箱已注册且未验证，验证邮件已发送' };
-    }
-
-    const { emailSent } = await this.verificationCodeService.issue({
-      type: 'EMAIL_VERIFY',
-      userId: user.id,
-      email,
-      label: '重发验证邮件',
-      send: (code) => this.emailService.sendVerification(user.email, code, 'EMAIL_VERIFY'),
-    });
-
-    return { emailSent, message: '如果该邮箱已注册且未验证，验证邮件已发送' };
   }
 
   async logout(userId: string, rawRefreshToken: string) {

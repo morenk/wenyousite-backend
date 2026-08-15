@@ -17,9 +17,6 @@ export class UserProfile {
   @ApiProperty({ example: 'USER', description: '用户角色（USER / ADMIN / SUPER_ADMIN）' })
   role: string;
 
-  @ApiProperty({ example: true, description: '邮箱是否已验证' })
-  emailVerified: boolean;
-
   @ApiProperty({ minimum: 1, maximum: 9 })
   level: number;
 }

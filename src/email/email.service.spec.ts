@@ -44,7 +44,6 @@ describe('EmailService', () => {
 
   it.each([
     ['REGISTRATION', '温油站 — 注册验证码', '用于完成注册'],
-    ['EMAIL_VERIFY', '温油站 — 邮箱验证', '15 分钟内有效'],
     ['CHANGE_EMAIL', '温油站 — 更换邮箱验证码', '用于更换绑定邮箱'],
   ] as const)('发送 %s 验证码使用对应主题和说明', async (type, subject, description) => {
     await service.sendVerification('user@example.com', '123456', type);

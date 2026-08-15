@@ -36,7 +36,6 @@ const userSelectPrivate = {
   showRecentReplies: true,
   showPlayerBadges: true,
   showBookmarks: true,
-  emailVerified: true,
   deletedAt: true,
   experience: true,
   level: true,

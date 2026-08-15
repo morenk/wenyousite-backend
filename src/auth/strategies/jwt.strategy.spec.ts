@@ -10,7 +10,6 @@ const authenticatedUser = {
   username: 'tester',
   avatar: null,
   role: 'USER',
-  emailVerified: true,
   deletedAt: null,
 };
 const user = { ...authenticatedUser, sanctions: [] };

@@ -41,8 +41,6 @@ export const ErrorCode = {
   ACCOUNT_LOCKED: 40105,
   /** 账号已注销 */
   ACCOUNT_DEACTIVATED: 40106,
-  /** 邮箱未验证，仅可读操作 */
-  EMAIL_NOT_VERIFIED: 40107,
   /** 账号处于管理员暂停期 */
   ACCOUNT_SUSPENDED: 40108,
   /** 账号已被管理员永久封禁 */

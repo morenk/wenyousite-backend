@@ -8,11 +8,9 @@ import { VerifyAndCompleteDto } from './dto/verify-and-complete.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { AuthResponseDto, RegisterCodeResponseDto } from './dto/auth-response.dto';
-import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
-import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { LogoutDto } from './dto/logout.dto';
 import { ChangeEmailRequestDto, ChangeEmailVerifyDto } from './dto/change-email.dto';
 import { RevokeSessionResponseDto, SessionResponseDto } from './dto/session-response.dto';
@@ -83,7 +81,7 @@ export class AuthController {
   @Post('register/verify-and-complete')
   @Public()
   @ApiHeader({ name: 'X-Client-Platform', required: false, enum: CLIENT_PLATFORMS, description: '客户端类型：web（PC/手机浏览器）或 mobile（原生移动端）' })
-  @ApiOperation({ summary: '注册第二步：验证邮箱 + 设置用户名密码。完成后 emailVerified=true 立即可用' })
+  @ApiOperation({ summary: '注册第二步：验证邮箱 + 设置用户名密码，完成后立即建立账号会话' })
   @ApiResponse({ status: 200, type: AuthResponseDto, description: '注册成功；Web 通过 httpOnly Cookie 接收 refresh token，移动客户端从响应体接收' })
   @ApiResponse({ status: 400, description: '验证码错误或过期' })
   @ApiResponse({ status: 409, description: '用户名已被占用' })
@@ -119,30 +117,6 @@ export class AuthController {
     if (!token) throw unauthorized('缺少刷新令牌', ErrorCode.TOKEN_INVALID);
     const { platform, ...result } = await this.authService.refresh(token);
     return authResultForClient(result, platform, res, this.cookieBase, this.refreshMaxAge(platform));
-  }
-
-  @Post('verify-email')
-  @AuthRead()
-  @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { ttl: 60000, limit: 5 } })
-  @ApiBearerAuth()
-  @ApiOperation({ summary: '验证当前登录用户的邮箱（6 位验证码，限流 5次/分钟）' })
-  @ApiOkResponse({ type: MessageResponseDto, description: '验证成功' })
-  @ApiUnauthorizedResponse({ description: '未登录' })
-  @ApiBadRequestResponse({ description: '验证码错误' })
-  async verifyEmail(@Req() req: FastifyRequest, @Body() dto: VerifyEmailDto) {
-    const user = req['user'] as { id: string };
-    return this.authService.verifyEmail(user.id, dto.token);
-  }
-
-  @Post('resend-verification')
-  @Public()
-  @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { ttl: 60000, limit: 1 } })
-  @ApiOperation({ summary: '重发验证邮件（限流 1次/分钟）' })
-  @ApiOkResponse({ type: MessageResponseDto, description: '验证邮件已重新发送' })
-  async resendVerification(@Body() dto: ResendVerificationDto) {
-    return this.authService.resendVerification(dto.email);
   }
 
   @Post('change-password')
@@ -202,7 +176,7 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '更换邮箱第二步：验证码确认并更新邮箱' })
   @ApiOkResponse({ type: MessageResponseDto, description: '邮箱更换成功' })
-  @ApiUnauthorizedResponse({ description: '未登录或邮箱未验证' })
+  @ApiUnauthorizedResponse({ description: '未登录' })
   @ApiBadRequestResponse({ description: '验证码错误或过期' })
   async verifyChangeEmail(@Req() req: FastifyRequest, @Body() dto: ChangeEmailVerifyDto) {
     const user = req['user'] as { id: string };

@@ -268,7 +268,6 @@ model User {
   profileCoverMobileMediaId String? @unique @map("profile_cover_mobile_media_id")
   bio                 String?
   role                UserRole  @default(USER)
-  emailVerified       Boolean   @default(false) @map("email_verified")
   showRecentReplies   Boolean   @default(true) @map("show_recent_replies")
   showPlayerBadges    Boolean   @default(true) @map("show_player_badges")
   showBookmarks       Boolean   @default(true) @map("show_bookmarks")
