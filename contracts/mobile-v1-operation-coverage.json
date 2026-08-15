@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "4.13.1-dev.20260815.1",
+  "contractVersion": "4.14.0-dev.20260815.1",
   "counts": {
-    "total": 203,
-    "v1": 97,
+    "total": 201,
+    "v1": 95,
     "deferred": 55,
     "notApplicable": 50,
     "infrastructure": 1
@@ -61,22 +61,6 @@
         "test/core/network/session_controller_test.dart",
         "test/core/network/session_remote_test.dart"
       ]
-    },
-    {
-      "operationId": "authVerifyEmail",
-      "method": "POST",
-      "path": "/api/v1/auth/verify-email",
-      "module": "auth",
-      "disposition": "v1",
-      "status": "planned"
-    },
-    {
-      "operationId": "authResendVerification",
-      "method": "POST",
-      "path": "/api/v1/auth/resend-verification",
-      "module": "auth",
-      "disposition": "v1",
-      "status": "planned"
     },
     {
       "operationId": "authChangePassword",

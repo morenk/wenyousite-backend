@@ -94,8 +94,7 @@ X-Client-Platform: web
       "email": "user@example.com",
       "username": "zhangsan",
       "avatar": "https://...",
-      "role": "USER",
-      "emailVerified": true
+      "role": "USER"
     }
   }
 }

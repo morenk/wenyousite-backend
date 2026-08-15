@@ -22,7 +22,6 @@
 | `TOKEN_THEFT_DETECTED` | 40104 | Token 盗用检测触发，对应登录终端退出 |
 | `ACCOUNT_LOCKED` | 40105 | 账号已锁定（登录失败超限） |
 | `ACCOUNT_DEACTIVATED` | 40106 | 账号已注销 |
-| `EMAIL_NOT_VERIFIED` | 40107 | 邮箱未验证，仅可读操作 |
 | `ACCOUNT_SUSPENDED` | 40108 | 账号处于管理员暂停期 |
 | `ACCOUNT_BANNED` | 40109 | 账号已被管理员永久封禁 |
 | `LOGIN_FAILED` | 40110 | 登录凭据错误 |

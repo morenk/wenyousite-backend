@@ -72,7 +72,7 @@ for (const [route, pathItem] of Object.entries(document.paths ?? {})) {
     }
 
     const authMode = operation['x-auth-mode'];
-    const allowedAuthModes = ['public', 'optional', 'authenticated', 'verified', 'appeal', 'admin'];
+    const allowedAuthModes = ['public', 'optional', 'authenticated', 'appeal', 'admin'];
     if (!allowedAuthModes.includes(authMode)) {
       failures.push(`${label}: 缺少或使用了未知的 x-auth-mode (${String(authMode)})`);
     }
@@ -88,7 +88,7 @@ for (const [route, pathItem] of Object.entries(document.paths ?? {})) {
     if (authMode === 'optional' && (!hasBearer || !hasAnonymous)) {
       failures.push(`${label}: optional 操作必须同时声明 bearer 与匿名访问`);
     }
-    if (['authenticated', 'verified'].includes(authMode) && (!hasBearer || hasAnonymous)) {
+    if (authMode === 'authenticated' && (!hasBearer || hasAnonymous)) {
       failures.push(`${label}: ${authMode} 操作必须声明 bearer 鉴权`);
     }
     if (authMode === 'appeal' && (!hasBearer || !hasAppealBearer || hasAnonymous)) {

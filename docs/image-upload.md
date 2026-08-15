@@ -35,7 +35,7 @@
 
 ## Step 1: 获取上传凭证
 
-**端点**：`POST /media/upload-url`（需 `@Auth()` 登录 + 邮箱验证）
+**端点**：`POST /media/upload-url`（需 `@Auth()` 登录）
 
 **请求 DTO**：
 
@@ -117,7 +117,7 @@ Body: <binary>
 
 ## Step 3: 上传确认
 
-**端点**：`POST /media/upload-done`（需 `@Auth()` 登录 + 邮箱验证）
+**端点**：`POST /media/upload-done`（需 `@Auth()` 登录）
 
 **请求 DTO**：
 
@@ -146,7 +146,7 @@ class ConfirmUploadDto {
 
 ## Step 4: 查询处理状态
 
-**端点**：`GET /media/:id`（需 `@Auth()` 登录 + 邮箱验证）
+**端点**：`GET /media/:id`（需 `@Auth()` 登录）
 
 客户端轮询此端点获知缩略图是否就绪：
 
@@ -225,7 +225,7 @@ UPLOADING ──(元数据不合法)──────────────�
 
 ## 头像设置
 
-**端点**：`PATCH /users/me/avatar`（需 `@Auth()` 登录 + 邮箱验证）
+**端点**：`PATCH /users/me/avatar`（需 `@Auth()` 登录）
 
 ```json
 { "mediaId": "clx..." }

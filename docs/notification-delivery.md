@@ -136,7 +136,7 @@ const followers = await this.prisma.userFollow.findMany({
 **接收者**（三种分发模式，优先级从高到低）：
 
 1. 手动指定：传入 `recipientIds`，自动过滤已注销用户
-2. 条件筛选：传入 `conditions` 对象（role / emailVerified / createdAfter / createdBefore），AND 逻辑组合
+2. 条件筛选：传入 `conditions` 对象（role / createdAfter / createdBefore），AND 逻辑组合
 3. 全站广播：不传筛选参数，遍历所有 `deletedAt = null` 的用户，500 条/批分批入队
 
 **配套端点**：

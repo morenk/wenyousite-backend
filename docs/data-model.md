@@ -121,7 +121,6 @@
 | profileCoverMobileMediaId | String? | unique, FK → media.id | 个人主页移动端 2:1 背景图；账号注销时置空 |
 | bio | String? | — | 个人简介 |
 | role | UserRole | default USER | 权限等级 |
-| emailVerified | Boolean | default false | 邮箱是否已验证（已验证后才可发帖/关注/加入） |
 | showRecentReplies | Boolean | default true | 隐私：允许他人查看最近回复 |
 | showPlayerBadges | Boolean | default true | 隐私：允许显示玩家标记 |
 | showBookmarks | Boolean | default true | 隐私：允许显示收藏/订阅 |
@@ -154,7 +153,7 @@
 - 仅记录首次成功产品请求时间，不记录路径、请求参数、IP 或 User-Agent；管理员请求、通知轮询和失败请求不计入。
 - Redis 只做跨实例日内去重，PostgreSQL 唯一键是最终事实与故障回退。
 
-### email_verifications — 邮箱验证码（统一注册/验证/重置）
+### email_verifications — 邮箱验证码（统一注册/换绑/重置）
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
@@ -162,13 +161,13 @@
 | userId | String? | FK users (Cascade)，注册阶段为 null | 关联用户 |
 | email | String? | — | 注册阶段使用（userId 为空时） |
 | token | String | indexed | 6 位数字验证码 |
-| type | String | default REGISTRATION | 类型：REGISTRATION / EMAIL_VERIFY / PASSWORD_RESET |
+| type | String | default REGISTRATION | 类型：REGISTRATION / CHANGE_EMAIL / PASSWORD_RESET |
 | attempts | Int | default 0 | 失败尝试次数（>=5 删除记录） |
 | expiresAt | DateTime | — | 过期时间（统一 15 分钟） |
 | createdAt | DateTime | — | — |
 
 > 索引：`@@index([token])`, `@@index([userId, type])`, `@@unique([email, type])`  
-> 已废弃 `registration_drafts` 表，统一使用本表承载注册/验证/重置三类用途。  
+> 已废弃 `registration_drafts` 表，统一使用本表承载注册/换绑/重置三类用途。
 > `@@unique([email, type])` 防止同一邮箱同时存在多条 REGISTRATION 记录。
 
 ### refresh_tokens — 双端登录终端

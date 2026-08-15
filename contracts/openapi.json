@@ -252,7 +252,7 @@
             }
           }
         },
-        "summary": "注册第二步：验证邮箱 + 设置用户名密码。完成后 emailVerified=true 立即可用",
+        "summary": "注册第二步：验证邮箱 + 设置用户名密码，完成后立即建立账号会话",
         "tags": [
           "Auth"
         ],
@@ -423,166 +423,6 @@
           }
         },
         "summary": "用 refreshToken 轮转换取新双 Token（Cookie 优先，含盗用检测）",
-        "tags": [
-          "Auth"
-        ],
-        "x-auth-mode": "public",
-        "security": []
-      }
-    },
-    "/api/v1/auth/verify-email": {
-      "post": {
-        "operationId": "authVerifyEmail",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/VerifyEmailDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "验证成功",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuthVerifyEmail200Response"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "400": {
-            "description": "验证码错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "401": {
-            "description": "未登录",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "default": {
-            "description": "未在此操作中单独列出的错误响应",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "验证当前登录用户的邮箱（6 位验证码，限流 5次/分钟）",
-        "tags": [
-          "Auth"
-        ],
-        "x-auth-mode": "authenticated"
-      }
-    },
-    "/api/v1/auth/resend-verification": {
-      "post": {
-        "operationId": "authResendVerification",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ResendVerificationDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "验证邮件已重新发送",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuthResendVerification200Response"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "default": {
-            "description": "未在此操作中单独列出的错误响应",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          }
-        },
-        "summary": "重发验证邮件（限流 1次/分钟）",
         "tags": [
           "Auth"
         ],
@@ -962,7 +802,7 @@
             }
           },
           "401": {
-            "description": "未登录或邮箱未验证",
+            "description": "未登录",
             "content": {
               "application/json": {
                 "schema": {
@@ -1007,7 +847,7 @@
         "tags": [
           "Auth"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/auth/logout": {
@@ -1591,7 +1431,7 @@
         "tags": [
           "Users"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       },
       "delete": {
         "operationId": "usersDeleteMe",
@@ -1661,7 +1501,7 @@
         "tags": [
           "Users"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/users/me/avatar": {
@@ -1761,7 +1601,7 @@
         "tags": [
           "Users"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       },
       "delete": {
         "operationId": "usersRemoveAvatar",
@@ -1831,7 +1671,7 @@
         "tags": [
           "Users"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/users/me/profile-cover": {
@@ -1931,7 +1771,7 @@
         "tags": [
           "Users"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       },
       "delete": {
         "operationId": "usersRemoveProfileCover",
@@ -2001,7 +1841,7 @@
         "tags": [
           "Users"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/users/{id}/bookmarks": {
@@ -2671,7 +2511,7 @@
         "tags": [
           "Users"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       },
       "delete": {
         "operationId": "usersFollowUnfollow",
@@ -2732,7 +2572,7 @@
         "tags": [
           "Users"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/users/following": {
@@ -3031,7 +2871,7 @@
         "tags": [
           "Users"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       },
       "delete": {
         "operationId": "usersFollowUnblock",
@@ -3092,7 +2932,7 @@
         "tags": [
           "Users"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/users/me/blocks": {
@@ -4451,7 +4291,7 @@
             }
           },
           "401": {
-            "description": "未登录或邮箱未验证",
+            "description": "未登录",
             "content": {
               "application/json": {
                 "schema": {
@@ -4496,7 +4336,7 @@
         "tags": [
           "Threads"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/threads/{id}": {
@@ -4622,7 +4462,7 @@
             }
           },
           "401": {
-            "description": "未登录或邮箱未验证",
+            "description": "未登录",
             "content": {
               "application/json": {
                 "schema": {
@@ -4721,7 +4561,7 @@
         "tags": [
           "Threads"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       },
       "delete": {
         "operationId": "threadsRemove",
@@ -4755,7 +4595,7 @@
             }
           },
           "401": {
-            "description": "未登录或邮箱未验证",
+            "description": "未登录",
             "content": {
               "application/json": {
                 "schema": {
@@ -4836,7 +4676,7 @@
         "tags": [
           "Threads"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/threads/{id}/aggregate": {
@@ -4882,7 +4722,7 @@
             }
           },
           "401": {
-            "description": "未登录或邮箱未验证",
+            "description": "未登录",
             "content": {
               "application/json": {
                 "schema": {
@@ -4981,7 +4821,7 @@
         "tags": [
           "Threads"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/threads/{id}/like": {
@@ -5044,7 +4884,7 @@
         "tags": [
           "Threads"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       },
       "delete": {
         "operationId": "threadsUnlike",
@@ -5105,7 +4945,7 @@
         "tags": [
           "Threads"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/threads/{id}/invite-link": {
@@ -5141,7 +4981,7 @@
             }
           },
           "401": {
-            "description": "未登录或邮箱未验证",
+            "description": "未登录",
             "content": {
               "application/json": {
                 "schema": {
@@ -5204,7 +5044,7 @@
         "tags": [
           "Threads"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/threads/join-by-link/{token}": {
@@ -5337,7 +5177,7 @@
             }
           },
           "401": {
-            "description": "未登录或邮箱未验证",
+            "description": "未登录",
             "content": {
               "application/json": {
                 "schema": {
@@ -5400,7 +5240,7 @@
         "tags": [
           "Threads"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/threads/{threadId}/members": {
@@ -5528,7 +5368,7 @@
         "tags": [
           "Threads"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/threads/{threadId}/members/{userId}": {
@@ -5620,7 +5460,7 @@
         "tags": [
           "Threads"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/threads/{threadId}/members/me": {
@@ -5818,7 +5658,7 @@
         "tags": [
           "Threads"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/threads/{threadId}/tags/{tagId}": {
@@ -5889,7 +5729,7 @@
         "tags": [
           "Threads"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/tags": {
@@ -5984,7 +5824,7 @@
             }
           },
           "401": {
-            "description": "未登录或邮箱未验证",
+            "description": "未登录",
             "content": {
               "application/json": {
                 "schema": {
@@ -6047,7 +5887,7 @@
         "tags": [
           "Tags"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/tags/{id}": {
@@ -6224,7 +6064,7 @@
         "tags": [
           "Stickers"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/stickers/imports/direct-message": {
@@ -6288,7 +6128,7 @@
         "tags": [
           "Stickers"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/stickers/imports/post-image": {
@@ -6352,7 +6192,7 @@
         "tags": [
           "Stickers"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/stickers/imports/{id}": {
@@ -6479,7 +6319,7 @@
         "tags": [
           "Stickers"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/stickers/{favoriteId}": {
@@ -6542,7 +6382,7 @@
         "tags": [
           "Stickers"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/thread-categories": {
@@ -6727,7 +6567,7 @@
         "tags": [
           "Subthreads"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/subthreads/{id}": {
@@ -6862,7 +6702,7 @@
         "tags": [
           "Subthreads"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       },
       "delete": {
         "operationId": "subthreadsRemove",
@@ -6923,7 +6763,7 @@
         "tags": [
           "Subthreads"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/threads/{threadId}/subthreads/reorder": {
@@ -6996,7 +6836,7 @@
         "tags": [
           "Subthreads"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/subthreads/{subthreadId}/posts": {
@@ -7207,7 +7047,7 @@
         "tags": [
           "Posts"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/posts/{id}/replies": {
@@ -7442,7 +7282,7 @@
         "tags": [
           "Posts"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/posts/{id}": {
@@ -7649,7 +7489,7 @@
         "tags": [
           "Posts"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       },
       "delete": {
         "operationId": "postsRemove",
@@ -7764,7 +7604,7 @@
         "tags": [
           "Posts"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/drafts": {
@@ -7934,7 +7774,7 @@
         "tags": [
           "Drafts"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/drafts/slots": {
@@ -8230,7 +8070,7 @@
         "tags": [
           "Drafts"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       },
       "delete": {
         "operationId": "draftsRemove",
@@ -8327,7 +8167,7 @@
         "tags": [
           "Drafts"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/subscriptions": {
@@ -8479,7 +8319,7 @@
         "tags": [
           "Subscriptions"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/subscriptions/{id}": {
@@ -8578,7 +8418,7 @@
         "tags": [
           "Subscriptions"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/reports": {
@@ -8660,7 +8500,7 @@
         "tags": [
           "Reports"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/admin/reports": {
@@ -9085,7 +8925,7 @@
             }
           }
         },
-        "summary": "验证邮箱验证码并建立独立管理员 Cookie 会话",
+        "summary": "验证管理员验证码并建立独立管理员 Cookie 会话",
         "tags": [
           "Admin Auth"
         ],
@@ -9804,7 +9644,7 @@
         "tags": [
           "Admin Accounts"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/admin/cases": {
@@ -10354,7 +10194,7 @@
             }
           },
           "401": {
-            "description": "账号密码错误、账号锁定或邮箱未验证",
+            "description": "账号密码错误或账号锁定",
             "content": {
               "application/json": {
                 "schema": {
@@ -12578,7 +12418,7 @@
         "tags": [
           "Client Moderation"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/admin/dashboard/overview": {
@@ -14006,7 +13846,7 @@
         "tags": [
           "Moments"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/moments/bookmarks": {
@@ -14254,7 +14094,7 @@
         "tags": [
           "Moments"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       },
       "delete": {
         "operationId": "momentsRemove",
@@ -14315,7 +14155,7 @@
         "tags": [
           "Moments"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/moments/{id}/like": {
@@ -14378,7 +14218,7 @@
         "tags": [
           "Moments"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       },
       "delete": {
         "operationId": "momentsUnlike",
@@ -14439,7 +14279,7 @@
         "tags": [
           "Moments"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/moments/{id}/bookmark": {
@@ -14502,7 +14342,7 @@
         "tags": [
           "Moments"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       },
       "delete": {
         "operationId": "momentsUnbookmark",
@@ -14563,7 +14403,7 @@
         "tags": [
           "Moments"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/moments/{id}/comments": {
@@ -14742,7 +14582,7 @@
         "tags": [
           "Moments"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/moments/{id}/comment-authors": {
@@ -15101,7 +14941,7 @@
         "tags": [
           "Moments"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/users/{id}/moments": {
@@ -15308,7 +15148,7 @@
         "tags": [
           "Media"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/media/upload-done": {
@@ -15408,7 +15248,7 @@
         "tags": [
           "Media"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/media/{id}": {
@@ -15507,7 +15347,7 @@
         "tags": [
           "Media"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/direct-conversations": {
@@ -15632,7 +15472,7 @@
             }
           },
           "403": {
-            "description": "邮箱未验证、存在拉黑关系或无权再次申请",
+            "description": "存在拉黑关系或无权再次申请",
             "content": {
               "application/json": {
                 "schema": {
@@ -15695,7 +15535,7 @@
         "tags": [
           "Direct Messages"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/direct-conversations/unread": {
@@ -16066,7 +15906,7 @@
             }
           },
           "403": {
-            "description": "邮箱未验证、拉黑或会话不可发送",
+            "description": "拉黑或会话不可发送",
             "content": {
               "application/json": {
                 "schema": {
@@ -16129,7 +15969,7 @@
         "tags": [
           "Direct Messages"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/direct-conversations/{id}/request": {
@@ -16175,7 +16015,7 @@
             }
           },
           "403": {
-            "description": "不是请求接收方或接受时邮箱未验证",
+            "description": "不是请求接收方或请求状态不允许此操作",
             "content": {
               "application/json": {
                 "schema": {
@@ -16216,7 +16056,7 @@
             "bearer": []
           }
         ],
-        "summary": "接受或拒绝收到的消息请求；接受要求邮箱已验证",
+        "summary": "接受或拒绝收到的消息请求",
         "tags": [
           "Direct Messages"
         ],
@@ -16640,7 +16480,7 @@
         "tags": [
           "Wallet"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/wallet/transactions": {
@@ -16862,7 +16702,7 @@
         "tags": [
           "Wallet"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/users/{id}/tips": {
@@ -17007,7 +16847,7 @@
         "tags": [
           "Wallet"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/moments/{id}/tips": {
@@ -17152,14 +16992,14 @@
         "tags": [
           "Wallet"
         ],
-        "x-auth-mode": "verified"
+        "x-auth-mode": "authenticated"
       }
     }
   },
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "4.13.1-dev.20260815.1",
+    "version": "4.14.0-dev.20260815.1",
     "contact": {}
   },
   "tags": [
@@ -17414,11 +17254,6 @@
             "example": "USER",
             "description": "用户角色（USER / ADMIN / SUPER_ADMIN）"
           },
-          "emailVerified": {
-            "type": "boolean",
-            "example": true,
-            "description": "邮箱是否已验证"
-          },
           "level": {
             "type": "number",
             "minimum": 1,
@@ -17431,7 +17266,6 @@
           "username",
           "avatar",
           "role",
-          "emailVerified",
           "level"
         ]
       },
@@ -17497,47 +17331,6 @@
           }
         }
       },
-      "VerifyEmailDto": {
-        "type": "object",
-        "properties": {
-          "token": {
-            "type": "string",
-            "example": "8a7b3c",
-            "minLength": 6,
-            "maxLength": 6,
-            "description": "6 位邮箱验证码"
-          }
-        },
-        "required": [
-          "token"
-        ]
-      },
-      "MessageResponseDto": {
-        "type": "object",
-        "properties": {
-          "message": {
-            "type": "string",
-            "description": "操作结果说明",
-            "example": "操作成功"
-          }
-        },
-        "required": [
-          "message"
-        ]
-      },
-      "ResendVerificationDto": {
-        "type": "object",
-        "properties": {
-          "email": {
-            "type": "string",
-            "example": "user@example.com",
-            "description": "需要重发验证邮件的邮箱"
-          }
-        },
-        "required": [
-          "email"
-        ]
-      },
       "ChangePasswordDto": {
         "type": "object",
         "properties": {
@@ -17559,6 +17352,19 @@
         "required": [
           "oldPassword",
           "newPassword"
+        ]
+      },
+      "MessageResponseDto": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "操作结果说明",
+            "example": "操作成功"
+          }
+        },
+        "required": [
+          "message"
         ]
       },
       "ForgotPasswordDto": {
@@ -17961,9 +17767,6 @@
           "showBookmarks": {
             "type": "boolean"
           },
-          "emailVerified": {
-            "type": "boolean"
-          },
           "deletedAt": {
             "type": "string",
             "format": "date-time",
@@ -17998,7 +17801,6 @@
           "showRecentReplies",
           "showPlayerBadges",
           "showBookmarks",
-          "emailVerified",
           "deletedAt",
           "createdAt",
           "updatedAt",
@@ -18112,9 +17914,6 @@
           "showBookmarks": {
             "type": "boolean"
           },
-          "emailVerified": {
-            "type": "boolean"
-          },
           "deletedAt": {
             "type": "string",
             "format": "date-time",
@@ -18146,7 +17945,6 @@
           "showRecentReplies",
           "showPlayerBadges",
           "showBookmarks",
-          "emailVerified",
           "deletedAt",
           "createdAt",
           "updatedAt"
@@ -22284,7 +22082,7 @@
         "properties": {
           "userId": {
             "type": "string",
-            "description": "已验证邮箱的现有温油账号 ID"
+            "description": "现有温油账号 ID"
           }
         },
         "required": [
@@ -22869,9 +22667,6 @@
                 "SUPER_ADMIN"
               ]
             }
-          },
-          "emailVerified": {
-            "type": "boolean"
           }
         }
       },
@@ -22963,10 +22758,6 @@
                 "SUPER_ADMIN"
               ]
             }
-          },
-          "emailVerified": {
-            "type": "boolean",
-            "description": "邮箱验证状态筛选"
           },
           "createdAfter": {
             "type": "string",
@@ -23121,9 +22912,6 @@
               "SUPER_ADMIN"
             ]
           },
-          "emailVerified": {
-            "type": "boolean"
-          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -23134,7 +22922,6 @@
           "username",
           "email",
           "role",
-          "emailVerified",
           "createdAt"
         ]
       },
@@ -23212,9 +22999,6 @@
               "SUPER_ADMIN"
             ]
           },
-          "emailVerified": {
-            "type": "boolean"
-          },
           "moderationStatus": {
             "type": "string",
             "enum": [
@@ -23242,7 +23026,6 @@
           "email",
           "username",
           "role",
-          "emailVerified",
           "moderationStatus",
           "createdAt"
         ]
@@ -26236,42 +26019,6 @@
             "properties": {
               "data": {
                 "$ref": "#/components/schemas/AuthResponseDto"
-              }
-            }
-          }
-        ]
-      },
-      "AuthVerifyEmail200Response": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ApiSuccessEnvelope"
-          },
-          {
-            "type": "object",
-            "required": [
-              "data"
-            ],
-            "properties": {
-              "data": {
-                "$ref": "#/components/schemas/MessageResponseDto"
-              }
-            }
-          }
-        ]
-      },
-      "AuthResendVerification200Response": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ApiSuccessEnvelope"
-          },
-          {
-            "type": "object",
-            "required": [
-              "data"
-            ],
-            "properties": {
-              "data": {
-                "$ref": "#/components/schemas/MessageResponseDto"
               }
             }
           }
@@ -29958,7 +29705,6 @@
           40104,
           40105,
           40106,
-          40107,
           40108,
           40109,
           40110,
@@ -30051,7 +29797,6 @@
           "TOKEN_THEFT_DETECTED",
           "ACCOUNT_LOCKED",
           "ACCOUNT_DEACTIVATED",
-          "EMAIL_NOT_VERIFIED",
           "ACCOUNT_SUSPENDED",
           "ACCOUNT_BANNED",
           "LOGIN_FAILED",

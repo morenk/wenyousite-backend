@@ -24,7 +24,7 @@
 | `ImageProcessor`                 | `@Processor('image')`       | 调用 MediaService 生成衍生图（`src/media`）                                              |
 | `StickerProcessor`               | `@Processor('sticker')`     | 规范化表情并完成幂等导入（`src/stickers`）                                               |
 | `MobilePushProcessor`            | `@Processor('mobile-push')` | 验证终端状态、发送 FCM、停用无效 token（`src/mobile-push`）                              |
-| `CleanupTask`                    | `@Cron`                     | 清理过期 token、已处理 Outbox、僵尸用户、失败/未完成媒体与终态表情导入记录（`src/jobs`） |
+| `CleanupTask`                    | `@Cron`                     | 清理过期 token、验证码、已处理 Outbox、失败/未完成媒体与终态表情导入记录（`src/jobs`） |
 
 ## 枚举
 
@@ -65,7 +65,7 @@
 
 - **每天凌晨 4 点**执行
 - 清理过期的 `EmailVerification` token
-- 删除注册超过 7 天仍未验证邮箱的用户
+- 清理过期的注册/换绑/重置验证码记录
 - 清理 7 天前已确认的 Outbox；绝不删除未处理事件
 - 清理超过 24 小时未确认的上传和超过 7 天的失败媒体；已完成媒体在建立规范化引用账本前保守保留
 - 清理 7 天前完成或失败的表情导入记录；已完成表情资产可能被 Markdown 字符串引用，在建立规范化引用账本前保守保留，不执行自动对象删除

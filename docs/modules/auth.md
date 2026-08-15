@@ -2,7 +2,7 @@
 
 ## 概述
 
-用户注册（两步：请求验证码 → 验证码+用户名密码完成注册）、登录、Token 刷新、邮箱验证、修改密码、忘记/重置密码、登出的全流程实现。
+用户注册（两步：请求验证码 → 验证码+用户名密码完成注册）、登录、Token 刷新、修改密码、忘记/重置密码、登出的全流程实现。
 
 **双端登录**：每个账号最多同时保留一个 Web 登录终端和一个原生移动端登录终端。PC 浏览器与手机浏览器都属于 Web 端；同端再次登录会替换该端原有终端，另一端不受影响。改密码、重置密码或注销账号时退出全部登录终端。
 
@@ -10,14 +10,14 @@
 
 | 模型                | 用途                                                                                     |
 | ------------------- | ---------------------------------------------------------------------------------------- |
-| `User`              | 用户实体（邮箱、用户名、密码哈希、邮箱验证状态、注销时间）                               |
-| `EmailVerification` | 统一的验证码记录（注册/邮箱验证/密码重置三种类型），含尝试次数限制                       |
+| `User`              | 用户实体（邮箱、用户名、密码哈希、注销时间）                                             |
+| `EmailVerification` | 统一的验证码记录（注册/换绑邮箱/密码重置三种类型），含尝试次数限制                       |
 | `RefreshToken`      | 登录终端记录（SHA-256 哈希存 token、`family` 作为稳定终端 ID、`revokedAt` 管理生命周期） |
 
 | 枚举                   | 值                                                       |
 | ---------------------- | -------------------------------------------------------- |
 | `UserRole`             | USER, ADMIN, SUPER_ADMIN                                 |
-| EmailVerification.type | REGISTRATION, EMAIL_VERIFY, CHANGE_EMAIL, PASSWORD_RESET |
+| EmailVerification.type | REGISTRATION, CHANGE_EMAIL, PASSWORD_RESET               |
 
 ## API 端点
 
@@ -27,8 +27,6 @@
 | POST   | `/auth/register/verify-and-complete` | Public   | 全局 (20/min) | 注册第二步：验证码 + 用户名密码一步完成注册                                                |
 | POST   | `/auth/login`                        | Public   | 全局 (20/min) | 邮箱或用户名 + 密码登录；创建对应端的登录终端                                              |
 | POST   | `/auth/refresh`                      | Public   | 全局 (20/min) | 使用 refreshToken 轮转刷新双 Token（含盗用检测）                                           |
-| POST   | `/auth/verify-email`                 | AuthRead | 5/min         | 使用 6 位验证码验证当前账号邮箱                                                            |
-| POST   | `/auth/resend-verification`          | Public   | 1/min         | 重发验证邮件                                                                               |
 | POST   | `/auth/change-password`              | AuthRead | 全局 (20/min) | 修改密码（需提供旧密码），成功后吊销全部 refresh token + 发送通知邮件                      |
 | POST   | `/auth/forgot-password`              | Public   | 1/min         | 发送密码重置邮件                                                                           |
 | POST   | `/auth/reset-password`               | Public   | 5/min         | 使用验证码重置密码，成功后吊销全部 refresh token                                           |
@@ -74,8 +72,7 @@ Web 端响应体不暴露 refresh token；服务端通过 `Set-Cookie` 写入 ht
       "email": "user@example.com",
       "username": "zhangsan",
       "avatar": null,
-      "role": "USER",
-      "emailVerified": true
+      "role": "USER"
     }
   }
 }
@@ -93,8 +90,7 @@ Web 端响应体不暴露 refresh token；服务端通过 `Set-Cookie` 写入 ht
       "email": "user@example.com",
       "username": "zhangsan",
       "avatar": null,
-      "role": "USER",
-      "emailVerified": true
+      "role": "USER"
     }
   }
 }
@@ -149,7 +145,7 @@ Web 端响应体不暴露 refresh token；服务端通过 `Set-Cookie` 写入 ht
 ### 两步注册流程
 
 - 第一步 `request-code`：输入邮箱 → 统一转小写 → 检查是否已注册（409）→ 生成 6 位验证码 → 存入 `EmailVerification` 表（type=REGISTRATION, userId=null）→ 发送邮件
-- 第二步 `verify-and-complete`：输入验证码 + 用户名 + 密码 → 查 `EmailVerification`（type=REGISTRATION, email=email）→ 校验验证码 → 创建用户（emailVerified=true）→ 删验证记录 → 创建 RefreshToken → 签发双 Token
+- 第二步 `verify-and-complete`：输入验证码 + 用户名 + 密码 → 查 `EmailVerification`（type=REGISTRATION, email=email）→ 校验验证码 → 创建用户 → 删验证记录 → 创建 RefreshToken → 签发双 Token
 - 验证码未过期时**重发同一验证码**（避免首封丢失后重试仍收不到）；验证码已过期时删旧记录，新建并重发
 - 所有邮箱在服务端统一转小写后存储和查询
 - `request-code` 限流 1/min，P2002 并发时复用已有记录
@@ -157,24 +153,20 @@ Web 端响应体不暴露 refresh token；服务端通过 `Set-Cookie` 写入 ht
 
 ### 注册后状态
 
-- 注册完成后 `emailVerified = true`，用户立即可用全部功能
-- 注册验证码（type=REGISTRATION）已证明邮箱所有权，无需二次验证
-- `verify-email` / `resend-verification` 端点保留，用于 `EMAIL_VERIFY` 类型的验证场景（如手动重新验证邮箱）
-- 注册和验证码邮件标题区分：「温油站 — 注册验证码」和「温油站 — 邮箱验证」
-- `reset-password` 成功后自动将邮箱标记为已验证（能收重置邮件即证明邮箱所有权）
+- 注册验证码（type=REGISTRATION）已证明邮箱所有权；注册完成后用户立即可用全部功能
+- 注册和验证码邮件标题为「温油站 — 注册验证码」
 
 ### 验证码规则
 
 - 统一有效期 15 分钟
-- `EmailVerification` 通过 `type` 字段区分用途（REGISTRATION / EMAIL_VERIFY / CHANGE_EMAIL / PASSWORD_RESET），并以用户或邮箱锚定对应流程
-- `verifyAndComplete` 和 `verifyEmail` 及 `resetPassword` 均按用户锚定查询（email 或 userId），避免 token 跨用户碰撞
+- `EmailVerification` 通过 `type` 字段区分用途（REGISTRATION / CHANGE_EMAIL / PASSWORD_RESET），并以用户或邮箱锚定对应流程
+- `verifyAndComplete`、换绑邮箱和 `resetPassword` 均按用户锚定查询（email 或 userId），避免 token 跨用户碰撞
 - 验证码由 `crypto.randomInt` 生成固定 6 位数字，不使用 `Math.random`
 - 验证码校验错误在锁定记录后原子递增 `attempts`，第 5 次错误即删除记录（需重新获取）；错误/过期状态先提交再返回，不能因抛异常回滚计数
 - 验证成功后的业务写入与删除 `EmailVerification` 记录处于同一事务，不能重复消费；重置密码和更换邮箱还会先锁定并重查用户，旧邮箱验证码不能在账号邮箱已变化后继续使用
-- 重发验证/重置邮件时，若存在未过期的同类型记录，复用同一验证码重发
-- `verify-email` 需登录（AuthRead），从 JWT 获取 userId 进行记录锚定
+- 重发注册/换绑邮箱/重置邮件时，若存在未过期的同类型记录，复用同一验证码重发
 - `reset-password` 需同时提供邮箱（锚定身份），与 `forgot-password` 流程匹配
-- 敏感端点（verify-email/reset-password 5/min，forgot-password/resend-verification/request-code 1/min）有独立限流
+- 敏感端点（reset-password 5/min，forgot-password/change-email/request-code 1/min）有独立限流
 - 邮件发送失败通过 `emailSent` 字段和 Logger 反馈（不阻断用户流程）
 
 ### 密码规则
@@ -230,10 +222,10 @@ Web 端响应体不暴露 refresh token；服务端通过 `Set-Cookie` 写入 ht
 - **双 Token 设计**：accessToken 短期（15 分钟）降低泄露风险，refreshToken 长期（7 天）避免频繁登录
 - **Refresh Token 储值表 + 轮转**：相比 tokenVersion 方案，可按 Web / 移动端独立退出；SHA-256 哈希存储保护原始 token，稳定 `family` 避免轮转后终端 ID 和登录时间漂移
 - **Token 盗用检测**：若已撤销的 refresh token 在 10 秒并发宽限期外被重复使用，吊销整个 family，要求该登录终端重新登录
-- **6 位数字验证码**：比 JWT 链接更简单，客户端可直接输入数字码；通过 `type` 字段在 EmailVerification 表中区分注册/验证/重置，防止互串
-- **两步注册 + 邮箱验证**：第一步发验证码到邮箱，第二步输入验证码 + 设用户名密码完成注册。验证码已证明邮箱所有权，注册时直接设 `emailVerified: true`，无需二次验证。
-- **统一 EmailVerification 表**：废弃 `RegistrationDraft` 表，注册/验证/重置三类验证码共用一张表，code 和 session 概念合一，简化维护
-- **VerificationCodeService 统一发码**：注册/验证邮箱/换邮箱/重置密码四条流程共用 `issue()`（查记录 → 未过期复用并重发同一验证码，否则作废旧记录并生成新码；换邮箱以 `resendIfSameEmail` 区分同/异邮箱），消除四处重复的生成/存储/重发逻辑
+- **6 位数字验证码**：比 JWT 链接更简单，客户端可直接输入数字码；通过 `type` 字段在 EmailVerification 表中区分注册/换绑/重置，防止互串
+- **两步注册**：第一步发验证码到邮箱，第二步输入验证码 + 设用户名密码完成注册。验证码已证明邮箱所有权，注册时直接创建用户。
+- **统一 EmailVerification 表**：废弃 `RegistrationDraft` 表，注册/换绑/重置三类验证码共用一张表，code 和 session 概念合一，简化维护
+- **VerificationCodeService 统一发码**：注册/换绑邮箱/重置密码三条流程共用 `issue()`（查记录 → 未过期复用并重发同一验证码，否则作废旧记录并生成新码），消除重复的生成/存储/重发逻辑
 - **忘记密码反枚举**：无论邮箱是否注册，均返回相同成功消息，防止攻击者探测已注册用户
 - **验证码尝试限制**：`attempts` 字段记录失败次数，第 5 次错误自动删除记录，需重新获取；消费临界区使用数据库行锁
 
@@ -247,11 +239,10 @@ Web 端响应体不暴露 refresh token；服务端通过 `Set-Cookie` 写入 ht
 | 注册第一步：输入邮箱                         | `POST /auth/register/request-code`，响应含 `emailSent` 标志判断是否发送成功                                  |
 | 收到 `emailSent: false`                      | 显示"邮件服务暂不可用，请稍后重试"                                                                           |
 | 收到 `emailSent: true`, `message` 含"已发送" | 显示"验证码已发送，请查收邮箱"，引导输入已有验证码                                                           |
-| 注册第二步：提交验证码+用户名+密码           | `POST /auth/register/verify-and-complete`，登录后 `emailVerified` 为 true，可直接使用全部功能                |
+| 注册第二步：提交验证码+用户名+密码           | `POST /auth/register/verify-and-complete`，注册后即可直接使用全部功能                                  |
 | 收到注册成功                                 | 已登录，可直接发帖、关注、加入主题帖等                                                                       |
 | 输入验证码返回 "验证码错误"                  | 提示用户核对数字，超过 5 次需重新获取                                                                        |
-| 输入验证码返回 "验证码已过期，请重新获取"    | 引导重新调用 `request-code` 或 `resend-verification` 获取新码                                                |
-| 邮箱验证                                     | `POST /auth/resend-verification` 获取验证码 → `POST /auth/verify-email` 完成验证                             |
+| 输入验证码返回 "验证码已过期，请重新获取"    | 引导重新调用 `request-code` 获取新码                                                                        |
 | 改密码/重置密码后                            | 全部登录终端被退出，前端清除本地认证状态并引导重新登录                                                       |
 | Web 登出                                     | 调用 `POST /auth/logout`；服务端按 sid 撤销终端并清除 Cookie，前端随后清除本地 access token                  |
 | 收到 401 "登录终端已失效，请重新登录"        | 当前终端被远程退出或被同端新登录替换，清除本地认证状态并跳转登录页                                           |

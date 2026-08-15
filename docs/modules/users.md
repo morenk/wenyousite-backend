@@ -24,12 +24,12 @@
 | ------ | ---------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | GET    | `/users/search?q=`           | AuthRead     | 搜索用户（@提及用），按用户名模糊匹配                                                                                                                        |
 | GET    | `/users/me`                  | AuthRead     | 获取当前登录用户的完整资料（含邮箱、隐私设置、社交统计）                                                                                                     |
-| PATCH  | `/users/me`                  | Auth         | 修改当前用户资料（用户名、Bio、隐私设置），5次/分钟限流，需邮箱已验证                                                                                        |
-| PATCH  | `/users/me/avatar`           | Auth         | 设置头像（传入 mediaId，校验归属 + 状态 COMPLETED），需邮箱已验证                                                                                            |
-| DELETE | `/users/me/avatar`           | Auth         | 移除头像（置空 `user.avatar`，回到首字母占位），需邮箱已验证                                                                                                 |
-| PATCH  | `/users/me/profile-cover`    | Auth         | 设置个人主页双画幅背景图（`mediaId` 为 Web 3:1，`mobileMediaId` 为移动端 2:1），需邮箱已验证                                                                   |
-| DELETE | `/users/me/profile-cover`    | Auth         | 同时移除两端个人主页背景图并恢复客户端默认背景，需邮箱已验证                                                                                                 |
-| DELETE | `/users/me`                  | Auth         | 注销当前账号（软删除，设置 deletedAt），需邮箱已验证                                                                                                         |
+| PATCH  | `/users/me`                  | Auth         | 修改当前用户资料（用户名、Bio、隐私设置），5次/分钟限流                                                                                                      |
+| PATCH  | `/users/me/avatar`           | Auth         | 设置头像（传入 mediaId，校验归属 + 状态 COMPLETED）                                                                                                           |
+| DELETE | `/users/me/avatar`           | Auth         | 移除头像（置空 `user.avatar`，回到首字母占位）                                                                                                                |
+| PATCH  | `/users/me/profile-cover`    | Auth         | 设置个人主页双画幅背景图（`mediaId` 为 Web 3:1，`mobileMediaId` 为移动端 2:1）                                                                               |
+| DELETE | `/users/me/profile-cover`    | Auth         | 同时移除两端个人主页背景图并恢复客户端默认背景                                                                                                               |
+| DELETE | `/users/me`                  | Auth         | 注销当前账号（软删除，设置 deletedAt）                                                                                                                       |
 | GET    | `/users/:id`                 | OptionalAuth | 获取指定用户的公开资料（不含邮箱）。登录后额外返回 isFollowing / isFollowedBy / isBlocked / isBlockedBy                                                      |
 | GET    | `/users/:id/bookmarks`       | OptionalAuth | 查看用户的公开收藏，Cursor 分页。受 showBookmarks 控制                                                                                                       |
 | GET    | `/users/:id/played-threads`  | OptionalAuth | 查看用户获得玩家身份的非自建主题帖，支持 `visibility=PUBLIC\|PRIVATE` 分类和 Cursor 分页。本人可见公开帖和私密帖；他人仅见公开帖，并受 showPlayerBadges 控制 |
@@ -57,7 +57,6 @@
 | `bio`               | ✓                      | ✓                       | 个人简介                     |
 | `role`              | ✓                      | ✓                       | 权限角色                     |
 | `email`             | ✓                      | ✗                       | 仅本人可见                   |
-| `emailVerified`     | ✓                      | ✗                       | 邮箱验证状态，仅本人可见     |
 | `deletedAt`         | ✓                      | ✗                       | 注销时间，仅本人可见         |
 | `createdAt`         | ✓                      | ✓                       | 注册时间                     |
 | `updatedAt`         | ✓                      | ✗                       | 资料最后修改时间，仅本人可见 |
@@ -84,8 +83,8 @@
 
 ## 核心业务规则
 
-- `findMe` 返回完整字段（email、emailVerified、隐私开关等），另附 `_count.following` / `_count.followers`
-- `findById` 排除 email / emailVerified / updatedAt / deletedAt 字段，仅返回公开信息。登录后额外返回 4 个关系字段；所有查看者都可见派生的 `accountStatus`
+- `findMe` 返回完整字段（email、隐私开关等），另附 `_count.following` / `_count.followers`
+- `findById` 排除 email / updatedAt / deletedAt 字段，仅返回公开信息。登录后额外返回 4 个关系字段；所有查看者都可见派生的 `accountStatus`
 - `accountStatus` 只根据当前有效处罚派生为 `ACTIVE / SUSPENDED / BANNED`，不暴露处罚原因、起止时间或管理员信息；临时处罚缓存不会晚于其结束时间失效
 - 已注销用户（deletedAt 非 null）的公开资料被屏蔽为 `{ id, username: '已注销用户', isDeactivated: true }`；帖子作者、楼主、成员、关注关系、收藏、搜索与通知中的用户摘要同样统一输出 `username: '已注销用户', avatar: null`
 - 注销时使用不含原用户名/邮箱的内部墓碑值释放两个唯一键，允许原用户或他人日后复用；墓碑值不得进入公开 API
@@ -100,7 +99,7 @@
 - 隐私开关（showRecentReplies / showPlayerBadges / showBookmarks）可通过 `PATCH /users/me` 修改
 - 空 body 的 PATCH /users/me 不执行数据库写入，直接返回当前信息
 - 资料修改限流 5 次/分钟
-- 关注和拉黑端点、资料修改、账号注销均使用 `@Auth()`（需邮箱验证），仅查询操作使用 `@AuthRead()`
+- 关注和拉黑端点、资料修改、账号注销均使用 `@Auth()`，仅查询操作使用 `@AuthRead()`
 - `GET /users/:id/following` / `GET /users/:id/followers` 为公开查询（`@OptionalAuth()`，无隐私开关），返回全部关注/粉丝（含 id/username/avatar），目标用户不存在返回 404；与「我的关注/粉丝」（`/users/following`、`/users/followers`，仅本人）并存
 - 关注通过联合唯一键 + `createMany(skipDuplicates)` 幂等写入，仅在本次创建关系成功时写 Outbox
 - 关注自己返回 "不能关注自己" 消息，不执行数据库操作

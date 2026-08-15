@@ -62,7 +62,6 @@ OpenAPI 为兼容 Web 把该头标为 optional；省略或传未知值会创建 
 | `TOKEN_EXPIRED`                                                               | 单飞刷新并重放一次                             |
 | `TOKEN_INVALID`、`TOKEN_REVOKED`、`TOKEN_THEFT_DETECTED`、`SESSION_NOT_FOUND` | 清除本地会话并重新登录                         |
 | `ACCOUNT_DEACTIVATED`、`ACCOUNT_SUSPENDED`、`ACCOUNT_BANNED`                  | 清除 token，展示对应不可用终态                 |
-| `EMAIL_NOT_VERIFIED`                                                          | 保留只读会话，引导完成邮箱验证                 |
 | `ACCOUNT_LOCKED`、`LOGIN_FAILED`、验证码和旧密码错误                          | 展示当前表单错误，不触发 refresh               |
 | `APPEAL_TOKEN_INVALID`                                                        | 仅清理申诉凭据并重新验证，不修改普通会话       |
 | 未知 401                                                                      | 不循环刷新；清除当前会话并展示通用重新登录状态 |
