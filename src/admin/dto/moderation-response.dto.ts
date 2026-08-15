@@ -42,9 +42,6 @@ export class AdminUserModerationResponseDto {
   @ApiProperty({ enum: UserRole })
   role!: UserRole;
 
-  @ApiProperty()
-  emailVerified!: boolean;
-
   @ApiProperty({ enum: ['ACTIVE', 'SUSPENDED', 'BANNED'] })
   moderationStatus!: 'ACTIVE' | 'SUSPENDED' | 'BANNED';
 

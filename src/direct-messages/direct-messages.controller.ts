@@ -73,7 +73,7 @@ export class DirectConversationsController {
   @Auth()
   @ApiOperation({ summary: '向用户发送首条消息；互关直达，否则创建消息请求' })
   @ApiCreatedResponse({ type: DirectConversationStartResponseDto })
-  @ApiForbiddenResponse({ description: '邮箱未验证、存在拉黑关系或无权再次申请' })
+  @ApiForbiddenResponse({ description: '存在拉黑关系或无权再次申请' })
   @ApiConflictResponse({ description: '消息请求仍待处理或已被拒绝' })
   async create(@Req() req: FastifyRequest, @Body() dto: CreateDirectConversationDto) {
     const user = req.user as { id: string };
@@ -108,7 +108,7 @@ export class DirectConversationsController {
   @Auth()
   @ApiOperation({ summary: '向已接受的私聊会话发送消息' })
   @ApiCreatedResponse({ type: DirectMessageResponseDto })
-  @ApiForbiddenResponse({ description: '邮箱未验证、拉黑或会话不可发送' })
+  @ApiForbiddenResponse({ description: '拉黑或会话不可发送' })
   @ApiConflictResponse({ description: '请求待处理/已拒绝或图片已被使用' })
   async send(
     @Req() req: FastifyRequest,
@@ -121,15 +121,15 @@ export class DirectConversationsController {
 
   @Patch(':id/request')
   @AuthRead()
-  @ApiOperation({ summary: '接受或拒绝收到的消息请求；接受要求邮箱已验证' })
+  @ApiOperation({ summary: '接受或拒绝收到的消息请求' })
   @ApiOkResponse({ type: DirectConversationResponseDto })
-  @ApiForbiddenResponse({ description: '不是请求接收方或接受时邮箱未验证' })
+  @ApiForbiddenResponse({ description: '不是请求接收方或请求状态不允许此操作' })
   async handleRequest(
     @Req() req: FastifyRequest,
     @Param('id') id: string,
     @Body() dto: HandleDirectRequestDto,
   ) {
-    const user = req.user as { id: string; emailVerified: boolean };
+    const user = req.user as { id: string };
     return this.service.handleRequest(id, user, dto.action);
   }
 

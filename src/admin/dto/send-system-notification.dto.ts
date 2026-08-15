@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsArray, IsBoolean, IsDateString, IsIn, ValidateNested } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsDateString, IsIn, ValidateNested } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsCuid } from '../../common/decorators/is-cuid.decorator';
@@ -10,11 +10,6 @@ class UserConditionDto {
   @IsArray()
   @IsIn(['USER', 'ADMIN', 'SUPER_ADMIN'], { each: true })
   role?: string[];
-
-  @ApiProperty({ description: '邮箱验证状态筛选', required: false })
-  @IsOptional()
-  @IsBoolean()
-  emailVerified?: boolean;
 
   @ApiProperty({ description: '注册时间起始（ISO 8601）', required: false })
   @IsOptional()

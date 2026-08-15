@@ -62,7 +62,7 @@ export class AdminAuthController {
   @Post('verify')
   @HttpCode(HttpStatus.OK)
   @ApiExtension('x-auth-mode', 'public')
-  @ApiOperation({ summary: '验证邮箱验证码并建立独立管理员 Cookie 会话' })
+  @ApiOperation({ summary: '验证管理员验证码并建立独立管理员 Cookie 会话' })
   @ApiOkResponse({ type: AdminSessionResponseDto })
   async verify(
     @Body() dto: AdminChallengeVerifyDto,

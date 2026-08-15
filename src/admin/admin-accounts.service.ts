@@ -70,12 +70,9 @@ export class AdminAccountsService {
   async invite(actor: AdminActor, userId: string, context: AdminRequestContext) {
     const target = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, username: true, role: true, emailVerified: true, deletedAt: true },
+      select: { id: true, email: true, username: true, role: true, deletedAt: true },
     });
     if (!target || target.deletedAt) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
-    if (!target.emailVerified) {
-      throw new BusinessException(ErrorCode.BAD_REQUEST, '只能邀请已验证邮箱的用户');
-    }
     if (target.role !== UserRole.USER) {
       throw conflict(ErrorCode.ADMIN_INVITE_CONFLICT, '该用户已经是管理员');
     }

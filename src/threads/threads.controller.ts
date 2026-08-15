@@ -87,7 +87,7 @@ export class ThreadsController {
     type: ThreadDetailResponseDto,
     description: '草稿创建成功，返回完整 Thread 对象（含正文待掷骰子）',
   })
-  @ApiUnauthorizedResponse({ description: '未登录或邮箱未验证' })
+  @ApiUnauthorizedResponse({ description: '未登录' })
   async create(@Body() dto: CreateThreadDto, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     return this.threadsService.create(dto, user.id);
@@ -116,7 +116,7 @@ export class ThreadsController {
     type: ThreadDetailResponseDto,
     description: '更新成功返回 Thread 完整对象。发布时原子结算全部待掷骰子',
   })
-  @ApiUnauthorizedResponse({ description: '未登录或邮箱未验证' })
+  @ApiUnauthorizedResponse({ description: '未登录' })
   @ApiForbiddenResponse({ description: '无管理权限（非 OWNER/COLLABORATOR）' })
   @ApiNotFoundResponse({ description: '主题帖不存在' })
   @ApiConflictResponse({ description: '乐观锁冲突（version 过期）或已发布帖重复发布' })
@@ -135,7 +135,7 @@ export class ThreadsController {
     type: ThreadDetailResponseDto,
     description: '全部字段在同一事务内保存，返回最新完整主题帖',
   })
-  @ApiUnauthorizedResponse({ description: '未登录或邮箱未验证' })
+  @ApiUnauthorizedResponse({ description: '未登录' })
   @ApiForbiddenResponse({ description: '无管理权限或协作者尝试修改楼主专属字段' })
   @ApiNotFoundResponse({ description: '主题帖或默认子贴不存在' })
   @ApiConflictResponse({ description: '主题帖、默认子贴或正文乐观锁冲突' })
@@ -153,7 +153,7 @@ export class ThreadsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除主题帖。未发布帖硬删除（级联），已发布帖软删除（仅 OWNER）' })
   @ApiOkResponse({ type: MessageResponseDto, description: '主题帖已删除' })
-  @ApiUnauthorizedResponse({ description: '未登录或邮箱未验证' })
+  @ApiUnauthorizedResponse({ description: '未登录' })
   @ApiForbiddenResponse({ description: '非 OWNER 不可删除' })
   @ApiNotFoundResponse({ description: '主题帖不存在' })
   async remove(@Param('id') id: string, @Req() req: FastifyRequest) {
@@ -189,7 +189,7 @@ export class ThreadsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '生成或刷新私密帖邀请链接（仅 OWNER，需已发布 + 私密帖）' })
   @ApiOkResponse({ type: InviteLinkResponseDto, description: '邀请链接对象（threadId / token）。已存在则刷新 token' })
-  @ApiUnauthorizedResponse({ description: '未登录或邮箱未验证' })
+  @ApiUnauthorizedResponse({ description: '未登录' })
   @ApiForbiddenResponse({ description: '仅 OWNER / 未发布 / 非私密帖' })
   async createInviteLink(@Param('id') id: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
@@ -216,7 +216,7 @@ export class ThreadsController {
     type: JoinedThreadMemberResponseDto,
     description: '加入成功或已加入时返回成员记录（thread.title / user 基本信息）',
   })
-  @ApiUnauthorizedResponse({ description: '未登录或邮箱未验证' })
+  @ApiUnauthorizedResponse({ description: '未登录' })
   @ApiNotFoundResponse({ description: '邀请链接无效或已失效' })
   async joinByInviteLink(@Param('token') token: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };

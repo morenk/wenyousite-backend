@@ -102,7 +102,7 @@ export class UserModerationAppealsController {
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @ApiOperation({ summary: '校验账号密码并签发 15 分钟申诉专用凭据' })
   @ApiOkResponse({ type: AppealAccessTokenResponseDto })
-  @ApiUnauthorizedResponse({ description: '账号密码错误、账号锁定或邮箱未验证' })
+  @ApiUnauthorizedResponse({ description: '账号密码错误或账号锁定' })
   issueToken(@Body() dto: IssueAppealTokenDto) {
     return this.appealAccess.issue(dto.account, dto.password);
   }

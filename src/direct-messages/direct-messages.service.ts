@@ -141,7 +141,7 @@ export class DirectMessagesService {
 
   async handleRequest(
     conversationId: string,
-    actor: { id: string; emailVerified: boolean },
+    actor: { id: string },
     action: DirectRequestAction,
   ) {
     const conversation = await this.prisma.directConversation.findUnique({
@@ -156,13 +156,6 @@ export class DirectMessagesService {
     }
 
     if (action === 'ACCEPT') {
-      if (!actor.emailVerified) {
-        throw new BusinessException(
-          ErrorCode.EMAIL_NOT_VERIFIED,
-          '请先验证邮箱后再接受私聊请求',
-          HttpStatus.FORBIDDEN,
-        );
-      }
       await this.prisma.$transaction(async (tx) => {
         await this.assertPairWritable(tx, actor.id, conversation.requesterId);
         const claimed = await tx.directConversation.updateMany({

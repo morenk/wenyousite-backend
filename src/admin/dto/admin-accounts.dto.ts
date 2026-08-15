@@ -3,7 +3,7 @@ import { IsCuid } from '../../common/decorators/is-cuid.decorator';
 import { IsString, MaxLength, MinLength } from 'class-validator';
 
 export class CreateAdminInviteDto {
-  @ApiProperty({ description: '已验证邮箱的现有温油账号 ID' })
+  @ApiProperty({ description: '现有温油账号 ID' })
   @IsCuid()
   userId!: string;
 }

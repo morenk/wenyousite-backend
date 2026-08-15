@@ -200,7 +200,6 @@ export class NotificationCampaignService {
     return {
       deletedAt: null,
       ...(audience.roles?.length ? { role: { in: audience.roles as UserRole[] } } : {}),
-      ...(audience.emailVerified !== undefined ? { emailVerified: audience.emailVerified } : {}),
     };
   }
 }

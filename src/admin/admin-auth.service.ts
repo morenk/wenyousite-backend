@@ -28,7 +28,6 @@ interface AdminPrincipal {
   email: string;
   username: string;
   role: UserRole;
-  emailVerified: boolean;
   adminSessionId: string;
   elevatedUntil?: string;
 }
@@ -88,7 +87,6 @@ export class AdminAuthService {
         email: true,
         password: true,
         role: true,
-        emailVerified: true,
         deletedAt: true,
         lockedUntil: true,
         sanctions: {
@@ -103,7 +101,7 @@ export class AdminAuthService {
     const passwordValid = user
       ? await argon2.verify(user.password, dto.password)
       : await argon2.hash(dto.password).then(() => false);
-    const unavailable = !user || user.deletedAt || !user.emailVerified || !allowedRole;
+    const unavailable = !user || user.deletedAt || !allowedRole;
     if (unavailable || !passwordValid || (user.lockedUntil && user.lockedUntil > new Date())) {
       await this.securityEvent(
         AdminSecurityEventType.LOGIN_FAILED,
@@ -151,7 +149,6 @@ export class AdminAuthService {
               email: true,
               username: true,
               role: true,
-              emailVerified: true,
               deletedAt: true,
               sanctions: {
                 where: activeSanctionWhere(),
@@ -182,7 +179,7 @@ export class AdminAuthService {
 
       const user = challenge.user;
       const roleAllowed = user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN;
-      if (user.deletedAt || !user.emailVerified || !roleAllowed || sanctionFailure(user.sanctions[0])) {
+      if (user.deletedAt || !roleAllowed || sanctionFailure(user.sanctions[0])) {
         await tx.adminAuthChallenge.update({ where: { id: challenge.id }, data: { consumedAt: new Date() } });
         return { ok: false as const, userId: user.id };
       }
@@ -251,7 +248,6 @@ export class AdminAuthService {
             email: true,
             username: true,
             role: true,
-            emailVerified: true,
             deletedAt: true,
             sanctions: {
               where: activeSanctionWhere(),
@@ -272,7 +268,6 @@ export class AdminAuthService {
       session.expiresAt <= now ||
       now.getTime() - session.lastActiveAt.getTime() > idleLimit ||
       session.user.deletedAt !== null ||
-      !session.user.emailVerified ||
       !roleAllowed ||
       Boolean(sanctionFailure(session.user.sanctions[0]));
     if (invalid) {
@@ -296,7 +291,6 @@ export class AdminAuthService {
       email: session.user.email,
       username: session.user.username,
       role: session.user.role,
-      emailVerified: true,
       adminSessionId: session.id,
       elevatedUntil: session.elevatedUntil?.toISOString(),
     };

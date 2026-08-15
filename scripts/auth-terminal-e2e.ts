@@ -20,7 +20,6 @@ import { JwtAuthGuard } from '../src/auth/guards/jwt-auth.guard';
 import { JwtStrategy } from '../src/auth/strategies/jwt.strategy';
 import { VerificationCodeService } from '../src/auth/verification-code.service';
 import { TransformInterceptor } from '../src/common/interceptors/response.interceptor';
-import { VerifiedGuard } from '../src/common/guards/verified.guard';
 import { EmailService } from '../src/email/email.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { createOpenApiDocument } from '../src/common/swagger/openapi-document';
@@ -246,7 +245,6 @@ async function verifyRuntime(databaseUrl: string) {
       AuthSessionService,
       JwtStrategy,
       JwtAuthGuard,
-      VerifiedGuard,
       { provide: PrismaService, useValue: prisma },
       { provide: ConfigService, useValue: config },
       { provide: EmailService, useValue: {} },
@@ -272,7 +270,6 @@ async function verifyRuntime(databaseUrl: string) {
         email: `auth-terminal-${Date.now()}@example.test`,
         username: `terminal${Date.now()}`.slice(0, 24),
         password: await argon2.hash(password, { timeCost: 1, memoryCost: 8192 }),
-        emailVerified: true,
       },
     });
     const server = app.getHttpAdapter().getInstance();

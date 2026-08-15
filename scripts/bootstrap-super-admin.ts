@@ -7,7 +7,7 @@ function readEmail(argv: string[]) {
   const value = inline?.slice('--email='.length) ?? (indexed >= 0 ? argv[indexed + 1] : undefined);
   const email = value?.trim().toLowerCase();
   if (!email || !email.includes('@')) {
-    throw new Error('用法：pnpm admin:bootstrap -- --email=verified@example.com');
+    throw new Error('用法：pnpm admin:bootstrap -- --email=user@example.com');
   }
   return email;
 }
@@ -31,13 +31,10 @@ async function main() {
           id: true,
           username: true,
           role: true,
-          emailVerified: true,
           deletedAt: true,
         },
       });
       if (!user || user.deletedAt) throw new Error('目标用户不存在或已注销');
-      if (!user.emailVerified) throw new Error('目标用户尚未验证邮箱');
-
       await tx.user.update({
         where: { id: user.id },
         data: { role: UserRole.SUPER_ADMIN },

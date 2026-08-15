@@ -190,7 +190,7 @@ describe('DirectMessagesService', () => {
     prisma.directConversation.findUnique.mockResolvedValue(routingConversation());
     queries.findById.mockResolvedValue({ id: 'c1', status: 'DECLINED' });
 
-    await service.handleRequest('c1', { id: 'u2', emailVerified: true }, 'DECLINE');
+    await service.handleRequest('c1', { id: 'u2' }, 'DECLINE');
 
     expect(prisma.directConversation.updateMany).toHaveBeenCalledWith({
       where: { id: 'c1', status: 'PENDING', recipientId: 'u2' },
@@ -515,27 +515,23 @@ describe('DirectMessagesService', () => {
     ).rejects.toMatchObject({ errorCode: ErrorCode.DIRECT_MESSAGE_MEDIA_ATTACHED });
   });
 
-  it('待处理请求仅接收方可处理，接受时要求邮箱验证并防止并发抢占', async () => {
+  it('待处理请求仅接收方可处理，并防止并发抢占', async () => {
     prisma.directConversation.findUnique.mockResolvedValue(routingConversation());
 
     await expect(
-      service.handleRequest('c1', { id: 'u1', emailVerified: true }, 'ACCEPT'),
+      service.handleRequest('c1', { id: 'u1' }, 'ACCEPT'),
     ).rejects.toMatchObject({ errorCode: ErrorCode.DIRECT_MESSAGE_NOT_ALLOWED });
-
-    await expect(
-      service.handleRequest('c1', { id: 'u2', emailVerified: false }, 'ACCEPT'),
-    ).rejects.toMatchObject({ errorCode: ErrorCode.EMAIL_NOT_VERIFIED });
 
     prisma.directConversation.updateMany.mockResolvedValueOnce({ count: 0 });
     await expect(
-      service.handleRequest('c1', { id: 'u2', emailVerified: true }, 'ACCEPT'),
+      service.handleRequest('c1', { id: 'u2' }, 'ACCEPT'),
     ).rejects.toMatchObject({ errorCode: ErrorCode.DIRECT_MESSAGE_NOT_ALLOWED });
   });
 
   it('处理请求和撤回消息都不向非参与者暴露资源存在性', async () => {
     prisma.directConversation.findUnique.mockResolvedValueOnce(null);
     await expect(
-      service.handleRequest('missing', { id: 'outsider', emailVerified: true }, 'DECLINE'),
+      service.handleRequest('missing', { id: 'outsider' }, 'DECLINE'),
     ).rejects.toMatchObject({ errorCode: ErrorCode.DIRECT_CONVERSATION_NOT_FOUND });
 
     prisma.directMessage.findUnique.mockResolvedValueOnce(null);
@@ -548,7 +544,7 @@ describe('DirectMessagesService', () => {
     prisma.directConversation.findUnique.mockResolvedValue(routingConversation());
     queries.findById.mockResolvedValue({ id: 'c1', status: 'ACCEPTED' });
 
-    await service.handleRequest('c1', { id: 'u2', emailVerified: true }, 'ACCEPT');
+    await service.handleRequest('c1', { id: 'u2' }, 'ACCEPT');
 
     expect(prisma.userBlock.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -27,7 +27,6 @@ describe('AdminModerationQueryService', () => {
         email: 'second@example.com',
         username: 'second',
         role: UserRole.USER,
-        emailVerified: true,
         createdAt: new Date(),
         sanctions: [
           {
@@ -46,7 +45,6 @@ describe('AdminModerationQueryService', () => {
         email: 'first@example.com',
         username: 'first',
         role: UserRole.USER,
-        emailVerified: true,
         createdAt: new Date(),
         sanctions: [],
       },
@@ -82,7 +80,6 @@ describe('AdminModerationQueryService', () => {
       email: 'u@example.com',
       username: 'user',
       role: UserRole.USER,
-      emailVerified: true,
       createdAt: new Date(),
       sanctions: [
         {

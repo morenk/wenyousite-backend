@@ -5,9 +5,9 @@ import { applyErrorResponseEnvelope } from './error-response-envelope';
 import { applyResponseHeaders } from './response-headers';
 
 /** 破坏性 API 变更时递增；Web 与 Flutter 生成客户端均记录该版本。 */
-export const API_CONTRACT_VERSION = '4.13.1-dev.20260815.1';
+export const API_CONTRACT_VERSION = '4.14.0-dev.20260815.1';
 
-type AuthMode = 'public' | 'optional' | 'authenticated' | 'verified' | 'appeal' | 'admin';
+type AuthMode = 'public' | 'optional' | 'authenticated' | 'appeal' | 'admin';
 
 function lowerFirst(value: string): string {
   return value.length === 0 ? value : value[0].toLowerCase() + value.slice(1);
@@ -23,7 +23,7 @@ function applyAuthSemantics(document: ReturnType<typeof SwaggerModule.createDocu
         AuthMode | undefined;
       if (mode === 'public') operation.security = [];
       if (mode === 'optional') operation.security = [{ bearer: [] }, {}];
-      if (mode === 'authenticated' || mode === 'verified') {
+      if (mode === 'authenticated') {
         operation.security = [{ bearer: [] }];
       }
       if (mode === 'appeal') operation.security = [{ bearer: [] }, { appealBearer: [] }];

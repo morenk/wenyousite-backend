@@ -29,7 +29,6 @@ export class AdminService {
     if (dto.conditions) {
       const c = dto.conditions;
       if (c.role?.length) where.role = { in: c.role };
-      if (c.emailVerified !== undefined) where.emailVerified = c.emailVerified;
       if (c.createdAfter) where.createdAt = { ...where.createdAt, gte: new Date(c.createdAfter) };
       if (c.createdBefore) where.createdAt = { ...where.createdAt, lte: new Date(c.createdBefore) };
     }
@@ -151,7 +150,6 @@ export class AdminService {
         username: true,
         email: true,
         role: true,
-        emailVerified: true,
         createdAt: true,
       },
       take,

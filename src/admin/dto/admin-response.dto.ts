@@ -80,9 +80,6 @@ export class AdminUserSearchItemDto {
   @ApiProperty({ enum: ['USER', 'ADMIN', 'SUPER_ADMIN'] })
   role!: 'USER' | 'ADMIN' | 'SUPER_ADMIN';
 
-  @ApiProperty()
-  emailVerified!: boolean;
-
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date;
 }

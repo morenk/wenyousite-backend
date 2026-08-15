@@ -155,7 +155,6 @@ export class AdminModerationQueryService {
         email: true,
         username: true,
         role: true,
-        emailVerified: true,
         createdAt: true,
         sanctions: {
           where: activeWhere,
@@ -187,7 +186,6 @@ export class AdminModerationQueryService {
         email: true,
         username: true,
         role: true,
-        emailVerified: true,
         createdAt: true,
         sanctions: {
           where: activeSanctionWhere(),

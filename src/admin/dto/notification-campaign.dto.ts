@@ -3,7 +3,6 @@ import { Type } from 'class-transformer';
 import { NotificationCampaignStatus } from '@prisma/client';
 import {
   IsArray,
-  IsBoolean,
   IsDateString,
   IsEnum,
   IsIn,
@@ -22,10 +21,6 @@ export class NotificationAudienceDto {
   @IsIn(['USER', 'ADMIN', 'SUPER_ADMIN'], { each: true })
   roles?: Array<'USER' | 'ADMIN' | 'SUPER_ADMIN'>;
 
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsBoolean()
-  emailVerified?: boolean;
 }
 
 export class CreateNotificationCampaignDto {

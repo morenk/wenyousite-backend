@@ -261,7 +261,6 @@ export class ModerationService {
           email: true,
           username: true,
           role: true,
-          emailVerified: true,
           createdAt: true,
         },
       });

@@ -36,7 +36,7 @@ describe('AdminService', () => {
     expect(
       service.buildRecipientWhere({
         recipientIds: ['user-1'],
-        conditions: { emailVerified: true },
+        conditions: { role: ['USER'] },
       } as SendSystemNotificationDto),
     ).toEqual({
       id: { in: ['user-1'] },
@@ -44,12 +44,11 @@ describe('AdminService', () => {
     });
   });
 
-  it('组合角色、验证状态和注册时间条件', () => {
+  it('组合角色和注册时间条件', () => {
     expect(
       service.buildRecipientWhere({
         conditions: {
           role: ['USER'],
-          emailVerified: false,
           createdAfter: '2026-01-01T00:00:00.000Z',
           createdBefore: '2026-06-01T00:00:00.000Z',
         },
@@ -57,7 +56,6 @@ describe('AdminService', () => {
     ).toEqual({
       deletedAt: null,
       role: { in: ['USER'] },
-      emailVerified: false,
       createdAt: {
         gte: new Date('2026-01-01T00:00:00.000Z'),
         lte: new Date('2026-06-01T00:00:00.000Z'),
@@ -67,7 +65,7 @@ describe('AdminService', () => {
 
   it('预览仅统计接收者而不发送', async () => {
     prisma.user.count.mockResolvedValue(12);
-    const dto = { conditions: { emailVerified: true } } as SendSystemNotificationDto;
+    const dto = { content: '维护通知', conditions: { role: ['USER'] } } as SendSystemNotificationDto;
 
     await expect(service.previewRecipients(dto)).resolves.toEqual({ recipientCount: 12 });
     expect(producer.notify).not.toHaveBeenCalled();

@@ -60,7 +60,6 @@ const userSchema = z.object({
   username: z.string(),
   avatar: z.string().nullable(),
   role: z.enum(['USER', 'ADMIN', 'SUPER_ADMIN']),
-  emailVerified: z.boolean(),
 });
 
 const authResponseSchema = z.object({
@@ -510,7 +509,6 @@ test(
 test(s2, 'GET /users/me 当前用户信息', async () => {
   const r = await api.get('/users/me', apiResponse(userSchema));
   assert(r.data.email === TEST_EMAIL, '邮箱应匹配');
-  assert(r.data.emailVerified === true, '注册后应已验证');
 });
 
 test(s2, 'POST /auth/refresh 刷新 token', async () => {

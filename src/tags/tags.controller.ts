@@ -27,7 +27,7 @@ export class TagsController {
   @ApiOperation({ summary: '创建主题帖标签' })
   @ApiOkResponse({ type: TagResponseDto, description: '创建成功返回标签对象（含 id / name / color / createdAt）' })
   @ApiConflictResponse({ description: '标签名已存在' })
-  @ApiUnauthorizedResponse({ description: '未登录或邮箱未验证' })
+  @ApiUnauthorizedResponse({ description: '未登录' })
   async create(@Body() dto: CreateTagDto) {
     return this.tagsService.create(dto);
   }

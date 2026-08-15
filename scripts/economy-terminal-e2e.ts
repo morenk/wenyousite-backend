@@ -17,7 +17,6 @@ import { JwtStrategy } from '../src/auth/strategies/jwt.strategy';
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
 import { ErrorCode } from '../src/common/exceptions/error-codes';
 import { TransformInterceptor } from '../src/common/interceptors/response.interceptor';
-import { VerifiedGuard } from '../src/common/guards/verified.guard';
 import { EconomyController } from '../src/economy/economy.controller';
 import { EconomyService } from '../src/economy/economy.service';
 import { OutboxService } from '../src/outbox/outbox.service';
@@ -88,7 +87,7 @@ async function createTestUser(
   prisma: PrismaService,
   jwt: JwtService,
   label: string,
-  options: { balance?: bigint; verified?: boolean } = {},
+  options: { balance?: bigint } = {},
 ): Promise<TestUser> {
   const suffix = randomUUID().replaceAll('-', '').slice(0, 10);
   const user = await prisma.user.create({
@@ -96,7 +95,6 @@ async function createTestUser(
       email: `${label}-${suffix}@example.test`,
       username: `${label}_${suffix}`.slice(0, 24),
       password: 'unused-in-economy-e2e',
-      emailVerified: options.verified ?? true,
     },
   });
   const wallet = await prisma.wallet.create({
@@ -204,7 +202,6 @@ async function verifyCheckInRollback(prisma: PrismaService) {
       email: `rollback-${randomUUID()}@example.test`,
       username: `rollback_${randomUUID().replaceAll('-', '').slice(0, 10)}`,
       password: 'unused-in-economy-e2e',
-      emailVerified: true,
     },
   });
   const wallet = await prisma.wallet.create({ data: { kind: 'USER', userId: user.id } });
@@ -492,39 +489,34 @@ async function verifyHttpBoundaries(
   const unauthenticated = await server.inject({ method: 'GET', url: '/api/v1/wallet' });
   assertEqual(unauthenticated.statusCode, HttpStatus.UNAUTHORIZED, '钱包私密数据必须登录访问');
 
-  const unverified = await createTestUser(prisma, jwt, 'unverified', { verified: false });
+  const reader = await createTestUser(prisma, jwt, 'reader');
   const readable = await server.inject({
     method: 'GET',
     url: '/api/v1/wallet',
-    headers: bearer(unverified.token),
+    headers: bearer(reader.token),
   });
-  assertEqual(readable.statusCode, HttpStatus.OK, '未验证用户仍应能读取自己钱包');
+  assertEqual(readable.statusCode, HttpStatus.OK, '登录用户应能读取自己钱包');
   assertEqual(
     (readable.json() as ApiEnvelope<{ balance: string }>).data.balance,
     '0',
     '钱包 API 应将 BigInt 序列化为十进制字符串',
   );
 
-  const forbiddenCheckIn = await server.inject({
+  const checkIn = await server.inject({
     method: 'POST',
     url: '/api/v1/wallet/check-in',
-    headers: bearer(unverified.token),
+    headers: bearer(reader.token),
   });
-  assertEqual(forbiddenCheckIn.statusCode, HttpStatus.FORBIDDEN, '未验证用户不得签到领取');
-  assertEqual(
-    (forbiddenCheckIn.json() as ApiEnvelope<null>).code,
-    ErrorCode.EMAIL_NOT_VERIFIED,
-    '未验证写操作应返回专用错误码',
-  );
+  assertEqual(checkIn.statusCode, HttpStatus.OK, '登录用户应能签到领取');
 
   const recipient = await createTestUser(prisma, jwt, 'validation-target');
   const invalidTip = await server.inject({
     method: 'POST',
     url: `/api/v1/users/${recipient.id}/tips`,
-    headers: bearer(unverified.token),
+    headers: bearer(reader.token),
     payload: { amount: 2, clientRequestId: 'not-a-uuid' },
   });
-  assertEqual(invalidTip.statusCode, HttpStatus.FORBIDDEN, '认证权限应在业务写入前拒绝未验证用户');
+  assertEqual(invalidTip.statusCode, HttpStatus.BAD_REQUEST, '无效打赏参数应被 DTO 拒绝');
 
   const verified = await createTestUser(prisma, jwt, 'validation-sender', { balance: 2n });
   const invalidVerifiedTip = await server.inject({
@@ -558,7 +550,6 @@ async function verifyRuntime(databaseUrl: string) {
       OutboxService,
       JwtStrategy,
       JwtAuthGuard,
-      VerifiedGuard,
       { provide: PrismaService, useValue: prisma },
       { provide: ConfigService, useValue: config },
     ],

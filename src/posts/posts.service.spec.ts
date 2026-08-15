@@ -104,7 +104,7 @@ describe('PostsService', () => {
       if (updateResult) return updateResult;
       return mockPrisma.post.create.mock.results.at(-1)?.value;
     });
-    mockPrisma.user.findUnique.mockResolvedValue({ emailVerified: true });
+    mockPrisma.user.findUnique.mockResolvedValue({});
     mockPrisma.thread.findUnique.mockResolvedValue({
       visibility: 'PUBLIC',
       published: true,
@@ -113,7 +113,7 @@ describe('PostsService', () => {
   });
 
   it('create 新楼层应该正确分配 floorNumber', async () => {
-    mockPrisma.user.findUnique.mockResolvedValue({ emailVerified: true });
+    mockPrisma.user.findUnique.mockResolvedValue({});
     const subthread = {
       id: 's1',
       threadId: 't1',
