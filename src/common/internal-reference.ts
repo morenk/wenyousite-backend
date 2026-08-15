@@ -2,27 +2,21 @@ const PRODUCTION_ORIGIN = 'https://wenyou.site';
 export const INTERNAL_REFERENCE_DEFAULT_LABEL = '传送门';
 
 const ID_RE = /^[a-z0-9]{20,32}$/u;
+const INVITE_TOKEN_RE = /^[A-Za-z0-9_-]{16}$/u;
 const THREAD_ROUTE_RE = /^\/threads\/([^/]+)$/u;
 const DISCUSSION_ROUTE_RE = /^\/threads\/([^/]+)\/posts\/([^/]+)\/replies$/u;
+const INVITE_ROUTE_RE = /^\/join\/([^/]+)$/u;
 const TRAILING_PUNCTUATION_RE = /[.,!?;:，。！？；：、]+$/u;
-const REFERENCE_CANDIDATE_RE = /\[([^\]\r\n]+)\]\(([^)\r\n]+)\)|https:\/\/wenyou\.site\/threads\/[a-z0-9_-]+(?:\/posts\/[a-z0-9_-]+\/replies)?(?:\?[^\s<>\])}.,!;:，。！？；：、]+)?|\/threads\/[a-z0-9_-]+(?:\/posts\/[a-z0-9_-]+\/replies)?(?:\?[^\s<>\])}.,!;:，。！？；：、]+)?/giu;
+const REFERENCE_CANDIDATE_RE = /\[([^\]\r\n]+)\]\(([^)\r\n]+)\)|https:\/\/wenyou\.site\/(?:threads\/[a-z0-9_-]+(?:\/posts\/[a-z0-9_-]+\/replies)?|join\/[a-z0-9_-]+)(?:\?[^\s<>\])}.,!;:，。！？；：、]+)?|\/(?:threads\/[a-z0-9_-]+(?:\/posts\/[a-z0-9_-]+\/replies)?|join\/[a-z0-9_-]+)(?:\?[^\s<>\])}.,!;:，。！？；：、]+)?/giu;
 const RELATIVE_REFERENCE_BOUNDARY_RE = /[\s([{"'，。！？；：、]/u;
 
-export type InternalReferenceKind =
-  | 'THREAD'
-  | 'SUBTHREAD'
-  | 'FLOOR'
-  | 'DISCUSSION'
-  | 'REPLY';
-
-export interface InternalReference {
-  kind: InternalReferenceKind;
-  threadId: string;
-  subthreadId?: string;
-  floorPostId?: string;
-  postId?: string;
-  href: string;
-}
+export type InternalReference =
+  | { kind: 'THREAD'; threadId: string; href: string }
+  | { kind: 'SUBTHREAD'; threadId: string; subthreadId: string; href: string }
+  | { kind: 'FLOOR'; threadId: string; postId: string; href: string }
+  | { kind: 'DISCUSSION'; threadId: string; floorPostId: string; href: string }
+  | { kind: 'REPLY'; threadId: string; floorPostId: string; postId: string; href: string }
+  | { kind: 'INVITE'; token: string; href: string };
 
 function isValidId(value: string | null): value is string {
   return !!value && ID_RE.test(value);
@@ -48,6 +42,7 @@ export function parseInternalReference(input: string): InternalReference | null 
     return null;
   }
   if (!relative && (url.protocol !== 'https:' || url.origin !== PRODUCTION_ORIGIN)) return null;
+  if (url.username || url.password) return null;
 
   const threadRoute = THREAD_ROUTE_RE.exec(url.pathname);
   if (threadRoute) {
@@ -80,6 +75,19 @@ export function parseInternalReference(input: string): InternalReference | null 
     }
     return hasOnlyQuery(url, null)
       ? { kind: 'THREAD', threadId, href: `/threads/${threadId}` }
+      : null;
+  }
+
+  const inviteRoute = INVITE_ROUTE_RE.exec(url.pathname);
+  if (inviteRoute) {
+    let token: string;
+    try {
+      token = decodeURIComponent(inviteRoute[1]);
+    } catch {
+      return null;
+    }
+    return INVITE_TOKEN_RE.test(token) && hasOnlyQuery(url, null)
+      ? { kind: 'INVITE', token, href: `/join/${token}` }
       : null;
   }
 
