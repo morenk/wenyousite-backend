@@ -1,8 +1,8 @@
 {
   "contract": "wenyousite-markdown-nodes",
   "version": 1,
-  "markdownContractVersion": 2,
-  "description": "Web、Flutter 与后端共用的 Markdown 扩展节点解析、序列化和往返黄金语料；nodes 只列出扩展/媒体节点，不包含普通文本节点。",
+  "markdownContractVersion": 3,
+  "description": "Web、Flutter 与后端共用的 Markdown v3 扩展节点解析、序列化和往返黄金语料；nodes 只列出工具栏白名单内的扩展/媒体节点。",
   "cases": [
     {
       "id": "direct-mention",
@@ -95,13 +95,6 @@
       "markdown": "`[@张三](/users/user-zhang) @全体玩家 [[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20]] ![表情](https://cdn.example.com/stickers/a.webp \"wenyousite-sticker:v1:cm1234567890123456789012\") ![图](https://cdn.example.com/images/a.png)`",
       "nodes": [],
       "serialized": "`[@张三](/users/user-zhang) @全体玩家 [[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20]] ![表情](https://cdn.example.com/stickers/a.webp \"wenyousite-sticker:v1:cm1234567890123456789012\") ![图](https://cdn.example.com/images/a.png)`"
-    },
-    {
-      "id": "fenced-code-boundary",
-      "description": "围栏代码块中的自定义标记全部保持普通代码文本",
-      "markdown": "```md\n[@张三](/users/user-zhang) @全体玩家\n[[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20]]\n![表情](https://cdn.example.com/stickers/a.webp \"wenyousite-sticker:v1:cm1234567890123456789012\") ![图](https://cdn.example.com/images/a.png)\n```",
-      "nodes": [],
-      "serialized": "```md\n[@张三](/users/user-zhang) @全体玩家\n[[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20]]\n![表情](https://cdn.example.com/stickers/a.webp \"wenyousite-sticker:v1:cm1234567890123456789012\") ![图](https://cdn.example.com/images/a.png)\n```"
     },
     {
       "id": "escaped-markers",

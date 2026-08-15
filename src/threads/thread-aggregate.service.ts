@@ -5,7 +5,7 @@ import { ThreadAccessService } from '../access/thread-access.service';
 import { BlockFilterService } from '../access/block-filter.service';
 import { BusinessException, forbidden, notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
-import { hasVisibleMarkdownContent, normalizeMarkdownContent } from '../common/markdown-content';
+import { hasVisibleMarkdownContent, prepareMarkdownContent } from '../common/markdown-content';
 import { truncateMarkdown } from '../common/markdown-truncate';
 import {
   attachPlayerCounts,
@@ -83,7 +83,7 @@ export class ThreadAggregateService {
     if (tagNames.some((name) => !name)) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '标签名称不能为空');
     }
-    const parsedContent = this.dice.parseContent(normalizeMarkdownContent(dto.content));
+    const parsedContent = this.dice.parseContent(prepareMarkdownContent(dto.content));
     const content = parsedContent.content;
     const previousBody = await this.prisma.post.findFirst({
       where: {

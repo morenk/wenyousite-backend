@@ -1,11 +1,11 @@
-/** 校验 Markdown v2 扩展节点黄金语料的结构、覆盖面和前后端同步状态。 */
+/** 校验 Markdown v3 扩展节点黄金语料的结构、覆盖面和客户端同步状态。 */
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 type JsonObject = Record<string, unknown>;
 
-const fixturePath = 'contracts/markdown-v2-nodes-fixtures.json';
+const fixturePath = 'contracts/markdown-v3-nodes-fixtures.json';
 const fixtureSource = fs.readFileSync(fixturePath, 'utf8');
 const fixture = JSON.parse(fixtureSource) as JsonObject;
 const failures: string[] = [];
@@ -21,7 +21,7 @@ function isNonEmptyString(value: unknown): value is string {
 if (
   fixture.contract !== 'wenyousite-markdown-nodes' ||
   fixture.version !== 1 ||
-  fixture.markdownContractVersion !== 2
+  fixture.markdownContractVersion !== 3
 ) {
   failures.push('扩展节点语料的契约标识或版本无效');
 }
@@ -77,7 +77,7 @@ for (const item of cases) {
 for (const nodeType of ['mention', 'mention_all_players', 'dice', 'sticker', 'image']) {
   if (!coveredNodeTypes.has(nodeType)) failures.push(`缺少 ${nodeType} 节点样例`);
 }
-for (const boundaryId of ['inline-code-boundary', 'fenced-code-boundary', 'escaped-markers']) {
+for (const boundaryId of ['inline-code-boundary', 'escaped-markers']) {
   const boundary = cases.find((item) => isObject(item) && item.id === boundaryId);
   if (!isObject(boundary) || !Array.isArray(boundary.nodes) || boundary.nodes.length !== 0) {
     failures.push(`${boundaryId} 必须存在且不得解析出节点`);
@@ -107,7 +107,7 @@ for (const rule of requiredIdentityRules) {
 
 const frontendFixture = path.resolve('../wenyousite-frontend', fixturePath);
 if (fs.existsSync(frontendFixture) && fs.readFileSync(frontendFixture, 'utf8') !== fixtureSource) {
-  failures.push('前后端 Markdown v2 扩展节点语料不一致');
+  failures.push('前后端 Markdown v3 扩展节点语料不一致');
 }
 
 if (failures.length > 0) {

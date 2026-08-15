@@ -41,7 +41,7 @@ class ApiMetaResponseDto {
   @ApiProperty({ type: String, nullable: true })
   buildSha!: string | null;
 
-  @ApiProperty({ example: 2 })
+  @ApiProperty({ example: 3 })
   markdownContractVersion!: number;
 
   @ApiProperty({ type: ApiCapabilitiesResponseDto })
@@ -64,7 +64,7 @@ export class MetaController {
     return {
       contractVersion: API_CONTRACT_VERSION,
       buildSha: this.config.get<string>('app.buildSha') ?? null,
-      markdownContractVersion: 2,
+      markdownContractVersion: 3,
       capabilities: {
         stickers: true,
         directMessages: true,

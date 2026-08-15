@@ -7,7 +7,7 @@ import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { notDeleted, countNonDeletedPosts } from '../common/prisma-helpers';
 import { DiceService } from '../dice/dice.service';
-import { hasVisibleMarkdownContent, normalizeMarkdownContent } from '../common/markdown-content';
+import { hasVisibleMarkdownContent, prepareMarkdownContent } from '../common/markdown-content';
 import { Prisma } from '@prisma/client';
 import { OutboxService } from '../outbox/outbox.service';
 import { StickerContentService } from '../stickers/sticker-content.service';
@@ -62,7 +62,7 @@ export class SubthreadsService {
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
 
     const parsedContent = this.diceService.parseContent(
-      normalizeMarkdownContent(dto.content ?? ''),
+      prepareMarkdownContent(dto.content ?? ''),
     );
     const content = parsedContent.content;
     const stickerAssetIds = await this.stickerContent.assertContentAllowed(userId, content);

@@ -398,7 +398,7 @@ test(s1, 'GET /meta 客户端协议元数据', async () => {
   const r = await api.get('/meta');
   assert(r.code === 0, 'meta 应成功');
   assert(r.data.contractVersion === API_CONTRACT_VERSION, `契约应为 ${API_CONTRACT_VERSION}`);
-  assert(r.data.markdownContractVersion === 2, 'Markdown 协议应为 v2');
+  assert(r.data.markdownContractVersion === 3, 'Markdown 协议应为 v3');
   for (const platform of ['android', 'ios']) {
     const policy = r.data.mobileCompatibility?.[platform];
     assert(!!policy, `${platform} 应返回移动兼容策略`);

@@ -1,11 +1,11 @@
-/** 校验编辑器结构化往返/源码保留黄金语料及客户端同步状态。 */
+/** 校验编辑器结构化往返/字面纯文本黄金语料及客户端同步状态。 */
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 type JsonObject = Record<string, unknown>;
 
-const fixturePath = 'contracts/markdown-editor-roundtrip-v1-fixtures.json';
+const fixturePath = 'contracts/markdown-editor-roundtrip-v2-fixtures.json';
 const fixtureSource = fs.readFileSync(fixturePath, 'utf8');
 const fixture = JSON.parse(fixtureSource) as JsonObject;
 const failures: string[] = [];
@@ -16,8 +16,8 @@ function isObject(value: unknown): value is JsonObject {
 
 if (
   fixture.contract !== 'wenyousite-markdown-editor-roundtrip' ||
-  fixture.version !== 1 ||
-  fixture.markdownContractVersion !== 2
+  fixture.version !== 2 ||
+  fixture.markdownContractVersion !== 3
 ) {
   failures.push('编辑器往返语料的契约标识或版本无效');
 }
@@ -37,8 +37,8 @@ for (const item of cases) {
   if (typeof item.markdown !== 'string' || typeof item.serialized !== 'string') {
     failures.push(`${item.id}: markdown 和 serialized 必须是字符串`);
   }
-  if (item.mode !== 'structured' && item.mode !== 'source-preserve') {
-    failures.push(`${item.id}: mode 必须是 structured 或 source-preserve`);
+  if (item.mode !== 'structured' && item.mode !== 'literal-text') {
+    failures.push(`${item.id}: mode 必须是 structured 或 literal-text`);
   } else {
     coveredModes.add(item.mode);
   }
@@ -72,7 +72,7 @@ for (const capability of [
 ]) {
   if (!coveredCapabilities.has(capability)) failures.push(`缺少 ${capability} 编辑器样例`);
 }
-for (const mode of ['structured', 'source-preserve']) {
+for (const mode of ['structured', 'literal-text']) {
   if (!coveredModes.has(mode)) failures.push(`缺少 ${mode} 模式样例`);
 }
 

@@ -274,7 +274,7 @@ export class MentionsService {
     return slashes % 2 === 1;
   }
 
-  /** 移除 Markdown v2 围栏和成对反引号代码，避免代码示例触发真实通知。 */
+  /** 防御性移除历史围栏和允许的行内代码，避免代码示例触发真实通知。 */
   private stripMarkdownCode(content: string): string {
     const lines = content.replace(/\r\n?/g, '\n').split('\n');
     let fence: { marker: '`' | '~'; length: number } | null = null;

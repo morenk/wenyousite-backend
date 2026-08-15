@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { normalizeMarkdownContent } from '../common/markdown-content';
+import { prepareMarkdownContent } from '../common/markdown-content';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { CreateDraftDto } from './dto/create-draft.dto';
@@ -37,7 +37,7 @@ export class DraftsService {
 
   /** 保存草稿：指定 slot 则覆盖，不指定自动选空闲位 */
   async create(dto: CreateDraftDto, userId: string) {
-    const parsedContent = this.diceService.parseContent(normalizeMarkdownContent(dto.content));
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content));
     this.assertSnapshotNotEmpty(parsedContent.contentWithoutDice, parsedContent.nodes.length);
     if (dto.slot === undefined) {
       await this.stickerContent.assertContentAllowed(userId, parsedContent.content, '');
@@ -104,7 +104,7 @@ export class DraftsService {
   async update(id: string, content: string, version: number, userId: string) {
     const draft = await this.findById(id, userId);
     if (version !== draft.version) throw this.optimisticLockConflict();
-    const parsedContent = this.diceService.parseContent(normalizeMarkdownContent(content));
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(content));
     this.assertSnapshotNotEmpty(parsedContent.contentWithoutDice, parsedContent.nodes.length);
     await this.stickerContent.assertContentAllowed(userId, parsedContent.content, draft.content);
     return this.prisma.draft

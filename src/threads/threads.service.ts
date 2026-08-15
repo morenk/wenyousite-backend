@@ -18,7 +18,7 @@ import {
   countMembersAndPosts,
   attachPlayerCounts,
 } from '../common/prisma-helpers';
-import { hasVisibleMarkdownContent, normalizeMarkdownContent } from '../common/markdown-content';
+import { hasVisibleMarkdownContent, prepareMarkdownContent } from '../common/markdown-content';
 import { DiceService } from '../dice/dice.service';
 import { ThreadQueryService } from './thread-query.service';
 import { OutboxService } from '../outbox/outbox.service';
@@ -49,7 +49,7 @@ export class ThreadsService {
   /** 创建主题帖草稿：事务内创建 Thread + Owner + 默认子贴 + 可选子贴正文，一次请求完成 */
   async create(dto: CreateThreadDto, userId: string) {
     const parsedContent = this.diceService.parseContent(
-      normalizeMarkdownContent(dto.content ?? ''),
+      prepareMarkdownContent(dto.content ?? ''),
     );
     const { title, subthreadTitle, category, visibility, requestHash } =
       this.createIdempotency.prepare(dto, parsedContent.content);

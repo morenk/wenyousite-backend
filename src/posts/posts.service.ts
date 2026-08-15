@@ -11,7 +11,7 @@ import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound, forbidden } from '../common/exceptions/business.exception';
 import { notDeleted, authorSelect, includeDiceRolls } from '../common/prisma-helpers';
 import { truncateMarkdown } from '../common/markdown-truncate';
-import { hasVisibleMarkdownContent, normalizeMarkdownContent } from '../common/markdown-content';
+import { hasVisibleMarkdownContent, prepareMarkdownContent } from '../common/markdown-content';
 import { DiceService } from '../dice/dice.service';
 import { PostingPolicyService } from './posting-policy.service';
 import { PostQueryService } from './post-query.service';
@@ -55,7 +55,7 @@ export class PostsService {
 
   /** 发帖：楼层或楼中楼回复。先校验访问权限与发帖策略，通过后才自动加入为参与人 */
   async create(subthreadId: string, dto: CreatePostDto, userId: string) {
-    const parsedContent = this.diceService.parseContent(normalizeMarkdownContent(dto.content));
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content));
     const content = parsedContent.content;
     if (
       !hasVisibleMarkdownContent(parsedContent.contentWithoutDice) &&
@@ -278,7 +278,7 @@ export class PostsService {
     version: number | undefined,
     userId: string,
   ) {
-    const parsedContent = this.diceService.parseContent(normalizeMarkdownContent(content));
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(content));
     const normalizedContent = parsedContent.content;
     const subthread = await this.prisma.subthread.findUnique({
       where: { id: subthreadId, ...notDeleted },
@@ -481,7 +481,7 @@ export class PostsService {
 
   /** 编辑帖子 */
   async update(id: string, dto: UpdatePostDto, userId: string) {
-    const parsedContent = this.diceService.parseContent(normalizeMarkdownContent(dto.content));
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content));
     const content = parsedContent.content;
     const postLight = await this.prisma.post.findUnique({
       where: { id, ...notDeleted },

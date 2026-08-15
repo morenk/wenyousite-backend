@@ -16,10 +16,10 @@ type ContractNode =
   | { type: 'image'; url: string; alt: string; title: string | null };
 
 const fixtures = JSON.parse(
-  readFileSync(resolve(__dirname, '../../contracts/markdown-v2-nodes-fixtures.json'), 'utf8'),
+  readFileSync(resolve(__dirname, '../../contracts/markdown-v3-nodes-fixtures.json'), 'utf8'),
 ) as { cases: Array<{ id: string; markdown: string; nodes: ContractNode[] }> };
 
-describe('Markdown v2 节点跨端契约', () => {
+describe('Markdown v3 节点跨端契约', () => {
   const dice = new DiceService();
   const stickers = new StickerContentService({} as PrismaService);
   const mentions = new MentionsService(

@@ -1,64 +1,56 @@
-# Markdown v2 正文协议
+# Markdown v3 正文协议
 
-## 目标与范围
+## 目标与事实源
 
-本模块定义 Web、后端与 Flutter 共用的正文存储协议。机器契约分为三层；自然语言文档只解释规则，不能覆盖黄金语料的预期结果：
+本模块定义 Web、后端与 Flutter 共用的正文存储和工具栏能力白名单。机器契约分为三层，自然语言文档不能覆盖黄金语料：
 
-1. [`contracts/markdown-v2-fixtures.json`](../../contracts/markdown-v2-fixtures.json) 固定正文的 `canonical` 与 `visible`，用于写入规范化和发布可见性。
-2. [`contracts/markdown-v2-nodes-fixtures.json`](../../contracts/markdown-v2-nodes-fixtures.json) 固定扩展节点的 `nodes`、`serialized` 和复制身份规则，用于解析、序列化与编辑器 round-trip。
-3. [`contracts/markdown-editor-roundtrip-v1-fixtures.json`](../../contracts/markdown-editor-roundtrip-v1-fixtures.json) 固定普通 Markdown 的结构化编辑与源码保留样例；它不新增存储语法，因此仍从属于 Markdown v2。
+1. [`contracts/markdown-v3-fixtures.json`](../../contracts/markdown-v3-fixtures.json) 固定规范化、可见性、允许/拒绝结果、首个不支持类型和字面降级结果。
+2. [`contracts/markdown-v3-nodes-fixtures.json`](../../contracts/markdown-v3-nodes-fixtures.json) 固定扩展节点的解析、序列化和复制身份。
+3. [`contracts/markdown-editor-roundtrip-v2-fixtures.json`](../../contracts/markdown-editor-roundtrip-v2-fixtures.json) 固定 `structured` 与 `literal-text` 两类编辑器往返。
 
-v2 在 v1 规范化基础上增加收藏表情的标准 Markdown 图片标记与发布安全边界。旧客户端无需识别扩展标记，也能按普通图片显示。
+主题坐标链接仍是普通 Markdown 链接；客户端可额外按 [`站内传送门 v1`](./internal-references.md) 统一其内联视觉和同页导航，不改变 Markdown v3 的存储规则。
 
-主题坐标链接仍是普通 Markdown 链接；Web/移动端可额外按 [`站内传送门 v1`](./internal-references.md) 统一其内联视觉和同页导航，不改变 Markdown v2 的存储、解析或可见性规则。
-
-## 格式版本
+## 格式与白名单
 
 - 协议标识：`wenyousite-markdown`
-- 版本：`2`
-- 存储格式：UTF-8 Markdown 字符串
-- 标准换行：LF（`\n`）
-- 顶层空段落：独占一行 `<br />`
+- 版本：`3`
+- 存储：UTF-8 Markdown、LF 换行；顶层空段落使用独占一行 `<br />`
+- 允许结构：普通段落、H2/H3、粗体、斜体、删除线、行内代码、安全链接/自动链接、图片、引用、普通有序/无序列表、分隔线，以及提及、骰子、收藏表情和协议空段
+- 普通列表最多嵌套三层
+- 禁止结构：表格、任务列表、围栏/缩进代码块、H1/H4-H6、显式硬换行、任意原始 HTML、未知协议节点、不安全链接和未知 AST 节点
 
-## 规范化规则
+只有 Foundation 工具栏主栏与“更多”面板声明的能力可以成为结构化正文。第三方解析器支持的额外 GFM 语法不扩大产品能力。
+
+## 写入与错误
+
+所有正文入口先统一 CRLF/CR 为 LF、规范化独占空段并清理空 URL 图片，然后执行同一 AST 白名单校验；校验必须早于骰子、图片、表情、提及和持久化处理。
+
+未转义的白名单外结构返回 HTTP 400、`UNSUPPORTED_MARKDOWN_FORMAT = 40009`，响应保持 `{ code, message, data: null }`，message 指出按源码顺序遇到的首个不支持类型。DTO 的 10,000 字限制不变。覆盖入口包括主题创建与聚合保存、楼层/回复创建与编辑、子贴正文 upsert 和云草稿创建/更新；失败不得产生数据库、Outbox、通知、活动、骰子或提及副作用。
+
+客户端对粘贴、手输、重开和草稿恢复中的不支持结构静默转成字面文本，不显示格式提示。阅读端也在交给 Markdown 渲染器前做相同防御降级。服务端不依赖客户端行为，直接 API 调用仍严格拒绝。
+
+## 规范化与可见性
 
 1. CRLF/CR 统一为 LF。
-2. 围栏代码块外，顶层独占行 `<br>`、`<br/>`、`<br >` 统一为 `<br />`。
-3. 围栏代码块外移除空 URL 图片 `![alt]()`；代码内容保持原样（换行规范化除外）。
-4. 不做全局 `trim`，不删除首尾空段落，不做 Unicode NFC/NFKC 转换。
-5. 不删除零宽连接符或变体选择符，避免破坏组合 Emoji。
+2. 顶层独占 `<br>`、`<br/>`、`<br >` 统一为 `<br />`。
+3. 移除空 URL 图片 `![alt]()`。
+4. 不做全局 `trim` 或 Unicode NFC/NFKC 转换，不删除首尾空段与组合 Emoji 所需字符。
+5. 纯空白、仅空段落、仅分隔线、空图片/链接和仅默认不可见字符不可发布；普通文字、纯数字、普通列表、有效图片和安全链接可发布。
 
-## 发布可见性
+## 扩展节点
 
-- 普通文字、纯数字、非空列表、有效图片、非空代码块、裸 HTTP(S) URL、CommonMark 自动链接和带可见标签的链接可发布。
-- 纯空白、仅空段落、仅分隔线、空图片、空链接和仅由默认不可见 Unicode 字符组成的正文不可发布。
-- 默认不可见字符只在可见性判断时忽略；与可见字符组成 Emoji/文字时不影响发布。
-- 围栏关闭标记必须与开启标记同字符，且长度不少于开启标记。
+- 收藏表情写为 `![表情](ASSET_URL "wenyousite-sticker:v1:ASSET_ID")`；新增表情必须仍在作者收藏中，每篇最多 20 个。
+- 新增普通图片必须是作者本人状态为 `COMPLETED` 的站内媒体；编辑历史正文时只可原位保留已有外链图片。
+- 骰子复制粘贴生成新 `nodeId`，剪切粘贴保留；提及 `userId` 和表情 `assetId` 在复制时保留。
+- 扩展节点不得在成对行内代码或反斜杠转义位置解析；未知协议节点按白名单外格式处理。
 
-## 图片与收藏表情
+## 数据迁移
 
-- 收藏表情写为 `![表情](ASSET_URL "wenyousite-sticker:v1:ASSET_ID")`。`v1` 是表情标记自身版本，与 Markdown v2 版本相互独立。
-- 新增表情必须仍在作者的私有收藏中，URL 和资产 ID 必须匹配；每篇内容最多 20 个。
-- 新增普通图片必须是作者本人状态为 `COMPLETED` 的站内 `Media`。编辑历史正文时，原有外链图片出现次数可保留，但不得新增或复制；普通超链接不受影响。
-- 表情、普通图片和规则外观相似的文本在围栏代码或成对行内代码中都不触发资产校验。
-
-## 跨端执行方式
-
-- 后端是写入和发布校验的最终权威。
-- Web 和 Flutter 必须加载或复制同版本的三层黄金语料：逐条验证 `canonical` / `visible`，mention、`@全体玩家`、dice、sticker、普通图片的 parse / serialize / round-trip，以及普通 Markdown 的结构化编辑或源码保留。
-- 扩展节点不得在围栏代码、成对行内代码或反斜杠转义位置解析。骰子复制粘贴生成新 `nodeId`，剪切粘贴保留；提及 `userId` 和表情 `assetId` 在复制时保留。
-- `structured` 样例应恢复成编辑器结构并安全序列化；`source-preserve` 样例允许以源码形式编辑，但任何保存路径都不得静默改写或删除。
-- 任一规则变更必须新增/修改语料并提升协议版本；不得只修改某一端的正则。
-
-## 后端写入边界
-
-- `PostsService.create`、`upsertBody`、`update` 在发布校验前规范化正文，存库、提及解析和通知摘要统一使用 canonical 内容。
-- `DraftsService.create`、`update` 在写库前规范化正文；草稿不执行发布可见性限制。
-- DTO 长度校验仍在服务调用前执行，后端规范化不会把超长请求绕过为合法请求。
+`pnpm markdown:v3:migrate` 默认只扫描并输出 dry-run 汇总。应用前必须运行 `scripts/backup.sh`，随后使用 `pnpm markdown:v3:migrate --apply --backup-confirmed`。迁移按源码行转义不支持节点、递增 Post/Draft 乐观锁版本、同步骰子与提及派生关系并清理正文缓存；不发通知、活动或业务事件。重复执行不再改变正文或版本，应用后全库不允许残留不支持节点。
 
 ## 自动门禁
 
-- 黄金语料必须是合法 JSON 且 case id 唯一；规范化函数通过全部 canonical case，可见性函数通过全部 visible case。
-- 扩展节点语料覆盖解析、序列化、代码边界、转义和复制身份规则。
-- 编辑器往返语料覆盖常用行内/块级结构、历史标题层级、空段落，以及任务列表、代码块、表格和硬换行的源码保留。
-- 帖子创建、正文 upsert、帖子编辑及草稿写入在进入持久化和下游事件前统一规范化。
+- 三份 fixture 必须为合法 JSON、case id 唯一，并与 Web 同名副本逐字一致；编辑器 fixture 还会在移动端存在同名 v2 副本后参与同步检查。
+- 单元测试覆盖每一种允许格式和所有禁止类型，字面输出必须合法且幂等。
+- 迁移测试覆盖 dry-run 无写入、版本递增、提及派生关系裁剪和重复规划幂等。
+- OpenAPI、错误码文档、CHANGELOG 与生成客户端必须随错误码和契约版本同步。

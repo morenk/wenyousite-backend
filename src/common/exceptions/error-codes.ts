@@ -23,6 +23,8 @@ export const ErrorCode = {
   INVALID_CURSOR: 40007,
   /** 温油金额不是受支持的整数升 */
   INVALID_WENYOU_AMOUNT: 40008,
+  /** 正文包含工具栏能力白名单之外的 Markdown 结构 */
+  UNSUPPORTED_MARKDOWN_FORMAT: 40009,
 
   // ── 认证 401xx ──
   /** 未认证 */

@@ -82,10 +82,18 @@ if (mobileUiBoundary.includes('pending-client-integration')) {
   failures.push('docs/mobile-ui-contract.md: 仍把已接入的 Flutter 设计基础标记为待接入');
 }
 
-const backendFixture = fs.readFileSync('contracts/markdown-v2-fixtures.json', 'utf8');
-const frontendFixture = path.resolve('../wenyousite-frontend/contracts/markdown-v2-fixtures.json');
-if (fs.existsSync(frontendFixture) && fs.readFileSync(frontendFixture, 'utf8') !== backendFixture) {
-  failures.push('前后端 Markdown v2 黄金语料不一致');
+for (const fixtureName of [
+  'markdown-v3-fixtures.json',
+  'markdown-v3-nodes-fixtures.json',
+  'markdown-editor-roundtrip-v2-fixtures.json',
+]) {
+  const backendFixture = fs.readFileSync(path.join('contracts', fixtureName), 'utf8');
+  for (const client of ['wenyousite-frontend', 'wenyousite-mobile']) {
+    const clientFixture = path.resolve(`../${client}/contracts/${fixtureName}`);
+    if (fs.existsSync(clientFixture) && fs.readFileSync(clientFixture, 'utf8') !== backendFixture) {
+      failures.push(`${client} 的 ${fixtureName} 与后端不一致`);
+    }
+  }
 }
 
 if (failures.length > 0) throw new Error(`文档事实检查失败：\n${failures.join('\n')}`);

@@ -17069,7 +17069,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "4.11.0-dev.20260814.1",
+    "version": "4.12.0-dev.20260814.1",
     "contact": {}
   },
   "tags": [
@@ -25629,7 +25629,7 @@
           },
           "markdownContractVersion": {
             "type": "number",
-            "example": 2
+            "example": 3
           },
           "capabilities": {
             "$ref": "#/components/schemas/ApiCapabilitiesResponseDto"
@@ -29811,6 +29811,7 @@
           40006,
           40007,
           40008,
+          40009,
           40100,
           40101,
           40102,
@@ -29903,6 +29904,7 @@
           "INVALID_STICKER",
           "INVALID_CURSOR",
           "INVALID_WENYOU_AMOUNT",
+          "UNSUPPORTED_MARKDOWN_FORMAT",
           "UNAUTHORIZED",
           "TOKEN_EXPIRED",
           "TOKEN_INVALID",

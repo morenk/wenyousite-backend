@@ -73,7 +73,7 @@
 - 首页发现策略：`GET /threads` 的普通、标签、参与及三种排序都只返回楼主 `deletedAt=null` 的帖子。账号注销事件会失效现有列表缓存；已注销楼主的公开历史帖仍保留在显式主题/正文搜索结果中，不回填到发现流。
 
 - 列表接口 `findAll`：仅返回 published=true 的帖；`filter=all`(默认)仅 PUBLIC 帖；`filter=playing`返回被其他楼主标记为玩家（playerMarked=true）的帖（含私密帖，排除自己创建的帖），需登录。支持 `status=RECRUITING|CLOSED|FINISHED` 状态筛选；状态可与分区、排序和标签组合使用。`tagId` 对 `ThreadTopicTag.tagId` 精确匹配，供稳定的标签帖子页使用；兼容参数 `tag` 继续按名称模糊匹配，两者并存时 `tagId` 优先。每帖含 `preview` 和 `coverImages`；封面只取默认子贴 BODY 正文中的第一张普通图片，卡片已有封面时摘要移除图片节点，不返回 `bodyPost.content` 全文
-- 发布校验会拒绝纯空白、仅顶层空段落或仅分隔线正文；图片、代码块等非空 Markdown 可发布。草稿正文仍可暂存为空，数据库字段与 Markdown 存储格式不变。
+- 发布校验会拒绝纯空白、仅顶层空段落或仅分隔线正文，并以 `40009` 拒绝未转义的白名单外 Markdown；图片、普通列表和安全链接等允许内容可发布。草稿正文仍可暂存为空，但同样执行结构白名单，数据库字段与 Markdown 存储格式不变。
 - 详情接口 `findById`：未发布帖仅 owner 可查看且不递增 viewCount；已发布帖在 Redis 原子 +1，每 10 分钟批量落库，PRIVATE 帖非参与人返回 404；只有公开已发布详情可进入 30 秒共享缓存。登录态浅拷贝附加 `isBookmarked` / `bookmarkId` / `isLiked`、`currentMembership` 和 `capabilities`，身份数据不写入共享缓存
 - 排序规则：
   - `sort=newest`：置顶优先，其次按 createdAt DESC

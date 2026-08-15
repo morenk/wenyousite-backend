@@ -1,11 +1,11 @@
 {
   "contract": "wenyousite-markdown-editor-roundtrip",
-  "version": 1,
-  "markdownContractVersion": 2,
-  "description": "Web 与 Flutter 编辑器共用的结构化编辑和源码保留黄金语料；只固定现有 Markdown v2 的编辑体验，不定义新的存储语法。",
+  "version": 2,
+  "markdownContractVersion": 3,
+  "description": "Web 与 Flutter 编辑器共用的 Markdown v3 结构化编辑和字面纯文本黄金语料。",
   "modes": {
     "structured": "客户端应恢复为结构化编辑状态，并序列化为 serialized",
-    "source-preserve": "客户端可按源码编辑，但不得改写或丢失 serialized"
+    "literal-text": "客户端显示源码字符但不得恢复为结构节点，并序列化为安全转义后的 serialized"
   },
   "cases": [
     {
@@ -65,11 +65,11 @@
       "serialized": "## 二级标题\n### 三级标题"
     },
     {
-      "id": "historical-heading-levels",
+      "id": "unsupported-heading-levels",
       "capabilities": ["heading"],
-      "mode": "structured",
+      "mode": "literal-text",
       "markdown": "# 一级标题\n#### 四级标题\n##### 五级标题\n###### 六级标题",
-      "serialized": "# 一级标题\n#### 四级标题\n##### 五级标题\n###### 六级标题"
+      "serialized": "\\# 一级标题\n\n\\#\\#\\#\\# 四级标题\n\n\\#\\#\\#\\#\\# 五级标题\n\n\\#\\#\\#\\#\\#\\# 六级标题"
     },
     {
       "id": "blockquote",
@@ -116,30 +116,30 @@
     {
       "id": "task-list-source",
       "capabilities": ["task-list"],
-      "mode": "source-preserve",
+      "mode": "literal-text",
       "markdown": "- [ ] 未完成\n- [x] 已完成",
-      "serialized": "- [ ] 未完成\n- [x] 已完成"
+      "serialized": "\\- \\[ \\] 未完成\n\n\\- \\[x\\] 已完成"
     },
     {
       "id": "fenced-code-source",
       "capabilities": ["code-block"],
-      "mode": "source-preserve",
+      "mode": "literal-text",
       "markdown": "```ts\nconst answer = 42;\n```",
-      "serialized": "```ts\nconst answer = 42;\n```"
+      "serialized": "\\`\\`\\`ts\n\nconst answer \\= 42\\;\n\n\\`\\`\\`"
     },
     {
       "id": "table-source",
       "capabilities": ["table"],
-      "mode": "source-preserve",
+      "mode": "literal-text",
       "markdown": "| 名称 | 数值 |\n| --- | ---: |\n| 骰子 | 20 |",
-      "serialized": "| 名称 | 数值 |\n| --- | ---: |\n| 骰子 | 20 |"
+      "serialized": "\\| 名称 \\| 数值 \\|\n\n\\| \\-\\-\\- \\| \\-\\-\\-\\: \\|\n\n\\| 骰子 \\| 20 \\|"
     },
     {
       "id": "hard-break-source",
       "capabilities": ["hard-break"],
-      "mode": "source-preserve",
+      "mode": "literal-text",
       "markdown": "第一行  \n第二行",
-      "serialized": "第一行  \n第二行"
+      "serialized": "第一行  ⁠\n\n第二行"
     }
   ]
 }

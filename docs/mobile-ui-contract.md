@@ -16,6 +16,6 @@ Flutter 客户端的 `foundation.lock.json` 决定实际生效版本；本文件
 边界保持如下：
 
 - HTTP 字段、认证、分页、幂等、媒体、错误码与 FCM 生命周期仍以本仓库的 [`mobile-client-guide.md`](./mobile-client-guide.md)、OpenAPI 和 fixtures/schema 为准。
-- Markdown 存储与安全降级仍由本仓库的两份 Markdown v2 黄金语料定义；设计基础只规定能力是否直接可发现，不改变内容协议。
+- Markdown 存储与安全降级由本仓库的三份 Markdown v3 黄金语料定义；Foundation 同时固定工具栏作为结构化能力来源，第三方解析器不能改变内容协议。
 - Flutter 的字体资产、平台布局、文字缩放、48dp 触控、安全区和视觉验收由基础仓库 mobile profile 与客户端实现负责。
 - 新增 API/数据协议回到后端；新增跨端视觉或体验语义先在基础仓库发布版本，再升级客户端锁。
