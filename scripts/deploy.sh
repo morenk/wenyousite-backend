@@ -6,10 +6,7 @@ BACKEND_DIR=$(cd -- "$SCRIPT_DIR/.." && pwd)
 WORKSPACE_DIR=$(cd -- "$BACKEND_DIR/.." && pwd)
 FRONTEND_DIR="$WORKSPACE_DIR/wenyousite-frontend"
 COMPOSE_FILE="$BACKEND_DIR/docker-compose.yml"
-RUNTIME_DIR=/tmp/opencode
 BACKEND_BUILD_SHA=$(git -C "$BACKEND_DIR" rev-parse HEAD)
-
-mkdir -p "$RUNTIME_DIR"
 
 wait_for_http() {
   local url=$1
@@ -28,27 +25,6 @@ wait_for_http() {
   if [ -f "$log_file" ]; then
     tail -n 80 "$log_file" >&2
   fi
-  return 1
-}
-
-stop_process() {
-  local pid=$1
-  local service_name=$2
-  local attempt
-
-  if [ -z "$pid" ]; then
-    return 0
-  fi
-
-  kill "$pid"
-  for attempt in $(seq 1 50); do
-    if ! kill -0 "$pid" 2> /dev/null; then
-      return 0
-    fi
-    sleep 0.1
-  done
-
-  echo "$service_name 旧进程未能在 5 秒内退出（PID: $pid）" >&2
   return 1
 }
 
@@ -80,15 +56,7 @@ if [ "$DEPLOYED_BUILD_SHA" != "$BACKEND_BUILD_SHA" ]; then
 fi
 
 echo "5. 切换前端宿主机进程..."
-(cd "$FRONTEND_DIR" && cp -a .next/static .next/standalone/.next/ && cp -a public .next/standalone/)
-FRONTEND_PID=$(ss -tlnp | awk '/:3001 / && /pid=/ { match($0, /pid=([0-9]+)/, a); print a[1]; exit }')
-stop_process "$FRONTEND_PID" "前端"
-(cd "$FRONTEND_DIR" && setsid nohup env PORT=3001 node .next/standalone/server.js </dev/null \
-  > "$RUNTIME_DIR/wenyousite-frontend.log" 2>&1 &)
-wait_for_http \
-  http://127.0.0.1:3001 \
-  "前端" \
-  "$RUNTIME_DIR/wenyousite-frontend.log"
+(cd "$FRONTEND_DIR" && bash scripts/deploy-standalone.sh)
 
 echo "6. 验证公网入口..."
 curl --fail --silent --show-error https://wenyou.site/api/v1/health > /dev/null
