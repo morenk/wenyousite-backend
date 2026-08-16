@@ -79,7 +79,7 @@ for (const claim of [
   'SESSION_NOT_FOUND',
   'DELETE /api/v1/mobile/devices/current',
   'getInitialMessage',
-  'thread-category-v1-fixtures.json',
+  'thread-category-v2-fixtures.json',
   'editorPasteCases',
   '/join/{token}',
   'momentsCommentContext',

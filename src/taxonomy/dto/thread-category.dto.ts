@@ -29,11 +29,6 @@ export class CreateThreadCategoryDto {
   @MaxLength(200)
   description?: string;
 
-  @ApiPropertyOptional({ example: '#7C3AED' })
-  @IsOptional()
-  @Matches(/^#[0-9a-fA-F]{6}$/)
-  color?: string;
-
   @ApiPropertyOptional({ example: 'search', maxLength: 50 })
   @IsOptional()
   @IsString()
@@ -71,11 +66,6 @@ export class UpdateThreadCategoryDto {
   @IsString()
   @MaxLength(200)
   description?: string | null;
-
-  @ApiPropertyOptional({ type: String, example: '#7C3AED', nullable: true })
-  @IsOptional()
-  @Matches(/^#[0-9a-fA-F]{6}$/)
-  color?: string | null;
 
   @ApiPropertyOptional({ type: String, maxLength: 50, nullable: true })
   @IsOptional()

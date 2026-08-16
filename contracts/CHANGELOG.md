@@ -1,5 +1,11 @@
 # API 合同变更
 
+## 5.0.0-dev.20260816.1
+
+- 破坏性删除主题帖分类的 `color` 字段：数据库列、公开与管理响应、创建/更新请求以及分类黄金夹具均不再包含该字段。
+- 分类黄金契约升级为 `thread-category-v2-fixtures.json`；客户端必须改为 Foundation 统一中性呈现。
+- 数据库迁移同时清理分类审计元数据中的历史颜色值；旧客户端继续发送 `color` 时会因未知字段返回 400。
+
 ## 4.14.0-dev.20260816.1
 
 - `GET /subthreads/:subthreadId/posts` 向后兼容新增可选 `order=OLDEST|NEWEST`，默认 `OLDEST`，支持主楼层按 `floorNumber` 正序或倒序的稳定游标分页。

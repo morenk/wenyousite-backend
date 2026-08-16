@@ -42,12 +42,11 @@ describe('AdminTaxonomyService', () => {
     );
   });
 
-  it('新增分类时规范化 slug 和颜色，并在同一事务记录审计', async () => {
+  it('新增分类时规范化 slug，并在同一事务记录审计', async () => {
     const created = {
       id: 'c1',
       slug: 'MYSTERY',
       name: '悬疑',
-      color: '#AABBCC',
       icon: null,
       sortOrder: 5,
       isActive: true,
@@ -57,12 +56,12 @@ describe('AdminTaxonomyService', () => {
     await expect(
       service.createCategory(
         { id: 'admin1' },
-        { slug: 'mystery', name: ' 悬疑 ', color: '#aabbcc', sortOrder: 5 },
+        { slug: 'mystery', name: ' 悬疑 ', sortOrder: 5 },
         { requestId: 'req1' },
       ),
     ).resolves.toEqual(created);
     expect(tx.threadCategoryDefinition.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ slug: 'MYSTERY', name: '悬疑', color: '#AABBCC' }),
+      data: expect.objectContaining({ slug: 'MYSTERY', name: '悬疑' }),
     });
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -91,7 +90,6 @@ describe('AdminTaxonomyService', () => {
       slug: 'RPG',
       name: '角色扮演',
       description: null,
-      color: '#704C65',
       icon: null,
       sortOrder: 30,
       isActive: true,

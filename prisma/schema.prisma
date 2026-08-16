@@ -495,7 +495,6 @@ model ThreadCategoryDefinition {
   slug         String   @unique @db.VarChar(50)
   name         String   @unique @db.VarChar(50)
   description  String?  @db.VarChar(200)
-  color        String?  @db.VarChar(7)
   icon         String?  @db.VarChar(50)
   sortOrder    Int      @default(0) @map("sort_order")
   isActive     Boolean  @default(true) @map("is_active")

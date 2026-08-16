@@ -30,7 +30,6 @@ function categoryMetadata(value: {
   slug: string;
   name: string;
   description: string | null;
-  color: string | null;
   icon: string | null;
   sortOrder: number;
   isActive: boolean;
@@ -39,7 +38,6 @@ function categoryMetadata(value: {
     slug: value.slug,
     name: value.name,
     description: value.description,
-    color: value.color,
     icon: value.icon,
     sortOrder: value.sortOrder,
     isActive: value.isActive,
@@ -80,7 +78,6 @@ export class AdminTaxonomyService {
             ...input,
             slug: normalizeCategorySlug(input.slug),
             name: input.name.trim(),
-            color: input.color?.toUpperCase(),
           },
         });
         await this.audit.record(
@@ -129,7 +126,6 @@ export class AdminTaxonomyService {
           data: {
             ...input,
             ...(input.name !== undefined ? { name: input.name.trim() } : {}),
-            ...(input.color !== undefined ? { color: input.color?.toUpperCase() ?? null } : {}),
           },
         });
         await this.audit.record(

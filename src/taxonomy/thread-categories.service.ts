@@ -16,7 +16,7 @@ export class ThreadCategoriesService {
     private readonly prisma: PrismaService,
     private readonly cache: CacheService,
   ) {
-    this.activeCacheKey = this.cache.buildKey('thread-categories', 'active');
+    this.activeCacheKey = this.cache.buildKey('thread-categories', 'active-v2');
   }
 
   async listActive() {

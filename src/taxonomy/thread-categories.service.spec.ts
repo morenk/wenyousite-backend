@@ -33,7 +33,7 @@ describe('ThreadCategoriesService', () => {
       where: { isActive: true },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
-    expect(cache.set).toHaveBeenCalledWith('thread-categories:active', categories, 300_000);
+    expect(cache.set).toHaveBeenCalledWith('thread-categories:active-v2', categories, 300_000);
   });
 
   it('规范化并接受启用分类', async () => {

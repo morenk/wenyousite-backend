@@ -13,9 +13,6 @@ export class ThreadCategoryResponseDto {
   @ApiProperty({ type: String, nullable: true })
   description!: string | null;
 
-  @ApiProperty({ type: String, nullable: true, example: '#7C3AED' })
-  color!: string | null;
-
   @ApiProperty({ type: String, nullable: true, example: 'search' })
   icon!: string | null;
 

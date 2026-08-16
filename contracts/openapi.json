@@ -17012,7 +17012,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "4.14.0-dev.20260816.1",
+    "version": "5.0.0-dev.20260816.1",
     "contact": {}
   },
   "tags": [
@@ -20626,11 +20626,6 @@
             "type": "string",
             "nullable": true
           },
-          "color": {
-            "type": "string",
-            "nullable": true,
-            "example": "#7C3AED"
-          },
           "icon": {
             "type": "string",
             "nullable": true,
@@ -20661,7 +20656,6 @@
           "slug",
           "name",
           "description",
-          "color",
           "icon",
           "sortOrder",
           "isActive",
@@ -23655,10 +23649,6 @@
             "type": "string",
             "maxLength": 200
           },
-          "color": {
-            "type": "string",
-            "example": "#7C3AED"
-          },
           "icon": {
             "type": "string",
             "example": "search",
@@ -23695,11 +23685,6 @@
           "description": {
             "type": "string",
             "maxLength": 200,
-            "nullable": true
-          },
-          "color": {
-            "type": "string",
-            "example": "#7C3AED",
             "nullable": true
           },
           "icon": {
