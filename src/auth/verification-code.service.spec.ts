@@ -1,4 +1,4 @@
-/** VerificationCodeService 测试：生成/复用/重发/作废/P2002 并发 */
+/** VerificationCodeService 测试：生成/复用/投递冷却/作废/P2002 并发 */
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../prisma/prisma.service';
@@ -8,9 +8,11 @@ import { Prisma } from '@prisma/client';
 const mockPrisma = {
   emailVerification: {
     findFirst: jest.fn(),
+    findUnique: jest.fn(),
     create: jest.fn(),
     delete: jest.fn(),
     deleteMany: jest.fn(),
+    updateMany: jest.fn(),
   },
 };
 
@@ -24,6 +26,8 @@ describe('VerificationCodeService', () => {
     token: '123456',
     type: 'REGISTRATION',
     expiresAt: new Date(Date.now() + 60000),
+    lastSendAttemptAt: null,
+    lastSentAt: null,
     ...over,
   });
 
@@ -33,6 +37,10 @@ describe('VerificationCodeService', () => {
       providers: [VerificationCodeService, { provide: PrismaService, useValue: mockPrisma }],
     }).compile();
     service = module.get<VerificationCodeService>(VerificationCodeService);
+    mockPrisma.emailVerification.create.mockImplementation(({ data }) =>
+      Promise.resolve({ id: 'ev-created', ...data }),
+    );
+    mockPrisma.emailVerification.updateMany.mockResolvedValue({ count: 1 });
   });
 
   it('生成固定六位数字且不依赖 Math.random', () => {
@@ -47,8 +55,6 @@ describe('VerificationCodeService', () => {
 
   it('无记录时生成新验证码并发送', async () => {
     mockPrisma.emailVerification.findFirst.mockResolvedValue(null);
-    mockPrisma.emailVerification.create.mockResolvedValue({});
-
     const result = await service.issue({
       type: 'REGISTRATION',
       email: 'a@b.com',
@@ -82,8 +88,6 @@ describe('VerificationCodeService', () => {
   it('resendIfSameEmail 时仅同一邮箱才复用', async () => {
     // 不同邮箱 → 作废旧记录并为新邮箱新建
     mockPrisma.emailVerification.findFirst.mockResolvedValue(record({ email: 'old@x.com' }));
-    mockPrisma.emailVerification.create.mockResolvedValue({});
-
     const result = await service.issue({
       type: 'CHANGE_EMAIL',
       userId: 'u1',
@@ -121,8 +125,6 @@ describe('VerificationCodeService', () => {
     mockPrisma.emailVerification.findFirst.mockResolvedValue(
       record({ expiresAt: new Date(Date.now() - 1000) }),
     );
-    mockPrisma.emailVerification.create.mockResolvedValue({});
-
     const result = await service.issue({
       type: 'REGISTRATION',
       email: 'a@b.com',
@@ -137,10 +139,14 @@ describe('VerificationCodeService', () => {
     expect(mockPrisma.emailVerification.create).toHaveBeenCalled();
   });
 
-  it('P2002 并发时复用已存在的验证码', async () => {
+  it('P2002 并发时复用胜出请求的发送占位且不重复投递', async () => {
+    const attemptAt = new Date();
+    const existing = record({ token: '888888', lastSendAttemptAt: attemptAt });
     mockPrisma.emailVerification.findFirst
       .mockResolvedValueOnce(null) // 首次查找
-      .mockResolvedValueOnce(record({ token: '888888' })); // P2002 后回查
+      .mockResolvedValueOnce(existing); // P2002 后回查
+    mockPrisma.emailVerification.updateMany.mockResolvedValueOnce({ count: 0 });
+    mockPrisma.emailVerification.findUnique.mockResolvedValue(existing);
     const p2002 = new Prisma.PrismaClientKnownRequestError('unique', {
       code: 'P2002',
       clientVersion: 'x',
@@ -156,7 +162,62 @@ describe('VerificationCodeService', () => {
 
     expect(result.resent).toBe(true);
     expect(result.code).toBe('888888');
-    expect(send).toHaveBeenCalledWith('888888');
+    expect(result.emailSent).toBe(false);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('60 秒冷却期内复用已确认的投递结果且不重复发送', async () => {
+    const attemptAt = new Date();
+    const existing = record({
+      lastSendAttemptAt: attemptAt,
+      lastSentAt: attemptAt,
+    });
+    mockPrisma.emailVerification.findFirst.mockResolvedValue(existing);
+    mockPrisma.emailVerification.updateMany.mockResolvedValueOnce({ count: 0 });
+    mockPrisma.emailVerification.findUnique.mockResolvedValue(existing);
+
+    const result = await service.issue({
+      type: 'REGISTRATION',
+      email: 'a@b.com',
+      label: '注册',
+      send,
+    });
+
+    expect(result.emailSent).toBe(true);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('发送失败后仍保留冷却占位，下一请求不会立即重发', async () => {
+    mockPrisma.emailVerification.findFirst.mockResolvedValueOnce(null);
+    send.mockRejectedValueOnce(new Error('smtp unavailable'));
+
+    const first = await service.issue({
+      type: 'REGISTRATION',
+      email: 'a@b.com',
+      label: '注册',
+      send,
+    });
+    expect(first.emailSent).toBe(false);
+
+    const attemptAt = (
+      mockPrisma.emailVerification.create.mock.calls[0][0].data as {
+        lastSendAttemptAt: Date;
+      }
+    ).lastSendAttemptAt;
+    const existing = record({ lastSendAttemptAt: attemptAt });
+    mockPrisma.emailVerification.findFirst.mockResolvedValueOnce(existing);
+    mockPrisma.emailVerification.updateMany.mockResolvedValueOnce({ count: 0 });
+    mockPrisma.emailVerification.findUnique.mockResolvedValue(existing);
+
+    const second = await service.issue({
+      type: 'REGISTRATION',
+      email: 'a@b.com',
+      label: '注册',
+      send,
+    });
+
+    expect(second.emailSent).toBe(false);
+    expect(send).toHaveBeenCalledTimes(1);
   });
 
   it('交互事务内的 P2002 交给外层处理，不在已中止事务上继续查询', async () => {
@@ -194,7 +255,7 @@ describe('VerificationCodeService', () => {
       )
       .mockImplementation(() => undefined);
     mockPrisma.emailVerification.findFirst.mockResolvedValue(null);
-    mockPrisma.emailVerification.create.mockResolvedValue({});
+    mockPrisma.emailVerification.create.mockResolvedValue({ id: 'ev-created' });
     send.mockRejectedValueOnce(new Error('SMTP rejected a@b.com'));
 
     await expect(

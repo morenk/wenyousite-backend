@@ -4,7 +4,11 @@ import * as argon2 from 'argon2';
 import { EmailVerification, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
-import { VerificationCodeService, VERIFICATION_CODE_TTL } from './verification-code.service';
+import {
+  PreparedVerificationIssue,
+  VerificationCodeService,
+  VERIFICATION_CODE_TTL,
+} from './verification-code.service';
 import { LoginDto } from './dto/login.dto';
 import { VerifyAndCompleteDto } from './dto/verify-and-complete.dto';
 import { ClientPlatform } from './client-platform';
@@ -364,9 +368,9 @@ export class AuthService {
   /** 更换邮箱第一步：向新邮箱发送 6 位验证码 */
   async requestChangeEmailCode(userId: string, newEmail: string, oldPassword: string) {
     const normalized = newEmail.toLowerCase().trim();
-    let code: string;
+    let prepared: PreparedVerificationIssue;
     try {
-      code = await this.prisma.$transaction(async (tx) => {
+      prepared = await this.prisma.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`;
         const currentUser = await tx.user.findUnique({
           where: { id: userId },
@@ -394,7 +398,7 @@ export class AuthService {
           );
         }
 
-        const prepared = await this.verificationCodeService.prepareInTransaction(
+        return this.verificationCodeService.prepareInTransaction(
           {
             type: 'CHANGE_EMAIL',
             userId,
@@ -403,7 +407,6 @@ export class AuthService {
           },
           tx,
         );
-        return prepared.code;
       }, AUTH_TRANSACTION_OPTIONS);
     } catch (error) {
       if ((error as { code?: string })?.code === 'P2002') {
@@ -416,8 +419,8 @@ export class AuthService {
       throw error;
     }
 
-    await this.verificationCodeService.deliver('更换邮箱验证码', () =>
-      this.emailService.sendVerification(normalized, code, 'CHANGE_EMAIL'),
+    await this.verificationCodeService.deliverPrepared('更换邮箱验证码', prepared, () =>
+      this.emailService.sendVerification(normalized, prepared.code, 'CHANGE_EMAIL'),
     );
 
     return { message: '验证码已发送，请查收新邮箱' };

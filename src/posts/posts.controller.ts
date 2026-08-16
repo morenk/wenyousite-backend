@@ -39,6 +39,12 @@ export class PostsController {
   @ApiOperation({ summary: '获取子贴的楼层列表（Cursor 分页）' })
   @ApiQuery({ name: 'cursor', required: false, description: '分页游标' })
   @ApiQuery({ name: 'limit', required: false, description: '每页条数' })
+  @ApiQuery({
+    name: 'order',
+    required: false,
+    enum: ReplyOrder,
+    description: '主楼层顺序，默认 OLDEST',
+  })
   @ApiCursorPaginatedResponse(
     FloorResponseDto,
     '楼层列表（含楼中楼内联回复），cursor 分页',
@@ -49,7 +55,13 @@ export class PostsController {
     @Req() req: FastifyRequest,
   ) {
     const user = req.user as { id: string } | undefined;
-    return this.postsService.findAllBySubthread(subthreadId, query.cursor, query.limit, user?.id);
+    return this.postsService.findAllBySubthread(
+      subthreadId,
+      query.cursor,
+      query.limit,
+      user?.id,
+      query.order ?? ReplyOrder.OLDEST,
+    );
   }
 
   @Get('posts/:id/replies')

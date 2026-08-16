@@ -224,8 +224,10 @@ GET /threads?tagId=:id&sort=recommended&limit=20
 ### 4.2 浏览子贴楼层
 
 ```
-GET /subthreads/:id/posts?limit=20
+GET /subthreads/:id/posts?limit=20&order=OLDEST
 ```
+
+`order` 可选 `OLDEST | NEWEST`，默认 `OLDEST`；它属于游标分页条件，切换顺序时客户端必须从第一页重新读取。该参数只改变主楼层的 `floorNumber` 顺序，每层内嵌的最早 5 条楼中楼回复仍保持正序。
 
 每个楼层对象包含：
 - 楼层基础字段（floorNumber、content、author、createdAt）

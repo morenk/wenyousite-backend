@@ -346,14 +346,16 @@ model User {
 }
 
 model EmailVerification {
-  id        String   @id @default(cuid())
-  userId    String?  @map("user_id")
-  email     String?
-  token     String
-  type      String   @default("REGISTRATION")
-  attempts  Int      @default(0)
-  expiresAt DateTime @map("expires_at")
-  createdAt DateTime @default(now()) @map("created_at")
+  id                String    @id @default(cuid())
+  userId            String?   @map("user_id")
+  email             String?
+  token             String
+  type              String    @default("REGISTRATION")
+  attempts          Int       @default(0)
+  expiresAt         DateTime  @map("expires_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  lastSendAttemptAt DateTime? @map("last_send_attempt_at")
+  lastSentAt        DateTime? @map("last_sent_at")
 
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 

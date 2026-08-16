@@ -22,7 +22,13 @@ export class PostQueryService {
   ) {}
 
   /** 获取子贴的楼层列表（Cursor 分页），内嵌每个楼层的前 5 条楼中楼回复。已软删子贴返回 404 */
-  async findAllBySubthread(subthreadId: string, cursor?: string, limit = 20, userId?: string) {
+  async findAllBySubthread(
+    subthreadId: string,
+    cursor?: string,
+    limit = 20,
+    userId?: string,
+    order = ReplyOrder.OLDEST,
+  ) {
     const subthread = await this.prisma.subthread.findUnique({
       where: { id: subthreadId, ...notDeleted },
       select: { id: true, threadId: true },
@@ -31,9 +37,10 @@ export class PostQueryService {
     await this.threadAccess.assertAccessible(subthread.threadId, userId);
 
     const take = Math.min(limit, 50);
+    const direction = order === ReplyOrder.NEWEST ? 'desc' : 'asc';
     const posts = await this.prisma.post.findMany({
       where: { subthreadId, kind: 'FLOOR', parentPostId: null, ...notDeleted },
-      orderBy: { floorNumber: 'asc' },
+      orderBy: { floorNumber: direction },
       take: take + 1,
       cursor: cursor ? { id: cursor } : undefined,
       skip: cursor ? 1 : 0,

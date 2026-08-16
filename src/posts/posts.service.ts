@@ -38,8 +38,8 @@ export class PostsService {
     private stickerContent: StickerContentService,
   ) {}
 
-  async findAllBySubthread(subthreadId: string, cursor?: string, limit = 20, userId?: string) {
-    return this.queries.findAllBySubthread(subthreadId, cursor, limit, userId);
+  async findAllBySubthread(subthreadId: string, cursor?: string, limit = 20, userId?: string, order = ReplyOrder.OLDEST) {
+    return this.queries.findAllBySubthread(subthreadId, cursor, limit, userId, order);
   }
 
   async findReplies(

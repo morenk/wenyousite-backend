@@ -165,10 +165,13 @@
 | attempts | Int | default 0 | 失败尝试次数（>=5 删除记录） |
 | expiresAt | DateTime | — | 过期时间（统一 15 分钟） |
 | createdAt | DateTime | — | — |
+| lastSendAttemptAt | DateTime? | — | 最近一次取得 SMTP 投递资格的时间；失败或结果不明时也保留 60 秒冷却 |
+| lastSentAt | DateTime? | — | 最近一次已确认 SMTP 成功的时间，与发送占位时间相同表示该次已确认 |
 
 > 索引：`@@index([token])`, `@@index([userId, type])`, `@@unique([email, type])`  
 > 已废弃 `registration_drafts` 表，统一使用本表承载注册/换绑/重置三类用途。
 > `@@unique([email, type])` 防止同一邮箱同时存在多条 REGISTRATION 记录。
+> 注册按 `(email, type)`、换绑与重置按 `(userId, type)` 原子抢占投递窗口，保证跨客户端并发请求在 60 秒内最多一次 SMTP 调用。
 
 ### refresh_tokens — 双端登录终端
 

@@ -14,6 +14,7 @@
 | [API 端点表](./api-endpoints.md)                                     | API 方法、路径、守卫和参数说明                          |
 | [API 参数校验规范](./api-validation.md)                              | 全局校验管道、DTO 编写规范、参数类型约束细则            |
 | [后端架构与模块边界](./architecture.md)                              | 分层规则、事务 Outbox、API 契约和自动门禁               |
+| [宿主机健康巡检与延迟排查](./host-health-operations.md)              | I/O、API、事务超时的本机采样、诊断与事故证据             |
 | [API 契约发布流程](./api-contract.md)                                | OpenAPI 事实源、版本、生成与客户端同步规则              |
 | [Flutter / 原生移动端接入](./mobile-client-guide.md)                 | 安全存储、刷新、幂等、分页、媒体和 FCM                  |
 | [移动端 V1 覆盖清单](../contracts/mobile-v1-operation-coverage.json) | 全部 operationId 的 V1、延期、管理端与基础设施分类      |

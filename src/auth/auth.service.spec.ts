@@ -21,7 +21,9 @@ const mockPrisma: Record<string, any> = {
   emailVerification: {
     create: jest.fn(),
     findFirst: jest.fn(),
+    findUnique: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
     delete: jest.fn(),
     deleteMany: jest.fn(),
   },
@@ -81,6 +83,10 @@ describe('AuthService', () => {
     mockEmailService.sendPasswordChanged.mockResolvedValue(undefined);
     mockEmailService.sendEmailChanged.mockResolvedValue(undefined);
     mockPrisma.userSanction.findFirst.mockResolvedValue(null);
+    mockPrisma.emailVerification.create.mockImplementation(({ data }: { data: object }) =>
+      Promise.resolve({ id: 'ev-created', ...data }),
+    );
+    mockPrisma.emailVerification.updateMany.mockResolvedValue({ count: 1 });
     mockPrisma.$transaction.mockImplementation((input: unknown) =>
       typeof input === 'function' ? input(mockPrisma) : Promise.all(input as Promise<unknown>[]),
     );
@@ -920,8 +926,6 @@ describe('AuthService', () => {
         .mockResolvedValueOnce({ email: 'a@b.com', password: hashed })
         .mockResolvedValueOnce(null);
       mockPrisma.emailVerification.findFirst.mockResolvedValue(null);
-      mockPrisma.emailVerification.create.mockResolvedValue({});
-
       const result = await service.requestChangeEmailCode('u1', 'new@b.com', 'CurrentPass123');
       expect(result.message).toContain('验证码已发送');
       expect(mockPrisma.emailVerification.create).toHaveBeenCalled();
@@ -947,8 +951,6 @@ describe('AuthService', () => {
       };
       mockPrisma.emailVerification.findFirst.mockResolvedValue(oldRecord);
       mockPrisma.emailVerification.deleteMany.mockResolvedValue({ count: 1 });
-      mockPrisma.emailVerification.create.mockResolvedValue({});
-
       await service.requestChangeEmailCode('u1', 'new@b.com', 'CurrentPass123');
 
       expect(mockPrisma.emailVerification.deleteMany).toHaveBeenCalledWith({

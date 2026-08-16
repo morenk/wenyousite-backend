@@ -1,5 +1,10 @@
 # API 合同变更
 
+## 4.14.0-dev.20260816.1
+
+- `GET /subthreads/:subthreadId/posts` 向后兼容新增可选 `order=OLDEST|NEWEST`，默认 `OLDEST`，支持主楼层按 `floorNumber` 正序或倒序的稳定游标分页。
+- 主楼层顺序不影响每层内嵌的最早 5 条楼中楼回复；旧客户端省略新参数时行为不变。
+
 ## 4.14.0-dev.20260815.1
 
 - 用户身份统一为“游客 / 已注册用户”：注册验证码验证成功后才创建 `User`，移除 `User.emailVerified`、未验证账号守卫和邮箱验证/重发端点。

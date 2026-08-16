@@ -11,7 +11,7 @@
 | 模型                | 用途                                                                                     |
 | ------------------- | ---------------------------------------------------------------------------------------- |
 | `User`              | 用户实体（邮箱、用户名、密码哈希、注销时间）                                             |
-| `EmailVerification` | 统一的验证码记录（注册/换绑邮箱/密码重置三种类型），含尝试次数限制                       |
+| `EmailVerification` | 统一的验证码记录（注册/换绑邮箱/密码重置三种类型），含尝试次数与邮件投递冷却状态        |
 | `RefreshToken`      | 登录终端记录（SHA-256 哈希存 token、`family` 作为稳定终端 ID、`revokedAt` 管理生命周期） |
 
 | 枚举                   | 值                                                       |
@@ -30,7 +30,7 @@
 | POST   | `/auth/change-password`              | AuthRead | 全局 (20/min) | 修改密码（需提供旧密码），成功后吊销全部 refresh token + 发送通知邮件                      |
 | POST   | `/auth/forgot-password`              | Public   | 1/min         | 发送密码重置邮件                                                                           |
 | POST   | `/auth/reset-password`               | Public   | 5/min         | 使用验证码重置密码，成功后吊销全部 refresh token                                           |
-| POST   | `/auth/change-email/request-code`    | AuthRead | 1/min         | 更换邮箱第一步：校验当前密码后向新邮箱发验证码（换新邮箱会作废旧记录，同邮箱未过期则重发） |
+| POST   | `/auth/change-email/request-code`    | AuthRead | 1/min         | 更换邮箱第一步：校验当前密码后向新邮箱发验证码（换新邮箱会作废旧记录，同邮箱未过期则复用） |
 | POST   | `/auth/change-email/verify`          | Auth     | 5/min         | 更换邮箱第二步：验证码确认，更新邮箱、退出全部终端并发送成功通知                           |
 | POST   | `/auth/logout`                       | AuthRead | 全局 (20/min) | 退出当前登录终端（Cookie 优先）                                                            |
 | GET    | `/auth/sessions`                     | AuthRead | 独立 (60/min) | 获取 Web / 移动端活跃登录终端                                                              |
@@ -47,8 +47,8 @@
 // 响应（验证码已发送）
 { "data": { "emailSent": true, "codeExpiresIn": 900 } }
 
-// 响应（验证码未过期，未重发）
-{ "data": { "emailSent": true, "codeExpiresIn": 420, "message": "验证码已发送，请查收邮箱" } }
+// 响应（验证码未过期，60 秒发送冷却内复用已确认的投递结果）
+{ "data": { "emailSent": true, "codeExpiresIn": 900, "message": "验证码已发送，请查收邮箱" } }
 
 // 响应（邮件发送失败）
 { "data": { "emailSent": false, "codeExpiresIn": 900, "message": "验证码已发送，请查收邮箱" } }
@@ -146,9 +146,9 @@ Web 端响应体不暴露 refresh token；服务端通过 `Set-Cookie` 写入 ht
 
 - 第一步 `request-code`：输入邮箱 → 统一转小写 → 检查是否已注册（409）→ 生成 6 位验证码 → 存入 `EmailVerification` 表（type=REGISTRATION, userId=null）→ 发送邮件
 - 第二步 `verify-and-complete`：输入验证码 + 用户名 + 密码 → 查 `EmailVerification`（type=REGISTRATION, email=email）→ 校验验证码 → 创建用户 → 删验证记录 → 创建 RefreshToken → 签发双 Token
-- 验证码未过期时**重发同一验证码**（避免首封丢失后重试仍收不到）；验证码已过期时删旧记录，新建并重发
+- 验证码未过期时复用同一验证码；同一邮箱和用途（换绑/重置流程以用户和用途锚定）每 60 秒最多抢占一次邮件投递，验证码已过期时删除旧记录并新建
 - 所有邮箱在服务端统一转小写后存储和查询
-- `request-code` 限流 1/min，P2002 并发时复用已有记录
+- 端点保留按客户端来源的 `1/min` 限流，数据库投递冷却负责跨 Web、移动端和并发请求去重；P2002 竞争失败方复用胜出记录但不重复调用 SMTP
 - `forgotPassword` 仅匹配未注销用户（`deletedAt: null`），已注销走反枚举
 
 ### 注册后状态
@@ -164,10 +164,11 @@ Web 端响应体不暴露 refresh token；服务端通过 `Set-Cookie` 写入 ht
 - 验证码由 `crypto.randomInt` 生成固定 6 位数字，不使用 `Math.random`
 - 验证码校验错误在锁定记录后原子递增 `attempts`，第 5 次错误即删除记录（需重新获取）；错误/过期状态先提交再返回，不能因抛异常回滚计数
 - 验证成功后的业务写入与删除 `EmailVerification` 记录处于同一事务，不能重复消费；重置密码和更换邮箱还会先锁定并重查用户，旧邮箱验证码不能在账号邮箱已变化后继续使用
-- 重发注册/换绑邮箱/重置邮件时，若存在未过期的同类型记录，复用同一验证码重发
+- 重发注册/换绑邮箱/重置邮件时，若存在未过期的同类型记录，复用同一验证码；距离最近一次投递尝试满 60 秒后才允许再次发送
 - `reset-password` 需同时提供邮箱（锚定身份），与 `forgot-password` 流程匹配
 - 敏感端点（reset-password 5/min，forgot-password/change-email/request-code 1/min）有独立限流
-- 邮件发送失败通过 `emailSent` 字段和 Logger 反馈（不阻断用户流程）
+- 邮件发送成功后以 `lastSentAt` 确认结果；失败或结果不明时保留 `lastSendAttemptAt` 冷却占位 60 秒，避免客户端超时重试造成重复邮件
+- 注册邮件发送失败通过 `emailSent` 字段和脱敏 Logger 反馈（不阻断用户流程）；反枚举的找回密码接口不暴露邮箱是否存在或实际投递结果
 
 ### 密码规则
 
@@ -225,7 +226,7 @@ Web 端响应体不暴露 refresh token；服务端通过 `Set-Cookie` 写入 ht
 - **6 位数字验证码**：比 JWT 链接更简单，客户端可直接输入数字码；通过 `type` 字段在 EmailVerification 表中区分注册/换绑/重置，防止互串
 - **两步注册**：第一步发验证码到邮箱，第二步输入验证码 + 设用户名密码完成注册。验证码已证明邮箱所有权，注册时直接创建用户。
 - **统一 EmailVerification 表**：废弃 `RegistrationDraft` 表，注册/换绑/重置三类验证码共用一张表，code 和 session 概念合一，简化维护
-- **VerificationCodeService 统一发码**：注册/换绑邮箱/重置密码三条流程共用 `issue()`（查记录 → 未过期复用并重发同一验证码，否则作废旧记录并生成新码），消除重复的生成/存储/重发逻辑
+- **VerificationCodeService 统一发码**：注册/换绑邮箱/重置密码三条流程共用原子发送窗口（查记录 → 未过期复用同一码并按 60 秒冷却抢占投递，否则作废旧记录并生成新码），消除重复逻辑并抑制并发 SMTP 投递
 - **忘记密码反枚举**：无论邮箱是否注册，均返回相同成功消息，防止攻击者探测已注册用户
 - **验证码尝试限制**：`attempts` 字段记录失败次数，第 5 次错误自动删除记录，需重新获取；消费临界区使用数据库行锁
 
@@ -236,13 +237,14 @@ Web 端响应体不暴露 refresh token；服务端通过 `Set-Cookie` 写入 ht
 | Web 登录：输入邮箱或用户名                   | `POST /auth/login`，请求头声明 `web`；响应体保存 access token 和 user，refresh token 由 httpOnly Cookie 管理 |
 | 原生移动端登录                               | `POST /auth/login`，请求头声明 `mobile`；响应体保存 access token、refresh token 和 user                      |
 | 登录返回 401 "账号或密码错误"                | 提示用户核对邮箱/用户名和密码，连续 5 次失败锁定 15 分钟                                                     |
-| 注册第一步：输入邮箱                         | `POST /auth/register/request-code`，响应含 `emailSent` 标志判断是否发送成功                                  |
+| 注册第一步：输入邮箱                         | `POST /auth/register/request-code`，响应含 `emailSent` 标志；网络超时/5xx/429 时结果可能不明，应允许继续填码并冷却 60 秒 |
 | 收到 `emailSent: false`                      | 显示"邮件服务暂不可用，请稍后重试"                                                                           |
 | 收到 `emailSent: true`, `message` 含"已发送" | 显示"验证码已发送，请查收邮箱"，引导输入已有验证码                                                           |
 | 注册第二步：提交验证码+用户名+密码           | `POST /auth/register/verify-and-complete`，注册后即可直接使用全部功能                                  |
 | 收到注册成功                                 | 已登录，可直接发帖、关注、加入主题帖等                                                                       |
 | 输入验证码返回 "验证码错误"                  | 提示用户核对数字，超过 5 次需重新获取                                                                        |
 | 输入验证码返回 "验证码已过期，请重新获取"    | 引导重新调用 `request-code` 获取新码                                                                        |
+| 发码请求超时、5xx 或 429                     | 不自动重放 POST；提示邮件可能已发出、允许用户输入验证码，并在 60 秒后才开放重试                             |
 | 改密码/重置密码后                            | 全部登录终端被退出，前端清除本地认证状态并引导重新登录                                                       |
 | Web 登出                                     | 调用 `POST /auth/logout`；服务端按 sid 撤销终端并清除 Cookie，前端随后清除本地 access token                  |
 | 收到 401 "登录终端已失效，请重新登录"        | 当前终端被远程退出或被同端新登录替换，清除本地认证状态并跳转登录页                                           |

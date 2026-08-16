@@ -935,6 +935,29 @@ describe('PostsService', () => {
     expect((result.items[0] as any).replies).toEqual([]);
   });
 
+  it('findAllBySubthread 支持按楼层号倒序分页', async () => {
+    mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1' });
+    mockPrisma.post.findMany.mockResolvedValue([
+      { id: 'p3', floorNumber: 3, author: {}, _count: { replies: 0 } },
+    ]);
+
+    await service.findAllBySubthread(
+      's1',
+      'cursor-4',
+      20,
+      undefined,
+      ReplyOrder.NEWEST,
+    );
+
+    expect(mockPrisma.post.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: { floorNumber: 'desc' },
+        cursor: { id: 'cursor-4' },
+        skip: 1,
+      }),
+    );
+  });
+
   it('findReplies 应该返回楼中楼', async () => {
     mockPrisma.post.findUnique.mockResolvedValue({
       id: 'p1',
