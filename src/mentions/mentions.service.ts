@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../access/thread-access.service';
 import { BlockFilterService, BlockSets } from '../access/block-filter.service';
 import { publicUserSummarySelect } from '../common/user-summary';
+import { Prisma } from '@prisma/client';
 
 export const ALL_PLAYERS_MENTION = '全体玩家';
 export const MAX_DIRECT_MENTIONS = 10;
@@ -26,6 +27,17 @@ interface MentionTokens {
   userIds: string[];
   allPlayers: boolean;
 }
+
+type MentionClient = {
+  postMention: Pick<
+    Prisma.TransactionClient['postMention'],
+    'findMany' | 'deleteMany' | 'createMany'
+  >;
+  user: Pick<Prisma.TransactionClient['user'], 'findMany'>;
+  userFollow: Pick<Prisma.TransactionClient['userFollow'], 'findMany'>;
+  threadMember: Pick<Prisma.TransactionClient['threadMember'], 'findMany' | 'findUnique'>;
+  userBlock: Pick<Prisma.TransactionClient['userBlock'], 'findMany'>;
+};
 
 /** @提及解析与候选范围服务。权限规则必须在此处集中校验，不能只依赖编辑器。 */
 @Injectable()
@@ -57,23 +69,47 @@ export class MentionsService {
     threadId?: string,
     previousContent?: string,
   ): Promise<MentionedUser[]> {
-    const tokens = this.extractMentionTokens(content);
     if (!threadId) return [];
+    await this.threadAccess.assertAccessible(threadId, excludeUserId);
+    return this.prisma.$transaction((tx) =>
+      this.syncMentionsInTransaction(
+        tx,
+        postId,
+        content,
+        excludeUserId,
+        threadId,
+        previousContent,
+      ),
+    );
+  }
+
+  /**
+   * 编辑事务内同步提及投影。调用者必须已经完成主题帖访问校验。
+   */
+  async syncMentionsInTransaction(
+    client: MentionClient,
+    postId: string,
+    content: string,
+    excludeUserId: string,
+    threadId: string,
+    previousContent?: string,
+  ): Promise<MentionedUser[]> {
+    const tokens = this.extractMentionTokens(content);
     if (tokens.usernames.length === 0 && tokens.userIds.length === 0 && !tokens.allPlayers) {
-      await this.prisma.postMention.deleteMany({ where: { postId } });
+      await client.postMention.deleteMany({ where: { postId } });
       return [];
     }
 
-    await this.threadAccess.assertAccessible(threadId, excludeUserId);
-    const blockSets = await this.blockFilter.loadBlockSets(excludeUserId);
+    const blockSets = await this.blockFilter.loadBlockSets(excludeUserId, client);
 
-    const existing = (await this.prisma.postMention.findMany({
+    const existing = (await client.postMention.findMany({
       where: { postId },
       include: { mentionedUser: { select: publicUserSummarySelect } },
     })) ?? [];
 
-    const directUsers = await this.findDirectUsers(tokens);
+    const directUsers = await this.findDirectUsers(client, tokens);
     const directCandidates = await this.filterDirectCandidates(
+      client,
       directUsers,
       excludeUserId,
       threadId,
@@ -85,14 +121,14 @@ export class MentionsService {
       desired.set(`${user.id}:DIRECT`, { userId: user.id, source: 'DIRECT', username: user.username });
     }
 
-    if (tokens.allPlayers && await this.canMentionAllPlayers(threadId, excludeUserId)) {
+    if (tokens.allPlayers && await this.canMentionAllPlayersWithClient(client, threadId, excludeUserId)) {
       const previousHadGroup = previousContent
         ? this.extractMentionTokens(previousContent).allPlayers
         : false;
       const existingGroup = existing.filter((mention) => mention.source === 'ALL_PLAYERS');
       const groupUsers = previousHadGroup && existingGroup.length > 0
         ? existingGroup.map((mention) => mention.mentionedUser)
-        : await this.findMarkedPlayers(threadId, blockSets);
+        : await this.findMarkedPlayers(client, threadId, blockSets);
 
       for (const user of groupUsers) {
         if (user.id === excludeUserId) continue;
@@ -112,14 +148,14 @@ export class MentionsService {
       .filter((mention) => !desiredKeys.has(`${mention.mentionedUserId}:${mention.source}`))
       .map((mention) => mention.id);
     if (staleIds.length > 0) {
-      await this.prisma.postMention.deleteMany({ where: { id: { in: staleIds } } });
+      await client.postMention.deleteMany({ where: { id: { in: staleIds } } });
     }
 
     const added = [...desired.values()].filter(
       (mention) => !existingByKey.has(`${mention.userId}:${mention.source}`),
     );
     if (added.length > 0) {
-      await this.prisma.postMention.createMany({
+      await client.postMention.createMany({
         data: added.map((mention) => ({
           postId,
           mentionedUserId: mention.userId,
@@ -180,14 +216,22 @@ export class MentionsService {
   }
 
   async canMentionAllPlayers(threadId: string, userId: string) {
-    const actor = await this.prisma.threadMember.findUnique({
+    return this.canMentionAllPlayersWithClient(this.prisma, threadId, userId);
+  }
+
+  private async canMentionAllPlayersWithClient(
+    client: MentionClient,
+    threadId: string,
+    userId: string,
+  ) {
+    const actor = await client.threadMember.findUnique({
       where: { threadId_userId: { threadId, userId } },
       select: { role: true },
     });
     return actor?.role === 'OWNER' || actor?.role === 'COLLABORATOR';
   }
 
-  private async findDirectUsers(tokens: MentionTokens) {
+  private async findDirectUsers(client: MentionClient, tokens: MentionTokens) {
     const or: Array<
       | { id: { in: string[] } }
       | { username: { in: string[] } }
@@ -195,13 +239,14 @@ export class MentionsService {
     if (tokens.userIds.length > 0) or.push({ id: { in: tokens.userIds } });
     if (tokens.usernames.length > 0) or.push({ username: { in: tokens.usernames } });
     if (or.length === 0) return [];
-    return this.prisma.user.findMany({
+    return client.user.findMany({
       where: { OR: or, deletedAt: null },
       select: { id: true, username: true, avatar: true },
     });
   }
 
   private async filterDirectCandidates(
+    client: MentionClient,
     candidates: { id: string; username: string; avatar?: string | null }[],
     userId: string,
     threadId: string,
@@ -211,11 +256,11 @@ export class MentionsService {
     const ids = candidates.filter((candidate) => candidate.id !== userId).map((candidate) => candidate.id);
     if (ids.length === 0) return [];
     const [followingResult, markedMembersResult] = await Promise.all([
-      this.prisma.userFollow.findMany({
+      client.userFollow.findMany({
         where: { followerId: userId, followingId: { in: ids } },
         select: { followingId: true },
       }),
-      this.prisma.threadMember.findMany({
+      client.threadMember.findMany({
         where: { threadId, playerMarked: true, userId: { in: ids } },
         select: { userId: true },
       }),
@@ -230,8 +275,12 @@ export class MentionsService {
     return candidates.filter((candidate) => visibleIds.has(candidate.id));
   }
 
-  private async findMarkedPlayers(threadId: string, blockSets: BlockSets) {
-    const members = await this.prisma.threadMember.findMany({
+  private async findMarkedPlayers(
+    client: MentionClient,
+    threadId: string,
+    blockSets: BlockSets,
+  ) {
+    const members = await client.threadMember.findMany({
       where: { threadId, playerMarked: true, user: { deletedAt: null } },
       select: { user: { select: { id: true, username: true, avatar: true } } },
     });

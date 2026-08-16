@@ -6,6 +6,7 @@ import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { Test } from '@nestjs/testing';
@@ -16,7 +17,7 @@ import * as argon2 from 'argon2';
 import { AuthController } from '../src/auth/auth.controller';
 import { AuthSessionService } from '../src/auth/auth-session.service';
 import { AuthService } from '../src/auth/auth.service';
-import { JwtAuthGuard } from '../src/auth/guards/jwt-auth.guard';
+import { GlobalAuthGuard } from '../src/auth/guards/global-auth.guard';
 import { JwtStrategy } from '../src/auth/strategies/jwt.strategy';
 import { VerificationCodeService } from '../src/auth/verification-code.service';
 import { TransformInterceptor } from '../src/common/interceptors/response.interceptor';
@@ -244,7 +245,7 @@ async function verifyRuntime(databaseUrl: string) {
       AuthService,
       AuthSessionService,
       JwtStrategy,
-      JwtAuthGuard,
+      { provide: APP_GUARD, useClass: GlobalAuthGuard },
       { provide: PrismaService, useValue: prisma },
       { provide: ConfigService, useValue: config },
       { provide: EmailService, useValue: {} },

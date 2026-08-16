@@ -66,12 +66,7 @@ describe('ThreadAggregateService', () => {
     zadd: jest.fn().mockResolvedValue(1),
     hset: jest.fn().mockResolvedValue(1),
   };
-  const mentions = { syncMentions: jest.fn().mockResolvedValue([]) };
-  const blockFilter = {
-    loadBlockSets: jest.fn(),
-    filterRecipients: jest.fn(),
-  };
-  const notifications = { notify: jest.fn() };
+  const mentions = { syncMentionsInTransaction: jest.fn().mockResolvedValue([]) };
   const tx = {
     $queryRaw: jest.fn().mockResolvedValue([]),
     thread: {
@@ -123,8 +118,6 @@ describe('ThreadAggregateService', () => {
     eventEmitter as never,
     redis as never,
     mentions as never,
-    blockFilter as never,
-    notifications as never,
     stickerContent as never,
     categories as never,
   );
@@ -231,6 +224,60 @@ describe('ThreadAggregateService', () => {
     ).rejects.toMatchObject({ errorCode: 40002 });
     expect(tx.thread.update).not.toHaveBeenCalled();
     expect(tx.threadTopicTag.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('已发布默认正文编辑在聚合事务内同步提及并写 Outbox', async () => {
+    tx.thread.findUnique.mockResolvedValue(
+      makeCurrent({
+        published: true,
+        defaultSubthread: {
+          id: 's1',
+          title: '主帖',
+          version: 2,
+          posts: [
+            {
+              id: 'p1',
+              content: '旧正文',
+              version: 5,
+              author: { username: 'owner' },
+              diceRolls: [],
+            },
+          ],
+        },
+      }),
+    );
+    tx.post.update.mockResolvedValue({ id: 'p1', version: 6 });
+    mentions.syncMentionsInTransaction.mockResolvedValueOnce([
+      { userId: 'u2', username: '张三', source: 'DIRECT' },
+    ]);
+
+    await service.save(
+      't1',
+      {
+        version: 3,
+        defaultSubthreadVersion: 2,
+        bodyVersion: 5,
+        content: '新正文 [@张三](/users/u2)',
+        tagNames: [],
+      },
+      'u1',
+    );
+
+    expect(mentions.syncMentionsInTransaction).toHaveBeenCalledWith(
+      tx,
+      'p1',
+      '新正文 [@张三](/users/u2)',
+      'u1',
+      't1',
+      '旧正文',
+    );
+    expect(outbox.enqueue).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        eventType: 'post.mentions.updated',
+        eventKey: 'post-mentions-updated:p1:v6',
+      }),
+    );
   });
 
   it('协作者不能借聚合端点修改楼主专属可见性', async () => {

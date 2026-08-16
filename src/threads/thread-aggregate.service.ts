@@ -2,7 +2,6 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Prisma } from '@prisma/client';
 import { ThreadAccessService } from '../access/thread-access.service';
-import { BlockFilterService } from '../access/block-filter.service';
 import { BusinessException, forbidden, notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { hasVisibleMarkdownContent, prepareMarkdownContent } from '../common/markdown-content';
@@ -18,7 +17,7 @@ import {
 import { DiceService } from '../dice/dice.service';
 import { reconcilePublishedDice } from '../dice/reconcile-published-dice';
 import { MentionsService } from '../mentions/mentions.service';
-import { NotificationProducer } from '../notifications/notification.producer';
+import { PostMentionsUpdatedEvent } from '../mentions/mention-events';
 import { OutboxService } from '../outbox/outbox.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
@@ -33,9 +32,6 @@ const ZSET_BY_SMART = 'threads:by:smart';
 
 interface UpdatedBodySideEffect {
   postId: string;
-  oldContent: string;
-  content: string;
-  authorUsername: string;
 }
 
 interface PublishedThreadCacheData {
@@ -57,8 +53,6 @@ export class ThreadAggregateService {
     private readonly eventEmitter: EventEmitter2,
     private readonly redis: RedisService,
     private readonly mentions: MentionsService,
-    private readonly blockFilter: BlockFilterService,
-    private readonly notifications: NotificationProducer,
     private readonly stickerContent: StickerContentService,
     private readonly categories: ThreadCategoriesService,
   ) {}
@@ -202,11 +196,17 @@ export class ThreadAggregateService {
                 parsedContent.nodes,
                 existingBody.diceRolls,
               );
-              updatedBody = {
+              await this.syncEditedMentions(tx, {
                 postId: post.id,
-                oldContent: existingBody.content,
+                version: post.version,
+                previousContent: existingBody.content,
                 content,
                 authorUsername: existingBody.author.username,
+                userId,
+                threadId,
+              });
+              updatedBody = {
+                postId: post.id,
               };
             }
           }
@@ -370,7 +370,6 @@ export class ThreadAggregateService {
         threadId,
         parentPostId: null,
       });
-      this.syncEditedMentions(result.updatedBody, userId, threadId);
     }
     if (result.updated.published) {
       await this.stickerContent.recordUsage(userId, stickerAssetIds);
@@ -499,31 +498,43 @@ export class ThreadAggregateService {
       .catch(() => {});
   }
 
-  private syncEditedMentions(change: UpdatedBodySideEffect, userId: string, threadId: string) {
-    this.mentions
-      .syncMentions(change.postId, change.content, userId, threadId, change.oldContent)
-      .then(async (mentioned) => {
-        if (mentioned.length === 0) return;
-        const blockSets = await this.blockFilter.loadBlockSets(userId);
-        const recipients = this.blockFilter.filterRecipients(
-          mentioned.map((user) => user.userId),
-          blockSets,
-        );
-        if (recipients.length === 0) return;
-        const preview = truncateMarkdown(change.content);
-        await this.notifications.notify(
-          'mention',
-          recipients,
-          `${change.authorUsername} 在编辑后的正文里提到了你：${preview}`,
-          {
-            postId: change.postId,
-            threadId,
-            fromUserId: userId,
-            eventKey: `mention:${change.postId}`,
-            payload: { actorName: change.authorUsername, action: 'mention', preview },
-          },
-        );
-      })
-      .catch(() => {});
+  private async syncEditedMentions(
+    tx: Prisma.TransactionClient,
+    input: {
+      postId: string;
+      version: number;
+      previousContent: string;
+      content: string;
+      authorUsername: string;
+      userId: string;
+      threadId: string;
+    },
+  ) {
+    const mentioned = await this.mentions.syncMentionsInTransaction(
+      tx,
+      input.postId,
+      input.content,
+      input.userId,
+      input.threadId,
+      input.previousContent,
+    );
+    if (mentioned.length === 0) return;
+
+    const payload: PostMentionsUpdatedEvent = {
+      postId: input.postId,
+      threadId: input.threadId,
+      userId: input.userId,
+      authorUsername: input.authorUsername,
+      recipientIds: mentioned.map((user) => user.userId),
+      preview: truncateMarkdown(input.content),
+      context: 'body',
+    };
+    await this.outbox.enqueue(tx, {
+      eventType: 'post.mentions.updated',
+      aggregateType: 'Post',
+      aggregateId: input.postId,
+      eventKey: `post-mentions-updated:${input.postId}:v${input.version}`,
+      payload: payload as unknown as Prisma.InputJsonValue,
+    });
   }
 }

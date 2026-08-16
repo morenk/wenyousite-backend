@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { AppealAccessGuard } from '../auth/guards/appeal-access.guard';
-import { IS_PUBLIC_KEY } from '../auth/guards/jwt-auth.guard';
+import { AUTH_MODE_KEY, AuthMode } from '../auth/decorators/auth-mode.constants';
 import { UserModerationAppealsController } from './moderation-cases.controller';
 
 describe('UserModerationAppealsController auth contract', () => {
@@ -14,6 +14,6 @@ describe('UserModerationAppealsController auth contract', () => {
 
   it('申诉凭据签发入口保持公开，由账号密码和限流保护', () => {
     const method = UserModerationAppealsController.prototype.issueToken;
-    expect(Reflect.getMetadata(IS_PUBLIC_KEY, method)).toBe(true);
+    expect(Reflect.getMetadata(AUTH_MODE_KEY, method)).toBe(AuthMode.PUBLIC);
   });
 });

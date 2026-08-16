@@ -2,9 +2,8 @@ import { Injectable, HttpStatus } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../access/thread-access.service';
-import { BlockFilterService } from '../access/block-filter.service';
-import { NotificationProducer } from '../notifications/notification.producer';
 import { MentionsService } from '../mentions/mentions.service';
+import { PostMentionsUpdatedEvent } from '../mentions/mention-events';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { ErrorCode } from '../common/exceptions/error-codes';
@@ -28,8 +27,6 @@ export class PostsService {
     private prisma: PrismaService,
     private eventEmitter: EventEmitter2,
     private threadAccess: ThreadAccessService,
-    private blockFilter: BlockFilterService,
-    private notificationProducer: NotificationProducer,
     private mentionsService: MentionsService,
     private diceService: DiceService,
     private postingPolicy: PostingPolicyService,
@@ -422,10 +419,23 @@ export class PostsService {
             existing.diceRolls ?? [],
           );
         }
-        return tx.post.findUniqueOrThrow({
+        const updatedPost = await tx.post.findUniqueOrThrow({
           where: { id: post.id },
           include: { author: { select: authorSelect }, ...includeDiceRolls() },
         });
+        if (normalizedContent !== oldContent) {
+          await this.syncEditedMentions(tx, {
+            postId: updatedPost.id,
+            version: updatedPost.version,
+            content: normalizedContent,
+            previousContent: oldContent,
+            userId,
+            threadId: subthread.threadId,
+            authorUsername: updatedPost.author.username,
+            context: 'body',
+          });
+        }
+        return updatedPost;
       })
       .catch((err) => {
         if (err?.code === 'P2025') {
@@ -437,36 +447,6 @@ export class PostsService {
         }
         throw err;
       });
-
-    if (normalizedContent !== oldContent) {
-      this.mentionsService
-        .syncMentions(updated.id, normalizedContent, userId, subthread.threadId, oldContent)
-        .then(async (mentioned) => {
-          if (mentioned.length === 0) return;
-          const blockSets = await this.blockFilter.loadBlockSets(userId);
-          const filteredIds = this.blockFilter.filterRecipients(
-            mentioned.map((mentionedUser) => mentionedUser.userId),
-            blockSets,
-          );
-          if (filteredIds.length === 0) return;
-          const preview = truncateMarkdown(normalizedContent);
-          this.notificationProducer
-            .notify(
-              'mention',
-              filteredIds,
-              `${updated.author.username} 在编辑后的正文里提到了你：${preview}`,
-              {
-                postId: updated.id,
-                threadId: subthread.threadId,
-                fromUserId: userId,
-                eventKey: `mention:${updated.id}`,
-                payload: { actorName: updated.author.username, action: 'mention', preview },
-              },
-            )
-            .catch(() => {});
-        })
-        .catch(() => {});
-    }
 
     this.eventEmitter.emit('post.updated', {
       postId: updated.id,
@@ -530,10 +510,23 @@ export class PostsService {
             postLight.diceRolls ?? [],
           );
         }
-        return tx.post.findUniqueOrThrow({
+        const updatedPost = await tx.post.findUniqueOrThrow({
           where: { id: post.id },
           include: { author: { select: authorSelect }, ...includeDiceRolls() },
         });
+        if (content !== oldContent) {
+          await this.syncEditedMentions(tx, {
+            postId: updatedPost.id,
+            version: updatedPost.version,
+            content,
+            previousContent: oldContent,
+            userId,
+            threadId: postLight.threadId,
+            authorUsername: updatedPost.author.username,
+            context: 'post',
+          });
+        }
+        return updatedPost;
       })
       .catch((err) => {
         if (err?.code === 'P2025') {
@@ -545,40 +538,6 @@ export class PostsService {
         }
         throw err;
       });
-
-    // 编辑同步 @提及快照：新增目标通知，移除目标不再保留；全体玩家沿用首次快照。
-    if (content !== oldContent) {
-      if (postLight.threadId) {
-        this.mentionsService
-          .syncMentions(updated.id, content, userId, postLight.threadId, oldContent)
-          .then(async (mentioned) => {
-            if (mentioned.length > 0) {
-              const blockSets = await this.blockFilter.loadBlockSets(userId);
-              const filteredIds = this.blockFilter.filterRecipients(
-                mentioned.map((u) => u.userId),
-                blockSets,
-              );
-              if (filteredIds.length === 0) return;
-              const preview = truncateMarkdown(content);
-              this.notificationProducer
-                .notify(
-                  'mention',
-                  filteredIds,
-                  `${updated.author.username} 在编辑后的帖子里提到了你：${preview}`,
-                  {
-                    postId: updated.id,
-                    threadId: postLight.threadId,
-                    fromUserId: userId,
-                    eventKey: `mention:${updated.id}`,
-                    payload: { actorName: updated.author.username, action: 'mention', preview },
-                  },
-                )
-                .catch(() => {});
-            }
-          })
-          .catch(() => {});
-      }
-    }
 
     // 缓存失效事件
     this.eventEmitter.emit('post.updated', {
@@ -592,6 +551,47 @@ export class PostsService {
     }
 
     return updated;
+  }
+
+  private async syncEditedMentions(
+    tx: Prisma.TransactionClient,
+    input: {
+      postId: string;
+      version: number;
+      content: string;
+      previousContent: string;
+      userId: string;
+      threadId: string;
+      authorUsername: string;
+      context: 'body' | 'post';
+    },
+  ) {
+    const mentioned = await this.mentionsService.syncMentionsInTransaction(
+      tx,
+      input.postId,
+      input.content,
+      input.userId,
+      input.threadId,
+      input.previousContent,
+    );
+    if (mentioned.length === 0) return;
+
+    const payload: PostMentionsUpdatedEvent = {
+      postId: input.postId,
+      threadId: input.threadId,
+      userId: input.userId,
+      authorUsername: input.authorUsername,
+      recipientIds: mentioned.map((user) => user.userId),
+      preview: truncateMarkdown(input.content),
+      context: input.context,
+    };
+    await this.outbox.enqueue(tx, {
+      eventType: 'post.mentions.updated',
+      aggregateType: 'Post',
+      aggregateId: input.postId,
+      eventKey: `post-mentions-updated:${input.postId}:v${input.version}`,
+      payload: payload as unknown as Prisma.InputJsonValue,
+    });
   }
 
   /** 软删除帖子 */

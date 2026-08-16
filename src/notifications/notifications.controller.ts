@@ -9,7 +9,7 @@ import {
 } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { NotificationsService } from './notifications.service';
-import { AuthRead } from '../auth/decorators/auth.decorator';
+import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 import { SetReadStatusDto } from './dto/set-read-status.dto';
 import { MessageResponseDto } from '../common/dto/message-response.dto';
 import {
@@ -21,13 +21,13 @@ import { ApiCursorPaginatedResponse } from '../common/swagger/api-cursor-paginat
 /** 通知控制器：站内通知的查询、标记已读/未读、删除 */
 @ApiTags('Notifications')
 @Controller('notifications')
-@AuthRead()
 @ApiBearerAuth()
 export class NotificationsController {
   constructor(private notificationsService: NotificationsService) {}
 
   /** 通知列表（cursor 分页，支持按类型过滤） */
   @Get()
+  @AuthRead()
   @ApiOperation({ summary: '通知列表' })
   @ApiQuery({ name: 'cursor', required: false, description: '分页游标（上一页最后一条通知 ID）' })
   @ApiQuery({
@@ -63,6 +63,7 @@ export class NotificationsController {
 
   /** 未读通知数量 */
   @Get('unread')
+  @AuthRead()
   @ApiOperation({ summary: '未读通知数' })
   @ApiOkResponse({ type: UnreadNotificationCountResponseDto, description: '{ unreadCount: number }' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
@@ -74,6 +75,7 @@ export class NotificationsController {
 
   /** 标记单条通知阅读状态（支持标记未读） */
   @Patch(':id')
+  @Auth()
   @ApiOperation({ summary: '标记通知阅读状态' })
   @ApiOkResponse({ type: MessageResponseDto, description: '标记结果（已标记为已读 / 已标记为未读）' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
@@ -89,6 +91,7 @@ export class NotificationsController {
 
   /** 一键全部标记已读 */
   @Post('read-all')
+  @Auth()
   @ApiOperation({ summary: '全部已读' })
   @ApiOkResponse({ type: MessageResponseDto, description: '全部已标记为已读' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
@@ -100,6 +103,7 @@ export class NotificationsController {
 
   /** 硬删除单条通知 */
   @Delete(':id')
+  @Auth()
   @ApiOperation({ summary: '删除通知' })
   @ApiOkResponse({ type: MessageResponseDto, description: '已删除' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })

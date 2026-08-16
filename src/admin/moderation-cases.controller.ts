@@ -6,7 +6,7 @@ import { AdminAuth, AdminStepUpAuth } from '../auth/decorators/admin-auth.decora
 import { AppealAuth } from '../auth/decorators/appeal-auth.decorator';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { AppealAccessService } from '../auth/appeal-access.service';
-import { Public } from '../common/decorators/public.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 import { AdminActor, AdminRole } from './admin-policy.service';
 import {
   CreateModerationAppealDto,

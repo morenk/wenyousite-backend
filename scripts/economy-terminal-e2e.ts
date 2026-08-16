@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { HttpStatus, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { Test } from '@nestjs/testing';
@@ -12,7 +13,7 @@ import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify
 import { PrismaClient } from '@prisma/client';
 import { FastifyInstance } from 'fastify';
 import { ThreadAccessService } from '../src/access/thread-access.service';
-import { JwtAuthGuard } from '../src/auth/guards/jwt-auth.guard';
+import { GlobalAuthGuard } from '../src/auth/guards/global-auth.guard';
 import { JwtStrategy } from '../src/auth/strategies/jwt.strategy';
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
 import { ErrorCode } from '../src/common/exceptions/error-codes';
@@ -549,7 +550,7 @@ async function verifyRuntime(databaseUrl: string) {
       ProgressionService,
       OutboxService,
       JwtStrategy,
-      JwtAuthGuard,
+      { provide: APP_GUARD, useClass: GlobalAuthGuard },
       { provide: PrismaService, useValue: prisma },
       { provide: ConfigService, useValue: config },
     ],

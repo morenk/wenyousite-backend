@@ -1,7 +1,7 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiBadRequestResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SearchService } from './search.service';
-import { Public } from '../common/decorators/public.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 import {
   SearchPostResponseDto,
   SearchResultResponseDto,

@@ -1,5 +1,4 @@
 import { ExecutionContext, Injectable } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
 import { AppealAccessService } from '../appeal-access.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
@@ -12,10 +11,9 @@ function bearerToken(authorization?: string): string | null {
 @Injectable()
 export class AppealAccessGuard extends JwtAuthGuard {
   constructor(
-    reflector: Reflector,
     private readonly appealAccess: AppealAccessService,
   ) {
-    super(reflector);
+    super();
   }
 
   canActivate(context: ExecutionContext) {

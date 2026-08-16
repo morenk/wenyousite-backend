@@ -6,7 +6,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody, ApiCreatedResponse, ApiO
 import { FastifyRequest } from 'fastify';
 import { ThreadMembersService } from './thread-members.service';
 import { UpdateMemberDto } from './dto/update-member.dto';
-import { Auth, AuthRead, OptionalAuth } from '../auth/decorators/auth.decorator';
+import { Auth, OptionalAuth } from '../auth/decorators/auth.decorator';
 import { MessageResponseDto } from '../common/dto/message-response.dto';
 import { ThreadMemberResponseDto } from './dto/thread-member-response.dto';
 
@@ -59,7 +59,7 @@ export class ThreadMembersController {
   }
 
   @Delete('me')
-  @AuthRead()
+  @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '主动退出主题帖（取消自己的玩家标记）' })
   @ApiOkResponse({ type: MessageResponseDto, description: '已退出主题帖' })

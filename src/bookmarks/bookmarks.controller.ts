@@ -6,7 +6,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse, ApiCreatedResponse
 import { FastifyRequest } from 'fastify';
 import { BookmarksService } from './bookmarks.service';
 import { CreateBookmarkDto } from './dto/create-bookmark.dto';
-import { AuthRead } from '../auth/decorators/auth.decorator';
+import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 import { MessageResponseDto } from '../common/dto/message-response.dto';
 import { OwnBookmarkThreadResponseDto } from '../threads/dto/thread-list-response.dto';
 import { BookmarkResponseDto } from './dto/bookmark-response.dto';
@@ -21,12 +21,12 @@ import {
 /** 收藏控制器：列表、添加、取消 */
 @ApiTags('Bookmarks')
 @Controller('bookmarks')
-@AuthRead()
 @ApiBearerAuth()
 export class BookmarksController {
   constructor(private bookmarksService: BookmarksService) {}
 
   @Get()
+  @AuthRead()
   @ApiOperation({ summary: '我的收藏列表（Cursor 分页）' })
   @ApiCursorPaginatedResponse(OwnBookmarkThreadResponseDto, '我的收藏列表（cursor 分页，含帖子摘要）')
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
@@ -36,6 +36,7 @@ export class BookmarksController {
   }
 
   @Get('folders')
+  @AuthRead()
   @ApiOperation({ summary: '获取我的收藏夹分类' })
   @ApiOkResponse({ type: BookmarkFolderResponseDto, isArray: true })
   findFolders(@Req() req: FastifyRequest) {
@@ -44,6 +45,7 @@ export class BookmarksController {
   }
 
   @Post('folders')
+  @Auth()
   @ApiOperation({ summary: '新建收藏夹分类' })
   @ApiCreatedResponse({ type: BookmarkFolderResponseDto })
   createFolder(@Req() req: FastifyRequest, @Body() dto: CreateBookmarkFolderDto) {
@@ -52,6 +54,7 @@ export class BookmarksController {
   }
 
   @Post()
+  @Auth()
   @ApiOperation({ summary: '收藏主题帖' })
   @ApiCreatedResponse({ type: BookmarkResponseDto, description: '创建的收藏记录' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
@@ -63,6 +66,7 @@ export class BookmarksController {
   }
 
   @Patch(':id')
+  @Auth()
   @ApiOperation({ summary: '移动收藏到其他收藏夹' })
   @ApiOkResponse({ type: BookmarkResponseDto })
   @ApiNotFoundResponse({ description: '收藏或收藏夹不存在' })
@@ -76,6 +80,7 @@ export class BookmarksController {
   }
 
   @Delete(':id')
+  @Auth()
   @ApiOperation({ summary: '取消收藏' })
   @ApiOkResponse({ type: MessageResponseDto, description: '已取消收藏' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })

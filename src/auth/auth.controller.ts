@@ -15,7 +15,7 @@ import { LogoutDto } from './dto/logout.dto';
 import { ChangeEmailRequestDto, ChangeEmailVerifyDto } from './dto/change-email.dto';
 import { RevokeSessionResponseDto, SessionResponseDto } from './dto/session-response.dto';
 import { AuthRead, Auth } from './decorators/auth.decorator';
-import { Public } from '../common/decorators/public.decorator';
+import { Public } from './decorators/public.decorator';
 import { CLIENT_PLATFORMS, normalizeClientPlatform, refreshTtlSeconds } from './client-platform';
 import { MessageResponseDto } from '../common/dto/message-response.dto';
 import { ErrorCode } from '../common/exceptions/error-codes';
@@ -120,7 +120,7 @@ export class AuthController {
   }
 
   @Post('change-password')
-  @AuthRead()
+  @Auth()
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
   @ApiOperation({ summary: '修改密码（需旧密码），成功后退出全部登录终端' })
@@ -156,7 +156,7 @@ export class AuthController {
   }
 
   @Post('change-email/request-code')
-  @AuthRead()
+  @Auth()
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: 60000, limit: 1 } })
   @ApiBearerAuth()
@@ -184,7 +184,7 @@ export class AuthController {
   }
 
   @Post('logout')
-  @AuthRead()
+  @Auth()
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
   @ApiOperation({ summary: '登出：按 access token 的稳定终端 ID 撤销当前终端，旧客户端回退到 refresh token' })
@@ -217,7 +217,7 @@ export class AuthController {
   }
 
   @Delete('sessions/:id')
-  @AuthRead()
+  @Auth()
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
   @Throttle({ default: { ttl: 60000, limit: 60 } })

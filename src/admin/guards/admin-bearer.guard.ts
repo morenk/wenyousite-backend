@@ -2,8 +2,8 @@ import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { UserRole } from '@prisma/client';
 import { ADMIN_ROLES_KEY } from '../../auth/decorators/admin-auth.constants';
-import { forbidden } from '../exceptions/business.exception';
-import { ErrorCode } from '../exceptions/error-codes';
+import { forbidden } from '../../common/exceptions/business.exception';
+import { ErrorCode } from '../../common/exceptions/error-codes';
 
 /** 前台与移动端管理员守卫：复用普通 Bearer 登录态，不要求独立站务会话。 */
 @Injectable()

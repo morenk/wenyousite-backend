@@ -3,7 +3,7 @@ import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth, ApiOkResponse, ApiConfl
 import { TagsService } from './tags.service';
 import { CreateTagDto } from './dto/create-tag.dto';
 import { Auth } from '../auth/decorators/auth.decorator';
-import { Public } from '../common/decorators/public.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 import { TagResponseDto } from './dto/tag-response.dto';
 
 /** 主题帖标签控制器：搜索与创建全局标签 */

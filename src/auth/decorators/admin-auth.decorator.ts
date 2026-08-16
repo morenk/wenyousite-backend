@@ -1,11 +1,12 @@
 import { applyDecorators, SetMetadata, UseGuards } from '@nestjs/common';
 import { ApiCookieAuth, ApiExtension, ApiHeader } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
-import { AdminGuard } from '../../common/guards/admin.guard';
-import { AdminBearerGuard } from '../../common/guards/admin-bearer.guard';
+import { AdminGuard } from '../../admin/guards/admin.guard';
+import { AdminBearerGuard } from '../../admin/guards/admin-bearer.guard';
 import { Auth } from './auth.decorator';
 import { ADMIN_ROLES_KEY } from './admin-auth.constants';
 import { ADMIN_STEP_UP_KEY } from '../../admin/admin-auth.constants';
+import { AUTH_MODE_KEY, AuthMode } from './auth-mode.constants';
 
 export { ADMIN_ROLES_KEY } from './admin-auth.constants';
 
@@ -13,6 +14,7 @@ export { ADMIN_ROLES_KEY } from './admin-auth.constants';
 export function AdminAuth(...roles: UserRole[]) {
   const allowedRoles = roles.length > 0 ? roles : [UserRole.ADMIN, UserRole.SUPER_ADMIN];
   return applyDecorators(
+    SetMetadata(AUTH_MODE_KEY, AuthMode.ADMIN),
     ApiExtension('x-auth-mode', 'admin'),
     ApiCookieAuth('adminSession'),
     ApiHeader({ name: 'X-CSRF-Token', required: false, description: '管理后台写操作必填' }),

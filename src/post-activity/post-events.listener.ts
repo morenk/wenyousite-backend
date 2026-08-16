@@ -8,6 +8,7 @@ import { RedisService } from '../redis/redis.service';
 import { BlockFilterService } from '../access/block-filter.service';
 import { buildPostPreview } from '../common/post-preview';
 import { updateThreadSmartScore } from '../threads/thread-smart-score';
+import { PostMentionsUpdatedEvent } from '../mentions/mention-events';
 
 /** ZSET 键名 */
 const ZSET_BY_ACTIVITY = 'threads:by:activity';
@@ -176,6 +177,33 @@ export class PostEventsListener {
     if (failures.length > 0) {
       throw new AggregateError(failures, 'post.created event processing failed');
     }
+  }
+
+  /** 编辑事务已确定接收者；Outbox 重试通过稳定通知键保持幂等。 */
+  @OnEvent('post.mentions.updated')
+  async handlePostMentionsUpdated(event: PostMentionsUpdatedEvent) {
+    const recipients = [...new Set(event.recipientIds)].filter(
+      (recipientId) => recipientId !== event.userId,
+    );
+    if (recipients.length === 0) return;
+
+    const target = event.context === 'body' ? '正文' : '帖子';
+    await this.notificationProducer.notify(
+      'mention',
+      recipients,
+      `${event.authorUsername} 在编辑后的${target}里提到了你：${event.preview}`,
+      {
+        postId: event.postId,
+        threadId: event.threadId,
+        fromUserId: event.userId,
+        eventKey: `mention:${event.postId}`,
+        payload: {
+          actorName: event.authorUsername,
+          action: 'mention',
+          preview: event.preview,
+        },
+      },
+    );
   }
 
   /** 主题帖点赞后更新计数 + 智能排序分 */

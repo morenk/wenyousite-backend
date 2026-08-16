@@ -1,14 +1,14 @@
 import { Body, Controller, Delete, Put, Req } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
-import { AuthRead } from '../auth/decorators/auth.decorator';
+import { Auth } from '../auth/decorators/auth.decorator';
 import { MessageResponseDto } from '../common/dto/message-response.dto';
 import { MobileDeviceResponseDto, RegisterMobileDeviceDto } from './dto/mobile-device.dto';
 import { MobileDeviceService } from './mobile-device.service';
 
 @ApiTags('Mobile Devices')
 @Controller('mobile/devices')
-@AuthRead()
+@Auth()
 export class MobileDeviceController {
   constructor(private readonly devices: MobileDeviceService) {}
 

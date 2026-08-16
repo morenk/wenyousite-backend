@@ -1,5 +1,4 @@
 import { ExecutionContext } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
 import { AppealAccessService } from '../appeal-access.service';
 import { AppealAccessGuard } from './appeal-access.guard';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -24,10 +23,7 @@ describe('AppealAccessGuard', () => {
       isAppealToken: jest.fn().mockReturnValue(true),
       authenticate: jest.fn().mockResolvedValue({ id: 'user-1' }),
     };
-    const guard = new AppealAccessGuard(
-      new Reflector(),
-      appealAccess as unknown as AppealAccessService,
-    );
+    const guard = new AppealAccessGuard(appealAccess as unknown as AppealAccessService);
     const testContext = context('Bearer appeal-token');
 
     await expect(guard.canActivate(testContext.execution)).resolves.toBe(true);
@@ -41,10 +37,7 @@ describe('AppealAccessGuard', () => {
       authenticate: jest.fn(),
     };
     const standardGuard = jest.spyOn(JwtAuthGuard.prototype, 'canActivate').mockReturnValue(true);
-    const guard = new AppealAccessGuard(
-      new Reflector(),
-      appealAccess as unknown as AppealAccessService,
-    );
+    const guard = new AppealAccessGuard(appealAccess as unknown as AppealAccessService);
     const testContext = context('Bearer access-token');
 
     expect(guard.canActivate(testContext.execution)).toBe(true);

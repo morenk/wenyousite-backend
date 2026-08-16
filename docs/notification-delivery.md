@@ -7,7 +7,7 @@
 | 类型       | 枚举值           | 触发事件                                                                               | 触发源                                                                            | 触发位置                                                         |
 | ---------- | ---------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | 楼中楼回复 | `reply`          | `post.created`（`parentPostId` 非空 + `!isSubthreadBody`）                             | `PostEventsListener`                                                              | `src/post-activity/post-events.listener.ts`                      |
-| @提及      | `mention`        | `post.created`（正文含稳定用户链接/历史 `@username`/合法 `@全体玩家`）或编辑同步新增 @ | `PostEventsListener` → `MentionsService.syncMentions()` / `PostsService.update()` | `src/post-activity/post-events.listener.ts`、`src/posts/posts.service.ts` |
+| @提及      | `mention`        | `post.created`（新帖提及）或 `post.mentions.updated`（编辑新增提及）                  | `PostEventsListener`                                                              | `src/post-activity/post-events.listener.ts`                      |
 | 新帖通知   | `new_post`       | `post.created`（`!parentPostId` 或 `isSubthreadBody`）                                 | `PostEventsListener`                                                              | `src/post-activity/post-events.listener.ts`                      |
 | 新主题帖   | `thread_created` | 主题帖 PATCH published=true                                                            | `ThreadEventsListener`                                                            | `src/threads/thread-events.listener.ts`                          |
 | 被关注     | `follow`         | 首次关注关系写入                                                                       | `UserRelationEventsListener`                                                      | `src/users/user-relation-events.listener.ts`                     |
@@ -21,6 +21,8 @@
 **事件驱动模型**：
 
 `post.created` 由 PostsService / SubthreadsService 在写帖子同一事务中写入 `domain_outbox`，`OutboxDispatcher` 提交后使用 `emitAsync` 投递给 `PostEventsListener`。同一个事件可能触发 `mention`、`new_post`、`reply` 多种通知；任一可靠副作用失败都会使事件退避重试。
+
+编辑时，正文与 `PostMention` 投影在同一 Prisma 事务中更新；新增收件人以 `post.mentions.updated` 写入 Outbox。提及同步或 Outbox 写入失败会使正文编辑整体回滚，通知重试使用稳定 `mention:{postId}` 键保持幂等。
 
 ---
 
@@ -58,7 +60,7 @@
 2. 楼主/协作者额外可使用 `@全体玩家`，展开范围仍然只包含 `playerMarked=true` 的用户
 3. 普通用户使用 `@全体玩家` 会被服务端拒绝
 4. @ 自己、注销用户、超出单篇单人上限的目标不创建提及记录
-5. 编辑会同步提及快照，首次出现的 `@全体玩家` 不因后续新玩家加入而追溯发送
+5. 编辑会在正文事务内同步提及快照，首次出现的 `@全体玩家` 不因后续新玩家加入而追溯发送
 
 **过滤**：双向拉黑过滤 — 被 @ 的用户如果拉黑了发帖人（`blockedAuthorIds`）或被发帖人拉黑（`authorBlockedIds`），均从通知接收者中移除。
 

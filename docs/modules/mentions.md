@@ -16,7 +16,7 @@
 
 ## 数据与同步
 
-`PostMention.source` 区分 `DIRECT` 和 `ALL_PLAYERS`。编辑正文会同步当前提及快照：删除已移除目标；删除正文中的最后一个提及时必须清空该帖全部提及记录；通知只发送本次新增目标。通知事件键为 `mention:{postId}:{userId}`，因此队列重试和“删除后重新加回”不会重复打扰同一用户。
+`PostMention.source` 区分 `DIRECT` 和 `ALL_PLAYERS`。编辑正文、提及快照和 `post.mentions.updated` Outbox 事件在同一事务提交：删除已移除目标；删除正文中的最后一个提及时必须清空该帖全部提及记录；通知只发送本次新增目标。通知生产者以 `mention:{postId}` 为基础键并按收件人保持唯一，因此队列重试和“删除后重新加回”不会重复打扰同一用户。
 
 正文从含单人提及或 `@全体玩家` 改为无提及时清空全部 `PostMention`；没有 `threadId` 的调用不修改提及记录。全体玩家权限始终按 `threadId + userId` 的当前成员关系校验，只有楼主或协作者通过。
 

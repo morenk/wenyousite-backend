@@ -3,8 +3,6 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PostsService } from './posts.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../access/thread-access.service';
-import { BlockFilterService } from '../access/block-filter.service';
-import { NotificationProducer } from '../notifications/notification.producer';
 import { MentionsService } from '../mentions/mentions.service';
 import { RedisService } from '../redis/redis.service';
 import { CacheService } from '../redis/cache.service';
@@ -42,11 +40,10 @@ const mockThreadAccess = {
   assertAccessible: jest.fn(),
   assertCanManage: jest.fn().mockResolvedValue({ role: 'OWNER' }),
 };
-const mockNotificationProducer = { notify: jest.fn().mockResolvedValue(undefined) };
 const mockMentions = {
   extractUsernames: jest.fn().mockReturnValue([]),
   parseAndCreate: jest.fn().mockResolvedValue([]),
-  syncMentions: jest.fn().mockResolvedValue([]),
+  syncMentionsInTransaction: jest.fn().mockResolvedValue([]),
 };
 const mockRedis = {
   hincrby: jest.fn().mockResolvedValue(1),
@@ -62,12 +59,6 @@ const mockCache = {
   delByPattern: jest.fn().mockResolvedValue(undefined),
 };
 
-const mockBlockFilter = {
-  loadBlockSets: jest
-    .fn()
-    .mockResolvedValue({ blockedByUser: new Set(), blockedByAuthor: new Set() }),
-  filterRecipients: jest.fn((ids: string[]) => ids),
-};
 const mockOutbox = { enqueue: jest.fn().mockResolvedValue(undefined) };
 const mockStickerContent = {
   assertContentAllowed: jest.fn().mockResolvedValue([]),
@@ -86,8 +77,6 @@ describe('PostsService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: ThreadAccessService, useValue: mockThreadAccess },
-        { provide: BlockFilterService, useValue: mockBlockFilter },
-        { provide: NotificationProducer, useValue: mockNotificationProducer },
         { provide: MentionsService, useValue: mockMentions },
         { provide: RedisService, useValue: mockRedis },
         { provide: CacheService, useValue: mockCache },
@@ -98,6 +87,7 @@ describe('PostsService', () => {
     }).compile();
     service = module.get<PostsService>(PostsService);
     jest.clearAllMocks();
+    mockMentions.syncMentionsInTransaction.mockResolvedValue([]);
     mockPrisma.$transaction.mockImplementation(async (fn) => fn(mockPrisma));
     mockPrisma.post.findUniqueOrThrow.mockImplementation(async () => {
       const updateResult = mockPrisma.post.update.mock.results.at(-1)?.value;
@@ -592,7 +582,14 @@ describe('PostsService', () => {
           data: expect.objectContaining({ content: '新\n<br />' }),
         }),
       );
-      expect(mockMentions.syncMentions).toHaveBeenCalledWith('b1', '新\n<br />', 'u1', 't1', '旧');
+      expect(mockMentions.syncMentionsInTransaction).toHaveBeenCalledWith(
+        mockPrisma,
+        'b1',
+        '新\n<br />',
+        'u1',
+        't1',
+        '旧',
+      );
     });
 
     it('version 不匹配应返回 409（OPTIMISTIC_LOCK_CONFLICT）', async () => {
@@ -773,13 +770,85 @@ describe('PostsService', () => {
         data: expect.objectContaining({ content: '编辑后\n<br />' }),
       }),
     );
-    expect(mockMentions.syncMentions).toHaveBeenCalledWith(
+    expect(mockMentions.syncMentionsInTransaction).toHaveBeenCalledWith(
+      mockPrisma,
       'p1',
       '编辑后\n<br />',
       'u1',
       't1',
       '旧内容',
     );
+  });
+
+  it('update 在同一事务同步提及快照并写入幂等 Outbox', async () => {
+    mockPrisma.post.findUnique.mockResolvedValue({
+      id: 'p1',
+      authorId: 'u1',
+      threadId: 't1',
+      content: '旧内容',
+      version: 1,
+      thread: { published: true },
+      diceRolls: [],
+      subthread: { deletedAt: null },
+    });
+    mockPrisma.post.update.mockResolvedValue({
+      id: 'p1',
+      version: 2,
+      content: '[@张三](/users/u2)',
+      parentPostId: null,
+      author: { username: 'test' },
+    });
+    mockMentions.syncMentionsInTransaction.mockResolvedValueOnce([
+      { userId: 'u2', username: '张三', source: 'DIRECT' },
+    ]);
+
+    await service.update('p1', { version: 1, content: '[@张三](/users/u2)' }, 'u1');
+
+    expect(mockMentions.syncMentionsInTransaction).toHaveBeenCalledWith(
+      mockPrisma,
+      'p1',
+      '[@张三](/users/u2)',
+      'u1',
+      't1',
+      '旧内容',
+    );
+    expect(mockOutbox.enqueue).toHaveBeenCalledWith(
+      mockPrisma,
+      expect.objectContaining({
+        eventType: 'post.mentions.updated',
+        eventKey: 'post-mentions-updated:p1:v2',
+        payload: expect.objectContaining({ recipientIds: ['u2'], context: 'post' }),
+      }),
+    );
+  });
+
+  it('update 提及同步失败时不提交缓存失效等事务外副作用', async () => {
+    mockPrisma.post.findUnique.mockResolvedValue({
+      id: 'p1',
+      authorId: 'u1',
+      threadId: 't1',
+      content: '旧内容',
+      version: 1,
+      thread: { published: true },
+      diceRolls: [],
+      subthread: { deletedAt: null },
+    });
+    mockPrisma.post.update.mockResolvedValue({
+      id: 'p1',
+      version: 2,
+      content: '新内容',
+      parentPostId: null,
+      author: { username: 'test' },
+    });
+    mockMentions.syncMentionsInTransaction.mockRejectedValueOnce(
+      new Error('mention persistence failed'),
+    );
+
+    await expect(
+      service.update('p1', { version: 1, content: '新内容' }, 'u1'),
+    ).rejects.toThrow('mention persistence failed');
+    expect(mockOutbox.enqueue).not.toHaveBeenCalled();
+    expect(mockEventEmitter.emit).not.toHaveBeenCalledWith('post.updated', expect.anything());
   });
 
   it('update 编辑他人的帖子应该返回403', async () => {

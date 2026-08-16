@@ -74,7 +74,7 @@
 
 ## OptionalAuth 守卫说明
 
-`@OptionalAuth()` 装饰器应用 `OptionalJwtAuthGuard`：
+`@OptionalAuth()` 写入统一认证模式，由全局认证守卫解释：
 
 - 请求携带有效 Bearer Token 时，解析并挂载 `req.user`，后续逻辑以此提供个性数据
 - 完全无 Token 时匿名放行，`req.user` 为 `undefined`，返回纯公开数据

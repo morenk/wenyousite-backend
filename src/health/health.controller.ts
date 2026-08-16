@@ -4,7 +4,7 @@ import { SkipThrottle } from '@nestjs/throttler';
 import { HealthCheckService, HealthCheck, PrismaHealthIndicator } from '@nestjs/terminus';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisHealthIndicator } from './redis-health.indicator';
-import { Public } from '../common/decorators/public.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 
 /** 健康检查控制器：提供数据库连接状态检查，供部署平台轮询 */
 @ApiTags('Health')

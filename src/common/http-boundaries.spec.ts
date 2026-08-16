@@ -10,13 +10,12 @@ import { Reflector } from '@nestjs/core';
 import { Prisma } from '@prisma/client';
 import { lastValueFrom, of } from 'rxjs';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AdminGuard } from '../admin/guards/admin.guard';
+import { AdminBearerGuard } from '../admin/guards/admin-bearer.guard';
 import { PaginatedResult } from './dto/paginated-result';
 import { BusinessException } from './exceptions/business.exception';
 import { ErrorCode } from './exceptions/error-codes';
 import { AllExceptionsFilter } from './filters/all-exceptions.filter';
-import { AdminGuard } from './guards/admin.guard';
-import { AdminBearerGuard } from './guards/admin-bearer.guard';
-import { OptionalJwtAuthGuard } from './guards/optional-jwt-auth.guard';
 import { TransformInterceptor } from './interceptors/response.interceptor';
 import { ParseUUIDPipe } from './pipes/uuid-validation.pipe';
 import { API_CONTRACT_VERSION } from './swagger/openapi-document';
@@ -258,16 +257,8 @@ describe('认证和权限边界', () => {
     expect(guard.canActivate(httpContext({ role: 'SUPER_ADMIN' }).context)).toBe(true);
   });
 
-  it('JwtAuthGuard 公开路由直接放行', () => {
-    const reflector = { getAllAndOverride: jest.fn().mockReturnValue(true) };
-    const guard = new JwtAuthGuard(reflector as unknown as Reflector);
-
-    expect(guard.canActivate(httpContext().context)).toBe(true);
-  });
-
   it('JwtAuthGuard 区分缺少、过期和无效令牌', () => {
-    const reflector = { getAllAndOverride: jest.fn() };
-    const guard = new JwtAuthGuard(reflector as unknown as Reflector);
+    const guard = new JwtAuthGuard();
 
     expect(() => guard.handleRequest(null, null, null, httpContext().context)).toThrow(
       expect.objectContaining({ errorCode: ErrorCode.UNAUTHORIZED }),
@@ -290,18 +281,6 @@ describe('认证和权限边界', () => {
     ).toThrow(expect.objectContaining({ errorCode: ErrorCode.TOKEN_INVALID }));
   });
 
-  it('OptionalJwtAuthGuard 仅在未携带凭据时匿名放行，坏令牌返回稳定 401', () => {
-    const guard = new OptionalJwtAuthGuard();
-    expect(guard.canActivate(httpContext().context)).toBe(true);
-    expect(() => guard.handleRequest(new Error('invalid'), undefined)).toThrow('invalid');
-    expect(() => guard.handleRequest(null, undefined, { name: 'TokenExpiredError' })).toThrow(
-      expect.objectContaining({ errorCode: ErrorCode.TOKEN_EXPIRED }),
-    );
-    expect(() => guard.handleRequest(null, undefined)).toThrow(
-      expect.objectContaining({ errorCode: ErrorCode.TOKEN_INVALID }),
-    );
-    expect(guard.handleRequest(null, { id: 'user-1' })).toEqual({ id: 'user-1' });
-  });
 });
 
 describe('ParseUUIDPipe', () => {

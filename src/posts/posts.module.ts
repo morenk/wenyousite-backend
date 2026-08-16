@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PostsController } from './posts.controller';
 import { PostsService } from './posts.service';
-import { NotificationsModule } from '../notifications/notifications.module';
 import { MentionsModule } from '../mentions/mentions.module';
 import { PostingPolicyService } from './posting-policy.service';
 import { PostQueryService } from './post-query.service';
@@ -14,7 +13,6 @@ import { StickersModule } from '../stickers/stickers.module';
   imports: [
     AccessPolicyModule,
     OutboxModule,
-    NotificationsModule,
     MentionsModule,
     StickersModule,
   ],

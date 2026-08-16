@@ -9,7 +9,7 @@ import {
   Res,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ApiExtension, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AdminAuthService } from './admin-auth.service';
@@ -19,6 +19,7 @@ import { AdminAuth } from '../auth/decorators/admin-auth.decorator';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { AdminChallengeResponseDto, AdminSessionResponseDto, AdminStepUpResponseDto } from './dto/admin-station-response.dto';
 import { MessageResponseDto } from '../common/dto/message-response.dto';
+import { Public } from '../auth/decorators/public.decorator';
 
 function fingerprint(request: FastifyRequest) {
   return {
@@ -52,7 +53,7 @@ export class AdminAuthController {
 
   @Post('challenge')
   @HttpCode(HttpStatus.OK)
-  @ApiExtension('x-auth-mode', 'public')
+  @Public()
   @ApiOperation({ summary: '管理员密码校验后发送邮箱二次验证码' })
   @ApiOkResponse({ type: AdminChallengeResponseDto })
   async challenge(@Body() dto: AdminLoginChallengeDto, @Req() request: FastifyRequest) {
@@ -61,7 +62,7 @@ export class AdminAuthController {
 
   @Post('verify')
   @HttpCode(HttpStatus.OK)
-  @ApiExtension('x-auth-mode', 'public')
+  @Public()
   @ApiOperation({ summary: '验证管理员验证码并建立独立管理员 Cookie 会话' })
   @ApiOkResponse({ type: AdminSessionResponseDto })
   async verify(

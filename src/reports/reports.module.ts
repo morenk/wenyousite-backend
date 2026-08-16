@@ -2,11 +2,13 @@ import { Module } from '@nestjs/common';
 import { ReportsController } from './reports.controller';
 import { ReportsService } from './reports.service';
 import { AdminReportsController } from './reports.controller';
-import { AdminModule } from '../admin/admin.module';
+import { AdminSecurityModule } from '../admin/admin-security.module';
+import { AuditModule } from '../admin/audit.module';
+import { ModerationModule } from '../admin/moderation.module';
 
 /** 举报模块 */
 @Module({
-  imports: [AdminModule],
+  imports: [AdminSecurityModule, AuditModule, ModerationModule],
   controllers: [ReportsController, AdminReportsController],
   providers: [ReportsService],
 })

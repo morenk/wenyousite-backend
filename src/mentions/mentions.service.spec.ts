@@ -5,6 +5,7 @@ import { ThreadAccessService } from '../access/thread-access.service';
 import { BlockFilterService } from '../access/block-filter.service';
 
 const mockPrisma = {
+  $transaction: jest.fn(),
   user: {
     findMany: jest.fn(),
   },
@@ -18,6 +19,9 @@ const mockPrisma = {
     findMany: jest.fn(),
   },
   userFollow: {
+    findMany: jest.fn(),
+  },
+  userBlock: {
     findMany: jest.fn(),
   },
 };
@@ -41,6 +45,9 @@ describe('MentionsService', () => {
     }).compile();
     service = module.get<MentionsService>(MentionsService);
     jest.clearAllMocks();
+    mockPrisma.$transaction.mockImplementation(
+      async (callback: (client: typeof mockPrisma) => unknown) => callback(mockPrisma),
+    );
   });
 
   it('应该提取 @用户名', () => {
@@ -185,6 +192,41 @@ describe('MentionsService', () => {
       where: { postId: 'p1' },
     });
     expect(mockPrisma.postMention.findMany).not.toHaveBeenCalled();
+  });
+
+  it('事务同步应复用调用者客户端并保留全体玩家快照', async () => {
+    const transactionClient = {
+      ...mockPrisma,
+      postMention: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'mention-1',
+            mentionedUserId: 'u2',
+            source: 'ALL_PLAYERS',
+            mentionedUser: { id: 'u2', username: '张三', avatar: null },
+          },
+        ]),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        createMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+    };
+    mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
+
+    const result = await service.syncMentionsInTransaction(
+      transactionClient,
+      'p1',
+      '@全体玩家 更新',
+      'u1',
+      't1',
+      '@全体玩家 旧正文',
+    );
+
+    expect(result).toEqual([]);
+    expect(transactionClient.postMention.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { postId: 'p1' } }),
+    );
+    expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    expect(transactionClient.threadMember.findMany).not.toHaveBeenCalled();
   });
 
   it('缺少 threadId 时不应清空提及快照', async () => {

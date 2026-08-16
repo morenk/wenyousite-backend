@@ -81,6 +81,9 @@ const threadSchema = z.object({
   deletedAt: z.string().nullable(),
 });
 
+// 首页列表使用精简卡片 DTO，不暴露详情/编辑所需的 ownerId 与 version。
+const threadListSchema = threadSchema.omit({ ownerId: true, version: true });
+
 const subthreadSchema = z.object({
   id: z.string(),
   threadId: z.string(),
@@ -428,7 +431,7 @@ test(s1, 'GET /thread-categories 返回动态分类配置', async () => {
 });
 
 test(s1, 'GET /threads 公开列表（分页）', async () => {
-  const r = await api.get('/threads?limit=3', apiPaginated(threadSchema));
+  const r = await api.get('/threads?limit=3', apiPaginated(threadListSchema));
   assert(Array.isArray(r.data), 'data 应为数组');
   assert(typeof r.meta.hasMore === 'boolean', 'meta 应含 hasMore');
   subscribableThreadId = r.data[0]?.id ?? '';
@@ -592,7 +595,7 @@ test(s3, 'PATCH /threads/:id 乐观锁冲突', async () => {
 });
 
 test(s3, 'GET /threads 列表含新帖', async () => {
-  const r = await api.get('/threads?sort=newest&limit=20', apiPaginated(threadSchema));
+  const r = await api.get('/threads?sort=newest&limit=20', apiPaginated(threadListSchema));
   assert(
     r.data.some((t) => t.id === threadId),
     '列表应包含新创建的帖',

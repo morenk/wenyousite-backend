@@ -120,7 +120,7 @@ export class DirectConversationsController {
   }
 
   @Patch(':id/request')
-  @AuthRead()
+  @Auth()
   @ApiOperation({ summary: '接受或拒绝收到的消息请求' })
   @ApiOkResponse({ type: DirectConversationResponseDto })
   @ApiForbiddenResponse({ description: '不是请求接收方或请求状态不允许此操作' })
@@ -134,7 +134,7 @@ export class DirectConversationsController {
   }
 
   @Patch(':id/archive')
-  @AuthRead()
+  @Auth()
   @ApiOperation({ summary: '归档或恢复自己的会话' })
   @ApiOkResponse({ type: DirectConversationResponseDto })
   async archive(
@@ -147,7 +147,7 @@ export class DirectConversationsController {
   }
 
   @Post(':id/read')
-  @AuthRead()
+  @Auth()
   @ApiOperation({ summary: '标记当前用户实际看到的消息为已读，不向发件人暴露回执' })
   @ApiOkResponse({ type: MessageResponseDto })
   async markRead(
@@ -167,7 +167,7 @@ export class DirectMessagesController {
   constructor(private readonly service: DirectMessagesService) {}
 
   @Delete(':id')
-  @AuthRead()
+  @Auth()
   @ApiOperation({ summary: '发送者在 10 分钟内撤回消息；待处理首条消息会取消请求' })
   @ApiOkResponse({ type: DirectMessageRecallResponseDto })
   @ApiUnauthorizedResponse({ description: '未登录' })

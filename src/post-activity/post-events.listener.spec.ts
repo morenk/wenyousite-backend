@@ -191,6 +191,37 @@ describe('PostEventsListener 订阅过滤', () => {
     loggerError.mockRestore();
   });
 
+  it('编辑提及事件去重接收者并沿用稳定通知键', async () => {
+    const { listener, notificationProducer } = buildListener();
+    const event = {
+      postId: 'post-edited',
+      threadId: 'thread1',
+      userId: 'author1',
+      authorUsername: '作者',
+      recipientIds: ['user2', 'user2', 'author1'],
+      preview: '新正文',
+      context: 'body' as const,
+    };
+
+    await listener.handlePostMentionsUpdated(event);
+    await listener.handlePostMentionsUpdated(event);
+
+    expect(notificationProducer.notify).toHaveBeenCalledTimes(2);
+    expect(notificationProducer.notify).toHaveBeenNthCalledWith(
+      1,
+      'mention',
+      ['user2'],
+      '作者 在编辑后的正文里提到了你：新正文',
+      expect.objectContaining({
+        postId: 'post-edited',
+        eventKey: 'mention:post-edited',
+      }),
+    );
+    expect(notificationProducer.notify.mock.calls[1][3]).toEqual(
+      expect.objectContaining({ eventKey: 'mention:post-edited' }),
+    );
+  });
+
   it('点赞投影读取数据库权威计数并覆盖 Redis，重复投递不会重复累加', async () => {
     const { listener, prisma, redis } = buildListener();
     prisma.thread.findUnique.mockResolvedValue({ likeCount: 7 });

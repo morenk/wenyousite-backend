@@ -9,6 +9,8 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { AuthSessionService } from './auth-session.service';
 import { AppealAccessService } from './appeal-access.service';
 import { AppealAccessGuard } from './guards/appeal-access.guard';
+import { APP_GUARD } from '@nestjs/core';
+import { GlobalAuthGuard } from './guards/global-auth.guard';
 
 /** 认证模块：注册 JWT 策略、Passport 守卫，提供注册/登录/刷新 API */
 @Module({
@@ -32,6 +34,7 @@ import { AppealAccessGuard } from './guards/appeal-access.guard';
     JwtStrategy,
     AppealAccessService,
     AppealAccessGuard,
+    { provide: APP_GUARD, useClass: GlobalAuthGuard },
   ],
   exports: [
     AuthService,

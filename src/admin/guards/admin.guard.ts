@@ -1,11 +1,11 @@
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { UserRole } from '@prisma/client';
-import { forbidden } from '../exceptions/business.exception';
-import { ErrorCode } from '../exceptions/error-codes';
 import { ADMIN_ROLES_KEY } from '../../auth/decorators/admin-auth.constants';
-import { ADMIN_STEP_UP_KEY } from '../../admin/admin-auth.constants';
-import { AdminAuthService } from '../../admin/admin-auth.service';
+import { forbidden } from '../../common/exceptions/business.exception';
+import { ErrorCode } from '../../common/exceptions/error-codes';
+import { AdminAuthService } from '../admin-auth.service';
+import { ADMIN_STEP_UP_KEY } from '../admin-auth.constants';
 
 /** 管理员权限守卫：角色集合由 AdminAuth/SuperAdminAuth 元数据集中声明。 */
 @Injectable()

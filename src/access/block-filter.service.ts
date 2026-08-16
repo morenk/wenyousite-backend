@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
+
+type BlockFilterClient = {
+  userBlock: Pick<Prisma.TransactionClient['userBlock'], 'findMany'>;
+};
 
 /** 双向拉黑关系集合 */
 export interface BlockSets {
@@ -14,13 +19,16 @@ export class BlockFilterService {
   constructor(private prisma: PrismaService) {}
 
   /** 加载用户的双向拉黑关系（一次 DB 查询） */
-  async loadBlockSets(userId: string): Promise<BlockSets> {
+  async loadBlockSets(
+    userId: string,
+    client: BlockFilterClient = this.prisma,
+  ): Promise<BlockSets> {
     const [blockedBy, blocksOf] = await Promise.all([
-      this.prisma.userBlock.findMany({
+      client.userBlock.findMany({
         where: { blockedId: userId },
         select: { blockerId: true },
       }),
-      this.prisma.userBlock.findMany({
+      client.userBlock.findMany({
         where: { blockerId: userId },
         select: { blockedId: true },
       }),

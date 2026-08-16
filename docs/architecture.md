@@ -53,7 +53,7 @@ OutboxDispatcher（FOR UPDATE SKIP LOCKED）
 - 失败事件按退避时间重试；60 秒领取租约允许实例崩溃后重新领取。
 - 已处理事件保留 7 天供审计，未处理事件永不由清理任务删除。
 
-当前可靠事件包括 `post.created`、`thread.published`、`thread.liked`、`thread.unliked`、`user.followed`。缓存失效等可重建的本地事件仍可直接使用进程内事件。
+当前可靠事件包括 `post.created`、`post.mentions.updated`、`thread.published`、`thread.liked`、`thread.unliked`、`user.followed`。缓存失效等可重建的本地事件仍可直接使用进程内事件。
 
 ## API 与类型契约
 
