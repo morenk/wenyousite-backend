@@ -1388,9 +1388,9 @@ model WalletTransaction {
   senderWallet    Wallet?       @relation("WalletTransactionSender", fields: [senderWalletId], references: [id], onDelete: Restrict)
   recipientWallet Wallet        @relation("WalletTransactionRecipient", fields: [recipientWalletId], references: [id], onDelete: Restrict)
   platformWallet  Wallet?       @relation("WalletTransactionPlatform", fields: [platformWalletId], references: [id], onDelete: Restrict)
-  targetThread    Thread?       @relation(fields: [targetThreadId], references: [id], onDelete: SetNull)
-  targetUser      User?         @relation("TipTargetUser", fields: [targetUserId], references: [id], onDelete: SetNull)
-  targetMoment    Moment?       @relation(fields: [targetMomentId], references: [id], onDelete: SetNull)
+  targetThread    Thread?       @relation(fields: [targetThreadId], references: [id], onDelete: Restrict)
+  targetUser      User?         @relation("TipTargetUser", fields: [targetUserId], references: [id], onDelete: Restrict)
+  targetMoment    Moment?       @relation(fields: [targetMomentId], references: [id], onDelete: Restrict)
   dailyCheckIn    DailyCheckIn?
 
   @@unique([senderWalletId, clientRequestId])
@@ -1411,7 +1411,7 @@ model DailyCheckIn {
   experienceAwarded   Int      @default(2) @map("experience_awarded")
   createdAt           DateTime @default(now()) @map("created_at")
 
-  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User              @relation(fields: [userId], references: [id], onDelete: Restrict)
   wallet            Wallet            @relation(fields: [walletId], references: [id], onDelete: Restrict)
   walletTransaction WalletTransaction @relation(fields: [walletTransactionId], references: [id], onDelete: Restrict)
 

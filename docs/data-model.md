@@ -138,7 +138,8 @@
 ### wallets / wallet_transactions / daily_check_ins — 温油账本
 
 - 每个用户恰有一个 `USER` 钱包；平台有一个 `PLATFORM` 钱包。金额使用 `BIGINT` 整数升，不存在小数、充值或提现。
-- `wallet_transactions` 是不可变账本，保存付款、收款和平台费以及各方交易后余额快照。打赏以付款钱包和 UUID `clientRequestId` 唯一，超时重试不会重复扣款。
+- `wallet_transactions` 与 `daily_check_ins` 只允许追加；数据库触发器拒绝修改、删除和截断，历史目标采用限制删除外键，目标软删除不会改变账本。类型 CHECK 固定签到/打赏字段形状，并禁止负数余额或累计快照。
+- 延迟约束触发器在事务提交时核对签到事实与钱包流水的用户、钱包、日期和金额，同时校验打赏三方钱包角色、收款人与目标归属。打赏以付款钱包和 UUID `clientRequestId` 唯一，超时重试不会重复扣款。
 - 主题帖/用户打赏按用户投入总额计公开统计；收款人实际入账为 `floor(gross * 85 / 100)`，余数进入平台钱包。
 - `daily_check_ins` 以用户和北京时间日期唯一，每日随机领取 1～3 升温油并获得 2 经验。
 

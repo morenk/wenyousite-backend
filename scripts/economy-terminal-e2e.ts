@@ -50,6 +50,15 @@ function assertEqual<T>(actual: T, expected: T, message: string) {
   }
 }
 
+async function expectDatabaseFailure(action: () => Promise<unknown>, message: string) {
+  try {
+    await action();
+  } catch {
+    return;
+  }
+  throw new Error(`${message}: 数据库意外接受了非法写入`);
+}
+
 function readEnvValue(source: string, key: string) {
   const match = source.match(new RegExp(`^${key}=(.*)$`, 'm'));
   return match?.[1]?.trim().replace(/^['"]|['"]$/g, '');
@@ -482,6 +491,204 @@ async function verifyTipJourney(
   return { sender, recipient };
 }
 
+async function verifyLedgerDatabaseGuards(prisma: PrismaService, jwt: JwtService) {
+  const checkIn = await prisma.dailyCheckIn.findFirstOrThrow({
+    include: { walletTransaction: true },
+  });
+  const threadTip = await prisma.walletTransaction.findFirstOrThrow({
+    where: { type: 'TIP', targetType: 'THREAD' },
+  });
+
+  await expectDatabaseFailure(
+    () =>
+      prisma.walletTransaction.update({
+        where: { id: checkIn.walletTransactionId },
+        data: { recipientBalanceAfter: { increment: 1n } },
+      }),
+    '钱包流水 UPDATE 应被 append-only 触发器拒绝',
+  );
+  await expectDatabaseFailure(
+    () => prisma.walletTransaction.delete({ where: { id: checkIn.walletTransactionId } }),
+    '钱包流水 DELETE 应被 append-only 触发器拒绝',
+  );
+  await expectDatabaseFailure(
+    () =>
+      prisma.dailyCheckIn.update({
+        where: { id: checkIn.id },
+        data: { rewardAmount: { increment: 1n } },
+      }),
+    '签到事实 UPDATE 应被 append-only 触发器拒绝',
+  );
+  await expectDatabaseFailure(
+    () => prisma.dailyCheckIn.delete({ where: { id: checkIn.id } }),
+    '签到事实 DELETE 应被 append-only 触发器拒绝',
+  );
+  await expectDatabaseFailure(
+    () => prisma.$executeRawUnsafe('TRUNCATE TABLE "daily_check_ins"'),
+    '签到事实 TRUNCATE 应被 append-only 触发器拒绝',
+  );
+
+  await expectDatabaseFailure(
+    () =>
+      prisma.walletTransaction.create({
+        data: {
+          type: 'DAILY_CHECK_IN',
+          senderWalletId: checkIn.walletId,
+          recipientWalletId: checkIn.walletId,
+          grossAmount: 1n,
+          recipientAmount: 1n,
+          recipientBalanceAfter: 1n,
+          dateKey: '2099-01-01',
+        },
+      }),
+    '签到流水不得携带付款钱包',
+  );
+  await expectDatabaseFailure(
+    () =>
+      prisma.walletTransaction.create({
+        data: {
+          type: 'TIP',
+          senderWalletId: threadTip.senderWalletId!,
+          recipientWalletId: threadTip.recipientWalletId,
+          platformWalletId: threadTip.platformWalletId!,
+          targetType: 'THREAD',
+          targetUserId: threadTip.targetUserId!,
+          grossAmount: 2n,
+          recipientAmount: 1n,
+          platformAmount: 1n,
+          senderBalanceAfter: 0n,
+          recipientBalanceAfter: 1n,
+          platformBalanceAfter: 1n,
+          recipientTipTotalAfter: 2n,
+          recipientTipCountAfter: 1,
+          clientRequestId: randomUUID(),
+          requestHash: 'invalid-target-shape',
+        },
+      }),
+    '主题打赏必须且只能携带主题目标与累计快照',
+  );
+  await expectDatabaseFailure(
+    () =>
+      prisma.walletTransaction.create({
+        data: {
+          type: 'DAILY_CHECK_IN',
+          recipientWalletId: checkIn.walletId,
+          grossAmount: 1n,
+          recipientAmount: 1n,
+          recipientBalanceAfter: -1n,
+          dateKey: '2099-01-02',
+        },
+      }),
+    '钱包流水不得保存负数余额快照',
+  );
+  await expectDatabaseFailure(
+    () =>
+      prisma.walletTransaction.create({
+        data: {
+          type: 'DAILY_CHECK_IN',
+          recipientWalletId: checkIn.walletId,
+          grossAmount: 1n,
+          recipientAmount: 1n,
+          recipientBalanceAfter: 1n,
+          dateKey: '2099-01-03',
+        },
+      }),
+    '签到流水必须在同一事务中关联一条签到事实',
+  );
+
+  const mismatchUser = await createTestUser(prisma, jwt, 'guard-check-in');
+  await expectDatabaseFailure(
+    () =>
+      prisma.$transaction(async (tx) => {
+        const transaction = await tx.walletTransaction.create({
+          data: {
+            type: 'DAILY_CHECK_IN',
+            recipientWalletId: mismatchUser.walletId,
+            grossAmount: 1n,
+            recipientAmount: 1n,
+            recipientBalanceAfter: 1n,
+            dateKey: '2099-02-01',
+          },
+        });
+        await tx.dailyCheckIn.create({
+          data: {
+            userId: mismatchUser.id,
+            walletId: mismatchUser.walletId,
+            walletTransactionId: transaction.id,
+            dateKey: '2099-02-02',
+            rewardAmount: 1n,
+          },
+        });
+      }),
+    '签到事实的日期必须与对应流水一致',
+  );
+
+  const wrongPlatform = await createTestUser(prisma, jwt, 'guard-platform');
+  await expectDatabaseFailure(
+    () =>
+      prisma.walletTransaction.create({
+        data: {
+          type: 'TIP',
+          senderWalletId: threadTip.senderWalletId!,
+          recipientWalletId: threadTip.recipientWalletId,
+          platformWalletId: wrongPlatform.walletId,
+          targetType: 'USER',
+          targetUserId: threadTip.targetUserId!,
+          grossAmount: 2n,
+          recipientAmount: 1n,
+          platformAmount: 1n,
+          senderBalanceAfter: 0n,
+          recipientBalanceAfter: 1n,
+          platformBalanceAfter: 1n,
+          recipientTipTotalAfter: 2n,
+          recipientTipCountAfter: 1,
+          clientRequestId: randomUUID(),
+          requestHash: 'wrong-platform-kind',
+        },
+    }),
+    '打赏平台方必须是平台钱包',
+  );
+  await expectDatabaseFailure(
+    () =>
+      prisma.walletTransaction.create({
+        data: {
+          type: 'TIP',
+          senderWalletId: threadTip.senderWalletId!,
+          recipientWalletId: threadTip.recipientWalletId,
+          platformWalletId: threadTip.platformWalletId!,
+          targetType: 'USER',
+          targetUserId: wrongPlatform.id,
+          grossAmount: 2n,
+          recipientAmount: 1n,
+          platformAmount: 1n,
+          senderBalanceAfter: 0n,
+          recipientBalanceAfter: 1n,
+          platformBalanceAfter: 1n,
+          recipientTipTotalAfter: 2n,
+          recipientTipCountAfter: 1,
+          clientRequestId: randomUUID(),
+          requestHash: 'wrong-recipient-owner',
+        },
+      }),
+    '打赏目标用户必须拥有收款钱包',
+  );
+
+  await prisma.thread.update({
+    where: { id: threadTip.targetThreadId! },
+    data: { deletedAt: new Date() },
+  });
+  await expectDatabaseFailure(
+    () => prisma.thread.delete({ where: { id: threadTip.targetThreadId! } }),
+    '被历史流水引用的主题不得硬删除',
+  );
+  assertEqual(
+    (await prisma.walletTransaction.findUniqueOrThrow({ where: { id: threadTip.id } }))
+      .targetThreadId,
+    threadTip.targetThreadId,
+    '主题软删除后流水目标 ID 应保持不变',
+  );
+}
+
 async function verifyHttpBoundaries(
   server: FastifyInstance,
   prisma: PrismaService,
@@ -574,6 +781,7 @@ async function verifyRuntime(databaseUrl: string) {
     const checker = await verifyCheckInJourney(server, prisma, jwt);
     await verifyCheckInRollback(prisma);
     await verifyTipJourney(server, prisma, jwt, checker);
+    await verifyLedgerDatabaseGuards(prisma, jwt);
   } finally {
     await app.close();
     await prisma.$disconnect().catch(() => undefined);
