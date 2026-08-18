@@ -55,7 +55,7 @@ if [ "$DEPLOYED_BUILD_SHA" != "$BACKEND_BUILD_SHA" ]; then
   exit 1
 fi
 
-echo "5. 切换前端宿主机进程..."
+echo "5. 通过 systemd 切换前端..."
 (cd "$FRONTEND_DIR" && bash scripts/deploy-standalone.sh)
 
 echo "6. 验证公网入口..."
