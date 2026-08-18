@@ -20,9 +20,32 @@ const mockPrisma = {
   },
   user: { findUnique: jest.fn() },
   thread: { findUnique: jest.fn() },
-  threadMember: { findUnique: jest.fn() },
+  threadMember: { findUnique: jest.fn(), groupBy: jest.fn() },
   $transaction: jest.fn(),
 };
+
+const threadCardRow = (id: string, content = '', visibility: 'PUBLIC' | 'PRIVATE' = 'PUBLIC') => ({
+  id,
+  title: `主题 ${id}`,
+  category: 'MYSTERY',
+  status: 'RECRUITING',
+  visibility,
+  published: true,
+  pinned: false,
+  tipTotal: 0n,
+  createdAt: new Date('2026-08-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-08-02T00:00:00.000Z'),
+  deletedAt: null,
+  owner: { id: 'u2', username: 'morenk', avatar: null, level: 2, deletedAt: null },
+  defaultSubthread: {
+    id: `sub-${id}`,
+    title: '主贴',
+    lastPostAt: null,
+    posts: content ? [{ content }] : [],
+  },
+  topicTags: [{ tag: { id: 'tag-1', name: '推理' } }],
+  _count: { members: 1, posts: 2 },
+});
 
 describe('BookmarksService', () => {
   let service: BookmarksService;
@@ -36,6 +59,7 @@ describe('BookmarksService', () => {
     mockPrisma.$transaction.mockImplementation((fn: (tx: typeof mockPrisma) => unknown) =>
       fn(mockPrisma),
     );
+    mockPrisma.threadMember.groupBy.mockResolvedValue([]);
     mockPrisma.bookmarkFolder.upsert.mockResolvedValue({
       id: 'cfolderdefault000000000001',
       userId: 'u1',
@@ -49,21 +73,30 @@ describe('BookmarksService', () => {
       id: 'bm1',
       userId: 'u1',
       threadId: 't1',
+      folderId: 'folder-1',
       createdAt: new Date(),
       thread: {
-        id: 't1',
+        ...threadCardRow('t1', '收藏正文\n![封面](https://cdn.example.com/bookmark-cover.jpg)'),
         title: '收藏帖',
-        deletedAt: null,
-        owner: { id: 'u2', username: 'morenk', avatar: null },
-        _count: { members: 1, posts: 2 },
       },
     };
     mockPrisma.userBookmark.findMany.mockResolvedValue([bookmark]);
+    mockPrisma.threadMember.groupBy.mockResolvedValue([{ threadId: 't1', _count: 3 }]);
 
     const result = await service.findAll('u1');
 
     expect(result.items[0]).toMatchObject({ id: 't1', title: '收藏帖' });
-    expect(result.items[0]).toEqual(expect.objectContaining({ bookmarkId: 'bm1' }));
+    expect(result.items[0]).toEqual(
+      expect.objectContaining({
+        bookmarkId: 'bm1',
+        bookmarkFolderId: 'folder-1',
+        preview: '收藏正文',
+        coverImages: ['https://cdn.example.com/bookmark-cover.jpg'],
+        defaultSubthread: { id: 'sub-t1', title: '主贴', lastPostAt: null },
+        topicTags: [{ tag: { id: 'tag-1', name: '推理' } }],
+        _count: { members: 1, posts: 2, players: 3 },
+      }),
+    );
     expect(mockPrisma.userBookmark.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
@@ -87,8 +120,8 @@ describe('BookmarksService', () => {
 
   it('findAll 使用收藏 ID 作为分页游标且限制最大页长', async () => {
     mockPrisma.userBookmark.findMany.mockResolvedValue([
-      { id: 'bm1', thread: { id: 'thread-1', deletedAt: null } },
-      { id: 'bm2', thread: { id: 'thread-2', deletedAt: null } },
+      { id: 'bm1', folderId: 'folder-1', thread: threadCardRow('thread-1') },
+      { id: 'bm2', folderId: 'folder-1', thread: threadCardRow('thread-2') },
     ]);
 
     const result = await service.findAll('u1', 'bm-before', 100);
@@ -106,8 +139,8 @@ describe('BookmarksService', () => {
 
   it('findAll 多取一条判断下一页并移除探测记录', async () => {
     mockPrisma.userBookmark.findMany.mockResolvedValue([
-      { id: 'bm1', thread: { id: 'thread-1', deletedAt: null } },
-      { id: 'bm2', thread: { id: 'thread-2', deletedAt: null } },
+      { id: 'bm1', folderId: 'folder-1', thread: threadCardRow('thread-1') },
+      { id: 'bm2', folderId: 'folder-1', thread: threadCardRow('thread-2') },
     ]);
 
     const result = await service.findAll('u1', undefined, 1);
@@ -217,13 +250,26 @@ describe('BookmarksService', () => {
       deletedAt: null,
     });
     mockPrisma.userBookmark.findMany.mockResolvedValue([
-      { id: 'bookmark-1', thread: { id: 'thread-1' } },
-      { id: 'bookmark-2', thread: { id: 'thread-2' } },
+      {
+        id: 'bookmark-1',
+        thread: threadCardRow(
+          'thread-1',
+          '公开收藏正文\n![封面](https://cdn.example.com/public-cover.jpg)',
+        ),
+      },
+      { id: 'bookmark-2', thread: threadCardRow('thread-2') },
     ]);
 
     const result = await service.findByUserId('target', 'target', undefined, 1);
 
-    expect(result.items).toEqual([{ id: 'thread-1' }]);
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        id: 'thread-1',
+        preview: '公开收藏正文',
+        coverImages: ['https://cdn.example.com/public-cover.jpg'],
+      }),
+    ]);
+    expect(result.items[0]).not.toHaveProperty('bookmarkId');
     expect(result.pagination).toEqual({ cursor: 'bookmark-1', hasMore: true });
   });
 

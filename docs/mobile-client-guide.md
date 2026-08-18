@@ -93,6 +93,8 @@ OpenAPI 为兼容 Web 把该头标为 optional；省略或传未知值会创建 
 
 用户公开资料的 `accountStatus` 只用于显示“暂时封禁 / 永久封禁”，客户端不得推算或展示处罚截止时间。主题帖快捷收藏继续只传 `threadId` 即可进入默认收藏夹；支持分类管理的客户端再读取 `/bookmarks/folders`、传可选 `folderId` 并使用 `PATCH /bookmarks/:id` 移动，收藏夹名称只在本人界面展示。
 
+合同 `5.1.0-dev.20260817.1` 起，首页、主题帖搜索、收藏及用户主页创建/参与列表都携带同一完整主题帖卡片字段。Windows 开发环境同步 OpenAPI 并重新生成 SDK 后，应让这些入口复用首页卡片 mapper；搜索的 `relevance` 与本人收藏的 `bookmarkId` / `bookmarkFolderId` 仍作为场景附加字段处理。旧客户端可继续忽略新增字段。
+
 ## 媒体、Markdown、动态与温油
 
 - 上传遵循“预签名 PUT → `upload-done` → 查询状态”；仅在 `COMPLETED` 后使用衍生图，列表优先 `thumbnailUrl`，详情优先 `mediumUrl`，为空或失败时回退 `url`。不得猜测对象键。

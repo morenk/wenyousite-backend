@@ -4,15 +4,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { PaginatedResult, paginate } from '../common/dto/paginated-result';
-import { publicUserSummarySelect } from '../common/user-summary';
 import { publishedThreadVisibilityWhere } from '../access/thread-visibility.where';
+import { attachPlayerCounts } from '../common/prisma-helpers';
+import { mapThreadListCard, threadListCardInclude } from '../threads/thread-list-card';
 
-const bookmarkThreadInclude = {
-  owner: { select: publicUserSummarySelect },
-  _count: { select: { members: true, posts: true } },
-} satisfies Prisma.ThreadInclude;
-
-type BookmarkThread = Prisma.ThreadGetPayload<{ include: typeof bookmarkThreadInclude }>;
+type BookmarkThread = ReturnType<typeof mapThreadListCard>;
 type OwnBookmarkThread = BookmarkThread & { bookmarkId: string; bookmarkFolderId: string };
 
 export const DEFAULT_BOOKMARK_FOLDER_NAME = '默认收藏夹';
@@ -43,17 +39,21 @@ export class BookmarksService {
       skip: cursor ? 1 : 0,
       include: {
         thread: {
-          include: bookmarkThreadInclude,
+          include: threadListCardInclude,
         },
       },
     });
 
     const hasMore = bookmarks.length > take;
     if (hasMore) bookmarks.pop();
+    await attachPlayerCounts(
+      this.prisma,
+      bookmarks.map((bookmark) => bookmark.thread),
+    );
 
     return paginate(
       bookmarks.map((b) => ({
-        ...b.thread,
+        ...mapThreadListCard(b.thread),
         bookmarkId: b.id,
         bookmarkFolderId: b.folderId,
       })),
@@ -133,16 +133,20 @@ export class BookmarksService {
       skip: cursor ? 1 : 0,
       include: {
         thread: {
-          include: bookmarkThreadInclude,
+          include: threadListCardInclude,
         },
       },
     });
 
     const hasMore = bookmarks.length > take;
     if (hasMore) bookmarks.pop();
+    await attachPlayerCounts(
+      this.prisma,
+      bookmarks.map((bookmark) => bookmark.thread),
+    );
 
     return paginate(
-      bookmarks.map((b) => b.thread),
+      bookmarks.map((b) => mapThreadListCard(b.thread)),
       { cursor: bookmarks.at(-1)?.id ?? null, hasMore },
     );
   }

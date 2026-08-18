@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "5.0.0-dev.20260816.1",
+  "contractVersion": "5.1.0-dev.20260817.1",
   "counts": {
     "total": 201,
     "v1": 95,

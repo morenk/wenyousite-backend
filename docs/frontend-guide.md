@@ -8,13 +8,13 @@
 
 ## 1. 基础约定
 
-| 项目 | 值 |
-|------|-----|
-| API 前缀 | `/api/v1` |
-| 开发环境 | `http://localhost:3000/api/v1` |
-| 生产环境 | `https://wenyou.site/api/v1` |
+| 项目     | 值                               |
+| -------- | -------------------------------- |
+| API 前缀 | `/api/v1`                        |
+| 开发环境 | `http://localhost:3000/api/v1`   |
+| 生产环境 | `https://wenyou.site/api/v1`     |
 | 请求格式 | `Content-Type: application/json` |
-| 字符编码 | UTF-8 |
+| 字符编码 | UTF-8                            |
 
 ### 1.1 统一响应格式
 
@@ -23,11 +23,13 @@
 Swagger `/api/docs-json` 同样输出这一真实 envelope，可直接用于 Web/Flutter 客户端生成；生成模型中的业务对象位于 `data`，分页信息位于 `meta`。
 
 **成功（单对象）**
+
 ```json
 { "code": 0, "message": "ok", "data": { ... } }
 ```
 
 **分页成功**
+
 ```json
 {
   "code": 0, "message": "ok",
@@ -37,11 +39,13 @@ Swagger `/api/docs-json` 同样输出这一真实 envelope，可直接用于 Web
 ```
 
 **业务异常**
+
 ```json
 { "code": 40001, "message": "请在子贴中至少撰写一个楼层后再发布", "data": null }
 ```
 
 **校验失败**
+
 ```json
 { "code": 40000, "message": "title must be shorter than or equal to 100 characters", "data": null }
 ```
@@ -66,10 +70,10 @@ Swagger `/api/docs-json` 同样输出这一真实 envelope，可直接用于 Web
 
 ### 2.2 Token 说明
 
-| Token | 有效期 | 存储方式 | 用途 |
-|-------|--------|----------|------|
-| `accessToken` | 15 分钟 | Web：仅内存；Flutter：系统安全存储 | 请求时放 `Authorization: Bearer <token>` |
-| `refreshToken` | web 7 天 / mobile 30 天 | Web：仅 httpOnly Cookie；Flutter：Keychain/Keystore 安全存储 | 刷新 accessToken |
+| Token          | 有效期                  | 存储方式                                                     | 用途                                     |
+| -------------- | ----------------------- | ------------------------------------------------------------ | ---------------------------------------- |
+| `accessToken`  | 15 分钟                 | Web：仅内存；Flutter：系统安全存储                           | 请求时放 `Authorization: Bearer <token>` |
+| `refreshToken` | web 7 天 / mobile 30 天 | Web：仅 httpOnly Cookie；Flutter：Keychain/Keystore 安全存储 | 刷新 accessToken                         |
 
 **双端登录**：每个账号最多一个 Web 登录终端和一个原生移动端登录终端。PC 与手机浏览器均属 Web 端；同端再次登录会替换旧终端。Web 的 refresh 和 logout 自动从 Cookie 读取 refreshToken，RequestBody 仅作兼容备选。
 
@@ -84,9 +88,11 @@ X-Client-Platform: web
 ```
 
 **成功响应 (200)**：
+
 ```json
 {
-  "code": 0, "message": "ok",
+  "code": 0,
+  "message": "ok",
   "data": {
     "accessToken": "eyJhbGciOiJIUzI1NiIs...",
     "user": {
@@ -119,10 +125,10 @@ Web 成功响应只返回新的 access token 与 user，新 refresh token 通过
 
 ### 3.1 请求
 
-| 参数 | 类型 | 说明 |
-|------|------|------|
+| 参数     | 类型   | 说明                                                       |
+| -------- | ------ | ---------------------------------------------------------- |
 | `cursor` | string | 上一页响应的 `meta.cursor`。**首次请求不传，后续原样回传** |
-| `limit` | number | 每页条数，默认 20，最大 50 |
+| `limit`  | number | 每页条数，默认 20，最大 50                                 |
 
 ### 3.2 响应
 
@@ -195,6 +201,7 @@ GET /threads?tagId=:id&sort=recommended&limit=20
 ```
 
 **创建草稿请求**：
+
 ```json
 {
   "title": "我的主题帖",
@@ -205,6 +212,7 @@ GET /threads?tagId=:id&sort=recommended&limit=20
 ```
 
 **创建子贴（含正文）请求**：
+
 ```json
 {
   "title": "设定区",
@@ -214,6 +222,7 @@ GET /threads?tagId=:id&sort=recommended&limit=20
 ```
 
 **发布请求**：
+
 ```json
 {
   "published": true,
@@ -230,6 +239,7 @@ GET /subthreads/:id/posts?limit=20&order=OLDEST
 `order` 可选 `OLDEST | NEWEST`，默认 `OLDEST`；它属于游标分页条件，切换顺序时客户端必须从第一页重新读取。该参数只改变主楼层的 `floorNumber` 顺序，每层内嵌的最早 5 条楼中楼回复仍保持正序。
 
 每个楼层对象包含：
+
 - 楼层基础字段（floorNumber、content、author、createdAt）
 - `_count.replies`：该楼层总的楼中楼回复数
 - `replies`：前 5 条楼中楼回复的内嵌数组（含 author / replyToPost）
@@ -251,11 +261,12 @@ POST /subthreads/:id/posts         // 发楼中楼回复
 ```
 
 **发楼中楼回复**：
+
 ```json
 {
   "content": "回复内容...",
-  "parentPostId": "clxfloor001...",      // 回复哪个楼层（必填）
-  "replyToPostId": "clxreply003..."      // 回复哪条具体回复（可选，追踪用）
+  "parentPostId": "clxfloor001...", // 回复哪个楼层（必填）
+  "replyToPostId": "clxreply003..." // 回复哪条具体回复（可选，追踪用）
 }
 ```
 
@@ -283,6 +294,8 @@ POST   /threads/join-by-link/:token   通过 16 位 token 幂等加入私密帖
 私密帖 `visibility=PRIVATE` 不在公开列表/搜索中出现。非成员访问详情返回 404。
 
 用户主页 `GET /users/:id/played-threads`：仅返回用户已被授予玩家身份（`playerMarked=true`）的非自建帖子，回复生成的普通成员关系不计入；本人可用 `visibility=PUBLIC|PRIVATE` 分类，查看他人时只返回 PUBLIC 帖。
+
+首页、主题帖搜索、主题帖收藏和用户主页的创建/参与列表共享完整主题帖卡片字段：`defaultSubthread`、`topicTags`、`preview`、`coverImages`、`_count.members/players/posts`。搜索可额外带 `relevance`，本人的收藏管理列表额外带 `bookmarkId` / `bookmarkFolderId`；客户端应复用同一列表卡片模型，不按页面维护较窄副本。公开用户收藏不返回私有收藏元数据。
 
 用户主页概览使用 `GET /users/:id/activity-summary` 获取精确创作统计：`momentCount`、`createdThreadCount`、`playedThreadCount`、`replyCount`。后两项受现有资料隐私控制，查看者无权时为 `null`，客户端应显示“未公开”而不是当作 0；不要为了统计提前拉取并遍历分页列表。
 
@@ -382,6 +395,7 @@ DELETE /users/me/block/:id    取消拉黑
 ```
 
 **拉黑规则**：
+
 - 拉黑者的帖子对被拉黑者不可见
 - 被拉黑者的帖子对拉黑者不可见
 - 双向不发送通知
@@ -414,9 +428,9 @@ DELETE /users/me/block/:id    取消拉黑
 ```json
 // PATCH /users/me
 {
-  "showRecentReplies": false,   // 隐藏我的最近回复
-  "showPlayerBadges": false,    // 隐藏玩家标记
-  "showBookmarks": false        // 隐藏收藏/订阅
+  "showRecentReplies": false, // 隐藏我的最近回复
+  "showPlayerBadges": false, // 隐藏玩家标记
+  "showBookmarks": false // 隐藏收藏/订阅
 }
 ```
 
@@ -434,6 +448,7 @@ GET /threads/:threadId/search/posts?q=关键词&cursor=&limit=20
 ```
 
 返回：
+
 ```json
 {
   "code": 0,
@@ -469,7 +484,7 @@ Web 与 Flutter 都应从仓库内已审核的 `contracts/openapi.json` 生成�
 
 ## 12. 废弃/搁置的功能
 
-| 模块 | 状态 | 说明 |
-|------|------|------|
-| Reports | 后端就绪 | 类型化举报、管理员队列和原子结案已提供，客户端尚未接入 |
-| Admin | 后端就绪 | 权限、处罚、内容处置、审计和数据看板已提供，客户端尚未接入 |
+| 模块    | 状态     | 说明                                                       |
+| ------- | -------- | ---------------------------------------------------------- |
+| Reports | 后端就绪 | 类型化举报、管理员队列和原子结案已提供，客户端尚未接入     |
+| Admin   | 后端就绪 | 权限、处罚、内容处置、审计和数据看板已提供，客户端尚未接入 |

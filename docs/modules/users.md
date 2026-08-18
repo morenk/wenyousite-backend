@@ -12,7 +12,7 @@
 | `UserFollow`   | 关注关系（followerId → followingId，联合唯一） |
 | `UserBlock`    | 拉黑关系（blockerId → blockedId，联合唯一）    |
 | `UserBookmark` | 用户收藏关系（userId → threadId，联合唯一）    |
-| `Media`        | 个人主页 3:1 背景图（User 可空一对一引用）    |
+| `Media`        | 个人主页 3:1 背景图（User 可空一对一引用）     |
 
 | 枚举       | 值                       |
 | ---------- | ------------------------ |
@@ -20,57 +20,57 @@
 
 ## API 端点
 
-| Method | Path                         | Guard        | 描述                                                                                                                                                         |
-| ------ | ---------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| GET    | `/users/search?q=`           | AuthRead     | 搜索用户（@提及用），按用户名模糊匹配                                                                                                                        |
-| GET    | `/users/me`                  | AuthRead     | 获取当前登录用户的完整资料（含邮箱、隐私设置、社交统计）                                                                                                     |
-| PATCH  | `/users/me`                  | Auth         | 修改当前用户资料（用户名、Bio、隐私设置），5次/分钟限流                                                                                                      |
-| PATCH  | `/users/me/avatar`           | Auth         | 设置头像（传入 mediaId，校验归属 + 状态 COMPLETED）                                                                                                           |
-| DELETE | `/users/me/avatar`           | Auth         | 移除头像（置空 `user.avatar`，回到首字母占位）                                                                                                                |
-| PATCH  | `/users/me/profile-cover`    | Auth         | 设置个人主页双画幅背景图（`mediaId` 为 Web 3:1，`mobileMediaId` 为移动端 2:1）                                                                               |
-| DELETE | `/users/me/profile-cover`    | Auth         | 同时移除两端个人主页背景图并恢复客户端默认背景                                                                                                               |
-| DELETE | `/users/me`                  | Auth         | 注销当前账号（软删除，设置 deletedAt）                                                                                                                       |
-| GET    | `/users/:id`                 | OptionalAuth | 获取指定用户的公开资料（不含邮箱）。登录后额外返回 isFollowing / isFollowedBy / isBlocked / isBlockedBy                                                      |
-| GET    | `/users/:id/bookmarks`       | OptionalAuth | 查看用户的公开收藏，Cursor 分页。受 showBookmarks 控制                                                                                                       |
-| GET    | `/users/:id/played-threads`  | OptionalAuth | 查看用户获得玩家身份的非自建主题帖，支持 `visibility=PUBLIC\|PRIVATE` 分类和 Cursor 分页。本人可见公开帖和私密帖；他人仅见公开帖，并受 showPlayerBadges 控制 |
-| GET    | `/users/:id/created-threads` | OptionalAuth | 查看用户创建的主题帖（本人可见全部含私密帖，他人仅见 PUBLIC 已发布帖），按创建时间倒序，Cursor 分页                                                          |
-| GET    | `/users/:id/activity-summary` | OptionalAuth | 用户主页创作汇总：动态、创建主题、玩家身份参与主题、回复总数；遵守拉黑、内容可见性与资料隐私                                                        |
-| GET    | `/users/:id/recent-replies`  | OptionalAuth | 查看用户最近 10 条回复（仅 PUBLIC 帖）。受 showRecentReplies 控制                                                                                            |
-| POST   | `/users/follow/:id`          | Auth         | 关注指定用户                                                                                                                                                 |
-| DELETE | `/users/follow/:id`          | Auth         | 取消关注                                                                                                                                                     |
-| GET    | `/users/following`           | AuthRead     | 我的关注列表                                                                                                                                                 |
-| GET    | `/users/followers`           | AuthRead     | 我的粉丝列表                                                                                                                                                 |
-| GET    | `/users/:id/following`       | OptionalAuth | 指定用户的关注列表（公开，用户不存在返回 404）                                                                                                               |
-| GET    | `/users/:id/followers`       | OptionalAuth | 指定用户的粉丝列表（公开，用户不存在返回 404）                                                                                                               |
-| POST   | `/users/me/block/:id`        | Auth         | 拉黑指定用户                                                                                                                                                 |
-| DELETE | `/users/me/block/:id`        | Auth         | 取消拉黑                                                                                                                                                     |
-| GET    | `/users/me/blocks`           | AuthRead     | 我的黑名单                                                                                                                                                   |
+| Method | Path                          | Guard        | 描述                                                                                                                                                         |
+| ------ | ----------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GET    | `/users/search?q=`            | AuthRead     | 搜索用户（@提及用），按用户名模糊匹配                                                                                                                        |
+| GET    | `/users/me`                   | AuthRead     | 获取当前登录用户的完整资料（含邮箱、隐私设置、社交统计）                                                                                                     |
+| PATCH  | `/users/me`                   | Auth         | 修改当前用户资料（用户名、Bio、隐私设置），5次/分钟限流                                                                                                      |
+| PATCH  | `/users/me/avatar`            | Auth         | 设置头像（传入 mediaId，校验归属 + 状态 COMPLETED）                                                                                                          |
+| DELETE | `/users/me/avatar`            | Auth         | 移除头像（置空 `user.avatar`，回到首字母占位）                                                                                                               |
+| PATCH  | `/users/me/profile-cover`     | Auth         | 设置个人主页双画幅背景图（`mediaId` 为 Web 3:1，`mobileMediaId` 为移动端 2:1）                                                                               |
+| DELETE | `/users/me/profile-cover`     | Auth         | 同时移除两端个人主页背景图并恢复客户端默认背景                                                                                                               |
+| DELETE | `/users/me`                   | Auth         | 注销当前账号（软删除，设置 deletedAt）                                                                                                                       |
+| GET    | `/users/:id`                  | OptionalAuth | 获取指定用户的公开资料（不含邮箱）。登录后额外返回 isFollowing / isFollowedBy / isBlocked / isBlockedBy                                                      |
+| GET    | `/users/:id/bookmarks`        | OptionalAuth | 查看用户的公开收藏，Cursor 分页。受 showBookmarks 控制                                                                                                       |
+| GET    | `/users/:id/played-threads`   | OptionalAuth | 查看用户获得玩家身份的非自建主题帖，支持 `visibility=PUBLIC\|PRIVATE` 分类和 Cursor 分页。本人可见公开帖和私密帖；他人仅见公开帖，并受 showPlayerBadges 控制 |
+| GET    | `/users/:id/created-threads`  | OptionalAuth | 查看用户创建的主题帖（本人可见全部含私密帖，他人仅见 PUBLIC 已发布帖），按创建时间倒序，Cursor 分页                                                          |
+| GET    | `/users/:id/activity-summary` | OptionalAuth | 用户主页创作汇总：动态、创建主题、玩家身份参与主题、回复总数；遵守拉黑、内容可见性与资料隐私                                                                 |
+| GET    | `/users/:id/recent-replies`   | OptionalAuth | 查看用户最近 10 条回复（仅 PUBLIC 帖）。受 showRecentReplies 控制                                                                                            |
+| POST   | `/users/follow/:id`           | Auth         | 关注指定用户                                                                                                                                                 |
+| DELETE | `/users/follow/:id`           | Auth         | 取消关注                                                                                                                                                     |
+| GET    | `/users/following`            | AuthRead     | 我的关注列表                                                                                                                                                 |
+| GET    | `/users/followers`            | AuthRead     | 我的粉丝列表                                                                                                                                                 |
+| GET    | `/users/:id/following`        | OptionalAuth | 指定用户的关注列表（公开，用户不存在返回 404）                                                                                                               |
+| GET    | `/users/:id/followers`        | OptionalAuth | 指定用户的粉丝列表（公开，用户不存在返回 404）                                                                                                               |
+| POST   | `/users/me/block/:id`         | Auth         | 拉黑指定用户                                                                                                                                                 |
+| DELETE | `/users/me/block/:id`         | Auth         | 取消拉黑                                                                                                                                                     |
+| GET    | `/users/me/blocks`            | AuthRead     | 我的黑名单                                                                                                                                                   |
 
 ## 资料接口返回字段对照
 
-| 字段                | `GET /users/me` (本人) | `GET /users/:id` (他人) | 说明                         |
-| ------------------- | ---------------------- | ----------------------- | ---------------------------- |
-| `id`                | ✓                      | ✓                       | 用户唯一标识                 |
-| `username`          | ✓                      | ✓                       | 用户名                       |
-| `avatar`            | ✓                      | ✓                       | 头像 URL                     |
-| `profileCover`      | ✓                      | ✓                       | 可空背景图（根级 Web 3:1 + 可空 `mobile` 2:1） |
-| `bio`               | ✓                      | ✓                       | 个人简介                     |
-| `role`              | ✓                      | ✓                       | 权限角色                     |
-| `email`             | ✓                      | ✗                       | 仅本人可见                   |
-| `deletedAt`         | ✓                      | ✗                       | 注销时间，仅本人可见         |
-| `createdAt`         | ✓                      | ✓                       | 注册时间                     |
-| `updatedAt`         | ✓                      | ✗                       | 资料最后修改时间，仅本人可见 |
-| `showRecentReplies` | ✓                      | ✓                       | 隐私：是否公开最近动态       |
-| `showPlayerBadges`  | ✓                      | ✓                       | 隐私：是否公开玩家标记       |
-| `showBookmarks`     | ✓                      | ✓                       | 隐私：是否公开收藏           |
+| 字段                | `GET /users/me` (本人) | `GET /users/:id` (他人) | 说明                                            |
+| ------------------- | ---------------------- | ----------------------- | ----------------------------------------------- |
+| `id`                | ✓                      | ✓                       | 用户唯一标识                                    |
+| `username`          | ✓                      | ✓                       | 用户名                                          |
+| `avatar`            | ✓                      | ✓                       | 头像 URL                                        |
+| `profileCover`      | ✓                      | ✓                       | 可空背景图（根级 Web 3:1 + 可空 `mobile` 2:1）  |
+| `bio`               | ✓                      | ✓                       | 个人简介                                        |
+| `role`              | ✓                      | ✓                       | 权限角色                                        |
+| `email`             | ✓                      | ✗                       | 仅本人可见                                      |
+| `deletedAt`         | ✓                      | ✗                       | 注销时间，仅本人可见                            |
+| `createdAt`         | ✓                      | ✓                       | 注册时间                                        |
+| `updatedAt`         | ✓                      | ✗                       | 资料最后修改时间，仅本人可见                    |
+| `showRecentReplies` | ✓                      | ✓                       | 隐私：是否公开最近动态                          |
+| `showPlayerBadges`  | ✓                      | ✓                       | 隐私：是否公开玩家标记                          |
+| `showBookmarks`     | ✓                      | ✓                       | 隐私：是否公开收藏                              |
 | `accountStatus`     | ✗                      | ✓                       | ACTIVE / SUSPENDED / BANNED；不含截止时间或原因 |
-| `_count.following`  | ✓                      | ✓                       | 关注数                       |
-| `_count.followers`  | ✓                      | ✓                       | 粉丝数                       |
-| `isFollowing`       | —                      | ✓ (仅登录)              | 查看者是否关注了目标用户     |
-| `isFollowedBy`      | —                      | ✓ (仅登录)              | 目标用户是否关注了查看者     |
-| `isBlocked`         | —                      | ✓ (仅登录)              | 查看者是否拉黑了目标用户     |
-| `isBlockedBy`       | —                      | ✓ (仅登录)              | 目标用户是否拉黑了查看者     |
-| `isDeactivated`     | ✗                      | ✓ (仅注销)              | 是否已注销，已注销时返回     |
+| `_count.following`  | ✓                      | ✓                       | 关注数                                          |
+| `_count.followers`  | ✓                      | ✓                       | 粉丝数                                          |
+| `isFollowing`       | —                      | ✓ (仅登录)              | 查看者是否关注了目标用户                        |
+| `isFollowedBy`      | —                      | ✓ (仅登录)              | 目标用户是否关注了查看者                        |
+| `isBlocked`         | —                      | ✓ (仅登录)              | 查看者是否拉黑了目标用户                        |
+| `isBlockedBy`       | —                      | ✓ (仅登录)              | 目标用户是否拉黑了查看者                        |
+| `isDeactivated`     | ✗                      | ✓ (仅注销)              | 是否已注销，已注销时返回                        |
 
 ## OptionalAuth 守卫说明
 
@@ -106,9 +106,9 @@
 - 关注成功后由 `UserRelationEventsListener` 双向过滤拉黑并发送 follow 通知；队列失败由 Outbox 退避重试
 - 拉黑使用 upsert 保证幂等，拉黑自己返回提示消息
 - 用户搜索返回最多 10 条结果，按用户名字母序排列，排除已注销用户
-- 公开收藏 (`GET /users/:id/bookmarks`)：受 `showBookmarks` 控制，关闭时返回 404；未发布帖不显示；私密帖仅对其参与人可见；本人始终可见；Cursor 分页
-- 参与帖子 (`GET /users/:id/played-threads`)：只有被帖子管理者授予玩家身份（`playerMarked=true`）才算参与，仅回复过而生成的候选成员关系不计入。列表始终排除自己创建的帖（`ownerId = targetId`），按加入时间倒序并使用 Cursor 分页。本人可用 `visibility=PUBLIC|PRIVATE` 分类查看已获玩家身份的公开帖或私密帖；他人查看时只返回 PUBLIC 帖，并受 `showPlayerBadges` 控制。非本人请求 PRIVATE 分类固定返回空列表
-- 创建帖子 (`GET /users/:id/created-threads`)：无隐私开关，由帖本身 visibility 控制——本人可见全部已发布帖（含 PRIVATE），他人仅见 PUBLIC 帖；按创建时间倒序排列；Cursor 分页
+- 公开收藏 (`GET /users/:id/bookmarks`)：受 `showBookmarks` 控制，关闭时返回 404；未发布帖不显示；私密帖仅对其参与人可见；本人始终可见；Cursor 分页。响应复用首页完整主题帖卡片，但不暴露收藏记录或收藏夹 ID
+- 参与帖子 (`GET /users/:id/played-threads`)：只有被帖子管理者授予玩家身份（`playerMarked=true`）才算参与，仅回复过而生成的候选成员关系不计入。列表始终排除自己创建的帖（`ownerId = targetId`），按加入时间倒序并使用 Cursor 分页。本人可用 `visibility=PUBLIC|PRIVATE` 分类查看已获玩家身份的公开帖或私密帖；他人查看时只返回 PUBLIC 帖，并受 `showPlayerBadges` 控制。非本人请求 PRIVATE 分类固定返回空列表。响应复用首页完整主题帖卡片
+- 创建帖子 (`GET /users/:id/created-threads`)：无隐私开关，由帖本身 visibility 控制——本人可见全部已发布帖（含 PRIVATE），他人仅见 PUBLIC 帖；按创建时间倒序排列；Cursor 分页。响应复用首页完整主题帖卡片
 - 活动汇总 (`GET /users/:id/activity-summary`)：动态数过滤删除内容与当前查看者的双向拉黑关系；创建/参与主题数与对应列表采用相同的已发布、未删除、PUBLIC/PRIVATE 范围；参与数排除自建帖。`showPlayerBadges` 或 `showRecentReplies` 对他人关闭时，对应计数返回 `null` 且不执行受保护统计；本人始终可见。
 - 最近动态 (`GET /users/:id/recent-replies`)：受 `showRecentReplies` 控制，关闭时返回 404；他人只看到 PUBLIC 帖，本人可看到自己在已发布 PUBLIC/PRIVATE 帖中的记录。仅返回 `kind=FLOOR` 的楼层/楼中楼回复，排除默认正文 `BODY`；固定返回最近 10 条不分页。每条含 `preview`（Markdown 剥离后的纯文本截断，使用 `truncateMarkdown`）和 `parentPostId`（为 null 则为楼层回复，非 null 则为楼中楼）
 

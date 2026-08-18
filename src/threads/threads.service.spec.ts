@@ -1404,10 +1404,21 @@ describe('ThreadsService', () => {
       id,
       title: id,
       category: 'RPG',
+      status: 'RECRUITING',
       published: true,
       visibility,
+      pinned: false,
+      tipTotal: 0n,
+      createdAt: new Date('2026-08-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-08-02T00:00:00.000Z'),
+      deletedAt: null,
       owner: { id: 'u1', username: 'u', avatar: null },
-      defaultSubthread: { id: `s-${id}`, title: id, lastPostAt: null },
+      defaultSubthread: {
+        id: `s-${id}`,
+        title: id,
+        lastPostAt: null,
+        posts: [{ content: `正文 ${id}\n![封面](https://cdn.example.com/${id}.jpg)` }],
+      },
       topicTags: [],
       _count: { members: 1, posts: 0 },
     });
@@ -1428,6 +1439,17 @@ describe('ThreadsService', () => {
       expect(args.where.published).toBe(true);
       expect(args.where.visibility).toBeUndefined();
       expect(page.items.map((t) => t.id)).toEqual(['t1', 't2']);
+      expect(page.items[0]).toEqual(
+        expect.objectContaining({
+          preview: '正文 t1',
+          coverImages: ['https://cdn.example.com/t1.jpg'],
+          defaultSubthread: { id: 's-t1', title: 't1', lastPostAt: null },
+          _count: { members: 1, posts: 0, players: 0 },
+        }),
+      );
+      expect(args.include).toEqual(
+        expect.objectContaining({ defaultSubthread: expect.anything() }),
+      );
     });
 
     it('他人查看仅返回 PUBLIC 已发布帖', async () => {
@@ -1458,12 +1480,49 @@ describe('ThreadsService', () => {
     });
 
     it('本人列表也只包含已被授予玩家身份的非自建帖', async () => {
-      mockPrisma.threadMember.findMany.mockResolvedValue([{ id: 'm1', thread: { id: 't1' } }]);
-      await service.findByPlayedUser('u1', 'u1');
+      mockPrisma.threadMember.findMany.mockResolvedValue([
+        {
+          id: 'm1',
+          thread: {
+            id: 't1',
+            title: '参与主题',
+            category: 'RPG',
+            status: 'RECRUITING',
+            published: true,
+            visibility: 'PRIVATE',
+            pinned: false,
+            tipTotal: 0n,
+            createdAt: new Date('2026-08-01T00:00:00.000Z'),
+            updatedAt: new Date('2026-08-02T00:00:00.000Z'),
+            deletedAt: null,
+            owner: { id: 'owner', username: '楼主', avatar: null },
+            defaultSubthread: {
+              id: 's1',
+              title: '主贴',
+              lastPostAt: null,
+              posts: [{ content: '参与正文' }],
+            },
+            topicTags: [],
+            _count: { members: 2, posts: 4 },
+          },
+        },
+      ]);
+      mockPrisma.threadMember.groupBy.mockResolvedValue([{ threadId: 't1', _count: 2 }]);
+      const page = await service.findByPlayedUser('u1', 'u1');
       const args = mockPrisma.threadMember.findMany.mock.calls[0][0];
       expect(args.where.playerMarked).toBe(true);
       expect(args.where.thread.visibility).toBeUndefined();
       expect(args.where.thread.ownerId).toEqual({ not: 'u1' });
+      expect(args.include.thread.include).toEqual(
+        expect.objectContaining({ defaultSubthread: expect.anything() }),
+      );
+      expect(page.items[0]).toEqual(
+        expect.objectContaining({
+          preview: '参与正文',
+          coverImages: [],
+          _count: { members: 2, posts: 4, players: 2 },
+        }),
+      );
     });
 
     it('本人可按私密帖分类筛选且筛选发生在分页查询前', async () => {

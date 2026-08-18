@@ -348,12 +348,7 @@ export class ThreadQueryService {
       skip: cursor ? 1 : 0,
       include: {
         thread: {
-          include: {
-            owner: { select: authorSelect },
-            defaultSubthread: { select: { id: true, title: true, lastPostAt: true } },
-            topicTags: { include: { tag: true } },
-            ...countMembersAndPosts(),
-          },
+          include: threadListCardInclude,
         },
       },
     });
@@ -363,8 +358,9 @@ export class ThreadQueryService {
 
     const playedThreads = members.map((m) => m.thread);
     await attachPlayerCounts(this.prisma, playedThreads);
+    const items = playedThreads.map(mapThreadListCard);
 
-    return paginate(playedThreads, {
+    return paginate(items, {
       cursor: members.length > 0 ? members[members.length - 1].id : null,
       hasMore,
     });
@@ -389,21 +385,17 @@ export class ThreadQueryService {
       take: take + 1,
       cursor: cursor ? { id: cursor } : undefined,
       skip: cursor ? 1 : 0,
-      include: {
-        owner: { select: authorSelect },
-        defaultSubthread: { select: { id: true, title: true, lastPostAt: true } },
-        topicTags: { include: { tag: true } },
-        ...countMembersAndPosts(),
-      },
+      include: threadListCardInclude,
     });
 
     const hasMore = threads.length > take;
     if (hasMore) threads.pop();
 
     await attachPlayerCounts(this.prisma, threads);
+    const items = threads.map(mapThreadListCard);
 
-    return paginate(threads, {
-      cursor: threads.length > 0 ? threads[threads.length - 1].id : null,
+    return paginate(items, {
+      cursor: items.length > 0 ? items[items.length - 1].id : null,
       hasMore,
     });
   }

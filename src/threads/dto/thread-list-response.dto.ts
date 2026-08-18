@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 import { PostAuthorResponseDto } from '../../posts/dto/post-response.dto';
 import { ThreadTagRelationResponseDto } from './thread-detail-response.dto';
 
@@ -70,13 +70,8 @@ export class ThreadListItemResponseDto {
   @ApiProperty({ type: ThreadListCountResponseDto })
   _count!: ThreadListCountResponseDto;
 
-  @ApiPropertyOptional({ description: '首页列表正文预览；用户活动列表可能不返回' })
-  preview?: string;
-}
-
-export class HomeThreadListItemResponseDto extends ThreadListItemResponseDto {
-  @ApiProperty({ description: '首页列表正文预览' })
-  declare preview: string;
+  @ApiProperty({ description: '默认主贴正文的纯文本预览' })
+  preview!: string;
 
   @ApiProperty({
     type: [String],
@@ -86,67 +81,19 @@ export class HomeThreadListItemResponseDto extends ThreadListItemResponseDto {
   coverImages!: string[];
 }
 
-class BookmarkThreadCountResponseDto {
-  @ApiProperty({ minimum: 0 })
-  members!: number;
+/** 保留首页专用 schema 名称；字段统一继承主题帖列表卡片契约。 */
+export class HomeThreadListItemResponseDto extends ThreadListItemResponseDto {}
 
-  @ApiProperty({ minimum: 0 })
-  posts!: number;
-}
+/** 公开收藏保留原 schema 名称，不返回私有收藏记录元数据。 */
+export class BookmarkThreadResponseDto extends ThreadListItemResponseDto {}
 
-export class BookmarkThreadResponseDto {
-  @ApiProperty()
-  id!: string;
-
-  @ApiProperty()
-  title!: string;
-
-  @ApiProperty({ type: String, nullable: true, example: 'MYSTERY', description: '动态分类 slug' })
-  category!: string | null;
-
-  @ApiProperty({ enum: ['RECRUITING', 'CLOSED', 'FINISHED'] })
-  status!: 'RECRUITING' | 'CLOSED' | 'FINISHED';
-
-  @ApiProperty({ enum: ['PUBLIC', 'PRIVATE'] })
-  visibility!: 'PUBLIC' | 'PRIVATE';
-
-  @ApiProperty()
-  published!: boolean;
-
-  @ApiProperty()
-  pinned!: boolean;
-
-  @ApiProperty({ type: String, pattern: '^\\d+$', description: '用户投入的累计打赏升数' })
-  tipTotal!: string;
-
-  @ApiProperty({ type: String, format: 'date-time' })
-  createdAt!: Date;
-
-  @ApiProperty({ type: String, format: 'date-time' })
-  updatedAt!: Date;
-
-  @ApiProperty({ type: String, format: 'date-time', nullable: true })
-  deletedAt!: Date | null;
-
-  @ApiProperty({ type: PostAuthorResponseDto })
-  owner!: PostAuthorResponseDto;
-
-  @ApiProperty({ type: BookmarkThreadCountResponseDto })
-  _count!: BookmarkThreadCountResponseDto;
-
-  @ApiPropertyOptional({ description: '查看自己的收藏时返回收藏记录 ID' })
-  bookmarkId?: string;
-
-  @ApiPropertyOptional({ description: '查看自己的收藏时返回所属收藏夹 ID' })
-  bookmarkFolderId?: string;
-}
-
-export class OwnBookmarkThreadResponseDto extends BookmarkThreadResponseDto {
+/** 本人的收藏管理列表在通用卡片之外携带可操作的收藏记录元数据。 */
+export class OwnBookmarkThreadResponseDto extends ThreadListItemResponseDto {
   @ApiProperty({ description: '收藏记录 ID' })
-  declare bookmarkId: string;
+  bookmarkId!: string;
 
   @ApiProperty({ description: '所属收藏夹 ID' })
-  declare bookmarkFolderId: string;
+  bookmarkFolderId!: string;
 }
 
 class DraftDefaultSubthreadResponseDto {

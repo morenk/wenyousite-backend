@@ -1,5 +1,11 @@
 # API 合同变更
 
+## 5.1.0-dev.20260817.1
+
+- `GET /bookmarks`、`GET /users/:id/bookmarks`、`GET /users/:id/created-threads` 与 `GET /users/:id/played-threads` 向后兼容补齐首页主题帖卡片字段：默认子贴、正文摘要、首张普通图片封面、主题标签及玩家计数。
+- 首页、主题帖搜索、收藏和用户主页列表改为复用同一主题帖查询投影与白名单 mapper；搜索继续额外返回可选 `relevance`，本人收藏继续额外返回 `bookmarkId` / `bookmarkFolderId`。
+- 动态发现、搜索、收藏和用户主页列表确认继续复用同一 `MomentCardResponseDto`；路由、权限、筛选、排序和各自的不透明游标语义均未改变。
+
 ## 5.0.0-dev.20260816.1
 
 - 破坏性删除主题帖分类的 `color` 字段：数据库列、公开与管理响应、创建/更新请求以及分类黄金夹具均不再包含该字段。

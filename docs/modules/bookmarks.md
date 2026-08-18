@@ -6,26 +6,26 @@
 
 ## 涉及的模型
 
-| 模型 | 用途 |
-|------|------|
-| `UserBookmark` | 用户收藏记录（userId + threadId 联合唯一） |
-| `BookmarkFolder` | 用户私有收藏夹；名称在账号内唯一 |
+| 模型             | 用途                                       |
+| ---------------- | ------------------------------------------ |
+| `UserBookmark`   | 用户收藏记录（userId + threadId 联合唯一） |
+| `BookmarkFolder` | 用户私有收藏夹；名称在账号内唯一           |
 
 ## API 端点
 
-| Method | Path | Guard | 描述 |
-|--------|------|-------|------|
-| GET | `/bookmarks?cursor=&limit=&folderId=` | AuthRead | 我的收藏列表；folderId 可选，不传返回全部 |
-| GET | `/bookmarks/folders` | AuthRead | 我的收藏夹分类与每夹收藏数量 |
-| POST | `/bookmarks/folders` | AuthRead | 新建收藏夹分类 |
-| POST | `/bookmarks` | AuthRead | 收藏主题帖；folderId 可选，不传进入默认夹 |
-| PATCH | `/bookmarks/:id` | AuthRead | 把一条收藏移动到自己的其他收藏夹 |
-| DELETE | `/bookmarks/:id` | AuthRead | 取消收藏（按收藏记录 ID） |
+| Method | Path                                  | Guard    | 描述                                      |
+| ------ | ------------------------------------- | -------- | ----------------------------------------- |
+| GET    | `/bookmarks?cursor=&limit=&folderId=` | AuthRead | 我的收藏列表；folderId 可选，不传返回全部 |
+| GET    | `/bookmarks/folders`                  | AuthRead | 我的收藏夹分类与每夹收藏数量              |
+| POST   | `/bookmarks/folders`                  | AuthRead | 新建收藏夹分类                            |
+| POST   | `/bookmarks`                          | AuthRead | 收藏主题帖；folderId 可选，不传进入默认夹 |
+| PATCH  | `/bookmarks/:id`                      | AuthRead | 把一条收藏移动到自己的其他收藏夹          |
+| DELETE | `/bookmarks/:id`                      | AuthRead | 取消收藏（按收藏记录 ID）                 |
 
 ## 核心业务规则
 
 - 收藏列表仅返回当前用户仍可访问的已发布收藏：公开帖，或当前用户仍是成员的私密帖；按收藏时间倒序排列
-- `GET /bookmarks` 每条返回 `{ ...thread, bookmarkId, bookmarkFolderId }`；不传 `folderId` 保持历史“全部收藏”语义
+- `GET /bookmarks` 每条返回完整主题帖列表卡片并附加 `bookmarkId` / `bookmarkFolderId`；卡片字段与首页一致，包含默认子贴、正文摘要、首张普通图片封面、标签及成员/玩家/楼层计数。不传 `folderId` 保持历史“全部收藏”语义
 - 迁移会为已有账号创建“默认收藏夹”并回填历史收藏；新账号注册时在同一事务创建默认夹，服务层仍有幂等补偿
 - 自定义收藏夹名称 trim 后长度为 1–24 个字符，同一账号不可重名；分类和名称不通过公开用户收藏接口暴露
 - 移动收藏同时校验收藏与目标收藏夹都属于当前用户
@@ -33,7 +33,7 @@
 - 私密帖：仅参与人可收藏（非参与人尝试收藏 → 404）
 - 已收藏的帖重复收藏 → 409 Conflict
 - 取消收藏时校验归属（仅允许取消自己的收藏）
-- 列表含帖详情（owner、_count），便于前端直接渲染
+- 公开用户收藏与本人收藏复用首页主题帖卡片投影；公开接口不暴露收藏记录 ID 或私有收藏夹 ID
 
 ## 设计决策
 

@@ -6,7 +6,7 @@ import {
   stripVisibleMarkdownImages,
 } from '../common/markdown-cover-images';
 
-/** 首页与显式搜索共用的主题帖卡片查询投影。 */
+/** 首页、搜索、收藏和用户主页共用的主题帖卡片查询投影。 */
 export const threadListCardInclude = {
   owner: { select: authorSelect },
   defaultSubthread: {
@@ -32,7 +32,7 @@ export type ThreadListCardRow = Prisma.ThreadGetPayload<{
 
 /** 把数据库行收敛为客户端唯一的主题帖列表卡片形状。 */
 export function mapThreadListCard(thread: ThreadListCardRow) {
-  const bodyContent = thread.defaultSubthread?.posts[0]?.content ?? '';
+  const bodyContent = thread.defaultSubthread?.posts?.[0]?.content ?? '';
   const coverImages = extractMarkdownCoverImages(bodyContent);
   const preview = bodyContent
     ? truncateMarkdown(
