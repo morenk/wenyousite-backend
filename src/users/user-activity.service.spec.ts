@@ -1,6 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { BookmarksService } from '../bookmarks/bookmarks.service';
 import { MentionsService } from '../mentions/mentions.service';
+import { MomentBookmarksService } from '../moments/moment-bookmarks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadsService } from '../threads/threads.service';
 import { UserActivityService } from './user-activity.service';
@@ -14,6 +15,7 @@ describe('UserActivityService', () => {
     threadMember: { count: jest.fn() },
   };
   const bookmarks = { findByUserId: jest.fn() };
+  const momentBookmarks = { listPublic: jest.fn() };
   const threads = { findByPlayedUser: jest.fn(), findByCreatedUser: jest.fn() };
   const mentions = { findCandidates: jest.fn(), canMentionAllPlayers: jest.fn() };
   let service: UserActivityService;
@@ -23,6 +25,7 @@ describe('UserActivityService', () => {
     service = new UserActivityService(
       prisma as unknown as PrismaService,
       bookmarks as unknown as BookmarksService,
+      momentBookmarks as unknown as MomentBookmarksService,
       threads as unknown as ThreadsService,
       mentions as unknown as MentionsService,
     );

@@ -39,6 +39,7 @@
 | PATCH | `/users/me/profile-cover` | authenticated | 设置个人主页双画幅背景图（电脑端 3:1、移动端 2:1） |
 | DELETE | `/users/me/profile-cover` | authenticated | 移除个人主页背景图并恢复默认背景 |
 | GET | `/users/{id}/bookmarks` | optional | 查看用户的收藏列表（受 showBookmarks 隐私开关控制） |
+| GET | `/users/{id}/moment-bookmarks` | optional | 查看用户收藏的动态（受 showBookmarks 隐私开关控制） |
 | GET | `/users/{id}/played-threads` | optional | 查看用户参与的帖子（仅已被授予玩家身份的帖子；他人仅可见公开帖） |
 | GET | `/users/{id}/created-threads` | optional | 查看用户创建的主题帖（本人可见全部含私密帖，他人仅见 PUBLIC 已发布帖） |
 | GET | `/users/{id}/activity-summary` | optional | 获取用户主页创作活动汇总 |
@@ -131,6 +132,29 @@
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
 | GET | `/thread-categories` | public | 获取管理员配置的可用主题帖分类 |
+
+## Moments
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/moments` | optional | 动态瀑布流；发现为热度，新鲜关注为时间倒序 |
+| POST | `/moments` | authenticated | 发布纯文本/图片动态，最多 9 张图片 |
+| GET | `/moments/bookmarks` | authenticated | 当前用户收藏的动态 |
+| GET | `/moments/{id}` | optional | 获取动态详情 |
+| PATCH | `/moments/{id}` | authenticated | 编辑自己的动态，使用 version 乐观锁 |
+| DELETE | `/moments/{id}` | authenticated | 软删除动态 |
+| POST | `/moments/{id}/like` | authenticated | 点赞动态，幂等 |
+| DELETE | `/moments/{id}/like` | authenticated | 取消点赞动态，幂等 |
+| POST | `/moments/{id}/bookmark` | authenticated | 收藏动态，幂等 |
+| PATCH | `/moments/{id}/bookmark` | authenticated | 移动动态收藏到其他收藏夹 |
+| DELETE | `/moments/{id}/bookmark` | authenticated | 取消收藏动态，幂等 |
+| GET | `/moments/{id}/comments` | optional | 主评论列表，支持顺序与作者筛选并内嵌三条楼中楼 |
+| POST | `/moments/{id}/comments` | authenticated | 发表文字、单图或单表情评论；回复统一归入两层楼中楼 |
+| GET | `/moments/{id}/comment-authors` | optional | 获取当前可见动态回复串中的作者候选 |
+| GET | `/moments/{id}/comments/{commentId}/context` | optional | 按评论 ID 获取动态主评论与精确定位目标 |
+| GET | `/moments/{id}/comments/{commentId}/replies` | optional | 分页获取某主评论的楼中楼，支持顺序与作者筛选 |
+| DELETE | `/moments/{id}/comments/{commentId}` | authenticated | 评论作者、动态作者或管理员软删除评论 |
+| GET | `/users/{id}/moments` | optional | 用户公开动态列表 |
 
 ## Subthreads
 
@@ -309,28 +333,6 @@
 | GET | `/search/posts` | public | 按正文搜索公开楼层与楼中楼 |
 | GET | `/search` | public | 兼容聚合搜索（用户名 + 主题帖标题 + 楼层内容） |
 | GET | `/threads/{threadId}/search/posts` | optional | 按正文搜索单个主题帖内的楼层与楼中楼 |
-
-## Moments
-
-| 方法 | 路径 | 鉴权 | 说明 |
-|---|---|---|---|
-| GET | `/moments` | optional | 动态瀑布流；发现为热度，新鲜关注为时间倒序 |
-| POST | `/moments` | authenticated | 发布纯文本/图片动态，最多 9 张图片 |
-| GET | `/moments/bookmarks` | authenticated | 当前用户收藏的动态 |
-| GET | `/moments/{id}` | optional | 获取动态详情 |
-| PATCH | `/moments/{id}` | authenticated | 编辑自己的动态，使用 version 乐观锁 |
-| DELETE | `/moments/{id}` | authenticated | 软删除动态 |
-| POST | `/moments/{id}/like` | authenticated | 点赞动态，幂等 |
-| DELETE | `/moments/{id}/like` | authenticated | 取消点赞动态，幂等 |
-| POST | `/moments/{id}/bookmark` | authenticated | 收藏动态，幂等 |
-| DELETE | `/moments/{id}/bookmark` | authenticated | 取消收藏动态，幂等 |
-| GET | `/moments/{id}/comments` | optional | 主评论列表，支持顺序与作者筛选并内嵌三条楼中楼 |
-| POST | `/moments/{id}/comments` | authenticated | 发表文字、单图或单表情评论；回复统一归入两层楼中楼 |
-| GET | `/moments/{id}/comment-authors` | optional | 获取当前可见动态回复串中的作者候选 |
-| GET | `/moments/{id}/comments/{commentId}/context` | optional | 按评论 ID 获取动态主评论与精确定位目标 |
-| GET | `/moments/{id}/comments/{commentId}/replies` | optional | 分页获取某主评论的楼中楼，支持顺序与作者筛选 |
-| DELETE | `/moments/{id}/comments/{commentId}` | authenticated | 评论作者、动态作者或管理员软删除评论 |
-| GET | `/users/{id}/moments` | optional | 用户公开动态列表 |
 
 ## Media
 

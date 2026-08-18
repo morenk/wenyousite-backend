@@ -25,7 +25,7 @@ export class BookmarksService {
     limit = 20,
     folderId?: string,
   ): Promise<PaginatedResult<OwnBookmarkThread>> {
-    if (folderId) await this.requireOwnedFolder(userId, folderId);
+    if (folderId) await this.resolveFolder(userId, folderId);
     const take = Math.min(limit, 50);
     const bookmarks = await this.prisma.userBookmark.findMany({
       where: {
@@ -70,7 +70,7 @@ export class BookmarksService {
     const folders = await this.prisma.bookmarkFolder.findMany({
       where: { userId },
       orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
-      include: { _count: { select: { bookmarks: true } } },
+      include: { _count: { select: { bookmarks: true, momentBookmarks: true } } },
     });
     return folders.map((folder) => ({
       id: folder.id,
@@ -78,6 +78,7 @@ export class BookmarksService {
       isDefault: folder.isDefault,
       createdAt: folder.createdAt,
       bookmarkCount: folder._count.bookmarks,
+      momentBookmarkCount: folder._count.momentBookmarks,
     }));
   }
 
@@ -96,6 +97,7 @@ export class BookmarksService {
         isDefault: folder.isDefault,
         createdAt: folder.createdAt,
         bookmarkCount: 0,
+        momentBookmarkCount: 0,
       };
     } catch (error: unknown) {
       if ((error as { code?: string })?.code === 'P2002') {
@@ -170,9 +172,7 @@ export class BookmarksService {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const targetFolder = folderId
-          ? await this.requireOwnedFolder(userId, folderId, tx)
-          : await this.ensureDefaultFolder(tx, userId);
+        const targetFolder = await this.resolveFolder(userId, folderId, tx);
         const existing = await tx.userBookmark.findUnique({
           where: { userId_threadId: { userId, threadId } },
         });
@@ -196,7 +196,7 @@ export class BookmarksService {
     return this.prisma.$transaction(async (tx) => {
       const bookmark = await tx.userBookmark.findFirst({ where: { id, userId } });
       if (!bookmark) throw notFound(ErrorCode.NOT_FOUND, '收藏不存在');
-      await this.requireOwnedFolder(userId, folderId, tx);
+      await this.resolveFolder(userId, folderId, tx);
       return tx.userBookmark.update({ where: { id }, data: { folderId } });
     });
   }
@@ -208,6 +208,17 @@ export class BookmarksService {
       throw notFound(ErrorCode.NOT_FOUND, '收藏不存在');
     }
     return this.prisma.userBookmark.delete({ where: { id } });
+  }
+
+  /** 解析用户自己的目标收藏夹；未指定时返回或补建默认收藏夹。 */
+  resolveFolder(
+    userId: string,
+    folderId?: string,
+    client: Prisma.TransactionClient | PrismaService = this.prisma,
+  ) {
+    return folderId
+      ? this.requireOwnedFolder(userId, folderId, client)
+      : this.ensureDefaultFolder(client, userId);
   }
 
   private ensureDefaultFolder(client: Prisma.TransactionClient | PrismaService, userId: string) {

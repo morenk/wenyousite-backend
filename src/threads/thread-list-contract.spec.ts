@@ -98,7 +98,9 @@ describe('列表卡片 OpenAPI 契约', () => {
 
     expect(paginatedItemSchema('/api/v1/moments')).toBe('MomentCardResponseDto');
     expect(paginatedItemSchema('/api/v1/search/moments')).toBe('MomentSearchResponseDto');
-    expect(paginatedItemSchema('/api/v1/moments/bookmarks')).toBe('MomentCardResponseDto');
+    expect(paginatedItemSchema('/api/v1/moments/bookmarks')).toBe(
+      'OwnMomentBookmarkResponseDto',
+    );
     expect(paginatedItemSchema('/api/v1/users/{id}/moments')).toBe('MomentCardResponseDto');
   });
 });

@@ -38,6 +38,9 @@ export class BookmarkFolderResponseDto {
   @ApiProperty({ minimum: 0 })
   bookmarkCount!: number;
 
+  @ApiProperty({ minimum: 0, description: '该收藏夹中的动态收藏数量' })
+  momentBookmarkCount!: number;
+
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date;
 }

@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestj
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiBody,
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
@@ -27,6 +28,14 @@ import {
   MomentRootCommentResponseDto,
 } from './dto/moment-response.dto';
 import { CreateMomentCommentDto, CreateMomentDto, UpdateMomentDto } from './dto/moment-write.dto';
+import {
+  CreateMomentBookmarkDto,
+  MomentBookmarkPlacementResponseDto,
+  MomentBookmarkQueryDto,
+  MoveMomentBookmarkDto,
+  OwnMomentBookmarkResponseDto,
+} from './dto/moment-bookmark.dto';
+import { MomentBookmarksService } from './moment-bookmarks.service';
 import { MomentsService } from './moments.service';
 import { PostAuthorResponseDto } from '../posts/dto/post-response.dto';
 
@@ -35,6 +44,7 @@ import { PostAuthorResponseDto } from '../posts/dto/post-response.dto';
 export class MomentsController {
   constructor(
     private readonly moments: MomentsService,
+    private readonly bookmarksService: MomentBookmarksService,
     private readonly comments: MomentCommentsService,
   ) {}
 
@@ -50,9 +60,9 @@ export class MomentsController {
   @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '当前用户收藏的动态' })
-  @ApiCursorPaginatedResponse(MomentCardResponseDto, '动态收藏游标分页')
-  bookmarks(@Query() query: CursorPaginationDto, @CurrentUser() user: CurrentUserPayload) {
-    return this.moments.listBookmarks(query.cursor, query.limit, user);
+  @ApiCursorPaginatedResponse(OwnMomentBookmarkResponseDto, '动态收藏游标分页，含私有收藏夹 ID')
+  bookmarks(@Query() query: MomentBookmarkQueryDto, @CurrentUser() user: CurrentUserPayload) {
+    return this.bookmarksService.listMine(query.cursor, query.limit, user, query.folderId);
   }
 
   @Post()
@@ -120,9 +130,28 @@ export class MomentsController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '收藏动态，幂等' })
+  @ApiBody({ type: CreateMomentBookmarkDto, required: false })
   @ApiCreatedResponse({ type: MomentActionResponseDto })
-  bookmark(@Param('id') id: string, @CurrentUser() user: CurrentUserPayload) {
-    return this.moments.setBookmark(id, user, true);
+  bookmark(
+    @Param('id') id: string,
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() dto?: CreateMomentBookmarkDto,
+  ) {
+    return this.bookmarksService.set(id, user, true, dto?.folderId);
+  }
+
+  @Patch(':id/bookmark')
+  @Auth()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '移动动态收藏到其他收藏夹' })
+  @ApiOkResponse({ type: MomentBookmarkPlacementResponseDto })
+  @ApiNotFoundResponse({ description: '动态、收藏或收藏夹不存在' })
+  moveBookmark(
+    @Param('id') id: string,
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() dto: MoveMomentBookmarkDto,
+  ) {
+    return this.bookmarksService.move(id, user.id, dto.folderId);
   }
 
   @Delete(':id/bookmark')
@@ -131,7 +160,7 @@ export class MomentsController {
   @ApiOperation({ summary: '取消收藏动态，幂等' })
   @ApiOkResponse({ type: MomentActionResponseDto })
   unbookmark(@Param('id') id: string, @CurrentUser() user: CurrentUserPayload) {
-    return this.moments.setBookmark(id, user, false);
+    return this.bookmarksService.set(id, user, false);
   }
 
   @Get(':id/comments')

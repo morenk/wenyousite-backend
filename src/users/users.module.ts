@@ -6,6 +6,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { BookmarksModule } from '../bookmarks/bookmarks.module';
 import { ThreadsModule } from '../threads/threads.module';
 import { MentionsModule } from '../mentions/mentions.module';
+import { MomentsModule } from '../moments/moments.module';
 import { UserRelationsService } from './user-relations.service';
 import { UserActivityService } from './user-activity.service';
 import { AccessPolicyModule } from '../access/access-policy.module';
@@ -20,15 +21,11 @@ import { UserRelationEventsListener } from './user-relation-events.listener';
     BookmarksModule,
     ThreadsModule,
     MentionsModule,
+    MomentsModule,
     OutboxModule,
   ],
   controllers: [UsersController, UsersFollowController],
-  providers: [
-    UsersService,
-    UserRelationsService,
-    UserActivityService,
-    UserRelationEventsListener,
-  ],
+  providers: [UsersService, UserRelationsService, UserActivityService, UserRelationEventsListener],
   exports: [UsersService, UserRelationsService, UserActivityService],
 })
 export class UsersModule {}

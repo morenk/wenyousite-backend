@@ -1,12 +1,4 @@
-import {
-  Controller,
-  Get,
-  Patch,
-  Delete,
-  Body,
-  Param,
-  Query,
-} from '@nestjs/common';
+import { Controller, Get, Patch, Delete, Body, Param, Query } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -26,10 +18,7 @@ import { Auth, AuthRead, OptionalAuth } from '../auth/decorators/auth.decorator'
 import { MentionCandidatesResponseDto } from './dto/mention-candidate.dto';
 import { PlayedThreadsQueryDto } from './dto/played-threads-query.dto';
 import { UserActivityService } from './user-activity.service';
-import {
-  CurrentUser,
-  CurrentUserPayload,
-} from '../auth/decorators/current-user.decorator';
+import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { MessageResponseDto } from '../common/dto/message-response.dto';
 import {
   BookmarkThreadResponseDto,
@@ -45,6 +34,7 @@ import {
 import { PostAuthorResponseDto } from '../posts/dto/post-response.dto';
 import { CursorPaginationDto } from '../common/dto/pagination.dto';
 import { ApiCursorPaginatedResponse } from '../common/swagger/api-cursor-paginated-response.decorator';
+import { MomentCardResponseDto } from '../moments/dto/moment-response.dto';
 
 /** 用户控制器：查询和修改个人资料 */
 @ApiTags('Users')
@@ -60,7 +50,11 @@ export class UsersController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '搜索用户（@提及用）' })
   @ApiQuery({ name: 'q', description: '用户名搜索关键词' })
-  @ApiOkResponse({ type: PostAuthorResponseDto, isArray: true, description: '匹配的用户列表（最多 10 条），含 id/username/avatar' })
+  @ApiOkResponse({
+    type: PostAuthorResponseDto,
+    isArray: true,
+    description: '匹配的用户列表（最多 10 条），含 id/username/avatar',
+  })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async search(@Query('q') q: string) {
     return this.activity.searchUsers(q);
@@ -89,7 +83,10 @@ export class UsersController {
   @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '获取当前登录用户资料' })
-  @ApiOkResponse({ type: CurrentUserResponseDto, description: '含 email / 隐私设置 / _count.following / _count.followers' })
+  @ApiOkResponse({
+    type: CurrentUserResponseDto,
+    description: '含 email / 隐私设置 / _count.following / _count.followers',
+  })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async getMe(@CurrentUser() user: CurrentUserPayload) {
     return this.usersService.findMe(user.id);
@@ -122,7 +119,10 @@ export class UsersController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({ summary: '移除头像（置空 user.avatar，回到首字母占位）' })
-  @ApiOkResponse({ type: PrivateUserResponseDto, description: '更新后的用户资料（avatar 为 null）' })
+  @ApiOkResponse({
+    type: PrivateUserResponseDto,
+    description: '更新后的用户资料（avatar 为 null）',
+  })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async removeAvatar(@CurrentUser() user: CurrentUserPayload) {
     return this.usersService.setAvatar(user.id, null);
@@ -138,10 +138,7 @@ export class UsersController {
   })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   @ApiNotFoundResponse({ description: 'mediaId 不存在或未完成处理' })
-  async setProfileCover(
-    @CurrentUser() user: CurrentUserPayload,
-    @Body() dto: SetProfileCoverDto,
-  ) {
+  async setProfileCover(@CurrentUser() user: CurrentUserPayload, @Body() dto: SetProfileCoverDto) {
     return this.usersService.setProfileCover(user.id, dto.mediaId, dto.mobileMediaId);
   }
 
@@ -171,19 +168,30 @@ export class UsersController {
   @Get(':id/bookmarks')
   @OptionalAuth()
   @ApiOperation({ summary: '查看用户的收藏列表（受 showBookmarks 隐私开关控制）' })
-  @ApiCursorPaginatedResponse(BookmarkThreadResponseDto, '用户的收藏列表（cursor 分页，含帖子摘要）')
+  @ApiCursorPaginatedResponse(
+    BookmarkThreadResponseDto,
+    '用户的收藏列表（cursor 分页，含帖子摘要）',
+  )
   @ApiNotFoundResponse({ description: '用户不存在或未公开收藏' })
   async getUserBookmarks(
     @Param('id') id: string,
     @Query() query: CursorPaginationDto,
     @CurrentUser() viewer: CurrentUserPayload | undefined,
   ) {
-    return this.activity.userBookmarks(
-      id,
-      viewer?.id,
-      query.cursor,
-      query.limit,
-    );
+    return this.activity.userBookmarks(id, viewer?.id, query.cursor, query.limit);
+  }
+
+  @Get(':id/moment-bookmarks')
+  @OptionalAuth()
+  @ApiOperation({ summary: '查看用户收藏的动态（受 showBookmarks 隐私开关控制）' })
+  @ApiCursorPaginatedResponse(MomentCardResponseDto, '用户公开的动态收藏（cursor 分页）')
+  @ApiNotFoundResponse({ description: '用户不存在或未公开收藏' })
+  async getUserMomentBookmarks(
+    @Param('id') id: string,
+    @Query() query: CursorPaginationDto,
+    @CurrentUser() viewer: CurrentUserPayload | undefined,
+  ) {
+    return this.activity.userMomentBookmarks(id, viewer?.id, query.cursor, query.limit);
   }
 
   @Get(':id/played-threads')
@@ -217,12 +225,7 @@ export class UsersController {
     @Query() query: CursorPaginationDto,
     @CurrentUser() viewer: CurrentUserPayload | undefined,
   ) {
-    return this.activity.createdThreads(
-      id,
-      viewer?.id,
-      query.cursor,
-      query.limit,
-    );
+    return this.activity.createdThreads(id, viewer?.id, query.cursor, query.limit);
   }
 
   @Get(':id/activity-summary')
@@ -243,7 +246,11 @@ export class UsersController {
   @Get(':id/recent-replies')
   @OptionalAuth()
   @ApiOperation({ summary: '查看用户最近 10 条回复（受 showRecentReplies 隐私开关控制）' })
-  @ApiOkResponse({ type: RecentReplyResponseDto, isArray: true, description: '用户最近 10 条回复（含预览截断、所属帖子/子贴信息）' })
+  @ApiOkResponse({
+    type: RecentReplyResponseDto,
+    isArray: true,
+    description: '用户最近 10 条回复（含预览截断、所属帖子/子贴信息）',
+  })
   @ApiNotFoundResponse({ description: '用户不存在或未公开最近动态' })
   async getUserRecentReplies(
     @Param('id') id: string,

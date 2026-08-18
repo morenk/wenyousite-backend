@@ -16,11 +16,15 @@ import { MomentFeedMode } from './dto/moment-query.dto';
 import {
   mapMomentCard,
   mapMomentDetail,
-  momentAuthorSelect,
-  momentMediaSelect,
   type MomentCardRow,
   type MomentDetailRow,
 } from './moment.mapper';
+import {
+  momentCardSelect,
+  momentDetailSelect,
+  momentViewerVisibility,
+  visibleMomentAuthorWhere,
+} from './moment-query';
 
 const MAX_PAGE_SIZE = 30;
 const DISCOVER_SNAPSHOT_LIMIT = 1000;
@@ -126,8 +130,8 @@ export class MomentsService {
 
   async findById(id: string, viewer?: Viewer) {
     const moment = await this.prisma.moment.findFirst({
-      where: { id, deletedAt: null, ...this.viewerVisibility(viewer?.id) },
-      select: this.detailSelect(viewer?.id),
+      where: { id, deletedAt: null, ...momentViewerVisibility(viewer?.id) },
+      select: momentDetailSelect(viewer?.id),
     });
     if (!moment) throw new NotFoundException('动态不存在');
     return mapMomentDetail(moment as unknown as MomentDetailRow, viewer);
@@ -275,31 +279,6 @@ export class MomentsService {
     });
   }
 
-  async setBookmark(id: string, viewer: Viewer, active: boolean) {
-    await this.assertVisible(id, viewer.id);
-    return this.prisma.$transaction(async (tx) => {
-      if (active) {
-        const created = await tx.momentBookmark.createMany({
-          data: [{ momentId: id, userId: viewer.id }],
-          skipDuplicates: true,
-        });
-        if (created.count > 0)
-          await tx.moment.update({ where: { id }, data: { bookmarkCount: { increment: 1 } } });
-      } else {
-        const removed = await tx.momentBookmark.deleteMany({
-          where: { momentId: id, userId: viewer.id },
-        });
-        if (removed.count > 0)
-          await tx.moment.update({ where: { id }, data: { bookmarkCount: { decrement: 1 } } });
-      }
-      const moment = await tx.moment.findUniqueOrThrow({
-        where: { id },
-        select: { bookmarkCount: true },
-      });
-      return { momentId: id, count: moment.bookmarkCount, active };
-    });
-  }
-
   async listUserMoments(userId: string, cursor: string | undefined, limit = 20, viewer?: Viewer) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId, deletedAt: null },
@@ -312,7 +291,7 @@ export class MomentsService {
       where: {
         authorId: userId,
         deletedAt: null,
-        ...this.viewerVisibility(viewer?.id),
+        ...momentViewerVisibility(viewer?.id),
         ...(decoded
           ? {
               OR: [
@@ -324,7 +303,7 @@ export class MomentsService {
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: take + 1,
-      select: this.cardSelect(viewer?.id),
+      select: momentCardSelect(viewer?.id),
     });
     const hasMore = rows.length > take;
     const page = rows.slice(0, take) as MomentCardRow[];
@@ -333,37 +312,6 @@ export class MomentsService {
       cursor: last ? encodeCursor({ createdAt: last.createdAt.toISOString(), id: last.id }) : null,
       hasMore,
     });
-  }
-
-  async listBookmarks(cursor: string | undefined, limit = 20, viewer: Viewer) {
-    const take = Math.min(limit, MAX_PAGE_SIZE);
-    if (cursor) {
-      const valid = await this.prisma.momentBookmark.findFirst({
-        where: { id: cursor, userId: viewer.id },
-        select: { id: true },
-      });
-      if (!valid) throw new BadRequestException('无效的收藏分页游标');
-    }
-    const bookmarks = await this.prisma.momentBookmark.findMany({
-      where: {
-        userId: viewer.id,
-        moment: { deletedAt: null, ...this.viewerVisibility(viewer.id) },
-      },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      cursor: cursor ? { id: cursor } : undefined,
-      skip: cursor ? 1 : 0,
-      take: take + 1,
-      select: { id: true, moment: { select: this.cardSelect(viewer.id) } },
-    });
-    const hasMore = bookmarks.length > take;
-    const page = bookmarks.slice(0, take);
-    return paginate(
-      page.map((bookmark) => mapMomentCard(bookmark.moment as MomentCardRow)),
-      {
-        cursor: page.at(-1)?.id ?? null,
-        hasMore,
-      },
-    );
   }
 
   async search(q: string, cursor: string | undefined, limit = 20, viewer?: Viewer) {
@@ -429,7 +377,7 @@ export class MomentsService {
 
   async assertVisible(id: string, viewerId?: string) {
     const moment = await this.prisma.moment.findFirst({
-      where: { id, deletedAt: null, ...this.viewerVisibility(viewerId) },
+      where: { id, deletedAt: null, ...momentViewerVisibility(viewerId) },
       select: { id: true, authorId: true, title: true },
     });
     if (!moment) throw new NotFoundException('动态不存在');
@@ -513,7 +461,7 @@ export class MomentsService {
         deletedAt: null,
         author: {
           followers: { some: { followerId: viewer.id } },
-          ...this.visibleAuthorWhere(viewer.id),
+          ...visibleMomentAuthorWhere(viewer.id),
         },
         ...(decoded
           ? {
@@ -526,7 +474,7 @@ export class MomentsService {
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: take + 1,
-      select: this.cardSelect(viewer.id),
+      select: momentCardSelect(viewer.id),
     });
     const hasMore = rows.length > take;
     const page = rows.slice(0, take) as MomentCardRow[];
@@ -540,57 +488,14 @@ export class MomentsService {
   private async loadCards(ids: string[], viewerId?: string) {
     if (ids.length === 0) return [];
     const rows = await this.prisma.moment.findMany({
-      where: { id: { in: ids }, deletedAt: null, ...this.viewerVisibility(viewerId) },
-      select: this.cardSelect(viewerId),
+      where: { id: { in: ids }, deletedAt: null, ...momentViewerVisibility(viewerId) },
+      select: momentCardSelect(viewerId),
     });
     const byId = new Map(rows.map((row) => [row.id, mapMomentCard(row as MomentCardRow)]));
     return ids.flatMap((id) => {
       const card = byId.get(id);
       return card ? [card] : [];
     });
-  }
-
-  private cardSelect(viewerId?: string): Prisma.MomentSelect {
-    return {
-      id: true,
-      authorId: true,
-      author: { select: momentAuthorSelect },
-      title: true,
-      content: true,
-      textCoverTheme: true,
-      coverMedia: { select: momentMediaSelect },
-      likeCount: true,
-      commentCount: true,
-      bookmarkCount: true,
-      tipTotal: true,
-      version: true,
-      createdAt: true,
-      updatedAt: true,
-      likes: { where: { userId: viewerId ?? '__anonymous__' }, take: 1, select: { id: true } },
-      bookmarks: { where: { userId: viewerId ?? '__anonymous__' }, take: 1, select: { id: true } },
-      _count: { select: { images: true } },
-    };
-  }
-
-  private detailSelect(viewerId?: string): Prisma.MomentSelect {
-    return {
-      ...this.cardSelect(viewerId),
-      images: {
-        orderBy: { sortOrder: 'asc' },
-        select: { sortOrder: true, media: { select: momentMediaSelect } },
-      },
-    };
-  }
-
-  private viewerVisibility(viewerId?: string): Prisma.MomentWhereInput {
-    return viewerId ? { author: this.visibleAuthorWhere(viewerId) } : {};
-  }
-
-  private visibleAuthorWhere(viewerId: string): Prisma.UserWhereInput {
-    return {
-      userBlocks: { none: { blockedId: viewerId } },
-      blockedBy: { none: { blockerId: viewerId } },
-    };
   }
 
   private resolveCover(mediaIds: string[], requested?: string | null) {

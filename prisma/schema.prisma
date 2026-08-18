@@ -259,26 +259,26 @@ enum AuditTargetType {
 }
 
 model User {
-  id                  String    @id @default(cuid())
-  email               String    @unique
-  username            String    @unique
-  password            String
-  avatar              String?
-  profileCoverMediaId       String? @unique @map("profile_cover_media_id")
-  profileCoverMobileMediaId String? @unique @map("profile_cover_mobile_media_id")
-  bio                 String?
-  role                UserRole  @default(USER)
-  showRecentReplies   Boolean   @default(true) @map("show_recent_replies")
-  showPlayerBadges    Boolean   @default(true) @map("show_player_badges")
-  showBookmarks       Boolean   @default(true) @map("show_bookmarks")
-  deletedAt           DateTime? @map("deleted_at")
-  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
-  lockedUntil         DateTime? @map("locked_until")
-  lastUsernameChange  DateTime? @map("last_username_change")
-  experience          Int       @default(0)
-  level               Int       @default(1)
-  createdAt           DateTime  @default(now()) @map("created_at")
-  updatedAt           DateTime  @updatedAt @map("updated_at")
+  id                        String    @id @default(cuid())
+  email                     String    @unique
+  username                  String    @unique
+  password                  String
+  avatar                    String?
+  profileCoverMediaId       String?   @unique @map("profile_cover_media_id")
+  profileCoverMobileMediaId String?   @unique @map("profile_cover_mobile_media_id")
+  bio                       String?
+  role                      UserRole  @default(USER)
+  showRecentReplies         Boolean   @default(true) @map("show_recent_replies")
+  showPlayerBadges          Boolean   @default(true) @map("show_player_badges")
+  showBookmarks             Boolean   @default(true) @map("show_bookmarks")
+  deletedAt                 DateTime? @map("deleted_at")
+  failedLoginAttempts       Int       @default(0) @map("failed_login_attempts")
+  lockedUntil               DateTime? @map("locked_until")
+  lastUsernameChange        DateTime? @map("last_username_change")
+  experience                Int       @default(0)
+  level                     Int       @default(1)
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
 
   ownedThreads  Thread[]       @relation("ThreadOwner")
   threads       ThreadMember[]
@@ -699,8 +699,9 @@ model BookmarkFolder {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bookmarks UserBookmark[]
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookmarks       UserBookmark[]
+  momentBookmarks MomentBookmark[]
 
   @@unique([userId, name])
   @@index([userId, createdAt])
@@ -777,13 +778,16 @@ model MomentBookmark {
   id        String   @id @default(cuid())
   momentId  String   @map("moment_id")
   userId    String   @map("user_id")
+  folderId  String   @map("folder_id")
   createdAt DateTime @default(now()) @map("created_at")
 
-  moment Moment @relation(fields: [momentId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  moment Moment         @relation(fields: [momentId], references: [id], onDelete: Cascade)
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folder BookmarkFolder @relation(fields: [folderId], references: [id], onDelete: Restrict)
 
   @@unique([momentId, userId])
   @@index([userId, createdAt(sort: Desc)])
+  @@index([folderId, createdAt(sort: Desc)])
   @@map("moment_bookmarks")
 }
 
@@ -834,14 +838,14 @@ model Media {
   status      MediaStatus @default(UPLOADING)
   createdAt   DateTime    @default(now()) @map("created_at")
 
-  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  directMessage    DirectMessage?
-  stickerImports   StickerImport[]
-  momentImages     MomentImage[]
-  momentCovers     Moment[]        @relation("MomentCover")
-  momentComment    MomentComment?
-  profileCoverUser       User? @relation("UserProfileCover")
-  profileCoverMobileUser User? @relation("UserProfileCoverMobile")
+  user                   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  directMessage          DirectMessage?
+  stickerImports         StickerImport[]
+  momentImages           MomentImage[]
+  momentCovers           Moment[]        @relation("MomentCover")
+  momentComment          MomentComment?
+  profileCoverUser       User?           @relation("UserProfileCover")
+  profileCoverMobileUser User?           @relation("UserProfileCoverMobile")
 
   @@index([status, createdAt])
   @@map("media")

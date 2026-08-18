@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BookmarksService } from '../bookmarks/bookmarks.service';
 import { ThreadsService } from '../threads/threads.service';
 import { MentionsService } from '../mentions/mentions.service';
+import { MomentBookmarksService } from '../moments/moment-bookmarks.service';
 import { buildPostPreview } from '../common/post-preview';
 
 /** 用户公开活动查询：集中处理隐私开关、可见性和跨模块读模型编排。 */
@@ -11,6 +12,7 @@ export class UserActivityService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly bookmarks: BookmarksService,
+    private readonly momentBookmarks: MomentBookmarksService,
     private readonly threads: ThreadsService,
     private readonly mentions: MentionsService,
   ) {}
@@ -36,6 +38,10 @@ export class UserActivityService {
 
   userBookmarks(targetId: string, viewerId?: string, cursor?: string, limit?: number) {
     return this.bookmarks.findByUserId(targetId, viewerId, cursor, limit);
+  }
+
+  userMomentBookmarks(targetId: string, viewerId?: string, cursor?: string, limit?: number) {
+    return this.momentBookmarks.listPublic(targetId, viewerId, cursor, limit);
   }
 
   async playedThreads(input: {

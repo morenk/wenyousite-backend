@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "5.1.0-dev.20260817.1",
+  "contractVersion": "5.2.0-dev.20260818.1",
   "counts": {
-    "total": 201,
-    "v1": 95,
-    "deferred": 55,
+    "total": 203,
+    "v1": 96,
+    "deferred": 56,
     "notApplicable": 50,
     "infrastructure": 1
   },
@@ -206,6 +206,14 @@
       "operationId": "usersGetUserBookmarks",
       "method": "GET",
       "path": "/api/v1/users/{id}/bookmarks",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "usersGetUserMomentBookmarks",
+      "method": "GET",
+      "path": "/api/v1/users/{id}/moment-bookmarks",
       "module": "users",
       "disposition": "v1",
       "status": "planned"
@@ -673,6 +681,150 @@
         "test/features/home/home_repository_test.dart",
         "test/features/home/home_feed_controller_test.dart"
       ]
+    },
+    {
+      "operationId": "momentsList",
+      "method": "GET",
+      "path": "/api/v1/moments",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsCreate",
+      "method": "POST",
+      "path": "/api/v1/moments",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsBookmarks",
+      "method": "GET",
+      "path": "/api/v1/moments/bookmarks",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsDetail",
+      "method": "GET",
+      "path": "/api/v1/moments/{id}",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsUpdate",
+      "method": "PATCH",
+      "path": "/api/v1/moments/{id}",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsRemove",
+      "method": "DELETE",
+      "path": "/api/v1/moments/{id}",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsLike",
+      "method": "POST",
+      "path": "/api/v1/moments/{id}/like",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsUnlike",
+      "method": "DELETE",
+      "path": "/api/v1/moments/{id}/like",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsBookmark",
+      "method": "POST",
+      "path": "/api/v1/moments/{id}/bookmark",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsMoveBookmark",
+      "method": "PATCH",
+      "path": "/api/v1/moments/{id}/bookmark",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsUnbookmark",
+      "method": "DELETE",
+      "path": "/api/v1/moments/{id}/bookmark",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsCommentsList",
+      "method": "GET",
+      "path": "/api/v1/moments/{id}/comments",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsCreateComment",
+      "method": "POST",
+      "path": "/api/v1/moments/{id}/comments",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsCommentAuthors",
+      "method": "GET",
+      "path": "/api/v1/moments/{id}/comment-authors",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsCommentContext",
+      "method": "GET",
+      "path": "/api/v1/moments/{id}/comments/{commentId}/context",
+      "module": "moments",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "momentsReplies",
+      "method": "GET",
+      "path": "/api/v1/moments/{id}/comments/{commentId}/replies",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsRemoveComment",
+      "method": "DELETE",
+      "path": "/api/v1/moments/{id}/comments/{commentId}",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "userMomentsList",
+      "method": "GET",
+      "path": "/api/v1/users/{id}/moments",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
     },
     {
       "operationId": "subthreadsFindAll",
@@ -1337,142 +1489,6 @@
       "module": "search",
       "disposition": "v1",
       "status": "planned"
-    },
-    {
-      "operationId": "momentsList",
-      "method": "GET",
-      "path": "/api/v1/moments",
-      "module": "moments",
-      "disposition": "deferred",
-      "status": "deferred"
-    },
-    {
-      "operationId": "momentsCreate",
-      "method": "POST",
-      "path": "/api/v1/moments",
-      "module": "moments",
-      "disposition": "deferred",
-      "status": "deferred"
-    },
-    {
-      "operationId": "momentsBookmarks",
-      "method": "GET",
-      "path": "/api/v1/moments/bookmarks",
-      "module": "moments",
-      "disposition": "deferred",
-      "status": "deferred"
-    },
-    {
-      "operationId": "momentsDetail",
-      "method": "GET",
-      "path": "/api/v1/moments/{id}",
-      "module": "moments",
-      "disposition": "deferred",
-      "status": "deferred"
-    },
-    {
-      "operationId": "momentsUpdate",
-      "method": "PATCH",
-      "path": "/api/v1/moments/{id}",
-      "module": "moments",
-      "disposition": "deferred",
-      "status": "deferred"
-    },
-    {
-      "operationId": "momentsRemove",
-      "method": "DELETE",
-      "path": "/api/v1/moments/{id}",
-      "module": "moments",
-      "disposition": "deferred",
-      "status": "deferred"
-    },
-    {
-      "operationId": "momentsLike",
-      "method": "POST",
-      "path": "/api/v1/moments/{id}/like",
-      "module": "moments",
-      "disposition": "deferred",
-      "status": "deferred"
-    },
-    {
-      "operationId": "momentsUnlike",
-      "method": "DELETE",
-      "path": "/api/v1/moments/{id}/like",
-      "module": "moments",
-      "disposition": "deferred",
-      "status": "deferred"
-    },
-    {
-      "operationId": "momentsBookmark",
-      "method": "POST",
-      "path": "/api/v1/moments/{id}/bookmark",
-      "module": "moments",
-      "disposition": "deferred",
-      "status": "deferred"
-    },
-    {
-      "operationId": "momentsUnbookmark",
-      "method": "DELETE",
-      "path": "/api/v1/moments/{id}/bookmark",
-      "module": "moments",
-      "disposition": "deferred",
-      "status": "deferred"
-    },
-    {
-      "operationId": "momentsCommentsList",
-      "method": "GET",
-      "path": "/api/v1/moments/{id}/comments",
-      "module": "moments",
-      "disposition": "deferred",
-      "status": "deferred"
-    },
-    {
-      "operationId": "momentsCreateComment",
-      "method": "POST",
-      "path": "/api/v1/moments/{id}/comments",
-      "module": "moments",
-      "disposition": "deferred",
-      "status": "deferred"
-    },
-    {
-      "operationId": "momentsCommentAuthors",
-      "method": "GET",
-      "path": "/api/v1/moments/{id}/comment-authors",
-      "module": "moments",
-      "disposition": "deferred",
-      "status": "deferred"
-    },
-    {
-      "operationId": "momentsCommentContext",
-      "method": "GET",
-      "path": "/api/v1/moments/{id}/comments/{commentId}/context",
-      "module": "moments",
-      "disposition": "v1",
-      "status": "planned"
-    },
-    {
-      "operationId": "momentsReplies",
-      "method": "GET",
-      "path": "/api/v1/moments/{id}/comments/{commentId}/replies",
-      "module": "moments",
-      "disposition": "deferred",
-      "status": "deferred"
-    },
-    {
-      "operationId": "momentsRemoveComment",
-      "method": "DELETE",
-      "path": "/api/v1/moments/{id}/comments/{commentId}",
-      "module": "moments",
-      "disposition": "deferred",
-      "status": "deferred"
-    },
-    {
-      "operationId": "userMomentsList",
-      "method": "GET",
-      "path": "/api/v1/users/{id}/moments",
-      "module": "moments",
-      "disposition": "deferred",
-      "status": "deferred"
     },
     {
       "operationId": "mediaGetUploadUrl",

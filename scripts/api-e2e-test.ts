@@ -5,7 +5,7 @@
  *
  * 覆盖模块:
  *   Auth, Threads, Subthreads, Posts, Drafts,
- *   Notifications, Subscriptions, Bookmarks,
+ *   Notifications, Subscriptions, Bookmarks, Moments,
  *   Users, Tags, Search, 错误码
  */
 
@@ -289,6 +289,10 @@ let postId = '';
 let draftId = '';
 let draftVersion = 0;
 let bookmarkId = '';
+let currentUserId = '';
+let momentId = '';
+let momentFolderId = '';
+let defaultBookmarkFolderId = '';
 let subscriptionId = '';
 let subscribableThreadId = '';
 let tagId = '';
@@ -363,6 +367,7 @@ function cleanupTestData() {
          SELECT id INTO test_user_id FROM users WHERE email='${safeEmail}';
          IF test_user_id IS NOT NULL THEN
            SELECT id INTO test_wallet_id FROM wallets WHERE user_id=test_user_id;
+           DELETE FROM moments WHERE author_id=test_user_id;
            DELETE FROM threads WHERE owner_id=test_user_id;
            IF test_wallet_id IS NOT NULL THEN
              DELETE FROM daily_check_ins
@@ -512,6 +517,7 @@ test(
 test(s2, 'GET /users/me 当前用户信息', async () => {
   const r = await api.get('/users/me', apiResponse(userSchema));
   assert(r.data.email === TEST_EMAIL, '邮箱应匹配');
+  currentUserId = r.data.id;
 });
 
 test(s2, 'POST /auth/refresh 刷新 token', async () => {
@@ -867,47 +873,113 @@ test(s10, 'GET /users/:id/bookmarks 公开收藏', async () => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// 11. 标签
+// 11. 动态收藏夹
 // ═══════════════════════════════════════════════════════════════
 
-const s11 = suite('标签');
+const s11 = suite('动态收藏夹');
 
-test(s11, 'POST /tags 创建标签', async () => {
+test(s11, 'GET /bookmarks/folders 获取共享收藏夹', async () => {
+  const r = await api.get('/bookmarks/folders');
+  assert(r.code === 0 && Array.isArray(r.data), '收藏夹列表应成功');
+  const defaultFolder = r.data.find((folder: { isDefault?: boolean }) => folder.isDefault);
+  assert(!!defaultFolder, '应存在默认收藏夹');
+  defaultBookmarkFolderId = defaultFolder.id;
+  assert(typeof defaultFolder.momentBookmarkCount === 'number', '收藏夹应返回动态收藏计数');
+});
+
+test(s11, 'POST /bookmarks/folders 新建动态收藏夹', async () => {
+  const r = await api.post('/bookmarks/folders', {
+    name: `E2E动态${RUN_ID.slice(-6)}`,
+  });
+  assert(r.code === 0, `新建收藏夹应成功 (got: ${r.code} ${r.message})`);
+  momentFolderId = r.data.id;
+});
+
+test(s11, 'POST /moments 发布纯文本动态', async () => {
+  const r = await api.post('/moments', {
+    title: `E2E 动态 ${RUN_ID.slice(-6)}`,
+    content: '动态收藏夹端到端验证',
+    mediaIds: [],
+    clientRequestId: crypto.randomUUID(),
+  });
+  assert(r.code === 0, `发布动态应成功 (got: ${r.code} ${r.message})`);
+  momentId = r.data.id;
+});
+
+test(s11, 'POST /moments/:id/bookmark 收藏到指定收藏夹', async () => {
+  const r = await api.post(`/moments/${momentId}/bookmark`, { folderId: momentFolderId });
+  assert(r.code === 0 && r.data.active === true, '动态收藏应成功');
+});
+
+test(s11, 'GET /moments/bookmarks 按收藏夹筛选并返回私有归属', async () => {
+  const r = await api.get(`/moments/bookmarks?folderId=${momentFolderId}`);
+  const bookmarked = r.data.find((moment: { id?: string }) => moment.id === momentId);
+  assert(!!bookmarked, '指定收藏夹应包含新动态');
+  assert(bookmarked.bookmarkFolderId === momentFolderId, '应返回当前用户的收藏夹归属');
+});
+
+test(s11, 'PATCH /moments/:id/bookmark 移动到默认收藏夹', async () => {
+  const r = await api.patch(`/moments/${momentId}/bookmark`, {
+    folderId: defaultBookmarkFolderId,
+  });
+  assert(r.code === 0, `移动收藏应成功 (got: ${r.code} ${r.message})`);
+  assert(r.data.folderId === defaultBookmarkFolderId, '应移动到默认收藏夹');
+});
+
+test(s11, 'GET /users/:id/moment-bookmarks 公开动态收藏不泄露分类', async () => {
+  const r = await api.get(`/users/${currentUserId}/moment-bookmarks`);
+  const bookmarked = r.data.find((moment: { id?: string }) => moment.id === momentId);
+  assert(!!bookmarked, '公开动态收藏应包含新动态');
+  assert(!('bookmarkFolderId' in bookmarked), '公开响应不应泄露私有收藏夹 ID');
+});
+
+test(s11, 'DELETE /moments/:id/bookmark 取消动态收藏', async () => {
+  const r = await api.del(`/moments/${momentId}/bookmark`);
+  assert(r.code === 0 && r.data.active === false, '取消动态收藏应成功');
+});
+
+// ═══════════════════════════════════════════════════════════════
+// 12. 标签
+// ═══════════════════════════════════════════════════════════════
+
+const s12 = suite('标签');
+
+test(s12, 'POST /tags 创建标签', async () => {
   const name = `${TEST_TAG_PREFIX}p`;
   const r = await api.post('/tags', { name, color: '#FF5722' });
   assert(r.code === 0, `创建标签应成功 (got: ${r.code} ${r.message})`);
   tagId = r.data.id;
 });
 
-test(s11, 'GET /tags/:id 标签详情', async () => {
+test(s12, 'GET /tags/:id 标签详情', async () => {
   const r = await api.get(`/tags/${tagId}`, apiResponse(z.any()));
   assert(r.data.id === tagId, 'ID 应匹配');
 });
 
-test(s11, 'POST /threads/:id/tags 为主题帖添加标签', async () => {
+test(s12, 'POST /threads/:id/tags 为主题帖添加标签', async () => {
   const name = `${TEST_TAG_PREFIX}t`;
   const r = await api.post(`/threads/${threadId}/tags`, { name });
   assert(r.code === 0, `添加标签应成功 (got: ${r.code} ${r.message})`);
 });
 
-test(s11, 'GET /threads/:id/tags 帖标签列表', async () => {
+test(s12, 'GET /threads/:id/tags 帖标签列表', async () => {
   const r = await api.get(`/threads/${threadId}/tags`);
   assert(r.code === 0, `获取标签应成功 (got: ${r.code})`);
 });
 
-test(s11, 'DELETE /threads/:id/tags/:tagId 移除标签', async () => {
+test(s12, 'DELETE /threads/:id/tags/:tagId 移除标签', async () => {
   const r = await api.del(`/threads/${threadId}/tags/${tagId}`);
   // 标签可能已经被自动删除，允许非 0
   assert([0, 40400].includes(r.code), `移除标签 (got: ${r.code} ${r.message})`);
 });
 
 // ═══════════════════════════════════════════════════════════════
-// 12. 参数校验 & 错误码
+// 13. 参数校验 & 错误码
 // ═══════════════════════════════════════════════════════════════
 
-const s12 = suite('参数校验 & 错误码');
+const s13 = suite('参数校验 & 错误码');
 
-test(s12, 'POST /auth/login 短密码 → 400', async () => {
+test(s13, 'POST /auth/login 短密码 → 400', async () => {
   const { status } = await api.expectStatus('/auth/login', 'POST', {
     account: TEST_EMAIL,
     password: '12',
@@ -915,7 +987,7 @@ test(s12, 'POST /auth/login 短密码 → 400', async () => {
   assert(status === 400, `期望 400, 实际 ${status}`);
 });
 
-test(s12, 'POST /threads 超长标题 → 400', async () => {
+test(s13, 'POST /threads 超长标题 → 400', async () => {
   const { status } = await api.expectStatus('/threads', 'POST', {
     title: 'a'.repeat(101),
     category: activeCategorySlug,
@@ -923,14 +995,14 @@ test(s12, 'POST /threads 超长标题 → 400', async () => {
   assert(status === 400, `期望 400, 实际 ${status}`);
 });
 
-test(s12, 'POST /subthreads/:id/posts 空内容 → 400', async () => {
+test(s13, 'POST /subthreads/:id/posts 空内容 → 400', async () => {
   const { status } = await api.expectStatus(`/subthreads/${subthreadId}/posts`, 'POST', {
     content: '',
   });
   assert(status === 400, `期望 400, 实际 ${status}`);
 });
 
-test(s12, '普通用户不能调用前台管理员隐藏接口 → 403', async () => {
+test(s13, '普通用户不能调用前台管理员隐藏接口 → 403', async () => {
   const { status, json } = await api.expectStatus(
     `/moderation/content/thread/${threadId}/hide`,
     'POST',
@@ -943,12 +1015,12 @@ test(s12, '普通用户不能调用前台管理员隐藏接口 → 403', async (
   );
 });
 
-test(s12, 'GET /threads/:id 不存在 → 404', async () => {
+test(s13, 'GET /threads/:id 不存在 → 404', async () => {
   const { status } = await api.expectStatus('/threads/nonexistent-id-x', 'GET');
   assert(status === 404, `期望 404, 实际 ${status}`);
 });
 
-test(s12, 'POST /threads 最小草稿载荷可创建', async () => {
+test(s13, 'POST /threads 最小草稿载荷可创建', async () => {
   const { status } = await api.expectStatus('/threads', 'POST', {});
   assert([200, 201].includes(status), `期望成功, 实际 ${status}`);
 });
@@ -958,6 +1030,11 @@ test(s12, 'POST /threads 最小草稿载荷可创建', async () => {
 // ═══════════════════════════════════════════════════════════════
 
 const s14 = suite('清理');
+
+test(s14, 'DELETE /moments/:id 软删除动态', async () => {
+  const r = await api.del(`/moments/${momentId}`);
+  assert(r.code === 0, `软删除动态应成功 (got: ${r.code} ${r.message})`);
+});
 
 test(s14, 'DELETE /posts/:id 软删除帖子', async () => {
   const r = await api.del(`/posts/${postId}`);

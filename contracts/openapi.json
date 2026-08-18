@@ -1948,6 +1948,110 @@
         ]
       }
     },
+    "/api/v1/users/{id}/moment-bookmarks": {
+      "get": {
+        "operationId": "usersGetUserMomentBookmarks",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
+            "schema": {
+              "example": "clxabc123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（默认 20，最大 50）",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "用户公开的动态收藏（cursor 分页）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsersGetUserMomentBookmarks200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "用户不存在或未公开收藏",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "查看用户收藏的动态（受 showBookmarks 隐私开关控制）",
+        "tags": [
+          "Users"
+        ],
+        "x-auth-mode": "optional",
+        "x-pagination": "cursor",
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
+      }
+    },
     "/api/v1/users/{id}/played-threads": {
       "get": {
         "operationId": "usersGetUserPlayedThreads",
@@ -6433,6 +6537,1484 @@
         ],
         "x-auth-mode": "public",
         "security": []
+      }
+    },
+    "/api/v1/moments": {
+      "get": {
+        "operationId": "momentsList",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
+            "schema": {
+              "example": "clxabc123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（默认 20，最大 50）",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "feed",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "DISCOVER",
+              "type": "string",
+              "enum": [
+                "DISCOVER",
+                "FOLLOWING"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "动态卡片游标分页",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsList200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "动态瀑布流；发现为热度，新鲜关注为时间倒序",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "optional",
+        "x-pagination": "cursor",
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
+      },
+      "post": {
+        "operationId": "momentsCreate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMomentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsCreate201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "标题、正文、封面或图片状态不合法",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "409": {
+            "description": "幂等键复用或图片已被使用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "发布纯文本/图片动态，最多 9 张图片",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "authenticated"
+      }
+    },
+    "/api/v1/moments/bookmarks": {
+      "get": {
+        "operationId": "momentsBookmarks",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
+            "schema": {
+              "example": "clxabc123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（默认 20，最大 50）",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "folderId",
+            "required": false,
+            "in": "query",
+            "description": "只返回指定收藏夹中的动态；不传时返回全部",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "动态收藏游标分页，含私有收藏夹 ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsBookmarks200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "当前用户收藏的动态",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "authenticated",
+        "x-pagination": "cursor"
+      }
+    },
+    "/api/v1/moments/{id}": {
+      "get": {
+        "operationId": "momentsDetail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsDetail200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "动态不存在、已删除或因拉黑不可见",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "获取动态详情",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "optional",
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
+      },
+      "patch": {
+        "operationId": "momentsUpdate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMomentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsUpdate200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "409": {
+            "description": "版本冲突或图片已被其他动态使用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "编辑自己的动态，使用 version 乐观锁",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "authenticated"
+      },
+      "delete": {
+        "operationId": "momentsRemove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsRemove200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "软删除动态",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "authenticated"
+      }
+    },
+    "/api/v1/moments/{id}/like": {
+      "post": {
+        "operationId": "momentsLike",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsLike201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "点赞动态，幂等",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "authenticated"
+      },
+      "delete": {
+        "operationId": "momentsUnlike",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsUnlike200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "取消点赞动态，幂等",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "authenticated"
+      }
+    },
+    "/api/v1/moments/{id}/bookmark": {
+      "post": {
+        "operationId": "momentsBookmark",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMomentBookmarkDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsBookmark201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "收藏动态，幂等",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "authenticated"
+      },
+      "patch": {
+        "operationId": "momentsMoveBookmark",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveMomentBookmarkDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsMoveBookmark200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "动态、收藏或收藏夹不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "移动动态收藏到其他收藏夹",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "authenticated"
+      },
+      "delete": {
+        "operationId": "momentsUnbookmark",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsUnbookmark200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "取消收藏动态，幂等",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "authenticated"
+      }
+    },
+    "/api/v1/moments/{id}/comments": {
+      "get": {
+        "operationId": "momentsCommentsList",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
+            "schema": {
+              "example": "clxabc123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（默认 20，最大 50）",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "description": "回复顺序；帖子回复默认 OLDEST，动态主评论默认 NEWEST",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "OLDEST",
+                "NEWEST"
+              ]
+            }
+          },
+          {
+            "name": "authorId",
+            "required": false,
+            "in": "query",
+            "description": "只返回指定作者的回复",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "主评论游标分页",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsCommentsList200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "主评论列表，支持顺序与作者筛选并内嵌三条楼中楼",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "optional",
+        "x-pagination": "cursor",
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
+      },
+      "post": {
+        "operationId": "momentsCreateComment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMomentCommentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsCreateComment201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "发表文字、单图或单表情评论；回复统一归入两层楼中楼",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "authenticated"
+      }
+    },
+    "/api/v1/moments/{id}/comment-authors": {
+      "get": {
+        "operationId": "momentsCommentAuthors",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsCommentAuthors200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "获取当前可见动态回复串中的作者候选",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "optional",
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
+      }
+    },
+    "/api/v1/moments/{id}/comments/{commentId}/context": {
+      "get": {
+        "operationId": "momentsCommentContext",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "commentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsCommentContext200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "动态或目标评论不存在、已删除或因拉黑不可见",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "按评论 ID 获取动态主评论与精确定位目标",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "optional",
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
+      }
+    },
+    "/api/v1/moments/{id}/comments/{commentId}/replies": {
+      "get": {
+        "operationId": "momentsReplies",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "commentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
+            "schema": {
+              "example": "clxabc123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（默认 20，最大 50）",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "description": "回复顺序；帖子回复默认 OLDEST，动态主评论默认 NEWEST",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "OLDEST",
+                "NEWEST"
+              ]
+            }
+          },
+          {
+            "name": "authorId",
+            "required": false,
+            "in": "query",
+            "description": "只返回指定作者的回复",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "楼中楼游标分页",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsReplies200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "分页获取某主评论的楼中楼，支持顺序与作者筛选",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "optional",
+        "x-pagination": "cursor",
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
+      }
+    },
+    "/api/v1/moments/{id}/comments/{commentId}": {
+      "delete": {
+        "operationId": "momentsRemoveComment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "commentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsRemoveComment200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "403": {
+            "description": "无删除权限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "评论作者、动态作者或管理员软删除评论",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "authenticated"
+      }
+    },
+    "/api/v1/users/{id}/moments": {
+      "get": {
+        "operationId": "userMomentsList",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
+            "schema": {
+              "example": "clxabc123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（默认 20，最大 50）",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "用户动态游标分页",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserMomentsList200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "用户公开动态列表",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "optional",
+        "x-pagination": "cursor",
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
       }
     },
     "/api/v1/threads/{threadId}/subthreads": {
@@ -13673,1376 +15255,6 @@
         ]
       }
     },
-    "/api/v1/moments": {
-      "get": {
-        "operationId": "momentsList",
-        "parameters": [
-          {
-            "name": "cursor",
-            "required": false,
-            "in": "query",
-            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
-            "schema": {
-              "example": "clxabc123...",
-              "type": "string"
-            }
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "description": "每页条数（默认 20，最大 50）",
-            "schema": {
-              "default": 20,
-              "example": 20,
-              "type": "number"
-            }
-          },
-          {
-            "name": "feed",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "default": "DISCOVER",
-              "type": "string",
-              "enum": [
-                "DISCOVER",
-                "FOLLOWING"
-              ]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "动态卡片游标分页",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MomentsList200Response"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "default": {
-            "description": "未在此操作中单独列出的错误响应",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          }
-        },
-        "summary": "动态瀑布流；发现为热度，新鲜关注为时间倒序",
-        "tags": [
-          "Moments"
-        ],
-        "x-auth-mode": "optional",
-        "x-pagination": "cursor",
-        "security": [
-          {
-            "bearer": []
-          },
-          {}
-        ]
-      },
-      "post": {
-        "operationId": "momentsCreate",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateMomentDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MomentsCreate201Response"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "400": {
-            "description": "标题、正文、封面或图片状态不合法",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "409": {
-            "description": "幂等键复用或图片已被使用",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "default": {
-            "description": "未在此操作中单独列出的错误响应",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "发布纯文本/图片动态，最多 9 张图片",
-        "tags": [
-          "Moments"
-        ],
-        "x-auth-mode": "authenticated"
-      }
-    },
-    "/api/v1/moments/bookmarks": {
-      "get": {
-        "operationId": "momentsBookmarks",
-        "parameters": [
-          {
-            "name": "cursor",
-            "required": false,
-            "in": "query",
-            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
-            "schema": {
-              "example": "clxabc123...",
-              "type": "string"
-            }
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "description": "每页条数（默认 20，最大 50）",
-            "schema": {
-              "default": 20,
-              "example": 20,
-              "type": "number"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "动态收藏游标分页",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MomentsBookmarks200Response"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "default": {
-            "description": "未在此操作中单独列出的错误响应",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "当前用户收藏的动态",
-        "tags": [
-          "Moments"
-        ],
-        "x-auth-mode": "authenticated",
-        "x-pagination": "cursor"
-      }
-    },
-    "/api/v1/moments/{id}": {
-      "get": {
-        "operationId": "momentsDetail",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MomentsDetail200Response"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "404": {
-            "description": "动态不存在、已删除或因拉黑不可见",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "default": {
-            "description": "未在此操作中单独列出的错误响应",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          }
-        },
-        "summary": "获取动态详情",
-        "tags": [
-          "Moments"
-        ],
-        "x-auth-mode": "optional",
-        "security": [
-          {
-            "bearer": []
-          },
-          {}
-        ]
-      },
-      "patch": {
-        "operationId": "momentsUpdate",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateMomentDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MomentsUpdate200Response"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "409": {
-            "description": "版本冲突或图片已被其他动态使用",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "default": {
-            "description": "未在此操作中单独列出的错误响应",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "编辑自己的动态，使用 version 乐观锁",
-        "tags": [
-          "Moments"
-        ],
-        "x-auth-mode": "authenticated"
-      },
-      "delete": {
-        "operationId": "momentsRemove",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MomentsRemove200Response"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "default": {
-            "description": "未在此操作中单独列出的错误响应",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "软删除动态",
-        "tags": [
-          "Moments"
-        ],
-        "x-auth-mode": "authenticated"
-      }
-    },
-    "/api/v1/moments/{id}/like": {
-      "post": {
-        "operationId": "momentsLike",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MomentsLike201Response"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "default": {
-            "description": "未在此操作中单独列出的错误响应",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "点赞动态，幂等",
-        "tags": [
-          "Moments"
-        ],
-        "x-auth-mode": "authenticated"
-      },
-      "delete": {
-        "operationId": "momentsUnlike",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MomentsUnlike200Response"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "default": {
-            "description": "未在此操作中单独列出的错误响应",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "取消点赞动态，幂等",
-        "tags": [
-          "Moments"
-        ],
-        "x-auth-mode": "authenticated"
-      }
-    },
-    "/api/v1/moments/{id}/bookmark": {
-      "post": {
-        "operationId": "momentsBookmark",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MomentsBookmark201Response"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "default": {
-            "description": "未在此操作中单独列出的错误响应",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "收藏动态，幂等",
-        "tags": [
-          "Moments"
-        ],
-        "x-auth-mode": "authenticated"
-      },
-      "delete": {
-        "operationId": "momentsUnbookmark",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MomentsUnbookmark200Response"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "default": {
-            "description": "未在此操作中单独列出的错误响应",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "取消收藏动态，幂等",
-        "tags": [
-          "Moments"
-        ],
-        "x-auth-mode": "authenticated"
-      }
-    },
-    "/api/v1/moments/{id}/comments": {
-      "get": {
-        "operationId": "momentsCommentsList",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "cursor",
-            "required": false,
-            "in": "query",
-            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
-            "schema": {
-              "example": "clxabc123...",
-              "type": "string"
-            }
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "description": "每页条数（默认 20，最大 50）",
-            "schema": {
-              "default": 20,
-              "example": 20,
-              "type": "number"
-            }
-          },
-          {
-            "name": "order",
-            "required": false,
-            "in": "query",
-            "description": "回复顺序；帖子回复默认 OLDEST，动态主评论默认 NEWEST",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "OLDEST",
-                "NEWEST"
-              ]
-            }
-          },
-          {
-            "name": "authorId",
-            "required": false,
-            "in": "query",
-            "description": "只返回指定作者的回复",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "主评论游标分页",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MomentsCommentsList200Response"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "default": {
-            "description": "未在此操作中单独列出的错误响应",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          }
-        },
-        "summary": "主评论列表，支持顺序与作者筛选并内嵌三条楼中楼",
-        "tags": [
-          "Moments"
-        ],
-        "x-auth-mode": "optional",
-        "x-pagination": "cursor",
-        "security": [
-          {
-            "bearer": []
-          },
-          {}
-        ]
-      },
-      "post": {
-        "operationId": "momentsCreateComment",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateMomentCommentDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MomentsCreateComment201Response"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "default": {
-            "description": "未在此操作中单独列出的错误响应",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "发表文字、单图或单表情评论；回复统一归入两层楼中楼",
-        "tags": [
-          "Moments"
-        ],
-        "x-auth-mode": "authenticated"
-      }
-    },
-    "/api/v1/moments/{id}/comment-authors": {
-      "get": {
-        "operationId": "momentsCommentAuthors",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MomentsCommentAuthors200Response"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "default": {
-            "description": "未在此操作中单独列出的错误响应",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          }
-        },
-        "summary": "获取当前可见动态回复串中的作者候选",
-        "tags": [
-          "Moments"
-        ],
-        "x-auth-mode": "optional",
-        "security": [
-          {
-            "bearer": []
-          },
-          {}
-        ]
-      }
-    },
-    "/api/v1/moments/{id}/comments/{commentId}/context": {
-      "get": {
-        "operationId": "momentsCommentContext",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "commentId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MomentsCommentContext200Response"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "404": {
-            "description": "动态或目标评论不存在、已删除或因拉黑不可见",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "default": {
-            "description": "未在此操作中单独列出的错误响应",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          }
-        },
-        "summary": "按评论 ID 获取动态主评论与精确定位目标",
-        "tags": [
-          "Moments"
-        ],
-        "x-auth-mode": "optional",
-        "security": [
-          {
-            "bearer": []
-          },
-          {}
-        ]
-      }
-    },
-    "/api/v1/moments/{id}/comments/{commentId}/replies": {
-      "get": {
-        "operationId": "momentsReplies",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "commentId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "cursor",
-            "required": false,
-            "in": "query",
-            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
-            "schema": {
-              "example": "clxabc123...",
-              "type": "string"
-            }
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "description": "每页条数（默认 20，最大 50）",
-            "schema": {
-              "default": 20,
-              "example": 20,
-              "type": "number"
-            }
-          },
-          {
-            "name": "order",
-            "required": false,
-            "in": "query",
-            "description": "回复顺序；帖子回复默认 OLDEST，动态主评论默认 NEWEST",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "OLDEST",
-                "NEWEST"
-              ]
-            }
-          },
-          {
-            "name": "authorId",
-            "required": false,
-            "in": "query",
-            "description": "只返回指定作者的回复",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "楼中楼游标分页",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MomentsReplies200Response"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "default": {
-            "description": "未在此操作中单独列出的错误响应",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          }
-        },
-        "summary": "分页获取某主评论的楼中楼，支持顺序与作者筛选",
-        "tags": [
-          "Moments"
-        ],
-        "x-auth-mode": "optional",
-        "x-pagination": "cursor",
-        "security": [
-          {
-            "bearer": []
-          },
-          {}
-        ]
-      }
-    },
-    "/api/v1/moments/{id}/comments/{commentId}": {
-      "delete": {
-        "operationId": "momentsRemoveComment",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "commentId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MomentsRemoveComment200Response"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "403": {
-            "description": "无删除权限",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "default": {
-            "description": "未在此操作中单独列出的错误响应",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "评论作者、动态作者或管理员软删除评论",
-        "tags": [
-          "Moments"
-        ],
-        "x-auth-mode": "authenticated"
-      }
-    },
-    "/api/v1/users/{id}/moments": {
-      "get": {
-        "operationId": "userMomentsList",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "cursor",
-            "required": false,
-            "in": "query",
-            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
-            "schema": {
-              "example": "clxabc123...",
-              "type": "string"
-            }
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "description": "每页条数（默认 20，最大 50）",
-            "schema": {
-              "default": 20,
-              "example": 20,
-              "type": "number"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "用户动态游标分页",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UserMomentsList200Response"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          },
-          "default": {
-            "description": "未在此操作中单独列出的错误响应",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              }
-            }
-          }
-        },
-        "summary": "用户公开动态列表",
-        "tags": [
-          "Moments"
-        ],
-        "x-auth-mode": "optional",
-        "x-pagination": "cursor",
-        "security": [
-          {
-            "bearer": []
-          },
-          {}
-        ]
-      }
-    },
     "/api/v1/media/upload-url": {
       "post": {
         "operationId": "mediaGetUploadUrl",
@@ -17012,7 +17224,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.1.0-dev.20260817.1",
+    "version": "5.2.0-dev.20260818.1",
     "contact": {}
   },
   "tags": [
@@ -18202,6 +18414,146 @@
           "coverImages"
         ]
       },
+      "MomentMediaResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "thumbnailUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "feedUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "mediumUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "width": {
+            "type": "number",
+            "nullable": true
+          },
+          "height": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "thumbnailUrl",
+          "feedUrl",
+          "mediumUrl",
+          "width",
+          "height"
+        ]
+      },
+      "MomentCardResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "authorId": {
+            "type": "string"
+          },
+          "author": {
+            "$ref": "#/components/schemas/PostAuthorResponseDto"
+          },
+          "title": {
+            "type": "string"
+          },
+          "contentExcerpt": {
+            "type": "string",
+            "description": "正文纯文本摘要；传送门降级为自定义名称或默认名称“传送门”"
+          },
+          "coverType": {
+            "type": "string",
+            "enum": [
+              "IMAGE",
+              "TEXT"
+            ]
+          },
+          "textCoverTheme": {
+            "type": "string",
+            "enum": [
+              "ROSE",
+              "LILAC",
+              "MINT",
+              "AMBER"
+            ]
+          },
+          "coverMedia": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MomentMediaResponseDto"
+              }
+            ]
+          },
+          "imageCount": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 9
+          },
+          "likeCount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "commentCount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "bookmarkCount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "tipTotal": {
+            "type": "string",
+            "pattern": "^\\d+$"
+          },
+          "viewerLiked": {
+            "type": "boolean"
+          },
+          "viewerBookmarked": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "authorId",
+          "author",
+          "title",
+          "contentExcerpt",
+          "coverType",
+          "textCoverTheme",
+          "coverMedia",
+          "imageCount",
+          "likeCount",
+          "commentCount",
+          "bookmarkCount",
+          "tipTotal",
+          "viewerLiked",
+          "viewerBookmarked",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
       "ThreadListItemResponseDto": {
         "type": "object",
         "properties": {
@@ -19226,6 +19578,11 @@
             "type": "number",
             "minimum": 0
           },
+          "momentBookmarkCount": {
+            "type": "number",
+            "minimum": 0,
+            "description": "该收藏夹中的动态收藏数量"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -19236,6 +19593,7 @@
           "name",
           "isDefault",
           "bookmarkCount",
+          "momentBookmarkCount",
           "createdAt"
         ]
       },
@@ -20712,6 +21070,664 @@
           "mergedIntoId",
           "createdAt",
           "updatedAt"
+        ]
+      },
+      "OwnMomentBookmarkResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "authorId": {
+            "type": "string"
+          },
+          "author": {
+            "$ref": "#/components/schemas/PostAuthorResponseDto"
+          },
+          "title": {
+            "type": "string"
+          },
+          "contentExcerpt": {
+            "type": "string",
+            "description": "正文纯文本摘要；传送门降级为自定义名称或默认名称“传送门”"
+          },
+          "coverType": {
+            "type": "string",
+            "enum": [
+              "IMAGE",
+              "TEXT"
+            ]
+          },
+          "textCoverTheme": {
+            "type": "string",
+            "enum": [
+              "ROSE",
+              "LILAC",
+              "MINT",
+              "AMBER"
+            ]
+          },
+          "coverMedia": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MomentMediaResponseDto"
+              }
+            ]
+          },
+          "imageCount": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 9
+          },
+          "likeCount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "commentCount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "bookmarkCount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "tipTotal": {
+            "type": "string",
+            "pattern": "^\\d+$"
+          },
+          "viewerLiked": {
+            "type": "boolean"
+          },
+          "viewerBookmarked": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "bookmarkFolderId": {
+            "type": "string",
+            "description": "所属私有收藏夹 ID"
+          }
+        },
+        "required": [
+          "id",
+          "authorId",
+          "author",
+          "title",
+          "contentExcerpt",
+          "coverType",
+          "textCoverTheme",
+          "coverMedia",
+          "imageCount",
+          "likeCount",
+          "commentCount",
+          "bookmarkCount",
+          "tipTotal",
+          "viewerLiked",
+          "viewerBookmarked",
+          "createdAt",
+          "updatedAt",
+          "bookmarkFolderId"
+        ]
+      },
+      "CreateMomentDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 40,
+            "description": "动态标题，纯文本"
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 1000,
+            "default": "",
+            "description": "动态正文字串；可按 internal-reference v1 嵌入命名站内传送门，其他 Markdown 按普通文本处理"
+          },
+          "mediaIds": {
+            "maxItems": 9,
+            "default": [],
+            "description": "已完成处理的图片 ID，顺序即展示顺序",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "coverMediaId": {
+            "type": "string",
+            "nullable": true,
+            "description": "必须属于 mediaIds；无图时为 null"
+          },
+          "clientRequestId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "发布幂等键，同时决定无图文字封面配色"
+          }
+        },
+        "required": [
+          "title",
+          "mediaIds",
+          "clientRequestId"
+        ]
+      },
+      "MomentDetailResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "authorId": {
+            "type": "string"
+          },
+          "author": {
+            "$ref": "#/components/schemas/PostAuthorResponseDto"
+          },
+          "title": {
+            "type": "string"
+          },
+          "contentExcerpt": {
+            "type": "string",
+            "description": "正文纯文本摘要；传送门降级为自定义名称或默认名称“传送门”"
+          },
+          "coverType": {
+            "type": "string",
+            "enum": [
+              "IMAGE",
+              "TEXT"
+            ]
+          },
+          "textCoverTheme": {
+            "type": "string",
+            "enum": [
+              "ROSE",
+              "LILAC",
+              "MINT",
+              "AMBER"
+            ]
+          },
+          "coverMedia": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MomentMediaResponseDto"
+              }
+            ]
+          },
+          "imageCount": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 9
+          },
+          "likeCount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "commentCount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "bookmarkCount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "tipTotal": {
+            "type": "string",
+            "pattern": "^\\d+$"
+          },
+          "viewerLiked": {
+            "type": "boolean"
+          },
+          "viewerBookmarked": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "content": {
+            "type": "string",
+            "description": "完整正文字串；可包含 internal-reference v1 站内传送门语法"
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MomentMediaResponseDto"
+            }
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1
+          },
+          "canEdit": {
+            "type": "boolean"
+          },
+          "canDelete": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "authorId",
+          "author",
+          "title",
+          "contentExcerpt",
+          "coverType",
+          "textCoverTheme",
+          "coverMedia",
+          "imageCount",
+          "likeCount",
+          "commentCount",
+          "bookmarkCount",
+          "tipTotal",
+          "viewerLiked",
+          "viewerBookmarked",
+          "createdAt",
+          "updatedAt",
+          "content",
+          "images",
+          "version",
+          "canEdit",
+          "canDelete"
+        ]
+      },
+      "UpdateMomentDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 40
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "动态正文字串；站内传送门语法见 internal-reference v1，其他 Markdown 按普通文本处理"
+          },
+          "mediaIds": {
+            "maxItems": 9,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "coverMediaId": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1,
+            "description": "乐观锁版本"
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "MomentDeleteResponseDto": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ]
+      },
+      "MomentActionResponseDto": {
+        "type": "object",
+        "properties": {
+          "momentId": {
+            "type": "string"
+          },
+          "count": {
+            "type": "number",
+            "minimum": 0
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "momentId",
+          "count",
+          "active"
+        ]
+      },
+      "CreateMomentBookmarkDto": {
+        "type": "object",
+        "properties": {
+          "folderId": {
+            "type": "string",
+            "description": "目标收藏夹 ID；不传时首次收藏归入默认收藏夹"
+          }
+        }
+      },
+      "MoveMomentBookmarkDto": {
+        "type": "object",
+        "properties": {
+          "folderId": {
+            "type": "string",
+            "description": "要移入的收藏夹 ID"
+          }
+        },
+        "required": [
+          "folderId"
+        ]
+      },
+      "MomentBookmarkPlacementResponseDto": {
+        "type": "object",
+        "properties": {
+          "momentId": {
+            "type": "string"
+          },
+          "folderId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "momentId",
+          "folderId"
+        ]
+      },
+      "MomentStickerResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "thumbnailUrl": {
+            "type": "string"
+          },
+          "mediumUrl": {
+            "type": "string"
+          },
+          "width": {
+            "type": "number",
+            "nullable": true
+          },
+          "height": {
+            "type": "number",
+            "nullable": true
+          },
+          "animated": {
+            "type": "boolean"
+          },
+          "frameCount": {
+            "type": "number"
+          },
+          "durationMs": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "thumbnailUrl",
+          "mediumUrl",
+          "width",
+          "height",
+          "animated",
+          "frameCount",
+          "durationMs"
+        ]
+      },
+      "MomentReplyTargetResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "author": {
+            "$ref": "#/components/schemas/PostAuthorResponseDto"
+          }
+        },
+        "required": [
+          "id",
+          "author"
+        ]
+      },
+      "MomentCommentResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "momentId": {
+            "type": "string"
+          },
+          "author": {
+            "$ref": "#/components/schemas/PostAuthorResponseDto"
+          },
+          "content": {
+            "type": "string",
+            "nullable": true,
+            "description": "图片/表情评论可为空字符串；删除后为 null"
+          },
+          "media": {
+            "nullable": true,
+            "description": "每条评论最多一张普通图片",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MomentMediaResponseDto"
+              }
+            ]
+          },
+          "sticker": {
+            "nullable": true,
+            "description": "每条评论最多一个表情；与 media 互斥",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MomentStickerResponseDto"
+              }
+            ]
+          },
+          "parentCommentId": {
+            "type": "string",
+            "nullable": true,
+            "description": "楼中楼统一指向主评论"
+          },
+          "replyToComment": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MomentReplyTargetResponseDto"
+              }
+            ]
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "canDelete": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "momentId",
+          "author",
+          "content",
+          "media",
+          "sticker",
+          "parentCommentId",
+          "replyToComment",
+          "deleted",
+          "canDelete",
+          "createdAt"
+        ]
+      },
+      "MomentRootCommentResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "momentId": {
+            "type": "string"
+          },
+          "author": {
+            "$ref": "#/components/schemas/PostAuthorResponseDto"
+          },
+          "content": {
+            "type": "string",
+            "nullable": true,
+            "description": "图片/表情评论可为空字符串；删除后为 null"
+          },
+          "media": {
+            "nullable": true,
+            "description": "每条评论最多一张普通图片",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MomentMediaResponseDto"
+              }
+            ]
+          },
+          "sticker": {
+            "nullable": true,
+            "description": "每条评论最多一个表情；与 media 互斥",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MomentStickerResponseDto"
+              }
+            ]
+          },
+          "parentCommentId": {
+            "type": "string",
+            "nullable": true,
+            "description": "楼中楼统一指向主评论"
+          },
+          "replyToComment": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MomentReplyTargetResponseDto"
+              }
+            ]
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "canDelete": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "replyCount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "replies": {
+            "description": "按当前筛选与顺序返回的前三条可见楼中楼预览",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MomentCommentResponseDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "momentId",
+          "author",
+          "content",
+          "media",
+          "sticker",
+          "parentCommentId",
+          "replyToComment",
+          "deleted",
+          "canDelete",
+          "createdAt",
+          "replyCount",
+          "replies"
+        ]
+      },
+      "CreateMomentCommentDto": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "评论字串；可按 internal-reference v1 嵌入命名站内传送门；与图片或表情至少提供一项"
+          },
+          "mediaId": {
+            "type": "string",
+            "description": "已完成处理且属于评论者的图片 ID；与 stickerAssetId 互斥"
+          },
+          "stickerAssetId": {
+            "type": "string",
+            "description": "当前收藏夹中的表情资产 ID；与 mediaId 互斥"
+          },
+          "replyToCommentId": {
+            "type": "string",
+            "description": "被回复评论 ID；服务端自动归并到所属主评论"
+          },
+          "clientRequestId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "评论幂等键"
+          }
+        },
+        "required": [
+          "clientRequestId"
+        ]
+      },
+      "MomentCommentContextResponseDto": {
+        "type": "object",
+        "properties": {
+          "root": {
+            "description": "目标所在的主评论；主评论已删除但仍有可见回复时返回墓碑内容",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MomentCommentResponseDto"
+              }
+            ]
+          },
+          "target": {
+            "description": "需要精确定位的可见主评论或楼中楼回复",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MomentCommentResponseDto"
+              }
+            ]
+          },
+          "replyCount": {
+            "type": "number",
+            "minimum": 0,
+            "description": "该主评论下当前查看者可见的楼中楼回复数"
+          }
+        },
+        "required": [
+          "root",
+          "target",
+          "replyCount"
         ]
       },
       "SubthreadCountResponseDto": {
@@ -23822,46 +24838,6 @@
           }
         }
       },
-      "MomentMediaResponseDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "url": {
-            "type": "string"
-          },
-          "thumbnailUrl": {
-            "type": "string",
-            "nullable": true
-          },
-          "feedUrl": {
-            "type": "string",
-            "nullable": true
-          },
-          "mediumUrl": {
-            "type": "string",
-            "nullable": true
-          },
-          "width": {
-            "type": "number",
-            "nullable": true
-          },
-          "height": {
-            "type": "number",
-            "nullable": true
-          }
-        },
-        "required": [
-          "id",
-          "url",
-          "thumbnailUrl",
-          "feedUrl",
-          "mediumUrl",
-          "width",
-          "height"
-        ]
-      },
       "MomentSearchResponseDto": {
         "type": "object",
         "properties": {
@@ -24249,623 +25225,6 @@
           "users",
           "threads",
           "posts"
-        ]
-      },
-      "MomentCardResponseDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "authorId": {
-            "type": "string"
-          },
-          "author": {
-            "$ref": "#/components/schemas/PostAuthorResponseDto"
-          },
-          "title": {
-            "type": "string"
-          },
-          "contentExcerpt": {
-            "type": "string",
-            "description": "正文纯文本摘要；传送门降级为自定义名称或默认名称“传送门”"
-          },
-          "coverType": {
-            "type": "string",
-            "enum": [
-              "IMAGE",
-              "TEXT"
-            ]
-          },
-          "textCoverTheme": {
-            "type": "string",
-            "enum": [
-              "ROSE",
-              "LILAC",
-              "MINT",
-              "AMBER"
-            ]
-          },
-          "coverMedia": {
-            "nullable": true,
-            "type": "object",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/MomentMediaResponseDto"
-              }
-            ]
-          },
-          "imageCount": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 9
-          },
-          "likeCount": {
-            "type": "number",
-            "minimum": 0
-          },
-          "commentCount": {
-            "type": "number",
-            "minimum": 0
-          },
-          "bookmarkCount": {
-            "type": "number",
-            "minimum": 0
-          },
-          "tipTotal": {
-            "type": "string",
-            "pattern": "^\\d+$"
-          },
-          "viewerLiked": {
-            "type": "boolean"
-          },
-          "viewerBookmarked": {
-            "type": "boolean"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "id",
-          "authorId",
-          "author",
-          "title",
-          "contentExcerpt",
-          "coverType",
-          "textCoverTheme",
-          "coverMedia",
-          "imageCount",
-          "likeCount",
-          "commentCount",
-          "bookmarkCount",
-          "tipTotal",
-          "viewerLiked",
-          "viewerBookmarked",
-          "createdAt",
-          "updatedAt"
-        ]
-      },
-      "CreateMomentDto": {
-        "type": "object",
-        "properties": {
-          "title": {
-            "type": "string",
-            "minLength": 2,
-            "maxLength": 40,
-            "description": "动态标题，纯文本"
-          },
-          "content": {
-            "type": "string",
-            "maxLength": 1000,
-            "default": "",
-            "description": "动态正文字串；可按 internal-reference v1 嵌入命名站内传送门，其他 Markdown 按普通文本处理"
-          },
-          "mediaIds": {
-            "maxItems": 9,
-            "default": [],
-            "description": "已完成处理的图片 ID，顺序即展示顺序",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "coverMediaId": {
-            "type": "string",
-            "nullable": true,
-            "description": "必须属于 mediaIds；无图时为 null"
-          },
-          "clientRequestId": {
-            "type": "string",
-            "format": "uuid",
-            "description": "发布幂等键，同时决定无图文字封面配色"
-          }
-        },
-        "required": [
-          "title",
-          "mediaIds",
-          "clientRequestId"
-        ]
-      },
-      "MomentDetailResponseDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "authorId": {
-            "type": "string"
-          },
-          "author": {
-            "$ref": "#/components/schemas/PostAuthorResponseDto"
-          },
-          "title": {
-            "type": "string"
-          },
-          "contentExcerpt": {
-            "type": "string",
-            "description": "正文纯文本摘要；传送门降级为自定义名称或默认名称“传送门”"
-          },
-          "coverType": {
-            "type": "string",
-            "enum": [
-              "IMAGE",
-              "TEXT"
-            ]
-          },
-          "textCoverTheme": {
-            "type": "string",
-            "enum": [
-              "ROSE",
-              "LILAC",
-              "MINT",
-              "AMBER"
-            ]
-          },
-          "coverMedia": {
-            "nullable": true,
-            "type": "object",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/MomentMediaResponseDto"
-              }
-            ]
-          },
-          "imageCount": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 9
-          },
-          "likeCount": {
-            "type": "number",
-            "minimum": 0
-          },
-          "commentCount": {
-            "type": "number",
-            "minimum": 0
-          },
-          "bookmarkCount": {
-            "type": "number",
-            "minimum": 0
-          },
-          "tipTotal": {
-            "type": "string",
-            "pattern": "^\\d+$"
-          },
-          "viewerLiked": {
-            "type": "boolean"
-          },
-          "viewerBookmarked": {
-            "type": "boolean"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "content": {
-            "type": "string",
-            "description": "完整正文字串；可包含 internal-reference v1 站内传送门语法"
-          },
-          "images": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/MomentMediaResponseDto"
-            }
-          },
-          "version": {
-            "type": "number",
-            "minimum": 1
-          },
-          "canEdit": {
-            "type": "boolean"
-          },
-          "canDelete": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "id",
-          "authorId",
-          "author",
-          "title",
-          "contentExcerpt",
-          "coverType",
-          "textCoverTheme",
-          "coverMedia",
-          "imageCount",
-          "likeCount",
-          "commentCount",
-          "bookmarkCount",
-          "tipTotal",
-          "viewerLiked",
-          "viewerBookmarked",
-          "createdAt",
-          "updatedAt",
-          "content",
-          "images",
-          "version",
-          "canEdit",
-          "canDelete"
-        ]
-      },
-      "UpdateMomentDto": {
-        "type": "object",
-        "properties": {
-          "title": {
-            "type": "string",
-            "minLength": 2,
-            "maxLength": 40
-          },
-          "content": {
-            "type": "string",
-            "maxLength": 1000,
-            "description": "动态正文字串；站内传送门语法见 internal-reference v1，其他 Markdown 按普通文本处理"
-          },
-          "mediaIds": {
-            "maxItems": 9,
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "coverMediaId": {
-            "type": "string",
-            "nullable": true
-          },
-          "version": {
-            "type": "number",
-            "minimum": 1,
-            "description": "乐观锁版本"
-          }
-        },
-        "required": [
-          "version"
-        ]
-      },
-      "MomentDeleteResponseDto": {
-        "type": "object",
-        "properties": {
-          "message": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "message"
-        ]
-      },
-      "MomentActionResponseDto": {
-        "type": "object",
-        "properties": {
-          "momentId": {
-            "type": "string"
-          },
-          "count": {
-            "type": "number",
-            "minimum": 0
-          },
-          "active": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "momentId",
-          "count",
-          "active"
-        ]
-      },
-      "MomentStickerResponseDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "url": {
-            "type": "string"
-          },
-          "thumbnailUrl": {
-            "type": "string"
-          },
-          "mediumUrl": {
-            "type": "string"
-          },
-          "width": {
-            "type": "number",
-            "nullable": true
-          },
-          "height": {
-            "type": "number",
-            "nullable": true
-          },
-          "animated": {
-            "type": "boolean"
-          },
-          "frameCount": {
-            "type": "number"
-          },
-          "durationMs": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "id",
-          "url",
-          "thumbnailUrl",
-          "mediumUrl",
-          "width",
-          "height",
-          "animated",
-          "frameCount",
-          "durationMs"
-        ]
-      },
-      "MomentReplyTargetResponseDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "author": {
-            "$ref": "#/components/schemas/PostAuthorResponseDto"
-          }
-        },
-        "required": [
-          "id",
-          "author"
-        ]
-      },
-      "MomentCommentResponseDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "momentId": {
-            "type": "string"
-          },
-          "author": {
-            "$ref": "#/components/schemas/PostAuthorResponseDto"
-          },
-          "content": {
-            "type": "string",
-            "nullable": true,
-            "description": "图片/表情评论可为空字符串；删除后为 null"
-          },
-          "media": {
-            "nullable": true,
-            "description": "每条评论最多一张普通图片",
-            "type": "object",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/MomentMediaResponseDto"
-              }
-            ]
-          },
-          "sticker": {
-            "nullable": true,
-            "description": "每条评论最多一个表情；与 media 互斥",
-            "type": "object",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/MomentStickerResponseDto"
-              }
-            ]
-          },
-          "parentCommentId": {
-            "type": "string",
-            "nullable": true,
-            "description": "楼中楼统一指向主评论"
-          },
-          "replyToComment": {
-            "nullable": true,
-            "type": "object",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/MomentReplyTargetResponseDto"
-              }
-            ]
-          },
-          "deleted": {
-            "type": "boolean"
-          },
-          "canDelete": {
-            "type": "boolean"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "id",
-          "momentId",
-          "author",
-          "content",
-          "media",
-          "sticker",
-          "parentCommentId",
-          "replyToComment",
-          "deleted",
-          "canDelete",
-          "createdAt"
-        ]
-      },
-      "MomentRootCommentResponseDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "momentId": {
-            "type": "string"
-          },
-          "author": {
-            "$ref": "#/components/schemas/PostAuthorResponseDto"
-          },
-          "content": {
-            "type": "string",
-            "nullable": true,
-            "description": "图片/表情评论可为空字符串；删除后为 null"
-          },
-          "media": {
-            "nullable": true,
-            "description": "每条评论最多一张普通图片",
-            "type": "object",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/MomentMediaResponseDto"
-              }
-            ]
-          },
-          "sticker": {
-            "nullable": true,
-            "description": "每条评论最多一个表情；与 media 互斥",
-            "type": "object",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/MomentStickerResponseDto"
-              }
-            ]
-          },
-          "parentCommentId": {
-            "type": "string",
-            "nullable": true,
-            "description": "楼中楼统一指向主评论"
-          },
-          "replyToComment": {
-            "nullable": true,
-            "type": "object",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/MomentReplyTargetResponseDto"
-              }
-            ]
-          },
-          "deleted": {
-            "type": "boolean"
-          },
-          "canDelete": {
-            "type": "boolean"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "replyCount": {
-            "type": "number",
-            "minimum": 0
-          },
-          "replies": {
-            "description": "按当前筛选与顺序返回的前三条可见楼中楼预览",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/MomentCommentResponseDto"
-            }
-          }
-        },
-        "required": [
-          "id",
-          "momentId",
-          "author",
-          "content",
-          "media",
-          "sticker",
-          "parentCommentId",
-          "replyToComment",
-          "deleted",
-          "canDelete",
-          "createdAt",
-          "replyCount",
-          "replies"
-        ]
-      },
-      "CreateMomentCommentDto": {
-        "type": "object",
-        "properties": {
-          "content": {
-            "type": "string",
-            "maxLength": 500,
-            "description": "评论字串；可按 internal-reference v1 嵌入命名站内传送门；与图片或表情至少提供一项"
-          },
-          "mediaId": {
-            "type": "string",
-            "description": "已完成处理且属于评论者的图片 ID；与 stickerAssetId 互斥"
-          },
-          "stickerAssetId": {
-            "type": "string",
-            "description": "当前收藏夹中的表情资产 ID；与 mediaId 互斥"
-          },
-          "replyToCommentId": {
-            "type": "string",
-            "description": "被回复评论 ID；服务端自动归并到所属主评论"
-          },
-          "clientRequestId": {
-            "type": "string",
-            "format": "uuid",
-            "description": "评论幂等键"
-          }
-        },
-        "required": [
-          "clientRequestId"
-        ]
-      },
-      "MomentCommentContextResponseDto": {
-        "type": "object",
-        "properties": {
-          "root": {
-            "description": "目标所在的主评论；主评论已删除但仍有可见回复时返回墓碑内容",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/MomentCommentResponseDto"
-              }
-            ]
-          },
-          "target": {
-            "description": "需要精确定位的可见主评论或楼中楼回复",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/MomentCommentResponseDto"
-              }
-            ]
-          },
-          "replyCount": {
-            "type": "number",
-            "minimum": 0,
-            "description": "该主评论下当前查看者可见的楼中楼回复数"
-          }
-        },
-        "required": [
-          "root",
-          "target",
-          "replyCount"
         ]
       },
       "CreateUploadUrlDto": {
@@ -26406,6 +26765,27 @@
           }
         ]
       },
+      "UsersGetUserMomentBookmarks200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MomentCardResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
       "UsersGetUserPlayedThreads200Response": {
         "allOf": [
           {
@@ -27477,6 +27857,348 @@
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/ThreadCategoryResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "MomentsList200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MomentCardResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "MomentsCreate201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MomentDetailResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "MomentsBookmarks200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/OwnMomentBookmarkResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "MomentsDetail200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MomentDetailResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "MomentsRemove200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MomentDeleteResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "MomentsUpdate200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MomentDetailResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "MomentsLike201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MomentActionResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "MomentsUnlike200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MomentActionResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "MomentsBookmark201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MomentActionResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "MomentsUnbookmark200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MomentActionResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "MomentsMoveBookmark200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MomentBookmarkPlacementResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "MomentsCommentsList200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MomentRootCommentResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "MomentsCreateComment201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MomentCommentResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "MomentsCommentAuthors200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PostAuthorResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "MomentsCommentContext200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MomentCommentContextResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "MomentsReplies200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MomentCommentResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "MomentsRemoveComment200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MomentDeleteResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "UserMomentsList200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MomentCardResponseDto"
                 }
               }
             }
@@ -29016,330 +29738,6 @@
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/SearchPostResponseDto"
-                }
-              }
-            }
-          }
-        ]
-      },
-      "MomentsList200Response": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
-          },
-          {
-            "type": "object",
-            "required": [
-              "data"
-            ],
-            "properties": {
-              "data": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/MomentCardResponseDto"
-                }
-              }
-            }
-          }
-        ]
-      },
-      "MomentsCreate201Response": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ApiSuccessEnvelope"
-          },
-          {
-            "type": "object",
-            "required": [
-              "data"
-            ],
-            "properties": {
-              "data": {
-                "$ref": "#/components/schemas/MomentDetailResponseDto"
-              }
-            }
-          }
-        ]
-      },
-      "MomentsBookmarks200Response": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
-          },
-          {
-            "type": "object",
-            "required": [
-              "data"
-            ],
-            "properties": {
-              "data": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/MomentCardResponseDto"
-                }
-              }
-            }
-          }
-        ]
-      },
-      "MomentsDetail200Response": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ApiSuccessEnvelope"
-          },
-          {
-            "type": "object",
-            "required": [
-              "data"
-            ],
-            "properties": {
-              "data": {
-                "$ref": "#/components/schemas/MomentDetailResponseDto"
-              }
-            }
-          }
-        ]
-      },
-      "MomentsRemove200Response": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ApiSuccessEnvelope"
-          },
-          {
-            "type": "object",
-            "required": [
-              "data"
-            ],
-            "properties": {
-              "data": {
-                "$ref": "#/components/schemas/MomentDeleteResponseDto"
-              }
-            }
-          }
-        ]
-      },
-      "MomentsUpdate200Response": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ApiSuccessEnvelope"
-          },
-          {
-            "type": "object",
-            "required": [
-              "data"
-            ],
-            "properties": {
-              "data": {
-                "$ref": "#/components/schemas/MomentDetailResponseDto"
-              }
-            }
-          }
-        ]
-      },
-      "MomentsLike201Response": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ApiSuccessEnvelope"
-          },
-          {
-            "type": "object",
-            "required": [
-              "data"
-            ],
-            "properties": {
-              "data": {
-                "$ref": "#/components/schemas/MomentActionResponseDto"
-              }
-            }
-          }
-        ]
-      },
-      "MomentsUnlike200Response": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ApiSuccessEnvelope"
-          },
-          {
-            "type": "object",
-            "required": [
-              "data"
-            ],
-            "properties": {
-              "data": {
-                "$ref": "#/components/schemas/MomentActionResponseDto"
-              }
-            }
-          }
-        ]
-      },
-      "MomentsBookmark201Response": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ApiSuccessEnvelope"
-          },
-          {
-            "type": "object",
-            "required": [
-              "data"
-            ],
-            "properties": {
-              "data": {
-                "$ref": "#/components/schemas/MomentActionResponseDto"
-              }
-            }
-          }
-        ]
-      },
-      "MomentsUnbookmark200Response": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ApiSuccessEnvelope"
-          },
-          {
-            "type": "object",
-            "required": [
-              "data"
-            ],
-            "properties": {
-              "data": {
-                "$ref": "#/components/schemas/MomentActionResponseDto"
-              }
-            }
-          }
-        ]
-      },
-      "MomentsCommentsList200Response": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
-          },
-          {
-            "type": "object",
-            "required": [
-              "data"
-            ],
-            "properties": {
-              "data": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/MomentRootCommentResponseDto"
-                }
-              }
-            }
-          }
-        ]
-      },
-      "MomentsCreateComment201Response": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ApiSuccessEnvelope"
-          },
-          {
-            "type": "object",
-            "required": [
-              "data"
-            ],
-            "properties": {
-              "data": {
-                "$ref": "#/components/schemas/MomentCommentResponseDto"
-              }
-            }
-          }
-        ]
-      },
-      "MomentsCommentAuthors200Response": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ApiSuccessEnvelope"
-          },
-          {
-            "type": "object",
-            "required": [
-              "data"
-            ],
-            "properties": {
-              "data": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/PostAuthorResponseDto"
-                }
-              }
-            }
-          }
-        ]
-      },
-      "MomentsCommentContext200Response": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ApiSuccessEnvelope"
-          },
-          {
-            "type": "object",
-            "required": [
-              "data"
-            ],
-            "properties": {
-              "data": {
-                "$ref": "#/components/schemas/MomentCommentContextResponseDto"
-              }
-            }
-          }
-        ]
-      },
-      "MomentsReplies200Response": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
-          },
-          {
-            "type": "object",
-            "required": [
-              "data"
-            ],
-            "properties": {
-              "data": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/MomentCommentResponseDto"
-                }
-              }
-            }
-          }
-        ]
-      },
-      "MomentsRemoveComment200Response": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ApiSuccessEnvelope"
-          },
-          {
-            "type": "object",
-            "required": [
-              "data"
-            ],
-            "properties": {
-              "data": {
-                "$ref": "#/components/schemas/MomentDeleteResponseDto"
-              }
-            }
-          }
-        ]
-      },
-      "UserMomentsList200Response": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
-          },
-          {
-            "type": "object",
-            "required": [
-              "data"
-            ],
-            "properties": {
-              "data": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/MomentCardResponseDto"
                 }
               }
             }

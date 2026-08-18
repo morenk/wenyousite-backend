@@ -1,5 +1,11 @@
 # API 合同变更
 
+## 5.2.0-dev.20260818.1
+
+- 动态收藏接入私有收藏夹：`POST /moments/:id/bookmark` 可选传 `folderId`，新增 `PATCH /moments/:id/bookmark` 移动收藏，`GET /moments/bookmarks` 可按 `folderId` 筛选并仅在本人响应附带 `bookmarkFolderId`。
+- 收藏夹响应向后兼容新增 `momentBookmarkCount`；原 `bookmarkCount` 继续表示主题帖收藏数量。旧客户端不传动态收藏请求体时仍进入默认收藏夹，重复旧请求不会覆盖已有分类。
+- 新增 `GET /users/:id/moment-bookmarks` 公开动态收藏分页，复用 `showBookmarks`、动态软删除和双向拉黑可见性；公开响应不暴露收藏记录或收藏夹信息。
+
 ## 5.1.0-dev.20260817.1
 
 - `GET /bookmarks`、`GET /users/:id/bookmarks`、`GET /users/:id/created-threads` 与 `GET /users/:id/played-threads` 向后兼容补齐首页主题帖卡片字段：默认子贴、正文摘要、首张普通图片封面、主题标签及玩家计数。

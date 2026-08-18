@@ -91,7 +91,9 @@ OpenAPI 为兼容 Web 把该头标为 optional；省略或传未知值会创建 
 
 `meta.cursor` 是不透明字符串。筛选或排序变化时清空 cursor；收到 `INVALID_CURSOR` 时清空列表并从首页加载。动态发现流 cursor 绑定服务端快照，快照空闲 15 分钟后失效，客户端刷新即可取得新快照。收到 `RATE_LIMITED` 时遵守 `Retry-After` 并加入随机抖动。
 
-用户公开资料的 `accountStatus` 只用于显示“暂时封禁 / 永久封禁”，客户端不得推算或展示处罚截止时间。主题帖快捷收藏继续只传 `threadId` 即可进入默认收藏夹；支持分类管理的客户端再读取 `/bookmarks/folders`、传可选 `folderId` 并使用 `PATCH /bookmarks/:id` 移动，收藏夹名称只在本人界面展示。
+用户公开资料的 `accountStatus` 只用于显示“暂时封禁 / 永久封禁”，客户端不得推算或展示处罚截止时间。主题帖快捷收藏继续只传 `threadId` 即可进入默认收藏夹；支持分类管理的客户端再读取 `/bookmarks/folders`、传可选 `folderId` 并使用 `PATCH /bookmarks/:id` 移动。合同 `5.2.0-dev.20260818.1` 起，动态收藏也可选传 `folderId`，按分类读取 `/moments/bookmarks` 并通过 `PATCH /moments/:id/bookmark` 移动；旧的无请求体收藏调用继续进入默认夹。收藏夹名称和本人归类字段只能在本人界面展示。
+
+公开资料可通过 `/users/:id/moment-bookmarks` 展示动态收藏，并与主题帖收藏共同服从 `showBookmarks`。公开接口不得展示 `bookmarkFolderId` 或收藏夹名称；移动端动态与动态收藏仍为 deferred，实际实现必须在 Windows 环境完成。
 
 合同 `5.1.0-dev.20260817.1` 起，首页、主题帖搜索、收藏及用户主页创建/参与列表都携带同一完整主题帖卡片字段。Windows 开发环境同步 OpenAPI 并重新生成 SDK 后，应让这些入口复用首页卡片 mapper；搜索的 `relevance` 与本人收藏的 `bookmarkId` / `bookmarkFolderId` 仍作为场景附加字段处理。旧客户端可继续忽略新增字段。
 

@@ -364,6 +364,7 @@ describe('BookmarksService', () => {
     await expect(service.createFolder('u1', '  跑团资料  ')).resolves.toMatchObject({
       name: '跑团资料',
       bookmarkCount: 0,
+      momentBookmarkCount: 0,
     });
     expect(mockPrisma.bookmarkFolder.create).toHaveBeenCalledWith({
       data: { userId: 'u1', name: '跑团资料' },
@@ -379,7 +380,7 @@ describe('BookmarksService', () => {
         isDefault: true,
         createdAt: new Date('2026-08-09T00:00:00.000Z'),
         updatedAt: new Date('2026-08-09T00:00:00.000Z'),
-        _count: { bookmarks: 3 },
+        _count: { bookmarks: 3, momentBookmarks: 2 },
       },
     ]);
 
@@ -392,6 +393,7 @@ describe('BookmarksService', () => {
         isDefault: true,
         createdAt: new Date('2026-08-09T00:00:00.000Z'),
         bookmarkCount: 3,
+        momentBookmarkCount: 2,
       },
     ]);
     expect(result[0]).not.toHaveProperty('userId');
