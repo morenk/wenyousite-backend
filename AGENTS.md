@@ -3,6 +3,7 @@
 ## 1. 项目与事实源
 
 - 本仓库提供温油站 NestJS API；主要技术为 TypeScript、NestJS、Prisma、PostgreSQL、Redis、BullMQ、Jest。
+- 本文件继承工作区根 `AGENTS.md` 的变更隔离、自动提交推送和部署不变量；这里只补充后端专属约束。
 - 公网运行拓扑以工作区 [README](../README.md) 为唯一事实源；命令以 `package.json`，数据模型以 `prisma/schema.prisma`，接口以生成的 OpenAPI 为准。
 - 修改前先读受影响模块、测试及 [架构文档](docs/architecture.md)。已有设计细节放在 `docs/`，不要复制进本文件。
 - Web 与 Flutter 都消费该 API；可观察契约变化必须同时考虑两个客户端。
@@ -93,26 +94,27 @@ pnpm docs:check
 
 1. 实现并运行相关测试。
 2. 运行 `pnpm check`；高风险任务补充 `pnpm check:full` 或等价验证。
-3. 有 migration 时先备份并执行 `prisma migrate deploy`。
-4. 自动重启受影响服务，不另行等待部署授权。
-5. 检查本机/公网健康、受影响接口或旅程和最近日志。
-6. 汇报变更与验证结果。
+3. 显式暂存本任务差异，复核 staged diff 与敏感信息，创建 `feat|fix|refactor|test|docs|chore(scope): 中文说明` 原子提交。
+4. fetch 并确认可安全更新 `origin/dev` 后默认推送；用户明确要求不提交或不推送时除外。
+5. 只从工作区干净且与 `origin/dev` 完全一致的提交部署；有 migration 时由部署脚本先备份再执行 `prisma migrate deploy`。
+6. 检查本机/公网健康、受影响接口或旅程和最近日志，并汇报提交 SHA、部署版本与验证结果。
 
-除非用户明确要求，**不要创建 Git commit，也不要 push**。若明确要求提交，使用 `feat|fix|refactor|test|docs|chore(scope): 中文说明`，且只包含本任务相关文件。
+纯文档任务不构建、不迁移、不重启，但完成文档检查后仍按同样的原子提交和推送规则交付。实际相关门禁失败时不得提交半成品；外部环境或无关既有失败只能在提供定向等价验证并明确记录后例外处理。
 
 ### 后端切换规则
 
-- 纯后端变化只切换 3000；契约同时变化时先切换并验证后端，再同步现有 Web 契约。Flutter 仓库建立前只维护待接入规范，不声称客户端门禁已经执行。
+- 纯后端变化只切换 3000；契约同时变化时必须先让后端和 Web 的兼容提交都存在于远端，再切换并验证后端，然后切换 Web。需要 Flutter 跟进时只维护后端事实源和 Windows 迁移说明，不声称 VPS 已执行移动端门禁。
 - `pnpm check` 已完成构建；源码未再变化时不要重复 build。
 - 依赖或 Prisma 生成器变化时先执行 `pnpm install`/`pnpm prisma:generate` 等对应步骤，以 `package.json` 为准。
 - 数据库与 Redis 由后端仓库唯一的 Compose 管理；不要在工作区创建第二套基础设施。
+- 部署脚本会拒绝错误分支、脏工作区、未跟踪文件、缺失 upstream、未推送提交和门禁期间发生的源码变化；不得使用环境变量或手工重启绕过。
+- 运行时 `BUILD_SHA` 来自部署写入的 revision 文件，不得在服务重启时重新读取可变工作区 HEAD。
 
 检查完成后的后端切换：
 
 ```bash
 cd /root/wenyousite/wenyousite-backend
-npx prisma migrate deploy
-systemctl restart wenyousite-backend.service
+bash scripts/deploy.sh --backend-only
 ```
 
 切换后至少验证：

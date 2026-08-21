@@ -4,7 +4,7 @@
 
 后端仓库的 `docker-compose.yml` 是基础设施唯一且受版本控制的 Compose 事实源，只管理 `wenyousite-postgres` 与 `wenyousite-redis`。Caddy、NestJS production build 与 Next.js standalone 均由宿主机 systemd 管理，分别通过 `wenyousite-backend.service` 和 `wenyousite-frontend.service` 监听 3000 与 `127.0.0.1:3001`。工作区根目录和前端仓库不得再添加重复 Compose，也不得假定存在 `api`、`web`、`caddy` Compose 服务。
 
-数据库备份通过 `scripts/backup.sh` 定位该 Compose 的 postgres 服务，并在保留文件前验证 gzip 完整性；当前开发部署助手 `scripts/deploy.sh` 按“检查 → 启动基础设施 → 备份 → 迁移 → 后端 → 前端 → 公网烟雾”执行。
+数据库备份通过 `scripts/backup.sh` 定位该 Compose 的 postgres 服务，并在保留文件前验证 gzip 完整性；当前开发部署助手 `scripts/deploy.sh` 只接受目标分支上干净且已推送的提交，按“检查 → 再验证提交 → 启动基础设施 → 备份 → 迁移 → 记录 revision → 后端 → 前端 → 公网烟雾”执行。后端启动器从部署写入的 revision 文件读取 `BUILD_SHA`，服务重启不会把可变工作区 HEAD 误报为已部署版本。
 
 ## 总体形态
 
