@@ -289,10 +289,8 @@ export function validate(config: Record<string, unknown>) {
     }
   }
   if (validatedConfig.NODE_ENV === Environment.Production) {
-    if (
-      !validatedConfig.DATABASE_URL ||
-      validatedConfig.DATABASE_URL.includes('wenyou:wenyou@127.0.0.1')
-    ) {
+    const configuredDatabaseUrl = config.DATABASE_URL;
+    if (typeof configuredDatabaseUrl !== 'string' || !configuredDatabaseUrl.trim()) {
       throw new Error('生产环境 DATABASE_URL 必须显式配置');
     }
     if (

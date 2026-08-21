@@ -67,6 +67,24 @@ describe('环境变量校验', () => {
     },
   );
 
+  it('生产环境要求显式提供数据库地址，但不臆测本机地址一定是默认配置', () => {
+    const productionSecret = 'production-random-secret-at-least-24-chars';
+    expect(() =>
+      validate({
+        NODE_ENV: 'production',
+        JWT_ACCESS_SECRET: productionSecret,
+      }),
+    ).toThrow('生产环境 DATABASE_URL 必须显式配置');
+
+    expect(() =>
+      validate({
+        NODE_ENV: 'production',
+        DATABASE_URL: 'postgresql://wenyou:wenyou@127.0.0.1:5432/wenyousite?schema=public',
+        JWT_ACCESS_SECRET: productionSecret,
+      }),
+    ).not.toThrow();
+  });
+
   it('生产环境启用推送时要求项目和凭证路径同时存在', () => {
     const base = {
       DATABASE_URL: databaseUrl,
