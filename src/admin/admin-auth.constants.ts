@@ -2,6 +2,7 @@ export const ADMIN_SESSION_COOKIE = '__Secure-wenyou-admin-session';
 export const ADMIN_SESSION_COOKIE_DEV = 'wenyou-admin-session';
 export const ADMIN_CSRF_COOKIE = '__Secure-wenyou-admin-csrf';
 export const ADMIN_CSRF_COOKIE_DEV = 'wenyou-admin-csrf';
+export const ADMIN_ROLES_KEY = 'admin-roles';
 export const ADMIN_STEP_UP_KEY = 'admin-step-up-required';
 
 export function adminSessionCookieName(production: boolean): string {

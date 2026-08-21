@@ -1,18 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { MobilePushProducer } from './mobile-push.producer';
-
-interface DirectMessageCreatedEvent {
-  messageId: string;
-  conversationId: string;
-  recipientId: string;
-}
+import { DOMAIN_EVENTS, DirectMessageCreatedEvent } from '../outbox/domain-events';
 
 @Injectable()
 export class DirectMessagePushListener {
   constructor(private readonly pushes: MobilePushProducer) {}
 
-  @OnEvent('direct-message.created')
+  @OnEvent(DOMAIN_EVENTS.DIRECT_MESSAGE_CREATED)
   handle(event: DirectMessageCreatedEvent) {
     return this.pushes.enqueue({
       userId: event.recipientId,

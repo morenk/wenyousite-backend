@@ -8,7 +8,6 @@ import { BusinessException, notFound } from '../common/exceptions/business.excep
 import { notDeleted, countNonDeletedPosts } from '../common/prisma-helpers';
 import { DiceService } from '../dice/dice.service';
 import { hasVisibleMarkdownContent, prepareMarkdownContent } from '../common/markdown-content';
-import { Prisma } from '@prisma/client';
 import { OutboxService } from '../outbox/outbox.service';
 import { StickerContentService } from '../stickers/sticker-content.service';
 import { hashIdempotencyPayload } from '../common/idempotency';
@@ -204,7 +203,7 @@ export class SubthreadsService {
                   total: roll.total,
                 }),
               ),
-            } as Prisma.InputJsonValue,
+            },
           });
         }
 

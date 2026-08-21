@@ -8,11 +8,34 @@ describe('ExperienceEventsListener', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
+  const postEvent = (postId: string, isSubthreadBody = false) => ({
+    postId,
+    content: 'content',
+    userId: 'user-1',
+    threadId: 'thread-1',
+    subthreadId: 'subthread-1',
+    subthreadTitle: 'title',
+    parentPostId: null,
+    replyToPostId: null,
+    isSubthreadBody,
+    authorRole: 'PARTICIPANT' as const,
+    authorPlayerMarked: false,
+  });
+
+  const likedEvent = (userId: string) => ({
+    eventId: 'event-1',
+    threadId: 'thread-1',
+    ownerId: 'owner-1',
+    threadTitle: 'title',
+    userId,
+    username: 'reader',
+  });
+
   it('正文不计回复经验，楼层和楼中楼按 postId 幂等计入', async () => {
-    await listener.handlePostCreated({ postId: 'body-1', userId: 'user-1', isSubthreadBody: true });
+    await listener.handlePostCreated(postEvent('body-1', true));
     expect(progression.grant).not.toHaveBeenCalled();
 
-    await listener.handlePostCreated({ postId: 'post-1', userId: 'user-1' });
+    await listener.handlePostCreated(postEvent('post-1'));
     expect(progression.grant).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: 'user-1',
@@ -23,18 +46,10 @@ describe('ExperienceEventsListener', () => {
   });
 
   it('自己点赞不计经验，其他用户首次点赞按双方和主题组合幂等', async () => {
-    await listener.handleThreadLiked({
-      threadId: 'thread-1',
-      ownerId: 'owner-1',
-      userId: 'owner-1',
-    });
+    await listener.handleThreadLiked(likedEvent('owner-1'));
     expect(progression.grant).not.toHaveBeenCalled();
 
-    await listener.handleThreadLiked({
-      threadId: 'thread-1',
-      ownerId: 'owner-1',
-      userId: 'reader-1',
-    });
+    await listener.handleThreadLiked(likedEvent('reader-1'));
     expect(progression.grant).toHaveBeenCalledWith(
       expect.objectContaining({
         type: ExperienceEventType.THREAD_LIKED,

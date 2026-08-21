@@ -4,6 +4,7 @@ import { AdminPolicyService } from './admin-policy.service';
 import { AuditModule } from './audit.module';
 import { ModerationCasesService } from './moderation-cases.service';
 import { ModerationService } from './moderation.service';
+import { ModerationProjectionService } from './moderation-projection.service';
 
 /** 内容治理命令、查询、案件与申诉能力。 */
 @Module({
@@ -13,6 +14,7 @@ import { ModerationService } from './moderation.service';
     ModerationService,
     AdminModerationQueryService,
     ModerationCasesService,
+    ModerationProjectionService,
   ],
   exports: [
     AdminPolicyService,

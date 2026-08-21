@@ -24,6 +24,9 @@ import { OutboxService } from '../outbox/outbox.service';
 import { StickerContentService } from '../stickers/sticker-content.service';
 import { ThreadCategoriesService } from '../taxonomy/thread-categories.service';
 import { MediaReferenceService } from '../media/media-reference.service';
+import { PostMentionEventsService } from '../posts/post-mention-events.service';
+import { ThreadReactionService } from '../threads/thread-reaction.service';
+import { ThreadInviteService } from '../threads/thread-invite.service';
 
 // ============ Mock 基础设施 ============
 const createMockPrisma = () => ({
@@ -242,6 +245,9 @@ describe('发帖全流程集成测试', () => {
         PostQueryService,
         ThreadQueryService,
         ThreadCreateIdempotencyService,
+        PostMentionEventsService,
+        ThreadReactionService,
+        ThreadInviteService,
         { provide: PrismaService, useValue: prisma },
         { provide: ThreadAccessService, useValue: threadAccess },
         { provide: BlockFilterService, useValue: mockBlockFilter },

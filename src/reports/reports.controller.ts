@@ -8,11 +8,11 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
-import { AdminAuth } from '../auth/decorators/admin-auth.decorator';
+import { AdminAuth } from '../admin/admin-auth.decorator';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { ApiCursorPaginatedResponse } from '../common/swagger/api-cursor-paginated-response.decorator';
-import { AdminActor, AdminRole } from '../admin/admin-policy.service';
+import { AdminActor, AdminRole } from '../moderation/admin-policy.service';
 import { CreateReportDto } from './dto/create-report.dto';
 import { ReportQueryDto } from './dto/report-query.dto';
 import { AdminReportResponseDto, ReportResponseDto } from './dto/report-response.dto';

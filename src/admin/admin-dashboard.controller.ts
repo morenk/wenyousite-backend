@@ -1,6 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { AdminAuth } from '../auth/decorators/admin-auth.decorator';
+import { AdminAuth } from './admin-auth.decorator';
 import { AdminDashboardService } from './admin-dashboard.service';
 import { AdminDashboardRangeQueryDto } from './dto/dashboard.dto';
 import {

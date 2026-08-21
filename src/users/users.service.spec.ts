@@ -10,6 +10,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { MediaReferenceService } from '../media/media-reference.service';
+import { ErrorCode } from '../common/exceptions/error-codes';
 
 const mockPrisma = {
   user: {
@@ -107,7 +108,9 @@ describe('UsersService', () => {
 
   it('findById 用户不存在应该返回404', async () => {
     mockPrisma.user.findUnique.mockResolvedValue(null);
-    await expect(service.findById('x')).rejects.toThrow(NotFoundException);
+    await expect(service.findById('x')).rejects.toMatchObject({
+      errorCode: ErrorCode.USER_NOT_FOUND,
+    });
   });
 
   it('update 应该成功更新 bio', async () => {
@@ -209,7 +212,9 @@ describe('UsersService', () => {
 
   it('update 不存在的用户应该返回404', async () => {
     mockPrisma.user.findUnique.mockResolvedValue(null);
-    await expect(service.update('x', { bio: 'y' })).rejects.toThrow(NotFoundException);
+    await expect(service.update('x', { bio: 'y' })).rejects.toMatchObject({
+      errorCode: ErrorCode.USER_NOT_FOUND,
+    });
   });
 
   it('更新隐私开关应成功', async () => {
@@ -247,7 +252,9 @@ describe('UsersService', () => {
 
   it('deactivate 已注销再次调用应该返回404', async () => {
     mockPrisma.user.findUnique.mockResolvedValue({ ...userFixture, deletedAt: new Date() });
-    await expect(service.deactivate('u1')).rejects.toThrow(NotFoundException);
+    await expect(service.deactivate('u1')).rejects.toMatchObject({
+      errorCode: ErrorCode.USER_NOT_FOUND,
+    });
   });
 
   it('findMe 应该返回 email 及完整资料', async () => {

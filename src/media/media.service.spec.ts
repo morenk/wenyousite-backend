@@ -12,6 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { MediaReferenceService } from './media-reference.service';
 import { ErrorCode } from '../common/exceptions/error-codes';
+import { ObjectStorageService } from '../storage/object-storage.service';
 
 const mockS3 = { send: jest.fn() };
 const mockImageQueue = { add: jest.fn().mockResolvedValue({}) };
@@ -25,18 +26,25 @@ const mockMediaReferences = {
   reconcileAllMarkers: jest.fn().mockResolvedValue(undefined),
   filterUnreferenced: jest.fn(async (ids: string[]) => ids),
 };
-
-jest.mock('@aws-sdk/s3-request-presigner', () => ({
-  getSignedUrl: (...args: any[]) => mockGetSignedUrl(...args),
-}));
-
-jest.mock('@aws-sdk/client-s3', () => ({
-  S3Client: jest.fn(() => mockS3),
-  PutObjectCommand: jest.fn((opts: any) => opts),
-  GetObjectCommand: jest.fn((opts: any) => opts),
-  HeadObjectCommand: jest.fn((opts: any) => opts),
-  DeleteObjectCommand: jest.fn((opts: any) => opts),
-}));
+const mockStorage = {
+  bucket: 'test-bucket',
+  publicUrl: jest.fn((key: string) => `https://test.cos.com/test-bucket/${key}`),
+  signUploadUrl: jest.fn(() => mockGetSignedUrl()),
+  head: jest.fn((key: string, bucket: string) => mockS3.send({ Bucket: bucket, Key: key })),
+  download: jest.fn(),
+  upload: jest.fn(),
+  removeMany: jest.fn(async (keys: string[], bucket = 'test-bucket') => {
+    const failed = new Set<string>();
+    for (const key of keys) {
+      try {
+        await mockS3.send({ Bucket: bucket, Key: key });
+      } catch {
+        failed.add(key);
+      }
+    }
+    return failed;
+  }),
+};
 
 const mockConfig = {
   get: jest.fn((key: string) => {
@@ -96,11 +104,11 @@ describe('MediaService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: RedisService, useValue: mockRedis },
         { provide: MediaReferenceService, useValue: mockMediaReferences },
+        { provide: ObjectStorageService, useValue: mockStorage },
         { provide: 'BullQueue_image', useValue: mockImageQueue },
       ],
     }).compile();
     service = module.get<MediaService>(MediaService);
-    (service as any).s3 = mockS3;
     jest.clearAllMocks();
     mockS3.send.mockReset();
     mockPrisma.media.findMany.mockReset().mockResolvedValue([]);

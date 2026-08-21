@@ -1,8 +1,8 @@
-import { NotFoundException } from '@nestjs/common';
 import { UserRelationsService } from './user-relations.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { publicUserSummarySelect } from '../common/user-summary';
 import { OutboxService } from '../outbox/outbox.service';
+import { ErrorCode } from '../common/exceptions/error-codes';
 
 describe('UserRelationsService', () => {
   const prisma = {
@@ -60,7 +60,9 @@ describe('UserRelationsService', () => {
 
   it('目标用户不存在返回 404', async () => {
     prisma.user.findUnique.mockResolvedValue(null);
-    await expect(service.userFollowing('missing')).rejects.toThrow(NotFoundException);
+    await expect(service.userFollowing('missing')).rejects.toMatchObject({
+      errorCode: ErrorCode.USER_NOT_FOUND,
+    });
   });
 
   it('公开关注列表使用安全用户摘要', async () => {

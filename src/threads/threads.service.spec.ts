@@ -18,6 +18,8 @@ import { StickerContentService } from '../stickers/sticker-content.service';
 import { ThreadCreateIdempotencyService } from './thread-create-idempotency.service';
 import { ThreadCategoriesService } from '../taxonomy/thread-categories.service';
 import { MediaReferenceService } from '../media/media-reference.service';
+import { ThreadReactionService } from './thread-reaction.service';
+import { ThreadInviteService } from './thread-invite.service';
 
 const mockCategories = {
   assertSelectable: jest.fn(async (slug: string) => slug.trim().toUpperCase()),
@@ -115,6 +117,8 @@ describe('ThreadsService', () => {
         ThreadsService,
         ThreadQueryService,
         ThreadCreateIdempotencyService,
+        ThreadReactionService,
+        ThreadInviteService,
         DiceService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: TagsService, useValue: mockTags },

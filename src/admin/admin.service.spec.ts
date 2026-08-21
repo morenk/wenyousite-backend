@@ -2,7 +2,7 @@ import { NotificationProducer } from '../notifications/notification.producer';
 import { PrismaService } from '../prisma/prisma.service';
 import { SendSystemNotificationDto } from './dto/send-system-notification.dto';
 import { AdminService } from './admin.service';
-import { AuditService } from './audit.service';
+import { AuditService } from '../moderation/audit.service';
 
 describe('AdminService', () => {
   const prisma = {
@@ -65,7 +65,10 @@ describe('AdminService', () => {
 
   it('预览仅统计接收者而不发送', async () => {
     prisma.user.count.mockResolvedValue(12);
-    const dto = { content: '维护通知', conditions: { role: ['USER'] } } as SendSystemNotificationDto;
+    const dto = {
+      content: '维护通知',
+      conditions: { role: ['USER'] },
+    } as SendSystemNotificationDto;
 
     await expect(service.previewRecipients(dto)).resolves.toEqual({ recipientCount: 12 });
     expect(producer.notify).not.toHaveBeenCalled();

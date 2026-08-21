@@ -26,6 +26,8 @@ Prisma / Redis / BullMQ / Object Storage
 4. `common` 仅容纳响应包装、异常、通用 DTO 和纯函数；带业务语义的访问策略位于 `access`。
 5. 队列生产者/消费者归所属业务模块：通知归 `notifications`，图片处理归 `media`；`jobs` 只保留跨模块维护任务。
 6. 模块必须显式导入依赖的特性模块，不通过全局 `CommonModule` 隐式获得领域服务。
+7. `admin` 只承载管理端认证、Controller 和站务编排；处罚、内容处置、案件与审计属于顶层 `moderation` 能力，`reports` 等业务模块不得反向依赖 `admin` 的治理实现。
+8. S3 兼容协议、客户端构造、预签名和公开 URL 统一由 `storage/ObjectStorageService` 适配；媒体、表情等模块只声明各自的对象键与内容策略。
 
 这些规则由 `pnpm arch:check` 自动检查。当前还限制单个 service 不超过 650 行；达到阈值前应优先按职责拆分。
 
@@ -50,10 +52,11 @@ OutboxDispatcher（FOR UPDATE SKIP LOCKED）
 - 分发语义是至少一次；监听器必须幂等。
 - 通知以稳定 `eventKey` 落库，重试不会生成重复通知。
 - 点赞和回复计数不执行重复 `INCR`，而是读取数据库权威计数后覆盖 Redis。
+- 事件名与载荷由 `outbox/domain-events.ts` 统一建模并在分发前校验；非法载荷或没有消费者的事件保持未确认。
 - 失败事件按退避时间重试；60 秒领取租约允许实例崩溃后重新领取。
 - 已处理事件保留 7 天供审计，未处理事件永不由清理任务删除。
 
-当前可靠事件包括 `post.created`、`post.mentions.updated`、`thread.published`、`thread.liked`、`thread.unliked`、`user.followed`。缓存失效等可重建的本地事件仍可直接使用进程内事件。
+当前可靠事件包括 `post.created`、`post.mentions.updated`、`thread.published`、`thread.liked`、`thread.unliked`、`user.followed`、`user.level_up`、`moment.comment.created`、`direct-message.created` 与 `tip.completed`。缓存失效等可重建的本地事件仍可直接使用进程内事件。
 
 ## API 与类型契约
 

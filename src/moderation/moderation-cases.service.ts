@@ -255,8 +255,14 @@ export class ModerationCasesService {
           { targetType: ReportTargetType.THREAD, targetId: { in: threads.map(({ id }) => id) } },
           { targetType: ReportTargetType.POST, targetId: { in: posts.map(({ id }) => id) } },
           { targetType: ReportTargetType.MOMENT, targetId: { in: moments.map(({ id }) => id) } },
-          { targetType: ReportTargetType.MOMENT_COMMENT, targetId: { in: comments.map(({ id }) => id) } },
-          { targetType: ReportTargetType.DIRECT_MESSAGE, targetId: { in: directMessages.map(({ id }) => id) } },
+          {
+            targetType: ReportTargetType.MOMENT_COMMENT,
+            targetId: { in: comments.map(({ id }) => id) },
+          },
+          {
+            targetType: ReportTargetType.DIRECT_MESSAGE,
+            targetId: { in: directMessages.map(({ id }) => id) },
+          },
         ],
       },
       select: {
@@ -269,7 +275,16 @@ export class ModerationCasesService {
         active: true,
         reversedAt: true,
         createdAt: true,
-        appeal: { select: { id: true, statement: true, status: true, handledNote: true, createdAt: true, handledAt: true } },
+        appeal: {
+          select: {
+            id: true,
+            statement: true,
+            status: true,
+            handledNote: true,
+            createdAt: true,
+            handledAt: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
       take: 50,
@@ -288,29 +303,32 @@ export class ModerationCasesService {
     }
     if (decision.appeal) throw conflict(ErrorCode.APPEAL_ALREADY_SUBMITTED, '该决定已经提交过申诉');
     const ownerId = await this.targetOwnerId(this.prisma, decision.targetType, decision.targetId);
-    if (ownerId !== userId) throw notFound(ErrorCode.MODERATION_DECISION_NOT_FOUND, '治理决定不存在');
-    const appeal = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.moderationAppeal.create({
-        data: { decisionId, appellantId: userId, statement: statement.trim() },
-        select: publicAppealSelect,
+    if (ownerId !== userId)
+      throw notFound(ErrorCode.MODERATION_DECISION_NOT_FOUND, '治理决定不存在');
+    const appeal = await this.prisma
+      .$transaction(async (tx) => {
+        const created = await tx.moderationAppeal.create({
+          data: { decisionId, appellantId: userId, statement: statement.trim() },
+          select: publicAppealSelect,
+        });
+        await this.audit.record(
+          {
+            actorId: userId,
+            action: AuditAction.APPEAL_SUBMITTED,
+            targetType: AuditTargetType.MODERATION_APPEAL,
+            targetId: created.id,
+            metadata: { decisionId },
+          },
+          tx,
+        );
+        return created;
+      })
+      .catch((error: unknown) => {
+        if ((error as { code?: string }).code === 'P2002') {
+          throw conflict(ErrorCode.APPEAL_ALREADY_SUBMITTED, '该决定已经提交过申诉');
+        }
+        throw error;
       });
-      await this.audit.record(
-        {
-          actorId: userId,
-          action: AuditAction.APPEAL_SUBMITTED,
-          targetType: AuditTargetType.MODERATION_APPEAL,
-          targetId: created.id,
-          metadata: { decisionId },
-        },
-        tx,
-      );
-      return created;
-    }).catch((error: unknown) => {
-      if ((error as { code?: string }).code === 'P2002') {
-        throw conflict(ErrorCode.APPEAL_ALREADY_SUBMITTED, '该决定已经提交过申诉');
-      }
-      throw error;
-    });
     return appeal;
   }
 
@@ -364,7 +382,11 @@ export class ModerationCasesService {
       if (dto.outcome === 'OVERTURNED') {
         if (!appeal.decision.active) throw conflict(ErrorCode.CONFLICT, '治理决定已经撤销');
         if (appeal.decision.action === ModerationDecisionAction.HIDE_CONTENT) {
-          contentEffect = await this.restoreDecisionContent(tx, appeal.decision.targetType, appeal.decision.targetId);
+          contentEffect = await this.restoreDecisionContent(
+            tx,
+            appeal.decision.targetType,
+            appeal.decision.targetId,
+          );
         } else if (appeal.decision.sanction && !appeal.decision.sanction.revokedAt) {
           sanctionedUserId = appeal.decision.sanction.userId;
           await tx.userSanction.update({
@@ -422,12 +444,14 @@ export class ModerationCasesService {
     }
     if (
       dto.action === ModerationDecisionAction.HIDE_CONTENT &&
-      !([
-        ReportTargetType.THREAD,
-        ReportTargetType.POST,
-        ReportTargetType.MOMENT,
-        ReportTargetType.MOMENT_COMMENT,
-      ] as ReportTargetType[]).includes(targetType)
+      !(
+        [
+          ReportTargetType.THREAD,
+          ReportTargetType.POST,
+          ReportTargetType.MOMENT,
+          ReportTargetType.MOMENT_COMMENT,
+        ] as ReportTargetType[]
+      ).includes(targetType)
     ) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '该目标不能执行内容隐藏');
     }
@@ -446,26 +470,41 @@ export class ModerationCasesService {
   ): Promise<string> {
     if (targetType === ReportTargetType.USER) return targetId;
     if (targetType === ReportTargetType.THREAD) {
-      const target = await client.thread.findUnique({ where: { id: targetId }, select: { ownerId: true } });
+      const target = await client.thread.findUnique({
+        where: { id: targetId },
+        select: { ownerId: true },
+      });
       if (!target) throw notFound(ErrorCode.NOT_FOUND, '治理目标不存在');
       return target.ownerId;
     }
     if (targetType === ReportTargetType.POST) {
-      const target = await client.post.findUnique({ where: { id: targetId }, select: { authorId: true } });
+      const target = await client.post.findUnique({
+        where: { id: targetId },
+        select: { authorId: true },
+      });
       if (!target) throw notFound(ErrorCode.NOT_FOUND, '治理目标不存在');
       return target.authorId;
     }
     if (targetType === ReportTargetType.MOMENT) {
-      const target = await client.moment.findUnique({ where: { id: targetId }, select: { authorId: true } });
+      const target = await client.moment.findUnique({
+        where: { id: targetId },
+        select: { authorId: true },
+      });
       if (!target) throw notFound(ErrorCode.NOT_FOUND, '治理目标不存在');
       return target.authorId;
     }
     if (targetType === ReportTargetType.MOMENT_COMMENT) {
-      const target = await client.momentComment.findUnique({ where: { id: targetId }, select: { authorId: true } });
+      const target = await client.momentComment.findUnique({
+        where: { id: targetId },
+        select: { authorId: true },
+      });
       if (!target) throw notFound(ErrorCode.NOT_FOUND, '治理目标不存在');
       return target.authorId;
     }
-    const target = await client.directMessage.findUnique({ where: { id: targetId }, select: { senderId: true } });
+    const target = await client.directMessage.findUnique({
+      where: { id: targetId },
+      select: { senderId: true },
+    });
     if (!target) throw notFound(ErrorCode.NOT_FOUND, '治理目标不存在');
     return target.senderId;
   }
@@ -476,37 +515,77 @@ export class ModerationCasesService {
     targetId: string,
   ): Promise<ContentModerationEffect> {
     if (targetType === ReportTargetType.THREAD) {
-      const target = await tx.thread.findUnique({ where: { id: targetId }, select: { deletedAt: true, removalSource: true } });
+      const target = await tx.thread.findUnique({
+        where: { id: targetId },
+        select: { deletedAt: true, removalSource: true },
+      });
       if (!target || !target.deletedAt || target.removalSource !== ContentRemovalSource.ADMIN) {
         throw conflict(ErrorCode.CONTENT_STATE_CONFLICT, '内容已不处于可恢复状态');
       }
-      await tx.thread.update({ where: { id: targetId }, data: { deletedAt: null, removalSource: null, removedById: null, removalReason: null } });
+      await tx.thread.update({
+        where: { id: targetId },
+        data: { deletedAt: null, removalSource: null, removedById: null, removalReason: null },
+      });
       return { targetType: 'THREAD', targetId, hidden: false, deletedAt: null, threadId: targetId };
     }
     if (targetType === ReportTargetType.POST) {
-      const target = await tx.post.findUnique({ where: { id: targetId }, select: { deletedAt: true, removalSource: true, threadId: true, parentPostId: true } });
+      const target = await tx.post.findUnique({
+        where: { id: targetId },
+        select: { deletedAt: true, removalSource: true, threadId: true, parentPostId: true },
+      });
       if (!target || !target.deletedAt || target.removalSource !== ContentRemovalSource.ADMIN) {
         throw conflict(ErrorCode.CONTENT_STATE_CONFLICT, '内容已不处于可恢复状态');
       }
-      await tx.post.update({ where: { id: targetId }, data: { deletedAt: null, removalSource: null, removedById: null, removalReason: null } });
-      return { targetType: 'POST', targetId, hidden: false, deletedAt: null, threadId: target.threadId, parentPostId: target.parentPostId };
+      await tx.post.update({
+        where: { id: targetId },
+        data: { deletedAt: null, removalSource: null, removedById: null, removalReason: null },
+      });
+      return {
+        targetType: 'POST',
+        targetId,
+        hidden: false,
+        deletedAt: null,
+        threadId: target.threadId,
+        parentPostId: target.parentPostId,
+      };
     }
     if (targetType === ReportTargetType.MOMENT) {
-      const target = await tx.moment.findUnique({ where: { id: targetId }, select: { deletedAt: true, removalSource: true } });
+      const target = await tx.moment.findUnique({
+        where: { id: targetId },
+        select: { deletedAt: true, removalSource: true },
+      });
       if (!target || !target.deletedAt || target.removalSource !== ContentRemovalSource.ADMIN) {
         throw conflict(ErrorCode.CONTENT_STATE_CONFLICT, '内容已不处于可恢复状态');
       }
-      await tx.moment.update({ where: { id: targetId }, data: { deletedAt: null, removalSource: null, removedById: null, removalReason: null } });
+      await tx.moment.update({
+        where: { id: targetId },
+        data: { deletedAt: null, removalSource: null, removedById: null, removalReason: null },
+      });
       return { targetType: 'MOMENT', targetId, hidden: false, deletedAt: null, momentId: targetId };
     }
     if (targetType === ReportTargetType.MOMENT_COMMENT) {
-      const target = await tx.momentComment.findUnique({ where: { id: targetId }, select: { deletedAt: true, removalSource: true, momentId: true } });
+      const target = await tx.momentComment.findUnique({
+        where: { id: targetId },
+        select: { deletedAt: true, removalSource: true, momentId: true },
+      });
       if (!target || !target.deletedAt || target.removalSource !== ContentRemovalSource.ADMIN) {
         throw conflict(ErrorCode.CONTENT_STATE_CONFLICT, '内容已不处于可恢复状态');
       }
-      await tx.momentComment.update({ where: { id: targetId }, data: { deletedAt: null, removalSource: null, removedById: null, removalReason: null } });
-      await tx.moment.update({ where: { id: target.momentId }, data: { commentCount: { increment: 1 } } });
-      return { targetType: 'MOMENT_COMMENT', targetId, hidden: false, deletedAt: null, momentId: target.momentId };
+      await tx.momentComment.update({
+        where: { id: targetId },
+        data: { deletedAt: null, removalSource: null, removedById: null, removalReason: null },
+      });
+      await tx.moment.update({
+        where: { id: target.momentId },
+        data: { commentCount: { increment: 1 } },
+      });
+      return {
+        targetType: 'MOMENT_COMMENT',
+        targetId,
+        hidden: false,
+        deletedAt: null,
+        momentId: target.momentId,
+      };
     }
     throw conflict(ErrorCode.CONTENT_STATE_CONFLICT, '该目标不是可恢复内容');
   }

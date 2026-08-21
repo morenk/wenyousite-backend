@@ -4,23 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { NotificationProducer } from '../notifications/notification.producer';
 import { RedisService } from '../redis/redis.service';
 import { updateThreadSmartScore } from '../threads/thread-smart-score';
-
-interface TipCompletedEvent {
-  transactionId: string;
-  senderId: string;
-  senderUsername: string;
-  recipientId: string;
-  targetType: 'THREAD' | 'USER' | 'MOMENT';
-  threadId?: string | null;
-  threadTitle?: string | null;
-  grossAmount: string;
-  recipientAmount: string;
-  platformAmount: string;
-  threadTipTotal?: string | null;
-  momentId?: string | null;
-  momentTitle?: string | null;
-  momentTipTotal?: string | null;
-}
+import { DOMAIN_EVENTS, TipCompletedEvent } from '../outbox/domain-events';
 
 @Injectable()
 export class EconomyEventsListener {
@@ -30,13 +14,14 @@ export class EconomyEventsListener {
     private readonly events: EventEmitter2,
   ) {}
 
-  @OnEvent('tip.completed')
+  @OnEvent(DOMAIN_EVENTS.TIP_COMPLETED)
   async handleTipCompleted(event: TipCompletedEvent) {
-    const targetLabel = event.targetType === 'THREAD' && event.threadTitle
-      ? `你的主题帖「${event.threadTitle}」`
-      : event.targetType === 'MOMENT' && event.momentTitle
-        ? `你的动态「${event.momentTitle}」`
-        : '你';
+    const targetLabel =
+      event.targetType === 'THREAD' && event.threadTitle
+        ? `你的主题帖「${event.threadTitle}」`
+        : event.targetType === 'MOMENT' && event.momentTitle
+          ? `你的动态「${event.momentTitle}」`
+          : '你';
     await this.notifications.notify(
       'tip',
       [event.recipientId],

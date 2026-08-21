@@ -6,9 +6,11 @@ export interface ActiveSanctionRecord {
   endsAt: Date | null;
 }
 
+/** 所有认证、资料和治理查询共用的“当前有效处罚”定义。 */
 export function activeSanctionWhere(now = new Date()): Prisma.UserSanctionWhereInput {
   return {
     revokedAt: null,
+    startsAt: { lte: now },
     OR: [
       { type: UserSanctionType.BAN },
       { type: UserSanctionType.SUSPENSION, endsAt: { gt: now } },

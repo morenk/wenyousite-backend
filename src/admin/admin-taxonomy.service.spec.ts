@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TagsService } from '../tags/tags.service';
 import { ThreadCategoriesService } from '../taxonomy/thread-categories.service';
 import { AdminTaxonomyService } from './admin-taxonomy.service';
-import { AuditService } from './audit.service';
+import { AuditService } from '../moderation/audit.service';
 
 describe('AdminTaxonomyService', () => {
   const tx = {

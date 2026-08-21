@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { plainToInstance, Transform } from 'class-transformer';
 import {
   IsBoolean,
@@ -14,13 +15,13 @@ import {
 } from 'class-validator';
 
 /** 环境变量校验器：应用启动时验证必要的环境变量 */
-enum Environment {
+export enum Environment {
   Development = 'development',
   Production = 'production',
   Test = 'test',
 }
 
-class EnvironmentVariables {
+export class EnvironmentVariables {
   @IsEnum(Environment)
   @IsOptional()
   NODE_ENV: Environment = Environment.Development;
@@ -31,7 +32,7 @@ class EnvironmentVariables {
 
   // 数据库连接串，生产环境必须设置
   @IsString()
-  DATABASE_URL: string;
+  DATABASE_URL: string = 'postgresql://wenyou:wenyou@127.0.0.1:5432/wenyousite?schema=public';
 
   @IsString()
   @IsOptional()
@@ -43,11 +44,21 @@ class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
-  JWT_ACCESS_SECRET: string = 'dev-access-secret';
+  JWT_ACCESS_SECRET: string = 'dev-access-secret-change-me';
 
   @IsString()
   @IsOptional()
   JWT_ACCESS_EXPIRES_IN: string = '15m';
+
+  @IsNumber()
+  @IsOptional()
+  @Min(1)
+  ARGON2_TIME_COST: number = 3;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(8_192)
+  ARGON2_MEMORY_COST: number = 65_536;
 
   @IsNumber()
   @IsOptional()
@@ -62,6 +73,10 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   CORS_ORIGINS: string = '';
+
+  @IsString()
+  @IsOptional()
+  APP_URL: string = 'http://localhost:3000';
 
   @IsString()
   @IsOptional()
@@ -148,15 +163,15 @@ class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
-  COS_ENDPOINT: string = 'https://cn-nb1.rains3.com';
+  COS_ENDPOINT: string = '';
 
   @IsString()
   @IsOptional()
-  COS_REGION: string = 'auto';
+  COS_REGION: string = 'ap-hongkong';
 
   @IsString()
   @IsOptional()
-  COS_BUCKET: string = 'wenyou';
+  COS_BUCKET: string = '';
 
   @IsString()
   @IsOptional()
@@ -168,6 +183,7 @@ class EnvironmentVariables {
 
   @IsNumber()
   @IsOptional()
+  @Min(1)
   UPLOAD_RATE_PER_HOUR: number = 60;
 
   @IsBoolean()
@@ -181,11 +197,39 @@ class EnvironmentVariables {
 
   @IsNumber()
   @IsOptional()
+  @Min(1)
   DIRECT_MESSAGE_RATE_PER_MINUTE: number = 30;
 
   @IsNumber()
   @IsOptional()
+  @Min(1)
   DIRECT_MESSAGE_REQUEST_RATE_PER_DAY: number = 10;
+
+  @IsString()
+  @IsOptional()
+  SES_SMTP_HOST: string = '';
+
+  @IsNumber()
+  @IsOptional()
+  @Min(1)
+  @Max(65_535)
+  SES_SMTP_PORT: number = 465;
+
+  @IsString()
+  @IsOptional()
+  SES_SMTP_USER: string = '';
+
+  @IsString()
+  @IsOptional()
+  SES_SMTP_PASS: string = '';
+
+  @IsString()
+  @IsOptional()
+  SES_FROM_ADDRESS: string = 'noreply@mail.wenyou.site';
+
+  @IsString()
+  @IsOptional()
+  SENTRY_DSN: string = '';
 
   @IsString()
   @IsOptional()
@@ -195,9 +239,14 @@ class EnvironmentVariables {
   @IsOptional()
   LOG_FILE_DIR: string = '';
 
-  @IsString()
+  @IsBoolean()
   @IsOptional()
-  ENABLE_API_DOCS: string = 'true';
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true) return true;
+    if (value === 'false' || value === false) return false;
+    return value;
+  })
+  ENABLE_API_DOCS: boolean | 'true' | 'false' = true;
 }
 
 /** 校验函数：在 ConfigModule.forRoot 中调用，启动时验证环境变量完整性 */
@@ -240,6 +289,12 @@ export function validate(config: Record<string, unknown>) {
     }
   }
   if (validatedConfig.NODE_ENV === Environment.Production) {
+    if (
+      !validatedConfig.DATABASE_URL ||
+      validatedConfig.DATABASE_URL.includes('wenyou:wenyou@127.0.0.1')
+    ) {
+      throw new Error('生产环境 DATABASE_URL 必须显式配置');
+    }
     if (
       !validatedConfig.JWT_ACCESS_SECRET ||
       validatedConfig.JWT_ACCESS_SECRET.startsWith('dev-') ||

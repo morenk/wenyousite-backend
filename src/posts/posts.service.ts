@@ -2,29 +2,36 @@ import { Injectable, HttpStatus } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../access/thread-access.service';
-import { MentionsService } from '../mentions/mentions.service';
-import { PostMentionsUpdatedEvent } from '../mentions/mention-events';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound, forbidden } from '../common/exceptions/business.exception';
 import { notDeleted, authorSelect, includeDiceRolls } from '../common/prisma-helpers';
-import { truncateMarkdown } from '../common/markdown-truncate';
 import { hasVisibleMarkdownContent, prepareMarkdownContent } from '../common/markdown-content';
 import { DiceService } from '../dice/dice.service';
 import { PostingPolicyService } from './posting-policy.service';
 import { PostQueryService } from './post-query.service';
-import { ContentRemovalSource, Prisma } from '@prisma/client';
+import { ContentRemovalSource } from '@prisma/client';
 import { OutboxService } from '../outbox/outbox.service';
 import { reconcilePublishedDice } from '../dice/reconcile-published-dice';
 import { StickerContentService } from '../stickers/sticker-content.service';
 import { ReplyOrder } from '../common/dto/reply-query.dto';
 import { MediaReferenceService } from '../media/media-reference.service';
+import { PostMentionEventsService } from './post-mention-events.service';
 /** 楼层服务：发帖（事务楼层编号 + FOR UPDATE）、楼中楼、编辑、软删除 */
 @Injectable()
 export class PostsService {
   constructor(
-    private prisma: PrismaService, private eventEmitter: EventEmitter2, private threadAccess: ThreadAccessService, private mentionsService: MentionsService, private diceService: DiceService, private postingPolicy: PostingPolicyService, private queries: PostQueryService, private outbox: OutboxService, private stickerContent: StickerContentService, private mediaReferences: MediaReferenceService,
+    private prisma: PrismaService,
+    private eventEmitter: EventEmitter2,
+    private threadAccess: ThreadAccessService,
+    private mentionEvents: PostMentionEventsService,
+    private diceService: DiceService,
+    private postingPolicy: PostingPolicyService,
+    private queries: PostQueryService,
+    private outbox: OutboxService,
+    private stickerContent: StickerContentService,
+    private mediaReferences: MediaReferenceService,
   ) {}
   async findAllBySubthread(
     subthreadId: string,
@@ -203,7 +210,7 @@ export class PostsService {
                 notation: roll.notation,
                 total: roll.total,
               })),
-            } as Prisma.InputJsonValue,
+            },
           });
         }
         return createdPost;
@@ -366,7 +373,7 @@ export class PostsService {
                   notation: roll.notation,
                   total: roll.total,
                 })),
-              } as Prisma.InputJsonValue,
+              },
             });
           }
           return post;
@@ -422,7 +429,7 @@ export class PostsService {
           include: { author: { select: authorSelect }, ...includeDiceRolls() },
         });
         if (normalizedContent !== oldContent) {
-          await this.syncEditedMentions(tx, {
+          await this.mentionEvents.syncEditedMentions(tx, {
             postId: updatedPost.id,
             version: updatedPost.version,
             content: normalizedContent,
@@ -514,7 +521,7 @@ export class PostsService {
           include: { author: { select: authorSelect }, ...includeDiceRolls() },
         });
         if (content !== oldContent) {
-          await this.syncEditedMentions(tx, {
+          await this.mentionEvents.syncEditedMentions(tx, {
             postId: updatedPost.id,
             version: updatedPost.version,
             content,
@@ -550,47 +557,6 @@ export class PostsService {
     }
 
     return updated;
-  }
-
-  private async syncEditedMentions(
-    tx: Prisma.TransactionClient,
-    input: {
-      postId: string;
-      version: number;
-      content: string;
-      previousContent: string;
-      userId: string;
-      threadId: string;
-      authorUsername: string;
-      context: 'body' | 'post';
-    },
-  ) {
-    const mentioned = await this.mentionsService.syncMentionsInTransaction(
-      tx,
-      input.postId,
-      input.content,
-      input.userId,
-      input.threadId,
-      input.previousContent,
-    );
-    if (mentioned.length === 0) return;
-
-    const payload: PostMentionsUpdatedEvent = {
-      postId: input.postId,
-      threadId: input.threadId,
-      userId: input.userId,
-      authorUsername: input.authorUsername,
-      recipientIds: mentioned.map((user) => user.userId),
-      preview: truncateMarkdown(input.content),
-      context: input.context,
-    };
-    await this.outbox.enqueue(tx, {
-      eventType: 'post.mentions.updated',
-      aggregateType: 'Post',
-      aggregateId: input.postId,
-      eventKey: `post-mentions-updated:${input.postId}:v${input.version}`,
-      payload: payload as unknown as Prisma.InputJsonValue,
-    });
   }
 
   /** 软删除帖子 */

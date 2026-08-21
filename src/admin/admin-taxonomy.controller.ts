@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post, Req } from '@nestjs/common';
 import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
-import { AdminAuth } from '../auth/decorators/admin-auth.decorator';
+import { AdminAuth } from './admin-auth.decorator';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { TagResponseDto } from '../tags/dto/tag-response.dto';
 import {

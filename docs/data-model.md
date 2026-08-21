@@ -612,4 +612,4 @@
 
 ### system_notification_campaigns / site_operational_settings
 
-`system_notification_campaigns` 保存通知正文、目标、JSON 受众、排期、投递状态、预估和实际人数；通知记录通过 `campaignId` 关联并以事件键幂等。`site_operational_settings` 使用固定 `default` 主键保存注册暂停、内容写入暂停和维护公告窗口。
+`system_notification_campaigns` 保存通知正文、目标、JSON 受众、排期、投递状态、预估和实际人数；`dispatch_cursor`、`dispatch_attempts` 与 `last_attempt_at` 组成可恢复的分批投递检查点，通知记录通过 `campaignId` 关联并以事件键幂等。`site_operational_settings` 使用固定 `default` 主键保存注册暂停、内容写入暂停和维护公告窗口。

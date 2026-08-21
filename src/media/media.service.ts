@@ -11,14 +11,6 @@ import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { randomBytes } from 'crypto';
-import {
-  S3Client,
-  PutObjectCommand,
-  GetObjectCommand,
-  HeadObjectCommand,
-  DeleteObjectCommand,
-} from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import sharp from 'sharp';
@@ -26,6 +18,7 @@ import { withMediaVariants } from './media-response.mapper';
 import { MediaReferenceService } from './media-reference.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
+import { ObjectStorageService } from '../storage/object-storage.service';
 
 /** 允许的文件类型白名单 */
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'];
@@ -39,8 +32,6 @@ const ORPHAN_GRACE_DAYS = 7;
 const UPLOADING_STALE_HOURS = 24;
 /** 单次 S3 批量删除对象上限 */
 const S3_BATCH_DELETE_LIMIT = 1000;
-/** S3 兼容存储不支持无 Content-MD5 的 DeleteObjects，单对象删除限制并发数。 */
-const S3_DELETE_CONCURRENCY = 20;
 
 /** 图片处理任务类型 */
 export interface ImageProcessJob {
@@ -59,7 +50,6 @@ const DERIVATIVE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 @Injectable()
 export class MediaService {
   private readonly logger = new Logger(MediaService.name);
-  s3: S3Client;
   /** 每用户小时上传配额 */
   private readonly uploadRatePerHour: number;
   private readonly completedOrphanCleanupEnabled: boolean;
@@ -69,20 +59,12 @@ export class MediaService {
     private prisma: PrismaService,
     private redis: RedisService,
     private mediaReferences: MediaReferenceService,
+    private readonly storage: ObjectStorageService,
     @InjectQueue('image') private imageQueue: Queue,
   ) {
     this.uploadRatePerHour = this.config.get<number>('upload.ratePerHour') ?? 60;
     this.completedOrphanCleanupEnabled =
       this.config.get<boolean>('upload.completedOrphanCleanupEnabled') ?? false;
-    this.s3 = new S3Client({
-      endpoint: this.config.get<string>('cos.endpoint'),
-      region: this.config.get<string>('cos.region') ?? 'auto',
-      credentials: {
-        accessKeyId: this.config.get<string>('cos.accessKeyId')!,
-        secretAccessKey: this.config.get<string>('cos.secretAccessKey')!,
-      },
-      forcePathStyle: true,
-    });
   }
 
   /** 生成 S3 预签名上传 URL，预建 Media 记录（UPLOADING），一次性返回 mediaId */
@@ -106,8 +88,8 @@ export class MediaService {
     const randomId = randomBytes(8).toString('hex');
     const objectKey = `uploads/${date}/${opts.userId}/${Date.now()}-${randomId}.${ext}`;
 
-    const bucket = this.config.get<string>('cos.bucket')!;
-    const publicUrl = this.buildPublicUrl(objectKey);
+    const bucket = this.storage.bucket;
+    const publicUrl = this.storage.publicUrl(objectKey);
 
     const media = await this.prisma.media.create({
       data: {
@@ -142,7 +124,7 @@ export class MediaService {
     if (media.status !== 'UPLOADING' || !media.contentType || !media.size) {
       throw new BadRequestException('当前媒体状态不能重新上传');
     }
-    const bucket = this.config.get<string>('cos.bucket')!;
+    const bucket = this.storage.bucket;
     return {
       uploadUrl: await this.signUploadUrl({
         bucket,
@@ -172,11 +154,11 @@ export class MediaService {
       throw new BadRequestException('无效的上传状态');
     }
 
-    const bucket = this.config.get<string>('cos.bucket')!;
+    const bucket = this.storage.bucket;
     let head;
 
     try {
-      head = await this.s3.send(new HeadObjectCommand({ Bucket: bucket, Key: media.key }));
+      head = await this.storage.head(media.key, bucket);
     } catch (error) {
       const storageError = error as {
         name?: string;
@@ -284,14 +266,7 @@ export class MediaService {
   async processImage(job: ImageProcessJob) {
     const { bucket, objectKey, mediaId } = job;
 
-    const response = await this.s3.send(new GetObjectCommand({ Bucket: bucket, Key: objectKey }));
-    const chunks: Uint8Array[] = [];
-    if (response.Body) {
-      for await (const chunk of response.Body as any) {
-        chunks.push(chunk);
-      }
-    }
-    const buffer = Buffer.concat(chunks);
+    const buffer = await this.storage.download(objectKey, bucket);
 
     const metadata = await sharp(buffer).metadata();
 
@@ -300,45 +275,33 @@ export class MediaService {
       .webp({ quality: 80 })
       .toBuffer();
     const thumbKey = objectKey.replace(/(\.[^.]+)$/, '_thumb.webp');
-    await this.s3.send(
-      new PutObjectCommand({
-        Bucket: bucket,
-        Key: thumbKey,
-        Body: thumbBuffer,
-        ContentType: 'image/webp',
-        CacheControl: DERIVATIVE_CACHE_CONTROL,
-      }),
-    );
+    await this.storage.upload(thumbKey, thumbBuffer, {
+      bucket,
+      contentType: 'image/webp',
+      cacheControl: DERIVATIVE_CACHE_CONTROL,
+    });
 
     const feedBuffer = await sharp(buffer)
       .resize(480, null, { fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 82 })
       .toBuffer();
     const feedKey = objectKey.replace(/(\.[^.]+)$/, '_feed.webp');
-    await this.s3.send(
-      new PutObjectCommand({
-        Bucket: bucket,
-        Key: feedKey,
-        Body: feedBuffer,
-        ContentType: 'image/webp',
-        CacheControl: DERIVATIVE_CACHE_CONTROL,
-      }),
-    );
+    await this.storage.upload(feedKey, feedBuffer, {
+      bucket,
+      contentType: 'image/webp',
+      cacheControl: DERIVATIVE_CACHE_CONTROL,
+    });
 
     const mdBuffer = await sharp(buffer)
       .resize(800, null, { fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 85 })
       .toBuffer();
     const mdKey = objectKey.replace(/(\.[^.]+)$/, '_md.webp');
-    await this.s3.send(
-      new PutObjectCommand({
-        Bucket: bucket,
-        Key: mdKey,
-        Body: mdBuffer,
-        ContentType: 'image/webp',
-        CacheControl: DERIVATIVE_CACHE_CONTROL,
-      }),
-    );
+    await this.storage.upload(mdKey, mdBuffer, {
+      bucket,
+      contentType: 'image/webp',
+      cacheControl: DERIVATIVE_CACHE_CONTROL,
+    });
 
     await this.prisma.media.updateMany({
       where: { id: mediaId, status: 'PROCESSING' },
@@ -411,7 +374,7 @@ export class MediaService {
     if (victims.length === 0) return;
 
     // 删除 S3 对象前已再次按数据库关系核验；原图删除失败的记录保留待下次重试。
-    const bucket = this.config.get<string>('cos.bucket')!;
+    const bucket = this.storage.bucket;
     const deletedIds = new Set<string>();
     for (let i = 0; i < victims.length; i += S3_BATCH_DELETE_LIMIT) {
       const chunk = victims.slice(i, i + S3_BATCH_DELETE_LIMIT);
@@ -425,9 +388,9 @@ export class MediaService {
           keys.push({ key: `${stem}_md.webp`, mediaId: m.id, isOriginal: false });
         }
       }
-      const failedKeys = await this.deleteS3Objects(
-        bucket,
+      const failedKeys = await this.storage.removeMany(
         keys.map((k) => k.key),
+        bucket,
       );
       for (const k of keys) {
         if (k.isOriginal && !failedKeys.has(k.key)) {
@@ -461,7 +424,7 @@ export class MediaService {
       const stem = media.key.replace(/\.[^.]+$/, '');
       keys.push(`${stem}_thumb.webp`, `${stem}_feed.webp`, `${stem}_md.webp`);
     }
-    const failedKeys = await this.deleteS3Objects(this.config.get<string>('cos.bucket')!, keys);
+    const failedKeys = await this.storage.removeMany(keys);
     if (failedKeys.has(media.key)) return false;
 
     await this.prisma.media.deleteMany({ where: { id: media.id } });
@@ -469,47 +432,8 @@ export class MediaService {
     return true;
   }
 
-  /** 有限并发删除 S3 对象，返回删除失败的 key 集合 */
-  private async deleteS3Objects(bucket: string, keys: string[]): Promise<Set<string>> {
-    const failed = new Set<string>();
-    for (let i = 0; i < keys.length; i += S3_DELETE_CONCURRENCY) {
-      const chunk = keys.slice(i, i + S3_DELETE_CONCURRENCY);
-      const results = await Promise.allSettled(
-        chunk.map((Key) => this.s3.send(new DeleteObjectCommand({ Bucket: bucket, Key }))),
-      );
-      for (let index = 0; index < results.length; index++) {
-        if (results[index].status === 'rejected') {
-          failed.add(chunk[index]);
-        }
-      }
-      if (results.some((result) => result.status === 'rejected')) {
-        this.logger.error(`删除 S3 对象失败: ${failed.size} 个待重试`);
-      }
-    }
-    return failed;
-  }
-
   private signUploadUrl(input: { bucket: string; key: string; contentType: string; size: number }) {
-    return getSignedUrl(
-      this.s3,
-      new PutObjectCommand({
-        Bucket: input.bucket,
-        Key: input.key,
-        ContentType: input.contentType,
-        ContentLength: input.size,
-      }),
-      { expiresIn: 600 },
-    );
-  }
-
-  /** 构建文件公网访问 URL */
-  private buildPublicUrl(objectKey: string): string {
-    const endpoint = this.config.get<string>('cos.endpoint');
-    const bucket = this.config.get<string>('cos.bucket')!;
-    const baseUrl = endpoint
-      ? `${endpoint.replace(/\/$/, '')}/${bucket}`
-      : `https://${bucket}.s3.${this.config.get<string>('cos.region')}.amazonaws.com`;
-    return `${baseUrl}/${objectKey}`;
+    return this.storage.signUploadUrl(input);
   }
 
   /** 文件名消毒：提取最后一段扩展名，仅允许图片扩展名，防止双重扩展名攻击 */

@@ -9,7 +9,7 @@ import { LoginDto } from './dto/login.dto';
 import { ClientPlatform, normalizeClientPlatform } from './client-platform';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { unauthorized } from '../common/exceptions/business.exception';
-import { activeSanctionWhere, sanctionFailure } from './account-sanction';
+import { activeSanctionWhere, sanctionFailure } from '../access/account-status';
 
 const userSelectPublic = {
   id: true,
@@ -101,10 +101,7 @@ export class AuthSessionService {
   }
 
   private signAccessToken(userId: string, family: string) {
-    return this.jwtService.signAsync(
-      { sub: userId, sid: family },
-      { secret: this.configService.get<string>('jwt.accessSecret')!, expiresIn: '15m' as const },
-    );
+    return this.jwtService.signAsync({ sub: userId, sid: family });
   }
 
   /** 创建登录终端：同一用户同一平台只保留最新终端。用户行锁保证并发登录不会产生重复槽位。 */
@@ -348,10 +345,10 @@ export class AuthSessionService {
       throw unauthorized(rotated.message, rotated.code);
     }
 
-    const accessToken = await this.jwtService.signAsync(
-      { sub: rotated.userId, sid: rotated.sessionId },
-      { secret: this.configService.get<string>('jwt.accessSecret')!, expiresIn: '15m' as const },
-    );
+    const accessToken = await this.jwtService.signAsync({
+      sub: rotated.userId,
+      sid: rotated.sessionId,
+    });
 
     return {
       accessToken,

@@ -11,10 +11,13 @@ import { AppealAccessService } from './appeal-access.service';
 import { AppealAccessGuard } from './guards/appeal-access.guard';
 import { APP_GUARD } from '@nestjs/core';
 import { GlobalAuthGuard } from './guards/global-auth.guard';
+import type { JwtSignOptions } from '@nestjs/jwt';
+import { EmailModule } from '../email/email.module';
 
 /** 认证模块：注册 JWT 策略、Passport 守卫，提供注册/登录/刷新 API */
 @Module({
   imports: [
+    EmailModule,
     // Passport 模块，默认使用 JWT 策略
     PassportModule.register({ defaultStrategy: 'jwt' }),
     // 异步配置 JWT 模块，从 ConfigService 读取密钥
@@ -22,7 +25,9 @@ import { GlobalAuthGuard } from './guards/global-auth.guard';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         secret: config.get<string>('jwt.accessSecret'),
-        signOptions: { expiresIn: '15m' as const },
+        signOptions: {
+          expiresIn: config.get<string>('jwt.accessExpiresIn') as JwtSignOptions['expiresIn'],
+        },
       }),
     }),
   ],

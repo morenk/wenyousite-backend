@@ -1,6 +1,6 @@
 import { ReportReasonCode, ReportStatus, ReportTargetType, UserRole } from '@prisma/client';
-import { AuditService } from '../admin/audit.service';
-import { ModerationService } from '../admin/moderation.service';
+import { AuditService } from '../moderation/audit.service';
+import { ModerationService } from '../moderation/moderation.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { PrismaService } from '../prisma/prisma.service';

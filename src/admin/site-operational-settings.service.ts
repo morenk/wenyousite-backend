@@ -3,15 +3,19 @@ import { AuditAction, AuditTargetType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
-import { AuditService } from './audit.service';
-import { AdminActor } from './admin-policy.service';
-import { AdminRequestContext } from './moderation.service';
+import { AuditService } from '../moderation/audit.service';
+import { AdminActor } from '../moderation/admin-policy.service';
+import { AdminRequestContext } from '../moderation/moderation.service';
 import { UpdateSiteSettingsDto } from './dto/site-settings.dto';
 
 @Injectable()
 export class SiteOperationalSettingsService {
   private cached:
-    | { expiresAt: number; registrationPausedUntil: Date | null; contentWritesPausedUntil: Date | null }
+    | {
+        expiresAt: number;
+        registrationPausedUntil: Date | null;
+        contentWritesPausedUntil: Date | null;
+      }
     | undefined;
 
   constructor(
@@ -66,23 +70,33 @@ export class SiteOperationalSettingsService {
     }
   }
 
-  async update(
-    actor: AdminActor,
-    dto: UpdateSiteSettingsDto,
-    context: AdminRequestContext,
-  ) {
+  async update(actor: AdminActor, dto: UpdateSiteSettingsDto, context: AdminRequestContext) {
     this.assertMaintenanceWindow(dto);
     const data = {
       ...(dto.registrationPausedUntil !== undefined
-        ? { registrationPausedUntil: dto.registrationPausedUntil ? new Date(dto.registrationPausedUntil) : null }
+        ? {
+            registrationPausedUntil: dto.registrationPausedUntil
+              ? new Date(dto.registrationPausedUntil)
+              : null,
+          }
         : {}),
       ...(dto.contentWritesPausedUntil !== undefined
-        ? { contentWritesPausedUntil: dto.contentWritesPausedUntil ? new Date(dto.contentWritesPausedUntil) : null }
+        ? {
+            contentWritesPausedUntil: dto.contentWritesPausedUntil
+              ? new Date(dto.contentWritesPausedUntil)
+              : null,
+          }
         : {}),
-      ...(dto.maintenanceTitle !== undefined ? { maintenanceTitle: dto.maintenanceTitle?.trim() || null } : {}),
-      ...(dto.maintenanceContent !== undefined ? { maintenanceContent: dto.maintenanceContent?.trim() || null } : {}),
+      ...(dto.maintenanceTitle !== undefined
+        ? { maintenanceTitle: dto.maintenanceTitle?.trim() || null }
+        : {}),
+      ...(dto.maintenanceContent !== undefined
+        ? { maintenanceContent: dto.maintenanceContent?.trim() || null }
+        : {}),
       ...(dto.maintenanceStartsAt !== undefined
-        ? { maintenanceStartsAt: dto.maintenanceStartsAt ? new Date(dto.maintenanceStartsAt) : null }
+        ? {
+            maintenanceStartsAt: dto.maintenanceStartsAt ? new Date(dto.maintenanceStartsAt) : null,
+          }
         : {}),
       ...(dto.maintenanceEndsAt !== undefined
         ? { maintenanceEndsAt: dto.maintenanceEndsAt ? new Date(dto.maintenanceEndsAt) : null }

@@ -1,19 +1,14 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  AdminInviteStatus,
-  AuditAction,
-  AuditTargetType,
-  UserRole,
-} from '@prisma/client';
+import { AdminInviteStatus, AuditAction, AuditTargetType, UserRole } from '@prisma/client';
 import { createHash, randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
-import { AuditService } from './audit.service';
-import { AdminActor } from './admin-policy.service';
-import { AdminRequestContext } from './moderation.service';
+import { AuditService } from '../moderation/audit.service';
+import { AdminActor } from '../moderation/admin-policy.service';
+import { AdminRequestContext } from '../moderation/moderation.service';
 
 const INVITE_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -110,7 +105,10 @@ export class AdminAccountsService {
     const baseUrl =
       this.config.get<string>('app.adminWebEntryUrl') ||
       `${this.config.get<string>('app.webUrl') ?? 'http://localhost:3001'}/station/invite`;
-    await this.email.sendAdminInvite(invite.user.email, `${baseUrl}?token=${encodeURIComponent(rawToken)}`);
+    await this.email.sendAdminInvite(
+      invite.user.email,
+      `${baseUrl}?token=${encodeURIComponent(rawToken)}`,
+    );
     return { id: invite.id, expiresAt: invite.expiresAt };
   }
 
@@ -124,7 +122,10 @@ export class AdminAccountsService {
         throw notFound(ErrorCode.NOT_FOUND, '管理员邀请不存在');
       }
       if (invite.expiresAt <= new Date()) {
-        await tx.adminInvite.update({ where: { id: invite.id }, data: { status: AdminInviteStatus.EXPIRED } });
+        await tx.adminInvite.update({
+          where: { id: invite.id },
+          data: { status: AdminInviteStatus.EXPIRED },
+        });
         throw conflict(ErrorCode.ADMIN_INVITE_CONFLICT, '管理员邀请已过期');
       }
       if (invite.user.deletedAt || invite.user.role !== UserRole.USER) {
@@ -184,8 +185,12 @@ export class AdminAccountsService {
   }
 
   async revoke(actor: AdminActor, userId: string, reason: string, context: AdminRequestContext) {
-    if (actor.id === userId) throw conflict(ErrorCode.CANNOT_MODERATE_ADMIN, '不能撤销自己的管理员身份');
-    const target = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    if (actor.id === userId)
+      throw conflict(ErrorCode.CANNOT_MODERATE_ADMIN, '不能撤销自己的管理员身份');
+    const target = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
     if (!target) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
     if (target.role !== UserRole.ADMIN) {
       throw conflict(ErrorCode.ADMIN_INVITE_CONFLICT, '目标不是普通管理员');
@@ -193,8 +198,14 @@ export class AdminAccountsService {
     const now = new Date();
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({ where: { id: userId }, data: { role: UserRole.USER } });
-      await tx.adminSession.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: now } });
-      await tx.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: now } });
+      await tx.adminSession.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: now },
+      });
+      await tx.refreshToken.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: now },
+      });
       await this.audit.record(
         {
           actorId: actor.id,
@@ -218,7 +229,10 @@ export class AdminAccountsService {
     context: AdminRequestContext,
   ) {
     if (actor.id === targetId) throw conflict(ErrorCode.CONFLICT, '接任人不能是自己');
-    const target = await this.prisma.user.findUnique({ where: { id: targetId }, select: { role: true } });
+    const target = await this.prisma.user.findUnique({
+      where: { id: targetId },
+      select: { role: true },
+    });
     if (!target) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
     if (target.role !== UserRole.ADMIN) {
       throw conflict(ErrorCode.CONFLICT, '接任人必须已经是普通管理员');

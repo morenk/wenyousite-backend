@@ -7,10 +7,10 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { FastifyReply, FastifyRequest } from 'fastify';
-import { AdminAuth, SuperAdminStepUpAuth } from '../auth/decorators/admin-auth.decorator';
+import { AdminAuth, SuperAdminStepUpAuth } from './admin-auth.decorator';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { ApiCursorPaginatedResponse } from '../common/swagger/api-cursor-paginated-response.decorator';
-import { AdminActor, AdminRole } from './admin-policy.service';
+import { AdminActor, AdminRole } from '../moderation/admin-policy.service';
 import {
   AdminContentParamsDto,
   AdminHiddenContentQueryDto,
@@ -20,7 +20,7 @@ import {
   RevokeSanctionDto,
   SanctionUserDto,
   UpdateAdminRoleDto,
-} from './dto/moderation.dto';
+} from '../moderation/dto/moderation.dto';
 import {
   AdminAuditLogResponseDto,
   AdminContentModerationResponseDto,
@@ -28,8 +28,8 @@ import {
   AdminUserModerationResponseDto,
   AdminUserSanctionResponseDto,
 } from './dto/moderation-response.dto';
-import { ModerationService } from './moderation.service';
-import { AdminModerationQueryService } from './admin-moderation-query.service';
+import { ModerationService } from '../moderation/moderation.service';
+import { AdminModerationQueryService } from '../moderation/admin-moderation-query.service';
 
 function actorFrom(user: CurrentUserPayload): AdminActor {
   return {

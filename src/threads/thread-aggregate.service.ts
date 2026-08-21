@@ -307,7 +307,7 @@ export class ThreadAggregateService {
               authorRole: manager.role,
               authorPlayerMarked: manager.playerMarked,
               diceRolls: createdPublishedBody.diceRolls,
-            } as Prisma.InputJsonValue,
+            },
           });
         }
 
@@ -471,7 +471,7 @@ export class ThreadAggregateService {
             notation: roll.notation,
             total: roll.total,
           })),
-        } as Prisma.InputJsonValue,
+        },
       });
     }
   }
@@ -538,7 +538,7 @@ export class ThreadAggregateService {
       aggregateType: 'Post',
       aggregateId: input.postId,
       eventKey: `post-mentions-updated:${input.postId}:v${input.version}`,
-      payload: payload as unknown as Prisma.InputJsonValue,
+      payload,
     });
   }
 }

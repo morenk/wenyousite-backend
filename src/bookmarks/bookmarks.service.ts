@@ -118,7 +118,7 @@ export class BookmarksService {
       where: { id: targetId, deletedAt: null },
       select: { id: true, showBookmarks: true, deletedAt: true },
     });
-    if (!targetUser) throw new NotFoundException('用户不存在');
+    if (!targetUser) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
     if (!targetUser.showBookmarks && targetId !== viewerId) {
       throw new NotFoundException('该用户未公开收藏');
     }

@@ -1,22 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { NotificationProducer } from '../notifications/notification.producer';
-
-interface MomentCommentCreatedEvent {
-  commentId: string;
-  momentId: string;
-  momentTitle: string;
-  actorId: string;
-  actorUsername: string;
-  recipientId: string;
-  isReply: boolean;
-}
+import { DOMAIN_EVENTS, MomentCommentCreatedEvent } from '../outbox/domain-events';
 
 @Injectable()
 export class MomentEventsListener {
   constructor(private readonly notifications: NotificationProducer) {}
 
-  @OnEvent('moment.comment.created')
+  @OnEvent(DOMAIN_EVENTS.MOMENT_COMMENT_CREATED)
   async commentCreated(event: MomentCommentCreatedEvent) {
     await this.notifications.notify(
       'reply',

@@ -20,7 +20,7 @@
 | `OutboxDispatcher`               | `@Interval`                 | 竞争领取并重试可靠领域事件（`src/outbox`）                                               |
 | `PostEventsListener`             | `@OnEvent('post.created')`  | 协调 @提及、通知和 Redis 投影（`src/post-activity`）                                     |
 | `NotificationProducer/Processor` | BullMQ                      | 通知任务生产与幂等落库（`src/notifications`）                                            |
-| `NotificationCampaignService`    | `@Interval` + BullMQ        | 每 30 秒领取到期站内通知活动，按 500 人分批并以活动事件键幂等投递                         |
+| `NotificationCampaignService`    | `@Interval` + BullMQ        | 每 30 秒领取到期或租约过期的活动，按 500 人持久化游标并以活动事件键幂等投递              |
 | `ImageProcessor`                 | `@Processor('image')`       | 调用 MediaService 生成衍生图（`src/media`）                                              |
 | `StickerProcessor`               | `@Processor('sticker')`     | 规范化表情并完成幂等导入（`src/stickers`）                                               |
 | `MobilePushProcessor`            | `@Processor('mobile-push')` | 验证终端状态、发送 FCM、停用无效 token（`src/mobile-push`）                              |
@@ -75,6 +75,7 @@
 
 - 通知异步投递：HTTP 请求只在业务事务写 Outbox，由后台分发器和 BullMQ 完成通知写入
 - 关键事件至少一次投递；通知事件键和 Redis 权威值覆盖保证重试幂等
+- 通知活动每批成功入队后持久化接收人游标；进程中断或队列故障会在租约过期后续传，连续 10 次领取失败才进入失败终态
 - 发帖事件中预加载拉黑和订阅数据一次，三类通知共享避免 N+1 查询
 - 新楼层和楼中楼的通知接收人包含订阅者，但 @提及不包含，防止双重通知骚扰
 - 定时清理凌晨 4 点执行，避开用户活跃高峰期

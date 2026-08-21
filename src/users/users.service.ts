@@ -13,8 +13,10 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { DEACTIVATED_USER_NAME } from '../common/user-summary';
 import { progressionFor } from '../progression/progression.constants';
 import { UserSanctionType } from '@prisma/client';
-import { activeSanctionWhere } from '../auth/account-sanction';
+import { activeSanctionWhere } from '../access/account-status';
 import { mediaVariantUrls } from '../media/media-response.mapper';
+import { notFound } from '../common/exceptions/business.exception';
+import { ErrorCode } from '../common/exceptions/error-codes';
 
 const profileCoverMediaSelect = {
   id: true,
@@ -169,7 +171,7 @@ export class UsersService {
         _count: { select: { following: true, followers: true } },
       },
     });
-    if (!user) throw new NotFoundException('用户不存在');
+    if (!user) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
     return flattenProgressAndTips(user);
   }
 
@@ -184,7 +186,7 @@ export class UsersService {
         where: { id },
         select: { ...userSelectPublic(), _count: { select: { following: true, followers: true } } },
       });
-      if (!user) throw new NotFoundException('用户不存在');
+      if (!user) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
       const masked = maskDeactivated(user);
       this.cache.set(cacheKey, masked, publicProfileCacheTtl(user)).catch(() => {});
       return masked;
@@ -197,7 +199,7 @@ export class UsersService {
         _count: { select: { following: true, followers: true } },
       },
     });
-    if (!user) throw new NotFoundException('用户不存在');
+    if (!user) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
     const masked = maskDeactivated(user);
 
     if (masked.isDeactivated === true) return masked;
@@ -241,7 +243,7 @@ export class UsersService {
   /** 更新用户资料：校验唯一性、冷却期、捕获竞态、空 body 短路 */
   async update(id: string, dto: UpdateUserDto) {
     const user = await this.prisma.user.findUnique({ where: { id } });
-    if (!user) throw new NotFoundException('用户不存在');
+    if (!user) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
 
     // 空 body 不执行 DB 写
     if (Object.keys(dto).length === 0) {
@@ -260,7 +262,7 @@ export class UsersService {
         ? await this.prisma.$transaction(async (tx) => {
             await tx.$queryRaw`SELECT id FROM users WHERE id = ${id} FOR UPDATE`;
             const current = await tx.user.findUnique({ where: { id } });
-            if (!current) throw new NotFoundException('用户不存在');
+            if (!current) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
 
             const changingCurrentName = dto.username !== current.username;
             if (changingCurrentName && current.lastUsernameChange) {
@@ -462,8 +464,8 @@ export class UsersService {
 
   async deactivate(id: string) {
     const user = await this.prisma.user.findUnique({ where: { id } });
-    if (!user) throw new NotFoundException('用户不存在');
-    if (user.deletedAt) throw new NotFoundException('用户不存在');
+    if (!user) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
+    if (user.deletedAt) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
 
     // 释放唯一键同时移除原始账号标识；内部墓碑值不得用于对外展示。
     const tombstone = user.id.slice(-16);

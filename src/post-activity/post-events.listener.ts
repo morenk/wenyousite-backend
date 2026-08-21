@@ -9,6 +9,9 @@ import { BlockFilterService } from '../access/block-filter.service';
 import { buildPostPreview } from '../common/post-preview';
 import { updateThreadSmartScore } from '../threads/thread-smart-score';
 import { PostMentionsUpdatedEvent } from '../mentions/mention-events';
+import { DOMAIN_EVENTS, PostCreatedEvent } from '../outbox/domain-events';
+
+export type { PostCreatedEvent } from '../outbox/domain-events';
 
 /** ZSET 键名 */
 const ZSET_BY_ACTIVITY = 'threads:by:activity';
@@ -28,7 +31,7 @@ export class PostEventsListener {
   ) {}
 
   /** 监听 post.created 事件，处理：@提及、新帖通知、楼中楼回复通知 + Redis 计数器更新 */
-  @OnEvent('post.created')
+  @OnEvent(DOMAIN_EVENTS.POST_CREATED)
   async handlePostCreated(event: PostCreatedEvent) {
     const failures: unknown[] = [];
     // Redis 投影从数据库权威值覆盖，Outbox 重试时不会重复累加。
@@ -180,7 +183,7 @@ export class PostEventsListener {
   }
 
   /** 编辑事务已确定接收者；Outbox 重试通过稳定通知键保持幂等。 */
-  @OnEvent('post.mentions.updated')
+  @OnEvent(DOMAIN_EVENTS.POST_MENTIONS_UPDATED)
   async handlePostMentionsUpdated(event: PostMentionsUpdatedEvent) {
     const recipients = [...new Set(event.recipientIds)].filter(
       (recipientId) => recipientId !== event.userId,
@@ -207,23 +210,19 @@ export class PostEventsListener {
   }
 
   /** 主题帖点赞后更新计数 + 智能排序分 */
-  @OnEvent('thread.liked')
+  @OnEvent(DOMAIN_EVENTS.THREAD_LIKED)
   async handleThreadLiked(event: { threadId: string }) {
     const thread = await this.prisma.thread.findUnique({
       where: { id: event.threadId },
       select: { likeCount: true },
     });
     if (!thread) return;
-    await this.redis.hset(
-      `thread:${event.threadId}:stats`,
-      'likes',
-      String(thread.likeCount),
-    );
+    await this.redis.hset(`thread:${event.threadId}:stats`, 'likes', String(thread.likeCount));
     updateThreadSmartScore(this.redis, event.threadId).catch(() => {});
   }
 
   /** 主题帖取消点赞后更新计数 */
-  @OnEvent('thread.unliked')
+  @OnEvent(DOMAIN_EVENTS.THREAD_UNLIKED)
   async handleThreadUnliked(event: { threadId: string }) {
     await this.handleThreadLiked(event);
   }
@@ -243,33 +242,9 @@ export class PostEventsListener {
           })
         : Promise.resolve(null),
     ]);
-    await this.redis.hset(
-      `thread:${event.threadId}:stats`,
-      'replies',
-      String(threadReplies),
-    );
+    await this.redis.hset(`thread:${event.threadId}:stats`, 'replies', String(threadReplies));
     if (event.parentPostId && parentReplies !== null) {
-      await this.redis.hset(
-        `post:${event.parentPostId}:stats`,
-        'replies',
-        String(parentReplies),
-      );
+      await this.redis.hset(`post:${event.parentPostId}:stats`, 'replies', String(parentReplies));
     }
   }
-}
-
-export interface PostCreatedEvent {
-  postId: string;
-  content: string;
-  userId: string;
-  authorUsername?: string;
-  threadId: string;
-  subthreadId: string;
-  subthreadTitle: string;
-  parentPostId: string | null;
-  replyToPostId: string | null;
-  isSubthreadBody?: boolean;
-  authorRole: 'OWNER' | 'COLLABORATOR' | 'PARTICIPANT';
-  authorPlayerMarked: boolean;
-  diceRolls?: { nodeId: string; notation: string; total: number }[];
 }

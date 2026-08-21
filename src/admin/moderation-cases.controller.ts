@@ -1,13 +1,29 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query, Req } from '@nestjs/common';
-import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
+import {
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { FastifyRequest } from 'fastify';
-import { AdminAuth, AdminStepUpAuth } from '../auth/decorators/admin-auth.decorator';
+import { AdminAuth, AdminStepUpAuth } from './admin-auth.decorator';
 import { AppealAuth } from '../auth/decorators/appeal-auth.decorator';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import { AppealAccessService } from '../auth/appeal-access.service';
 import { Public } from '../auth/decorators/public.decorator';
-import { AdminActor, AdminRole } from './admin-policy.service';
+import { AdminActor, AdminRole } from '../moderation/admin-policy.service';
 import {
   CreateModerationAppealDto,
   IssueAppealTokenDto,
@@ -15,10 +31,15 @@ import {
   ModerationCaseQueryDto,
   ResolveModerationAppealDto,
   ResolveModerationCaseDto,
-} from './dto/moderation-case.dto';
-import { ModerationCasesService } from './moderation-cases.service';
+} from '../moderation/dto/moderation-case.dto';
+import { ModerationCasesService } from '../moderation/moderation-cases.service';
 import { ApiCursorPaginatedResponse } from '../common/swagger/api-cursor-paginated-response.decorator';
-import { AppealAccessTokenResponseDto, ModerationAppealResponseDto, ModerationCaseResponseDto, ModerationDecisionPublicResponseDto } from './dto/admin-station-response.dto';
+import {
+  AppealAccessTokenResponseDto,
+  ModerationAppealResponseDto,
+  ModerationCaseResponseDto,
+  ModerationDecisionPublicResponseDto,
+} from './dto/admin-station-response.dto';
 
 function actorFrom(user: CurrentUserPayload): AdminActor {
   return { id: user.id, username: user.username, role: user.role as AdminRole };

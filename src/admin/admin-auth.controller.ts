@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Post,
-  Req,
-  Res,
-} from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req, Res } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -15,9 +6,13 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AdminAuthService } from './admin-auth.service';
 import { adminSessionCookieName } from './admin-auth.constants';
 import { AdminChallengeVerifyDto, AdminLoginChallengeDto } from './dto/admin-auth.dto';
-import { AdminAuth } from '../auth/decorators/admin-auth.decorator';
+import { AdminAuth } from './admin-auth.decorator';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
-import { AdminChallengeResponseDto, AdminSessionResponseDto, AdminStepUpResponseDto } from './dto/admin-station-response.dto';
+import {
+  AdminChallengeResponseDto,
+  AdminSessionResponseDto,
+  AdminStepUpResponseDto,
+} from './dto/admin-station-response.dto';
 import { MessageResponseDto } from '../common/dto/message-response.dto';
 import { Public } from '../auth/decorators/public.decorator';
 
@@ -70,8 +65,15 @@ export class AdminAuthController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ) {
-    const result = await this.auth.verifyLoginChallenge(dto.challengeId, dto.code, fingerprint(request));
-    const maxAge = Math.max(0, Math.floor((result.session.expiresAt.getTime() - Date.now()) / 1000));
+    const result = await this.auth.verifyLoginChallenge(
+      dto.challengeId,
+      dto.code,
+      fingerprint(request),
+    );
+    const maxAge = Math.max(
+      0,
+      Math.floor((result.session.expiresAt.getTime() - Date.now()) / 1000),
+    );
     this.setSessionCookie(reply, result.rawToken, maxAge);
     const csrfToken = reply.generateCsrf();
     return { session: result.session, user: result.user, csrfToken };

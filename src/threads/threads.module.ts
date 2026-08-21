@@ -17,6 +17,9 @@ import { StickersModule } from '../stickers/stickers.module';
 import { ThreadCreateIdempotencyService } from './thread-create-idempotency.service';
 import { TaxonomyModule } from '../taxonomy/taxonomy.module';
 import { MediaReferenceModule } from '../media/media-reference.module';
+import { DiceModule } from '../dice/dice.module';
+import { ThreadReactionService } from './thread-reaction.service';
+import { ThreadInviteService } from './thread-invite.service';
 
 /** 主题帖模块：CRUD、参与人管理、标签关联 */
 @Module({
@@ -29,6 +32,7 @@ import { MediaReferenceModule } from '../media/media-reference.module';
     StickersModule,
     TaxonomyModule,
     MediaReferenceModule,
+    DiceModule,
   ],
   controllers: [ThreadsController, ThreadMembersController, ThreadTagsController],
   providers: [
@@ -39,6 +43,8 @@ import { MediaReferenceModule } from '../media/media-reference.module';
     ThreadCreateIdempotencyService,
     ThreadEventsListener,
     ThreadAggregateService,
+    ThreadReactionService,
+    ThreadInviteService,
   ],
   exports: [ThreadsService],
 })

@@ -5,6 +5,7 @@ import { paginate } from '../common/dto/paginated-result';
 import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { PrismaService } from '../prisma/prisma.service';
+import { activeSanctionWhere } from '../access/account-status';
 import {
   AdminHiddenContentQueryDto,
   AdminUserQueryDto,
@@ -105,16 +106,6 @@ const activeSanctionSelect = {
   reportId: true,
 } as const;
 
-function activeSanctionWhere(now = new Date()): Prisma.UserSanctionWhereInput {
-  return {
-    revokedAt: null,
-    OR: [
-      { type: UserSanctionType.BAN },
-      { type: UserSanctionType.SUSPENSION, endsAt: { gt: now } },
-    ],
-  };
-}
-
 function moderationStatus(sanction?: { type: UserSanctionType }) {
   if (!sanction) return 'ACTIVE' as const;
   return sanction.type === UserSanctionType.BAN ? ('BANNED' as const) : ('SUSPENDED' as const);
@@ -140,11 +131,11 @@ export class AdminModerationQueryService {
     if (query.status === 'ACTIVE') where.sanctions = { none: activeWhere };
     if (query.status === 'SUSPENDED') {
       where.sanctions = {
-        some: { revokedAt: null, type: UserSanctionType.SUSPENSION, endsAt: { gt: now } },
+        some: { ...activeWhere, type: UserSanctionType.SUSPENSION },
       };
     }
     if (query.status === 'BANNED') {
-      where.sanctions = { some: { revokedAt: null, type: UserSanctionType.BAN } };
+      where.sanctions = { some: { ...activeWhere, type: UserSanctionType.BAN } };
     }
 
     const take = Math.min(query.limit ?? 20, 50);

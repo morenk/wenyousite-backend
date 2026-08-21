@@ -62,9 +62,13 @@ function checkControllerAuth(source: ts.SourceFile, name: string) {
       const resolvedAuth = authDecorator(member) ?? classAuth;
       const methodName = member.name.getText(source);
       if (!resolvedAuth) {
-        failures.push(`${name}:${source.getLineAndCharacterOfPosition(member.getStart()).line + 1}: ${methodName} 缺少显式认证装饰器`);
+        failures.push(
+          `${name}:${source.getLineAndCharacterOfPosition(member.getStart()).line + 1}: ${methodName} 缺少显式认证装饰器`,
+        );
       } else if (writeMethods.has(httpMethod) && resolvedAuth === 'AuthRead') {
-        failures.push(`${name}:${source.getLineAndCharacterOfPosition(member.getStart()).line + 1}: ${httpMethod} ${methodName} 不得使用 AuthRead`);
+        failures.push(
+          `${name}:${source.getLineAndCharacterOfPosition(member.getStart()).line + 1}: ${httpMethod} ${methodName} 不得使用 AuthRead`,
+        );
       }
     }
   }
@@ -100,6 +104,14 @@ for (const file of collect(sourceRoot)) {
 
   if (file.endsWith('.controller.ts')) checkControllerAuth(source, name);
   if (file.endsWith('.module.ts')) collectModuleProviders(source, name);
+
+  if (
+    /@Global\s*\(/.test(content) &&
+    name !== 'src/prisma/prisma.module.ts' &&
+    name !== 'src/redis/redis.module.ts'
+  ) {
+    failures.push(`${name}: 只有 Prisma/Redis 基础设施允许全局注册，领域模块必须显式导入`);
+  }
 
   if (
     file.endsWith('.controller.ts') &&
@@ -146,6 +158,19 @@ for (const file of collect(sourceRoot)) {
 
   if (name !== 'src/app.module.ts' && /from\s+['"][^'"]*admin\/admin\.module['"]/.test(content)) {
     failures.push(`${name}: 特性模块不得整体导入 AdminModule`);
+  }
+
+  if (name.startsWith('src/auth/') && /from\s+['"][^'"]*admin\//.test(content)) {
+    failures.push(`${name}: auth 不得反向依赖 admin 传输层`);
+  }
+
+  if (
+    !name.startsWith('src/admin/') &&
+    /from\s+['"][^'"]*admin\/(?:audit|moderation|admin-policy|admin-moderation-query|moderation-cases|dto\/moderation)/.test(
+      content,
+    )
+  ) {
+    failures.push(`${name}: 治理能力必须依赖 moderation 边界，不得依赖 admin 编排层`);
   }
 }
 

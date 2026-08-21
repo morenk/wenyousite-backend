@@ -10,46 +10,49 @@ describe('configuration', () => {
   });
 
   it('提供本地开发所需的稳定默认值', () => {
-    expect(configuration()).toEqual(expect.objectContaining({
-      port: 3000,
-      database: {
-        url: 'postgresql://wenyou:wenyou@127.0.0.1:5432/wenyousite?schema=public',
-      },
-      redis: { host: '127.0.0.1', port: 6379 },
-      jwt: {
-        accessSecret: 'dev-access-secret-change-me',
-        accessExpiresIn: '15m',
-        refreshWebTtlDays: 7,
-        refreshMobileTtlDays: 30,
-      },
-      argon2: { timeCost: 3, memoryCost: 65_536 },
-      upload: { ratePerHour: 60, completedOrphanCleanupEnabled: false },
-      directMessages: { sendRatePerMinute: 30, requestRatePerDay: 10 },
-      push: {
-        enabled: false,
-        firebaseProjectId: '',
-        credentialsPath: '',
-        ttlSeconds: 86_400,
-      },
-      mobileCompatibility: {
-        android: {
-          minimumSupportedBuild: undefined,
-          recommendedBuild: undefined,
-          updateUrl: undefined,
+    expect(configuration()).toEqual(
+      expect.objectContaining({
+        port: 3000,
+        database: {
+          url: 'postgresql://wenyou:wenyou@127.0.0.1:5432/wenyousite?schema=public',
         },
-        ios: {
-          minimumSupportedBuild: undefined,
-          recommendedBuild: undefined,
-          updateUrl: undefined,
+        redis: { host: '127.0.0.1', port: 6379 },
+        jwt: {
+          accessSecret: 'dev-access-secret-change-me',
+          accessExpiresIn: '15m',
+          refreshWebTtlDays: 7,
+          refreshMobileTtlDays: 30,
         },
-      },
-    }));
+        argon2: { timeCost: 3, memoryCost: 65_536 },
+        upload: { ratePerHour: 60, completedOrphanCleanupEnabled: false },
+        directMessages: { sendRatePerMinute: 30, requestRatePerDay: 10 },
+        push: {
+          enabled: false,
+          firebaseProjectId: '',
+          credentialsPath: '',
+          ttlSeconds: 86_400,
+        },
+        mobileCompatibility: {
+          android: {
+            minimumSupportedBuild: undefined,
+            recommendedBuild: undefined,
+            updateUrl: undefined,
+          },
+          ios: {
+            minimumSupportedBuild: undefined,
+            recommendedBuild: undefined,
+            updateUrl: undefined,
+          },
+        },
+      }),
+    );
   });
 
   it('解析数字、布尔值、可选路径和自定义配置', () => {
     Object.assign(process['env'], {
       PORT: '4100',
       REDIS_PORT: '6380',
+      JWT_ACCESS_EXPIRES_IN: '45m',
       AUTH_REFRESH_WEB_TTL_DAYS: '14',
       AUTH_REFRESH_MOBILE_TTL_DAYS: '60',
       ARGON2_TIME_COST: '4',
@@ -76,16 +79,21 @@ describe('configuration', () => {
 
     expect(result.port).toBe(4100);
     expect(result.redis.port).toBe(6380);
-    expect(result.jwt).toEqual(expect.objectContaining({
-      refreshWebTtlDays: 14,
-      refreshMobileTtlDays: 60,
-    }));
+    expect(result.jwt).toEqual(
+      expect.objectContaining({
+        accessExpiresIn: '45m',
+        refreshWebTtlDays: 14,
+        refreshMobileTtlDays: 60,
+      }),
+    );
     expect(result.argon2).toEqual({ timeCost: 4, memoryCost: 131_072 });
     expect(result.upload.ratePerHour).toBe(80);
     expect(result.upload.completedOrphanCleanupEnabled).toBe(true);
     expect(result.directMessages).toEqual({ sendRatePerMinute: 45, requestRatePerDay: 12 });
     expect(result.ses.port).toBe(587);
-    expect(result.app).toEqual(expect.objectContaining({ apiDocsEnabled: false, buildSha: 'abcdef' }));
+    expect(result.app).toEqual(
+      expect.objectContaining({ apiDocsEnabled: false, buildSha: 'abcdef' }),
+    );
     expect(result.push.enabled).toBe(true);
     expect(result.push.ttlSeconds).toBe(172_800);
     expect(result.mobileCompatibility).toEqual({
@@ -120,9 +128,11 @@ describe('configuration', () => {
     process['env'].BUILD_SHA = '';
     process['env'].LOG_FILE_DIR = '';
 
-    expect(configuration()).toEqual(expect.objectContaining({
-      app: expect.objectContaining({ buildSha: undefined }),
-      log: expect.objectContaining({ fileDir: undefined }),
-    }));
+    expect(configuration()).toEqual(
+      expect.objectContaining({
+        app: expect.objectContaining({ buildSha: undefined }),
+        log: expect.objectContaining({ fileDir: undefined }),
+      }),
+    );
   });
 });

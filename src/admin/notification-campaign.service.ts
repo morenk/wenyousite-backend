@@ -12,9 +12,9 @@ import { NotificationProducer } from '../notifications/notification.producer';
 import { paginate } from '../common/dto/paginated-result';
 import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
-import { AuditService } from './audit.service';
-import { AdminActor } from './admin-policy.service';
-import { AdminRequestContext } from './moderation.service';
+import { AuditService } from '../moderation/audit.service';
+import { AdminActor } from '../moderation/admin-policy.service';
+import { AdminRequestContext } from '../moderation/moderation.service';
 import {
   CreateNotificationCampaignDto,
   NotificationAudienceDto,
@@ -23,6 +23,26 @@ import {
 
 function conflict(message: string) {
   return new BusinessException(ErrorCode.CONFLICT, message, HttpStatus.CONFLICT);
+}
+
+const DISPATCH_BATCH_SIZE = 500;
+const DISPATCH_LEASE_MS = 5 * 60_000;
+const MAX_DISPATCH_ATTEMPTS = 10;
+
+type InternalDispatchState = {
+  dispatchCursor: unknown;
+  dispatchAttempts: unknown;
+  lastAttemptAt: unknown;
+};
+
+function withoutInternalDispatchState<T extends InternalDispatchState>(
+  campaign: T,
+): Omit<T, keyof InternalDispatchState> {
+  const response = { ...campaign } as T & Partial<InternalDispatchState>;
+  delete response.dispatchCursor;
+  delete response.dispatchAttempts;
+  delete response.lastAttemptAt;
+  return response;
 }
 
 @Injectable()
@@ -36,7 +56,9 @@ export class NotificationCampaignService {
   ) {}
 
   async preview(audience: NotificationAudienceDto = {}) {
-    return { recipientCount: await this.prisma.user.count({ where: this.audienceWhere(audience) }) };
+    return {
+      recipientCount: await this.prisma.user.count({ where: this.audienceWhere(audience) }),
+    };
   }
 
   async create(
@@ -79,7 +101,7 @@ export class NotificationCampaignService {
       );
       return created;
     });
-    return campaign;
+    return withoutInternalDispatchState(campaign);
   }
 
   async list(query: NotificationCampaignQueryDto) {
@@ -108,7 +130,10 @@ export class NotificationCampaignService {
     });
     const hasMore = items.length > take;
     if (hasMore) items.pop();
-    return paginate(items, { cursor: items.at(-1)?.id ?? null, hasMore });
+    return paginate(items.map(withoutInternalDispatchState), {
+      cursor: items.at(-1)?.id ?? null,
+      hasMore,
+    });
   }
 
   async cancel(id: string, actor: AdminActor, context: AdminRequestContext) {
@@ -138,8 +163,19 @@ export class NotificationCampaignService {
 
   @Interval(30_000)
   async dispatchDueCampaigns() {
+    const now = new Date();
+    const staleBefore = new Date(now.getTime() - DISPATCH_LEASE_MS);
     const due = await this.prisma.systemNotificationCampaign.findMany({
-      where: { status: NotificationCampaignStatus.SCHEDULED, scheduledAt: { lte: new Date() } },
+      where: {
+        OR: [
+          { status: NotificationCampaignStatus.SCHEDULED, scheduledAt: { lte: now } },
+          {
+            status: NotificationCampaignStatus.SENDING,
+            OR: [{ lastAttemptAt: null }, { lastAttemptAt: { lte: staleBefore } }],
+            dispatchAttempts: { lt: MAX_DISPATCH_ATTEMPTS },
+          },
+        ],
+      },
       orderBy: { scheduledAt: 'asc' },
       take: 5,
     });
@@ -148,50 +184,110 @@ export class NotificationCampaignService {
         await this.dispatch(campaign.id);
       } catch (error) {
         this.logger.error({ error, campaignId: campaign.id }, '定时站内通知发送失败');
-        await this.prisma.systemNotificationCampaign.updateMany({
-          where: { id: campaign.id, status: NotificationCampaignStatus.SENDING },
-          data: { status: NotificationCampaignStatus.FAILED, failureMessage: '队列投递失败' },
+        const message = error instanceof Error ? error.message : '队列投递失败';
+        const terminal = await this.prisma.systemNotificationCampaign.updateMany({
+          where: {
+            id: campaign.id,
+            status: NotificationCampaignStatus.SENDING,
+            dispatchAttempts: { gte: MAX_DISPATCH_ATTEMPTS },
+          },
+          data: {
+            status: NotificationCampaignStatus.FAILED,
+            failureMessage: message.slice(0, 1000),
+          },
         });
+        if (terminal.count === 0) {
+          await this.prisma.systemNotificationCampaign.updateMany({
+            where: { id: campaign.id, status: NotificationCampaignStatus.SENDING },
+            data: { failureMessage: message.slice(0, 1000) },
+          });
+        }
       }
     }
   }
 
   private async dispatch(id: string) {
-    const claimed = await this.prisma.systemNotificationCampaign.updateMany({
-      where: { id, status: NotificationCampaignStatus.SCHEDULED },
-      data: { status: NotificationCampaignStatus.SENDING, startedAt: new Date() },
+    const now = new Date();
+    let claimed = await this.prisma.systemNotificationCampaign.updateMany({
+      where: {
+        id,
+        status: NotificationCampaignStatus.SCHEDULED,
+        scheduledAt: { lte: now },
+      },
+      data: {
+        status: NotificationCampaignStatus.SENDING,
+        startedAt: now,
+        lastAttemptAt: now,
+        dispatchAttempts: { increment: 1 },
+        failureMessage: null,
+      },
     });
+    if (claimed.count === 0) {
+      claimed = await this.prisma.systemNotificationCampaign.updateMany({
+        where: {
+          id,
+          status: NotificationCampaignStatus.SENDING,
+          OR: [
+            { lastAttemptAt: null },
+            { lastAttemptAt: { lte: new Date(now.getTime() - DISPATCH_LEASE_MS) } },
+          ],
+          dispatchAttempts: { lt: MAX_DISPATCH_ATTEMPTS },
+        },
+        data: {
+          lastAttemptAt: now,
+          dispatchAttempts: { increment: 1 },
+          failureMessage: null,
+        },
+      });
+    }
     if (claimed.count !== 1) return;
-    const campaign = await this.prisma.systemNotificationCampaign.findUniqueOrThrow({ where: { id } });
+    const campaign = await this.prisma.systemNotificationCampaign.findUniqueOrThrow({
+      where: { id },
+    });
     const audience = (campaign.audience ?? {}) as NotificationAudienceDto;
-    let cursor: string | undefined;
-    let recipientCount = 0;
+    let cursor = campaign.dispatchCursor ?? undefined;
     while (true) {
       const users = await this.prisma.user.findMany({
         where: this.audienceWhere(audience),
         select: { id: true },
         orderBy: { id: 'asc' },
-        take: 500,
+        take: DISPATCH_BATCH_SIZE,
         cursor: cursor ? { id: cursor } : undefined,
         skip: cursor ? 1 : 0,
       });
       if (users.length === 0) break;
-      await this.notifications.notify('system', users.map(({ id: userId }) => userId), campaign.content, {
-        threadId: campaign.destinationType === 'THREAD' ? campaign.destinationId ?? undefined : undefined,
-        payload: { title: campaign.title, campaignId: campaign.id },
-        eventKey: `campaign:${campaign.id}`,
-        campaignId: campaign.id,
-      });
-      recipientCount += users.length;
+      await this.notifications.notify(
+        'system',
+        users.map(({ id: userId }) => userId),
+        campaign.content,
+        {
+          threadId:
+            campaign.destinationType === 'THREAD'
+              ? (campaign.destinationId ?? undefined)
+              : undefined,
+          payload: { title: campaign.title, campaignId: campaign.id },
+          eventKey: `campaign:${campaign.id}`,
+          campaignId: campaign.id,
+        },
+      );
       cursor = users.at(-1)!.id;
-      if (users.length < 500) break;
+      await this.prisma.systemNotificationCampaign.updateMany({
+        where: { id, status: NotificationCampaignStatus.SENDING },
+        data: {
+          dispatchCursor: cursor,
+          recipientCount: { increment: users.length },
+          lastAttemptAt: new Date(),
+          failureMessage: null,
+        },
+      });
+      if (users.length < DISPATCH_BATCH_SIZE) break;
     }
     await this.prisma.systemNotificationCampaign.update({
       where: { id },
       data: {
         status: NotificationCampaignStatus.SENT,
         sentAt: new Date(),
-        recipientCount,
+        failureMessage: null,
       },
     });
   }

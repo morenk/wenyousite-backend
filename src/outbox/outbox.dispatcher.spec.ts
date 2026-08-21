@@ -7,33 +7,44 @@ describe('OutboxDispatcher', () => {
     $queryRaw: jest.fn(),
     domainOutbox: { updateMany: jest.fn() },
   };
-  const events = { emitAsync: jest.fn() };
+  const events = { emitAsync: jest.fn(), listenerCount: jest.fn() };
   let dispatcher: OutboxDispatcher;
 
   beforeEach(() => {
     jest.clearAllMocks();
     prisma.domainOutbox.updateMany.mockResolvedValue({ count: 1 });
     events.emitAsync.mockResolvedValue([]);
+    events.listenerCount.mockReturnValue(1);
     dispatcher = new OutboxDispatcher(
       prisma as unknown as PrismaService,
       events as unknown as EventEmitter2,
     );
-    jest.spyOn(
-      (dispatcher as unknown as { logger: { error: (...args: unknown[]) => void } }).logger,
-      'error',
-    ).mockImplementation(() => undefined);
+    jest
+      .spyOn(
+        (dispatcher as unknown as { logger: { error: (...args: unknown[]) => void } }).logger,
+        'error',
+      )
+      .mockImplementation(() => undefined);
   });
 
   afterEach(() => jest.restoreAllMocks());
 
   it('等待所有监听器完成后确认事件', async () => {
     prisma.$queryRaw.mockResolvedValue([
-      { id: 'o1', eventType: 'post.created', payload: { postId: 'p1' }, attempts: 1 },
+      {
+        id: 'o1',
+        eventType: 'thread.unliked',
+        payload: { eventId: 'event-1', threadId: 'thread-1' },
+        attempts: 1,
+      },
     ]);
 
     await dispatcher.dispatch();
 
-    expect(events.emitAsync).toHaveBeenCalledWith('post.created', { postId: 'p1' });
+    expect(events.emitAsync).toHaveBeenCalledWith('thread.unliked', {
+      eventId: 'event-1',
+      threadId: 'thread-1',
+    });
     expect(prisma.domainOutbox.updateMany).toHaveBeenCalledWith({
       where: { id: 'o1', processedAt: null },
       data: { processedAt: expect.any(Date), lastError: null },
@@ -42,7 +53,12 @@ describe('OutboxDispatcher', () => {
 
   it('监听器失败时保留未处理状态并安排退避重试', async () => {
     prisma.$queryRaw.mockResolvedValue([
-      { id: 'o1', eventType: 'post.created', payload: { postId: 'p1' }, attempts: 2 },
+      {
+        id: 'o1',
+        eventType: 'thread.unliked',
+        payload: { eventId: 'event-1', threadId: 'thread-1' },
+        attempts: 2,
+      },
     ]);
     events.emitAsync.mockRejectedValue(new Error('listener failed'));
 
@@ -52,6 +68,46 @@ describe('OutboxDispatcher', () => {
       where: { id: 'o1', processedAt: null },
       data: {
         lastError: 'listener failed',
+        availableAt: expect.any(Date),
+      },
+    });
+  });
+
+  it('没有消费者时保留事件并安排重试', async () => {
+    prisma.$queryRaw.mockResolvedValue([
+      {
+        id: 'o1',
+        eventType: 'thread.unliked',
+        payload: { eventId: 'event-1', threadId: 'thread-1' },
+        attempts: 1,
+      },
+    ]);
+    events.listenerCount.mockReturnValue(0);
+
+    await dispatcher.dispatch();
+
+    expect(events.emitAsync).not.toHaveBeenCalled();
+    expect(prisma.domainOutbox.updateMany).toHaveBeenCalledWith({
+      where: { id: 'o1', processedAt: null },
+      data: {
+        lastError: 'No listener registered for domain event: thread.unliked',
+        availableAt: expect.any(Date),
+      },
+    });
+  });
+
+  it('载荷不符合契约时保留事件并安排重试', async () => {
+    prisma.$queryRaw.mockResolvedValue([
+      { id: 'o1', eventType: 'thread.unliked', payload: { threadId: '' }, attempts: 1 },
+    ]);
+
+    await dispatcher.dispatch();
+
+    expect(events.emitAsync).not.toHaveBeenCalled();
+    expect(prisma.domainOutbox.updateMany).toHaveBeenCalledWith({
+      where: { id: 'o1', processedAt: null },
+      data: {
+        lastError: expect.stringContaining('Invalid payload for thread.unliked'),
         availableAt: expect.any(Date),
       },
     });

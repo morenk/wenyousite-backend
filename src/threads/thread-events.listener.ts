@@ -3,21 +3,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationProducer } from '../notifications/notification.producer';
 import { BlockFilterService } from '../access/block-filter.service';
-
-export interface ThreadPublishedEvent {
-  threadId: string;
-  ownerId: string;
-  ownerUsername: string;
-}
-
-export interface ThreadLikedEvent {
-  eventId: string;
-  threadId: string;
-  ownerId: string;
-  threadTitle: string;
-  userId: string;
-  username: string;
-}
+import { DOMAIN_EVENTS, ThreadLikedEvent, ThreadPublishedEvent } from '../outbox/domain-events';
 
 /** 将主题领域事件翻译为用户通知；领域写入由 Outbox 保证可靠投递。 */
 @Injectable()
@@ -28,7 +14,7 @@ export class ThreadEventsListener {
     private readonly blockFilter: BlockFilterService,
   ) {}
 
-  @OnEvent('thread.published')
+  @OnEvent(DOMAIN_EVENTS.THREAD_PUBLISHED)
   async handlePublished(event: ThreadPublishedEvent): Promise<void> {
     const followers = await this.prisma.userFollow.findMany({
       where: { followingId: event.ownerId },
@@ -53,7 +39,7 @@ export class ThreadEventsListener {
     );
   }
 
-  @OnEvent('thread.liked')
+  @OnEvent(DOMAIN_EVENTS.THREAD_LIKED)
   async handleLiked(event: ThreadLikedEvent): Promise<void> {
     if (event.ownerId === event.userId) return;
 

@@ -5,10 +5,11 @@ import { AccessPolicyModule } from '../access/access-policy.module';
 import { OutboxModule } from '../outbox/outbox.module';
 import { StickersModule } from '../stickers/stickers.module';
 import { MediaReferenceModule } from '../media/media-reference.module';
+import { DiceModule } from '../dice/dice.module';
 
 /** 子贴模块：CRUD、排序与发帖权限 */
 @Module({
-  imports: [AccessPolicyModule, OutboxModule, StickersModule, MediaReferenceModule],
+  imports: [AccessPolicyModule, OutboxModule, StickersModule, MediaReferenceModule, DiceModule],
   controllers: [SubthreadsController],
   providers: [SubthreadsService],
   exports: [SubthreadsService],

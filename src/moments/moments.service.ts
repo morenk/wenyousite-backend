@@ -26,6 +26,8 @@ import {
   visibleMomentAuthorWhere,
 } from './moment-query';
 import { MediaReferenceService } from '../media/media-reference.service';
+import { notFound } from '../common/exceptions/business.exception';
+import { ErrorCode } from '../common/exceptions/error-codes';
 
 const MAX_PAGE_SIZE = 30;
 const DISCOVER_SNAPSHOT_LIMIT = 1000;
@@ -310,7 +312,7 @@ export class MomentsService {
       where: { id: userId, deletedAt: null },
       select: { id: true },
     });
-    if (!user) throw new NotFoundException('用户不存在');
+    if (!user) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
     const take = Math.min(limit, MAX_PAGE_SIZE);
     const decoded = cursor ? decodeDateCursor(cursor) : undefined;
     const rows = await this.prisma.moment.findMany({

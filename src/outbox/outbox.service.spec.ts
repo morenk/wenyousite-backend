@@ -7,19 +7,19 @@ describe('OutboxService', () => {
     const service = new OutboxService();
 
     await service.enqueue(tx, {
-      eventType: 'post.created',
-      aggregateType: 'Post',
-      aggregateId: 'post-1',
-      eventKey: 'post-created:post-1',
-      payload: { postId: 'post-1' },
+      eventType: 'thread.unliked',
+      aggregateType: 'Thread',
+      aggregateId: 'thread-1',
+      eventKey: 'thread-unliked:thread-1:event-1',
+      payload: { eventId: 'event-1', threadId: 'thread-1' },
     });
 
     expect(upsert).toHaveBeenCalledWith({
-      where: { eventKey: 'post-created:post-1' },
+      where: { eventKey: 'thread-unliked:thread-1:event-1' },
       create: expect.objectContaining({
-        eventType: 'post.created',
-        aggregateId: 'post-1',
-        payload: { postId: 'post-1' },
+        eventType: 'thread.unliked',
+        aggregateId: 'thread-1',
+        payload: { eventId: 'event-1', threadId: 'thread-1' },
       }),
       update: {},
     });

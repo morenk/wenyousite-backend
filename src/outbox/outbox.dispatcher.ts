@@ -3,6 +3,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Interval } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { assertDomainEventPayload } from './domain-events';
 
 interface ClaimedOutboxEvent {
   id: string;
@@ -68,6 +69,10 @@ export class OutboxDispatcher implements OnModuleInit {
 
   private async deliver(row: ClaimedOutboxEvent): Promise<void> {
     try {
+      assertDomainEventPayload(row.eventType, row.payload);
+      if (this.events.listenerCount(row.eventType) === 0) {
+        throw new Error(`No listener registered for domain event: ${row.eventType}`);
+      }
       await this.events.emitAsync(row.eventType, row.payload);
       await this.prisma.domainOutbox.updateMany({
         where: { id: row.id, processedAt: null },

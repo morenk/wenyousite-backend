@@ -7,6 +7,7 @@ import { hashIdempotencyPayload } from '../common/idempotency';
 import { CreateThreadDto } from './dto/create-thread.dto';
 import { ThreadQueryService } from './thread-query.service';
 import { normalizeCategorySlug } from '../taxonomy/category-slug';
+import { isUniqueConstraintViolation } from '../common/prisma-errors';
 
 /** 主题帖创建幂等协调：集中处理正常重放、并发唯一键竞争与载荷误用。 */
 @Injectable()
@@ -37,11 +38,7 @@ export class ThreadCreateIdempotencyService {
     };
   }
 
-  async findReplay(
-    userId: string,
-    clientRequestId: string | undefined,
-    requestHash: string,
-  ) {
+  async findReplay(userId: string, clientRequestId: string | undefined, requestHash: string) {
     if (!clientRequestId) return undefined;
     const existing = await this.prisma.thread.findFirst({
       where: { ownerId: userId, clientRequestId },
@@ -64,8 +61,7 @@ export class ThreadCreateIdempotencyService {
     clientRequestId: string | undefined,
     requestHash: string,
   ) {
-    const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
-    if (code !== 'P2002' || !clientRequestId) return undefined;
+    if (!isUniqueConstraintViolation(error) || !clientRequestId) return undefined;
     return this.findReplay(userId, clientRequestId, requestHash);
   }
 }

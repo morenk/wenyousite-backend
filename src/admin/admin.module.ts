@@ -24,11 +24,12 @@ import { SiteOperationalSettingsController } from './site-operational-settings.c
 import { NotificationCampaignController } from './notification-campaign.controller';
 import { NotificationCampaignService } from './notification-campaign.service';
 import { AdminSecurityModule } from './admin-security.module';
-import { AuditModule } from './audit.module';
-import { ModerationModule } from './moderation.module';
+import { AuditModule } from '../moderation/audit.module';
+import { ModerationModule } from '../moderation/moderation.module';
 import { OperationalSettingsModule } from './operational-settings.module';
 import { ClientContentModerationController } from './client-content-moderation.controller';
 import { AuthModule } from '../auth/auth.module';
+import { EmailModule } from '../email/email.module';
 
 /** 管理后台模块：系统通知发送、预览、历史、用户搜索 */
 @Module({
@@ -41,6 +42,7 @@ import { AuthModule } from '../auth/auth.module';
     ModerationModule,
     OperationalSettingsModule,
     AuthModule,
+    EmailModule,
   ],
   controllers: [
     AdminAuthController,

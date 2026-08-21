@@ -61,9 +61,9 @@ describe('ModerationCasesService createAppeal', () => {
     };
     prisma.moderationAppeal.create.mockResolvedValue(response);
 
-    await expect(
-      service.createAppeal('user-1', 'decision-1', '  请重新审核  '),
-    ).resolves.toEqual(response);
+    await expect(service.createAppeal('user-1', 'decision-1', '  请重新审核  ')).resolves.toEqual(
+      response,
+    );
     expect(prisma.moderationAppeal.create).toHaveBeenCalledWith({
       data: {
         decisionId: 'decision-1',

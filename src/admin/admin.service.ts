@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationProducer } from '../notifications/notification.producer';
 import { SendSystemNotificationDto } from './dto/send-system-notification.dto';
 import { AuditAction, AuditTargetType } from '@prisma/client';
-import { AuditService } from './audit.service';
+import { AuditService } from '../moderation/audit.service';
 
 /** 管理后台服务：系统通知发送、预览、历史、用户搜索 */
 @Injectable()

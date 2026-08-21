@@ -372,7 +372,6 @@ describe('AuthService', () => {
       expect(result.user.email).toBe('a@b.com');
       expect(mockJwt.signAsync).toHaveBeenCalledWith(
         expect.objectContaining({ sub: 'u1', sid: expect.any(String) }),
-        expect.any(Object),
       );
       expect(mockPrisma.refreshToken.create).toHaveBeenCalled();
       expect(mockPrisma.refreshToken.updateMany).toHaveBeenCalledWith({
@@ -545,7 +544,7 @@ describe('AuthService', () => {
       expect(result.refreshToken).toBeDefined();
       expect(result.platform).toBe('web');
       expect(result.user.level).toBe(3);
-      expect(mockJwt.signAsync).toHaveBeenCalledWith({ sub: 'u1', sid: 'f1' }, expect.any(Object));
+      expect(mockJwt.signAsync).toHaveBeenCalledWith({ sub: 'u1', sid: 'f1' });
       expect(mockPrisma.$queryRaw).toHaveBeenCalled();
       expect(mockPrisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
         maxWait: 5_000,

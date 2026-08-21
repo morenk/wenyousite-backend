@@ -1,8 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { publicUserSummarySelect } from '../common/user-summary';
 import { OutboxService } from '../outbox/outbox.service';
+import { notFound } from '../common/exceptions/business.exception';
+import { ErrorCode } from '../common/exceptions/error-codes';
 
 /** 用户关系用例：关注、粉丝与双向拉黑关系写入和查询。 */
 @Injectable()
@@ -119,6 +121,6 @@ export class UserRelationsService {
       where: { id, deletedAt: null },
       select: { id: true },
     });
-    if (!user) throw new NotFoundException('用户不存在');
+    if (!user) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
   }
 }

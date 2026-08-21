@@ -5,7 +5,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ErrorCode } from '../../common/exceptions/error-codes';
 import { unauthorized } from '../../common/exceptions/business.exception';
-import { activeSanctionWhere, sanctionFailure } from '../account-sanction';
+import { activeSanctionWhere, sanctionFailure } from '../../access/account-status';
 
 /** JWT 策略：从 Authorization header 提取并验证 accessToken，从 DB 加载用户 */
 @Injectable()

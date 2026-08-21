@@ -3,8 +3,8 @@ import { ReportsController } from './reports.controller';
 import { ReportsService } from './reports.service';
 import { AdminReportsController } from './reports.controller';
 import { AdminSecurityModule } from '../admin/admin-security.module';
-import { AuditModule } from '../admin/audit.module';
-import { ModerationModule } from '../admin/moderation.module';
+import { AuditModule } from '../moderation/audit.module';
+import { ModerationModule } from '../moderation/moderation.module';
 
 /** 举报模块 */
 @Module({

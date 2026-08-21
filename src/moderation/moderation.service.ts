@@ -1,5 +1,4 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   AuditAction,
   AuditTargetType,
@@ -11,30 +10,21 @@ import {
 import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { PrismaService } from '../prisma/prisma.service';
-import { RedisService } from '../redis/redis.service';
-import { computeThreadEngagement, computeThreadSmartScore } from '../threads/thread-smart-score';
 import { AdminActor, AdminPolicyService } from './admin-policy.service';
 import { AuditService } from './audit.service';
 import { SanctionUserDto } from './dto/moderation.dto';
 import { AdminModerationQueryService } from './admin-moderation-query.service';
+import {
+  ContentModerationEffect,
+  ModerationProjectionService,
+} from './moderation-projection.service';
+import { isUniqueConstraintViolation } from '../common/prisma-errors';
 
-const ZSET_BY_CREATED = 'threads:by:created';
-const ZSET_BY_ACTIVITY = 'threads:by:activity';
-const ZSET_BY_SMART = 'threads:by:smart';
+export type { ContentModerationEffect } from './moderation-projection.service';
 
 export interface AdminRequestContext {
   ip?: string;
   requestId?: string;
-}
-
-export interface ContentModerationEffect {
-  targetType: 'THREAD' | 'POST' | 'MOMENT' | 'MOMENT_COMMENT';
-  targetId: string;
-  hidden: boolean;
-  deletedAt: Date | null;
-  threadId?: string;
-  momentId?: string;
-  parentPostId?: string | null;
 }
 
 function conflict(code: number, message: string) {
@@ -58,8 +48,7 @@ export class ModerationService {
     private readonly prisma: PrismaService,
     private readonly policy: AdminPolicyService,
     private readonly audit: AuditService,
-    private readonly events: EventEmitter2,
-    private readonly redis: RedisService,
+    private readonly projections: ModerationProjectionService,
     private readonly queries: AdminModerationQueryService,
   ) {}
 
@@ -75,7 +64,7 @@ export class ModerationService {
         this.applySanctionInTransaction(tx, actor, targetId, dto, context, reportId),
       )
       .catch((error: unknown) => {
-        if ((error as { code?: string })?.code === 'P2002') {
+        if (isUniqueConstraintViolation(error)) {
           throw conflict(ErrorCode.SANCTION_STATE_CONFLICT, '账号处罚状态已发生变化，请刷新后重试');
         }
         throw error;
@@ -386,32 +375,70 @@ export class ModerationService {
       });
       if (!moment) throw notFound(ErrorCode.MOMENT_NOT_FOUND, '动态不存在');
       if (moment.deletedAt) {
-        throw conflict(ErrorCode.CONTENT_STATE_CONFLICT, moment.removalSource === ContentRemovalSource.ADMIN ? '动态已经被管理员隐藏' : '动态已由用户删除');
+        throw conflict(
+          ErrorCode.CONTENT_STATE_CONFLICT,
+          moment.removalSource === ContentRemovalSource.ADMIN
+            ? '动态已经被管理员隐藏'
+            : '动态已由用户删除',
+        );
       }
       await tx.moment.update({
         where: { id: targetId },
-        data: { deletedAt: now, removalSource: ContentRemovalSource.ADMIN, removedById: actor.id, removalReason: reason.trim() },
+        data: {
+          deletedAt: now,
+          removalSource: ContentRemovalSource.ADMIN,
+          removedById: actor.id,
+          removalReason: reason.trim(),
+        },
       });
     } else {
       const comment = await tx.momentComment.findUnique({
         where: { id: targetId },
         select: { deletedAt: true, removalSource: true, moment: { select: { deletedAt: true } } },
       });
-      if (!comment || comment.moment.deletedAt) throw notFound(ErrorCode.MOMENT_NOT_FOUND, '动态评论不存在');
+      if (!comment || comment.moment.deletedAt)
+        throw notFound(ErrorCode.MOMENT_NOT_FOUND, '动态评论不存在');
       if (comment.deletedAt) {
-        throw conflict(ErrorCode.CONTENT_STATE_CONFLICT, comment.removalSource === ContentRemovalSource.ADMIN ? '评论已经被管理员隐藏' : '评论已由用户删除');
+        throw conflict(
+          ErrorCode.CONTENT_STATE_CONFLICT,
+          comment.removalSource === ContentRemovalSource.ADMIN
+            ? '评论已经被管理员隐藏'
+            : '评论已由用户删除',
+        );
       }
       await tx.momentComment.update({
         where: { id: targetId },
-        data: { deletedAt: now, removalSource: ContentRemovalSource.ADMIN, removedById: actor.id, removalReason: reason.trim() },
+        data: {
+          deletedAt: now,
+          removalSource: ContentRemovalSource.ADMIN,
+          removedById: actor.id,
+          removalReason: reason.trim(),
+        },
       });
-      await tx.moment.update({ where: { id: (await tx.momentComment.findUniqueOrThrow({ where: { id: targetId }, select: { momentId: true } })).momentId }, data: { commentCount: { decrement: 1 } } });
+      await tx.moment.update({
+        where: {
+          id: (
+            await tx.momentComment.findUniqueOrThrow({
+              where: { id: targetId },
+              select: { momentId: true },
+            })
+          ).momentId,
+        },
+        data: { commentCount: { decrement: 1 } },
+      });
     }
     await this.audit.record(
       {
         actorId: actor.id,
         action: AuditAction.CONTENT_HIDDEN,
-        targetType: targetType === 'THREAD' ? AuditTargetType.THREAD : targetType === 'POST' ? AuditTargetType.POST : targetType === 'MOMENT' ? AuditTargetType.MOMENT : AuditTargetType.MOMENT_COMMENT,
+        targetType:
+          targetType === 'THREAD'
+            ? AuditTargetType.THREAD
+            : targetType === 'POST'
+              ? AuditTargetType.POST
+              : targetType === 'MOMENT'
+                ? AuditTargetType.MOMENT
+                : AuditTargetType.MOMENT_COMMENT,
         targetId,
         reportId,
         reason: reason.trim(),
@@ -483,27 +510,55 @@ export class ModerationService {
           data: { deletedAt: null, removalSource: null, removedById: null, removalReason: null },
         });
       } else if (targetType === 'MOMENT') {
-        const moment = await tx.moment.findUnique({ where: { id: targetId }, select: { deletedAt: true, removalSource: true } });
+        const moment = await tx.moment.findUnique({
+          where: { id: targetId },
+          select: { deletedAt: true, removalSource: true },
+        });
         if (!moment) throw notFound(ErrorCode.MOMENT_NOT_FOUND, '动态不存在');
         if (!moment.deletedAt || moment.removalSource !== ContentRemovalSource.ADMIN) {
           throw conflict(ErrorCode.CONTENT_STATE_CONFLICT, '只能恢复由管理员隐藏的动态');
         }
-        await tx.moment.update({ where: { id: targetId }, data: { deletedAt: null, removalSource: null, removedById: null, removalReason: null } });
+        await tx.moment.update({
+          where: { id: targetId },
+          data: { deletedAt: null, removalSource: null, removedById: null, removalReason: null },
+        });
       } else {
-        const comment = await tx.momentComment.findUnique({ where: { id: targetId }, select: { deletedAt: true, removalSource: true, momentId: true, moment: { select: { deletedAt: true } } } });
+        const comment = await tx.momentComment.findUnique({
+          where: { id: targetId },
+          select: {
+            deletedAt: true,
+            removalSource: true,
+            momentId: true,
+            moment: { select: { deletedAt: true } },
+          },
+        });
         if (!comment) throw notFound(ErrorCode.MOMENT_NOT_FOUND, '动态评论不存在');
         if (!comment.deletedAt || comment.removalSource !== ContentRemovalSource.ADMIN) {
           throw conflict(ErrorCode.CONTENT_STATE_CONFLICT, '只能恢复由管理员隐藏的动态评论');
         }
-        if (comment.moment.deletedAt) throw conflict(ErrorCode.CONTENT_STATE_CONFLICT, '所属动态仍不可见，不能恢复评论');
-        await tx.momentComment.update({ where: { id: targetId }, data: { deletedAt: null, removalSource: null, removedById: null, removalReason: null } });
-        await tx.moment.update({ where: { id: comment.momentId }, data: { commentCount: { increment: 1 } } });
+        if (comment.moment.deletedAt)
+          throw conflict(ErrorCode.CONTENT_STATE_CONFLICT, '所属动态仍不可见，不能恢复评论');
+        await tx.momentComment.update({
+          where: { id: targetId },
+          data: { deletedAt: null, removalSource: null, removedById: null, removalReason: null },
+        });
+        await tx.moment.update({
+          where: { id: comment.momentId },
+          data: { commentCount: { increment: 1 } },
+        });
       }
       await this.audit.record(
         {
           actorId: actor.id,
           action: AuditAction.CONTENT_RESTORED,
-          targetType: targetType === 'THREAD' ? AuditTargetType.THREAD : targetType === 'POST' ? AuditTargetType.POST : targetType === 'MOMENT' ? AuditTargetType.MOMENT : AuditTargetType.MOMENT_COMMENT,
+          targetType:
+            targetType === 'THREAD'
+              ? AuditTargetType.THREAD
+              : targetType === 'POST'
+                ? AuditTargetType.POST
+                : targetType === 'MOMENT'
+                  ? AuditTargetType.MOMENT
+                  : AuditTargetType.MOMENT_COMMENT,
           targetId,
           reason: reason.trim(),
           metadata: { actorUsername: actor.username },
@@ -518,36 +573,11 @@ export class ModerationService {
   }
 
   finalizeUserMutation(userId: string) {
-    this.events.emit('user.updated', { userId });
+    this.projections.finalizeUser(userId);
   }
 
   async finalizeContentMutation(effect: ContentModerationEffect) {
-    if (effect.targetType === 'THREAD') {
-      if (effect.hidden) {
-        await Promise.all([
-          this.redis.zrem(ZSET_BY_CREATED, effect.targetId),
-          this.redis.zrem(ZSET_BY_ACTIVITY, effect.targetId),
-          this.redis.zrem(ZSET_BY_SMART, effect.targetId),
-          this.redis.hdelAll(`thread:${effect.targetId}:stats`),
-        ]).catch(() => undefined);
-        this.events.emit('thread.deleted', { threadId: effect.targetId });
-      } else {
-        await this.restoreThreadProjection(effect.targetId);
-        this.events.emit('thread.updated', { threadId: effect.targetId });
-      }
-      return;
-    }
-    if (effect.targetType === 'MOMENT' || effect.targetType === 'MOMENT_COMMENT') {
-      this.events.emit(effect.hidden ? 'moment.updated' : 'moment.updated', {
-        momentId: effect.momentId ?? effect.targetId,
-      });
-      return;
-    }
-    this.events.emit(effect.hidden ? 'post.deleted' : 'post.updated', {
-      postId: effect.targetId,
-      threadId: effect.threadId,
-      parentPostId: effect.parentPostId,
-    });
+    await this.projections.finalizeContent(effect);
   }
 
   private async loadContentEffect(
@@ -564,7 +594,10 @@ export class ModerationService {
       return { targetType, targetId, hidden, deletedAt, momentId: targetId };
     }
     if (targetType === 'MOMENT_COMMENT') {
-      const comment = await tx.momentComment.findUniqueOrThrow({ where: { id: targetId }, select: { momentId: true } });
+      const comment = await tx.momentComment.findUniqueOrThrow({
+        where: { id: targetId },
+        select: { momentId: true },
+      });
       return { targetType, targetId, hidden, deletedAt, momentId: comment.momentId };
     }
     const post = await tx.post.findUniqueOrThrow({
@@ -581,44 +614,5 @@ export class ModerationService {
       hidden: effect.hidden,
       deletedAt: effect.deletedAt,
     };
-  }
-
-  private async restoreThreadProjection(threadId: string) {
-    const thread = await this.prisma.thread.findUnique({
-      where: { id: threadId, deletedAt: null },
-      select: {
-        id: true,
-        published: true,
-        createdAt: true,
-        updatedAt: true,
-        viewCount: true,
-        likeCount: true,
-        tipTotal: true,
-        _count: { select: { posts: { where: { deletedAt: null, kind: 'FLOOR' } } } },
-      },
-    });
-    if (!thread?.published) return;
-    const replies = thread._count.posts;
-    const tips = Number(thread.tipTotal);
-    const ageHours = Math.max(0, Date.now() - thread.createdAt.getTime()) / 3_600_000;
-    const smart = computeThreadSmartScore(
-      computeThreadEngagement({
-        views: thread.viewCount,
-        replies,
-        likes: thread.likeCount,
-        tips,
-      }),
-      ageHours,
-    );
-    await Promise.all([
-      this.redis.zadd(ZSET_BY_CREATED, thread.createdAt.getTime(), threadId),
-      this.redis.zadd(ZSET_BY_ACTIVITY, thread.updatedAt.getTime(), threadId),
-      this.redis.zadd(ZSET_BY_SMART, smart, threadId),
-      this.redis.hset(`thread:${threadId}:stats`, 'views', thread.viewCount),
-      this.redis.hset(`thread:${threadId}:stats`, 'replies', replies),
-      this.redis.hset(`thread:${threadId}:stats`, 'likes', thread.likeCount),
-      this.redis.hset(`thread:${threadId}:stats`, 'tips', tips),
-      this.redis.hset(`thread:${threadId}:stats`, 'createdAt', thread.createdAt.getTime()),
-    ]).catch(() => undefined);
   }
 }

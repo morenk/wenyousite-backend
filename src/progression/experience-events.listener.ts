@@ -3,33 +3,13 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { ExperienceEventType } from '@prisma/client';
 import { NotificationProducer } from '../notifications/notification.producer';
 import { ProgressionService } from './progression.service';
-
-interface PostCreatedExperienceEvent {
-  postId: string;
-  userId: string;
-  isSubthreadBody?: boolean;
-  occurredAt?: string;
-}
-
-interface ThreadPublishedExperienceEvent {
-  threadId: string;
-  ownerId: string;
-  occurredAt?: string;
-}
-
-interface ThreadLikedExperienceEvent {
-  threadId: string;
-  ownerId: string;
-  userId: string;
-  occurredAt?: string;
-}
-
-interface LevelUpEvent {
-  userId: string;
-  previousLevel: number;
-  level: number;
-  experience: number;
-}
+import {
+  DOMAIN_EVENTS,
+  LevelUpEvent,
+  PostCreatedEvent,
+  ThreadLikedEvent,
+  ThreadPublishedEvent,
+} from '../outbox/domain-events';
 
 function occurredAt(value?: string): Date | undefined {
   if (!value) return undefined;
@@ -44,8 +24,8 @@ export class ExperienceEventsListener {
     private readonly notifications: NotificationProducer,
   ) {}
 
-  @OnEvent('post.created')
-  async handlePostCreated(event: PostCreatedExperienceEvent) {
+  @OnEvent(DOMAIN_EVENTS.POST_CREATED)
+  async handlePostCreated(event: PostCreatedEvent) {
     if (event.isSubthreadBody) return;
     await this.progression.grant({
       userId: event.userId,
@@ -57,8 +37,8 @@ export class ExperienceEventsListener {
     });
   }
 
-  @OnEvent('thread.published')
-  async handleThreadPublished(event: ThreadPublishedExperienceEvent) {
+  @OnEvent(DOMAIN_EVENTS.THREAD_PUBLISHED)
+  async handleThreadPublished(event: ThreadPublishedEvent) {
     await this.progression.grant({
       userId: event.ownerId,
       type: ExperienceEventType.THREAD_PUBLISHED,
@@ -69,8 +49,8 @@ export class ExperienceEventsListener {
     });
   }
 
-  @OnEvent('thread.liked')
-  async handleThreadLiked(event: ThreadLikedExperienceEvent) {
+  @OnEvent(DOMAIN_EVENTS.THREAD_LIKED)
+  async handleThreadLiked(event: ThreadLikedEvent) {
     if (event.ownerId === event.userId) return;
     await this.progression.grant({
       userId: event.ownerId,
@@ -82,7 +62,7 @@ export class ExperienceEventsListener {
     });
   }
 
-  @OnEvent('user.level_up')
+  @OnEvent(DOMAIN_EVENTS.USER_LEVEL_UP)
   async handleLevelUp(event: LevelUpEvent) {
     await this.notifications.notify('level_up', [event.userId], `恭喜你升级到 Lv.${event.level}`, {
       eventKey: `level-up:${event.userId}:${event.level}:${event.experience}`,

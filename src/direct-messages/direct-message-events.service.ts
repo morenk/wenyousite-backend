@@ -16,7 +16,7 @@ export class DirectMessageEventsService {
       aggregateType: 'DirectMessage',
       aggregateId: event.messageId,
       eventKey: `direct-message-created:${event.messageId}`,
-      payload: event as Prisma.InputJsonValue,
+      payload: event,
     });
   }
 }

@@ -5,6 +5,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { mapMomentCard, type MomentCardRow } from './moment.mapper';
 import { momentCardSelect, momentViewerVisibility } from './moment-query';
 import { MomentsService } from './moments.service';
+import { notFound } from '../common/exceptions/business.exception';
+import { ErrorCode } from '../common/exceptions/error-codes';
 
 const MAX_PAGE_SIZE = 30;
 
@@ -101,7 +103,7 @@ export class MomentBookmarksService {
       where: { id: ownerId, deletedAt: null },
       select: { id: true, showBookmarks: true },
     });
-    if (!owner) throw new NotFoundException('用户不存在');
+    if (!owner) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
     if (!owner.showBookmarks && ownerId !== viewerId) {
       throw new NotFoundException('该用户未公开收藏');
     }

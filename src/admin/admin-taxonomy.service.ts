@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { AuditAction, AuditTargetType, Prisma } from '@prisma/client';
+import { AuditAction, AuditTargetType } from '@prisma/client';
 import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { PrismaService } from '../prisma/prisma.service';
@@ -10,8 +10,9 @@ import {
   UpdateThreadCategoryDto,
 } from '../taxonomy/dto/thread-category.dto';
 import { ThreadCategoriesService } from '../taxonomy/thread-categories.service';
-import { AuditService } from './audit.service';
+import { AuditService } from '../moderation/audit.service';
 import { CreateManagedTagDto, UpdateManagedTagDto } from './dto/taxonomy.dto';
+import { isUniqueConstraintViolation } from '../common/prisma-errors';
 
 interface TaxonomyActor {
   id: string;
@@ -20,10 +21,6 @@ interface TaxonomyActor {
 interface TaxonomyRequestContext {
   ip?: string;
   requestId?: string;
-}
-
-function isUniqueConflict(error: unknown): boolean {
-  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
 
 function categoryMetadata(value: {
@@ -97,7 +94,7 @@ export class AdminTaxonomyService {
       await this.categories.invalidateCache();
       return category;
     } catch (error) {
-      if (isUniqueConflict(error)) {
+      if (isUniqueConstraintViolation(error)) {
         throw new BusinessException(
           ErrorCode.THREAD_CATEGORY_ALREADY_EXISTS,
           '分类标识或名称已存在',
@@ -148,7 +145,7 @@ export class AdminTaxonomyService {
       await this.categories.invalidateCache();
       return category;
     } catch (error) {
-      if (isUniqueConflict(error)) {
+      if (isUniqueConstraintViolation(error)) {
         throw new BusinessException(
           ErrorCode.THREAD_CATEGORY_ALREADY_EXISTS,
           '分类名称已存在',
@@ -192,7 +189,7 @@ export class AdminTaxonomyService {
       await this.tags.invalidateCache();
       return tag;
     } catch (error) {
-      if (isUniqueConflict(error)) {
+      if (isUniqueConstraintViolation(error)) {
         throw new BusinessException(
           ErrorCode.TAG_ALREADY_EXISTS,
           '标签已存在',
@@ -252,7 +249,7 @@ export class AdminTaxonomyService {
       await this.tags.invalidateCache();
       return tag;
     } catch (error) {
-      if (isUniqueConflict(error)) {
+      if (isUniqueConstraintViolation(error)) {
         throw new BusinessException(
           ErrorCode.TAG_ALREADY_EXISTS,
           '标签已存在',

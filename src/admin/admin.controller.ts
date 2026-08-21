@@ -9,9 +9,9 @@ import {
 import { FastifyRequest } from 'fastify';
 import { AdminService } from './admin.service';
 import { SendSystemNotificationDto } from './dto/send-system-notification.dto';
-import { AdminAuth } from '../auth/decorators/admin-auth.decorator';
+import { AdminAuth } from './admin-auth.decorator';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
-import { AdminPolicyService, AdminRole } from './admin-policy.service';
+import { AdminPolicyService, AdminRole } from '../moderation/admin-policy.service';
 import {
   AdminRecipientCountResponseDto,
   AdminSystemNotificationHistoryResponseDto,

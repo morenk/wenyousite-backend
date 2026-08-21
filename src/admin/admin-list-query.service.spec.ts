@@ -6,9 +6,9 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationProducer } from '../notifications/notification.producer';
-import { AuditService } from './audit.service';
-import { ModerationService } from './moderation.service';
-import { ModerationCasesService } from './moderation-cases.service';
+import { AuditService } from '../moderation/audit.service';
+import { ModerationService } from '../moderation/moderation.service';
+import { ModerationCasesService } from '../moderation/moderation-cases.service';
 import { NotificationCampaignService } from './notification-campaign.service';
 
 describe('管理员列表组合筛选', () => {

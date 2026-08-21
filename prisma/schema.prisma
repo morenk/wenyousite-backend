@@ -1309,28 +1309,32 @@ model UserSanction {
 }
 
 model SystemNotificationCampaign {
-  id              String                     @id @default(cuid())
-  createdById     String                     @map("created_by_id")
-  title           String                     @db.VarChar(60)
-  content         String                     @db.VarChar(1000)
-  destinationType String?                    @map("destination_type") @db.VarChar(32)
-  destinationId   String?                    @map("destination_id")
-  audience        Json
-  status          NotificationCampaignStatus @default(SCHEDULED)
-  scheduledAt     DateTime                   @map("scheduled_at")
-  startedAt       DateTime?                  @map("started_at")
-  sentAt          DateTime?                  @map("sent_at")
-  canceledAt      DateTime?                  @map("canceled_at")
-  estimatedCount  Int                        @default(0) @map("estimated_count")
-  recipientCount  Int                        @default(0) @map("recipient_count")
-  failureMessage  String?                    @map("failure_message")
-  createdAt       DateTime                   @default(now()) @map("created_at")
-  updatedAt       DateTime                   @updatedAt @map("updated_at")
+  id               String                     @id @default(cuid())
+  createdById      String                     @map("created_by_id")
+  title            String                     @db.VarChar(60)
+  content          String                     @db.VarChar(1000)
+  destinationType  String?                    @map("destination_type") @db.VarChar(32)
+  destinationId    String?                    @map("destination_id")
+  audience         Json
+  status           NotificationCampaignStatus @default(SCHEDULED)
+  scheduledAt      DateTime                   @map("scheduled_at")
+  startedAt        DateTime?                  @map("started_at")
+  sentAt           DateTime?                  @map("sent_at")
+  canceledAt       DateTime?                  @map("canceled_at")
+  estimatedCount   Int                        @default(0) @map("estimated_count")
+  recipientCount   Int                        @default(0) @map("recipient_count")
+  dispatchCursor   String?                    @map("dispatch_cursor")
+  dispatchAttempts Int                        @default(0) @map("dispatch_attempts")
+  lastAttemptAt    DateTime?                  @map("last_attempt_at")
+  failureMessage   String?                    @map("failure_message")
+  createdAt        DateTime                   @default(now()) @map("created_at")
+  updatedAt        DateTime                   @updatedAt @map("updated_at")
 
   createdBy     User           @relation(fields: [createdById], references: [id], onDelete: Restrict)
   notifications Notification[]
 
   @@index([status, scheduledAt])
+  @@index([status, lastAttemptAt])
   @@index([createdAt(sort: Desc), id(sort: Desc)])
   @@map("system_notification_campaigns")
 }

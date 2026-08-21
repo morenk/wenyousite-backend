@@ -9,13 +9,13 @@ import {
   ThreadVisibility,
   UserSanctionType,
 } from '@prisma/client';
-import { AdminActor } from '../admin/admin-policy.service';
-import { AuditService } from '../admin/audit.service';
+import { AdminActor } from '../moderation/admin-policy.service';
+import { AuditService } from '../moderation/audit.service';
 import {
   AdminRequestContext,
   ContentModerationEffect,
   ModerationService,
-} from '../admin/moderation.service';
+} from '../moderation/moderation.service';
 import { paginate } from '../common/dto/paginated-result';
 import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
@@ -23,6 +23,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateReportDto } from './dto/create-report.dto';
 import { ReportQueryDto } from './dto/report-query.dto';
 import { ResolveReportDto } from './dto/resolve-report.dto';
+import { activeSanctionWhere } from '../access/account-status';
 
 const adminUserSelect = { id: true, username: true, role: true } as const;
 
@@ -288,19 +289,33 @@ export class ReportsService {
     if (targetType === ReportTargetType.MOMENT) {
       const moment = await this.prisma.moment.findFirst({
         where: { id: targetId, deletedAt: null },
-        select: { id: true, title: true, content: true, authorId: true, author: { select: { id: true, username: true } } },
+        select: {
+          id: true,
+          title: true,
+          content: true,
+          authorId: true,
+          author: { select: { id: true, username: true } },
+        },
       });
       if (!moment) throw notFound(ErrorCode.MOMENT_NOT_FOUND, '被举报动态不存在');
-      if (moment.authorId === reporterId) throw new BusinessException(ErrorCode.BAD_REQUEST, '不能举报自己的动态');
+      if (moment.authorId === reporterId)
+        throw new BusinessException(ErrorCode.BAD_REQUEST, '不能举报自己的动态');
       return { snapshotVersion: 1, targetType, capturedAt, moment };
     }
     if (targetType === ReportTargetType.MOMENT_COMMENT) {
       const comment = await this.prisma.momentComment.findFirst({
         where: { id: targetId, deletedAt: null, moment: { deletedAt: null } },
-        select: { id: true, content: true, authorId: true, momentId: true, author: { select: { id: true, username: true } } },
+        select: {
+          id: true,
+          content: true,
+          authorId: true,
+          momentId: true,
+          author: { select: { id: true, username: true } },
+        },
       });
       if (!comment) throw notFound(ErrorCode.MOMENT_NOT_FOUND, '被举报动态评论不存在');
-      if (comment.authorId === reporterId) throw new BusinessException(ErrorCode.BAD_REQUEST, '不能举报自己的评论');
+      if (comment.authorId === reporterId)
+        throw new BusinessException(ErrorCode.BAD_REQUEST, '不能举报自己的评论');
       return { snapshotVersion: 1, targetType, capturedAt, comment };
     }
     if (targetType === ReportTargetType.DIRECT_MESSAGE) {
@@ -358,13 +373,7 @@ export class ReportsService {
           id: true,
           deletedAt: true,
           sanctions: {
-            where: {
-              revokedAt: null,
-              OR: [
-                { type: UserSanctionType.BAN },
-                { type: UserSanctionType.SUSPENSION, endsAt: { gt: new Date() } },
-              ],
-            },
+            where: activeSanctionWhere(),
             take: 1,
             select: { type: true, endsAt: true },
           },
@@ -395,9 +404,9 @@ export class ReportsService {
           })
         : targetType === ReportTargetType.POST
           ? await this.prisma.post.findUnique({
-            where: { id: targetId },
-            select: { deletedAt: true, removalSource: true },
-          })
+              where: { id: targetId },
+              select: { deletedAt: true, removalSource: true },
+            })
           : targetType === ReportTargetType.MOMENT
             ? await this.prisma.moment.findUnique({
                 where: { id: targetId },

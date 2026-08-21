@@ -1,9 +1,9 @@
 import { Body, Controller, Get, Patch, Req } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
-import { AdminAuth, SuperAdminStepUpAuth } from '../auth/decorators/admin-auth.decorator';
+import { AdminAuth, SuperAdminStepUpAuth } from './admin-auth.decorator';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
-import { AdminActor, AdminRole } from './admin-policy.service';
+import { AdminActor, AdminRole } from '../moderation/admin-policy.service';
 import { UpdateSiteSettingsDto } from './dto/site-settings.dto';
 import { SiteOperationalSettingsService } from './site-operational-settings.service';
 import { SiteOperationalSettingsResponseDto } from './dto/admin-station-response.dto';

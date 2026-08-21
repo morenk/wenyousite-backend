@@ -1,15 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  AdminSecurityEventType,
-  Prisma,
-  UserRole,
-} from '@prisma/client';
+import { AdminSecurityEventType, Prisma, UserRole } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { createHash, randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
-import { activeSanctionWhere, sanctionFailure } from '../auth/account-sanction';
+import { activeSanctionWhere, sanctionFailure } from '../access/account-status';
 import { unauthorized, forbidden } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { AdminLoginChallengeDto } from './dto/admin-auth.dto';
@@ -55,7 +51,9 @@ export class AdminAuthService {
   private codeMatches(expected: string, actual: string): boolean {
     const expectedBuffer = Buffer.from(expected, 'hex');
     const actualBuffer = Buffer.from(actual, 'hex');
-    return expectedBuffer.length === actualBuffer.length && timingSafeEqual(expectedBuffer, actualBuffer);
+    return (
+      expectedBuffer.length === actualBuffer.length && timingSafeEqual(expectedBuffer, actualBuffer)
+    );
   }
 
   private async securityEvent(
@@ -103,12 +101,9 @@ export class AdminAuthService {
       : await argon2.hash(dto.password).then(() => false);
     const unavailable = !user || user.deletedAt || !allowedRole;
     if (unavailable || !passwordValid || (user.lockedUntil && user.lockedUntil > new Date())) {
-      await this.securityEvent(
-        AdminSecurityEventType.LOGIN_FAILED,
-        user?.id ?? null,
-        fingerprint,
-        { stage: 'password' },
-      );
+      await this.securityEvent(AdminSecurityEventType.LOGIN_FAILED, user?.id ?? null, fingerprint, {
+        stage: 'password',
+      });
       throw unauthorized('管理员账号或密码错误', ErrorCode.LOGIN_FAILED);
     }
 
@@ -180,7 +175,10 @@ export class AdminAuthService {
       const user = challenge.user;
       const roleAllowed = user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN;
       if (user.deletedAt || !roleAllowed || sanctionFailure(user.sanctions[0])) {
-        await tx.adminAuthChallenge.update({ where: { id: challenge.id }, data: { consumedAt: new Date() } });
+        await tx.adminAuthChallenge.update({
+          where: { id: challenge.id },
+          data: { consumedAt: new Date() },
+        });
         return { ok: false as const, userId: user.id };
       }
 
@@ -189,7 +187,10 @@ export class AdminAuthService {
       const expiresAt = new Date(
         now.getTime() + (this.config.get<number>('admin.absoluteHours') ?? 8) * 60 * 60 * 1000,
       );
-      await tx.adminAuthChallenge.update({ where: { id: challenge.id }, data: { consumedAt: now } });
+      await tx.adminAuthChallenge.update({
+        where: { id: challenge.id },
+        data: { consumedAt: now },
+      });
       await tx.adminSession.updateMany({
         where: { userId: user.id, revokedAt: null },
         data: { revokedAt: now },
@@ -299,7 +300,13 @@ export class AdminAuthService {
   async getSession(sessionId: string) {
     const session = await this.prisma.adminSession.findUniqueOrThrow({
       where: { id: sessionId },
-      select: { id: true, createdAt: true, lastActiveAt: true, expiresAt: true, elevatedUntil: true },
+      select: {
+        id: true,
+        createdAt: true,
+        lastActiveAt: true,
+        expiresAt: true,
+        elevatedUntil: true,
+      },
     });
     return { session };
   }

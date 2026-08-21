@@ -1,9 +1,9 @@
 import { Body, Controller, Delete, Get, Param, Post, Query, Req } from '@nestjs/common';
 import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
-import { AdminAuth } from '../auth/decorators/admin-auth.decorator';
+import { AdminAuth } from './admin-auth.decorator';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
-import { AdminActor, AdminRole } from './admin-policy.service';
+import { AdminActor, AdminRole } from '../moderation/admin-policy.service';
 import {
   CreateNotificationCampaignDto,
   NotificationAudienceDto,

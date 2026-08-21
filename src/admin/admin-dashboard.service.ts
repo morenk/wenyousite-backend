@@ -18,6 +18,7 @@ import {
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { PrismaService } from '../prisma/prisma.service';
+import { activeSanctionWhere } from '../access/account-status';
 import { AdminDashboardRangeQueryDto } from './dto/dashboard.dto';
 
 const DEFAULT_RANGE_DAYS = 30;
@@ -73,7 +74,7 @@ export class AdminDashboardService {
       this.prisma.report.count({ where: { status: ReportStatus.PENDING } }),
       this.prisma.userSanction.groupBy({
         by: ['type'],
-        where: this.activeSanctionWhere(now),
+        where: activeSanctionWhere(now),
         _count: { _all: true },
       }),
     ]);
@@ -194,7 +195,7 @@ export class AdminDashboardService {
         }),
         this.prisma.userSanction.groupBy({
           by: ['type'],
-          where: this.activeSanctionWhere(now),
+          where: activeSanctionWhere(now),
           _count: { _all: true },
         }),
       ]);
@@ -314,14 +315,6 @@ export class AdminDashboardService {
       previousFrom: range.previousFrom,
       previousTo: range.previousTo,
       timezone: range.timezone,
-    };
-  }
-
-  private activeSanctionWhere(now: Date): Prisma.UserSanctionWhereInput {
-    return {
-      revokedAt: null,
-      startsAt: { lte: now },
-      OR: [{ type: UserSanctionType.BAN }, { endsAt: { gt: now } }],
     };
   }
 }

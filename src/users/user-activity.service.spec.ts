@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { ErrorCode } from '../common/exceptions/error-codes';
 import { BookmarksService } from '../bookmarks/bookmarks.service';
 import { MentionsService } from '../mentions/mentions.service';
 import { MomentBookmarksService } from '../moments/moment-bookmarks.service';
@@ -78,9 +78,9 @@ describe('UserActivityService', () => {
   it('参与主题目标用户不存在时返回 404', async () => {
     prisma.user.findUnique.mockResolvedValue(null);
 
-    await expect(service.playedThreads({ targetId: 'missing' })).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(service.playedThreads({ targetId: 'missing' })).rejects.toMatchObject({
+      errorCode: ErrorCode.USER_NOT_FOUND,
+    });
     expect(threads.findByPlayedUser).not.toHaveBeenCalled();
   });
 

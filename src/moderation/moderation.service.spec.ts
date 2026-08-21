@@ -7,6 +7,7 @@ import { AdminPolicyService } from './admin-policy.service';
 import { AuditService } from './audit.service';
 import { ModerationService } from './moderation.service';
 import { AdminModerationQueryService } from './admin-moderation-query.service';
+import { ModerationProjectionService } from './moderation-projection.service';
 
 describe('ModerationService', () => {
   const prisma = {
@@ -49,8 +50,11 @@ describe('ModerationService', () => {
       prisma as unknown as PrismaService,
       policy,
       audit as unknown as AuditService,
-      events as unknown as EventEmitter2,
-      redis as unknown as RedisService,
+      new ModerationProjectionService(
+        prisma as unknown as PrismaService,
+        events as unknown as EventEmitter2,
+        redis as unknown as RedisService,
+      ),
       queries as unknown as AdminModerationQueryService,
     );
   });

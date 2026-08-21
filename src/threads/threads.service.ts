@@ -1,7 +1,6 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { ContentRemovalSource, Prisma } from '@prisma/client';
-import { randomBytes, randomUUID } from 'crypto';
+import { ContentRemovalSource } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TagsService } from '../tags/tags.service';
 import { ThreadAccessService } from '../access/thread-access.service';
@@ -27,6 +26,8 @@ import { ThreadCreateIdempotencyService } from './thread-create-idempotency.serv
 import { initialThreadSmartScore } from './thread-smart-score';
 import { ThreadCategoriesService } from '../taxonomy/thread-categories.service';
 import { MediaReferenceService } from '../media/media-reference.service';
+import { ThreadReactionService } from './thread-reaction.service';
+import { ThreadInviteService } from './thread-invite.service';
 const ZSET_BY_CREATED = 'threads:by:created';
 const ZSET_BY_ACTIVITY = 'threads:by:activity';
 const ZSET_BY_SMART = 'threads:by:smart';
@@ -47,6 +48,8 @@ export class ThreadsService {
     private stickerContent: StickerContentService,
     private categories: ThreadCategoriesService,
     private mediaReferences: MediaReferenceService,
+    private reactions: ThreadReactionService,
+    private invites: ThreadInviteService,
   ) {}
   /** 创建主题帖草稿：事务内创建 Thread + Owner + 默认子贴 + 可选子贴正文，一次请求完成 */
   async create(dto: CreateThreadDto, userId: string) {
@@ -298,78 +301,12 @@ export class ThreadsService {
 
   /** 点赞主题帖（幂等） */
   async like(id: string, userId: string, username: string) {
-    const thread = await this.prisma.thread.findUnique({
-      where: { id, ...notDeleted },
-      select: { id: true, published: true, ownerId: true, title: true, likeCount: true },
-    });
-    if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
-    if (!thread.published) throw new BusinessException(ErrorCode.BAD_REQUEST, '草稿暂不支持点赞');
-    await this.threadAccess.assertAccessible(id, userId);
-
-    const { updated } = await this.prisma.$transaction(async (tx) => {
-      const result = await tx.threadLike.createMany({
-        data: [{ threadId: id, userId }],
-        skipDuplicates: true,
-      });
-      if (result.count === 0) return { created: false, updated: thread };
-      const updatedThread = await tx.thread.update({
-        where: { id },
-        data: { likeCount: { increment: 1 } },
-      });
-      const eventId = randomUUID();
-      await this.outbox.enqueue(tx, {
-        eventType: 'thread.liked',
-        aggregateType: 'Thread',
-        aggregateId: id,
-        eventKey: `thread-liked:${id}:${userId}:${eventId}`,
-        payload: {
-          eventId,
-          threadId: id,
-          ownerId: thread.ownerId,
-          threadTitle: thread.title,
-          userId,
-          username,
-          occurredAt: new Date().toISOString(),
-        },
-      });
-      return {
-        created: true,
-        updated: updatedThread,
-      };
-    });
-
-    return { id: updated.id, likeCount: updated.likeCount };
+    return this.reactions.like(id, userId, username);
   }
 
   /** 取消点赞主题帖（幂等） */
   async unlike(id: string, userId: string) {
-    const thread = await this.prisma.thread.findUnique({
-      where: { id, ...notDeleted },
-      select: { id: true, published: true, likeCount: true },
-    });
-    if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
-
-    const { updated } = await this.prisma.$transaction(async (tx) => {
-      const result = await tx.threadLike.deleteMany({ where: { threadId: id, userId } });
-      if (result.count === 0) return { deleted: false, updated: thread };
-      const updatedThread = await tx.thread.update({
-        where: { id },
-        data: { likeCount: { decrement: 1 } },
-      });
-      const eventId = randomUUID();
-      await this.outbox.enqueue(tx, {
-        eventType: 'thread.unliked',
-        aggregateType: 'Thread',
-        aggregateId: id,
-        eventKey: `thread-unliked:${id}:${userId}:${eventId}`,
-        payload: { eventId, threadId: id },
-      });
-      return {
-        deleted: true,
-        updated: updatedThread,
-      };
-    });
-    return { id: updated.id, likeCount: updated.likeCount };
+    return this.reactions.unlike(id, userId);
   }
 
   /** 发布事务：锁主题帖，结算全部待掷骰子，并与 published 状态原子提交。 */
@@ -488,7 +425,7 @@ export class ThreadsService {
               notation: roll.notation,
               total: roll.total,
             })),
-          } as Prisma.InputJsonValue,
+          },
         });
       }
       await this.outbox.enqueue(tx, {
@@ -554,95 +491,16 @@ export class ThreadsService {
 
   /** 生成或刷新私密帖邀请链接（仅 OWNER，已发布 + 私密帖） */
   async createInviteLink(threadId: string, userId: string) {
-    const thread = await this.prisma.thread.findUnique({ where: { id: threadId, ...notDeleted } });
-    if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
-    if (thread.ownerId !== userId)
-      throw forbidden('仅楼主可管理邀请链接', ErrorCode.NOT_THREAD_OWNER);
-    if (!thread.published) throw forbidden('请先发布主题帖');
-    if (thread.visibility !== 'PRIVATE') throw forbidden('仅私密帖可生成邀请链接');
-
-    return this.prisma.threadInvite.upsert({
-      where: { threadId },
-      create: { threadId, token: this.generateToken() },
-      update: { token: this.generateToken() },
-    });
+    return this.invites.create(threadId, userId);
   }
 
   /** 预览邀请链接对应的私密帖信息（不创建成员） */
   async previewInviteLink(token: string, userId?: string) {
-    const invite = await this.prisma.threadInvite.findUnique({
-      where: { token },
-      include: {
-        thread: {
-          select: {
-            id: true,
-            title: true,
-            category: true,
-            status: true,
-            visibility: true,
-            published: true,
-            deletedAt: true,
-            createdAt: true,
-            owner: { select: authorSelect },
-          },
-        },
-      },
-    });
-    if (!invite || invite.thread.deletedAt)
-      throw notFound(ErrorCode.INVITE_INVALID, '邀请链接无效或已失效');
-    if (!invite.thread.published) throw forbidden('该主题帖尚未发布');
-    if (invite.thread.visibility !== 'PRIVATE') throw forbidden('该主题帖为公开帖，可直接加入');
-
-    const memberCount = await this.prisma.threadMember.count({
-      where: { threadId: invite.threadId },
-    });
-    const existingMember = userId
-      ? await this.prisma.threadMember.findUnique({
-          where: { threadId_userId: { threadId: invite.threadId, userId } },
-          select: { id: true },
-        })
-      : null;
-
-    return {
-      thread: {
-        id: invite.thread.id,
-        title: invite.thread.title,
-        category: invite.thread.category,
-        status: invite.thread.status,
-        owner: invite.thread.owner,
-        memberCount,
-        createdAt: invite.thread.createdAt,
-      },
-      alreadyJoined: !!existingMember,
-    };
+    return this.invites.preview(token, userId);
   }
 
   /** 通过邀请链接加入私密帖（需已发布） */
   async joinByInviteLink(token: string, userId: string) {
-    const invite = await this.prisma.threadInvite.findUnique({
-      where: { token },
-      include: {
-        thread: { select: { id: true, visibility: true, published: true, deletedAt: true } },
-      },
-    });
-    if (!invite || invite.thread.deletedAt)
-      throw notFound(ErrorCode.INVITE_INVALID, '邀请链接无效或已失效');
-    if (!invite.thread.published) throw forbidden('该主题帖尚未发布');
-    if (invite.thread.visibility !== 'PRIVATE') throw forbidden('该主题帖为公开帖，可直接加入');
-
-    return this.prisma.threadMember.upsert({
-      where: { threadId_userId: { threadId: invite.threadId, userId } },
-      create: { threadId: invite.threadId, userId, role: 'PARTICIPANT' },
-      update: {},
-      include: {
-        thread: { select: { id: true, title: true } },
-        user: { select: authorSelect },
-      },
-    });
-  }
-
-  /** 生成随机邀请 token（密码学安全） */
-  private generateToken(): string {
-    return randomBytes(16).toString('base64url').slice(0, 16);
+    return this.invites.join(token, userId);
   }
 }

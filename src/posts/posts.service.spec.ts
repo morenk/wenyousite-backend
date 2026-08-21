@@ -15,6 +15,7 @@ import { OutboxService } from '../outbox/outbox.service';
 import { StickerContentService } from '../stickers/sticker-content.service';
 import { ReplyOrder } from '../common/dto/reply-query.dto';
 import { MediaReferenceService } from '../media/media-reference.service';
+import { PostMentionEventsService } from './post-mention-events.service';
 
 const mockPrisma = {
   $transaction: jest.fn(),
@@ -79,6 +80,7 @@ describe('PostsService', () => {
         PostsService,
         PostQueryService,
         DiceService,
+        PostMentionEventsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: ThreadAccessService, useValue: mockThreadAccess },

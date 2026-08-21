@@ -1,12 +1,12 @@
 import { Body, Controller, Param, Post, Req } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
-import { AdminBearerAuth } from '../auth/decorators/admin-auth.decorator';
+import { AdminBearerAuth } from './admin-auth.decorator';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
-import { AdminActor, AdminRole } from './admin-policy.service';
-import { AdminContentParamsDto, ModerateContentDto } from './dto/moderation.dto';
+import { AdminActor, AdminRole } from '../moderation/admin-policy.service';
+import { AdminContentParamsDto, ModerateContentDto } from '../moderation/dto/moderation.dto';
 import { AdminContentModerationResponseDto } from './dto/moderation-response.dto';
-import { ModerationService } from './moderation.service';
+import { ModerationService } from '../moderation/moderation.service';
 
 function actorFrom(user: CurrentUserPayload): AdminActor {
   return { id: user.id, username: user.username, role: user.role as AdminRole };

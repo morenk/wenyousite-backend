@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { AdminSecurityModule } from './admin-security.module';
-import { AuditModule } from './audit.module';
+import { AuditModule } from '../moderation/audit.module';
 import { OperationalSettingsGuard } from './guards/operational-settings.guard';
 import { SiteOperationalSettingsService } from './site-operational-settings.service';
 

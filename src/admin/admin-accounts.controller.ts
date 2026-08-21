@@ -7,14 +7,14 @@ import {
   CreateAdminInviteDto,
   TransferSuperAdminDto,
 } from './dto/admin-accounts.dto';
-import {
-  SuperAdminAuth,
-  SuperAdminStepUpAuth,
-} from '../auth/decorators/admin-auth.decorator';
+import { SuperAdminAuth, SuperAdminStepUpAuth } from './admin-auth.decorator';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
-import { AdminActor, AdminRole } from './admin-policy.service';
-import { AdminAccountsResponseDto, AdminInviteCreatedResponseDto } from './dto/admin-station-response.dto';
+import { AdminActor, AdminRole } from '../moderation/admin-policy.service';
+import {
+  AdminAccountsResponseDto,
+  AdminInviteCreatedResponseDto,
+} from './dto/admin-station-response.dto';
 import { MessageResponseDto } from '../common/dto/message-response.dto';
 
 function actorFrom(user: CurrentUserPayload): AdminActor {
@@ -85,7 +85,12 @@ export class AdminAccountsController {
     @Body() dto: TransferSuperAdminDto,
     @Req() request: FastifyRequest,
   ) {
-    return this.accounts.transferSuperAdmin(actorFrom(user), dto.userId, dto.reason, context(request));
+    return this.accounts.transferSuperAdmin(
+      actorFrom(user),
+      dto.userId,
+      dto.reason,
+      context(request),
+    );
   }
 }
 

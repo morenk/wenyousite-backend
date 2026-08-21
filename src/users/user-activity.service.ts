@@ -5,6 +5,8 @@ import { ThreadsService } from '../threads/threads.service';
 import { MentionsService } from '../mentions/mentions.service';
 import { MomentBookmarksService } from '../moments/moment-bookmarks.service';
 import { buildPostPreview } from '../common/post-preview';
+import { notFound } from '../common/exceptions/business.exception';
+import { ErrorCode } from '../common/exceptions/error-codes';
 
 /** 用户公开活动查询：集中处理隐私开关、可见性和跨模块读模型编排。 */
 @Injectable()
@@ -55,7 +57,7 @@ export class UserActivityService {
       where: { id: input.targetId, deletedAt: null },
       select: { id: true, showPlayerBadges: true },
     });
-    if (!target) throw new NotFoundException('用户不存在');
+    if (!target) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
     if (!target.showPlayerBadges && target.id !== input.viewerId) {
       throw new NotFoundException('该用户未公开参与的帖子');
     }
@@ -73,7 +75,7 @@ export class UserActivityService {
       where: { id: targetId, deletedAt: null },
       select: { id: true },
     });
-    if (!target) throw new NotFoundException('用户不存在');
+    if (!target) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
     return this.threads.findByCreatedUser(targetId, viewerId, cursor, limit);
   }
 
@@ -82,7 +84,7 @@ export class UserActivityService {
       where: { id: targetId, deletedAt: null },
       select: { id: true, showPlayerBadges: true, showRecentReplies: true },
     });
-    if (!target) throw new NotFoundException('用户不存在');
+    if (!target) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
 
     const isSelf = targetId === viewerId;
     const publicVisibility = isSelf ? {} : { visibility: 'PUBLIC' as const };
@@ -146,7 +148,7 @@ export class UserActivityService {
       where: { id: targetId, deletedAt: null },
       select: { id: true, showRecentReplies: true },
     });
-    if (!target) throw new NotFoundException('用户不存在');
+    if (!target) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
     if (!target.showRecentReplies && target.id !== viewerId) {
       throw new NotFoundException('该用户未公开最近动态');
     }
