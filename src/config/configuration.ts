@@ -46,6 +46,7 @@ export default () => ({
   // 图片上传：每用户小时配额（防刷爆存储）
   upload: {
     ratePerHour: parseInt(process.env.UPLOAD_RATE_PER_HOUR ?? '60', 10),
+    completedOrphanCleanupEnabled: process.env.MEDIA_COMPLETED_ORPHAN_CLEANUP_ENABLED === 'true',
   },
 
   // 私聊防滥用：总发送频率与陌生请求每日配额
@@ -109,9 +110,7 @@ export default () => ({
       updateUrl: process.env.MOBILE_ANDROID_UPDATE_URL || undefined,
     },
     ios: {
-      minimumSupportedBuild: optionalPositiveInteger(
-        process.env.MOBILE_IOS_MIN_SUPPORTED_BUILD,
-      ),
+      minimumSupportedBuild: optionalPositiveInteger(process.env.MOBILE_IOS_MIN_SUPPORTED_BUILD),
       recommendedBuild: optionalPositiveInteger(process.env.MOBILE_IOS_RECOMMENDED_BUILD),
       updateUrl: process.env.MOBILE_IOS_UPDATE_URL || undefined,
     },

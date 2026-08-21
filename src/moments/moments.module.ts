@@ -8,9 +8,16 @@ import { MomentBookmarksService } from './moment-bookmarks.service';
 import { MomentEventsListener } from './moment-events.listener';
 import { MomentsController, UserMomentsController } from './moments.controller';
 import { MomentsService } from './moments.service';
+import { MediaReferenceModule } from '../media/media-reference.module';
 
 @Module({
-  imports: [BookmarksModule, NotificationsModule, OutboxModule, StickersModule],
+  imports: [
+    BookmarksModule,
+    NotificationsModule,
+    OutboxModule,
+    StickersModule,
+    MediaReferenceModule,
+  ],
   controllers: [MomentsController, UserMomentsController],
   providers: [MomentsService, MomentBookmarksService, MomentCommentsService, MomentEventsListener],
   exports: [MomentsService, MomentBookmarksService],

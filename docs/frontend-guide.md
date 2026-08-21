@@ -327,13 +327,19 @@ S3 预签名直传，不经过后端中转：
 
 3. POST /media/upload-done
    { "mediaId": "clx..." }            // 确认上传完成，触发服务端缩略图处理
-   → 后台队列生成 300x300 缩略图 + 800px 中图 (WebP)
+   → 后台队列生成 300x300 缩略图 + 480px 信息流图 + 800px 中图 (WebP)
+
+   若返回 404 / MEDIA_OBJECT_MISSING：
+   POST /media/:id/upload-url            // 为原 mediaId / objectKey 重签
+   → 重新 PUT 后再次 upload-done
 
 4. GET /media/:id                     // 轮询处理状态
    → status: UPLOADING → PROCESSING → COMPLETED
 ```
 
 文件限制：仅允许 jpg/jpeg、png、gif、webp、avif，最大 10MB；明确拒绝 SVG/BMP。处理完成后响应中的 `thumbnailUrl`（300×300 WebP）和 `mediumUrl`（最长边 800 WebP）可直接用于列表与详情，处理中为 `null`。
+
+Web 上传状态机对确认请求的网络/5xx 做有限重试，并允许最长 120 秒处理轮询。上传失败、取消或签名过期时应保存文件指纹与 `mediaId` 恢复点；业务提交失败时保存已经完成的 `mediaId`，重试业务请求而不是重复上传字节。
 
 ### 5.1 主页背景图
 

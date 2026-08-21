@@ -52,6 +52,7 @@ function createContext() {
   };
   const outbox = { enqueue: jest.fn() };
   const stickers = { assertFavorite: jest.fn(), recordUsage: jest.fn() };
+  const mediaReferences = { reconcileMediaIds: jest.fn() };
   return {
     prisma,
     tx,
@@ -63,6 +64,7 @@ function createContext() {
       moments as never,
       outbox as never,
       stickers as never,
+      mediaReferences as never,
     ),
   };
 }

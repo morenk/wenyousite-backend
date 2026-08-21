@@ -15,11 +15,9 @@ import {
 } from './direct-message-mapper';
 import { DirectMessageQueryService } from './direct-message-query.service';
 import { StickersService } from '../stickers/stickers.service';
-import {
-  NormalizedDirectMessageInput,
-  normalizeDirectMessageInput,
-} from './direct-message-input';
+import { NormalizedDirectMessageInput, normalizeDirectMessageInput } from './direct-message-input';
 import { DirectMessageEventsService } from './direct-message-events.service';
+import { MediaReferenceService } from '../media/media-reference.service';
 
 const RECALL_WINDOW_MS = 10 * 60 * 1000;
 
@@ -35,6 +33,7 @@ export class DirectMessagesService {
     private readonly queries: DirectMessageQueryService,
     private readonly stickers: StickersService,
     private readonly events: DirectMessageEventsService,
+    private readonly mediaReferences: MediaReferenceService,
   ) {
     this.sendRatePerMinute = this.config.get<number>('directMessages.sendRatePerMinute') ?? 30;
     this.requestRatePerDay = this.config.get<number>('directMessages.requestRatePerDay') ?? 10;
@@ -86,7 +85,13 @@ export class DirectMessagesService {
           },
           select: { id: true },
         });
-        const message = await this.createMessage(tx, conversation.id, senderId, dto.recipientId, input);
+        const message = await this.createMessage(
+          tx,
+          conversation.id,
+          senderId,
+          dto.recipientId,
+          input,
+        );
         await tx.directConversation.update({
           where: { id: conversation.id },
           data: { lastMessageAt: message.createdAt },
@@ -117,7 +122,8 @@ export class DirectMessagesService {
     const input = normalizeDirectMessageInput(dto);
     const duplicate = await this.findDuplicate(senderId, input.clientRequestId);
     if (duplicate) {
-      if (duplicate.conversationId !== conversationId) throw this.invalidMessage('幂等键已用于其他会话');
+      if (duplicate.conversationId !== conversationId)
+        throw this.invalidMessage('幂等键已用于其他会话');
       return this.queries.findMessageForUser(duplicate.id, senderId);
     }
 
@@ -139,11 +145,7 @@ export class DirectMessagesService {
     return this.queries.findMessageForUser(messageId, senderId);
   }
 
-  async handleRequest(
-    conversationId: string,
-    actor: { id: string },
-    action: DirectRequestAction,
-  ) {
+  async handleRequest(conversationId: string, actor: { id: string }, action: DirectRequestAction) {
     const conversation = await this.prisma.directConversation.findUnique({
       where: { id: conversationId },
       select: routingConversationSelect,
@@ -170,12 +172,20 @@ export class DirectMessagesService {
       });
     } else {
       await this.prisma.$transaction(async (tx) => {
+        const released = await tx.directMessage.findMany({
+          where: { conversationId, mediaId: { not: null } },
+          select: { mediaId: true },
+        });
         const claimed = await tx.directConversation.updateMany({
           where: { id: conversationId, status: 'PENDING', recipientId: actor.id },
           data: { status: 'DECLINED', lastMessageAt: null },
         });
         if (claimed.count === 0) throw this.notAllowed('消息请求状态已变化');
         await tx.directMessage.deleteMany({ where: { conversationId } });
+        await this.mediaReferences.reconcileMediaIds(
+          tx,
+          released.map((item) => item.mediaId).filter((id): id is string => Boolean(id)),
+        );
       });
     }
     return this.queries.findById(conversationId, actor.id);
@@ -187,8 +197,9 @@ export class DirectMessagesService {
       select: routingConversationSelect,
     });
     if (!conversation) throw this.conversationNotFound();
-    const canArchive = conversation.status === 'ACCEPTED'
-      || (conversation.status === 'PENDING' && conversation.requesterId === userId);
+    const canArchive =
+      conversation.status === 'ACCEPTED' ||
+      (conversation.status === 'PENDING' && conversation.requesterId === userId);
     if (!canArchive) throw this.notAllowed('该会话当前不能归档');
 
     await this.prisma.directConversationParticipant.update({
@@ -253,6 +264,7 @@ export class DirectMessagesService {
         });
         if (claimed.count === 0) throw this.notAllowed('消息请求状态已变化');
         await tx.directMessage.deleteMany({ where: { conversationId: current.id } });
+        if (message.mediaId) await this.mediaReferences.reconcileMediaIds(tx, [message.mediaId]);
         return true;
       }
       if (current.status !== 'ACCEPTED') throw this.notAllowed('该消息当前不能撤回');
@@ -261,6 +273,7 @@ export class DirectMessagesService {
         data: { content: null, mediaId: null, stickerAssetId: null, recalledAt: new Date() },
       });
       if (recalled.count === 0) throw this.notAllowed('消息状态已变化');
+      if (message.mediaId) await this.mediaReferences.reconcileMediaIds(tx, [message.mediaId]);
       return false;
     });
 
@@ -306,8 +319,8 @@ export class DirectMessagesService {
     }
 
     const initiatedByFormerRecipient = conversation.recipientId === senderId;
-    const accepted = initiatedByFormerRecipient
-      || await this.areMutualFollowers(senderId, recipientId);
+    const accepted =
+      initiatedByFormerRecipient || (await this.areMutualFollowers(senderId, recipientId));
     if (!accepted) await this.assertRequestRate(senderId);
     const messageId = await this.transitionAndSend(
       conversation,
@@ -431,6 +444,7 @@ export class DirectMessagesService {
       },
       select: { id: true, createdAt: true },
     });
+    if (input.mediaId) await this.mediaReferences.reconcileMediaIds(tx, [input.mediaId]);
     await this.events.created(tx, { messageId: message.id, conversationId, recipientId });
     return message;
   }
@@ -583,11 +597,7 @@ export class DirectMessagesService {
   }
 
   private invalidMessage(message: string) {
-    return new BusinessException(
-      ErrorCode.INVALID_DIRECT_MESSAGE,
-      message,
-      HttpStatus.BAD_REQUEST,
-    );
+    return new BusinessException(ErrorCode.INVALID_DIRECT_MESSAGE, message, HttpStatus.BAD_REQUEST);
   }
 
   private blocked() {

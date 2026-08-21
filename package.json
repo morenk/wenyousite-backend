@@ -24,6 +24,8 @@
     "prisma:seed": "tsx prisma/seed.ts",
     "admin:bootstrap": "tsx scripts/bootstrap-super-admin.ts",
     "markdown:v3:migrate": "tsx scripts/migrate-markdown-v3.ts",
+    "media:references:audit": "tsx scripts/backfill-media-references.ts",
+    "media:references:backfill": "tsx scripts/backfill-media-references.ts --apply",
     "test:cleanup": "tsx scripts/cleanup-testuser.ts",
     "test": "jest",
     "test:coverage": "jest --coverage --maxWorkers=2",

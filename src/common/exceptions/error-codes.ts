@@ -131,6 +131,8 @@ export const ErrorCode = {
   MODERATION_DECISION_NOT_FOUND: 40417,
   /** 申诉不存在 */
   MODERATION_APPEAL_NOT_FOUND: 40418,
+  /** 已预留媒体的对象尚未上传或直传未完成 */
+  MEDIA_OBJECT_MISSING: 40419,
 
   // ── 冲突 409xx ──
   /** 通用冲突 */

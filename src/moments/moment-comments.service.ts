@@ -16,6 +16,7 @@ import { mapMomentComment } from './moment.mapper';
 import { MomentsService } from './moments.service';
 import { ReplyOrder } from '../common/dto/reply-query.dto';
 import { StickersService } from '../stickers/stickers.service';
+import { MediaReferenceService } from '../media/media-reference.service';
 
 type Viewer = { id: string; username?: string; role?: string };
 
@@ -59,6 +60,7 @@ export class MomentCommentsService {
     private readonly moments: MomentsService,
     private readonly outbox: OutboxService,
     private readonly stickers: StickersService,
+    private readonly mediaReferences: MediaReferenceService,
   ) {}
 
   async listRoots(
@@ -312,6 +314,7 @@ export class MomentCommentsService {
           },
           select: { id: true },
         });
+        if (mediaId) await this.mediaReferences.reconcileMediaIds(tx, [mediaId]);
         if (stickerAssetId) await this.stickers.recordUsage(viewer.id, stickerAssetId, tx);
         await tx.moment.update({
           where: { id: momentId },
@@ -359,6 +362,7 @@ export class MomentCommentsService {
       select: {
         authorId: true,
         deletedAt: true,
+        mediaId: true,
         moment: { select: { authorId: true, deletedAt: true } },
       },
     });
@@ -368,18 +372,19 @@ export class MomentCommentsService {
       throw new ForbiddenException('无权删除该评论');
     }
     if (comment.deletedAt) return { message: '评论已删除' };
+    const restorableAdminRemoval = admin && comment.authorId !== viewer.id;
     await this.prisma.$transaction(async (tx) => {
       const removed = await tx.momentComment.updateMany({
         where: { id: commentId, deletedAt: null },
         data: {
           deletedAt: new Date(),
-          removalSource:
-            admin && comment.authorId !== viewer.id
-              ? 'ADMIN'
-              : comment.moment.authorId === viewer.id && comment.authorId !== viewer.id
-                ? 'OWNER'
-                : 'AUTHOR',
+          removalSource: restorableAdminRemoval
+            ? 'ADMIN'
+            : comment.moment.authorId === viewer.id && comment.authorId !== viewer.id
+              ? 'OWNER'
+              : 'AUTHOR',
           removedById: viewer.id,
+          ...(!restorableAdminRemoval ? { mediaId: null } : {}),
         },
       });
       if (removed.count > 0) {
@@ -387,6 +392,9 @@ export class MomentCommentsService {
           where: { id: momentId },
           data: { commentCount: { decrement: 1 } },
         });
+        if (!restorableAdminRemoval && comment.mediaId) {
+          await this.mediaReferences.reconcileMediaIds(tx, [comment.mediaId]);
+        }
       }
     });
     return { message: '评论已删除' };

@@ -67,10 +67,14 @@ function createPrismaMock() {
   return { prisma, tx, redis };
 }
 
+const mediaReferences = { reconcileMediaIds: jest.fn() };
+const createService = (prisma: unknown, redis: unknown) =>
+  new MomentsService(prisma as never, redis as never, mediaReferences as never);
+
 describe('MomentsService', () => {
   it('关注流要求登录', async () => {
     const { prisma, redis } = createPrismaMock();
-    const service = new MomentsService(prisma as never, redis as never);
+    const service = createService(prisma, redis);
 
     await expect(service.list(MomentFeedMode.FOLLOWING, undefined)).rejects.toBeInstanceOf(
       ForbiddenException,
@@ -79,7 +83,7 @@ describe('MomentsService', () => {
 
   it('发布纯文字动态时裁剪文本并生成稳定文字封面', async () => {
     const { prisma, tx, redis } = createPrismaMock();
-    const service = new MomentsService(prisma as never, redis as never);
+    const service = createService(prisma, redis);
     prisma.moment.findUnique.mockResolvedValue(null);
     tx.moment.create.mockResolvedValue({ id: 'moment-1' });
     prisma.moment.findFirst.mockResolvedValue(detailRow());
@@ -110,7 +114,7 @@ describe('MomentsService', () => {
 
   it('幂等键被不同内容复用时拒绝发布', async () => {
     const { prisma, redis } = createPrismaMock();
-    const service = new MomentsService(prisma as never, redis as never);
+    const service = createService(prisma, redis);
     prisma.moment.findUnique.mockResolvedValue({ id: 'moment-1', createRequestHash: 'different' });
 
     await expect(
@@ -128,7 +132,7 @@ describe('MomentsService', () => {
 
   it('封面必须属于动态图片', async () => {
     const { prisma, redis } = createPrismaMock();
-    const service = new MomentsService(prisma as never, redis as never);
+    const service = createService(prisma, redis);
     prisma.moment.findUnique.mockResolvedValue(null);
 
     await expect(
@@ -147,7 +151,7 @@ describe('MomentsService', () => {
 
   it('重复点赞不会重复增加计数', async () => {
     const { prisma, tx, redis } = createPrismaMock();
-    const service = new MomentsService(prisma as never, redis as never);
+    const service = createService(prisma, redis);
     prisma.moment.findFirst.mockResolvedValue({
       id: 'moment-1',
       authorId: 'user-2',
@@ -166,7 +170,7 @@ describe('MomentsService', () => {
 
   it('编辑版本冲突时要求刷新', async () => {
     const { prisma, tx, redis } = createPrismaMock();
-    const service = new MomentsService(prisma as never, redis as never);
+    const service = createService(prisma, redis);
     prisma.moment.findUnique.mockResolvedValue({
       authorId: 'user-1',
       coverMediaId: null,
@@ -181,7 +185,7 @@ describe('MomentsService', () => {
 
   it('动态搜索拒绝单字符关键词', async () => {
     const { prisma, redis } = createPrismaMock();
-    const service = new MomentsService(prisma as never, redis as never);
+    const service = createService(prisma, redis);
 
     await expect(service.search('字', undefined)).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.$queryRaw).not.toHaveBeenCalled();
@@ -189,7 +193,7 @@ describe('MomentsService', () => {
 
   it('发现流排名后二次装载仍会重新应用双向拉黑可见性', async () => {
     const { prisma, redis } = createPrismaMock();
-    const service = new MomentsService(prisma as never, redis as never);
+    const service = createService(prisma, redis);
     prisma.$queryRaw.mockResolvedValue([{ id: 'moment-1', score: 1, createdAt: now }]);
     prisma.moment.findMany.mockResolvedValue([]);
 
@@ -211,7 +215,7 @@ describe('MomentsService', () => {
 
   it('发现流首屏固化候选顺序，并排除快照时间之后发布的动态', async () => {
     const { prisma, redis } = createPrismaMock();
-    const service = new MomentsService(prisma as never, redis as never);
+    const service = createService(prisma, redis);
     prisma.$queryRaw.mockResolvedValue([
       { id: 'moment-1' },
       { id: 'moment-2' },
@@ -249,7 +253,7 @@ describe('MomentsService', () => {
 
   it('发现流后续页只读取固定快照，不受实时排名变化影响', async () => {
     const { prisma, redis } = createPrismaMock();
-    const service = new MomentsService(prisma as never, redis as never);
+    const service = createService(prisma, redis);
     const snapshotId = '550e8400-e29b-41d4-a716-446655440000';
     const cursor = Buffer.from(JSON.stringify({ snapshotId, offset: 2 })).toString('base64url');
     redis.zrange.mockResolvedValue(['moment-3', 'moment-4']);
@@ -271,7 +275,7 @@ describe('MomentsService', () => {
 
   it('发现流快照过期后要求客户端刷新', async () => {
     const { prisma, redis } = createPrismaMock();
-    const service = new MomentsService(prisma as never, redis as never);
+    const service = createService(prisma, redis);
     const cursor = Buffer.from(
       JSON.stringify({
         snapshotId: '550e8400-e29b-41d4-a716-446655440000',

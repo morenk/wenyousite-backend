@@ -16,6 +16,7 @@ import { MentionsModule } from '../mentions/mentions.module';
 import { StickersModule } from '../stickers/stickers.module';
 import { ThreadCreateIdempotencyService } from './thread-create-idempotency.service';
 import { TaxonomyModule } from '../taxonomy/taxonomy.module';
+import { MediaReferenceModule } from '../media/media-reference.module';
 
 /** 主题帖模块：CRUD、参与人管理、标签关联 */
 @Module({
@@ -27,6 +28,7 @@ import { TaxonomyModule } from '../taxonomy/taxonomy.module';
     MentionsModule,
     StickersModule,
     TaxonomyModule,
+    MediaReferenceModule,
   ],
   controllers: [ThreadsController, ThreadMembersController, ThreadTagsController],
   providers: [

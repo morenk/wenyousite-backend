@@ -12,6 +12,7 @@ import { UserActivityService } from './user-activity.service';
 import { AccessPolicyModule } from '../access/access-policy.module';
 import { OutboxModule } from '../outbox/outbox.module';
 import { UserRelationEventsListener } from './user-relation-events.listener';
+import { MediaReferenceModule } from '../media/media-reference.module';
 
 /** 用户模块：资料查询、关注、拉黑 */
 @Module({
@@ -23,6 +24,7 @@ import { UserRelationEventsListener } from './user-relation-events.listener';
     MentionsModule,
     MomentsModule,
     OutboxModule,
+    MediaReferenceModule,
   ],
   controllers: [UsersController, UsersFollowController],
   providers: [UsersService, UserRelationsService, UserActivityService, UserRelationEventsListener],

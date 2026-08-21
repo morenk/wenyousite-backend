@@ -110,6 +110,7 @@ describe('ThreadAggregateService', () => {
   const categories = {
     assertSelectable: jest.fn(async (slug: string) => slug),
   };
+  const mediaReferences = { syncPostContent: jest.fn() };
   const service = new ThreadAggregateService(
     prisma as never,
     access as never,
@@ -120,6 +121,7 @@ describe('ThreadAggregateService', () => {
     mentions as never,
     stickerContent as never,
     categories as never,
+    mediaReferences as never,
   );
 
   beforeEach(() => {

@@ -6,9 +6,11 @@
 
 ## 涉及的模型
 
-| 模型    | 说明                                                                 |
-| ------- | -------------------------------------------------------------------- |
-| `Media` | 媒体文件记录，存储 URL、对象存储 key、元信息（尺寸、大小）、处理状态 |
+| 模型         | 说明                                                                                  |
+| ------------ | ------------------------------------------------------------------------------------- |
+| `Media`      | 媒体文件记录，存储 URL、对象 key、元信息、处理状态与最后一次成为无引用状态的时间      |
+| `PostMedia`  | 帖子 Markdown 中精确匹配站内 `Media.url` 的有序引用账本                              |
+| `DraftMedia` | 草稿 Markdown 中精确匹配站内 `Media.url` 的有序引用账本                              |
 
 ## API 端点
 
@@ -16,12 +18,14 @@
 | ------ | -------------------- | --------- | ------------------------------------------------------------------------------------------ |
 | `POST` | `/media/upload-url`  | `@Auth()` | 获取 S3 预签名上传 URL（有效期 600s），预建 Media 记录（status=UPLOADING），返回 `mediaId` |
 | `POST` | `/media/upload-done` | `@Auth()` | 确认上传完成（传入 mediaId），校验对象实际元数据 + 归属，幂等转 PROCESSING 并入队          |
+| `POST` | `/media/:id/upload-url` | `@Auth()` | 为本人仍为 UPLOADING 的同一记录和对象 key 重新签发 PUT 地址，不重复计入上传配额          |
 | `GET`  | `/media/:id`         | `@Auth()` | 查询图片处理状态和元信息（UPLOADING / PROCESSING / COMPLETED / FAILED）                    |
 
 ## 响应契约
 
 - `POST /media/upload-url` 的 `data` 为 `UploadUrlResponseDto`：`uploadUrl`、`mediaId`、`objectKey`、`publicUrl`。
 - `POST /media/upload-done` 的 `data` 为 `ConfirmUploadResponseDto`：`media` 与 `processing`。
+- `POST /media/:id/upload-url` 复用 `UploadUrlResponseDto`；其中 `mediaId`、`objectKey`、`publicUrl` 与首次签发完全相同，仅 `uploadUrl` 更新。
 - `GET /media/:id` 的 `data` 为 `MediaResponseDto`，包含状态、URL、尺寸及创建时间。
 - Swagger 中以上 DTO 均位于统一成功 envelope 的 `data` 字段，Web/Flutter 必须使用生成类型，不再手写响应结构。
 
@@ -39,9 +43,10 @@
 - 元数据缺失或不匹配时将记录转为 `FAILED`，不进入处理队列
 - `key` 字段唯一约束，防止重复确认同一上传
 - `upload-done` 可安全重试：`PROCESSING` / `COMPLETED` 直接返回当前结果，不重复入队；其他终态拒绝确认
+- `upload-done` 的 `HeadObject` 未发现对象时返回 HTTP 404 / `MEDIA_OBJECT_MISSING`；客户端应调用同 ID 重签端点、重新 PUT，再次确认
 - 普通图片先以条件更新原子迁移 `UPLOADING → PROCESSING`，再用 `mediaId` 作为 BullMQ `jobId` 入队，避免并发确认生成重复任务；入队失败时条件回滚为 `UPLOADING` 以允许重试
 - 图片处理通过 BullMQ `image` 队列异步执行，重试 2 次，固定退避 10s
-- sharp 生成两种派生图：缩略图 `_thumb.webp`（300×300 cover，quality 80）和中图 `_md.webp`（800px 等比 inside，quality 85）
+- sharp 生成三种派生图：缩略图 `_thumb.webp`（300×300 cover）、信息流 `_feed.webp`（480px 等比）和中图 `_md.webp`（800px 等比）
 - 衍生图设置 `Cache-Control: public, max-age=31536000, immutable`
 - 处理成功后仅以条件更新把仍为 `PROCESSING` 的 Media 写入 `width`、`height`、`size`、`status=COMPLETED`
 - 处理失败（末次重试耗尽）仅把仍为 `PROCESSING` 的记录标记 `FAILED`；迟到任务不能覆盖已经完成或已被其他流程迁移的状态
@@ -61,19 +66,14 @@ UPLOADING ──(元数据不合法)──────────────�
 
 每天凌晨 4 点由 `CleanupTask.cleanup()` 调用 `MediaService.cleanupOrphanMedia()`，防止对象存储只增不减：
 
-1. **构建存活引用集合**（内存 Set，匹配 `media.url`）：
-   - 未注销用户的 `users.avatar`（非 null）；注销事务会立即置空该引用，但已完成对象仍按保守策略保留
-   - 未删除帖子的 `posts.content`（`deletedAt: null`）中使用共享 Markdown 图片提取器读取普通及尖括号 URL；转义语法和代码片段不算引用
-   - `drafts.content`（避免误删正在编辑的草稿图）
-   - 未撤回的 `direct_messages.mediaId` 所关联图片（私聊图片不是 Markdown 正文）
-   - 未删除动态的图片及未删除动态评论所关联图片
-   - 引用集合为空时**跳过本次清理**（安全阀）
-2. **候选清理对象**（按 `status + createdAt` 过滤）：
+1. **对账结构化引用**：头像使用 `users.avatar_media_id`；帖子和草稿使用 `post_media` / `draft_media`；主页背景、私聊、动态、动态评论和处理中表情导入沿用既有外键。每日任务先按这些关系修复 `Media.orphanedAt`，不再运行时扫描全表 URL 字符串。
+2. **候选清理对象**：
    - `UPLOADING` 创建超 24h（上传从未确认）
    - `FAILED` 创建超 7 天
-3. **删除**：使用有限并发删除原图 + `_thumb.webp` + `_feed.webp` + `_md.webp`，兼容要求批量请求携带 `Content-MD5` 的 S3 服务；历史 SVG 记录仅删除自身。原图删除成功的才删 DB 记录，失败保留待下次重试。
+   - `MEDIA_COMPLETED_ORPHAN_CLEANUP_ENABLED=true` 时，额外纳入 `COMPLETED` 且 `orphanedAt` 超 7 天的记录；默认关闭，待迁移回填审计完成后再开启
+3. **最终核验与删除**：删除对象前按权威关系再次过滤仍被引用的媒体；有限并发删除原图 + `_thumb.webp` + `_feed.webp` + `_md.webp`。原图删除失败时保留 DB 记录待重试，DB 删除前再核验一次引用。
 
-> `COMPLETED` 图片可能通过头像或 Markdown 字符串被引用，引用扫描与对象删除无法原子化；在建立规范化引用账本前，定时和注销即时清理均保守保留已完成图片。当前只自动回收可证明无存活引用的僵尸上传与失败记录（宁可多留不可误删）。
+迁移后先运行 `pnpm media:references:audit` 查看可解析引用和未匹配站内 URL；确认后运行 `pnpm media:references:backfill` 写入账本并重建孤儿标记。已完成媒体清理开关保持关闭至少一个 7 天宽限期，复核日志与对象存储备份后再开启。
 
 ## 设计决策
 

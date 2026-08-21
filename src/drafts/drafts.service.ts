@@ -7,6 +7,7 @@ import { CreateDraftDto } from './dto/create-draft.dto';
 import { DiceService } from '../dice/dice.service';
 import { hasVisibleMarkdownContent } from '../common/markdown-content';
 import { StickerContentService } from '../stickers/sticker-content.service';
+import { MediaReferenceService } from '../media/media-reference.service';
 
 const DRAFT_TRANSACTION_OPTIONS = { maxWait: 5_000, timeout: 15_000 } as const;
 
@@ -17,6 +18,7 @@ export class DraftsService {
     private prisma: PrismaService,
     private diceService: DiceService,
     private stickerContent: StickerContentService,
+    private mediaReferences: MediaReferenceService,
   ) {}
 
   /** 获取当前用户所有草稿 */
@@ -52,9 +54,11 @@ export class DraftsService {
             const usedSlots = new Set(existing.map((draft) => draft.slot));
             const slot = [1, 2, 3, 4, 5].find((candidate) => !usedSlots.has(candidate));
             if (!slot) throw new BadRequestException('草稿位已满（5/5），请先删除旧草稿');
-            return tx.draft.create({
+            const draft = await tx.draft.create({
               data: { userId, slot, content: parsedContent.content },
             });
+            await this.mediaReferences.syncDraftContent(tx, draft.id, draft.content);
+            return draft;
           }, DRAFT_TRANSACTION_OPTIONS);
         } catch (error) {
           if ((error as { code?: string })?.code === 'P2002' && attempt === 0) continue;
@@ -79,21 +83,29 @@ export class DraftsService {
       if (dto.version === undefined || dto.version !== existing.version) {
         throw this.optimisticLockConflict();
       }
-      return this.prisma.draft
-        .update({
-          where: { id: existing.id, version: dto.version },
-          data: { content: parsedContent.content, version: { increment: 1 } },
-        })
+      return this.prisma
+        .$transaction(async (tx) => {
+          const draft = await tx.draft.update({
+            where: { id: existing.id, version: dto.version },
+            data: { content: parsedContent.content, version: { increment: 1 } },
+          });
+          await this.mediaReferences.syncDraftContent(tx, draft.id, draft.content);
+          return draft;
+        }, DRAFT_TRANSACTION_OPTIONS)
         .catch((error) => {
           if (error?.code === 'P2025') throw this.optimisticLockConflict();
           throw error;
         });
     }
 
-    return this.prisma.draft
-      .create({
-        data: { userId, slot: dto.slot, content: parsedContent.content },
-      })
+    return this.prisma
+      .$transaction(async (tx) => {
+        const draft = await tx.draft.create({
+          data: { userId, slot: dto.slot, content: parsedContent.content },
+        });
+        await this.mediaReferences.syncDraftContent(tx, draft.id, draft.content);
+        return draft;
+      }, DRAFT_TRANSACTION_OPTIONS)
       .catch((error) => {
         if (error?.code === 'P2002') throw this.optimisticLockConflict();
         throw error;
@@ -107,14 +119,18 @@ export class DraftsService {
     const parsedContent = this.diceService.parseContent(prepareMarkdownContent(content));
     this.assertSnapshotNotEmpty(parsedContent.contentWithoutDice, parsedContent.nodes.length);
     await this.stickerContent.assertContentAllowed(userId, parsedContent.content, draft.content);
-    return this.prisma.draft
-      .update({
-        where: { id, version },
-        data: {
-          content: parsedContent.content,
-          version: { increment: 1 },
-        },
-      })
+    return this.prisma
+      .$transaction(async (tx) => {
+        const updated = await tx.draft.update({
+          where: { id, version },
+          data: {
+            content: parsedContent.content,
+            version: { increment: 1 },
+          },
+        });
+        await this.mediaReferences.syncDraftContent(tx, updated.id, updated.content);
+        return updated;
+      }, DRAFT_TRANSACTION_OPTIONS)
       .catch((error) => {
         if (error?.code === 'P2025') throw this.optimisticLockConflict();
         throw error;
@@ -124,7 +140,10 @@ export class DraftsService {
   /** 删除草稿 */
   async remove(id: string, userId: string) {
     await this.findById(id, userId);
-    return this.prisma.draft.delete({ where: { id } });
+    return this.prisma.$transaction(async (tx) => {
+      await this.mediaReferences.releaseDraftContent(tx, id);
+      return tx.draft.delete({ where: { id } });
+    }, DRAFT_TRANSACTION_OPTIONS);
   }
 
   /** 获取当前用户草稿槽位使用情况 */

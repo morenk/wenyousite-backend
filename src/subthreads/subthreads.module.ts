@@ -4,10 +4,11 @@ import { SubthreadsService } from './subthreads.service';
 import { AccessPolicyModule } from '../access/access-policy.module';
 import { OutboxModule } from '../outbox/outbox.module';
 import { StickersModule } from '../stickers/stickers.module';
+import { MediaReferenceModule } from '../media/media-reference.module';
 
 /** 子贴模块：CRUD、排序与发帖权限 */
 @Module({
-  imports: [AccessPolicyModule, OutboxModule, StickersModule],
+  imports: [AccessPolicyModule, OutboxModule, StickersModule, MediaReferenceModule],
   controllers: [SubthreadsController],
   providers: [SubthreadsService],
   exports: [SubthreadsService],

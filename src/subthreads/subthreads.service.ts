@@ -12,6 +12,7 @@ import { Prisma } from '@prisma/client';
 import { OutboxService } from '../outbox/outbox.service';
 import { StickerContentService } from '../stickers/sticker-content.service';
 import { hashIdempotencyPayload } from '../common/idempotency';
+import { MediaReferenceService } from '../media/media-reference.service';
 
 /** 子贴服务：CRUD、排序、权限校验 */
 @Injectable()
@@ -23,6 +24,7 @@ export class SubthreadsService {
     private diceService: DiceService,
     private outbox: OutboxService,
     private stickerContent: StickerContentService,
+    private mediaReferences: MediaReferenceService,
   ) {}
 
   /** 获取主题帖下的子贴列表 */
@@ -61,9 +63,7 @@ export class SubthreadsService {
     });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
 
-    const parsedContent = this.diceService.parseContent(
-      prepareMarkdownContent(dto.content ?? ''),
-    );
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content ?? ''));
     const content = parsedContent.content;
     const stickerAssetIds = await this.stickerContent.assertContentAllowed(userId, content);
     const hasText = hasVisibleMarkdownContent(parsedContent.contentWithoutDice);
@@ -149,6 +149,7 @@ export class SubthreadsService {
             },
             include: { author: { select: { username: true } } },
           });
+          await this.mediaReferences.syncPostContent(tx, bodyPost.id, content);
           if (generatedDice.length > 0) {
             await tx.diceRoll.createMany({
               data: this.diceService.buildCreateData(bodyPost.id, generatedDice),
@@ -418,9 +419,12 @@ export class SubthreadsService {
       );
     }
 
-    const result = await this.prisma.subthread.update({
-      where: { id, ...notDeleted },
-      data: { deletedAt: new Date() },
+    const result = await this.prisma.$transaction(async (tx) => {
+      await this.mediaReferences.releaseSubthreadContent(tx, id);
+      return tx.subthread.update({
+        where: { id, ...notDeleted },
+        data: { deletedAt: new Date() },
+      });
     });
 
     this.eventEmitter.emit('subthread.deleted', {

@@ -23,7 +23,7 @@ describe('configuration', () => {
         refreshMobileTtlDays: 30,
       },
       argon2: { timeCost: 3, memoryCost: 65_536 },
-      upload: { ratePerHour: 60 },
+      upload: { ratePerHour: 60, completedOrphanCleanupEnabled: false },
       directMessages: { sendRatePerMinute: 30, requestRatePerDay: 10 },
       push: {
         enabled: false,
@@ -55,6 +55,7 @@ describe('configuration', () => {
       ARGON2_TIME_COST: '4',
       ARGON2_MEMORY_COST: '131072',
       UPLOAD_RATE_PER_HOUR: '80',
+      MEDIA_COMPLETED_ORPHAN_CLEANUP_ENABLED: 'true',
       DIRECT_MESSAGE_RATE_PER_MINUTE: '45',
       DIRECT_MESSAGE_REQUEST_RATE_PER_DAY: '12',
       SES_SMTP_PORT: '587',
@@ -81,6 +82,7 @@ describe('configuration', () => {
     }));
     expect(result.argon2).toEqual({ timeCost: 4, memoryCost: 131_072 });
     expect(result.upload.ratePerHour).toBe(80);
+    expect(result.upload.completedOrphanCleanupEnabled).toBe(true);
     expect(result.directMessages).toEqual({ sendRatePerMinute: 45, requestRatePerDay: 12 });
     expect(result.ses.port).toBe(587);
     expect(result.app).toEqual(expect.objectContaining({ apiDocsEnabled: false, buildSha: 'abcdef' }));

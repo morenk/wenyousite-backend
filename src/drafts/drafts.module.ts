@@ -2,10 +2,11 @@ import { Module } from '@nestjs/common';
 import { DraftsController } from './drafts.controller';
 import { DraftsService } from './drafts.service';
 import { StickersModule } from '../stickers/stickers.module';
+import { MediaReferenceModule } from '../media/media-reference.module';
 
 /** 草稿模块：5 槽位自动/手动保存 */
 @Module({
-  imports: [StickersModule],
+  imports: [StickersModule, MediaReferenceModule],
   controllers: [DraftsController],
   providers: [DraftsService],
   exports: [DraftsService],

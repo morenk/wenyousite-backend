@@ -25,6 +25,7 @@ import {
   momentViewerVisibility,
   visibleMomentAuthorWhere,
 } from './moment-query';
+import { MediaReferenceService } from '../media/media-reference.service';
 
 const MAX_PAGE_SIZE = 30;
 const DISCOVER_SNAPSHOT_LIMIT = 1000;
@@ -118,6 +119,7 @@ export class MomentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly mediaReferences: MediaReferenceService,
   ) {}
 
   async list(feed: MomentFeedMode, cursor: string | undefined, limit = 20, viewer?: Viewer) {
@@ -159,8 +161,8 @@ export class MomentsService {
 
     let createdId: string;
     try {
-      const created = await this.prisma.$transaction((tx) =>
-        tx.moment.create({
+      const created = await this.prisma.$transaction(async (tx) => {
+        const moment = await tx.moment.create({
           data: {
             authorId: viewer.id,
             title,
@@ -174,8 +176,10 @@ export class MomentsService {
             },
           },
           select: { id: true },
-        }),
-      );
+        });
+        await this.mediaReferences.reconcileMediaIds(tx, mediaIds);
+        return moment;
+      });
       createdId = created.id;
     } catch (error) {
       if ((error as { code?: string }).code !== 'P2002') throw error;
@@ -229,6 +233,12 @@ export class MomentsService {
           data: mediaIds.map((mediaId, sortOrder) => ({ momentId: id, mediaId, sortOrder })),
         });
       }
+      await this.mediaReferences.reconcileMediaIds(tx, [
+        ...existing.images.map((image) => image.mediaId),
+        ...(existing.coverMediaId ? [existing.coverMediaId] : []),
+        ...mediaIds,
+        ...(coverMediaId ? [coverMediaId] : []),
+      ]);
       return true;
     });
     if (!result) throw new ConflictException('动态已在其他位置更新，请刷新后重试');
@@ -238,18 +248,34 @@ export class MomentsService {
   async remove(id: string, viewer: Viewer) {
     const moment = await this.prisma.moment.findUnique({
       where: { id },
-      select: { authorId: true, deletedAt: true },
+      select: {
+        authorId: true,
+        deletedAt: true,
+        coverMediaId: true,
+        images: { select: { mediaId: true } },
+      },
     });
     if (!moment || moment.deletedAt) throw new NotFoundException('动态不存在');
     const admin = viewer.role === 'ADMIN' || viewer.role === 'SUPER_ADMIN';
     if (moment.authorId !== viewer.id && !admin) throw new ForbiddenException('无权删除该动态');
-    await this.prisma.moment.update({
-      where: { id },
-      data: {
-        deletedAt: new Date(),
-        removalSource: admin && moment.authorId !== viewer.id ? 'ADMIN' : 'AUTHOR',
-        removedById: viewer.id,
-      },
+    const restorableAdminRemoval = admin && moment.authorId !== viewer.id;
+    await this.prisma.$transaction(async (tx) => {
+      await tx.moment.update({
+        where: { id },
+        data: {
+          deletedAt: new Date(),
+          removalSource: restorableAdminRemoval ? 'ADMIN' : 'AUTHOR',
+          removedById: viewer.id,
+          ...(!restorableAdminRemoval ? { coverMediaId: null } : {}),
+        },
+      });
+      if (!restorableAdminRemoval) {
+        await tx.momentImage.deleteMany({ where: { momentId: id } });
+        await this.mediaReferences.reconcileMediaIds(tx, [
+          ...moment.images.map((image) => image.mediaId),
+          ...(moment.coverMediaId ? [moment.coverMediaId] : []),
+        ]);
+      }
     });
     return { message: '动态已删除' };
   }

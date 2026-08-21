@@ -6,6 +6,7 @@ import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { DiceService } from '../dice/dice.service';
 import { StickerContentService } from '../stickers/sticker-content.service';
+import { MediaReferenceService } from '../media/media-reference.service';
 
 const mockPrisma = {
   $queryRaw: jest.fn(),
@@ -31,6 +32,13 @@ describe('DraftsService', () => {
         {
           provide: StickerContentService,
           useValue: { assertContentAllowed: jest.fn().mockResolvedValue([]) },
+        },
+        {
+          provide: MediaReferenceService,
+          useValue: {
+            syncDraftContent: jest.fn().mockResolvedValue(undefined),
+            releaseDraftContent: jest.fn().mockResolvedValue(undefined),
+          },
         },
       ],
     }).compile();

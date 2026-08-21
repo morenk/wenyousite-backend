@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
+import { MediaReferenceService } from '../media/media-reference.service';
 import { CacheService } from '../redis/cache.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { DEACTIVATED_USER_NAME } from '../common/user-summary';
@@ -156,6 +157,7 @@ export class UsersService {
     private prisma: PrismaService,
     private eventEmitter: EventEmitter2,
     private cache: CacheService,
+    private mediaReferences: MediaReferenceService,
   ) {}
 
   /** 获取本人完整资料（含 email、社交统计） */
@@ -313,11 +315,22 @@ export class UsersService {
   async setAvatar(userId: string, mediaId: string | null) {
     // mediaId 为 null 表示清除头像
     if (mediaId === null) {
-      return this.prisma.user
-        .update({
-          where: { id: userId },
-          data: { avatar: null },
-          select: userSelectPrivate,
+      return this.prisma
+        .$transaction(async (tx) => {
+          const current = await tx.user.findUniqueOrThrow({
+            where: { id: userId },
+            select: { avatarMediaId: true },
+          });
+          const result = await tx.user.update({
+            where: { id: userId },
+            data: { avatar: null, avatarMediaId: null },
+            select: userSelectPrivate,
+          });
+          await this.mediaReferences.reconcileMediaIds(
+            tx,
+            current.avatarMediaId ? [current.avatarMediaId] : [],
+          );
+          return result;
         })
         .then((result) => {
           this.eventEmitter.emit('user.updated', { userId });
@@ -338,11 +351,22 @@ export class UsersService {
       );
     }
 
-    return this.prisma.user
-      .update({
-        where: { id: userId },
-        data: { avatar: media.url },
-        select: userSelectPrivate,
+    return this.prisma
+      .$transaction(async (tx) => {
+        const current = await tx.user.findUniqueOrThrow({
+          where: { id: userId },
+          select: { avatarMediaId: true },
+        });
+        const result = await tx.user.update({
+          where: { id: userId },
+          data: { avatar: media.url, avatarMediaId: media.id },
+          select: userSelectPrivate,
+        });
+        await this.mediaReferences.reconcileMediaIds(
+          tx,
+          [current.avatarMediaId, media.id].filter((id): id is string => Boolean(id)),
+        );
+        return result;
       })
       .then((result) => {
         this.eventEmitter.emit('user.updated', { userId });
@@ -353,10 +377,23 @@ export class UsersService {
   /** 绑定/移除个人主页双画幅背景图；电脑端为 3:1，移动端为 2:1。 */
   async setProfileCover(userId: string, mediaId: string | null, mobileMediaId?: string | null) {
     if (mediaId === null) {
-      const result = await this.prisma.user.update({
-        where: { id: userId },
-        data: { profileCoverMediaId: null, profileCoverMobileMediaId: null },
-        select: userSelectPrivate,
+      const result = await this.prisma.$transaction(async (tx) => {
+        const current = await tx.user.findUniqueOrThrow({
+          where: { id: userId },
+          select: { profileCoverMediaId: true, profileCoverMobileMediaId: true },
+        });
+        const updated = await tx.user.update({
+          where: { id: userId },
+          data: { profileCoverMediaId: null, profileCoverMobileMediaId: null },
+          select: userSelectPrivate,
+        });
+        await this.mediaReferences.reconcileMediaIds(
+          tx,
+          [current.profileCoverMediaId, current.profileCoverMobileMediaId].filter(
+            (id): id is string => Boolean(id),
+          ),
+        );
+        return updated;
       });
       this.eventEmitter.emit('user.updated', { userId });
       return flattenProgressAndTips(result);
@@ -367,13 +404,29 @@ export class UsersService {
       ? await this.validateProfileCoverMedia(userId, mobileMediaId, 2, '移动端')
       : null;
 
-    const result = await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        profileCoverMediaId: webMedia.id,
-        profileCoverMobileMediaId: mobileMedia?.id ?? null,
-      },
-      select: userSelectPrivate,
+    const result = await this.prisma.$transaction(async (tx) => {
+      const current = await tx.user.findUniqueOrThrow({
+        where: { id: userId },
+        select: { profileCoverMediaId: true, profileCoverMobileMediaId: true },
+      });
+      const updated = await tx.user.update({
+        where: { id: userId },
+        data: {
+          profileCoverMediaId: webMedia.id,
+          profileCoverMobileMediaId: mobileMedia?.id ?? null,
+        },
+        select: userSelectPrivate,
+      });
+      await this.mediaReferences.reconcileMediaIds(
+        tx,
+        [
+          current.profileCoverMediaId,
+          current.profileCoverMobileMediaId,
+          webMedia.id,
+          mobileMedia?.id,
+        ].filter((id): id is string => Boolean(id)),
+      );
+      return updated;
     });
     this.eventEmitter.emit('user.updated', { userId });
     return flattenProgressAndTips(result);
@@ -417,23 +470,30 @@ export class UsersService {
     const releasedUsername = `deleted_${tombstone}`;
     const releasedEmail = `deleted_${user.id}@deleted.invalid`;
 
-    await this.prisma.$transaction([
-      this.prisma.user.update({
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
         where: { id },
         data: {
           deletedAt: new Date(),
           username: releasedUsername,
           email: releasedEmail,
           avatar: null,
+          avatarMediaId: null,
           profileCoverMediaId: null,
           profileCoverMobileMediaId: null,
         },
-      }),
-      this.prisma.refreshToken.updateMany({
+      });
+      await tx.refreshToken.updateMany({
         where: { userId: id, revokedAt: null },
         data: { revokedAt: new Date() },
-      }),
-    ]);
+      });
+      await this.mediaReferences.reconcileMediaIds(
+        tx,
+        [user.avatarMediaId, user.profileCoverMediaId, user.profileCoverMobileMediaId].filter(
+          (mediaId): mediaId is string => Boolean(mediaId),
+        ),
+      );
+    });
     this.eventEmitter.emit('user.deleted', { userId: id, avatarUrl: user.avatar });
     return { message: '账号已注销' };
   }

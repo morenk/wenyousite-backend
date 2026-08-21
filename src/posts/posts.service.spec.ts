@@ -14,6 +14,7 @@ import { PostQueryService } from './post-query.service';
 import { OutboxService } from '../outbox/outbox.service';
 import { StickerContentService } from '../stickers/sticker-content.service';
 import { ReplyOrder } from '../common/dto/reply-query.dto';
+import { MediaReferenceService } from '../media/media-reference.service';
 
 const mockPrisma = {
   $transaction: jest.fn(),
@@ -64,6 +65,10 @@ const mockStickerContent = {
   assertContentAllowed: jest.fn().mockResolvedValue([]),
   recordUsage: jest.fn().mockResolvedValue(undefined),
 };
+const mockMediaReferences = {
+  syncPostContent: jest.fn().mockResolvedValue(undefined),
+  releasePostContent: jest.fn().mockResolvedValue(undefined),
+};
 
 describe('PostsService', () => {
   let service: PostsService;
@@ -83,6 +88,7 @@ describe('PostsService', () => {
         PostingPolicyService,
         { provide: OutboxService, useValue: mockOutbox },
         { provide: StickerContentService, useValue: mockStickerContent },
+        { provide: MediaReferenceService, useValue: mockMediaReferences },
       ],
     }).compile();
     service = module.get<PostsService>(PostsService);
@@ -844,9 +850,9 @@ describe('PostsService', () => {
       new Error('mention persistence failed'),
     );
 
-    await expect(
-      service.update('p1', { version: 1, content: '新内容' }, 'u1'),
-    ).rejects.toThrow('mention persistence failed');
+    await expect(service.update('p1', { version: 1, content: '新内容' }, 'u1')).rejects.toThrow(
+      'mention persistence failed',
+    );
     expect(mockOutbox.enqueue).not.toHaveBeenCalled();
     expect(mockEventEmitter.emit).not.toHaveBeenCalledWith('post.updated', expect.anything());
   });
@@ -1010,13 +1016,7 @@ describe('PostsService', () => {
       { id: 'p3', floorNumber: 3, author: {}, _count: { replies: 0 } },
     ]);
 
-    await service.findAllBySubthread(
-      's1',
-      'cursor-4',
-      20,
-      undefined,
-      ReplyOrder.NEWEST,
-    );
+    await service.findAllBySubthread('s1', 'cursor-4', 20, undefined, ReplyOrder.NEWEST);
 
     expect(mockPrisma.post.findMany).toHaveBeenCalledWith(
       expect.objectContaining({

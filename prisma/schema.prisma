@@ -264,6 +264,7 @@ model User {
   username                  String    @unique
   password                  String
   avatar                    String?
+  avatarMediaId             String?   @unique @map("avatar_media_id")
   profileCoverMediaId       String?   @unique @map("profile_cover_media_id")
   profileCoverMobileMediaId String?   @unique @map("profile_cover_mobile_media_id")
   bio                       String?
@@ -305,6 +306,7 @@ model User {
   sanctionsCreated              UserSanction[]                  @relation("SanctionCreator")
   sanctionsRevoked              UserSanction[]                  @relation("SanctionRevoker")
   media                         Media[]
+  avatarMedia                   Media?                          @relation("UserAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
   profileCoverMedia             Media?                          @relation("UserProfileCover", fields: [profileCoverMediaId], references: [id], onDelete: SetNull)
   profileCoverMobileMedia       Media?                          @relation("UserProfileCoverMobile", fields: [profileCoverMobileMediaId], references: [id], onDelete: SetNull)
   refreshTokens                 RefreshToken[]
@@ -837,8 +839,10 @@ model Media {
   height      Int?
   status      MediaStatus @default(UPLOADING)
   createdAt   DateTime    @default(now()) @map("created_at")
+  orphanedAt  DateTime?   @map("orphaned_at")
 
   user                   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  avatarUser             User?           @relation("UserAvatar")
   directMessage          DirectMessage?
   stickerImports         StickerImport[]
   momentImages           MomentImage[]
@@ -846,8 +850,11 @@ model Media {
   momentComment          MomentComment?
   profileCoverUser       User?           @relation("UserProfileCover")
   profileCoverMobileUser User?           @relation("UserProfileCoverMobile")
+  postAttachments        PostMedia[]
+  draftAttachments       DraftMedia[]
 
   @@index([status, createdAt])
+  @@index([status, orphanedAt])
   @@map("media")
 }
 
@@ -1010,16 +1017,17 @@ model Post {
   removedById     String?               @map("removed_by_id")
   removalReason   String?               @map("removal_reason")
 
-  thread        Thread         @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  subthread     Subthread      @relation(fields: [subthreadId], references: [id], onDelete: Cascade)
-  author        User           @relation(fields: [authorId], references: [id])
-  parentPost    Post?          @relation("PostReplies", fields: [parentPostId], references: [id], onDelete: Cascade)
-  replyToPost   Post?          @relation("ReplyTo", fields: [replyToPostId], references: [id])
-  replies       Post[]         @relation("PostReplies")
-  repliedBy     Post[]         @relation("ReplyTo")
-  mentions      PostMention[]
-  notifications Notification[]
-  diceRolls     DiceRoll[]
+  thread           Thread         @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  subthread        Subthread      @relation(fields: [subthreadId], references: [id], onDelete: Cascade)
+  author           User           @relation(fields: [authorId], references: [id])
+  parentPost       Post?          @relation("PostReplies", fields: [parentPostId], references: [id], onDelete: Cascade)
+  replyToPost      Post?          @relation("ReplyTo", fields: [replyToPostId], references: [id])
+  replies          Post[]         @relation("PostReplies")
+  repliedBy        Post[]         @relation("ReplyTo")
+  mentions         PostMention[]
+  notifications    Notification[]
+  diceRolls        DiceRoll[]
+  mediaAttachments PostMedia[]
 
   @@unique([subthreadId, floorNumber])
   @@unique([authorId, clientRequestId])
@@ -1076,10 +1084,39 @@ model Draft {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mediaAttachments DraftMedia[]
 
   @@unique([userId, slot])
   @@map("drafts")
+}
+
+model PostMedia {
+  postId    String @map("post_id")
+  mediaId   String @map("media_id")
+  sortOrder Int    @map("sort_order")
+
+  post  Post  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  media Media @relation(fields: [mediaId], references: [id], onDelete: Restrict)
+
+  @@id([postId, mediaId])
+  @@index([postId, sortOrder])
+  @@index([mediaId])
+  @@map("post_media")
+}
+
+model DraftMedia {
+  draftId   String @map("draft_id")
+  mediaId   String @map("media_id")
+  sortOrder Int    @map("sort_order")
+
+  draft Draft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  media Media @relation(fields: [mediaId], references: [id], onDelete: Restrict)
+
+  @@id([draftId, mediaId])
+  @@index([draftId, sortOrder])
+  @@index([mediaId])
+  @@map("draft_media")
 }
 
 model Notification {

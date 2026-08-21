@@ -25,6 +25,7 @@ import { SaveThreadAggregateDto } from './dto/save-thread-aggregate.dto';
 import { StickerContentService } from '../stickers/sticker-content.service';
 import { computeThreadEngagement, computeThreadSmartScore } from './thread-smart-score';
 import { ThreadCategoriesService } from '../taxonomy/thread-categories.service';
+import { MediaReferenceService } from '../media/media-reference.service';
 
 const ZSET_BY_CREATED = 'threads:by:created';
 const ZSET_BY_ACTIVITY = 'threads:by:activity';
@@ -55,6 +56,7 @@ export class ThreadAggregateService {
     private readonly mentions: MentionsService,
     private readonly stickerContent: StickerContentService,
     private readonly categories: ThreadCategoriesService,
+    private readonly mediaReferences: MediaReferenceService,
   ) {}
 
   async save(threadId: string, dto: SaveThreadAggregateDto, userId: string) {
@@ -188,6 +190,7 @@ export class ThreadAggregateService {
               where: { id: existingBody.id, version: dto.bodyVersion, ...notDeleted },
               data: { content, version: { increment: 1 } },
             });
+            await this.mediaReferences.syncPostContent(tx, post.id, content);
             if (current.published) {
               await reconcilePublishedDice(
                 tx,
@@ -226,6 +229,7 @@ export class ThreadAggregateService {
               },
               include: { author: { select: { username: true } } },
             });
+            await this.mediaReferences.syncPostContent(tx, created.id, content);
             if (current.published) {
               await reconcilePublishedDice(tx, this.dice, created.id, parsedContent.nodes);
               createdPublishedBody = await tx.post.findUniqueOrThrow({

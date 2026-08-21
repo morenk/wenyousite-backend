@@ -113,6 +113,8 @@ Body: <binary>
 
 > 此步骤完全绕过服务端。Credentials 已编码在预签名 URL 的 `X-Amz-*` 查询参数中，客户端无需持有 AccessKey。
 
+直传中断或确认阶段发现对象尚未写入时，客户端可调用 `POST /media/:id/upload-url`。该端点只接受本人仍为 `UPLOADING` 的记录，返回同一 `mediaId`、`objectKey`、`publicUrl` 对应的新 PUT 地址；不会新建 Media，也不会再次占用小时上传配额。
+
 ---
 
 ## Step 3: 上传确认
@@ -131,7 +133,7 @@ class ConfirmUploadDto {
 
 1. 根据 `mediaId` 查 Media 记录，校验归属（userId 匹配）
 2. `PROCESSING` / `COMPLETED` 直接返回当前结果，使客户端超时重试不会重复入队
-3. 向 S3 发送 `HeadObjectCommand`，核对实际 `Content-Length`、`Content-Type` 与签发凭证时固化的声明值；缺失、超限或不一致时转 `FAILED`
+3. 向 S3 发送 `HeadObjectCommand`，核对实际 `Content-Length`、`Content-Type` 与签发凭证时固化的声明值；对象缺失返回 HTTP 404 / `MEDIA_OBJECT_MISSING` 以允许同 ID 重传，已存在但元数据超限或不一致才转 `FAILED`
 4. 以条件更新原子执行 `UPLOADING → PROCESSING`，并发请求只有一个能取得入队权
 5. 以 `mediaId` 作为 BullMQ `jobId` 入队；入队失败时条件回滚至 `UPLOADING`，允许客户端重试
 
@@ -252,6 +254,7 @@ UPLOADING ──(元数据不合法)──────────────�
 | `COS_ACCESS_KEY_ID`     | _(空，需设置)_              | AccessKey                                       |
 | `COS_SECRET_ACCESS_KEY` | _(空，需设置)_              | SecretKey                                       |
 | `UPLOAD_RATE_PER_HOUR`  | `60`                        | 每用户小时上传配额（`upload-url` 超限返回 429） |
+| `MEDIA_COMPLETED_ORPHAN_CLEANUP_ENABLED` | `false` | 是否清理超过 7 天无引用宽限期的已完成媒体；完成回填审计后再开启 |
 
 `forcePathStyle: true` — 路径风格 URL（`{endpoint}/{bucket}/{key}`），兼容所有 S3 兼容实现。
 
@@ -267,8 +270,8 @@ UPLOADING ──(元数据不合法)──────────────�
 
 对象存储无原生引用管理，删除帖子/楼层/头像不会自动删图。每天凌晨 4 点 `CleanupTask` 调用 `MediaService.cleanupOrphanMedia()` 回收：
 
-1. **收集存活引用**：未注销用户的 `users.avatar`、未删除帖子的 Markdown 正文、草稿正文、未撤回私聊、未删除动态及动态评论中的图片 URL；账号注销时头像字段立即置空
-2. **候选**：`UPLOADING` 超 24h、`FAILED` 超 7 天；已完成图片暂不进入自动删除候选
-3. **删除**：有限并发删除原图 + `_thumb.webp` + `_feed.webp` + `_md.webp`（SVG 仅自身），兼容要求批量删除携带 `Content-MD5` 的 S3 服务；再删 DB 记录，原图删除失败的记录留待下次重试
+1. **引用对账**：头像、主页背景、私聊、动态、动态评论、处理中表情导入使用外键；帖子与草稿的站内 Markdown 图片分别使用 `post_media`、`draft_media`。每日任务先据此修复 `Media.orphanedAt`，不再全表扫描正文 URL。
+2. **候选**：`UPLOADING` 超 24h、`FAILED` 超 7 天；开关开启后再纳入 `COMPLETED + orphanedAt` 超 7 天的媒体。
+3. **删除**：对象删除前按权威关系最终过滤；有限并发删除原图和三类派生图，再删除仍无引用的 DB 记录。原图删除失败则保留记录待下次重试。
 
-> `COMPLETED` 图片可能只由头像或 Markdown 字符串引用，扫描与对象删除之间无法原子复核。在建立规范化引用账本前保守保留已完成图片，避免并发保存正文造成不可逆误删；引用集合为空时仍跳过本轮（安全阀）。
+部署顺序为迁移 → `pnpm media:references:audit` → `pnpm media:references:backfill` → 至少观察一个 7 天宽限期；在确认未匹配站内 URL 和备份策略后，才设置 `MEDIA_COMPLETED_ORPHAN_CLEANUP_ENABLED=true`。

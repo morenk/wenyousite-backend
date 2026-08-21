@@ -340,6 +340,7 @@
 |---|---|---|---|
 | POST | `/media/upload-url` | authenticated | 获取临时上传 URL + mediaId（有效期 10 分钟，预建 UPLOADING 记录） |
 | POST | `/media/upload-done` | authenticated | 确认上传完成（校验归属 + S3，入队异步图片处理） |
+| POST | `/media/{id}/upload-url` | authenticated | 为同一 UPLOADING 媒体重新签发临时上传地址 |
 | GET | `/media/{id}` | authenticated | 查询图片处理状态（UPLOADING / PROCESSING / COMPLETED / FAILED） |
 
 ## Direct Messages

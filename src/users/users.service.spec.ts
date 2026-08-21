@@ -9,10 +9,12 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
+import { MediaReferenceService } from '../media/media-reference.service';
 
 const mockPrisma = {
   user: {
     findUnique: jest.fn(),
+    findUniqueOrThrow: jest.fn(),
     update: jest.fn(),
   },
   refreshToken: {
@@ -39,8 +41,11 @@ const userFixture = {
   username: 'test',
   email: 'test@example.com',
   avatar: null,
+  avatarMediaId: null,
   profileCoverMedia: null,
+  profileCoverMediaId: null,
   profileCoverMobileMedia: null,
+  profileCoverMobileMediaId: null,
   bio: null,
   role: 'USER',
   deletedAt: null,
@@ -61,10 +66,15 @@ describe('UsersService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: CacheService, useValue: mockCache },
+        {
+          provide: MediaReferenceService,
+          useValue: { reconcileMediaIds: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
     service = module.get<UsersService>(UsersService);
     jest.clearAllMocks();
+    mockPrisma.user.findUniqueOrThrow.mockResolvedValue({ ...userFixture });
     mockPrisma.$transaction.mockImplementation(
       (input: ((tx: typeof mockPrisma) => unknown) | Iterable<unknown>) =>
         typeof input === 'function' ? input(mockPrisma) : Promise.all(input),

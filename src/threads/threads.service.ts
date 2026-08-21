@@ -26,6 +26,7 @@ import { StickerContentService } from '../stickers/sticker-content.service';
 import { ThreadCreateIdempotencyService } from './thread-create-idempotency.service';
 import { initialThreadSmartScore } from './thread-smart-score';
 import { ThreadCategoriesService } from '../taxonomy/thread-categories.service';
+import { MediaReferenceService } from '../media/media-reference.service';
 const ZSET_BY_CREATED = 'threads:by:created';
 const ZSET_BY_ACTIVITY = 'threads:by:activity';
 const ZSET_BY_SMART = 'threads:by:smart';
@@ -45,12 +46,11 @@ export class ThreadsService {
     private outbox: OutboxService,
     private stickerContent: StickerContentService,
     private categories: ThreadCategoriesService,
+    private mediaReferences: MediaReferenceService,
   ) {}
   /** 创建主题帖草稿：事务内创建 Thread + Owner + 默认子贴 + 可选子贴正文，一次请求完成 */
   async create(dto: CreateThreadDto, userId: string) {
-    const parsedContent = this.diceService.parseContent(
-      prepareMarkdownContent(dto.content ?? ''),
-    );
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content ?? ''));
     const { title, subthreadTitle, category, visibility, requestHash } =
       this.createIdempotency.prepare(dto, parsedContent.content);
     if (category) await this.categories.assertSelectable(category);
@@ -98,7 +98,7 @@ export class ThreadsService {
           data: { threadId: thread.id, title: subthreadTitle, sortOrder: 0 },
         });
         if (hasBody) {
-          await tx.post.create({
+          const body = await tx.post.create({
             data: {
               threadId: thread.id,
               subthreadId: subthread.id,
@@ -107,6 +107,7 @@ export class ThreadsService {
               content: parsedContent.content,
             },
           });
+          await this.mediaReferences.syncPostContent(tx, body.id, body.content);
         }
         await tx.thread.update({
           where: { id: thread.id },
@@ -272,11 +273,10 @@ export class ThreadsService {
     if (thread.ownerId !== userId)
       throw forbidden('仅楼主可删除主题帖', ErrorCode.NOT_THREAD_OWNER);
 
-    let result: any;
-    if (!thread.published) {
-      result = await this.prisma.thread.delete({ where: { id } });
-    } else {
-      result = await this.prisma.thread.update({
+    const result = await this.prisma.$transaction(async (tx) => {
+      await this.mediaReferences.releaseThreadContent(tx, id);
+      if (!thread.published) return tx.thread.delete({ where: { id } });
+      return tx.thread.update({
         where: { id, ...notDeleted },
         data: {
           deletedAt: new Date(),
@@ -284,7 +284,7 @@ export class ThreadsService {
           removedById: userId,
         },
       });
-    }
+    });
 
     // ZSET 清理 + 缓存失效 + 计数器清理
     this.redis.zrem(ZSET_BY_CREATED, id).catch(() => {});

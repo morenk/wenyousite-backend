@@ -170,6 +170,15 @@ class EnvironmentVariables {
   @IsOptional()
   UPLOAD_RATE_PER_HOUR: number = 60;
 
+  @IsBoolean()
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true) return true;
+    if (value === 'false' || value === false) return false;
+    return value;
+  })
+  MEDIA_COMPLETED_ORPHAN_CLEANUP_ENABLED: boolean | 'true' | 'false' = false;
+
   @IsNumber()
   @IsOptional()
   DIRECT_MESSAGE_RATE_PER_MINUTE: number = 30;
@@ -219,7 +228,11 @@ export function validate(config: Record<string, unknown>) {
   ] as const) {
     const minimumBuild = minimum ? Number(minimum) : undefined;
     const recommendedBuild = recommended ? Number(recommended) : undefined;
-    if (minimumBuild !== undefined && recommendedBuild !== undefined && recommendedBuild < minimumBuild) {
+    if (
+      minimumBuild !== undefined &&
+      recommendedBuild !== undefined &&
+      recommendedBuild < minimumBuild
+    ) {
       throw new Error(`${platform} 推荐构建号不能低于最低支持构建号`);
     }
     if ((minimumBuild !== undefined || recommendedBuild !== undefined) && !updateUrl) {
@@ -235,11 +248,12 @@ export function validate(config: Record<string, unknown>) {
     ) {
       throw new Error('生产环境 JWT_ACCESS_SECRET 必须是至少 24 字符的非默认随机值');
     }
-    if (validatedConfig.ADMIN_CHALLENGE_PEPPER && (
-      validatedConfig.ADMIN_CHALLENGE_PEPPER.startsWith('dev-') ||
-      validatedConfig.ADMIN_CHALLENGE_PEPPER.startsWith('change-me') ||
-      validatedConfig.ADMIN_CHALLENGE_PEPPER.length < 32
-    )) {
+    if (
+      validatedConfig.ADMIN_CHALLENGE_PEPPER &&
+      (validatedConfig.ADMIN_CHALLENGE_PEPPER.startsWith('dev-') ||
+        validatedConfig.ADMIN_CHALLENGE_PEPPER.startsWith('change-me') ||
+        validatedConfig.ADMIN_CHALLENGE_PEPPER.length < 32)
+    ) {
       throw new Error('生产环境 ADMIN_CHALLENGE_PEPPER 必须是至少 32 字符的独立随机值');
     }
     if (

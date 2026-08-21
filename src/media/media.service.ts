@@ -23,7 +23,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import sharp from 'sharp';
 import { withMediaVariants } from './media-response.mapper';
-import { extractMarkdownImageUrls } from '../common/markdown-cover-images';
+import { MediaReferenceService } from './media-reference.service';
+import { BusinessException } from '../common/exceptions/business.exception';
+import { ErrorCode } from '../common/exceptions/error-codes';
 
 /** 允许的文件类型白名单 */
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'];
@@ -39,8 +41,6 @@ const UPLOADING_STALE_HOURS = 24;
 const S3_BATCH_DELETE_LIMIT = 1000;
 /** S3 兼容存储不支持无 Content-MD5 的 DeleteObjects，单对象删除限制并发数。 */
 const S3_DELETE_CONCURRENCY = 20;
-/** 引用扫描分页大小 */
-const SCAN_PAGE_SIZE = 500;
 
 /** 图片处理任务类型 */
 export interface ImageProcessJob {
@@ -62,14 +62,18 @@ export class MediaService {
   s3: S3Client;
   /** 每用户小时上传配额 */
   private readonly uploadRatePerHour: number;
+  private readonly completedOrphanCleanupEnabled: boolean;
 
   constructor(
     private config: ConfigService,
     private prisma: PrismaService,
     private redis: RedisService,
+    private mediaReferences: MediaReferenceService,
     @InjectQueue('image') private imageQueue: Queue,
   ) {
     this.uploadRatePerHour = this.config.get<number>('upload.ratePerHour') ?? 60;
+    this.completedOrphanCleanupEnabled =
+      this.config.get<boolean>('upload.completedOrphanCleanupEnabled') ?? false;
     this.s3 = new S3Client({
       endpoint: this.config.get<string>('cos.endpoint'),
       region: this.config.get<string>('cos.region') ?? 'auto',
@@ -115,20 +119,40 @@ export class MediaService {
       },
     });
 
-    const command = new PutObjectCommand({
-      Bucket: bucket,
-      Key: objectKey,
-      ContentType: opts.contentType,
-      ContentLength: opts.size,
+    const uploadUrl = await this.signUploadUrl({
+      bucket,
+      key: objectKey,
+      contentType: opts.contentType,
+      size: opts.size,
     });
-
-    const uploadUrl = await getSignedUrl(this.s3, command, { expiresIn: 600 });
 
     return {
       uploadUrl,
       mediaId: media.id,
       objectKey,
       publicUrl,
+    };
+  }
+
+  /** 为同一 UPLOADING 媒体重新签发 PUT 地址，不创建新记录也不重复占用上传配额。 */
+  async reissueUploadUrl(mediaId: string, userId: string) {
+    const media = await this.prisma.media.findUnique({ where: { id: mediaId } });
+    if (!media) throw new NotFoundException('媒体记录不存在');
+    if (media.userId !== userId) throw new ForbiddenException('无权操作');
+    if (media.status !== 'UPLOADING' || !media.contentType || !media.size) {
+      throw new BadRequestException('当前媒体状态不能重新上传');
+    }
+    const bucket = this.config.get<string>('cos.bucket')!;
+    return {
+      uploadUrl: await this.signUploadUrl({
+        bucket,
+        key: media.key,
+        contentType: media.contentType,
+        size: media.size,
+      }),
+      mediaId: media.id,
+      objectKey: media.key,
+      publicUrl: media.url,
     };
   }
 
@@ -153,8 +177,25 @@ export class MediaService {
 
     try {
       head = await this.s3.send(new HeadObjectCommand({ Bucket: bucket, Key: media.key }));
-    } catch {
-      throw new NotFoundException('文件不存在或上传未完成');
+    } catch (error) {
+      const storageError = error as {
+        name?: string;
+        Code?: string;
+        $metadata?: { httpStatusCode?: number };
+      };
+      const missing =
+        storageError.$metadata?.httpStatusCode === HttpStatus.NOT_FOUND ||
+        storageError.name === 'NotFound' ||
+        storageError.name === 'NoSuchKey' ||
+        storageError.Code === 'NoSuchKey';
+      if (missing) {
+        throw new BusinessException(
+          ErrorCode.MEDIA_OBJECT_MISSING,
+          '文件不存在或上传未完成',
+          HttpStatus.NOT_FOUND,
+        );
+      }
+      throw error;
     }
 
     const actualSize = head.ContentLength;
@@ -306,6 +347,7 @@ export class MediaService {
         height: metadata.height ?? 0,
         size: buffer.length,
         status: 'COMPLETED',
+        orphanedAt: new Date(),
       },
     });
 
@@ -339,80 +381,36 @@ export class MediaService {
     return contentType?.split(';', 1)[0].trim().toLowerCase() || null;
   }
 
-  /** 孤儿图片回收：仅清理无存活引用的未确认上传与处理失败记录（S3 + DB） */
+  /** 孤儿图片回收：引用标记对账后清理超出宽限期且无存活引用的对象（S3 + DB）。 */
   async cleanupOrphanMedia() {
-    // 1. 构建存活引用集合：头像 + 未删除帖子的 Markdown 正文 + 草稿
-    const referenced = new Set<string>();
+    const reconciled = await this.mediaReferences.reconcileAllMarkers();
+    if (reconciled > 0) this.logger.log(`媒体引用标记对账完成: 修复 ${reconciled} 条`);
 
-    const avatars = await this.prisma.user.findMany({
-      where: { avatar: { not: null }, deletedAt: null },
-      select: { avatar: true },
-    });
-    for (const u of avatars) {
-      if (u.avatar) referenced.add(u.avatar);
-    }
-
-    await this.collectMarkdownRefs(
-      (cursor) =>
-        this.prisma.post.findMany({
-          where: { deletedAt: null },
-          select: { id: true, content: true },
-          cursor: cursor ? { id: cursor } : undefined,
-          take: SCAN_PAGE_SIZE,
-          orderBy: { id: 'asc' },
-        }),
-      referenced,
-    );
-    await this.collectMarkdownRefs(
-      (cursor) =>
-        this.prisma.draft.findMany({
-          select: { id: true, content: true },
-          cursor: cursor ? { id: cursor } : undefined,
-          take: SCAN_PAGE_SIZE,
-          orderBy: { id: 'asc' },
-        }),
-      referenced,
-    );
-    await this.collectDirectMessageMediaRefs(referenced);
-    const momentImages = await this.prisma.momentImage.findMany({
-      where: { moment: { deletedAt: null } },
-      select: { media: { select: { url: true } } },
-    });
-    for (const image of momentImages) referenced.add(image.media.url);
-    const momentCommentImages = await this.prisma.momentComment.findMany({
-      where: { deletedAt: null, mediaId: { not: null } },
-      select: { media: { select: { url: true } } },
-    });
-    for (const comment of momentCommentImages) {
-      if (comment.media?.url) referenced.add(comment.media.url);
-    }
-
-    // 安全阀：引用集合为空说明扫描异常，跳过本次清理避免误删
-    if (referenced.size === 0) {
-      this.logger.warn('Media cleanup aborted: referenced set is empty');
-      return;
-    }
-
-    // 2. 候选：僵尸上传 + 处理失败。COMPLETED 在建立规范化引用账本前保守保留，
-    // 避免 Markdown/头像等字符串引用在扫描与对象删除之间发生竞态。
     const now = Date.now();
     const uploadingCutoff = new Date(now - UPLOADING_STALE_HOURS * 3600000);
     const orphanCutoff = new Date(now - ORPHAN_GRACE_DAYS * 24 * 3600000);
+    const completedCandidate = this.completedOrphanCleanupEnabled
+      ? [{ status: 'COMPLETED' as const, orphanedAt: { lt: orphanCutoff } }]
+      : [];
     const stale = await this.prisma.media.findMany({
       where: {
         OR: [
           { status: 'UPLOADING', createdAt: { lt: uploadingCutoff } },
           { status: 'FAILED', createdAt: { lt: orphanCutoff } },
+          ...completedCandidate,
         ],
         stickerImports: { none: { status: 'PROCESSING' } },
       },
-      select: { id: true, key: true, url: true, status: true },
+      select: { id: true, key: true, status: true },
     });
 
-    const victims = stale.filter((m) => m.status !== 'COMPLETED' && !referenced.has(m.url));
+    const unreferencedIds = new Set(
+      await this.mediaReferences.filterUnreferenced(stale.map((item) => item.id)),
+    );
+    const victims = stale.filter((item) => unreferencedIds.has(item.id));
     if (victims.length === 0) return;
 
-    // 3. 批量删除 S3 对象（含派生图）；原图删除失败的记录保留待下次重试
+    // 删除 S3 对象前已再次按数据库关系核验；原图删除失败的记录保留待下次重试。
     const bucket = this.config.get<string>('cos.bucket')!;
     const deletedIds = new Set<string>();
     for (let i = 0; i < victims.length; i += S3_BATCH_DELETE_LIMIT) {
@@ -438,74 +436,25 @@ export class MediaService {
       }
     }
 
-    // 4. 删除已成功移除原图的 DB 记录
+    // 只删除已成功移除原图且仍无引用的 DB 记录，防止清理期间新绑定产生竞态。
     if (deletedIds.size > 0) {
-      await this.prisma.media.deleteMany({ where: { id: { in: [...deletedIds] } } });
+      const stillUnreferenced = await this.mediaReferences.filterUnreferenced([...deletedIds]);
+      if (stillUnreferenced.length > 0) {
+        await this.prisma.media.deleteMany({ where: { id: { in: stillUnreferenced } } });
+      }
     }
     this.logger.log(`孤儿图片清理完成: 扫描 ${stale.length} 条候选，清理 ${deletedIds.size} 条`);
   }
 
-  /**
-   * 单 URL 保守回收入口。COMPLETED 在规范化引用账本建立前一律保留；其他状态
-   * 仍需确认没有头像、正文、草稿、私聊、动态或导入引用。
-   */
+  /** 单 URL 保守回收入口；COMPLETED 统一交由带宽限期的每日任务处理。 */
   async cleanupOrphanByUrl(url: string): Promise<boolean> {
     const media = await this.prisma.media.findFirst({
       where: { url },
       select: { id: true, key: true, status: true },
     });
     if (!media) return false;
-    // 已完成媒体可能随后被正文、头像等字符串路径复用；没有规范化引用账本时不做即时硬删。
     if (media.status === 'COMPLETED') return false;
-
-    const [
-      avatarRef,
-      postRef,
-      draftRef,
-      directMessageRef,
-      stickerImportRef,
-      momentImageRef,
-      momentCommentRef,
-    ] = await Promise.all([
-      this.prisma.user.findFirst({
-        where: { avatar: url, deletedAt: null },
-        select: { id: true },
-      }),
-      this.prisma.post.findFirst({
-        where: { deletedAt: null, content: { contains: url } },
-        select: { id: true },
-      }),
-      this.prisma.draft.findFirst({
-        where: { content: { contains: url } },
-        select: { id: true },
-      }),
-      this.prisma.directMessage.findFirst({
-        where: { mediaId: media.id, recalledAt: null },
-        select: { id: true },
-      }),
-      this.prisma.stickerImport.findFirst({
-        where: { sourceMediaId: media.id, status: 'PROCESSING' },
-        select: { id: true },
-      }),
-      this.prisma.momentImage.findFirst({
-        where: { mediaId: media.id, moment: { deletedAt: null } },
-        select: { id: true },
-      }),
-      this.prisma.momentComment.findFirst({
-        where: { mediaId: media.id, deletedAt: null },
-        select: { id: true },
-      }),
-    ]);
-    if (
-      avatarRef ||
-      postRef ||
-      draftRef ||
-      directMessageRef ||
-      stickerImportRef ||
-      momentImageRef ||
-      momentCommentRef
-    )
-      return false;
+    if ((await this.mediaReferences.filterUnreferenced([media.id])).length === 0) return false;
 
     const keys = [media.key];
     if (!media.key.toLowerCase().endsWith('.svg')) {
@@ -540,41 +489,17 @@ export class MediaService {
     return failed;
   }
 
-  /** 分页扫描内容并提取 Markdown 图片 URL 加入引用集合 */
-  private async collectMarkdownRefs(
-    page: (cursor?: string) => Promise<{ id: string; content: string }[]>,
-    referenced: Set<string>,
-  ) {
-    let cursor: string | undefined;
-    for (;;) {
-      const rows = await page(cursor);
-      if (rows.length === 0) break;
-      for (const row of rows) {
-        for (const url of extractMarkdownImageUrls(row.content)) referenced.add(url);
-      }
-      cursor = rows[rows.length - 1].id;
-      if (rows.length < SCAN_PAGE_SIZE) break;
-    }
-  }
-
-  /** 分页收集仍绑定在未撤回私聊消息上的图片 URL。 */
-  private async collectDirectMessageMediaRefs(referenced: Set<string>) {
-    let cursor: string | undefined;
-    for (;;) {
-      const rows = await this.prisma.directMessage.findMany({
-        where: { mediaId: { not: null }, recalledAt: null },
-        select: { id: true, media: { select: { url: true } } },
-        cursor: cursor ? { id: cursor } : undefined,
-        take: SCAN_PAGE_SIZE,
-        orderBy: { id: 'asc' },
-      });
-      if (rows.length === 0) break;
-      for (const row of rows) {
-        if (row.media?.url) referenced.add(row.media.url);
-      }
-      cursor = rows[rows.length - 1].id;
-      if (rows.length < SCAN_PAGE_SIZE) break;
-    }
+  private signUploadUrl(input: { bucket: string; key: string; contentType: string; size: number }) {
+    return getSignedUrl(
+      this.s3,
+      new PutObjectCommand({
+        Bucket: input.bucket,
+        Key: input.key,
+        ContentType: input.contentType,
+        ContentLength: input.size,
+      }),
+      { expiresIn: 600 },
+    );
   }
 
   /** 构建文件公网访问 URL */

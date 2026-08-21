@@ -65,6 +65,7 @@
 | `MODERATION_CASE_NOT_FOUND` | 40416 | 治理案件不存在 |
 | `MODERATION_DECISION_NOT_FOUND` | 40417 | 治理决定不存在 |
 | `MODERATION_APPEAL_NOT_FOUND` | 40418 | 申诉不存在 |
+| `MEDIA_OBJECT_MISSING` | 40419 | 已预留媒体的对象尚未上传或直传未完成 |
 | `CONFLICT` | 40900 | 通用冲突 |
 | `EMAIL_ALREADY_REGISTERED` | 40901 | 邮箱已被注册 |
 | `USERNAME_TAKEN` | 40902 | 用户名已被占用 |

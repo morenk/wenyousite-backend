@@ -19,26 +19,22 @@ import { OutboxService } from '../outbox/outbox.service';
 import { reconcilePublishedDice } from '../dice/reconcile-published-dice';
 import { StickerContentService } from '../stickers/sticker-content.service';
 import { ReplyOrder } from '../common/dto/reply-query.dto';
-
+import { MediaReferenceService } from '../media/media-reference.service';
 /** 楼层服务：发帖（事务楼层编号 + FOR UPDATE）、楼中楼、编辑、软删除 */
 @Injectable()
 export class PostsService {
   constructor(
-    private prisma: PrismaService,
-    private eventEmitter: EventEmitter2,
-    private threadAccess: ThreadAccessService,
-    private mentionsService: MentionsService,
-    private diceService: DiceService,
-    private postingPolicy: PostingPolicyService,
-    private queries: PostQueryService,
-    private outbox: OutboxService,
-    private stickerContent: StickerContentService,
+    private prisma: PrismaService, private eventEmitter: EventEmitter2, private threadAccess: ThreadAccessService, private mentionsService: MentionsService, private diceService: DiceService, private postingPolicy: PostingPolicyService, private queries: PostQueryService, private outbox: OutboxService, private stickerContent: StickerContentService, private mediaReferences: MediaReferenceService,
   ) {}
-
-  async findAllBySubthread(subthreadId: string, cursor?: string, limit = 20, userId?: string, order = ReplyOrder.OLDEST) {
+  async findAllBySubthread(
+    subthreadId: string,
+    cursor?: string,
+    limit = 20,
+    userId?: string,
+    order = ReplyOrder.OLDEST,
+  ) {
     return this.queries.findAllBySubthread(subthreadId, cursor, limit, userId, order);
   }
-
   async findReplies(
     postId: string,
     cursor?: string,
@@ -49,7 +45,6 @@ export class PostsService {
   ) {
     return this.queries.findReplies(postId, cursor, limit, userId, order, authorId);
   }
-
   /** 发帖：楼层或楼中楼回复。先校验访问权限与发帖策略，通过后才自动加入为参与人 */
   async create(subthreadId: string, dto: CreatePostDto, userId: string) {
     const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content));
@@ -155,6 +150,7 @@ export class PostsService {
             author: { select: authorSelect },
           },
         });
+        await this.mediaReferences.syncPostContent(tx, p.id, content);
 
         const generatedDice = subthread.thread.published
           ? this.diceService.rollNodes(parsedContent.nodes)
@@ -329,6 +325,7 @@ export class PostsService {
             },
             include: { author: { select: authorSelect } },
           });
+          await this.mediaReferences.syncPostContent(tx, created.id, normalizedContent);
           if (subthread.thread.published) {
             await reconcilePublishedDice(tx, this.diceService, created.id, parsedContent.nodes, []);
           }
@@ -410,6 +407,7 @@ export class PostsService {
           where: { id: existing.id, version, ...notDeleted },
           data: { content: normalizedContent, version: { increment: 1 } },
         });
+        await this.mediaReferences.syncPostContent(tx, post.id, normalizedContent);
         if (subthread.thread.published) {
           await reconcilePublishedDice(
             tx,
@@ -501,6 +499,7 @@ export class PostsService {
           where: { id, version: dto.version, ...notDeleted },
           data: { content, version: { increment: 1 } },
         });
+        await this.mediaReferences.syncPostContent(tx, post.id, content);
         if (threadPublished) {
           await reconcilePublishedDice(
             tx,
@@ -619,16 +618,20 @@ export class PostsService {
       throw forbidden('主体正文不可删除。如需修改请编辑帖子；如需移除请删除整个子贴。');
     }
 
-    const result = await this.prisma.post.update({
-      where: { id, ...notDeleted },
-      data: {
-        deletedAt: new Date(),
-        removalSource:
-          postLight.authorId === userId
-            ? ContentRemovalSource.AUTHOR
-            : ContentRemovalSource.THREAD_MANAGER,
-        removedById: userId,
-      },
+    const result = await this.prisma.$transaction(async (tx) => {
+      const removed = await tx.post.update({
+        where: { id, ...notDeleted },
+        data: {
+          deletedAt: new Date(),
+          removalSource:
+            postLight.authorId === userId
+              ? ContentRemovalSource.AUTHOR
+              : ContentRemovalSource.THREAD_MANAGER,
+          removedById: userId,
+        },
+      });
+      await this.mediaReferences.releasePostContent(tx, id);
+      return removed;
     });
 
     // 缓存失效 + 有序集合更新
@@ -640,7 +643,6 @@ export class PostsService {
 
     return result;
   }
-
   async findById(id: string, userId?: string) {
     return this.queries.findById(id, userId);
   }

@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "5.3.0-dev.20260820.1",
+  "contractVersion": "5.4.0-dev.20260821.1",
   "counts": {
-    "total": 203,
-    "v1": 96,
+    "total": 204,
+    "v1": 97,
     "deferred": 56,
     "notApplicable": 50,
     "infrastructure": 1
@@ -1502,6 +1502,14 @@
       "operationId": "mediaConfirmUpload",
       "method": "POST",
       "path": "/api/v1/media/upload-done",
+      "module": "media",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "mediaReissueUploadUrl",
+      "method": "POST",
+      "path": "/api/v1/media/{id}/upload-url",
       "module": "media",
       "disposition": "v1",
       "status": "planned"

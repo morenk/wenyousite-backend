@@ -10,6 +10,8 @@ import {
 import { MediaService } from './media.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { MediaReferenceService } from './media-reference.service';
+import { ErrorCode } from '../common/exceptions/error-codes';
 
 const mockS3 = { send: jest.fn() };
 const mockImageQueue = { add: jest.fn().mockResolvedValue({}) };
@@ -18,6 +20,10 @@ const mockRedis = {
   hincrby: jest.fn().mockResolvedValue(1),
   hget: jest.fn().mockResolvedValue('1'),
   expire: jest.fn().mockResolvedValue(1),
+};
+const mockMediaReferences = {
+  reconcileAllMarkers: jest.fn().mockResolvedValue(undefined),
+  filterUnreferenced: jest.fn(async (ids: string[]) => ids),
 };
 
 jest.mock('@aws-sdk/s3-request-presigner', () => ({
@@ -89,12 +95,19 @@ describe('MediaService', () => {
         { provide: ConfigService, useValue: mockConfig },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: RedisService, useValue: mockRedis },
+        { provide: MediaReferenceService, useValue: mockMediaReferences },
         { provide: 'BullQueue_image', useValue: mockImageQueue },
       ],
     }).compile();
     service = module.get<MediaService>(MediaService);
     (service as any).s3 = mockS3;
     jest.clearAllMocks();
+    mockS3.send.mockReset();
+    mockPrisma.media.findMany.mockReset().mockResolvedValue([]);
+    mockMediaReferences.reconcileAllMarkers.mockReset().mockResolvedValue(0);
+    mockMediaReferences.filterUnreferenced
+      .mockReset()
+      .mockImplementation(async (ids: string[]) => ids);
     jest
       .spyOn(
         (service as unknown as { logger: { error: (...args: unknown[]) => void } }).logger,
@@ -154,6 +167,30 @@ describe('MediaService', () => {
       }),
     ).rejects.toThrow(BadRequestException);
     expect(mockPrisma.media.create).not.toHaveBeenCalled();
+  });
+
+  it('reissueUploadUrl 应为同一 UPLOADING 记录和对象键重新签名', async () => {
+    mockPrisma.media.findUnique.mockResolvedValue(makeMedia());
+
+    const result = await service.reissueUploadUrl('m1', 'u1');
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        mediaId: 'm1',
+        objectKey: 'uploads/2099/01/01/u1/photo.jpg',
+        uploadUrl: 'https://presigned.url/upload',
+      }),
+    );
+    expect(mockPrisma.media.create).not.toHaveBeenCalled();
+    expect(mockRedis.hincrby).not.toHaveBeenCalled();
+  });
+
+  it('reissueUploadUrl 应拒绝非 UPLOADING 记录', async () => {
+    mockPrisma.media.findUnique.mockResolvedValue(makeMedia({ status: 'FAILED' }));
+
+    await expect(service.reissueUploadUrl('m1', 'u1')).rejects.toThrow(BadRequestException);
+
+    expect(mockGetSignedUrl).not.toHaveBeenCalled();
   });
 
   it('超大文件应拒绝', async () => {
@@ -232,8 +269,20 @@ describe('MediaService', () => {
 
   it('confirmUpload S3 对象不存在应返回 404', async () => {
     mockPrisma.media.findUnique.mockResolvedValue(makeMedia());
-    mockS3.send.mockRejectedValue(new Error('NoSuchKey'));
-    await expect(service.confirmUpload('m1', 'u1')).rejects.toThrow(NotFoundException);
+    mockS3.send.mockRejectedValue({ name: 'NoSuchKey', $metadata: { httpStatusCode: 404 } });
+    await expect(service.confirmUpload('m1', 'u1')).rejects.toMatchObject({
+      errorCode: ErrorCode.MEDIA_OBJECT_MISSING,
+      status: HttpStatus.NOT_FOUND,
+    });
+  });
+
+  it('confirmUpload 对象存储临时故障应原样抛出以便客户端重试确认', async () => {
+    mockPrisma.media.findUnique.mockResolvedValue(makeMedia());
+    mockS3.send.mockRejectedValue(new Error('storage unavailable'));
+
+    await expect(service.confirmUpload('m1', 'u1')).rejects.toThrow('storage unavailable');
+
+    expect(mockPrisma.media.updateMany).not.toHaveBeenCalled();
   });
 
   it('confirmUpload 应转 PROCESSING 并入队图片处理', async () => {
@@ -426,9 +475,7 @@ describe('MediaService', () => {
       key: 'uploads/avatar.jpg',
       status: 'FAILED',
     });
-    mockPrisma.user.findFirst.mockResolvedValue(null);
-    mockPrisma.post.findFirst.mockResolvedValue({ id: 'p1' });
-    mockPrisma.draft.findFirst.mockResolvedValue(null);
+    mockMediaReferences.filterUnreferenced.mockResolvedValueOnce([]);
 
     await expect(service.cleanupOrphanByUrl(url)).resolves.toBe(false);
 
@@ -436,29 +483,14 @@ describe('MediaService', () => {
     expect(mockPrisma.media.deleteMany).not.toHaveBeenCalled();
   });
 
-  it('cleanupOrphanMedia 在引用账本建立前不把 COMPLETED 图片列为清理对象', async () => {
-    mockPrisma.user.findMany.mockResolvedValue([{ avatar: null }]);
-    mockPrisma.post.findMany.mockResolvedValue([
-      { id: 'p1', content: '![keep](https://test.cos.com/test-bucket/uploads/keep/a.jpg)' },
-    ]);
-    mockPrisma.draft.findMany.mockResolvedValue([]);
-    mockPrisma.media.findMany.mockResolvedValue([
-      {
-        id: 'm1',
-        key: 'uploads/2099/01/01/u1/photo.jpg',
-        url: 'https://test.cos.com/test-bucket/uploads/2099/01/01/u1/photo.jpg',
-        status: 'COMPLETED',
-      },
-    ]);
+  it('cleanupOrphanMedia 默认不把 COMPLETED 图片列为清理对象', async () => {
+    mockPrisma.media.findMany.mockResolvedValue([]);
     mockS3.send.mockResolvedValue({});
     mockPrisma.media.deleteMany.mockResolvedValue({ count: 1 });
 
     await service.cleanupOrphanMedia();
 
-    expect(mockPrisma.user.findMany).toHaveBeenCalledWith({
-      where: { avatar: { not: null }, deletedAt: null },
-      select: { avatar: true },
-    });
+    expect(mockMediaReferences.reconcileAllMarkers).toHaveBeenCalled();
     expect(mockPrisma.media.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
@@ -487,6 +519,7 @@ describe('MediaService', () => {
         status: 'FAILED',
       },
     ]);
+    mockMediaReferences.filterUnreferenced.mockResolvedValueOnce([]);
 
     await service.cleanupOrphanMedia();
 
@@ -503,6 +536,7 @@ describe('MediaService', () => {
     mockPrisma.media.findMany.mockResolvedValue([
       { id: 'm1', key: 'uploads/2099/01/01/u1/private.jpg', url, status: 'FAILED' },
     ]);
+    mockMediaReferences.filterUnreferenced.mockResolvedValueOnce([]);
 
     await service.cleanupOrphanMedia();
 
@@ -519,6 +553,7 @@ describe('MediaService', () => {
     mockPrisma.media.findMany.mockResolvedValue([
       { id: 'm1', key: 'uploads/2099/01/01/u1/comment.webp', url, status: 'FAILED' },
     ]);
+    mockMediaReferences.filterUnreferenced.mockResolvedValueOnce([]);
 
     await service.cleanupOrphanMedia();
 
@@ -575,14 +610,14 @@ describe('MediaService', () => {
     expect(keys).toEqual(['uploads/2099/01/01/u1/icon.svg']);
   });
 
-  it('cleanupOrphanMedia 引用集合为空时应跳过清理', async () => {
+  it('cleanupOrphanMedia 无过期候选时应跳过对象存储清理', async () => {
     mockPrisma.user.findMany.mockResolvedValue([]);
     mockPrisma.post.findMany.mockResolvedValue([]);
     mockPrisma.draft.findMany.mockResolvedValue([]);
 
     await service.cleanupOrphanMedia();
 
-    expect(mockPrisma.media.findMany).not.toHaveBeenCalled();
+    expect(mockPrisma.media.findMany).toHaveBeenCalled();
     expect(mockS3.send).not.toHaveBeenCalled();
   });
 
@@ -611,6 +646,7 @@ describe('MediaService', () => {
     mockPrisma.media.findMany.mockResolvedValue([
       { id: 'm1', key: 'uploads/2099/01/01/u1/angle.jpg', url, status: 'FAILED' },
     ]);
+    mockMediaReferences.filterUnreferenced.mockResolvedValueOnce([]);
 
     await service.cleanupOrphanMedia();
 

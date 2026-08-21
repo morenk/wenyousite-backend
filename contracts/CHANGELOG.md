@@ -1,5 +1,11 @@
 # API 合同变更
 
+## 5.4.0-dev.20260821.1
+
+- 新增 `POST /media/:id/upload-url`：仅为本人仍处于 `UPLOADING` 的媒体重新签发 PUT 地址，保持原 `mediaId`、对象 key 和公开 URL，不重复创建记录或计入小时上传配额。
+- `POST /media/upload-done` 在对象尚不存在时返回 HTTP 404 / `MEDIA_OBJECT_MISSING`，客户端可据此重签并重传同一媒体；确认的幂等和处理状态响应保持不变。
+- 媒体引用新增头像、帖子正文和草稿正文的结构化关系，并以 `Media.orphanedAt` 维护已完成媒体的引用宽限期；现有 URL 响应与私聊、PRIVATE 内容访问语义不变。
+
 ## 5.3.0-dev.20260820.1
 
 - 站内传送门 v1 接受 `wenyou.site`、`www.wenyou.site` 与相对坐标并统一规范化为相对地址；命名标签支持反斜线和方括号转义，裸地址要求完整边界。

@@ -8,6 +8,7 @@ import { DiceService } from '../dice/dice.service';
 import { OutboxService } from '../outbox/outbox.service';
 import { StickerContentService } from '../stickers/sticker-content.service';
 import { ErrorCode } from '../common/exceptions/error-codes';
+import { MediaReferenceService } from '../media/media-reference.service';
 
 const mockPrisma = {
   $transaction: jest.fn(),
@@ -81,6 +82,13 @@ describe('SubthreadsService', () => {
             recordUsage: jest.fn().mockResolvedValue(undefined),
           },
         },
+        {
+          provide: MediaReferenceService,
+          useValue: {
+            syncPostContent: jest.fn().mockResolvedValue(undefined),
+            releaseSubthreadContent: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
     service = module.get<SubthreadsService>(SubthreadsService);
@@ -93,6 +101,7 @@ describe('SubthreadsService', () => {
       ownerId: 'u1',
     });
     mockPrisma.subthread.findFirst.mockResolvedValue(null);
+    mockPrisma.$transaction.mockImplementation(async (fn) => fn(mockPrisma));
   });
 
   describe('create', () => {

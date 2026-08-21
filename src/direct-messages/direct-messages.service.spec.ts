@@ -52,6 +52,7 @@ describe('DirectMessagesService', () => {
     directMessage: {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
+      findMany: jest.fn(),
       create: jest.fn(),
       updateMany: jest.fn(),
       deleteMany: jest.fn(),
@@ -80,6 +81,7 @@ describe('DirectMessagesService', () => {
     recordUsage: jest.fn(),
   };
   const events = { created: jest.fn() };
+  const mediaReferences = { reconcileMediaIds: jest.fn() };
   let service: DirectMessagesService;
 
   beforeEach(() => {
@@ -89,6 +91,7 @@ describe('DirectMessagesService', () => {
     prisma.userBlock.findFirst.mockResolvedValue(null);
     prisma.userFollow.count.mockResolvedValue(0);
     prisma.directMessage.findUnique.mockResolvedValue(null);
+    prisma.directMessage.findMany.mockResolvedValue([]);
     prisma.directConversationParticipant.updateMany.mockResolvedValue({ count: 2 });
     prisma.directMessage.updateMany.mockResolvedValue({ count: 1 });
     prisma.directMessage.deleteMany.mockResolvedValue({ count: 1 });
@@ -106,6 +109,7 @@ describe('DirectMessagesService', () => {
       queries as unknown as DirectMessageQueryService,
       stickers as unknown as StickersService,
       events as unknown as DirectMessageEventsService,
+      mediaReferences as never,
     );
   });
 
@@ -518,14 +522,14 @@ describe('DirectMessagesService', () => {
   it('待处理请求仅接收方可处理，并防止并发抢占', async () => {
     prisma.directConversation.findUnique.mockResolvedValue(routingConversation());
 
-    await expect(
-      service.handleRequest('c1', { id: 'u1' }, 'ACCEPT'),
-    ).rejects.toMatchObject({ errorCode: ErrorCode.DIRECT_MESSAGE_NOT_ALLOWED });
+    await expect(service.handleRequest('c1', { id: 'u1' }, 'ACCEPT')).rejects.toMatchObject({
+      errorCode: ErrorCode.DIRECT_MESSAGE_NOT_ALLOWED,
+    });
 
     prisma.directConversation.updateMany.mockResolvedValueOnce({ count: 0 });
-    await expect(
-      service.handleRequest('c1', { id: 'u2' }, 'ACCEPT'),
-    ).rejects.toMatchObject({ errorCode: ErrorCode.DIRECT_MESSAGE_NOT_ALLOWED });
+    await expect(service.handleRequest('c1', { id: 'u2' }, 'ACCEPT')).rejects.toMatchObject({
+      errorCode: ErrorCode.DIRECT_MESSAGE_NOT_ALLOWED,
+    });
   });
 
   it('处理请求和撤回消息都不向非参与者暴露资源存在性', async () => {

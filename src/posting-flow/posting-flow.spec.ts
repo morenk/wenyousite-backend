@@ -23,6 +23,7 @@ import { ThreadCreateIdempotencyService } from '../threads/thread-create-idempot
 import { OutboxService } from '../outbox/outbox.service';
 import { StickerContentService } from '../stickers/sticker-content.service';
 import { ThreadCategoriesService } from '../taxonomy/thread-categories.service';
+import { MediaReferenceService } from '../media/media-reference.service';
 
 // ============ Mock 基础设施 ============
 const createMockPrisma = () => ({
@@ -251,6 +252,17 @@ describe('发帖全流程集成测试', () => {
         { provide: CacheService, useValue: mockCache },
         { provide: OutboxService, useValue: mockOutbox },
         { provide: ThreadCategoriesService, useValue: mockCategories },
+        {
+          provide: MediaReferenceService,
+          useValue: {
+            syncPostContent: jest.fn().mockResolvedValue(undefined),
+            syncDraftContent: jest.fn().mockResolvedValue(undefined),
+            releasePostContent: jest.fn().mockResolvedValue(undefined),
+            releaseDraftContent: jest.fn().mockResolvedValue(undefined),
+            releaseSubthreadContent: jest.fn().mockResolvedValue(undefined),
+            releaseThreadContent: jest.fn().mockResolvedValue(undefined),
+          },
+        },
         {
           provide: StickerContentService,
           useValue: {

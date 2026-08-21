@@ -17,6 +17,7 @@ import { OutboxService } from '../outbox/outbox.service';
 import { StickerContentService } from '../stickers/sticker-content.service';
 import { ThreadCreateIdempotencyService } from './thread-create-idempotency.service';
 import { ThreadCategoriesService } from '../taxonomy/thread-categories.service';
+import { MediaReferenceService } from '../media/media-reference.service';
 
 const mockCategories = {
   assertSelectable: jest.fn(async (slug: string) => slug.trim().toUpperCase()),
@@ -125,6 +126,13 @@ describe('ThreadsService', () => {
         { provide: CacheService, useValue: mockCache },
         { provide: OutboxService, useValue: mockOutbox },
         { provide: ThreadCategoriesService, useValue: mockCategories },
+        {
+          provide: MediaReferenceService,
+          useValue: {
+            syncPostContent: jest.fn().mockResolvedValue(undefined),
+            releaseThreadContent: jest.fn().mockResolvedValue(undefined),
+          },
+        },
         {
           provide: StickerContentService,
           useValue: { assertContentAllowed: jest.fn().mockResolvedValue([]) },
