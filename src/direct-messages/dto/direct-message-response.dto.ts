@@ -93,7 +93,11 @@ export class DirectMessagePreviewResponseDto {
   @ApiProperty()
   senderId!: string;
 
-  @ApiProperty({ type: String, nullable: true })
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: '去除传送门语法并隐藏邀请 token 后的纯文本预览，最多 120 字符',
+  })
   contentPreview!: string | null;
 
   @ApiProperty()

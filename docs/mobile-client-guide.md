@@ -102,8 +102,9 @@ OpenAPI 为兼容 Web 把该头标为 optional；省略或传未知值会创建 
 - 上传遵循“预签名 PUT → `upload-done` → 查询状态”；仅在 `COMPLETED` 后使用衍生图，列表优先 `thumbnailUrl`，详情优先 `mediumUrl`，为空或失败时回退 `url`。不得猜测对象键。
 - 个人主页背景包含根级 Web 3:1 资产和可空 `mobile` 2:1 资产；移动端优先选择 `mobile`，历史数据为空时回退根级资产，整体为 null 时不预留背景舞台。双画幅设置与移除仍是 planned，客户端实现前也必须消费 `mobile-v1-golden-fixtures.json` 的 `profileCovers` 旅程。
 - 主题帖、楼层和回复使用 Markdown v3 工具栏能力白名单。客户端必须消费 [`markdown-v3-fixtures.json`](../contracts/markdown-v3-fixtures.json)、[`markdown-v3-nodes-fixtures.json`](../contracts/markdown-v3-nodes-fixtures.json) 与 [`markdown-editor-roundtrip-v2-fixtures.json`](../contracts/markdown-editor-roundtrip-v2-fixtures.json)，覆盖规范化、允许/拒绝、字面文本降级、扩展节点和 round-trip；第三方解析器支持的表格等语法不得自行扩大产品能力。
-- 动态标题保持纯文本；正文和评论仍是字符串，不进入通用 Markdown 渲染链路，但应消费 [`internal-reference-v1-fixtures.json`](../contracts/internal-reference-v1-fixtures.json)，只识别 `[名称](合法站内坐标)` 与裸站内坐标。坐标包括主题、子贴、楼层、楼中楼、具体回复和 16 位私密邀请 `/join/{token}`；其他 Markdown/外链保持字面文本。传送门同页导航、目标不可见时交给既有详情错误态，不预取目标元数据。
+- 动态标题保持纯文本；动态正文、评论和私聊正文仍是字符串，不进入通用 Markdown 渲染链路，但应消费 [`internal-reference-v1-fixtures.json`](../contracts/internal-reference-v1-fixtures.json)，只识别 `[名称](合法站内坐标)` 与裸站内坐标。输入接受 `wenyou.site`、`www.wenyou.site` 和相对坐标并规范化为相对地址；`post + subthread` 以 `post` 为准，转义名称与裸地址边界以 fixture 为准。其他 Markdown/外链保持字面文本。传送门同页导航、目标不可见时交给既有详情错误态，不预取目标元数据。
 - 编辑器必须消费站内传送门 fixture 的 `editorPasteCases`：剪贴板纯文本整体是一个合法坐标时，以当前选区文字或默认名称“传送门”插入规范化相对链接并立即显示为传送门；混合文本、站外地址、非法邀请 token 及带查询参数的邀请沿用普通粘贴。邀请 token 是访问凭据；除用户明确保存的正文或草稿外，不得把它写入日志、诊断、分析事件或独立缓存，也不得用于预取私密帖元数据。
+- 私聊会话列表消费 `directMessagePreviewCases`：普通传送门显示名称，邀请或残留 `/join/{token}` 统一显示“邀请传送门”。完整消息与复制使用原始字符串；私聊邀请不弹公开分享确认，公开主题、楼层、回复、动态和评论则在内容首次提交或邀请内容变化后确认。
 - 动态最多九张图片；评论可使用文字、单张图片或单个收藏表情，图片与表情互斥。
 - 动态楼中楼只有两层视觉结构；筛选回复者时仍保留所属主评论上下文。未知作者、删除媒体和未知枚举都必须安全降级。
 - 动态通知目标携带 `momentCommentId` 时，详情页调用 `momentsCommentContext` 直接取得 `root`、`target` 和当前可见 `replyCount`。主评论目标直接注入并定位；楼中楼目标同时注入所属主评论和目标回复、展开后定位，不扫描评论或回复分页。主评论已删除但目标回复仍可见时保留服务端墓碑；404 保留动态详情与普通评论且不自动重试，临时失败保留内容并允许重试。客户端必须消费 `mobile-v1-golden-fixtures.json` 的 `momentCommentNavigation` 旅程。

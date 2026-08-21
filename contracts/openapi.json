@@ -17224,7 +17224,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.2.0-dev.20260818.1",
+    "version": "5.3.0-dev.20260820.1",
     "contact": {}
   },
   "tags": [
@@ -25430,7 +25430,8 @@
           },
           "contentPreview": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "description": "去除传送门语法并隐藏邀请 token 后的纯文本预览，最多 120 字符"
           },
           "hasImage": {
             "type": "boolean"

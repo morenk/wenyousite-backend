@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { publicUserSummarySelect } from '../common/user-summary';
+import { formatDirectMessagePreview } from '../common/internal-reference';
 import { mediaVariantUrls } from '../media/media-response.mapper';
 
 export const routingConversationSelect = {
@@ -160,7 +161,9 @@ export function mapDirectConversation(
           senderId: lastMessage.senderId,
           contentPreview: lastMessage.recalledAt
             ? null
-            : lastMessage.content?.slice(0, 120) ?? (lastMessage.stickerAssetId ? '[表情]' : null),
+            : lastMessage.content
+              ? formatDirectMessagePreview(lastMessage.content)
+              : (lastMessage.stickerAssetId ? '[表情]' : null),
           hasImage: !lastMessage.recalledAt && Boolean(lastMessage.mediaId || lastMessage.stickerAssetId),
           hasSticker: !lastMessage.recalledAt && Boolean(lastMessage.stickerAssetId),
           isRecalled: Boolean(lastMessage.recalledAt),

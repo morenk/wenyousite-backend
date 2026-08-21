@@ -1,5 +1,12 @@
 # API 合同变更
 
+## 5.3.0-dev.20260820.1
+
+- 站内传送门 v1 接受 `wenyou.site`、`www.wenyou.site` 与相对坐标并统一规范化为相对地址；命名标签支持反斜线和方括号转义，裸地址要求完整边界。
+- 同一主题坐标同时含 `post` 与 `subthread` 时固定以 `post` 为准并清理多余参数；分享地址只携带内容坐标，不携带排序等界面状态。
+- 私聊 `contentPreview` 字段形状不变，语义调整为去除传送门语法、规范化空白并隐藏邀请 token 后的 120 字符纯文本；完整消息正文保持原字符串。Outbox 与 FCM 仍只携带必要 ID。
+- 站内传送门 fixture 新增 `www`、转义标签、裸地址边界、精确坐标优先级和私聊预览脱敏用例；旧字符串正文无需迁移。
+
 ## 5.2.0-dev.20260818.1
 
 - 动态收藏接入私有收藏夹：`POST /moments/:id/bookmark` 可选传 `folderId`，新增 `PATCH /moments/:id/bookmark` 移动收藏，`GET /moments/bookmarks` 可按 `folderId` 筛选并仅在本人响应附带 `bookmarkFolderId`。

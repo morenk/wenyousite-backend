@@ -167,6 +167,37 @@ describe('direct message mappers', () => {
     );
   });
 
+  it.each([
+    ['命名传送门', '[主线](/threads/cmsewdo0h000x7qv6aa77ll1v)  继续', '主线 继续'],
+    [
+      '裸 www 传送门',
+      'https://www.wenyou.site/threads/cmsewdo0h000x7qv6aa77ll1v',
+      '传送门',
+    ],
+    ['命名邀请', '[加入](/join/AbCdEfGh_123-XYZ)', '邀请传送门'],
+    ['裸邀请', 'https://wenyou.site/join/AbCdEfGh_123-XYZ', '邀请传送门'],
+    ['畸形邀请', '[旧邀请](/join/too-short)', '邀请传送门'],
+  ])('会话列表把%s投影为脱敏纯文本', (_name, content, expected) => {
+    const result = mapDirectConversation(
+      conversation({
+        messages: [{
+          id: 'm2',
+          senderId: 'u1',
+          content,
+          mediaId: null,
+          stickerAssetId: null,
+          recalledAt: null,
+          createdAt,
+        }],
+      }) as never,
+      'u1',
+      false,
+    );
+
+    expect(result.lastMessage?.contentPreview).toBe(expected);
+    expect(result.lastMessage?.contentPreview).not.toMatch(/\/join\/[A-Za-z0-9_-]+/u);
+  });
+
   it('注销用户关闭联系能力，撤回与表情预览不会泄露正文', () => {
     const result = mapDirectConversation(
       conversation({
