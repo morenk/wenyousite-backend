@@ -1,8 +1,10 @@
 import * as fs from 'node:fs';
 import {
   formatInternalReferencePreview,
+  formatDirectMessagePreview,
   INTERNAL_REFERENCE_DEFAULT_LABEL,
   parseInternalReference,
+  serializeInternalReference,
 } from '../src/common/internal-reference';
 
 type ReferenceCase = {
@@ -31,6 +33,12 @@ type EditorPasteCase = {
   serialized?: string;
 };
 
+type DirectMessagePreviewCase = {
+  id: string;
+  source: string;
+  preview: string;
+};
+
 type Fixture = {
   contract: string;
   version: number;
@@ -39,6 +47,7 @@ type Fixture = {
   cases: ReferenceCase[];
   renderingCases: RenderingCase[];
   editorPasteCases: EditorPasteCase[];
+  directMessagePreviewCases: DirectMessagePreviewCase[];
 };
 
 const fixture = JSON.parse(
@@ -84,7 +93,7 @@ for (const testCase of fixture.editorPasteCases) {
   }
   if (!parsed) continue;
   const label = testCase.selectedText.trim() || INTERNAL_REFERENCE_DEFAULT_LABEL;
-  const serialized = `[${label}](${parsed.href})`;
+  const serialized = serializeInternalReference(label, parsed.href);
   if (
     parsed.kind !== testCase.kind ||
     parsed.href !== testCase.canonical ||
@@ -95,7 +104,21 @@ for (const testCase of fixture.editorPasteCases) {
   }
 }
 
-const allCases = [...fixture.cases, ...fixture.renderingCases, ...fixture.editorPasteCases];
+for (const testCase of fixture.directMessagePreviewCases) {
+  if (formatDirectMessagePreview(testCase.source) !== testCase.preview) {
+    failures.push(`${testCase.id}: 私聊预览与运行时不一致`);
+  }
+  if (/\/join\/[A-Za-z0-9_-]+/iu.test(testCase.preview)) {
+    failures.push(`${testCase.id}: 私聊预览仍暴露邀请 token`);
+  }
+}
+
+const allCases = [
+  ...fixture.cases,
+  ...fixture.renderingCases,
+  ...fixture.editorPasteCases,
+  ...fixture.directMessagePreviewCases,
+];
 if (new Set(allCases.map((item) => item.id)).size !== allCases.length) {
   failures.push('全部 case id 必须存在且唯一');
 }
@@ -108,6 +131,11 @@ for (const requiredId of [
   'paste-invite-absolute-default-label',
   'paste-invite-relative-selected-label',
   'paste-mixed-text-falls-through',
+  'thread-www-absolute',
+  'escaped-label',
+  'absolute-left-boundary',
+  'direct-message-named-invite',
+  'direct-message-truncated-invite',
 ]) {
   if (!allCases.some((item) => item.id === requiredId)) {
     failures.push(`缺少邀请传送门必需用例 ${requiredId}`);

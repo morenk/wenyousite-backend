@@ -1,9 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
+  formatDirectMessagePreview,
   formatInternalReferencePreview,
   INTERNAL_REFERENCE_DEFAULT_LABEL,
   parseInternalReference,
+  serializeInternalReference,
 } from './internal-reference';
 
 type Fixture = {
@@ -28,6 +30,11 @@ type Fixture = {
     canonical?: string;
     label?: string;
     serialized?: string;
+  }>;
+  directMessagePreviewCases: Array<{
+    id: string;
+    source: string;
+    preview: string;
   }>;
 };
 
@@ -60,7 +67,11 @@ describe('internal reference contract', () => {
       expect(parsed?.href).toBe(canonical);
       const resolvedLabel = selectedText.trim() || INTERNAL_REFERENCE_DEFAULT_LABEL;
       expect(resolvedLabel).toBe(label);
-      expect(`[${resolvedLabel}](${parsed?.href})`).toBe(serialized);
+      expect(serializeInternalReference(resolvedLabel, parsed?.href ?? '')).toBe(serialized);
     },
   );
+
+  it.each(fixture.directMessagePreviewCases)('$id direct message preview', ({ source, preview }) => {
+    expect(formatDirectMessagePreview(source)).toBe(preview);
+  });
 });

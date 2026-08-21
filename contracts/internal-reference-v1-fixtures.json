@@ -19,6 +19,13 @@
       "canonical": "/threads/cmsewdo0h000x7qv6aa77ll1v"
     },
     {
+      "id": "thread-www-absolute",
+      "input": "https://www.wenyou.site/threads/cmsewdo0h000x7qv6aa77ll1v",
+      "recognized": true,
+      "kind": "THREAD",
+      "canonical": "/threads/cmsewdo0h000x7qv6aa77ll1v"
+    },
+    {
       "id": "subthread",
       "input": "/threads/cmsewdo0h000x7qv6aa77ll1v?subthread=cmsewdp4i00147qv6gjc85l9p",
       "recognized": true,
@@ -78,7 +85,9 @@
     {
       "id": "ambiguous-thread-query",
       "input": "/threads/cmsewdo0h000x7qv6aa77ll1v?subthread=cmsewdp4i00147qv6gjc85l9p&post=cmsewdqcr001a7qv6cy0y38bd",
-      "recognized": false
+      "recognized": true,
+      "kind": "FLOOR",
+      "canonical": "/threads/cmsewdo0h000x7qv6aa77ll1v?post=cmsewdqcr001a7qv6cy0y38bd"
     },
     {
       "id": "unknown-query",
@@ -109,6 +118,36 @@
       "source": "私密入口：https://wenyou.site/join/AbCdEfGh_123-XYZ",
       "visibleText": "私密入口：传送门",
       "portalCount": 1
+    },
+    {
+      "id": "bare-www",
+      "source": "入口：https://www.wenyou.site/threads/cmsewdo0h000x7qv6aa77ll1v",
+      "visibleText": "入口：传送门",
+      "portalCount": 1
+    },
+    {
+      "id": "escaped-label",
+      "source": "查看 [A \\[x\\] \\\\ path](/threads/cmsewdo0h000x7qv6aa77ll1v)",
+      "visibleText": "查看 A [x] \\ path",
+      "portalCount": 1
+    },
+    {
+      "id": "absolute-left-boundary",
+      "source": "前缀https://wenyou.site/threads/cmsewdo0h000x7qv6aa77ll1v",
+      "visibleText": "前缀https://wenyou.site/threads/cmsewdo0h000x7qv6aa77ll1v",
+      "portalCount": 0
+    },
+    {
+      "id": "relative-left-boundary",
+      "source": "x/threads/cmsewdo0h000x7qv6aa77ll1v",
+      "visibleText": "x/threads/cmsewdo0h000x7qv6aa77ll1v",
+      "portalCount": 0
+    },
+    {
+      "id": "bare-right-boundary",
+      "source": "https://wenyou.site/threads/cmsewdo0h000x7qv6aa77ll1v/extra",
+      "visibleText": "https://wenyou.site/threads/cmsewdo0h000x7qv6aa77ll1v/extra",
+      "portalCount": 0
     },
     {
       "id": "ordinary-markdown-is-literal-in-plain-content",
@@ -155,6 +194,16 @@
       "serialized": "[设定入口](/threads/cmsewdo0h000x7qv6aa77ll1v)"
     },
     {
+      "id": "paste-www-selected-escaped-label",
+      "clipboardText": "https://www.wenyou.site/threads/cmsewdo0h000x7qv6aa77ll1v",
+      "selectedText": "A [x] \\ path",
+      "handled": true,
+      "kind": "THREAD",
+      "canonical": "/threads/cmsewdo0h000x7qv6aa77ll1v",
+      "label": "A [x] \\ path",
+      "serialized": "[A \\[x\\] \\\\ path](/threads/cmsewdo0h000x7qv6aa77ll1v)"
+    },
+    {
       "id": "paste-invite-invalid-token-falls-through",
       "clipboardText": "/join/too-short",
       "selectedText": "",
@@ -177,6 +226,43 @@
       "clipboardText": "https://example.com/threads/cmsewdo0h000x7qv6aa77ll1v",
       "selectedText": "",
       "handled": false
+    }
+  ],
+  "directMessagePreviewCases": [
+    {
+      "id": "direct-message-named-thread",
+      "source": "看看 [主线](/threads/cmsewdo0h000x7qv6aa77ll1v)  继续",
+      "preview": "看看 主线 继续"
+    },
+    {
+      "id": "direct-message-bare-www-thread",
+      "source": "看看 https://www.wenyou.site/threads/cmsewdo0h000x7qv6aa77ll1v",
+      "preview": "看看 传送门"
+    },
+    {
+      "id": "direct-message-named-invite",
+      "source": "请用 [加入](/join/AbCdEfGh_123-XYZ)",
+      "preview": "请用 邀请传送门"
+    },
+    {
+      "id": "direct-message-bare-invite",
+      "source": "请用 https://www.wenyou.site/join/AbCdEfGh_123-XYZ",
+      "preview": "请用 邀请传送门"
+    },
+    {
+      "id": "direct-message-malformed-invite",
+      "source": "失效 [旧邀请](/join/too-short)",
+      "preview": "失效 邀请传送门"
+    },
+    {
+      "id": "direct-message-truncated-invite",
+      "source": "截断 https://www.wenyou.site/join/AbCdEfGhIj",
+      "preview": "截断 邀请传送门"
+    },
+    {
+      "id": "direct-message-normalized-whitespace",
+      "source": "第一行\n\n[入口](/threads/cmsewdo0h000x7qv6aa77ll1v)\t继续",
+      "preview": "第一行 入口 继续"
     }
   ]
 }
