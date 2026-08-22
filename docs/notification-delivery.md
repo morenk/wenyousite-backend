@@ -84,7 +84,7 @@
 3. 合并到 `Set` → 去重
 4. 双向过滤拉黑（`authorBlockedIds` + `blockedAuthorIds`）
 5. 显式 mention 已覆盖的用户从同一 `post.created` 事件的 `new_post` / `reply` 收件人中移除，避免一次发帖产生重复提醒
-6. 通知队列使用稳定 `eventKey`，按 `userId + eventKey` 唯一，BullMQ 重试安全
+6. 通知投递使用稳定 `eventKey`，按 `userId + eventKey` 唯一，Outbox 重放安全
 
 候选接口与正文解析还会校验主题帖访问权限，并在提及记录写入前过滤双向拉黑用户，避免候选菜单和 `PostMention` 留下最终不会投递的目标。
 
@@ -139,7 +139,7 @@ const followers = await this.prisma.userFollow.findMany({
 
 1. 手动指定：传入 `recipientIds`，自动过滤已注销用户
 2. 条件筛选：传入 `conditions` 对象（role / createdAfter / createdBefore），AND 逻辑组合
-3. 全站广播：不传筛选参数，遍历所有 `deletedAt = null` 的用户，500 条/批分批入队
+3. 全站广播：不传筛选参数，遍历所有 `deletedAt = null` 的用户，500 条/批分批落库
 
 **配套端点**：
 
@@ -157,7 +157,7 @@ const followers = await this.prisma.userFollow.findMany({
 - `threadId` 为可选的跳转目标
 
 - 不检查拉黑关系
-- 使用 BullMQ 异步投递，与其他通知共用 `notification` 队列
+- 通过统一投递服务分批、幂等地写入 PostgreSQL；移动推送仍是独立的尽力提示队列
 
 ---
 
@@ -304,67 +304,28 @@ WHERE threadId = {threadId}
 | 不发帖         | 双向存在拉黑关系时拒绝发帖                                        | `src/posts/posting-policy.service.ts` |
 | 关系类通知     | thread_created / follow / like 同样执行双向拉黑过滤                | 对应 thread/user 事件监听器 |
 
-> **注意**：拉黑检查在 `queue.add()` 之前完成，而非在 Processor 中再次检查。这意味着接收者列表在入队时已经确定且干净。
+> **注意**：拉黑检查在调用 `NotificationProducer.notify()` 之前完成，投递服务不会重新扩大接收者集合。
 
 ---
 
-## 队列投递
+## 权威通知投递
 
-### 生产者 → 队列 → 消费者
+### Outbox → 投递服务 → PostgreSQL
 
-```
-NotificationProducer.notify()         BullMQ 'notification'        NotificationProcessor
-     │                                       队列
-     │  queue.add({ type, recipients,    ╔═══════════════╗
-     │    content, postId, threadId,     ║  Redis List   ║
-     │    fromUserId })                  ╚═══════════════╝
-     │                                                              │
-     │                                                              ▼
-     │                                                        createMany()
-     │                                                              │
-     │                                                              ▼
-     └───────────────────────────────────────────────────  Prisma.notification
+```text
+domain_outbox
+     │ OutboxDispatcher.emitAsync（至少一次）
+     ▼
+业务 Listener → NotificationProducer.notify()
+     │
+     ▼
+NotificationDeliveryService
+     ├─ PostgreSQL：按 userId + eventKey 幂等创建/聚合通知（权威）
+     └─ BullMQ mobile-push：尽力安排隐私提示（非权威）
 ```
 
-**生产者**（`src/notifications/notification.producer.ts`）：
+`NotificationProducer` 是各业务模块的稳定入口，空接收者直接返回；非空调用会等待 `NotificationDeliveryService` 完成数据库写入。普通通知批量使用 `createMany(skipDuplicates)`，并在写入前查询已存在的收件人事件键；点赞通知使用 Serializable 事务聚合，事务冲突最多本地重试三次。任何数据库失败都会向上传播，使对应 Outbox 保持未确认并按退避重放。
 
-```typescript
-async notify(type: string, recipients: string[], content: string, opts?) {
-  if (recipients.length === 0) return;         // 空列表直接跳过
-  await this.notificationQueue.add(type, {
-    type, recipients, content,                  // 载荷：类型 + 接收者数组 + 摘要文本
-    ...opts,                                    // 可选 postId / threadId / fromUserId
-  }, {
-    removeOnComplete: { age: 3600 * 24 },      // 成功任务 24h 后清理
-    removeOnFail: { age: 3600 * 24 * 7 },      // 失败任务 7d 后清理
-  });
-}
-```
+数据库提交后，投递服务按通知 ID 与稳定事件键调用 `MobilePushProducer`。移动推送入队失败只记录 `notificationId` 与机器错误码，不回滚 PostgreSQL 通知，也不记录正文、接收者资料或 token。客户端必须把推送视为提示，以通知列表和未读数 API 收敛。
 
-**消费者**（`src/notifications/notification.processor.ts`）：
-
-```typescript
-private async createNotifications(userIds, type, content, postId?, threadId?, fromUserId?) {
-  if (userIds.length === 0) return;
-  const data = userIds.map((userId) => ({
-    userId, type, content, postId, threadId, fromUserId
-  }));
-  await this.prisma.notification.createMany({ data });
-}
-```
-
-**重试策略**（`src/notifications/notifications.module.ts`）：
-
-| 参数                   | 值            | 说明                         |
-| ---------------------- | ------------- | ---------------------------- |
-| `attempts`             | 3             | 最多 3 次重试                |
-| `backoff.type`         | `exponential` | 指数退避                     |
-| `backoff.delay`        | 5000ms        | 初始延迟 5 秒                |
-| `removeOnComplete.age` | 86400s        | 成功任务保留 24 小时用于调试 |
-
-**队列配置**：
-
-| 模块            | 位置                            | 用途                                                    |
-| --------------- | ------------------------------- | ------------------------------------------------------- |
-| `NotificationsModule` | `src/notifications/notifications.module.ts` | 注册队列、默认重试配置、生产者与消费者 |
-| `app.module.ts` | 根模块                          | 全局注册 BullModule.forRoot（Redis 连接），队列由此接入 |
+`NotificationsModule` 只注册通知查询、投递服务与统一入口；`app.module.ts` 的 BullMQ 根连接继续服务图片、表情和 `mobile-push` 队列，不承担权威站内通知持久化。

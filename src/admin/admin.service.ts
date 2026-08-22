@@ -53,7 +53,7 @@ export class AdminService {
     if (totalCount === 0) return { recipientCount: 0 };
     const eventKey = `system:${adminId}:${randomUUID()}`;
 
-    // 分批获取用户 ID 并入队
+    // 分批获取用户 ID，并在每批权威通知完成落库后推进游标
     let cursor: string | undefined;
     let sentCount = 0;
     let hasMore = true;

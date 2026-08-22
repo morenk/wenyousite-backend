@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
+import type JSONTransport from 'nodemailer/lib/json-transport';
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>'"]/g, (character) => ({
@@ -21,8 +22,15 @@ export class EmailService {
   constructor(private config: ConfigService) {
     const host = this.config.get<string>('ses.host');
     const user = this.config.get<string>('ses.user');
+    const testMode = this.config.get<string>('app.nodeEnv') === 'test';
     this.logger.log(`SMTP 初始化: ${host} (${user})`);
 
+    if (testMode) {
+      this.transporter = nodemailer.createTransport({
+        jsonTransport: true,
+      } satisfies JSONTransport.Options);
+      return;
+    }
     this.transporter = nodemailer.createTransport({
       host,
       port: this.config.get<number>('ses.port'),
@@ -31,6 +39,8 @@ export class EmailService {
         user,
         pass: this.config.get<string>('ses.pass'),
       },
+      disableFileAccess: true,
+      disableUrlAccess: true,
     });
   }
 

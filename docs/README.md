@@ -50,7 +50,7 @@
 | [bookmarks](./modules/bookmarks.md)             | 收藏       | 用户收藏主题帖，公开/私密帖                            |
 | [reports](./modules/reports.md)                 | 举报       | 公开目标举报、证据快照与原子结案                       |
 | [admin](./modules/admin.md)                     | 管理后台   | 数据看板、两级权限、用户处罚、内容处置、审计与系统通知 |
-| [jobs](./modules/jobs.md)                       | 任务队列   | BullMQ 通知队列、图片处理队列、定时清理                |
+| [jobs](./modules/jobs.md)                       | 任务队列   | Outbox、图片/表情/推送队列、恢复与定时清理             |
 
 ## 快速查找
 

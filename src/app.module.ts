@@ -43,6 +43,7 @@ import { EconomyModule } from './economy/economy.module';
 import { ActivityModule } from './activity/activity.module';
 import { TaxonomyModule } from './taxonomy/taxonomy.module';
 import { MomentsModule } from './moments/moments.module';
+import { SentryModule } from '@sentry/nestjs/setup';
 
 /** 构建 Pino 传输配置：开发环境 colorized 控制台，生产环境支持可选文件日志 */
 function buildPinoTransport(logLevel: string, nodeEnv: string, logFileDir?: string) {
@@ -72,6 +73,7 @@ function buildPinoTransport(logLevel: string, nodeEnv: string, logFileDir?: stri
 /** 根模块：注册所有特性模块和全局功能 */
 @Module({
   imports: [
+    SentryModule.forRoot(),
     // 环境变量配置
     ConfigModule.forRoot({
       isGlobal: true,
@@ -97,8 +99,19 @@ function buildPinoTransport(logLevel: string, nodeEnv: string, logFileDir?: stri
               `req.headers['x-refresh-token']`,
             ],
             serializers: {
-              req: (req: any) => ({ id: req.id, method: req.method, url: req.url }),
+              req: (req: any) => ({
+                id: req.id,
+                method: req.method,
+                route: req.routeOptions?.url ?? String(req.url ?? '').split('?', 1)[0],
+              }),
               res: (res: any) => ({ statusCode: res.statusCode }),
+              err: (error: any) => ({
+                type: error?.constructor?.name ?? 'Error',
+                stack:
+                  typeof error?.stack === 'string'
+                    ? error.stack.split('\n').slice(1).join('\n')
+                    : undefined,
+              }),
             },
           },
         };
@@ -111,6 +124,7 @@ function buildPinoTransport(logLevel: string, nodeEnv: string, logFileDir?: stri
         connection: {
           host: config.get<string>('redis.host'),
           port: config.get<number>('redis.port'),
+          db: config.get<number>('redis.db'),
         },
       }),
     }),

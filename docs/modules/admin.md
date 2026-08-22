@@ -69,4 +69,4 @@
 
 ## 通知活动
 
-通知活动先按受众条件预估人数，再保存标题、正文、目标主题和发送时间。调度器每 30 秒领取到期活动，通过现有 BullMQ `notification` 队列按 500 人分批投递；`campaignId` 与稳定事件键保证重试不会重复写入通知。活动可在发送前取消，状态为 `SCHEDULED / SENDING / SENT / CANCELED / FAILED`。
+通知活动先按受众条件预估人数，再保存标题、正文、目标主题和发送时间。调度器每 30 秒领取到期活动，通过通知投递服务按 500 人分批直接写入 PostgreSQL；每批成功后才推进持久化游标，`campaignId` 与稳定事件键保证重试不会重复写入通知。活动可在发送前取消，状态为 `SCHEDULED / SENDING / SENT / CANCELED / FAILED`。

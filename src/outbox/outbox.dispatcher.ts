@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { BeforeApplicationShutdown, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Interval } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
@@ -14,9 +14,10 @@ interface ClaimedOutboxEvent {
 
 /** 以短租约领取 Outbox 事件，等待所有异步监听器完成后再确认。 */
 @Injectable()
-export class OutboxDispatcher implements OnModuleInit {
+export class OutboxDispatcher implements OnModuleInit, BeforeApplicationShutdown {
   private readonly logger = new Logger(OutboxDispatcher.name);
-  private dispatching = false;
+  private stopping = false;
+  private currentDispatch: Promise<void> | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -24,21 +25,52 @@ export class OutboxDispatcher implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    void this.dispatch();
+    void this.dispatch().catch((error: unknown) => {
+      this.logDispatchFailure('initial', error);
+    });
+  }
+
+  async beforeApplicationShutdown() {
+    this.stopping = true;
+    try {
+      await this.currentDispatch;
+    } catch (error: unknown) {
+      this.logDispatchFailure('shutdown', error);
+    }
   }
 
   @Interval(1000)
   async dispatch(): Promise<void> {
-    if (this.dispatching) return;
-    this.dispatching = true;
+    if (this.stopping || this.currentDispatch) return;
+    const current = this.dispatchBatch();
+    this.currentDispatch = current;
     try {
-      const rows = await this.claim(50);
-      for (const row of rows) {
-        await this.deliver(row);
-      }
+      await current;
     } finally {
-      this.dispatching = false;
+      if (this.currentDispatch === current) this.currentDispatch = null;
     }
+  }
+
+  private async dispatchBatch() {
+    const rows = await this.claim(50);
+    for (const row of rows) await this.deliver(row);
+  }
+
+  private logDispatchFailure(stage: 'initial' | 'shutdown', error: unknown) {
+    const errorCode =
+      error && typeof error === 'object' && 'code' in error
+        ? String(error.code)
+        : 'dispatch_failed';
+    const stackFrames =
+      error instanceof Error ? error.stack?.split('\n').slice(1).join('\n') : undefined;
+    this.logger.error(
+      {
+        stage,
+        errorCode,
+        errorType: error instanceof Error ? error.constructor.name : 'UnknownError',
+      },
+      stackFrames,
+    );
   }
 
   private claim(limit: number) {

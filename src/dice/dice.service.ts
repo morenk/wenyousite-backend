@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
-import { DiceRoll, NumberGenerator, Results } from '@dice-roller/rpg-dice-roller';
+import { randomInt as cryptoRandomInt } from 'node:crypto';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 
@@ -45,14 +45,33 @@ export interface DiceRollCreateData extends GeneratedDiceNodeRoll {
   postId: string;
 }
 
+export type DiceRandomInt = (minInclusive: number, maxExclusive: number) => number;
+
+/** 使用可替换的密码学整数源生成结果；maxExclusive 与 node:crypto.randomInt 一致。 */
+export function generateDiceRoll(
+  parsed: ParsedDiceNotation,
+  randomInt: DiceRandomInt = cryptoRandomInt,
+): GeneratedDiceRoll {
+  const results = Array.from({ length: parsed.quantity }, () => randomInt(1, parsed.sides + 1));
+  if (
+    results.length !== parsed.quantity ||
+    !results.every((value) => Number.isSafeInteger(value) && value >= 1 && value <= parsed.sides)
+  ) {
+    throw new Error('随机整数源返回了超出骰子范围的结果');
+  }
+
+  return {
+    ...parsed,
+    protocolVersion: DICE_PROTOCOL_VERSION,
+    results,
+    total: results.reduce((sum, value) => sum + value, parsed.modifier),
+  };
+}
+
 /** 基础骰子协议：正文保存位置节点，正式结果仅由服务端密码学随机源生成。 */
 @Injectable()
 export class DiceService {
   private readonly logger = new Logger(DiceService.name);
-
-  constructor() {
-    NumberGenerator.generator.engine = NumberGenerator.engines.nodeCrypto;
-  }
 
   parse(notation: string): ParsedDiceNotation {
     const match = /^\s*(?:(\d+)\s*)?[dD]\s*(\d+)(?:\s*([+-])\s*(\d+))?\s*$/.exec(notation);
@@ -181,21 +200,7 @@ export class DiceService {
 
   roll(parsed: ParsedDiceNotation): GeneratedDiceRoll {
     try {
-      const roll = new DiceRoll(parsed.notation);
-      const dieResults = roll.rolls[0];
-      if (!(dieResults instanceof Results.RollResults)) {
-        throw new Error('骰子库返回了非预期的结果结构');
-      }
-      const results = dieResults.rolls.map((result) => result.value);
-      if (results.length !== parsed.quantity || !results.every(Number.isSafeInteger)) {
-        throw new Error('骰子库返回的逐骰结果数量或类型不合法');
-      }
-      return {
-        ...parsed,
-        protocolVersion: DICE_PROTOCOL_VERSION,
-        results,
-        total: roll.total,
-      };
+      return generateDiceRoll(parsed);
     } catch (error) {
       this.logger.error(`生成骰子结果失败 notation=${parsed.notation}`, error);
       throw new BusinessException(

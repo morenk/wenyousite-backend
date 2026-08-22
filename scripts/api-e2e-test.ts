@@ -12,7 +12,7 @@
 import pc from 'picocolors';
 import { z } from 'zod';
 import { faker } from '@faker-js/faker';
-import { execFileSync } from 'child_process';
+import { PrismaClient } from '@prisma/client';
 import { API_CONTRACT_VERSION } from '../src/common/swagger/openapi-document';
 
 // ═══════════════════════════════════════════════════════════════
@@ -29,6 +29,13 @@ if (process.env.API_E2E_ENV !== 'test') {
 if (!LOOPBACK_HOSTS.has(baseUrl.hostname)) {
   throw new Error('API E2E 会写入并清理测试数据，只允许连接本机测试环境');
 }
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) throw new Error('API E2E 缺少 DATABASE_URL');
+const databaseName = decodeURIComponent(new URL(databaseUrl).pathname.slice(1));
+if (!/^wenyousite_e2e_[a-z0-9_]+$/.test(databaseName)) {
+  throw new Error(`API E2E 只允许使用隔离数据库，当前数据库名为 ${databaseName}`);
+}
+const e2ePrisma = new PrismaClient({ datasourceUrl: databaseUrl });
 
 const RUN_ID = Date.now().toString();
 const TEST_EMAIL = `e2e-${RUN_ID}@wenyou.site`;
@@ -298,69 +305,22 @@ let subscribableThreadId = '';
 let tagId = '';
 const useTestuserId = 'cms5zycb900017q0azar1nag2';
 
-function resolvePostgresContainer(): string {
-  const configured = process.env.API_E2E_POSTGRES_CONTAINER?.trim();
-  if (configured) return configured;
-
-  const rows = execFileSync('docker', ['ps', '--format', '{{.Names}}\t{{.Image}}'], {
-    encoding: 'utf-8',
-    timeout: 5000,
-  })
-    .trim()
-    .split('\n')
-    .filter(Boolean)
-    .map((row) => row.split('\t'))
-    .filter(([, image]) => image?.startsWith('postgres:'));
-  if (rows.length !== 1 || !rows[0][0]) {
-    throw new Error('无法唯一识别本机 PostgreSQL 容器，请设置 API_E2E_POSTGRES_CONTAINER');
-  }
-  return rows[0][0];
-}
-
 /** 从 email_verifications 表中读取最新验证码 */
-function fetchCodeFromDB(email: string): string | null {
-  try {
-    const safeEmail = email.replaceAll("'", "''");
-    const result = execFileSync(
-      'docker',
-      [
-        'exec',
-        resolvePostgresContainer(),
-        'psql',
-        '-U',
-        process.env.API_E2E_DB_USER ?? 'wenyou',
-        '-d',
-        process.env.API_E2E_DB_NAME ?? 'wenyousite',
-        '-tA',
-        '-c',
-        `SELECT token FROM email_verifications WHERE email='${safeEmail}' ORDER BY created_at DESC LIMIT 1;`,
-      ],
-      { encoding: 'utf-8', timeout: 5000 },
-    );
-    return result.trim();
-  } catch {
-    return null;
-  }
+async function fetchCodeFromDB(email: string): Promise<string | null> {
+  const result = await e2ePrisma.emailVerification.findFirst({
+    where: { email },
+    orderBy: { createdAt: 'desc' },
+    select: { token: true },
+  });
+  return result?.token ?? null;
 }
 
 /** 无论用例成功或失败，都从本机数据库移除本次运行产生的数据。 */
-function cleanupTestData() {
+async function cleanupTestData() {
   const safeEmail = TEST_EMAIL.replaceAll("'", "''");
   const safeTagPrefix = TEST_TAG_PREFIX.replaceAll("'", "''");
-  execFileSync(
-    'docker',
-    [
-      'exec',
-      resolvePostgresContainer(),
-      'psql',
-      '-v',
-      'ON_ERROR_STOP=1',
-      '-U',
-      process.env.API_E2E_DB_USER ?? 'wenyou',
-      '-d',
-      process.env.API_E2E_DB_NAME ?? 'wenyousite',
-      '-c',
-      `DO $cleanup$
+  await e2ePrisma.$executeRawUnsafe(
+    `DO $cleanup$
        DECLARE test_user_id text;
        DECLARE test_wallet_id text;
        BEGIN
@@ -384,8 +344,6 @@ function cleanupTestData() {
          DELETE FROM topic_tags WHERE name LIKE '${safeTagPrefix}%';
        END
        $cleanup$;`,
-    ],
-    { encoding: 'utf-8', timeout: 10_000, stdio: 'pipe' },
   );
 }
 
@@ -436,7 +394,7 @@ test(s1, 'GET /thread-categories 返回动态分类配置', async () => {
 });
 
 test(s1, 'GET /threads 公开列表（分页）', async () => {
-  const r = await api.get('/threads?limit=3', apiPaginated(threadListSchema));
+  const r = await api.get('/threads?sort=newest&limit=3', apiPaginated(threadListSchema));
   assert(Array.isArray(r.data), 'data 应为数组');
   assert(typeof r.meta.hasMore === 'boolean', 'meta 应含 hasMore');
   subscribableThreadId = r.data[0]?.id ?? '';
@@ -482,7 +440,7 @@ test(
   'POST /auth/register/verify-and-complete 注册',
   async () => {
     await new Promise((r) => setTimeout(r, 300));
-    const code = fetchCodeFromDB(TEST_EMAIL);
+    const code = await fetchCodeFromDB(TEST_EMAIL);
     assert(!!code && code.length >= 6, `未找到验证码 (got: "${code}")`);
     const r = await api.post('/auth/register/verify-and-complete', {
       email: TEST_EMAIL,
@@ -1074,7 +1032,7 @@ void (async () => {
     console.error(pc.red(error instanceof Error ? error.message : String(error)));
   } finally {
     try {
-      cleanupTestData();
+      await cleanupTestData();
       console.log(pc.dim('E2E 测试数据已清理'));
     } catch (error) {
       succeeded = false;
@@ -1082,6 +1040,7 @@ void (async () => {
         pc.red(`E2E 测试数据清理失败: ${error instanceof Error ? error.message : String(error)}`),
       );
     }
+    await e2ePrisma.$disconnect();
   }
   process.exitCode = succeeded ? 0 : 1;
 })();

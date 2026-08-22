@@ -18,9 +18,10 @@ import { CacheInvalidationListener } from './cache-invalidation.listener';
       useFactory: (config: ConfigService) => {
         const host = config.get<string>('redis.host');
         const port = config.get<number>('redis.port');
+        const db = config.get<number>('redis.db') ?? 0;
         return {
           stores: [
-            createKeyv(`redis://${host}:${port}`),
+            createKeyv(`redis://${host}:${port}/${db}`),
           ],
           ttl: 60000, // 默认 60 秒
         };
@@ -35,6 +36,7 @@ import { CacheInvalidationListener } from './cache-invalidation.listener';
         return new Redis({
           host: config.get<string>('redis.host'),
           port: config.get<number>('redis.port'),
+          db: config.get<number>('redis.db') ?? 0,
           lazyConnect: true,
           maxRetriesPerRequest: null, // BullMQ 兼容
           retryStrategy: (times) => Math.min(times * 50, 2000),

@@ -7,11 +7,18 @@ import { StickerProcessor } from './sticker.processor';
 import { StickerStorageService } from './sticker-storage.service';
 import { StickersController } from './stickers.controller';
 import { StickersService } from './stickers.service';
+import { StickerProcessingRecoveryService } from './sticker-processing-recovery.service';
 
 @Module({
   imports: [BullModule.registerQueue({ name: 'sticker' }), AccessPolicyModule, ObjectStorageModule],
   controllers: [StickersController],
-  providers: [StickersService, StickerContentService, StickerStorageService, StickerProcessor],
+  providers: [
+    StickersService,
+    StickerContentService,
+    StickerStorageService,
+    StickerProcessor,
+    StickerProcessingRecoveryService,
+  ],
   exports: [StickersService, StickerContentService],
 })
 export class StickersModule {}

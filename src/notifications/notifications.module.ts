@@ -1,27 +1,15 @@
 import { Module } from '@nestjs/common';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
-import { BullModule } from '@nestjs/bullmq';
 import { NotificationProducer } from './notification.producer';
-import { NotificationProcessor } from './notification.processor';
+import { NotificationDeliveryService } from './notification-delivery.service';
 import { MobilePushModule } from '../mobile-push/mobile-push.module';
 
-/** 站内通知模块：CRUD、未读数、处理器 */
+/** 站内通知模块：CRUD、幂等持久化与移动推送衔接。 */
 @Module({
-  imports: [
-    MobilePushModule,
-    BullModule.registerQueue({
-      name: 'notification',
-      defaultJobOptions: {
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 5000 },
-        removeOnComplete: { age: 3600 * 24 },
-        removeOnFail: { age: 3600 * 24 * 7 },
-      },
-    }),
-  ],
+  imports: [MobilePushModule],
   controllers: [NotificationsController],
-  providers: [NotificationsService, NotificationProducer, NotificationProcessor],
-  exports: [NotificationsService, NotificationProducer],
+  providers: [NotificationsService, NotificationDeliveryService, NotificationProducer],
+  exports: [NotificationsService, NotificationDeliveryService, NotificationProducer],
 })
 export class NotificationsModule {}

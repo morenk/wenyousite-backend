@@ -22,9 +22,40 @@ jobs:
       - run: pnpm prisma:generate
       - run: pnpm check
 
-  migration-replay:
+  security-audit:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm security:audit
+
+  coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm prisma:generate
+      - run: pnpm test:coverage
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:17-alpine
@@ -39,8 +70,19 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       DATABASE_URL: postgresql://wenyou:wenyou_test@127.0.0.1:5432/wenyousite_replay
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -54,4 +96,7 @@ jobs:
       - run: pnpm prisma:generate
       - run: pnpm exec prisma migrate deploy
       - run: pnpm exec prisma migrate status
+      - run: pnpm build
+      - run: pnpm test:e2e:auth-terminal
       - run: pnpm test:e2e:economy-terminal
+      - run: pnpm test:e2e

@@ -306,7 +306,12 @@ describe('MediaService', () => {
     );
     expect(mockPrisma.media.update).toHaveBeenCalledWith({
       where: { id: 'm1', status: 'UPLOADING' },
-      data: { status: 'PROCESSING', size: 100000, contentType: 'image/jpeg' },
+      data: {
+        status: 'PROCESSING',
+        processingStartedAt: expect.any(Date),
+        size: 100000,
+        contentType: 'image/jpeg',
+      },
     });
     expect(mockPrisma.media.update.mock.invocationCallOrder[0]).toBeLessThan(
       mockImageQueue.add.mock.invocationCallOrder[0],
@@ -356,7 +361,7 @@ describe('MediaService', () => {
     await expect(service.confirmUpload('m1', 'u1')).rejects.toThrow('redis unavailable');
     expect(mockPrisma.media.updateMany).toHaveBeenCalledWith({
       where: { id: 'm1', status: 'PROCESSING' },
-      data: { status: 'UPLOADING' },
+      data: { status: 'UPLOADING', processingStartedAt: null },
     });
   });
 
@@ -386,7 +391,7 @@ describe('MediaService', () => {
     await service.markFailed('m1');
     expect(mockPrisma.media.updateMany).toHaveBeenCalledWith({
       where: { id: 'm1', status: 'PROCESSING' },
-      data: { status: 'FAILED' },
+      data: { status: 'FAILED', processingStartedAt: null },
     });
   });
 
@@ -397,7 +402,7 @@ describe('MediaService', () => {
 
     expect(mockPrisma.media.updateMany).toHaveBeenCalledWith({
       where: { id: 'm1', status: 'PROCESSING' },
-      data: { status: 'FAILED' },
+      data: { status: 'FAILED', processingStartedAt: null },
     });
   });
 

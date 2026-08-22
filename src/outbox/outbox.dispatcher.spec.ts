@@ -127,4 +127,49 @@ describe('OutboxDispatcher', () => {
 
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
   });
+
+  it('停机时等待当前监听器完成且不再领取新事件', async () => {
+    let release!: () => void;
+    prisma.$queryRaw.mockResolvedValue([
+      {
+        id: 'o1',
+        eventType: 'thread.unliked',
+        payload: { eventId: 'event-1', threadId: 'thread-1' },
+        attempts: 1,
+      },
+    ]);
+    events.emitAsync.mockImplementation(
+      () => new Promise((resolve) => (release = () => resolve([]))),
+    );
+
+    const dispatch = dispatcher.dispatch();
+    await Promise.resolve();
+    const shutdown = dispatcher.beforeApplicationShutdown();
+    await Promise.resolve();
+
+    expect(prisma.domainOutbox.updateMany).not.toHaveBeenCalled();
+    release();
+    await Promise.all([dispatch, shutdown]);
+    await dispatcher.dispatch();
+
+    expect(prisma.domainOutbox.updateMany).toHaveBeenCalledWith({
+      where: { id: 'o1', processedAt: null },
+      data: { processedAt: expect.any(Date), lastError: null },
+    });
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('停机等待中的领取失败不会阻止应用关闭', async () => {
+    const databaseError = Object.assign(new Error('private database detail'), { code: 'P1001' });
+    prisma.$queryRaw.mockRejectedValue(databaseError);
+
+    const dispatchResult = dispatcher.dispatch().catch((error) => error);
+    await expect(dispatcher.beforeApplicationShutdown()).resolves.toBeUndefined();
+
+    await expect(dispatchResult).resolves.toBe(databaseError);
+    const logger = (dispatcher as unknown as { logger: { error: jest.Mock } }).logger;
+    const serialized = JSON.stringify(logger.error.mock.calls);
+    expect(serialized).toContain('P1001');
+    expect(serialized).not.toContain('private database detail');
+  });
 });

@@ -319,18 +319,22 @@ export class StickersService {
       });
     if (item.status === 'PROCESSING') {
       try {
-        await this.queue.add('process', { importId: item.id } satisfies StickerProcessJob, {
-          jobId: item.id,
-          attempts: 2,
-          backoff: { type: 'fixed', delay: 10_000 },
-          removeOnComplete: { age: 86_400 },
-          removeOnFail: { age: 604_800 },
-        });
+        await this.enqueueImport(item.id);
       } catch (error) {
         await this.markImportFailed(item.id, error);
       }
     }
     return this.getImport(userId, item.id);
+  }
+
+  async enqueueImport(importId: string) {
+    await this.queue.add('process', { importId } satisfies StickerProcessJob, {
+      jobId: importId,
+      attempts: 2,
+      backoff: { type: 'fixed', delay: 10_000 },
+      removeOnComplete: { age: 86_400 },
+      removeOnFail: { age: 604_800 },
+    });
   }
 
   private async addExistingAsset(userId: string, assetId: string, clientRequestId: string) {

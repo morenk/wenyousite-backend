@@ -12,6 +12,7 @@ import { httpStatusToCode } from '../exceptions/error-codes';
 import { API_CONTRACT_VERSION } from '../swagger/openapi-document';
 import { Prisma } from '@prisma/client';
 import { ErrorCode } from '../exceptions/error-codes';
+import { SentryExceptionCaptured } from '@sentry/nestjs';
 
 /** 统一错误响应体 */
 interface ErrorResponse {
@@ -25,6 +26,7 @@ interface ErrorResponse {
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
 
+  @SentryExceptionCaptured()
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<FastifyReply>();
@@ -71,10 +73,28 @@ export class AllExceptionsFilter implements ExceptionFilter {
       message = '服务器内部错误';
     }
 
-    this.logger.error(
-      `${request.method} ${request.url} ${httpStatus} [${code}] - ${message}`,
-      exception instanceof Error ? exception.stack : undefined,
-    );
+    const route = request.routeOptions?.url ?? request.url.split('?', 1)[0];
+    const logContext = {
+      method: request.method,
+      route,
+      statusCode: httpStatus,
+      errorCode: code,
+      requestId: request.id,
+      errorType: exception instanceof Error ? exception.constructor.name : 'UnknownError',
+    };
+    if (httpStatus >= HttpStatus.INTERNAL_SERVER_ERROR) {
+      const stackFrames =
+        exception instanceof Error ? exception.stack?.split('\n').slice(1).join('\n') : undefined;
+      this.logger.error(logContext, stackFrames);
+    } else if (
+      httpStatus === HttpStatus.UNAUTHORIZED ||
+      httpStatus === HttpStatus.FORBIDDEN ||
+      httpStatus === HttpStatus.TOO_MANY_REQUESTS
+    ) {
+      this.logger.warn(logContext);
+    } else {
+      this.logger.log(logContext);
+    }
 
     response.header('X-Request-ID', request.id);
     response.header('X-API-Contract-Version', API_CONTRACT_VERSION);
@@ -87,7 +107,6 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
   private hasCursor(request: FastifyRequest): boolean {
     const query = request.query;
-    return typeof query === 'object' && query !== null &&
-      ('cursor' in query || 'after' in query);
+    return typeof query === 'object' && query !== null && ('cursor' in query || 'after' in query);
   }
 }

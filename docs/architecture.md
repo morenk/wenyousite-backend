@@ -4,7 +4,9 @@
 
 后端仓库的 `docker-compose.yml` 是基础设施唯一且受版本控制的 Compose 事实源，只管理 `wenyousite-postgres` 与 `wenyousite-redis`。Caddy、NestJS production build 与 Next.js standalone 均由宿主机 systemd 管理，分别通过 `wenyousite-backend.service` 和 `wenyousite-frontend.service` 监听 3000 与 `127.0.0.1:3001`。工作区根目录和前端仓库不得再添加重复 Compose，也不得假定存在 `api`、`web`、`caddy` Compose 服务。
 
-数据库备份通过 `scripts/backup.sh` 定位该 Compose 的 postgres 服务，并在保留文件前验证 gzip 完整性；当前开发部署助手 `scripts/deploy.sh` 只接受目标分支上干净且已推送的提交，按“检查 → 再验证提交 → 启动基础设施 → 备份 → 迁移 → 记录 revision → 后端 → 前端 → 公网烟雾”执行。后端启动器从部署写入的 revision 文件读取 `BUILD_SHA`，服务重启不会把可变工作区 HEAD 误报为已部署版本。
+PostgreSQL 备份由 `scripts/backup.sh` 生成并验证 gzip，Redis 备份由 `scripts/backup-redis.sh` 触发 `BGSAVE`、运行 `redis-check-rdb` 并保存 SHA-256。Redis 开启 AOF，使用 `appendfsync everysec` 与 `noeviction`；首次从纯 RDB 切换时，部署脚本会在备份后受控重建容器，并用哨兵键验证数据跨重启保留。
+
+当前开发部署助手 `scripts/deploy.sh` 只接受目标分支上工作区干净、已推送且与远端完全一致的提交，按“安全审计与门禁 → 再验证提交 → 检查现有基础设施 → 停止旧进程并确认遗留通知队列为空 → PostgreSQL/Redis 备份 → 应用 Compose 并验证 Redis AOF → 迁移 → 记录 revision → 安装 unit → 重启后端 → 公网烟雾”执行。后端启动器从部署写入的 revision 文件读取 `BUILD_SHA`，服务重启不会把可变工作区 HEAD 误报为已部署版本。
 
 ## 总体形态
 
@@ -50,11 +52,13 @@ OutboxDispatcher（FOR UPDATE SKIP LOCKED）
 ```
 
 - 分发语义是至少一次；监听器必须幂等。
-- 通知以稳定 `eventKey` 落库，重试不会生成重复通知。
+- `NotificationProducer` 会等待权威通知以稳定 `eventKey` 幂等落入 PostgreSQL；落库失败会让 Outbox 保持未确认并重试，不再依赖 Redis 中的通知中间队列。
+- 移动推送仅是通知落库后的尽力提示通道；入队失败不会回滚权威通知，客户端始终以通知 API 和未读数为准。
 - 点赞和回复计数不执行重复 `INCR`，而是读取数据库权威计数后覆盖 Redis。
 - 事件名与载荷由 `outbox/domain-events.ts` 统一建模并在分发前校验；非法载荷或没有消费者的事件保持未确认。
 - 失败事件按退避时间重试；60 秒领取租约允许实例崩溃后重新领取。
 - 已处理事件保留 7 天供审计，未处理事件永不由清理任务删除。
+- 进程收到 `SIGTERM` / `SIGINT` 后停止领取新 Outbox，等待当前批次结束，再由 NestJS 完成资源关闭。
 
 当前可靠事件包括 `post.created`、`post.mentions.updated`、`thread.published`、`thread.liked`、`thread.unliked`、`user.followed`、`user.level_up`、`moment.comment.created`、`direct-message.created` 与 `tip.completed`。缓存失效等可重建的本地事件仍可直接使用进程内事件。
 
@@ -83,3 +87,5 @@ TypeScript 开启 `noImplicitAny` 等严格增量选项。Fastify 的 Passport `
 ## 配置
 
 所有环境变量读取集中在 `src/config/configuration.ts`，业务代码通过 `ConfigService` 或该配置工厂获得值。入口、日志、Cookie、Swagger 和 Sentry 不应各自解释环境变量，避免默认值漂移。
+
+Sentry 在应用模块加载前由 `src/instrument.ts` 初始化；没有 `SENTRY_DSN` 时保持关闭，有 DSN 时携带部署 release/build 信息。发送前会移除请求 URL、查询、正文、认证头、Cookie、用户对象、额外上下文和 breadcrumbs，仅保留请求 ID、方法、路由模板及可控机器标签。HTTP 日志同样只记录路由模板和结构化错误字段：5xx 带脱敏堆栈，401/403/429 为 warn，其余 4xx 为 info。

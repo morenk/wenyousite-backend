@@ -42,6 +42,12 @@ export class EnvironmentVariables {
   @IsOptional()
   REDIS_PORT: number = 6379;
 
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  @Max(15)
+  REDIS_DB: number = 0;
+
   @IsString()
   @IsOptional()
   JWT_ACCESS_SECRET: string = 'dev-access-secret-change-me';

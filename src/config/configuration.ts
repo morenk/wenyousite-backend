@@ -19,6 +19,7 @@ export default function configuration() {
     redis: {
       host: env.REDIS_HOST,
       port: env.REDIS_PORT,
+      db: env.REDIS_DB,
     },
 
     // JWT 双 Token 配置

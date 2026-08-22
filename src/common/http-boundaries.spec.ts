@@ -59,12 +59,14 @@ describe('AllExceptionsFilter', () => {
 
   beforeEach(() => {
     filter = new AllExceptionsFilter();
-    jest
-      .spyOn(
-        (filter as unknown as { logger: { error: (...args: unknown[]) => void } }).logger,
-        'error',
-      )
-      .mockImplementation(() => undefined);
+    const logger = (
+      filter as unknown as {
+        logger: Record<'error' | 'warn' | 'log', (...args: unknown[]) => void>;
+      }
+    ).logger;
+    jest.spyOn(logger, 'error').mockImplementation(() => undefined);
+    jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    jest.spyOn(logger, 'log').mockImplementation(() => undefined);
   });
 
   afterEach(() => jest.restoreAllMocks());
@@ -140,6 +142,50 @@ describe('AllExceptionsFilter', () => {
       message: '服务器内部错误',
       data: null,
     });
+  });
+
+  it('结构化错误日志只记录路由模板且不包含查询凭据或异常消息', () => {
+    const { host } = httpContext(undefined, {
+      url: '/api/test?access_token=query-secret',
+      routeOptions: { url: '/api/test' },
+    });
+    const logger = (
+      filter as unknown as {
+        logger: { error: jest.Mock };
+      }
+    ).logger;
+
+    filter.catch(new Error('password=internal-secret'), host);
+
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: 'GET',
+        route: '/api/test',
+        statusCode: 500,
+        errorCode: ErrorCode.INTERNAL_ERROR,
+        requestId: 'request-1',
+        errorType: 'Error',
+      }),
+      expect.any(String),
+    );
+    const serialized = JSON.stringify(logger.error.mock.calls);
+    expect(serialized).not.toContain('query-secret');
+    expect(serialized).not.toContain('internal-secret');
+  });
+
+  it('按状态码降低预期异常日志级别', () => {
+    const logger = (
+      filter as unknown as {
+        logger: { error: jest.Mock; warn: jest.Mock; log: jest.Mock };
+      }
+    ).logger;
+
+    filter.catch(new BadRequestException('请求错误'), httpContext().host);
+    filter.catch(new HttpException('无权访问', HttpStatus.FORBIDDEN), httpContext().host);
+
+    expect(logger.log).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 400 }));
+    expect(logger.warn).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 403 }));
+    expect(logger.error).not.toHaveBeenCalled();
   });
 });
 
@@ -280,7 +326,6 @@ describe('认证和权限边界', () => {
       ),
     ).toThrow(expect.objectContaining({ errorCode: ErrorCode.TOKEN_INVALID }));
   });
-
 });
 
 describe('ParseUUIDPipe', () => {

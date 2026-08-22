@@ -1,10 +1,8 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
-import { Job } from 'bullmq';
+import { Injectable, Logger } from '@nestjs/common';
 import { NotificationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MobilePushProducer } from '../mobile-push/mobile-push.producer';
-import { NotificationJob } from './notification.producer';
+import type { NotificationJob } from './notification.producer';
 
 interface LikeLiker {
   userId: string;
@@ -16,7 +14,7 @@ interface LikePayload {
   threadTitle?: string;
   totalCount?: number;
   likers?: LikeLiker[];
-  /** 最近处理过的点赞事件，用于 BullMQ 重试幂等。 */
+  /** 最近处理过的点赞事件，用于 Outbox 至少一次重放幂等。 */
   eventKeys?: string[];
   [key: string]: unknown;
 }
@@ -42,19 +40,17 @@ function isLikeLiker(value: unknown): value is LikeLiker {
   );
 }
 
-/** 通知队列消费者：处理回复、@提及、新楼层等通知 */
-@Processor('notification')
-export class NotificationProcessor extends WorkerHost {
-  private readonly logger = new Logger(NotificationProcessor.name);
+/** 通知投递服务：先将权威通知幂等写入 PostgreSQL，再尽力提交移动推送。 */
+@Injectable()
+export class NotificationDeliveryService {
+  private readonly logger = new Logger(NotificationDeliveryService.name);
 
   constructor(
     private prisma: PrismaService,
     private readonly pushes: MobilePushProducer,
-  ) {
-    super();
-  }
+  ) {}
 
-  async process(job: Job<NotificationJob>): Promise<void> {
+  async deliver(job: NotificationJob): Promise<void> {
     const {
       type,
       recipients,
@@ -67,7 +63,7 @@ export class NotificationProcessor extends WorkerHost {
       payload,
       eventKey,
       campaignId,
-    } = job.data;
+    } = job;
 
     switch (type) {
       case 'reply':
@@ -103,7 +99,7 @@ export class NotificationProcessor extends WorkerHost {
         );
         break;
       default:
-        this.logger.warn(`Unknown notification type: ${type}`);
+        throw new Error(`Unsupported notification type: ${String(type)}`);
     }
   }
 
@@ -123,7 +119,7 @@ export class NotificationProcessor extends WorkerHost {
 
   /**
    * 点赞聚合必须在数据库事务中完成，否则两个并发点赞可能同时读到同一条旧通知，
-   * 最终丢失一次计数。Serializable 冲突由队列处理器在本地重试一次事务。
+   * 最终丢失一次计数。Serializable 冲突由投递服务在本地重试事务。
    */
   private async aggregateLikeForUser(
     userId: string,
@@ -145,7 +141,7 @@ export class NotificationProcessor extends WorkerHost {
               select: { id: true, isRead: true, payload: true },
             });
 
-            // 处理器成功但 ACK 丢失时，重试不能再次累加同一个点赞事件。
+            // Outbox 确认丢失时，重放不能再次累加同一个点赞事件。
             const processed = eventKey
               ? notifications.find((notification) =>
                   asLikePayload(notification.payload).eventKeys?.includes(eventKey),
@@ -222,14 +218,12 @@ export class NotificationProcessor extends WorkerHost {
           },
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
         );
-        if (pushTarget) {
-          await this.pushes.enqueue({
+        if (pushTarget)
+          await this.enqueuePush(
             userId,
-            kind: 'notification',
-            eventKey: `notification:${pushTarget.eventKey}:${userId}`,
-            notificationId: pushTarget.notificationId,
-          });
-        }
+            pushTarget.notificationId,
+            `notification:${pushTarget.eventKey}:${userId}`,
+          );
         return;
       } catch (error: unknown) {
         const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
@@ -269,7 +263,7 @@ export class NotificationProcessor extends WorkerHost {
       ...(eventKey ? { eventKey: `${eventKey}:${userId}` } : {}),
     }));
 
-    // 防止 BullMQ retry 时重复插入：过滤已存在记录，不整批跳过
+    // 防止 Outbox 重放时重复插入：过滤已存在记录，不整批跳过。
     const dedupWhere: Prisma.NotificationWhereInput = eventKey
       ? { OR: userIds.map((userId) => ({ userId, eventKey: `${eventKey}:${userId}` })) }
       : { userId: { in: userIds }, type, postId, threadId, momentId, momentCommentId };
@@ -312,16 +306,34 @@ export class NotificationProcessor extends WorkerHost {
     });
     await Promise.all(
       stored.map((notification) =>
-        this.pushes.enqueue({
-          userId: notification.userId,
-          kind: 'notification',
-          eventKey: `notification:${notification.eventKey ?? notification.id}`,
-          notificationId: notification.id,
-        }),
+        this.enqueuePush(
+          notification.userId,
+          notification.id,
+          `notification:${notification.eventKey ?? notification.id}`,
+        ),
       ),
     );
     this.logger.log(
       `Created ${newData.length} notifications of type '${type}' (${existing.length} duplicates skipped)`,
     );
+  }
+
+  private async enqueuePush(userId: string, notificationId: string, eventKey: string) {
+    try {
+      await this.pushes.enqueue({
+        userId,
+        kind: 'notification',
+        eventKey,
+        notificationId,
+      });
+    } catch (error: unknown) {
+      const errorCode =
+        error && typeof error === 'object' && 'code' in error
+          ? String(error.code)
+          : 'enqueue_failed';
+      this.logger.warn(
+        `Mobile push enqueue skipped notificationId=${notificationId} errorCode=${errorCode}`,
+      );
+    }
   }
 }

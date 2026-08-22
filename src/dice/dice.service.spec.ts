@@ -1,17 +1,12 @@
-import { NumberGenerator } from '@dice-roller/rpg-dice-roller';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
-import { DiceService } from './dice.service';
+import { DiceService, generateDiceRoll } from './dice.service';
 
 describe('DiceService', () => {
   let service: DiceService;
 
   beforeEach(() => {
     service = new DiceService();
-  });
-
-  afterEach(() => {
-    NumberGenerator.generator.engine = NumberGenerator.engines.nodeCrypto;
   });
 
   it.each([
@@ -92,8 +87,7 @@ describe('DiceService', () => {
   });
 
   it('保留逐骰结果、修正值与总计', () => {
-    NumberGenerator.generator.engine = NumberGenerator.engines.min;
-    const result = service.roll(service.parse('3d6+2'));
+    const result = generateDiceRoll(service.parse('3d6+2'), (min) => min);
     expect(result).toEqual({
       notation: '3d6+2',
       quantity: 3,
@@ -103,5 +97,27 @@ describe('DiceService', () => {
       results: [1, 1, 1],
       total: 5,
     });
+  });
+
+  it('随机整数源使用包含最小值、排除最大值的边界', () => {
+    const calls: Array<[number, number]> = [];
+    const parsed = service.parse('2d8-1');
+    const result = generateDiceRoll(parsed, (min, max) => {
+      calls.push([min, max]);
+      return max - 1;
+    });
+
+    expect(calls).toEqual([
+      [1, 9],
+      [1, 9],
+    ]);
+    expect(result.results).toEqual([8, 8]);
+    expect(result.total).toBe(15);
+  });
+
+  it('拒绝随机整数源返回范围外的结果', () => {
+    expect(() => generateDiceRoll(service.parse('1d6'), () => 7)).toThrow(
+      '随机整数源返回了超出骰子范围的结果',
+    );
   });
 });

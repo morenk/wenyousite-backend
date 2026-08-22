@@ -6,6 +6,7 @@ set -uo pipefail
 PSI_WARN="${WENYOU_IO_PSI_FULL_AVG10_WARN:-20}"
 AWAIT_WARN_MS="${WENYOU_DISK_AWAIT_WARN_MS:-100}"
 HEALTH_WARN_MS="${WENYOU_HEALTH_WARN_MS:-2000}"
+OUTBOX_AGE_WARN_SECONDS="${WENYOU_OUTBOX_AGE_WARN_SECONDS:-300}"
 HEALTH_URL="${WENYOU_HEALTH_URL:-http://127.0.0.1:3000/api/v1/health}"
 BACKEND_UNIT="${WENYOU_BACKEND_UNIT:-wenyousite-backend.service}"
 
@@ -90,11 +91,46 @@ recent_backend_count() {
     grep -Ec "$pattern" || true
 }
 
+outbox_sample() {
+  if [[ -n "${WENYOU_OUTBOX_OLDEST_SECONDS_OVERRIDE:-}" ]]; then
+    printf '%s %s\n' "$WENYOU_OUTBOX_OLDEST_SECONDS_OVERRIDE" "${WENYOU_OUTBOX_HIGH_RETRY_OVERRIDE:-0}"
+    return
+  fi
+  local postgres_container
+  postgres_container="$(docker ps --filter name=^/wenyousite-postgres$ --format '{{.ID}}' | head -n 1)"
+  if [[ -z "$postgres_container" ]]; then
+    printf 'unknown unknown\n'
+    return
+  fi
+  docker exec "$postgres_container" psql -U wenyou -d wenyousite -Atc \
+    "SELECT COALESCE(EXTRACT(EPOCH FROM (NOW() - MIN(created_at)))::bigint, 0), COUNT(*) FILTER (WHERE attempts >= 5) FROM domain_outbox WHERE processed_at IS NULL" \
+    2>/dev/null | tr '|' ' ' || printf 'unknown unknown\n'
+}
+
+redis_persistence_sample() {
+  if [[ -n "${WENYOU_REDIS_AOF_ENABLED_OVERRIDE:-}" ]]; then
+    printf '%s %s\n' "$WENYOU_REDIS_AOF_ENABLED_OVERRIDE" "${WENYOU_REDIS_AOF_STATUS_OVERRIDE:-ok}"
+    return
+  fi
+  local redis_container persistence enabled status
+  redis_container="$(docker ps --filter name=^/wenyousite-redis$ --format '{{.ID}}' | head -n 1)"
+  if [[ -z "$redis_container" ]]; then
+    printf 'unknown unknown\n'
+    return
+  fi
+  persistence="$(docker exec "$redis_container" redis-cli --raw INFO persistence 2>/dev/null | tr -d '\r')"
+  enabled="$(awk -F: '$1 == "aof_enabled" { print $2 }' <<<"$persistence")"
+  status="$(awk -F: '$1 == "aof_last_write_status" { print $2 }' <<<"$persistence")"
+  printf '%s %s\n' "${enabled:-unknown}" "${status:-unknown}"
+}
+
 psi="$(psi_full_avg10)"
 await_ms="$(disk_await_ms)"
 read -r health_status health_ms <<<"$(health_sample)"
 recent_5xx="$(recent_backend_count 'request errored.*statusCode.:5[0-9][0-9]' "${WENYOU_RECENT_5XX_OVERRIDE:-}")"
 recent_p2028="$(recent_backend_count 'Transaction already closed' "${WENYOU_RECENT_P2028_OVERRIDE:-}")"
+read -r outbox_oldest_seconds outbox_high_retry <<<"$(outbox_sample)"
+read -r redis_aof_enabled redis_aof_status <<<"$(redis_persistence_sample)"
 load1="$(awk '{ print $1 }' /proc/loadavg 2>/dev/null || printf 'unknown')"
 memory_available_kb="$(awk '$1 == "MemAvailable:" { print $2 }' /proc/meminfo 2>/dev/null || printf 'unknown')"
 restarts="$(systemctl show "$BACKEND_UNIT" -p NRestarts --value 2>/dev/null || printf 'unknown')"
@@ -118,10 +154,19 @@ fi
 if (( ${recent_p2028:-0} > 0 )); then
   reasons+=("transaction_timeout")
 fi
+if [[ "$outbox_oldest_seconds" == "unknown" ]] || [[ "$outbox_high_retry" == "unknown" ]]; then
+  reasons+=("outbox_collector")
+elif number_ge "$outbox_oldest_seconds" "$OUTBOX_AGE_WARN_SECONDS" || (( outbox_high_retry > 0 )); then
+  reasons+=("outbox_backlog")
+fi
+if [[ "$redis_aof_enabled" != "1" ]] || [[ "$redis_aof_status" != "ok" ]]; then
+  reasons+=("redis_durability")
+fi
 
 if (( ${#reasons[@]} > 0 )); then
   reason_csv="$(IFS=,; printf '%s' "${reasons[*]}")"
-  printf 'host_health_warning reasons=%s io_psi_full_avg10=%s disk_await_ms=%s health_status=%s health_ms=%s load1=%s memory_available_kb=%s backend_restarts=%s recent_5xx=%s recent_p2028=%s\n' \
+  printf 'host_health_warning reasons=%s io_psi_full_avg10=%s disk_await_ms=%s health_status=%s health_ms=%s load1=%s memory_available_kb=%s backend_restarts=%s recent_5xx=%s recent_p2028=%s outbox_oldest_seconds=%s outbox_high_retry=%s redis_aof_enabled=%s redis_aof_status=%s\n' \
     "$reason_csv" "${psi:-unknown}" "${await_ms:-unknown}" "${health_status:-000}" "${health_ms:-unknown}" \
-    "$load1" "$memory_available_kb" "$restarts" "${recent_5xx:-0}" "${recent_p2028:-0}"
+    "$load1" "$memory_available_kb" "$restarts" "${recent_5xx:-0}" "${recent_p2028:-0}" \
+    "$outbox_oldest_seconds" "$outbox_high_retry" "$redis_aof_enabled" "$redis_aof_status"
 fi

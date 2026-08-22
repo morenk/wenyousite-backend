@@ -1,6 +1,7 @@
 /**
  * 应用入口：Fastify + Pino + Swagger + Sentry + 限流
  */
+import './instrument';
 import { NestFactory } from '@nestjs/core';
 import type { IncomingMessage } from 'http';
 import { ValidationPipe } from '@nestjs/common';
@@ -10,7 +11,6 @@ import { SwaggerModule } from '@nestjs/swagger';
 import fastifyHelmet from '@fastify/helmet';
 import fastifyCookie from '@fastify/cookie';
 import fastifyCsrf from '@fastify/csrf-protection';
-import * as Sentry from '@sentry/node';
 import { AppModule } from './app.module';
 import { createOpenApiDocument } from './common/swagger/openapi-document';
 import { requestIdFromHeader } from './common/http/request-id';
@@ -19,15 +19,6 @@ import { adminCsrfCookieName } from './admin/admin-auth.constants';
 
 async function bootstrap() {
   const runtime = configuration();
-  // Sentry 错误监控：配置 DSN 时启用
-  if (runtime.sentry.dsn) {
-    Sentry.init({
-      dsn: runtime.sentry.dsn,
-      environment: runtime.app.nodeEnv,
-      tracesSampleRate: runtime.app.nodeEnv === 'production' ? 0.1 : 1.0,
-    });
-  }
-
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     // Caddy 与应用同机部署：仅信任 loopback 反代传入的 X-Forwarded-For。
@@ -39,6 +30,7 @@ async function bootstrap() {
   );
 
   app.useLogger(app.get(Logger));
+  app.enableShutdownHooks(['SIGTERM', 'SIGINT']);
   app.setGlobalPrefix('api/v1');
 
   app.useGlobalPipes(
@@ -74,10 +66,7 @@ async function bootstrap() {
   fastify.addHook('onRequest', (request, reply, done) => {
     const path = request.url.split('?', 1)[0];
     const mutating = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method);
-    const publicAdminAuth = new Set([
-      '/api/v1/admin/auth/challenge',
-      '/api/v1/admin/auth/verify',
-    ]);
+    const publicAdminAuth = new Set(['/api/v1/admin/auth/challenge', '/api/v1/admin/auth/verify']);
     if (!mutating || !path.startsWith('/api/v1/admin/') || publicAdminAuth.has(path)) {
       done();
       return;

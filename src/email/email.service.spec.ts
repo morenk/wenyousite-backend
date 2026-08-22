@@ -35,11 +35,28 @@ describe('EmailService', () => {
       port: 465,
       secure: true,
       auth: { user: 'smtp-user', pass: 'smtp-password' },
+      disableFileAccess: true,
+      disableUrlAccess: true,
     });
     expect(Logger.prototype.log).toHaveBeenCalledWith(
       'SMTP 初始化: smtp.example.com (smtp-user)',
     );
     expect(Logger.prototype.log).not.toHaveBeenCalledWith(expect.stringContaining('smtp-password'));
+  });
+
+  it('测试环境使用本地 JSON transport，不连接外部 SMTP', () => {
+    config.get.mockImplementation(
+      (key: string) =>
+        ({
+          'app.nodeEnv': 'test',
+          'ses.host': '',
+          'ses.user': '',
+        })[key],
+    );
+
+    new EmailService(config as unknown as ConfigService);
+
+    expect(mockCreateTransport).toHaveBeenLastCalledWith({ jsonTransport: true });
   });
 
   it.each([

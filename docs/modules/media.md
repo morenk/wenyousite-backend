@@ -50,6 +50,7 @@
 - 衍生图设置 `Cache-Control: public, max-age=31536000, immutable`
 - 处理成功后仅以条件更新把仍为 `PROCESSING` 的 Media 写入 `width`、`height`、`size`、`status=COMPLETED`
 - 处理失败（末次重试耗尽）仅把仍为 `PROCESSING` 的记录标记 `FAILED`；迟到任务不能覆盖已经完成或已被其他流程迁移的状态
+- 进入 `PROCESSING` 时同步记录 `processingStartedAt`。恢复器在应用启动时及每 10 分钟扫描最多 100 条超过 15 分钟未推进的记录：活动队列任务保持不动，失败任务收敛为 `FAILED`，任务缺失或已完成但数据库未完成时按 `mediaId` 重新入队
 - 头像设置通过 `PATCH /users/me/avatar` 使用 `mediaId`，校验 `status=COMPLETED`
 - 个人主页背景图通过 `PATCH /users/me/profile-cover` 同时绑定 Web `mediaId` 与可选 `mobileMediaId`，额外校验本人归属、jpg/png/webp，以及 3:1 / 2:1 宽高比；客户端从同一原图分别裁剪成品后上传
 
@@ -59,7 +60,8 @@
 UPLOADING ──(元数据不合法)──────────────────────> FAILED
     │
     └──(upload-done 原子确认)──> PROCESSING ──(成功)──> COMPLETED
-                                           └─(失败耗尽)──> FAILED
+              │                            └─(失败耗尽)──> FAILED
+              └──(任务丢失对账)──> 按稳定 jobId 重新入队
 ```
 
 ## 孤儿图片回收

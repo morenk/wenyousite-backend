@@ -1,7 +1,6 @@
-import { Job } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { MobilePushProducer } from '../mobile-push/mobile-push.producer';
-import { NotificationProcessor } from './notification.processor';
+import { NotificationDeliveryService } from './notification-delivery.service';
 import { NotificationJob } from './notification.producer';
 
 function buildProcessor() {
@@ -24,7 +23,7 @@ function buildProcessor() {
   };
   const pushes = { enqueue: jest.fn() };
   return {
-    processor: new NotificationProcessor(
+    processor: new NotificationDeliveryService(
       prisma as unknown as PrismaService,
       pushes as unknown as MobilePushProducer,
     ),
@@ -35,8 +34,8 @@ function buildProcessor() {
   };
 }
 
-describe('NotificationProcessor 点赞聚合', () => {
-  it('首次点赞写入 eventKey，队列重试可识别该事件', async () => {
+describe('NotificationDeliveryService 点赞聚合', () => {
+  it('首次点赞写入 eventKey，Outbox 重放可识别该事件', async () => {
     const { processor, tx, pushes } = buildProcessor();
     tx.notification.findMany.mockResolvedValue([]);
     tx.notification.create.mockResolvedValue({
@@ -44,23 +43,21 @@ describe('NotificationProcessor 点赞聚合', () => {
       eventKey: 'like:thread1:player1:owner1',
     });
 
-    await processor.process({
-      data: {
-        type: 'like',
-        recipients: ['owner1'],
-        content: '玩家1 赞了你的主题帖「测试帖」',
-        threadId: 'thread1',
-        fromUserId: 'player1',
-        eventKey: 'like:thread1:player1',
-        payload: {
-          action: 'like',
-          actorName: '玩家1',
-          threadTitle: '测试帖',
-          totalCount: 1,
-          likers: [{ userId: 'player1', username: '玩家1' }],
-        },
+    await processor.deliver({
+      type: 'like',
+      recipients: ['owner1'],
+      content: '玩家1 赞了你的主题帖「测试帖」',
+      threadId: 'thread1',
+      fromUserId: 'player1',
+      eventKey: 'like:thread1:player1',
+      payload: {
+        action: 'like',
+        actorName: '玩家1',
+        threadTitle: '测试帖',
+        totalCount: 1,
+        likers: [{ userId: 'player1', username: '玩家1' }],
       },
-    } as unknown as Job<NotificationJob>);
+    });
 
     expect(tx.notification.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -96,21 +93,19 @@ describe('NotificationProcessor 点赞聚合', () => {
       },
     ]);
 
-    await processor.process({
-      data: {
-        type: 'like',
-        recipients: ['owner1'],
-        content: '玩家2 赞了你的主题帖「测试帖」',
-        threadId: 'thread1',
-        fromUserId: 'player2',
-        eventKey: 'like:thread1:player2',
-        payload: {
-          actorName: '玩家2',
-          threadTitle: '测试帖',
-          likers: [{ userId: 'player2', username: '玩家2' }],
-        },
+    await processor.deliver({
+      type: 'like',
+      recipients: ['owner1'],
+      content: '玩家2 赞了你的主题帖「测试帖」',
+      threadId: 'thread1',
+      fromUserId: 'player2',
+      eventKey: 'like:thread1:player2',
+      payload: {
+        actorName: '玩家2',
+        threadTitle: '测试帖',
+        likers: [{ userId: 'player2', username: '玩家2' }],
       },
-    } as unknown as Job<NotificationJob>);
+    });
 
     expect(tx.notification.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -135,16 +130,14 @@ describe('NotificationProcessor 点赞聚合', () => {
       },
     ]);
 
-    await processor.process({
-      data: {
-        type: 'like',
-        recipients: ['owner1'],
-        content: '玩家1 赞了你的主题帖',
-        threadId: 'thread1',
-        eventKey: 'like:thread1:player1',
-        payload: { likers: [{ userId: 'player1', username: '玩家1' }] },
-      },
-    } as unknown as Job<NotificationJob>);
+    await processor.deliver({
+      type: 'like',
+      recipients: ['owner1'],
+      content: '玩家1 赞了你的主题帖',
+      threadId: 'thread1',
+      eventKey: 'like:thread1:player1',
+      payload: { likers: [{ userId: 'player1', username: '玩家1' }] },
+    });
 
     expect(tx.notification.update).not.toHaveBeenCalled();
     expect(tx.notification.create).not.toHaveBeenCalled();
@@ -153,18 +146,16 @@ describe('NotificationProcessor 点赞聚合', () => {
     );
   });
 
-  it('点赞通知已提交但推送入队失败时，队列重试会重新入队而不重复聚合', async () => {
+  it('点赞通知已提交但推送入队失败时，后续幂等重放不会重复聚合', async () => {
     const { processor, tx, pushes } = buildProcessor();
-    const job = {
-      data: {
-        type: 'like',
-        recipients: ['owner1'],
-        content: '玩家1 赞了你的主题帖',
-        threadId: 'thread1',
-        eventKey: 'like:thread1:player1',
-        payload: { likers: [{ userId: 'player1', username: '玩家1' }] },
-      },
-    } as unknown as Job<NotificationJob>;
+    const job: NotificationJob = {
+      type: 'like',
+      recipients: ['owner1'],
+      content: '玩家1 赞了你的主题帖',
+      threadId: 'thread1',
+      eventKey: 'like:thread1:player1',
+      payload: { likers: [{ userId: 'player1', username: '玩家1' }] },
+    };
     tx.notification.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
       {
         id: 'notification1',
@@ -180,8 +171,8 @@ describe('NotificationProcessor 点赞聚合', () => {
       .mockRejectedValueOnce(new Error('redis unavailable after commit'))
       .mockResolvedValueOnce(undefined);
 
-    await expect(processor.process(job)).rejects.toThrow('redis unavailable after commit');
-    await expect(processor.process(job)).resolves.toBeUndefined();
+    await expect(processor.deliver(job)).resolves.toBeUndefined();
+    await expect(processor.deliver(job)).resolves.toBeUndefined();
 
     expect(tx.notification.create).toHaveBeenCalledTimes(1);
     expect(tx.notification.update).not.toHaveBeenCalled();
@@ -189,8 +180,8 @@ describe('NotificationProcessor 点赞聚合', () => {
   });
 });
 
-describe('NotificationProcessor 普通通知', () => {
-  it('通知已入库但推送入队失败时，重试复用通知并再次提交稳定推送任务', async () => {
+describe('NotificationDeliveryService 普通通知', () => {
+  it('通知已入库但推送入队失败时，后续幂等重放复用权威通知', async () => {
     const { processor, notification, pushes } = buildProcessor();
     const stored = {
       id: 'notification1',
@@ -206,18 +197,16 @@ describe('NotificationProcessor 普通通知', () => {
     pushes.enqueue
       .mockRejectedValueOnce(new Error('redis unavailable after commit'))
       .mockResolvedValueOnce(undefined);
-    const job = {
-      data: {
-        type: 'reply',
-        recipients: ['owner1'],
-        content: '有人回复了你',
-        postId: 'post1',
-        eventKey: 'reply:post1',
-      },
-    } as unknown as Job<NotificationJob>;
+    const job: NotificationJob = {
+      type: 'reply',
+      recipients: ['owner1'],
+      content: '有人回复了你',
+      postId: 'post1',
+      eventKey: 'reply:post1',
+    };
 
-    await expect(processor.process(job)).rejects.toThrow('redis unavailable after commit');
-    await expect(processor.process(job)).resolves.toBeUndefined();
+    await expect(processor.deliver(job)).resolves.toBeUndefined();
+    await expect(processor.deliver(job)).resolves.toBeUndefined();
 
     expect(notification.createMany).toHaveBeenCalledTimes(1);
     expect(pushes.enqueue).toHaveBeenCalledTimes(2);
@@ -227,5 +216,16 @@ describe('NotificationProcessor 普通通知', () => {
       eventKey: 'notification:reply:post1:owner1',
       notificationId: 'notification1',
     });
+  });
+
+  it('拒绝未知通知类型，避免调用方确认未投递事件', async () => {
+    const { processor } = buildProcessor();
+    await expect(
+      processor.deliver({
+        type: 'future_type',
+        recipients: ['owner1'],
+        content: '未知通知',
+      } as never),
+    ).rejects.toThrow('Unsupported notification type: future_type');
   });
 });

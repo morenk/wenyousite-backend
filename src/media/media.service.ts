@@ -206,6 +206,7 @@ export class MediaService {
         where: { id: mediaId, status: 'UPLOADING' },
         data: {
           status: 'PROCESSING',
+          processingStartedAt: new Date(),
           size: actualSize!,
           contentType: actualContentType!,
         },
@@ -223,26 +224,12 @@ export class MediaService {
     }
 
     try {
-      await this.imageQueue.add(
-        'process',
-        {
-          mediaId: media.id,
-          objectKey: media.key,
-          bucket,
-        } as ImageProcessJob,
-        {
-          jobId: media.id,
-          attempts: 2,
-          backoff: { type: 'fixed', delay: 10000 },
-          removeOnComplete: { age: 3600 * 24 },
-          removeOnFail: { age: 3600 * 24 * 7 },
-        },
-      );
+      await this.enqueueProcessing(media.id, media.key, bucket);
     } catch (error) {
       // 仅回滚仍在等待队列处理的记录；若消费者已完成则不得倒退状态。
       await this.prisma.media.updateMany({
         where: { id: mediaId, status: 'PROCESSING' },
-        data: { status: 'UPLOADING' },
+        data: { status: 'UPLOADING', processingStartedAt: null },
       });
       throw error;
     }
@@ -310,6 +297,7 @@ export class MediaService {
         height: metadata.height ?? 0,
         size: buffer.length,
         status: 'COMPLETED',
+        processingStartedAt: null,
         orphanedAt: new Date(),
       },
     });
@@ -323,9 +311,19 @@ export class MediaService {
   async markFailed(mediaId: string) {
     await this.prisma.media.updateMany({
       where: { id: mediaId, status: 'PROCESSING' },
-      data: { status: 'FAILED' },
+      data: { status: 'FAILED', processingStartedAt: null },
     });
     this.logger.warn(`Image processing permanently failed for mediaId=${mediaId}`);
+  }
+
+  async enqueueProcessing(mediaId: string, objectKey: string, bucket = this.storage.bucket) {
+    await this.imageQueue.add('process', { mediaId, objectKey, bucket } satisfies ImageProcessJob, {
+      jobId: mediaId,
+      attempts: 2,
+      backoff: { type: 'fixed', delay: 10_000 },
+      removeOnComplete: { age: 86_400 },
+      removeOnFail: { age: 604_800 },
+    });
   }
 
   /** 每用户小时上传配额校验：Redis 计数器，超限抛 429 */

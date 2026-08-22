@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
 import { NotificationType } from '@prisma/client';
+import { NotificationDeliveryService } from './notification-delivery.service';
 
 export interface NotificationJob {
   type: NotificationType;
@@ -17,10 +16,10 @@ export interface NotificationJob {
   campaignId?: string;
 }
 
-/** 通知生产者：将通知任务推入队列 */
+/** 通知应用入口：同步等待权威通知落库，移动推送由投递服务尽力提交。 */
 @Injectable()
 export class NotificationProducer {
-  constructor(@InjectQueue('notification') private notificationQueue: Queue) {}
+  constructor(private readonly delivery: NotificationDeliveryService) {}
 
   /** 批量发送通知 */
   async notify(
@@ -34,16 +33,18 @@ export class NotificationProducer {
       momentCommentId?: string;
       fromUserId?: string;
       payload?: Record<string, unknown>;
-      /** 同一业务事件的稳定键；处理器会按收件人拼接，保证队列重试幂等。 */
+      /** 同一业务事件的稳定键；投递服务会按收件人拼接，保证 Outbox 重放幂等。 */
       eventKey?: string;
       campaignId?: string;
     },
   ) {
     if (recipients.length === 0) return;
-    await this.notificationQueue.add(
+    await this.delivery.deliver({
       type,
-      { type, recipients, content, payload: opts?.payload ?? null, ...opts },
-      { removeOnComplete: { age: 3600 * 24 }, removeOnFail: { age: 3600 * 24 * 7 } },
-    );
+      recipients,
+      content,
+      payload: opts?.payload ?? null,
+      ...opts,
+    });
   }
 }

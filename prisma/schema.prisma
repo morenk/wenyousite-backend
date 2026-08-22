@@ -829,17 +829,18 @@ model MomentComment {
 }
 
 model Media {
-  id          String      @id @default(cuid())
-  userId      String      @map("user_id")
-  url         String
-  key         String      @unique
-  contentType String?     @map("content_type")
-  size        Int?
-  width       Int?
-  height      Int?
-  status      MediaStatus @default(UPLOADING)
-  createdAt   DateTime    @default(now()) @map("created_at")
-  orphanedAt  DateTime?   @map("orphaned_at")
+  id                  String      @id @default(cuid())
+  userId              String      @map("user_id")
+  url                 String
+  key                 String      @unique
+  contentType         String?     @map("content_type")
+  size                Int?
+  width               Int?
+  height              Int?
+  status              MediaStatus @default(UPLOADING)
+  processingStartedAt DateTime?   @map("processing_started_at")
+  createdAt           DateTime    @default(now()) @map("created_at")
+  orphanedAt          DateTime?   @map("orphaned_at")
 
   user                   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   avatarUser             User?           @relation("UserAvatar")
@@ -854,6 +855,7 @@ model Media {
   draftAttachments       DraftMedia[]
 
   @@index([status, createdAt])
+  @@index([status, processingStartedAt])
   @@index([status, orphanedAt])
   @@map("media")
 }
