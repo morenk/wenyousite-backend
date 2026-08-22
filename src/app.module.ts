@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, RequestMethod } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -89,6 +89,7 @@ function buildPinoTransport(logLevel: string, nodeEnv: string, logFileDir?: stri
         const logFileDir = config.get<string>('log.fileDir');
         const nodeEnv = config.get<string>('app.nodeEnv') ?? 'development';
         return {
+          forRoutes: [{ path: '{*path}', method: RequestMethod.ALL }],
           pinoHttp: {
             level: logLevel,
             genReqId: (req: any) => requestIdFromHeader(req.headers['x-request-id']),
