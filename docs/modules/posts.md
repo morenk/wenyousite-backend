@@ -14,15 +14,15 @@
 
 ## API 端点
 
-| Method | Path                             | Guard  | 描述                                                                                                              |
-| ------ | -------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------- |
-| GET    | `/subthreads/:subthreadId/posts` | Public | 楼层列表（Cursor 分页，支持 `order=OLDEST\|NEWEST`，仅返回楼层 kind=FLOOR，不含正文；主楼层 parentPostId=null，内嵌每个楼层前 5 条楼中楼回复） |
-| GET    | `/posts/:id/replies`             | Public | 主楼层的楼中楼回复列表（Cursor 分页；支持 `order=OLDEST                                                           | NEWEST`与`authorId`；仅接受 parentPostId=null 的 FLOOR） |
-| POST   | `/subthreads/:subthreadId/posts` | Auth   | 发帖（创建楼层 kind=FLOOR，含楼中楼回复；正文不通过本接口创建）                                                   |
-| PUT    | `/subthreads/:subthreadId/body`  | Auth   | upsert 子贴正文（kind=BODY：无正文创建，有正文乐观锁更新，version 不匹配返回 409；仅 OWNER/COLLABORATOR）         |
-| GET    | `/posts/:id`                     | Public | 帖子详情（含导航上下文：帖/子贴/父楼）                                                                            |
-| PATCH  | `/posts/:id`                     | Auth   | 编辑帖子（仅作者，乐观锁 version）                                                                                |
-| DELETE | `/posts/:id`                     | Auth   | 软删除楼层（作者或 OWNER/COLLABORATOR；正文 kind=BODY 不可删）                                                    |
+| Method | Path                             | Guard  | 描述                                                                                                                    |
+| ------ | -------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/subthreads/:subthreadId/posts` | Public | 楼层列表（Cursor 分页；支持 `order=OLDEST\|NEWEST` 与角色作者 `authorId`；仅筛选主楼层，内嵌每层前 5 条楼中楼保持原样） |
+| GET    | `/posts/:id/replies`             | Public | 主楼层的楼中楼回复列表（Cursor 分页；支持 `order=OLDEST\|NEWEST` 与 `authorId`；仅接受 parentPostId=null 的 FLOOR）     |
+| POST   | `/subthreads/:subthreadId/posts` | Auth   | 发帖（创建楼层 kind=FLOOR，含楼中楼回复；正文不通过本接口创建）                                                         |
+| PUT    | `/subthreads/:subthreadId/body`  | Auth   | upsert 子贴正文（kind=BODY：无正文创建，有正文乐观锁更新，version 不匹配返回 409；仅 OWNER/COLLABORATOR）               |
+| GET    | `/posts/:id`                     | Public | 帖子详情（含导航上下文：帖/子贴/父楼）                                                                                  |
+| PATCH  | `/posts/:id`                     | Auth   | 编辑帖子（仅作者，乐观锁 version）                                                                                      |
+| DELETE | `/posts/:id`                     | Auth   | 软删除楼层（作者或 OWNER/COLLABORATOR；正文 kind=BODY 不可删）                                                          |
 
 ## 响应契约
 
@@ -68,6 +68,7 @@
 - 重试不重复分配楼层号，`eventKey=post-created:{postId}` 保证 Outbox 事件幂等；同一请求 ID 用于不同载荷返回 409。
 - 数据库唯一约束兜底并发双请求。
 - 楼层列表默认按 floorNumber ASC 排序，`order=NEWEST` 时按 floorNumber DESC 排序；排序方向属于游标查询条件，切换后必须从第一页重新读取
+- 楼层列表的可选 `authorId` 只接受当前主题的楼主、协作者或已标记玩家；普通参与者返回空页。作者、排序与 cursor 属于同一主楼层查询范围，切换后必须从第一页重新读取；省略作者时原有查询与响应不变
 - 主楼层顺序不影响内嵌楼中楼；内嵌回复始终按 createdAt ASC、id ASC 稳定返回最早 5 条，`parentPostId + createdAt` 复合索引支撑上百条回复的分页读取
 - 独立楼中楼可切换 `OLDEST` / `NEWEST` 稳定顺序；`authorId` 只允许筛选当前仍为帖内玩家、楼主或协作者的用户，角色不再符合时返回空页。排序与作者均属于游标查询条件，客户端切换后必须从第一页重新读取。
 - 独立楼中楼阅读页复用 `GET /posts/:id` 获取原楼层及主题帖/子贴导航上下文，再用 `GET /posts/:id/replies` 分页读取回复；replies 接口拒绝以正文或楼中楼回复作为讨论根

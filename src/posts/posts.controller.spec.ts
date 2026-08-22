@@ -12,10 +12,10 @@ import {
 import { ReplyOrder } from '../common/dto/reply-query.dto';
 
 function responseMetadata(method: keyof PostsController) {
-  return Reflect.getMetadata(
-    DECORATORS.API_RESPONSE,
-    PostsController.prototype[method],
-  ) as Record<number, { type?: unknown; isArray?: boolean }>;
+  return Reflect.getMetadata(DECORATORS.API_RESPONSE, PostsController.prototype[method]) as Record<
+    number,
+    { type?: unknown; isArray?: boolean }
+  >;
 }
 
 describe('PostsController Swagger 响应契约', () => {
@@ -49,7 +49,7 @@ describe('PostsController Swagger 响应契约', () => {
     expect(responseMetadata('create')[409]).toBeDefined();
   });
 
-  it('楼层查询把显式倒序传给服务层', async () => {
+  it('楼层查询把显式倒序和作者筛选传给服务层', async () => {
     const postsService = {
       findAllBySubthread: jest.fn().mockResolvedValue({ items: [], meta: {} }),
     };
@@ -57,7 +57,12 @@ describe('PostsController Swagger 响应契约', () => {
 
     await controller.findFloors(
       'subthread-1',
-      { cursor: 'cursor-1', limit: 10, order: ReplyOrder.NEWEST },
+      {
+        cursor: 'cursor-1',
+        limit: 10,
+        order: ReplyOrder.NEWEST,
+        authorId: 'cms7rnyij000z7qdyg6zbge8e',
+      },
       { user: { id: 'user-1' } } as never,
     );
 
@@ -67,6 +72,7 @@ describe('PostsController Swagger 响应契约', () => {
       10,
       'user-1',
       ReplyOrder.NEWEST,
+      'cms7rnyij000z7qdyg6zbge8e',
     );
   });
 });

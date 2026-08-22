@@ -28,18 +28,36 @@ export class PostQueryService {
     limit = 20,
     userId?: string,
     order = ReplyOrder.OLDEST,
+    authorId?: string,
   ) {
     const subthread = await this.prisma.subthread.findUnique({
       where: { id: subthreadId, ...notDeleted },
-      select: { id: true, threadId: true },
+      select: { id: true, threadId: true, thread: { select: { ownerId: true } } },
     });
     if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
     await this.threadAccess.assertAccessible(subthread.threadId, userId);
 
+    if (
+      authorId &&
+      !(await this.isEligibleDiscussionAuthor(
+        subthread.threadId,
+        subthread.thread.ownerId,
+        authorId,
+      ))
+    ) {
+      return paginate([], { cursor: null, hasMore: false });
+    }
+
     const take = Math.min(limit, 50);
     const direction = order === ReplyOrder.NEWEST ? 'desc' : 'asc';
     const posts = await this.prisma.post.findMany({
-      where: { subthreadId, kind: 'FLOOR', parentPostId: null, ...notDeleted },
+      where: {
+        subthreadId,
+        kind: 'FLOOR',
+        parentPostId: null,
+        ...notDeleted,
+        ...(authorId ? { authorId } : {}),
+      },
       orderBy: { floorNumber: direction },
       take: take + 1,
       cursor: cursor ? { id: cursor } : undefined,
@@ -76,19 +94,20 @@ export class PostQueryService {
         WHERE ranked."row_number" <= 5
       `);
 
-      const replies = replyIds.length > 0
-        ? await this.prisma.post.findMany({
-            where: { id: { in: replyIds.map((reply) => reply.id) } },
-            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-            include: {
-              author: { select: authorSelect },
-              ...includeDiceRolls(),
-              replyToPost: {
-                select: { id: true, authorId: true, author: { select: authorSelect } },
+      const replies =
+        replyIds.length > 0
+          ? await this.prisma.post.findMany({
+              where: { id: { in: replyIds.map((reply) => reply.id) } },
+              orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+              include: {
+                author: { select: authorSelect },
+                ...includeDiceRolls(),
+                replyToPost: {
+                  select: { id: true, authorId: true, author: { select: authorSelect } },
+                },
               },
-            },
-          })
-        : [];
+            })
+          : [];
 
       for (const reply of replies) {
         const grouped = repliesMap.get(reply.parentPostId!) ?? [];
@@ -137,15 +156,11 @@ export class PostQueryService {
     }
     await this.threadAccess.assertAccessible(post.threadId, userId);
 
-    // “只看某人”仅面向当前仍是玩家、楼主或协作者的成员。
-    if (authorId && authorId !== post.thread.ownerId) {
-      const member = await this.prisma.threadMember.findUnique({
-        where: { threadId_userId: { threadId: post.threadId, userId: authorId } },
-        select: { role: true, playerMarked: true },
-      });
-      const eligible =
-        member?.playerMarked || member?.role === 'OWNER' || member?.role === 'COLLABORATOR';
-      if (!eligible) return paginate([], { cursor: null, hasMore: false });
+    if (
+      authorId &&
+      !(await this.isEligibleDiscussionAuthor(post.threadId, post.thread.ownerId, authorId))
+    ) {
+      return paginate([], { cursor: null, hasMore: false });
     }
 
     const take = Math.min(limit, 50);
@@ -170,6 +185,20 @@ export class PostQueryService {
     });
   }
 
+  private async isEligibleDiscussionAuthor(
+    threadId: string,
+    ownerId: string,
+    authorId: string,
+  ): Promise<boolean> {
+    if (authorId === ownerId) return true;
+    const member = await this.prisma.threadMember.findUnique({
+      where: { threadId_userId: { threadId, userId: authorId } },
+      select: { role: true, playerMarked: true },
+    });
+    return Boolean(
+      member?.playerMarked || member?.role === 'OWNER' || member?.role === 'COLLABORATOR',
+    );
+  }
 
   /** 获取单条帖子 + 导航上下文。已软删子贴返回 404 */
   async findById(id: string, userId?: string) {

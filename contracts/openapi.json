@@ -8466,6 +8466,16 @@
               ],
               "type": "string"
             }
+          },
+          {
+            "name": "authorId",
+            "required": false,
+            "in": "query",
+            "description": "只返回指定楼主、协作者或玩家创建的主楼层；接受现有 CUID 与 UUID 用户 ID",
+            "schema": {
+              "pattern": "^(?:[a-z0-9]{24,26}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -17359,7 +17369,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.4.0-dev.20260821.1",
+    "version": "5.5.0-dev.20260822.1",
     "contact": {}
   },
   "tags": [

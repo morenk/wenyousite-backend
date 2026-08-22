@@ -73,6 +73,7 @@ const mockMediaReferences = {
 
 describe('PostsService', () => {
   let service: PostsService;
+  let queries: PostQueryService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -94,6 +95,7 @@ describe('PostsService', () => {
       ],
     }).compile();
     service = module.get<PostsService>(PostsService);
+    queries = module.get<PostQueryService>(PostQueryService);
     jest.clearAllMocks();
     mockMentions.syncMentionsInTransaction.mockResolvedValue([]);
     mockPrisma.$transaction.mockImplementation(async (fn) => fn(mockPrisma));
@@ -1003,6 +1005,32 @@ describe('PostsService', () => {
       }),
     );
     expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('findAllBySubthread 将作者筛选完整传给查询层', async () => {
+    const query = jest.spyOn(queries, 'findAllBySubthread').mockResolvedValue({
+      items: [],
+      pagination: { cursor: null, hasMore: false },
+    });
+
+    await service.findAllBySubthread(
+      's1',
+      'cursor-1',
+      10,
+      'viewer-1',
+      ReplyOrder.NEWEST,
+      'cms7rnyij000z7qdyg6zbge8e',
+    );
+
+    expect(query).toHaveBeenCalledWith(
+      's1',
+      'cursor-1',
+      10,
+      'viewer-1',
+      ReplyOrder.NEWEST,
+      'cms7rnyij000z7qdyg6zbge8e',
+    );
+    query.mockRestore();
   });
 
   it('findAllBySubthread 无回复楼层应返回空 replies 数组', async () => {

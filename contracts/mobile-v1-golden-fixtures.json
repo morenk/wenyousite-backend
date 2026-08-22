@@ -1,7 +1,7 @@
 {
   "contract": "wenyousite-mobile-v1",
   "version": 1,
-  "contractVersion": "5.4.0-dev.20260821.1",
+  "contractVersion": "5.5.0-dev.20260822.1",
   "description": "后端与 Flutter 共同消费的移动端 V1 协议旅程；固定状态转换，不固定界面截图。",
   "compatibility": [
     {
@@ -172,6 +172,110 @@
       "id": "invalid-cursor",
       "businessCode": 40007,
       "clientBehavior": "clearAndReloadFirstPage"
+    }
+  ],
+  "postFloorAuthorFiltering": [
+    {
+      "id": "post-floor-author-filter-compatibility",
+      "request": {
+        "operationId": "postsFindFloors",
+        "query": {}
+      },
+      "expected": {
+        "defaultOrder": "OLDEST",
+        "preserveCursorBehavior": true,
+        "rootAuthorFilter": null,
+        "previewAuthorFilter": null
+      }
+    },
+    {
+      "id": "post-floor-author-filter-owner",
+      "member": {
+        "userId": "11111111-1111-4111-8111-111111111111",
+        "role": "OWNER",
+        "playerMarked": true
+      },
+      "expected": {
+        "includeInDirectory": true,
+        "filterRootFloors": true
+      }
+    },
+    {
+      "id": "post-floor-author-filter-collaborator",
+      "member": {
+        "userId": "22222222-2222-4222-8222-222222222222",
+        "role": "COLLABORATOR",
+        "playerMarked": false
+      },
+      "expected": {
+        "includeInDirectory": true,
+        "filterRootFloors": true
+      }
+    },
+    {
+      "id": "post-floor-author-filter-player",
+      "member": {
+        "userId": "33333333-3333-4333-8333-333333333333",
+        "role": "PARTICIPANT",
+        "playerMarked": true
+      },
+      "expected": {
+        "includeInDirectory": true,
+        "filterRootFloors": true
+      }
+    },
+    {
+      "id": "post-floor-author-filter-participant-excluded",
+      "member": {
+        "userId": "44444444-4444-4444-8444-444444444444",
+        "role": "PARTICIPANT",
+        "playerMarked": false
+      },
+      "expected": {
+        "includeInDirectory": false,
+        "response": {
+          "items": [],
+          "cursor": null,
+          "hasMore": false
+        }
+      }
+    },
+    {
+      "id": "post-floor-author-filter-cursor-order",
+      "request": {
+        "operationId": "postsFindFloors",
+        "query": {
+          "authorId": "22222222-2222-4222-8222-222222222222",
+          "order": "NEWEST",
+          "cursor": "opaque-filtered-floor-cursor",
+          "limit": 20
+        }
+      },
+      "expected": {
+        "rootQueryScope": ["authorId", "order", "cursor"],
+        "preserveCursorVerbatim": true,
+        "resetCursorWhenFilterChanges": true
+      }
+    },
+    {
+      "id": "post-floor-author-filter-preview-unaffected",
+      "request": {
+        "authorId": "22222222-2222-4222-8222-222222222222"
+      },
+      "rootFloor": {
+        "id": "floor-by-collaborator",
+        "authorId": "22222222-2222-4222-8222-222222222222"
+      },
+      "previewReplies": [
+        {
+          "id": "reply-by-other-author",
+          "authorId": "55555555-5555-4555-8555-555555555555"
+        }
+      ],
+      "expected": {
+        "includeRootFloor": true,
+        "includePreviewReplyIds": ["reply-by-other-author"]
+      }
     }
   ],
   "categories": [

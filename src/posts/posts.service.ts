@@ -39,8 +39,9 @@ export class PostsService {
     limit = 20,
     userId?: string,
     order = ReplyOrder.OLDEST,
+    authorId?: string,
   ) {
-    return this.queries.findAllBySubthread(subthreadId, cursor, limit, userId, order);
+    return this.queries.findAllBySubthread(subthreadId, cursor, limit, userId, order, authorId);
   }
   async findReplies(
     postId: string,

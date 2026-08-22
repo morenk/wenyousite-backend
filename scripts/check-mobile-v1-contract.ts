@@ -51,6 +51,7 @@ for (const section of [
   'authentication',
   'retry',
   'pagination',
+  'postFloorAuthorFiltering',
   'categories',
   'media',
   'profileCovers',
@@ -147,6 +148,65 @@ if (
   transientFailure?.expected?.retryContext !== true
 ) {
   failures.push('moment-comment-context-transient-failure 必须保留动态详情并允许重试定位');
+}
+const floorFilterCases = new Map(
+  (fixture.postFloorAuthorFiltering as Array<Record<string, any>>).map((item) => [item.id, item]),
+);
+for (const id of [
+  'post-floor-author-filter-compatibility',
+  'post-floor-author-filter-owner',
+  'post-floor-author-filter-collaborator',
+  'post-floor-author-filter-player',
+  'post-floor-author-filter-participant-excluded',
+  'post-floor-author-filter-cursor-order',
+  'post-floor-author-filter-preview-unaffected',
+]) {
+  if (!floorFilterCases.has(id)) failures.push(`黄金 fixture 缺少主楼作者筛选用例 ${id}`);
+}
+const floorCompatibility = floorFilterCases.get('post-floor-author-filter-compatibility');
+if (
+  'authorId' in (floorCompatibility?.request?.query ?? {}) ||
+  floorCompatibility?.expected?.defaultOrder !== 'OLDEST' ||
+  floorCompatibility?.expected?.preserveCursorBehavior !== true ||
+  floorCompatibility?.expected?.previewAuthorFilter !== null
+) {
+  failures.push(
+    'post-floor-author-filter-compatibility 必须固定省略筛选时的默认排序、游标与预览兼容行为',
+  );
+}
+for (const id of [
+  'post-floor-author-filter-owner',
+  'post-floor-author-filter-collaborator',
+  'post-floor-author-filter-player',
+]) {
+  const value = floorFilterCases.get(id);
+  if (value?.expected?.includeInDirectory !== true || value?.expected?.filterRootFloors !== true) {
+    failures.push(`${id} 必须进入角色目录并可筛选主楼层`);
+  }
+}
+const excludedParticipant = floorFilterCases.get('post-floor-author-filter-participant-excluded');
+if (
+  excludedParticipant?.expected?.includeInDirectory !== false ||
+  excludedParticipant?.expected?.response?.items?.length !== 0 ||
+  excludedParticipant?.expected?.response?.cursor !== null ||
+  excludedParticipant?.expected?.response?.hasMore !== false
+) {
+  failures.push('post-floor-author-filter-participant-excluded 必须排除普通参与者并固定为空页');
+}
+const floorCursor = floorFilterCases.get('post-floor-author-filter-cursor-order');
+if (
+  floorCursor?.request?.query?.order !== 'NEWEST' ||
+  floorCursor?.expected?.preserveCursorVerbatim !== true ||
+  floorCursor?.expected?.resetCursorWhenFilterChanges !== true
+) {
+  failures.push('post-floor-author-filter-cursor-order 必须固定作者、排序与游标的同一查询范围');
+}
+const floorPreview = floorFilterCases.get('post-floor-author-filter-preview-unaffected');
+if (
+  floorPreview?.previewReplies?.[0]?.authorId === floorPreview?.request?.authorId ||
+  floorPreview?.expected?.includePreviewReplyIds?.[0] !== floorPreview?.previewReplies?.[0]?.id
+) {
+  failures.push('post-floor-author-filter-preview-unaffected 必须保留其他作者的楼中楼预览');
 }
 const caseIds = Object.values(fixture)
   .filter(Array.isArray)

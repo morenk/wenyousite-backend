@@ -233,10 +233,10 @@ GET /threads?tagId=:id&sort=recommended&limit=20
 ### 4.2 浏览子贴楼层
 
 ```
-GET /subthreads/:id/posts?limit=20&order=OLDEST
+GET /subthreads/:id/posts?limit=20&order=OLDEST&authorId=<用户ID>
 ```
 
-`order` 可选 `OLDEST | NEWEST`，默认 `OLDEST`；它属于游标分页条件，切换顺序时客户端必须从第一页重新读取。该参数只改变主楼层的 `floorNumber` 顺序，每层内嵌的最早 5 条楼中楼回复仍保持正序。
+`order` 可选 `OLDEST | NEWEST`，默认 `OLDEST`；`authorId` 可选，只看当前主题楼主、协作者或已标记玩家创建的主楼层。两者都属于游标分页条件，切换时客户端必须从第一页重新读取。省略 `authorId` 时行为不变；作者筛选不作用于每层内嵌的最早 5 条楼中楼回复。
 
 每个楼层对象包含：
 

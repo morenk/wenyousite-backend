@@ -45,10 +45,7 @@ export class PostsController {
     enum: ReplyOrder,
     description: '主楼层顺序，默认 OLDEST',
   })
-  @ApiCursorPaginatedResponse(
-    FloorResponseDto,
-    '楼层列表（含楼中楼内联回复），cursor 分页',
-  )
+  @ApiCursorPaginatedResponse(FloorResponseDto, '楼层列表（含楼中楼内联回复），cursor 分页')
   async findFloors(
     @Param('subthreadId') subthreadId: string,
     @Query() query: PostQueryDto,
@@ -61,6 +58,7 @@ export class PostsController {
       query.limit,
       user?.id,
       query.order ?? ReplyOrder.OLDEST,
+      query.authorId,
     );
   }
 
