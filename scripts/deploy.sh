@@ -167,6 +167,43 @@ if [ "$REDIS_READY" = true ]; then
   (cd "$BACKEND_DIR" && bash scripts/backup-redis.sh)
 fi
 
+if [ "$REDIS_AOF_MIGRATION" = true ]; then
+  echo "在现有 Redis 数据集上在线生成 AOF..."
+  if [ "$(docker exec "$REDIS_CONTAINER" redis-cli --raw CONFIG SET appendfsync everysec)" != OK ] ||
+    [ "$(docker exec "$REDIS_CONTAINER" redis-cli --raw CONFIG SET maxmemory-policy noeviction)" != OK ] ||
+    [ "$(docker exec "$REDIS_CONTAINER" redis-cli --raw CONFIG SET appendonly yes)" != OK ]; then
+    echo "Redis 拒绝在线开启 AOF；后端保持停止，现有 Redis 不重建" >&2
+    exit 1
+  fi
+
+  REDIS_AOF_READY=false
+  for _ in $(seq 1 60); do
+    REDIS_PERSISTENCE=$(docker exec "$REDIS_CONTAINER" redis-cli --raw INFO persistence | tr -d '\r')
+    REDIS_AOF_ENABLED=$(awk -F: '$1 == "aof_enabled" {print $2}' <<<"$REDIS_PERSISTENCE")
+    REDIS_AOF_REWRITE=$(awk -F: '$1 == "aof_rewrite_in_progress" {print $2}' <<<"$REDIS_PERSISTENCE")
+    REDIS_AOF_REWRITE_SCHEDULED=$(awk -F: '$1 == "aof_rewrite_scheduled" {print $2}' <<<"$REDIS_PERSISTENCE")
+    REDIS_AOF_REWRITE_STATUS=$(awk -F: '$1 == "aof_last_bgrewrite_status" {print $2}' <<<"$REDIS_PERSISTENCE")
+    REDIS_AOF_WRITE_STATUS=$(awk -F: '$1 == "aof_last_write_status" {print $2}' <<<"$REDIS_PERSISTENCE")
+    REDIS_AOF_SIZE=$(awk -F: '$1 == "aof_current_size" {print $2}' <<<"$REDIS_PERSISTENCE")
+    if [ "$REDIS_AOF_ENABLED" = 1 ] && [ "$REDIS_AOF_REWRITE" = 0 ] &&
+      [ "$REDIS_AOF_REWRITE_SCHEDULED" = 0 ] && [ "$REDIS_AOF_REWRITE_STATUS" = ok ] &&
+      [ "$REDIS_AOF_WRITE_STATUS" = ok ] && [ "${REDIS_AOF_SIZE:-0}" -gt 0 ]; then
+      REDIS_AOF_READY=true
+      break
+    fi
+    sleep 1
+  done
+  if [ "$REDIS_AOF_READY" != true ]; then
+    echo "Redis AOF 在线生成未在 60 秒内完成；后端保持停止，现有 Redis 不重建" >&2
+    exit 1
+  fi
+  REDIS_SENTINEL_VALUE=$(docker exec "$REDIS_CONTAINER" redis-cli --raw GET "$REDIS_SENTINEL_KEY")
+  if [ "$REDIS_SENTINEL_VALUE" != "$BACKEND_BUILD_SHA" ]; then
+    echo "Redis AOF 在线生成后迁移哨兵缺失；后端保持停止，现有 Redis 不重建" >&2
+    exit 1
+  fi
+fi
+
 echo "5. 应用并验证 PostgreSQL 与 Redis 配置..."
 docker compose -f "$COMPOSE_FILE" up -d --wait
 REDIS_CONTAINER=$(docker compose -f "$COMPOSE_FILE" ps -q redis)
