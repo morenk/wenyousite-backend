@@ -6,6 +6,7 @@ BACKEND_DIR=$(cd -- "$SCRIPT_DIR/.." && pwd)
 COMPOSE_FILE="$BACKEND_DIR/docker-compose.yml"
 DEPLOY_SCRIPT="$SCRIPT_DIR/deploy.sh"
 BACKUP_SCRIPT="$SCRIPT_DIR/backup-redis.sh"
+SYSCTL_CONFIG="$BACKEND_DIR/ops/99-wenyousite-redis.conf"
 
 rendered=$(docker compose -f "$COMPOSE_FILE" config)
 for expected in 'appendonly' 'yes' 'appendfsync' 'everysec' 'noeviction'; do
@@ -16,10 +17,21 @@ for expected in 'appendonly' 'yes' 'appendfsync' 'everysec' 'noeviction'; do
 done
 
 backup_line=$(grep -n 'bash scripts/backup-redis.sh' "$DEPLOY_SCRIPT" | head -n 1 | cut -d: -f1)
+sysctl_line=$(grep -n 'sysctl -q -p "$REDIS_SYSCTL_TARGET"' "$DEPLOY_SCRIPT" | head -n 1 | cut -d: -f1)
 aof_enable_line=$(grep -n 'CONFIG SET appendonly yes' "$DEPLOY_SCRIPT" | head -n 1 | cut -d: -f1)
 compose_line=$(grep -n 'docker compose -f "$COMPOSE_FILE" up -d --wait' "$DEPLOY_SCRIPT" | head -n 1 | cut -d: -f1)
+if [[ -z "$sysctl_line" || -z "$backup_line" ]] || (( sysctl_line >= backup_line )); then
+  echo "部署脚本没有在 Redis 备份前应用内核持久化前置条件" >&2
+  exit 1
+fi
 if [[ -z "$backup_line" || -z "$compose_line" ]] || (( backup_line >= compose_line )); then
   echo "部署脚本没有在 Compose 变更前备份 Redis" >&2
+  exit 1
+fi
+
+if ! grep -Eq '^vm\.overcommit_memory[[:space:]]*=[[:space:]]*1$' "$SYSCTL_CONFIG" ||
+  ! grep -q 'sysctl -n vm.overcommit_memory' "$DEPLOY_SCRIPT"; then
+  echo "Redis 内核持久化前置条件缺失或未验证" >&2
   exit 1
 fi
 if [[ -z "$aof_enable_line" ]] || (( backup_line >= aof_enable_line || aof_enable_line >= compose_line )); then

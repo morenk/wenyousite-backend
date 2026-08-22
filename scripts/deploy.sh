@@ -112,6 +112,15 @@ if [ "$DEPLOY_FRONTEND" = true ]; then
 fi
 
 echo "4. 在基础设施变更前检查并备份现有数据..."
+REDIS_SYSCTL_SOURCE="$BACKEND_DIR/ops/99-wenyousite-redis.conf"
+REDIS_SYSCTL_TARGET=/etc/sysctl.d/99-wenyousite-redis.conf
+install -m 0644 "$REDIS_SYSCTL_SOURCE" "$REDIS_SYSCTL_TARGET"
+sysctl -q -p "$REDIS_SYSCTL_TARGET"
+if [ "$(sysctl -n vm.overcommit_memory)" != 1 ]; then
+  echo "vm.overcommit_memory 未生效，拒绝执行 Redis 备份或 AOF 变更" >&2
+  exit 1
+fi
+
 POSTGRES_CONTAINER=$(docker compose -f "$COMPOSE_FILE" ps -q postgres)
 REDIS_CONTAINER=$(docker compose -f "$COMPOSE_FILE" ps -q redis)
 POSTGRES_READY=false

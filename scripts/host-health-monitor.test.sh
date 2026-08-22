@@ -16,6 +16,7 @@ healthy="$(
   WENYOU_OUTBOX_HIGH_RETRY_OVERRIDE=0 \
   WENYOU_REDIS_AOF_ENABLED_OVERRIDE=1 \
   WENYOU_REDIS_AOF_STATUS_OVERRIDE=ok \
+  WENYOU_REDIS_OVERCOMMIT_MEMORY_OVERRIDE=1 \
   bash "$MONITOR"
 )"
 if [[ -n "$healthy" ]]; then
@@ -34,6 +35,7 @@ warning="$(
   WENYOU_OUTBOX_HIGH_RETRY_OVERRIDE=4 \
   WENYOU_REDIS_AOF_ENABLED_OVERRIDE=0 \
   WENYOU_REDIS_AOF_STATUS_OVERRIDE=err \
+  WENYOU_REDIS_OVERCOMMIT_MEMORY_OVERRIDE=0 \
   bash "$MONITOR"
 )"
 
@@ -46,11 +48,13 @@ for expected in \
   'transaction_timeout' \
   'outbox_backlog' \
   'redis_durability' \
+  'redis_overcommit' \
   'io_psi_full_avg10=93.62' \
   'disk_await_ms=278.04' \
   'outbox_oldest_seconds=900' \
   'outbox_high_retry=4' \
-  'redis_aof_enabled=0'; do
+  'redis_aof_enabled=0' \
+  'redis_overcommit_memory=0'; do
   if [[ "$warning" != *"$expected"* ]]; then
     printf '告警样本缺少字段 %s: %s\n' "$expected" "$warning" >&2
     exit 1

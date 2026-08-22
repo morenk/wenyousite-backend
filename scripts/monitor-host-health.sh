@@ -131,6 +131,7 @@ recent_5xx="$(recent_backend_count 'request errored.*statusCode.:5[0-9][0-9]' "$
 recent_p2028="$(recent_backend_count 'Transaction already closed' "${WENYOU_RECENT_P2028_OVERRIDE:-}")"
 read -r outbox_oldest_seconds outbox_high_retry <<<"$(outbox_sample)"
 read -r redis_aof_enabled redis_aof_status <<<"$(redis_persistence_sample)"
+redis_overcommit_memory="${WENYOU_REDIS_OVERCOMMIT_MEMORY_OVERRIDE:-$(sysctl -n vm.overcommit_memory 2>/dev/null || printf 'unknown')}"
 load1="$(awk '{ print $1 }' /proc/loadavg 2>/dev/null || printf 'unknown')"
 memory_available_kb="$(awk '$1 == "MemAvailable:" { print $2 }' /proc/meminfo 2>/dev/null || printf 'unknown')"
 restarts="$(systemctl show "$BACKEND_UNIT" -p NRestarts --value 2>/dev/null || printf 'unknown')"
@@ -162,11 +163,14 @@ fi
 if [[ "$redis_aof_enabled" != "1" ]] || [[ "$redis_aof_status" != "ok" ]]; then
   reasons+=("redis_durability")
 fi
+if [[ "$redis_overcommit_memory" != "1" ]]; then
+  reasons+=("redis_overcommit")
+fi
 
 if (( ${#reasons[@]} > 0 )); then
   reason_csv="$(IFS=,; printf '%s' "${reasons[*]}")"
-  printf 'host_health_warning reasons=%s io_psi_full_avg10=%s disk_await_ms=%s health_status=%s health_ms=%s load1=%s memory_available_kb=%s backend_restarts=%s recent_5xx=%s recent_p2028=%s outbox_oldest_seconds=%s outbox_high_retry=%s redis_aof_enabled=%s redis_aof_status=%s\n' \
+  printf 'host_health_warning reasons=%s io_psi_full_avg10=%s disk_await_ms=%s health_status=%s health_ms=%s load1=%s memory_available_kb=%s backend_restarts=%s recent_5xx=%s recent_p2028=%s outbox_oldest_seconds=%s outbox_high_retry=%s redis_aof_enabled=%s redis_aof_status=%s redis_overcommit_memory=%s\n' \
     "$reason_csv" "${psi:-unknown}" "${await_ms:-unknown}" "${health_status:-000}" "${health_ms:-unknown}" \
     "$load1" "$memory_available_kb" "$restarts" "${recent_5xx:-0}" "${recent_p2028:-0}" \
-    "$outbox_oldest_seconds" "$outbox_high_retry" "$redis_aof_enabled" "$redis_aof_status"
+    "$outbox_oldest_seconds" "$outbox_high_retry" "$redis_aof_enabled" "$redis_aof_status" "$redis_overcommit_memory"
 fi
