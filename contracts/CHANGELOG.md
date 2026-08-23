@@ -1,5 +1,12 @@
 # API 合同变更
 
+## 5.7.0-dev.20260823.1
+
+- 草稿创建向后兼容新增可选 UUID v4 `clientRequestId`；同一用户以相同键重放相同规范化正文与槽位时返回原草稿，复用到不同载荷返回 `40912 IDEMPOTENCY_KEY_REUSED`。
+- 新增 `GET /drafts/state`，从同一数据库快照返回 `drafts / usedSlots / maxSlots / slots`；原 `/drafts` 与 `/drafts/slots` 保持可用。
+- `DELETE /drafts/:id` 向后兼容新增可选 `version` 查询参数：版本落后返回 `40002 OPTIMISTIC_LOCK_CONFLICT`，相同删除重放幂等成功。GET/PATCH 不存在或越权草稿统一返回 `40405 DRAFT_NOT_FOUND`。
+- 携带旧 `version` 的 POST 在目标槽位已删除时不再降级为新建，避免离线设备复活草稿。旧的 POST 槽位覆盖暂留兼容；客户端应改用 `PATCH /drafts/:id`，待移动端迁移后再移除。
+
 ## 5.6.0-dev.20260823.1
 
 - 新增 `GET /subthreads/:subthreadId/posts/authors`，只返回当前子贴中实际发布过未删除主楼层的楼主、协作者与已标记玩家，供主楼层“只看某人”提前筛选候选。

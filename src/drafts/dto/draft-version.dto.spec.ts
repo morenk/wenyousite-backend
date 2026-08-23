@@ -6,6 +6,7 @@ import { DECORATORS } from '@nestjs/swagger';
 import { CreateDraftDto } from './create-draft.dto';
 import { UpdateDraftDto } from './update-draft.dto';
 import { DraftResponseDto } from './draft-response.dto';
+import { DeleteDraftQueryDto } from './delete-draft-query.dto';
 
 describe('草稿 version DTO 契约', () => {
   it('创建空槽位可以省略 version，提供时必须为正整数', async () => {
@@ -14,6 +15,22 @@ describe('草稿 version DTO 契约', () => {
 
     expect(await validate(valid)).toEqual([]);
     expect((await validate(invalid)).some((error) => error.property === 'version')).toBe(true);
+  });
+
+  it('创建幂等键省略时兼容旧客户端，提供时必须为 UUID v4', async () => {
+    const valid = Object.assign(new CreateDraftDto(), {
+      content: '正文',
+      clientRequestId: '6f9619ff-8b86-4e4b-a59b-19a25f6d6f77',
+    });
+    const invalid = Object.assign(new CreateDraftDto(), {
+      content: '正文',
+      clientRequestId: 'retry-draft-1',
+    });
+
+    expect(await validate(valid)).toEqual([]);
+    expect((await validate(invalid)).some((error) => error.property === 'clientRequestId')).toBe(
+      true,
+    );
   });
 
   it('PATCH 必须提供正整数 version', async () => {
@@ -31,5 +48,15 @@ describe('草稿 version DTO 契约', () => {
       'version',
     );
     expect(metadata).toMatchObject({ minimum: 1, type: Number });
+  });
+
+  it('删除 version 在兼容期可省略，提供时必须为正整数', async () => {
+    const missing = Object.assign(new DeleteDraftQueryDto(), {});
+    const valid = Object.assign(new DeleteDraftQueryDto(), { version: 2 });
+    const invalid = Object.assign(new DeleteDraftQueryDto(), { version: 0 });
+
+    expect(await validate(missing)).toEqual([]);
+    expect(await validate(valid)).toEqual([]);
+    expect((await validate(invalid)).some((error) => error.property === 'version')).toBe(true);
   });
 });

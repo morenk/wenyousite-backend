@@ -417,10 +417,12 @@
 | slot | Int | default 1 | 草稿位编号（1-5） |
 | content | String | — | 完整草稿内容（Markdown，内联骰子节点与正文同版本保存） |
 | version | Int | default 1 | 跨设备乐观锁版本 |
+| clientRequestId | UUID? | 与 userId 联合唯一 | 创建幂等键，兼容期可空 |
+| createRequestHash | String? | 与 clientRequestId 同为空或同非空 | 规范化创建载荷摘要，不进入 API 响应 |
 | createdAt | DateTime | — | — |
 | updatedAt | DateTime | @updatedAt | — |
 
-`@@unique([userId, slot])` — 每用户最多 5 条草稿，按 slot 区分。
+`@@unique([userId, slot])` 与数据库 `slot BETWEEN 1 AND 5` — 每用户最多 5 条草稿；数据库同时要求 `version >= 1`。
 
 ### notifications — 通知
 

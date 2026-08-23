@@ -188,6 +188,7 @@
 | GET | `/drafts` | authenticated | 当前用户全部草稿 |
 | POST | `/drafts` | authenticated | 保存草稿（不传 slot 自动选空闲位） |
 | GET | `/drafts/slots` | authenticated | 草稿位使用情况（5 槽已用数） |
+| GET | `/drafts/state` | authenticated | 原子获取草稿列表与槽位使用情况 |
 | GET | `/drafts/{id}` | authenticated | 获取单条草稿 |
 | PATCH | `/drafts/{id}` | authenticated | 更新草稿内容 |
 | DELETE | `/drafts/{id}` | authenticated | 删除草稿 |

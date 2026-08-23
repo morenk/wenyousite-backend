@@ -16,6 +16,7 @@
 | ------ | --------------- | -------- | ---------------------------------------------------- |
 | GET    | `/drafts`       | AuthRead | 获取当前用户全部草稿（按 slot 排序）                 |
 | GET    | `/drafts/slots` | AuthRead | 草稿槽位使用情况（usedSlots / maxSlots=5 / slots[]） |
+| GET    | `/drafts/state` | AuthRead | 原子获取草稿列表与槽位使用情况                       |
 | POST   | `/drafts`       | Auth     | 保存草稿（可指定 slot，不指定自动分配空闲位）        |
 | GET    | `/drafts/:id`   | AuthRead | 获取单条草稿                                         |
 | PATCH  | `/drafts/:id`   | Auth     | 更新草稿内容                                         |
@@ -25,7 +26,7 @@
 
 ## 响应契约
 
-- 草稿列表的 `data` 为 `DraftResponseDto[]`；创建、查询、更新的 `data` 为 `DraftResponseDto`。
+- 草稿列表的 `data` 为 `DraftResponseDto[]`；原子状态的 `data` 为 `DraftStateResponseDto`；创建、查询、更新的 `data` 为 `DraftResponseDto`。
 - 槽位使用情况的 `data` 为 `DraftSlotUsageResponseDto`。
 - 删除结果的 `data` 为 `DeleteDraftResponseDto`。
 - 所有 DTO 均位于统一成功 envelope 的 `data` 字段，Web/Flutter 使用生成类型。
@@ -34,12 +35,18 @@
 
 - 每个用户最多 5 个草稿槽位（slot 1-5），由 `userId + slot` 联合唯一键约束
 - 保存草稿时：
+  - 可携带 UUID v4 `clientRequestId`；相同键和相同规范化载荷返回首次创建结果，同键不同载荷返回 `40912`
   - 指定 slot：空槽位直接新建；已有草稿必须携带当前 `version` 才能覆盖
-  - 不指定 slot：事务先锁定用户行，再扫描 1-5 找第一个空闲位并创建；兼容旧写入者导致唯一键竞争时只重试一次，仍冲突则返回 409
+  - 携带 version 但槽位已经为空时返回 409，禁止把过期覆盖降级为新建并复活已删除草稿
+  - 不指定 slot：事务先锁定用户行，再扫描 1-5 找第一个空闲位并创建；兼容旧写入者导致唯一键竞争时最多尝试 5 次，仍冲突则返回 409
   - 所有槽位被占满时返回 400 "草稿位已满（5/5），请先删除旧草稿"
 - `PATCH /drafts/:id` 必须携带当前 `version`；覆盖成功后原子递增，版本不匹配或并发竞争返回 HTTP 409、`errorCode=40002`
+- 覆盖已有草稿应使用稳定 ID 的 PATCH。POST 覆盖只为旧 Web 客户端暂留，移动端迁移完成后将独立移除
+- `DELETE /drafts/:id?version=N` 使用条件删除：目标仍存在但 version 已变化时返回 409；目标已经被相同操作删除时幂等成功。兼容期允许旧客户端省略 version
+- GET/PATCH 对不存在或非本人草稿统一返回 `40405 DRAFT_NOT_FOUND`；DELETE 对二者都按不存在幂等处理，不泄露资源归属
 - `version` 是跨 Web/Flutter 的并发事实源，不使用 `updatedAt` 比较，避免客户端日期精度和时区差异
-- 自动槽位分配的“查空位 + 创建”属于同一串行化临界区，两个并发自动保存不会选中同一槽位或把数据库唯一键错误暴露成 500
+- 所有空槽位创建先锁定用户行；自动槽位分配的“查空位 + 创建”属于同一串行化临界区，并发保存不会选中同一槽位或把数据库唯一键错误暴露成 500
+- 数据库用 CHECK 固定 slot 1-5 和 version >= 1；`userId + slot` 与 `userId + clientRequestId` 分别保证槽位和幂等唯一性
 - 草稿不与子贴绑定，作为全局浮动编辑器缓存
 - 不存在自动覆盖逻辑：满时不自动替换最旧草稿，明确要求用户手动管理
 - 删除为硬删除（物理删除），不使用软删除

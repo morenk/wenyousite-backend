@@ -389,10 +389,10 @@ Web 使用根级 3:1 资产；移动端优先使用 `mobile`，历史数据中�
 ```
 GET    /drafts              草稿列表
 GET    /drafts/slots        槽位使用情况 → { usedSlots: [1,2,3], maxSlots: 5 }
-POST   /drafts             保存草稿（不传 slot 自动选空闲位，满时返回 400）
-       { "content": "草稿内容...", "slot": 1 }
-PATCH  /drafts/:id         更新草稿
-DELETE /drafts/:id         删除草稿
+GET    /drafts/state        同一快照返回 drafts / usedSlots / maxSlots / slots
+POST   /drafts              创建草稿（携带稳定 clientRequestId；不传 slot 自动选空闲位）
+PATCH  /drafts/:id          按 id + version 更新草稿
+DELETE /drafts/:id?version=2 按 version 条件删除；重复删除幂等成功
 ```
 
 ---

@@ -14,6 +14,11 @@ import { z } from 'zod';
 import { faker } from '@faker-js/faker';
 import { PrismaClient } from '@prisma/client';
 import { API_CONTRACT_VERSION } from '../src/common/swagger/openapi-document';
+import { DraftsService } from '../src/drafts/drafts.service';
+import { DiceService } from '../src/dice/dice.service';
+import { StickerContentService } from '../src/stickers/sticker-content.service';
+import { MediaReferenceService } from '../src/media/media-reference.service';
+import { PrismaService } from '../src/prisma/prisma.service';
 
 // ═══════════════════════════════════════════════════════════════
 // 配置
@@ -39,9 +44,11 @@ const e2ePrisma = new PrismaClient({ datasourceUrl: databaseUrl });
 
 const RUN_ID = Date.now().toString();
 const TEST_EMAIL = `e2e-${RUN_ID}@wenyou.site`;
+const SECOND_TEST_EMAIL = `e2e-drafts-peer-${RUN_ID}@wenyou.site`;
 const TEST_PASSWORD = 'E2eTest123!';
 const TEST_TAG_PREFIX = `e2e_${RUN_ID}_`;
 const TEST_SOURCE_IP = `198.18.${Number(RUN_ID.slice(-5)) % 255}.${(Number(RUN_ID.slice(-3)) % 254) + 1}`;
+const SECOND_TEST_SOURCE_IP = `198.19.${Number(RUN_ID.slice(-4)) % 255}.${(Number(RUN_ID.slice(-2)) % 254) + 1}`;
 const TEST_USERNAME = faker.internet
   .username()
   .slice(0, 16)
@@ -113,12 +120,31 @@ const postSchema = z.object({
   createdAt: z.string().optional(),
 });
 
-const draftSchema = z.object({
-  id: z.string(),
-  userId: z.string().optional(),
-  slot: z.number(),
-  content: z.string(),
-  version: z.number(),
+const draftSchema = z
+  .object({
+    id: z.string(),
+    userId: z.string(),
+    slot: z.number().int().min(1).max(5),
+    content: z.string(),
+    version: z.number().int().positive(),
+    createdAt: z.string().datetime(),
+    updatedAt: z.string().datetime(),
+  })
+  .strict();
+
+const draftStateSchema = z
+  .object({
+    drafts: z.array(draftSchema),
+    usedSlots: z.number().int().min(0).max(5),
+    maxSlots: z.literal(5),
+    slots: z.array(z.number().int().min(1).max(5)),
+  })
+  .strict();
+
+const apiErrorSchema = z.object({
+  code: z.number().int(),
+  message: z.string(),
+  data: z.null(),
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -190,6 +216,8 @@ class Client {
   token = '';
   cookies = new Map<string, string>();
 
+  constructor(private readonly sourceIp = TEST_SOURCE_IP) {}
+
   private async req<T>(
     method: string,
     path: string,
@@ -197,7 +225,7 @@ class Client {
     schema?: z.ZodType<T>,
   ): Promise<T> {
     const headers: Record<string, string> = {};
-    headers['X-Forwarded-For'] = TEST_SOURCE_IP;
+    headers['X-Forwarded-For'] = this.sourceIp;
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
 
@@ -262,7 +290,7 @@ class Client {
     body?: unknown,
   ): Promise<{ status: number; json: unknown }> {
     const headers: Record<string, string> = {};
-    headers['X-Forwarded-For'] = TEST_SOURCE_IP;
+    headers['X-Forwarded-For'] = this.sourceIp;
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
     const cookieHeader = Array.from(this.cookies.entries())
@@ -280,6 +308,7 @@ class Client {
 }
 
 const api = new Client();
+const peerApi = new Client(SECOND_TEST_SOURCE_IP);
 
 // ═══════════════════════════════════════════════════════════════
 // 辅助
@@ -315,10 +344,22 @@ async function fetchCodeFromDB(email: string): Promise<string | null> {
   return result?.token ?? null;
 }
 
-/** 无论用例成功或失败，都从本机数据库移除本次运行产生的数据。 */
-async function cleanupTestData() {
-  const safeEmail = TEST_EMAIL.replaceAll("'", "''");
-  const safeTagPrefix = TEST_TAG_PREFIX.replaceAll("'", "''");
+async function registerTestClient(client: Client, email: string, username: string) {
+  const requested = await client.post('/auth/register/request-code', { email });
+  assert(requested.code === 0, `第二测试用户验证码请求失败: ${requested.code}`);
+  const code = await fetchCodeFromDB(email);
+  assert(!!code, '第二测试用户验证码不存在');
+  const registered = await client.post(
+    '/auth/register/verify-and-complete',
+    { email, code, username, password: TEST_PASSWORD },
+    apiResponse(authResponseSchema),
+  );
+  client.token = registered.data.accessToken;
+  return registered.data.user.id;
+}
+
+async function cleanupUserByEmail(email: string) {
+  const safeEmail = email.replaceAll("'", "''");
   await e2ePrisma.$executeRawUnsafe(
     `DO $cleanup$
        DECLARE test_user_id text;
@@ -341,10 +382,17 @@ async function cleanupTestData() {
            DELETE FROM users WHERE id=test_user_id;
          END IF;
          DELETE FROM email_verifications WHERE email='${safeEmail}';
-         DELETE FROM topic_tags WHERE name LIKE '${safeTagPrefix}%';
        END
        $cleanup$;`,
   );
+}
+
+/** 无论用例成功或失败，都从本机数据库移除本次运行产生的数据。 */
+async function cleanupTestData() {
+  const safeTagPrefix = TEST_TAG_PREFIX.replaceAll("'", "''");
+  await cleanupUserByEmail(TEST_EMAIL);
+  await cleanupUserByEmail(SECOND_TEST_EMAIL);
+  await e2ePrisma.$executeRawUnsafe(`DELETE FROM topic_tags WHERE name LIKE '${safeTagPrefix}%'`);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -696,39 +744,223 @@ test(s5, 'DELETE /threads/:id/like 取消点赞', async () => {
 
 const s6 = suite('草稿池');
 
-test(s6, 'GET /drafts/slots 槽位情况', async () => {
-  const r = await api.get('/drafts/slots');
-  assert(r.code === 0, `槽位查询应成功 (got: ${r.code})`);
+test(s6, 'GET /drafts/state 未登录拒绝访问', async () => {
+  const previous = api.token;
+  api.token = '';
+  const { status } = await api.expectStatus('/drafts/state', 'GET');
+  api.token = previous;
+  assert(status === 401, `期望 401, 实际 ${status}`);
 });
 
-test(s6, 'POST /drafts 保存草稿', async () => {
-  const r = await api.post('/drafts', { content: 'E2E 草稿内容' }, apiResponse(draftSchema));
-  assert(r.code === 0, `保存应成功 (got: ${r.code} ${r.message})`);
-  draftId = r.data.id;
-  draftVersion = r.data.version;
+test(s6, 'POST /drafts 并发重放同一幂等创建只产生一条草稿', async () => {
+  const clientRequestId = crypto.randomUUID();
+  const payload = { content: 'E2E 草稿内容', clientRequestId };
+  const [first, replay] = await Promise.all([
+    api.post('/drafts', payload, apiResponse(draftSchema)),
+    api.post('/drafts', payload, apiResponse(draftSchema)),
+  ]);
+  assert(first.data.id === replay.data.id, '并发幂等重放应返回同一草稿 ID');
+  const count = await e2ePrisma.draft.count({
+    where: { userId: currentUserId, clientRequestId },
+  });
+  assert(count === 1, `幂等创建应只落一行，实际 ${count}`);
+  draftId = first.data.id;
+  draftVersion = first.data.version;
 });
 
-test(s6, 'GET /drafts 草稿列表', async () => {
-  const r = await api.get('/drafts', apiResponse(z.array(draftSchema)));
-  assert(Array.isArray(r.data), 'data 应为数组');
+test(s6, 'POST /drafts 同一幂等键复用于不同载荷返回 40912', async () => {
+  const stored = await e2ePrisma.draft.findUniqueOrThrow({ where: { id: draftId } });
+  const { status, json } = await api.expectStatus('/drafts', 'POST', {
+    content: '不同正文',
+    clientRequestId: stored.clientRequestId,
+  });
+  const error = apiErrorSchema.parse(json);
+  assert(status === 409, `期望 409, 实际 ${status}`);
+  assert(error.code === 40912, `期望 40912, 实际 ${error.code}`);
 });
 
-test(s6, 'GET /drafts/:id 单条草稿', async () => {
-  const r = await api.get(`/drafts/${draftId}`, apiResponse(draftSchema));
-  assert(r.data.id === draftId, 'ID 应匹配');
+test(s6, 'GET /drafts/state 返回严格且自洽的原子快照', async () => {
+  const r = await api.get('/drafts/state', apiResponse(draftStateSchema));
+  assert(r.data.drafts.length === 1, '应返回一条草稿');
+  assert(r.data.usedSlots === r.data.drafts.length, '使用数应与列表一致');
+  assert(
+    r.data.slots.join(',') === r.data.drafts.map((draft) => draft.slot).join(','),
+    '槽位应与列表一致',
+  );
 });
 
-test(s6, 'PATCH /drafts/:id 更新草稿', async () => {
-  const r = await api.patch(`/drafts/${draftId}`, {
-    content: '更新后的草稿',
+test(s6, 'POST /drafts 指定空槽位的并发幂等重放也只产生一条草稿', async () => {
+  const clientRequestId = crypto.randomUUID();
+  const payload = { content: '指定槽位幂等正文', slot: 2, clientRequestId };
+  const [first, replay] = await Promise.all([
+    api.post('/drafts', payload, apiResponse(draftSchema)),
+    api.post('/drafts', payload, apiResponse(draftSchema)),
+  ]);
+  assert(first.data.id === replay.data.id, '指定槽位的并发重放应返回同一草稿 ID');
+  const count = await e2ePrisma.draft.count({
+    where: { userId: currentUserId, clientRequestId },
+  });
+  assert(count === 1, `指定槽位的幂等创建应只落一行，实际 ${count}`);
+  await api.del(`/drafts/${first.data.id}?version=${first.data.version}`);
+});
+
+test(s6, 'PATCH /drafts/:id 相同旧版本并发写入只有一个成功', async () => {
+  const [left, right] = await Promise.all([
+    api.expectStatus(`/drafts/${draftId}`, 'PATCH', {
+      content: '并发正文 A',
+      version: draftVersion,
+    }),
+    api.expectStatus(`/drafts/${draftId}`, 'PATCH', {
+      content: '并发正文 B',
+      version: draftVersion,
+    }),
+  ]);
+  const statuses = [left.status, right.status].sort((a, b) => a - b);
+  assert(statuses[0] === 200 && statuses[1] === 409, `期望 200/409, 实际 ${statuses}`);
+  const conflict = apiErrorSchema.parse(left.status === 409 ? left.json : right.json);
+  assert(conflict.code === 40002, `期望 40002, 实际 ${conflict.code}`);
+  const latest = await api.get(`/drafts/${draftId}`, apiResponse(draftSchema));
+  assert(latest.data.version === draftVersion + 1, '并发更新后 version 应只递增一次');
+  assert(['并发正文 A', '并发正文 B'].includes(latest.data.content), '最终正文应来自唯一赢家');
+  draftVersion = latest.data.version;
+});
+
+test(s6, '草稿正文和媒体引用写入任一步失败时整笔事务回滚', async () => {
+  const before = await e2ePrisma.draft.findUniqueOrThrow({ where: { id: draftId } });
+  const expectedFailure = 'E2E_DRAFT_MEDIA_SYNC_FAILURE';
+  const failingMediaReferences = {
+    syncDraftContent: async () => {
+      throw new Error(expectedFailure);
+    },
+    releaseDraftContent: async () => undefined,
+  } as unknown as MediaReferenceService;
+  const service = new DraftsService(
+    e2ePrisma as unknown as PrismaService,
+    new DiceService(),
+    new StickerContentService(e2ePrisma as unknown as PrismaService),
+    failingMediaReferences,
+  );
+
+  let rejected = false;
+  try {
+    await service.update(draftId, '不应提交的正文', before.version, currentUserId);
+  } catch (error) {
+    rejected = error instanceof Error && error.message === expectedFailure;
+  }
+  assert(rejected, '媒体引用同步失败应向调用方返回失败');
+
+  const after = await e2ePrisma.draft.findUniqueOrThrow({ where: { id: draftId } });
+  assert(after.content === before.content, '事务失败后正文不得变化');
+  assert(after.version === before.version, '事务失败后 version 不得递增');
+});
+
+test(s6, '跨账号读取和更新返回 40405，幂等删除不泄露也不删除他人草稿', async () => {
+  await registerTestClient(peerApi, SECOND_TEST_EMAIL, `e2epeer${RUN_ID.slice(-6)}`);
+  for (const [method, body] of [
+    ['GET', undefined],
+    ['PATCH', { content: '越权正文', version: draftVersion }],
+  ] as const) {
+    const { status, json } = await peerApi.expectStatus(`/drafts/${draftId}`, method, body);
+    const error = apiErrorSchema.parse(json);
+    assert(status === 404 && error.code === 40405, `${method} 应返回 40405`);
+  }
+  const hiddenDelete = await peerApi.expectStatus(
+    `/drafts/${draftId}?version=${draftVersion}`,
+    'DELETE',
+  );
+  assert(hiddenDelete.status === 200, `越权删除应按不存在幂等处理，实际 ${hiddenDelete.status}`);
+  const ownerRead = await api.get(`/drafts/${draftId}`, apiResponse(draftSchema));
+  assert(ownerRead.data.id === draftId, '越权删除不得影响本人草稿');
+});
+
+test(s6, 'DELETE /drafts/:id 拒绝旧版本并允许相同删除重放', async () => {
+  const stale = await api.expectStatus(`/drafts/${draftId}?version=${draftVersion - 1}`, 'DELETE');
+  const conflict = apiErrorSchema.parse(stale.json);
+  assert(stale.status === 409 && conflict.code === 40002, '旧版本删除应返回 409/40002');
+  const [removed, concurrentReplay] = await Promise.all([
+    api.del(`/drafts/${draftId}?version=${draftVersion}`),
+    api.del(`/drafts/${draftId}?version=${draftVersion}`),
+  ]);
+  assert(removed.code === 0, `删除应成功: ${removed.code}`);
+  assert(concurrentReplay.code === 0, '并发重复删除应幂等成功');
+  const laterReplay = await api.del(`/drafts/${draftId}?version=${draftVersion}`);
+  assert(laterReplay.code === 0, '稍后重复删除也应幂等成功');
+});
+
+test(s6, '旧 version 不得复活已删除槽位，旧 ID 也不得覆盖新草稿', async () => {
+  const resurrect = await api.expectStatus('/drafts', 'POST', {
+    content: '离线旧正文',
+    slot: 1,
     version: draftVersion,
   });
-  assert(r.code === 0, `更新应成功 (got: ${r.code} ${r.message})`);
+  const conflict = apiErrorSchema.parse(resurrect.json);
+  assert(resurrect.status === 409 && conflict.code === 40002, '旧 version 创建应冲突');
+
+  const replacement = await api.post(
+    '/drafts',
+    { content: '新槽位正文', slot: 1, clientRequestId: crypto.randomUUID() },
+    apiResponse(draftSchema),
+  );
+  const stalePatch = await api.expectStatus(`/drafts/${draftId}`, 'PATCH', {
+    content: '旧设备覆盖',
+    version: draftVersion,
+  });
+  const missing = apiErrorSchema.parse(stalePatch.json);
+  assert(stalePatch.status === 404 && missing.code === 40405, '旧 ID 更新应返回 40405');
+  const preserved = await api.get(`/drafts/${replacement.data.id}`, apiResponse(draftSchema));
+  assert(preserved.data.content === '新槽位正文', '新草稿正文不得被旧 ID 覆盖');
+  await api.del(`/drafts/${replacement.data.id}?version=${replacement.data.version}`);
 });
 
-test(s6, 'DELETE /drafts/:id 删除草稿', async () => {
-  const r = await api.del(`/drafts/${draftId}`);
-  assert(r.code === 0, `删除应成功 (got: ${r.code} ${r.message})`);
+test(s6, '五个并发自动创建获得唯一槽位，第六个稳定返回已满', async () => {
+  const deviceClients = Array.from({ length: 6 }, (_, index) => {
+    const client = new Client(
+      `198.19.${100 + index}.${((Number(RUN_ID.slice(-2)) + index) % 254) + 1}`,
+    );
+    client.token = api.token;
+    return client;
+  });
+  const created = await Promise.all(
+    Array.from({ length: 5 }, (_, index) =>
+      deviceClients[index].post(
+        '/drafts',
+        { content: `并发自动草稿 ${index + 1}`, clientRequestId: crypto.randomUUID() },
+        apiResponse(draftSchema),
+      ),
+    ),
+  );
+  const slots = created.map((response) => response.data.slot).sort((a, b) => a - b);
+  assert(slots.join(',') === '1,2,3,4,5', `并发槽位应为 1..5，实际 ${slots}`);
+
+  const full = await deviceClients[5].expectStatus('/drafts', 'POST', {
+    content: '第六个草稿',
+    clientRequestId: crypto.randomUUID(),
+  });
+  const error = apiErrorSchema.parse(full.json);
+  assert(full.status === 400 && error.code === 40001, '第六个草稿应返回 400/40001');
+
+  for (const [index, response] of created.entries()) {
+    await deviceClients[index].del(`/drafts/${response.data.id}?version=${response.data.version}`);
+  }
+});
+
+test(s6, 'PostgreSQL 拒绝槽位和 version 不变量违规', async () => {
+  for (const data of [
+    { slot: 0, version: 1 },
+    { slot: 6, version: 1 },
+    { slot: 1, version: 0 },
+  ]) {
+    let rejected = false;
+    try {
+      const invalid = await e2ePrisma.draft.create({
+        data: { userId: currentUserId, content: '非法草稿', ...data },
+      });
+      await e2ePrisma.draft.delete({ where: { id: invalid.id } });
+    } catch {
+      rejected = true;
+    }
+    assert(rejected, `数据库应拒绝 slot=${data.slot}, version=${data.version}`);
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════

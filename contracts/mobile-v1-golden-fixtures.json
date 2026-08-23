@@ -1,7 +1,7 @@
 {
   "contract": "wenyousite-mobile-v1",
   "version": 1,
-  "contractVersion": "5.6.0-dev.20260823.1",
+  "contractVersion": "5.7.0-dev.20260823.1",
   "description": "后端与 Flutter 共同消费的移动端 V1 协议旅程；固定状态转换，不固定界面截图。",
   "compatibility": [
     {

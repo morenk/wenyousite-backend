@@ -1078,18 +1078,21 @@ model PostMention {
 }
 
 model Draft {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
-  slot      Int      @default(1)
-  content   String
-  version   Int      @default(1)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                String   @id @default(cuid())
+  userId            String   @map("user_id")
+  slot              Int      @default(1)
+  content           String
+  version           Int      @default(1)
+  clientRequestId   String?  @map("client_request_id") @db.Uuid
+  createRequestHash String?  @map("create_request_hash")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   mediaAttachments DraftMedia[]
 
   @@unique([userId, slot])
+  @@unique([userId, clientRequestId])
   @@map("drafts")
 }
 

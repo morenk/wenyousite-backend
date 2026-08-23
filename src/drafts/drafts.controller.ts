@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Req } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -13,10 +13,12 @@ import { FastifyRequest } from 'fastify';
 import { DraftsService } from './drafts.service';
 import { CreateDraftDto } from './dto/create-draft.dto';
 import { UpdateDraftDto } from './dto/update-draft.dto';
+import { DeleteDraftQueryDto } from './dto/delete-draft-query.dto';
 import {
   DeleteDraftResponseDto,
   DraftResponseDto,
   DraftSlotUsageResponseDto,
+  DraftStateResponseDto,
 } from './dto/draft-response.dto';
 import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 
@@ -47,11 +49,21 @@ export class DraftsController {
     return this.draftsService.slotUsage(user.id);
   }
 
+  @Get('state')
+  @AuthRead()
+  @ApiOperation({ summary: '原子获取草稿列表与槽位使用情况' })
+  @ApiOkResponse({ type: DraftStateResponseDto, description: '同一数据库快照中的草稿与槽位状态' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
+  async state(@Req() req: FastifyRequest) {
+    const user = req['user'] as { id: string };
+    return this.draftsService.state(user.id);
+  }
+
   @Post()
   @Auth()
   @ApiOperation({ summary: '保存草稿（不传 slot 自动选空闲位）' })
   @ApiCreatedResponse({ type: DraftResponseDto, description: '创建的草稿' })
-  @ApiConflictResponse({ description: '覆盖已有槽位时 version 缺失或已过期' })
+  @ApiConflictResponse({ description: '覆盖已有槽位时 version 缺失或已过期，或幂等键被复用' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async create(@Body() dto: CreateDraftDto, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
@@ -86,10 +98,14 @@ export class DraftsController {
   @ApiOperation({ summary: '删除草稿' })
   @ApiOkResponse({ type: DeleteDraftResponseDto, description: '草稿已删除' })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
-  @ApiNotFoundResponse({ description: '草稿不存在' })
-  async remove(@Param('id') id: string, @Req() req: FastifyRequest) {
+  @ApiConflictResponse({ description: 'version 已过期' })
+  async remove(
+    @Param('id') id: string,
+    @Query() query: DeleteDraftQueryDto,
+    @Req() req: FastifyRequest,
+  ) {
     const user = req['user'] as { id: string };
-    await this.draftsService.remove(id, user.id);
+    await this.draftsService.remove(id, user.id, query.version);
     return { message: '草稿已删除' };
   }
 }

@@ -1,15 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsString,
-  IsOptional,
-  MaxLength,
-  IsIn,
-  IsInt,
-  Min,
-} from 'class-validator';
+import { IsString, IsOptional, MaxLength, IsIn, IsInt, Min, IsUUID } from 'class-validator';
 
 /** 保存草稿 DTO */
 export class CreateDraftDto {
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: '客户端创建幂等键；同一次提交和网络重试必须复用',
+  })
+  @IsOptional()
+  @IsUUID('4')
+  clientRequestId?: string;
+
   @ApiProperty({
     example: '这是一段草稿内容...',
     description: '草稿正文；待掷骰子作为内联节点包含在正文中',

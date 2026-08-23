@@ -6,7 +6,7 @@ const coverage = JSON.parse(fs.readFileSync(coveragePath, 'utf8')) as Record<str
 const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as Record<string, any>;
 const failures: string[] = [];
 
-const expectedCounts = { total: 206, v1: 97, deferred: 58, notApplicable: 50, infrastructure: 1 };
+const expectedCounts = { total: 207, v1: 98, deferred: 58, notApplicable: 50, infrastructure: 1 };
 for (const [name, expected] of Object.entries(expectedCounts)) {
   if (coverage.counts?.[name] !== expected) {
     failures.push(
@@ -216,7 +216,9 @@ if (
   floorAuthorDirectory?.expected?.scope !== 'currentSubthreadNonDeletedRootFloors' ||
   floorAuthorDirectory?.expected?.authorIds?.length !== 1
 ) {
-  failures.push('post-floor-author-directory-current-subthread 必须只返回当前子贴实际发言的角色作者');
+  failures.push(
+    'post-floor-author-directory-current-subthread 必须只返回当前子贴实际发言的角色作者',
+  );
 }
 const replyAuthorDirectory = floorFilterCases.get('post-reply-author-directory-current-root');
 if (
@@ -224,7 +226,9 @@ if (
   replyAuthorDirectory?.expected?.scope !== 'currentRootNonDeletedReplies' ||
   replyAuthorDirectory?.expected?.authorIds?.length !== 1
 ) {
-  failures.push('post-reply-author-directory-current-root 必须只返回当前主楼层下实际回复的角色作者');
+  failures.push(
+    'post-reply-author-directory-current-root 必须只返回当前主楼层下实际回复的角色作者',
+  );
 }
 const caseIds = Object.values(fixture)
   .filter(Array.isArray)

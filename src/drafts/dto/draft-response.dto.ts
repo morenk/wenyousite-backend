@@ -38,6 +38,12 @@ export class DraftSlotUsageResponseDto {
   slots!: number[];
 }
 
+/** 草稿集合与槽位用量的同一数据库快照。 */
+export class DraftStateResponseDto extends DraftSlotUsageResponseDto {
+  @ApiProperty({ type: DraftResponseDto, isArray: true })
+  drafts!: DraftResponseDto[];
+}
+
 /** 删除草稿响应 */
 export class DeleteDraftResponseDto {
   @ApiProperty({ example: '草稿已删除' })

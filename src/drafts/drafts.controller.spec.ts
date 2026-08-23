@@ -7,13 +7,14 @@ import {
   DeleteDraftResponseDto,
   DraftResponseDto,
   DraftSlotUsageResponseDto,
+  DraftStateResponseDto,
 } from './dto/draft-response.dto';
 
 function responseMetadata(method: keyof DraftsController) {
-  return Reflect.getMetadata(
-    DECORATORS.API_RESPONSE,
-    DraftsController.prototype[method],
-  ) as Record<number, { type?: unknown; isArray?: boolean }>;
+  return Reflect.getMetadata(DECORATORS.API_RESPONSE, DraftsController.prototype[method]) as Record<
+    number,
+    { type?: unknown; isArray?: boolean }
+  >;
 }
 
 describe('DraftsController Swagger 响应契约', () => {
@@ -36,11 +37,15 @@ describe('DraftsController Swagger 响应契约', () => {
     expect(responseMetadata('slotUsage')[200].type).toBe(DraftSlotUsageResponseDto);
   });
 
+  it('原子状态查询声明 DraftStateResponseDto', () => {
+    expect(responseMetadata('state')[200].type).toBe(DraftStateResponseDto);
+  });
+
   it('删除声明 DeleteDraftResponseDto', () => {
     expect(responseMetadata('remove')[200].type).toBe(DeleteDraftResponseDto);
   });
 
-  it.each(['create', 'update'] as const)('%s 声明 409 并发冲突', (method) => {
+  it.each(['create', 'update', 'remove'] as const)('%s 声明 409 并发冲突', (method) => {
     expect(responseMetadata(method)[409]).toBeDefined();
   });
 });

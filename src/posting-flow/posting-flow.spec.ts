@@ -5,7 +5,6 @@ import { PostsService } from '../posts/posts.service';
 import { SubthreadsService } from '../subthreads/subthreads.service';
 import { ThreadsService } from '../threads/threads.service';
 import { ThreadMembersService } from '../threads/thread-members.service';
-import { DraftsService } from '../drafts/drafts.service';
 import { DiceService } from '../dice/dice.service';
 import { MentionsService } from '../mentions/mentions.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -74,13 +73,6 @@ const createMockPrisma = () => ({
   postMention: { createMany: jest.fn(), findMany: jest.fn(), deleteMany: jest.fn() },
   userFollow: { findMany: jest.fn() },
   userBlock: { findMany: jest.fn(), findFirst: jest.fn() },
-  draft: {
-    findMany: jest.fn(),
-    findUnique: jest.fn(),
-    create: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn(),
-  },
   notification: {
     findMany: jest.fn(),
     create: jest.fn(),
@@ -228,7 +220,6 @@ describe('发帖全流程集成测试', () => {
   let subthreadsService: SubthreadsService;
   let threadsService: ThreadsService;
   let membersService: ThreadMembersService;
-  let draftsService: DraftsService;
   let prisma: MockPrisma;
 
   beforeEach(async () => {
@@ -245,7 +236,6 @@ describe('发帖全流程集成测试', () => {
         SubthreadsService,
         ThreadsService,
         ThreadMembersService,
-        DraftsService,
         DiceService,
         MentionsService,
         PostingPolicyService,
@@ -290,7 +280,6 @@ describe('发帖全流程集成测试', () => {
     subthreadsService = module.get(SubthreadsService);
     threadsService = module.get(ThreadsService);
     membersService = module.get(ThreadMembersService);
-    draftsService = module.get(DraftsService);
 
     setupHelpers.mockThreadAccess_pass(prisma);
   });
@@ -1415,62 +1404,7 @@ describe('发帖全流程集成测试', () => {
     });
   });
 
-  // ======================== 第十二部分：草稿池 ========================
-  describe('草稿池 (Draft Pool)', () => {
-    it('自动保存：选择空闲 slot', async () => {
-      prisma.draft.findMany.mockResolvedValue([{ slot: 1 }, { slot: 3 }]);
-      prisma.draft.create.mockResolvedValue({ id: 'd1', slot: 2, content: 'test' });
-      const result = await draftsService.create({ content: 'test' }, 'u1');
-      expect(result.slot).toBe(2);
-    });
-
-    it('指定 slot 覆盖旧草稿', async () => {
-      prisma.draft.findUnique.mockResolvedValue({ id: 'old', slot: 3, userId: 'u1', version: 1 });
-      prisma.draft.update.mockResolvedValue({ id: 'old', slot: 3, content: 'updated', version: 2 });
-      const result = await draftsService.create({ content: 'updated', slot: 3, version: 1 }, 'u1');
-      expect(result.content).toBe('updated');
-    });
-
-    it('5 槽满返回错误', async () => {
-      prisma.draft.findMany.mockResolvedValue([
-        { slot: 1 },
-        { slot: 2 },
-        { slot: 3 },
-        { slot: 4 },
-        { slot: 5 },
-      ]);
-      await expect(draftsService.create({ content: 'test' }, 'u1')).rejects.toThrow();
-    });
-
-    it('findById：非自己的草稿返回 404', async () => {
-      prisma.draft.findUnique.mockResolvedValue({ id: 'd1', userId: 'other' });
-      await expect(draftsService.findById('d1', 'u1')).rejects.toThrow();
-    });
-
-    it('update：更新内容', async () => {
-      prisma.draft.findUnique.mockResolvedValue({ id: 'd1', userId: 'u1', version: 1 });
-      prisma.draft.update.mockResolvedValue({ id: 'd1', content: 'updated', version: 2 });
-      const result = await draftsService.update('d1', 'updated', 1, 'u1');
-      expect(result.content).toBe('updated');
-    });
-
-    it('remove：删除草稿', async () => {
-      prisma.draft.findUnique.mockResolvedValue({ id: 'd1', userId: 'u1' });
-      prisma.draft.delete.mockResolvedValue({});
-      await draftsService.remove('d1', 'u1');
-      expect(prisma.draft.delete).toHaveBeenCalledWith({ where: { id: 'd1' } });
-    });
-
-    it('slotUsage：返回槽位使用情况', async () => {
-      prisma.draft.findMany.mockResolvedValue([{ slot: 1 }, { slot: 3 }, { slot: 5 }]);
-      const result = await draftsService.slotUsage('u1');
-      expect(result.usedSlots).toBe(3);
-      expect(result.maxSlots).toBe(5);
-      expect(result.slots).toEqual([1, 3, 5]);
-    });
-  });
-
-  // ======================== 第十三部分：邀请链接 ========================
+  // ======================== 第十二部分：邀请链接 ========================
   describe('邀请链接 (Invite Link)', () => {
     it('私密已发布帖：正常生成', async () => {
       prisma.thread.findUnique.mockResolvedValue({
