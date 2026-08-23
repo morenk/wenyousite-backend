@@ -16,8 +16,10 @@
 
 | Method | Path                             | Guard  | 描述                                                                                                                    |
 | ------ | -------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/subthreads/:subthreadId/posts` | Public | 楼层列表（Cursor 分页；支持 `order=OLDEST\|NEWEST` 与角色作者 `authorId`；仅筛选主楼层，内嵌每层前 5 条楼中楼保持原样） |
-| GET    | `/posts/:id/replies`             | Public | 主楼层的楼中楼回复列表（Cursor 分页；支持 `order=OLDEST\|NEWEST` 与 `authorId`；仅接受 parentPostId=null 的 FLOOR）     |
+| GET    | `/subthreads/:subthreadId/posts`         | Public | 楼层列表（Cursor 分页；支持 `order=OLDEST\|NEWEST` 与角色作者 `authorId`；仅筛选主楼层，内嵌每层前 5 条楼中楼保持原样） |
+| GET    | `/subthreads/:subthreadId/posts/authors` | Public | 当前子贴中实际发布过未删除主楼层的角色作者候选                                                                        |
+| GET    | `/posts/:id/replies`                     | Public | 主楼层的楼中楼回复列表（Cursor 分页；支持 `order=OLDEST\|NEWEST` 与 `authorId`；仅接受 parentPostId=null 的 FLOOR）     |
+| GET    | `/posts/:id/replies/authors`             | Public | 当前主楼层下实际发布过未删除楼中楼回复的角色作者候选                                                                  |
 | POST   | `/subthreads/:subthreadId/posts` | Auth   | 发帖（创建楼层 kind=FLOOR，含楼中楼回复；正文不通过本接口创建）                                                         |
 | PUT    | `/subthreads/:subthreadId/body`  | Auth   | upsert 子贴正文（kind=BODY：无正文创建，有正文乐观锁更新，version 不匹配返回 409；仅 OWNER/COLLABORATOR）               |
 | GET    | `/posts/:id`                     | Public | 帖子详情（含导航上下文：帖/子贴/父楼）                                                                                  |
@@ -29,6 +31,7 @@
 - 楼层分页接口的 `data` 为 `FloorResponseDto[]`，楼中楼分页接口的 `data` 为 `ReplyResponseDto[]`，游标位于统一 envelope 的 `meta`。
 - 创建楼层、upsert 子贴正文和编辑帖子的 `data` 为 `PostResponseDto`。
 - 帖子详情的 `data` 为 `PostDetailResponseDto`，包含帖、子贴、父楼和回复计数导航上下文。
+- 两个作者候选接口的 `data` 为 `DiscussionAuthorResponseDto[]`，包含公开作者字段、当前主题角色与 `playerMarked`。
 - Web/Flutter 必须使用 Swagger 生成类型，不再手写帖子响应结构。
 - Post 响应的 `content` 包含内联骰子节点，`diceRolls` 按 `nodeId` 提供服务端正式结果；未发布节点没有对应结果。
 
@@ -69,8 +72,10 @@
 - 数据库唯一约束兜底并发双请求。
 - 楼层列表默认按 floorNumber ASC 排序，`order=NEWEST` 时按 floorNumber DESC 排序；排序方向属于游标查询条件，切换后必须从第一页重新读取
 - 楼层列表的可选 `authorId` 只接受当前主题的楼主、协作者或已标记玩家；普通参与者返回空页。作者、排序与 cursor 属于同一主楼层查询范围，切换后必须从第一页重新读取；省略作者时原有查询与响应不变
+- 主楼层作者候选先按当前子贴的未删除主楼层取实际作者，再保留楼主、协作者或已标记玩家；不会返回只在其他子贴发言的成员
 - 主楼层顺序不影响内嵌楼中楼；内嵌回复始终按 createdAt ASC、id ASC 稳定返回最早 5 条，`parentPostId + createdAt` 复合索引支撑上百条回复的分页读取
 - 独立楼中楼可切换 `OLDEST` / `NEWEST` 稳定顺序；`authorId` 只允许筛选当前仍为帖内玩家、楼主或协作者的用户，角色不再符合时返回空页。排序与作者均属于游标查询条件，客户端切换后必须从第一页重新读取。
+- 楼中楼作者候选先按当前主楼层的未删除回复取实际作者，再应用相同角色限制；不会返回只在主题帖其他楼层回复的成员
 - 独立楼中楼阅读页复用 `GET /posts/:id` 获取原楼层及主题帖/子贴导航上下文，再用 `GET /posts/:id/replies` 分页读取回复；replies 接口拒绝以正文或楼中楼回复作为讨论根
 - 楼层列表响应中每个楼层内嵌 `replies` 字段（前 5 条楼中楼回复），含 `author` 和 `replyToPost`；`replyToPost` 关联被回复的目标帖并带出其 `author`（前端据此显示「回复 @xxx」上下文）；`_count.replies` 提供回复总数，超过 5 条时前端显示"查看全部 N 条回复"入口跳转至独立楼中楼界面
 - 内嵌回复使用窗口函数一次选出每个楼层前 5 条 ID，再一次批量加载作者、骰子和回复目标；一页楼层的回复查询固定为 2 次，不随有回复的楼层数增长

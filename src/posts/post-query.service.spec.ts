@@ -6,7 +6,7 @@ import { PostQueryService } from './post-query.service';
 const prisma = {
   $queryRaw: jest.fn(),
   subthread: { findUnique: jest.fn() },
-  threadMember: { findUnique: jest.fn() },
+  threadMember: { findMany: jest.fn(), findUnique: jest.fn() },
   post: { findMany: jest.fn(), findUnique: jest.fn() },
 };
 
@@ -25,6 +25,7 @@ describe('PostQueryService.findAllBySubthread', () => {
       thread: { ownerId: 'owner-user-id' },
     });
     prisma.post.findMany.mockResolvedValue([]);
+    prisma.threadMember.findMany.mockResolvedValue([]);
     prisma.$queryRaw.mockResolvedValue([]);
     threadAccess.assertAccessible.mockResolvedValue(undefined);
     service = new PostQueryService(
@@ -209,5 +210,118 @@ describe('PostQueryService.findAllBySubthread', () => {
       id: 'floor-filtered',
       replies: [{ id: 'reply-other-author', authorId: 'other-user-id' }],
     });
+  });
+
+  it('主楼层作者候选只保留当前子贴实际发言的楼主、协作者和玩家', async () => {
+    prisma.post.findMany.mockResolvedValue([
+      {
+        authorId: 'player-user-id',
+        author: { id: 'player-user-id', username: '甲玩家', avatar: null, level: 2 },
+      },
+      {
+        authorId: 'participant-user-id',
+        author: { id: 'participant-user-id', username: '普通参与者', avatar: null, level: 1 },
+      },
+      {
+        authorId: 'owner-user-id',
+        author: { id: 'owner-user-id', username: '楼主', avatar: null, level: 3 },
+      },
+      {
+        authorId: 'collaborator-user-id',
+        author: { id: 'collaborator-user-id', username: '协作者', avatar: null, level: 2 },
+      },
+    ]);
+    prisma.threadMember.findMany.mockResolvedValue([
+      { userId: 'player-user-id', role: 'PARTICIPANT', playerMarked: true },
+      { userId: 'participant-user-id', role: 'PARTICIPANT', playerMarked: false },
+      { userId: 'collaborator-user-id', role: 'COLLABORATOR', playerMarked: false },
+    ]);
+
+    const result = await service.findFloorAuthors('subthread-1', 'viewer-user-id');
+
+    expect(prisma.post.findMany).toHaveBeenCalledWith({
+      where: {
+        subthreadId: 'subthread-1',
+        kind: 'FLOOR',
+        parentPostId: null,
+        deletedAt: null,
+      },
+      distinct: ['authorId'],
+      select: {
+        authorId: true,
+        author: {
+          select: { id: true, username: true, avatar: true, level: true, deletedAt: true },
+        },
+      },
+    });
+    expect(result).toEqual([
+      {
+        id: 'owner-user-id',
+        username: '楼主',
+        avatar: null,
+        level: 3,
+        role: 'OWNER',
+        playerMarked: false,
+      },
+      {
+        id: 'collaborator-user-id',
+        username: '协作者',
+        avatar: null,
+        level: 2,
+        role: 'COLLABORATOR',
+        playerMarked: false,
+      },
+      {
+        id: 'player-user-id',
+        username: '甲玩家',
+        avatar: null,
+        level: 2,
+        role: 'PARTICIPANT',
+        playerMarked: true,
+      },
+    ]);
+  });
+
+  it('楼中楼作者候选只查询当前父楼层下的存活回复', async () => {
+    prisma.post.findUnique.mockResolvedValue({
+      id: 'floor-1',
+      threadId: 'thread-1',
+      kind: 'FLOOR',
+      parentPostId: null,
+      thread: { ownerId: 'owner-user-id' },
+      subthread: { deletedAt: null },
+    });
+    prisma.post.findMany.mockResolvedValue([
+      {
+        authorId: 'player-user-id',
+        author: { id: 'player-user-id', username: '当前楼玩家', avatar: null, level: 2 },
+      },
+    ]);
+    prisma.threadMember.findMany.mockResolvedValue([
+      { userId: 'player-user-id', role: 'PARTICIPANT', playerMarked: true },
+    ]);
+
+    const result = await service.findReplyAuthors('floor-1', 'viewer-user-id');
+
+    expect(prisma.post.findMany).toHaveBeenCalledWith({
+      where: { parentPostId: 'floor-1', deletedAt: null },
+      distinct: ['authorId'],
+      select: {
+        authorId: true,
+        author: {
+          select: { id: true, username: true, avatar: true, level: true, deletedAt: true },
+        },
+      },
+    });
+    expect(result).toEqual([
+      {
+        id: 'player-user-id',
+        username: '当前楼玩家',
+        avatar: null,
+        level: 2,
+        role: 'PARTICIPANT',
+        playerMarked: true,
+      },
+    ]);
   });
 });

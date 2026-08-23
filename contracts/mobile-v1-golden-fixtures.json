@@ -1,7 +1,7 @@
 {
   "contract": "wenyousite-mobile-v1",
   "version": 1,
-  "contractVersion": "5.5.0-dev.20260822.1",
+  "contractVersion": "5.6.0-dev.20260823.1",
   "description": "后端与 Flutter 共同消费的移动端 V1 协议旅程；固定状态转换，不固定界面截图。",
   "compatibility": [
     {
@@ -275,6 +275,56 @@
       "expected": {
         "includeRootFloor": true,
         "includePreviewReplyIds": ["reply-by-other-author"]
+      }
+    },
+    {
+      "id": "post-floor-author-directory-current-subthread",
+      "request": {
+        "operationId": "postsFindFloorAuthors",
+        "subthreadId": "current-subthread"
+      },
+      "content": [
+        {
+          "authorId": "22222222-2222-4222-8222-222222222222",
+          "subthreadId": "current-subthread",
+          "deleted": false,
+          "eligibleRole": "COLLABORATOR"
+        },
+        {
+          "authorId": "33333333-3333-4333-8333-333333333333",
+          "subthreadId": "other-subthread",
+          "deleted": false,
+          "eligibleRole": "PARTICIPANT"
+        }
+      ],
+      "expected": {
+        "authorIds": ["22222222-2222-4222-8222-222222222222"],
+        "scope": "currentSubthreadNonDeletedRootFloors"
+      }
+    },
+    {
+      "id": "post-reply-author-directory-current-root",
+      "request": {
+        "operationId": "postsFindReplyAuthors",
+        "postId": "current-root-floor"
+      },
+      "content": [
+        {
+          "authorId": "33333333-3333-4333-8333-333333333333",
+          "parentPostId": "current-root-floor",
+          "deleted": false,
+          "eligibleRole": "PARTICIPANT"
+        },
+        {
+          "authorId": "11111111-1111-4111-8111-111111111111",
+          "parentPostId": "other-root-floor",
+          "deleted": false,
+          "eligibleRole": "OWNER"
+        }
+      ],
+      "expected": {
+        "authorIds": ["33333333-3333-4333-8333-333333333333"],
+        "scope": "currentRootNonDeletedReplies"
       }
     }
   ],

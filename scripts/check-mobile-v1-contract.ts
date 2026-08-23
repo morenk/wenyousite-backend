@@ -6,7 +6,7 @@ const coverage = JSON.parse(fs.readFileSync(coveragePath, 'utf8')) as Record<str
 const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as Record<string, any>;
 const failures: string[] = [];
 
-const expectedCounts = { total: 204, v1: 97, deferred: 56, notApplicable: 50, infrastructure: 1 };
+const expectedCounts = { total: 206, v1: 97, deferred: 58, notApplicable: 50, infrastructure: 1 };
 for (const [name, expected] of Object.entries(expectedCounts)) {
   if (coverage.counts?.[name] !== expected) {
     failures.push(
@@ -160,6 +160,8 @@ for (const id of [
   'post-floor-author-filter-participant-excluded',
   'post-floor-author-filter-cursor-order',
   'post-floor-author-filter-preview-unaffected',
+  'post-floor-author-directory-current-subthread',
+  'post-reply-author-directory-current-root',
 ]) {
   if (!floorFilterCases.has(id)) failures.push(`黄金 fixture 缺少主楼作者筛选用例 ${id}`);
 }
@@ -207,6 +209,22 @@ if (
   floorPreview?.expected?.includePreviewReplyIds?.[0] !== floorPreview?.previewReplies?.[0]?.id
 ) {
   failures.push('post-floor-author-filter-preview-unaffected 必须保留其他作者的楼中楼预览');
+}
+const floorAuthorDirectory = floorFilterCases.get('post-floor-author-directory-current-subthread');
+if (
+  floorAuthorDirectory?.request?.operationId !== 'postsFindFloorAuthors' ||
+  floorAuthorDirectory?.expected?.scope !== 'currentSubthreadNonDeletedRootFloors' ||
+  floorAuthorDirectory?.expected?.authorIds?.length !== 1
+) {
+  failures.push('post-floor-author-directory-current-subthread 必须只返回当前子贴实际发言的角色作者');
+}
+const replyAuthorDirectory = floorFilterCases.get('post-reply-author-directory-current-root');
+if (
+  replyAuthorDirectory?.request?.operationId !== 'postsFindReplyAuthors' ||
+  replyAuthorDirectory?.expected?.scope !== 'currentRootNonDeletedReplies' ||
+  replyAuthorDirectory?.expected?.authorIds?.length !== 1
+) {
+  failures.push('post-reply-author-directory-current-root 必须只返回当前主楼层下实际回复的角色作者');
 }
 const caseIds = Object.values(fixture)
   .filter(Array.isArray)

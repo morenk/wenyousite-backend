@@ -21,6 +21,35 @@ export class PostQueryService {
     private readonly threadAccess: ThreadAccessService,
   ) {}
 
+  private async findSubthreadContext(subthreadId: string, userId?: string) {
+    const subthread = await this.prisma.subthread.findUnique({
+      where: { id: subthreadId, ...notDeleted },
+      select: { id: true, threadId: true, thread: { select: { ownerId: true } } },
+    });
+    if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
+    await this.threadAccess.assertAccessible(subthread.threadId, userId);
+    return subthread;
+  }
+
+  private async findDiscussionRoot(postId: string, userId?: string) {
+    const post = await this.prisma.post.findUnique({
+      where: { id: postId, deletedAt: null },
+      select: {
+        id: true,
+        threadId: true,
+        kind: true,
+        parentPostId: true,
+        thread: { select: { ownerId: true } },
+        subthread: { select: { deletedAt: true } },
+      },
+    });
+    if (!post || post.subthread.deletedAt || post.kind !== 'FLOOR' || post.parentPostId !== null) {
+      throw notFound(ErrorCode.POST_NOT_FOUND, '楼层不存在');
+    }
+    await this.threadAccess.assertAccessible(post.threadId, userId);
+    return post;
+  }
+
   /** 获取子贴的楼层列表（Cursor 分页），内嵌每个楼层的前 5 条楼中楼回复。已软删子贴返回 404 */
   async findAllBySubthread(
     subthreadId: string,
@@ -30,12 +59,7 @@ export class PostQueryService {
     order = ReplyOrder.OLDEST,
     authorId?: string,
   ) {
-    const subthread = await this.prisma.subthread.findUnique({
-      where: { id: subthreadId, ...notDeleted },
-      select: { id: true, threadId: true, thread: { select: { ownerId: true } } },
-    });
-    if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
-    await this.threadAccess.assertAccessible(subthread.threadId, userId);
+    const subthread = await this.findSubthreadContext(subthreadId, userId);
 
     if (
       authorId &&
@@ -129,6 +153,21 @@ export class PostQueryService {
     });
   }
 
+  /** 当前子贴中确实发布过主楼层的角色作者候选。 */
+  async findFloorAuthors(subthreadId: string, userId?: string) {
+    const subthread = await this.findSubthreadContext(subthreadId, userId);
+    return this.findEligibleContentAuthors({
+      threadId: subthread.threadId,
+      ownerId: subthread.thread.ownerId,
+      where: {
+        subthreadId,
+        kind: 'FLOOR',
+        parentPostId: null,
+        ...notDeleted,
+      },
+    });
+  }
+
   /** 获取主楼层的楼中楼回复列表（cursor 分页）。已软删子贴或非主楼层返回 404 */
   async findReplies(
     postId: string,
@@ -138,23 +177,7 @@ export class PostQueryService {
     order = ReplyOrder.OLDEST,
     authorId?: string,
   ) {
-    const post = await this.prisma.post.findUnique({
-      where: { id: postId, deletedAt: null },
-      select: {
-        id: true,
-        threadId: true,
-        kind: true,
-        parentPostId: true,
-        thread: { select: { ownerId: true } },
-        subthread: { select: { deletedAt: true } },
-      },
-    });
-    if (!post) throw notFound(ErrorCode.POST_NOT_FOUND, '楼层不存在');
-    if (post.subthread.deletedAt) throw notFound(ErrorCode.POST_NOT_FOUND, '楼层不存在');
-    if (post.kind !== 'FLOOR' || post.parentPostId !== null) {
-      throw notFound(ErrorCode.POST_NOT_FOUND, '楼层不存在');
-    }
-    await this.threadAccess.assertAccessible(post.threadId, userId);
+    const post = await this.findDiscussionRoot(postId, userId);
 
     if (
       authorId &&
@@ -183,6 +206,65 @@ export class PostQueryService {
       cursor: replies.length > 0 ? replies[replies.length - 1].id : null,
       hasMore,
     });
+  }
+
+  /** 当前主楼层下确实发布过楼中楼回复的角色作者候选。 */
+  async findReplyAuthors(postId: string, userId?: string) {
+    const post = await this.findDiscussionRoot(postId, userId);
+    return this.findEligibleContentAuthors({
+      threadId: post.threadId,
+      ownerId: post.thread.ownerId,
+      where: { parentPostId: postId, ...notDeleted },
+    });
+  }
+
+  private async findEligibleContentAuthors({
+    threadId,
+    ownerId,
+    where,
+  }: {
+    threadId: string;
+    ownerId: string;
+    where: Prisma.PostWhereInput;
+  }) {
+    const rows = await this.prisma.post.findMany({
+      where,
+      distinct: ['authorId'],
+      select: { authorId: true, author: { select: authorSelect } },
+    });
+    if (rows.length === 0) return [];
+
+    const authorIds = [...new Set(rows.map((row) => row.authorId))];
+    const members = await this.prisma.threadMember.findMany({
+      where: { threadId, userId: { in: authorIds } },
+      select: { userId: true, role: true, playerMarked: true },
+    });
+    const memberByUserId = new Map(members.map((member) => [member.userId, member]));
+    const rank = { OWNER: 0, COLLABORATOR: 1, PARTICIPANT: 2 } as const;
+
+    return rows
+      .map((row) => {
+        const member = memberByUserId.get(row.authorId);
+        const role = row.authorId === ownerId ? 'OWNER' : member?.role;
+        if (
+          !role ||
+          (role === 'PARTICIPANT' && !member?.playerMarked)
+        ) {
+          return null;
+        }
+        return {
+          ...row.author,
+          role,
+          playerMarked: member?.playerMarked ?? false,
+        };
+      })
+      .filter((author): author is NonNullable<typeof author> => author !== null)
+      .sort(
+        (first, second) =>
+          rank[first.role] - rank[second.role] ||
+          first.username.localeCompare(second.username, 'zh-CN') ||
+          first.id.localeCompare(second.id),
+      );
   }
 
   private async isEligibleDiscussionAuthor(

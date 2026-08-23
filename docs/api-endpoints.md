@@ -173,7 +173,9 @@
 |---|---|---|---|
 | GET | `/subthreads/{subthreadId}/posts` | optional | 获取子贴的楼层列表（Cursor 分页） |
 | POST | `/subthreads/{subthreadId}/posts` | authenticated | 发帖（创建新楼层或楼中楼回复） |
+| GET | `/subthreads/{subthreadId}/posts/authors` | optional | 获取当前子贴中实际发布过主楼层的角色作者候选 |
 | GET | `/posts/{id}/replies` | optional | 获取楼中楼回复列表（支持顺序与玩家/楼主/协作者筛选） |
+| GET | `/posts/{id}/replies/authors` | optional | 获取当前楼层下实际回复过的角色作者候选 |
 | PUT | `/subthreads/{subthreadId}/body` | authenticated | 写入子贴正文（upsert：无正文创建，有正文乐观锁更新）。仅 OWNER/COLLABORATOR |
 | GET | `/posts/{id}` | optional | 获取帖子详情 |
 | PATCH | `/posts/{id}` | authenticated | 编辑帖子 |

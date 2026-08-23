@@ -234,9 +234,12 @@ GET /threads?tagId=:id&sort=recommended&limit=20
 
 ```
 GET /subthreads/:id/posts?limit=20&order=OLDEST&authorId=<用户ID>
+GET /subthreads/:id/posts/authors
 ```
 
 `order` 可选 `OLDEST | NEWEST`，默认 `OLDEST`；`authorId` 可选，只看当前主题楼主、协作者或已标记玩家创建的主楼层。两者都属于游标分页条件，切换时客户端必须从第一页重新读取。省略 `authorId` 时行为不变；作者筛选不作用于每层内嵌的最早 5 条楼中楼回复。
+
+作者候选接口只返回当前子贴中实际发布过未删除主楼层的楼主、协作者和已标记玩家。候选目录应与楼层首页并行读取，不能从已加载的第一页推导，也不能混入只在其他子贴发言的主题成员。
 
 每个楼层对象包含：
 
@@ -256,9 +259,12 @@ GET /subthreads/:id/posts?limit=20&order=OLDEST&authorId=<用户ID>
 通知或站内深链接需要定位具体评论时，使用 `GET /moments/:id/comments/:commentId/context`。`commentId` 可以是主评论或楼中楼，响应中的 `root` 用于把回复串注入当前列表，`target` 用于展开、高亮和滚动，`replyCount` 用于保留完整回复计数。目标已删除、因拉黑不可见或不属于该动态时返回 404；不要为定位目标遍历全部评论分页。
 
 ```
-GET /posts/:id/replies?limit=20    // 获取某楼层的全部回复（分页）
-POST /subthreads/:id/posts         // 发楼中楼回复
+GET /posts/:id/replies?limit=20&order=OLDEST&authorId=<用户ID> // 获取某楼层的全部回复（分页）
+GET /posts/:id/replies/authors                              // 获取该楼层实际回复过的角色作者
+POST /subthreads/:id/posts                                  // 发楼中楼回复
 ```
+
+楼中楼候选接口只统计指定主楼层下未删除回复的作者，并只保留楼主、协作者和已标记玩家；它不会返回主题帖其他楼层的回复者。切换作者或顺序必须清空 cursor 并从第一页重新读取。
 
 **发楼中楼回复**：
 

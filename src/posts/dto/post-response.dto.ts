@@ -55,6 +55,15 @@ export class PostAuthorResponseDto {
   level!: number;
 }
 
+/** 当前讨论范围内可用于作者筛选的楼主、协作者或玩家。 */
+export class DiscussionAuthorResponseDto extends PostAuthorResponseDto {
+  @ApiProperty({ enum: ['OWNER', 'COLLABORATOR', 'PARTICIPANT'] })
+  role!: 'OWNER' | 'COLLABORATOR' | 'PARTICIPANT';
+
+  @ApiProperty({ description: '是否为当前主题帖已标记玩家' })
+  playerMarked!: boolean;
+}
+
 /** 帖子公共字段 */
 export class PostBaseResponseDto {
   @ApiProperty()

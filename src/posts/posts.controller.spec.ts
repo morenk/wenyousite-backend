@@ -4,6 +4,7 @@ import 'reflect-metadata';
 import { DECORATORS } from '@nestjs/swagger';
 import { PostsController } from './posts.controller';
 import {
+  DiscussionAuthorResponseDto,
   FloorResponseDto,
   PostDetailResponseDto,
   PostResponseDto,
@@ -32,6 +33,16 @@ describe('PostsController Swagger 响应契约', () => {
       isArray: true,
     });
   });
+
+  it.each(['findFloorAuthors', 'findReplyAuthors'] as const)(
+    '%s 声明 DiscussionAuthorResponseDto 数组',
+    (method) => {
+      expect(responseMetadata(method)[200]).toMatchObject({
+        type: DiscussionAuthorResponseDto,
+        isArray: true,
+      });
+    },
+  );
 
   it.each([
     ['upsertBody', 200],
@@ -74,5 +85,25 @@ describe('PostsController Swagger 响应契约', () => {
       ReplyOrder.NEWEST,
       'cms7rnyij000z7qdyg6zbge8e',
     );
+  });
+
+  it('作者候选查询把当前可选身份传给服务层', async () => {
+    const postsService = {
+      findFloorAuthors: jest.fn().mockResolvedValue([]),
+      findReplyAuthors: jest.fn().mockResolvedValue([]),
+    };
+    const controller = new PostsController(postsService as never);
+
+    await controller.findFloorAuthors(
+      'subthread-1',
+      { user: { id: 'viewer-1' } } as never,
+    );
+    await controller.findReplyAuthors(
+      'floor-1',
+      { user: { id: 'viewer-1' } } as never,
+    );
+
+    expect(postsService.findFloorAuthors).toHaveBeenCalledWith('subthread-1', 'viewer-1');
+    expect(postsService.findReplyAuthors).toHaveBeenCalledWith('floor-1', 'viewer-1');
   });
 });

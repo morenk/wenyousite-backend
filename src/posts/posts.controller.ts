@@ -19,6 +19,7 @@ import { UpsertBodyDto } from './dto/upsert-body.dto';
 import { PostQueryDto } from './dto/post-query.dto';
 import { Auth, OptionalAuth } from '../auth/decorators/auth.decorator';
 import {
+  DiscussionAuthorResponseDto,
   FloorResponseDto,
   PostDetailResponseDto,
   PostResponseDto,
@@ -62,6 +63,18 @@ export class PostsController {
     );
   }
 
+  @Get('subthreads/:subthreadId/posts/authors')
+  @OptionalAuth()
+  @ApiOperation({ summary: '获取当前子贴中实际发布过主楼层的角色作者候选' })
+  @ApiOkResponse({ type: DiscussionAuthorResponseDto, isArray: true })
+  async findFloorAuthors(
+    @Param('subthreadId') subthreadId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const user = req.user as { id: string } | undefined;
+    return this.postsService.findFloorAuthors(subthreadId, user?.id);
+  }
+
   @Get('posts/:id/replies')
   @OptionalAuth()
   @ApiOperation({ summary: '获取楼中楼回复列表（支持顺序与玩家/楼主/协作者筛选）' })
@@ -85,6 +98,15 @@ export class PostsController {
       query.order ?? ReplyOrder.OLDEST,
       query.authorId,
     );
+  }
+
+  @Get('posts/:id/replies/authors')
+  @OptionalAuth()
+  @ApiOperation({ summary: '获取当前楼层下实际回复过的角色作者候选' })
+  @ApiOkResponse({ type: DiscussionAuthorResponseDto, isArray: true })
+  async findReplyAuthors(@Param('id') id: string, @Req() req: FastifyRequest) {
+    const user = req.user as { id: string } | undefined;
+    return this.postsService.findReplyAuthors(id, user?.id);
   }
 
   @Put('subthreads/:subthreadId/body')

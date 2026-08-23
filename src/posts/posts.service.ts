@@ -43,6 +43,9 @@ export class PostsService {
   ) {
     return this.queries.findAllBySubthread(subthreadId, cursor, limit, userId, order, authorId);
   }
+  async findFloorAuthors(subthreadId: string, userId?: string) {
+    return this.queries.findFloorAuthors(subthreadId, userId);
+  }
   async findReplies(
     postId: string,
     cursor?: string,
@@ -52,6 +55,9 @@ export class PostsService {
     authorId?: string,
   ) {
     return this.queries.findReplies(postId, cursor, limit, userId, order, authorId);
+  }
+  async findReplyAuthors(postId: string, userId?: string) {
+    return this.queries.findReplyAuthors(postId, userId);
   }
   /** 发帖：楼层或楼中楼回复。先校验访问权限与发帖策略，通过后才自动加入为参与人 */
   async create(subthreadId: string, dto: CreatePostDto, userId: string) {

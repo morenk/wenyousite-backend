@@ -92,6 +92,8 @@ const deferredOperations = new Set([
   'bookmarksFindFolders',
   'bookmarksCreateFolder',
   'bookmarksMove',
+  'postsFindFloorAuthors',
+  'postsFindReplyAuthors',
   'searchSearchMoments',
   'tagsSearch',
   'tagsCreate',

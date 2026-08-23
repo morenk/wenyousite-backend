@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "5.5.0-dev.20260822.1",
+  "contractVersion": "5.6.0-dev.20260823.1",
   "counts": {
-    "total": 204,
+    "total": 206,
     "v1": 97,
-    "deferred": 56,
+    "deferred": 58,
     "notApplicable": 50,
     "infrastructure": 1
   },
@@ -891,12 +891,28 @@
       "status": "planned"
     },
     {
+      "operationId": "postsFindFloorAuthors",
+      "method": "GET",
+      "path": "/api/v1/subthreads/{subthreadId}/posts/authors",
+      "module": "posts",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
       "operationId": "postsFindReplies",
       "method": "GET",
       "path": "/api/v1/posts/{id}/replies",
       "module": "posts",
       "disposition": "v1",
       "status": "planned"
+    },
+    {
+      "operationId": "postsFindReplyAuthors",
+      "method": "GET",
+      "path": "/api/v1/posts/{id}/replies/authors",
+      "module": "posts",
+      "disposition": "deferred",
+      "status": "deferred"
     },
     {
       "operationId": "postsUpsertBody",
