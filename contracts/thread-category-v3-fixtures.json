@@ -1,0 +1,96 @@
+{
+  "contract": "wenyousite-thread-category",
+  "version": 3,
+  "description": "Web、Flutter 与后端共用的文本分类黄金用例。slug 是稳定机器标识，name 是唯一展示事实；categoryInfo 让历史记录不依赖启用分类发现列表。",
+  "slugPolicy": {
+    "normalization": "trim-uppercase",
+    "pattern": "^[A-Z][A-Z0-9_]{0,49}$",
+    "minLength": 1,
+    "maxLength": 50
+  },
+  "definitions": [
+    {
+      "id": "category-story-room",
+      "slug": "STORY_ROOM",
+      "name": "叙事剧场",
+      "sortOrder": 10,
+      "isActive": true
+    },
+    {
+      "id": "category-archive-room",
+      "slug": "ARCHIVE_ROOM",
+      "name": "往期剧场",
+      "sortOrder": 20,
+      "isActive": false
+    },
+    {
+      "id": "category-field-notes",
+      "slug": "FIELD_NOTES",
+      "name": "现场札记",
+      "sortOrder": 30,
+      "isActive": true
+    },
+    {
+      "id": "category-world-design",
+      "slug": "WORLD_DESIGN",
+      "name": "世界构筑",
+      "sortOrder": 30,
+      "isActive": true
+    }
+  ],
+  "expectedDiscoveryOrder": [
+    "STORY_ROOM",
+    "FIELD_NOTES",
+    "WORLD_DESIGN"
+  ],
+  "presentationCases": [
+    {
+      "id": "renamed-category-uses-current-registry-name",
+      "threadCategory": "STORY_ROOM",
+      "expectedCategoryInfo": {
+        "slug": "STORY_ROOM",
+        "name": "叙事剧场",
+        "isActive": true
+      },
+      "expected": {
+        "label": "叙事剧场",
+        "selectable": true
+      }
+    },
+    {
+      "id": "inactive-category-uses-current-registry-name",
+      "threadCategory": "ARCHIVE_ROOM",
+      "expectedCategoryInfo": {
+        "slug": "ARCHIVE_ROOM",
+        "name": "往期剧场",
+        "isActive": false
+      },
+      "expected": {
+        "label": "往期剧场",
+        "selectable": false
+      }
+    },
+    {
+      "id": "unknown-historical-slug-remains-readable",
+      "threadCategory": "LEGACY_WORLD",
+      "expectedCategoryInfo": {
+        "slug": "LEGACY_WORLD",
+        "name": "LEGACY_WORLD",
+        "isActive": false
+      },
+      "expected": {
+        "label": "LEGACY_WORLD",
+        "selectable": false
+      }
+    },
+    {
+      "id": "uncategorized-draft",
+      "threadCategory": null,
+      "expectedCategoryInfo": null,
+      "expected": {
+        "label": "未分类",
+        "selectable": false
+      }
+    }
+  ]
+}

@@ -1,8 +1,15 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { IsOptional, IsString, IsIn, Matches } from 'class-validator';
 import { CursorPaginationDto } from '../../common/dto/pagination.dto';
 import { IsCuid } from '../../common/decorators/is-cuid.decorator';
-import { CATEGORY_SLUG_PATTERN } from '../../taxonomy/category-slug';
+import {
+  CATEGORY_SLUG_MAX_LENGTH,
+  CATEGORY_SLUG_MIN_LENGTH,
+  CATEGORY_SLUG_PATTERN,
+  CATEGORY_SLUG_PATTERN_SOURCE,
+  normalizeCategorySlugValue,
+} from '../../taxonomy/category-slug';
 import type { ThreadStatus } from '@prisma/client';
 
 /** 主题帖列表查询 DTO */
@@ -17,8 +24,15 @@ export class ThreadQueryDto extends CursorPaginationDto {
   @IsIn(['all', 'playing'])
   filter?: 'all' | 'playing' = 'all';
 
-  @ApiPropertyOptional({ example: 'MYSTERY', description: '按动态分类 slug 筛选' })
+  @ApiPropertyOptional({
+    example: 'MYSTERY',
+    description: '按动态分类 slug 筛选；服务端会去除首尾空白并转为大写',
+    minLength: CATEGORY_SLUG_MIN_LENGTH,
+    maxLength: CATEGORY_SLUG_MAX_LENGTH,
+    pattern: CATEGORY_SLUG_PATTERN_SOURCE,
+  })
   @IsOptional()
+  @Transform(({ value }) => normalizeCategorySlugValue(value))
   @IsString()
   @Matches(CATEGORY_SLUG_PATTERN)
   category?: string;

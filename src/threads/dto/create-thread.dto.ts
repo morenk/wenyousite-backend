@@ -1,4 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsString,
   IsOptional,
@@ -11,7 +12,13 @@ import {
   ArrayMaxSize,
   ArrayUnique,
 } from 'class-validator';
-import { CATEGORY_SLUG_PATTERN } from '../../taxonomy/category-slug';
+import {
+  CATEGORY_SLUG_MAX_LENGTH,
+  CATEGORY_SLUG_MIN_LENGTH,
+  CATEGORY_SLUG_PATTERN,
+  CATEGORY_SLUG_PATTERN_SOURCE,
+  normalizeCategorySlugValue,
+} from '../../taxonomy/category-slug';
 import { MAX_TAG_NAME_LENGTH, MAX_TAGS_PER_THREAD, TAG_NAME_PATTERN } from '../../tags/tag-name';
 
 /** 创建主题帖草稿 DTO：全部可选，发布时校验完整 */
@@ -38,9 +45,13 @@ export class CreateThreadDto {
 
   @ApiPropertyOptional({
     example: 'MYSTERY',
-    description: '管理员配置的主题帖分类 slug；草稿可暂不选择',
+    description: '管理员配置的主题帖分类 slug；服务端会去除首尾空白并转为大写，草稿可暂不选择',
+    minLength: CATEGORY_SLUG_MIN_LENGTH,
+    maxLength: CATEGORY_SLUG_MAX_LENGTH,
+    pattern: CATEGORY_SLUG_PATTERN_SOURCE,
   })
   @IsOptional()
+  @Transform(({ value }) => normalizeCategorySlugValue(value))
   @IsString()
   @Matches(CATEGORY_SLUG_PATTERN)
   category?: string;

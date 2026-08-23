@@ -5,10 +5,15 @@ import {
   extractMarkdownCoverImages,
   stripVisibleMarkdownImages,
 } from '../common/markdown-cover-images';
+import {
+  threadCategoryInfoSelect,
+  withThreadCategoryInfo,
+} from '../taxonomy/thread-category-info';
 
 /** 首页、搜索、收藏和用户主页共用的主题帖卡片查询投影。 */
 export const threadListCardInclude = {
   owner: { select: authorSelect },
+  categoryDefinition: { select: threadCategoryInfoSelect },
   defaultSubthread: {
     select: {
       id: true,
@@ -47,10 +52,11 @@ export function mapThreadListCard(thread: ThreadListCardRow) {
       }
     : null;
 
-  return {
+  return withThreadCategoryInfo({
     id: thread.id,
     title: thread.title,
     category: thread.category,
+    categoryDefinition: thread.categoryDefinition,
     status: thread.status,
     visibility: thread.visibility,
     published: thread.published,
@@ -65,5 +71,5 @@ export function mapThreadListCard(thread: ThreadListCardRow) {
     _count: thread._count,
     preview,
     coverImages,
-  };
+  });
 }

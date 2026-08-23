@@ -2,9 +2,9 @@ import { AuditAction, AuditTargetType } from '@prisma/client';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { PrismaService } from '../prisma/prisma.service';
 import { TagsService } from '../tags/tags.service';
-import { ThreadCategoriesService } from '../taxonomy/thread-categories.service';
 import { AdminTaxonomyService } from './admin-taxonomy.service';
 import { AuditService } from '../moderation/audit.service';
+import { CacheService } from '../redis/cache.service';
 
 describe('AdminTaxonomyService', () => {
   const tx = {
@@ -25,8 +25,11 @@ describe('AdminTaxonomyService', () => {
     topicTag: { findMany: jest.fn() },
   };
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
-  const categories = { invalidateCache: jest.fn().mockResolvedValue(undefined) };
   const tags = { invalidateCache: jest.fn().mockResolvedValue(undefined) };
+  const cache = {
+    buildKey: jest.fn((...parts: string[]) => `cache:${parts.join(':')}`),
+    delByPattern: jest.fn().mockResolvedValue(undefined),
+  };
   let service: AdminTaxonomyService;
 
   beforeEach(() => {
@@ -37,8 +40,8 @@ describe('AdminTaxonomyService', () => {
     service = new AdminTaxonomyService(
       prisma as unknown as PrismaService,
       audit as unknown as AuditService,
-      categories as unknown as ThreadCategoriesService,
       tags as unknown as TagsService,
+      cache as unknown as CacheService,
     );
   });
 
@@ -72,7 +75,8 @@ describe('AdminTaxonomyService', () => {
       }),
       tx,
     );
-    expect(categories.invalidateCache).toHaveBeenCalled();
+    expect(cache.delByPattern).toHaveBeenCalledWith('cache:threads:list:*');
+    expect(cache.delByPattern).toHaveBeenCalledWith('cache:thread:*');
   });
 
   it('编辑不存在的分类返回稳定错误码', async () => {
@@ -130,7 +134,8 @@ describe('AdminTaxonomyService', () => {
       }),
       tx,
     );
-    expect(categories.invalidateCache).toHaveBeenCalled();
+    expect(cache.delByPattern).toHaveBeenCalledWith('cache:threads:list:*');
+    expect(cache.delByPattern).toHaveBeenCalledWith('cache:thread:*');
   });
 
   it('管理员可以新增标签并使公开标签缓存失效', async () => {

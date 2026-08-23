@@ -38,11 +38,25 @@ describe('SubscriptionsService', () => {
   });
 
   it('普通用户可以创建 THREAD 官方更新订阅', async () => {
-    mockPrisma.subscription.create.mockResolvedValue({ id: 's1', type: 'THREAD' });
+    mockPrisma.subscription.create.mockResolvedValue({
+      id: 's1',
+      type: 'THREAD',
+      thread: {
+        id: 't1',
+        title: '主题帖',
+        category: 'RPG',
+        categoryDefinition: { slug: 'RPG', name: '角色扮演', isActive: false },
+      },
+    });
 
     const result = await service.create('u1', 't1', 'THREAD');
 
     expect(result.type).toBe('THREAD');
+    expect(result.thread.categoryInfo).toEqual({
+      slug: 'RPG',
+      name: '角色扮演',
+      isActive: false,
+    });
     expect(mockThreadAccess.assertAccessible).toHaveBeenCalledWith('t1', 'u1');
     expect(mockPrisma.subscription.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ targetUserId: null }) }),
@@ -53,7 +67,16 @@ describe('SubscriptionsService', () => {
     mockPrisma.threadMember.findUnique
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ role: 'PARTICIPANT', playerMarked: true });
-    mockPrisma.subscription.create.mockResolvedValue({ id: 's2', type: 'USER' });
+    mockPrisma.subscription.create.mockResolvedValue({
+      id: 's2',
+      type: 'USER',
+      thread: {
+        id: 't1',
+        title: '主题帖',
+        category: null,
+        categoryDefinition: null,
+      },
+    });
 
     await expect(service.create('u1', 't1', 'USER', 'player1')).resolves.toMatchObject({
       id: 's2',

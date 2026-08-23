@@ -301,7 +301,7 @@ POST   /threads/join-by-link/:token   通过 16 位 token 幂等加入私密帖
 
 用户主页 `GET /users/:id/played-threads`：仅返回用户已被授予玩家身份（`playerMarked=true`）的非自建帖子，回复生成的普通成员关系不计入；本人可用 `visibility=PUBLIC|PRIVATE` 分类，查看他人时只返回 PUBLIC 帖。
 
-首页、主题帖搜索、主题帖收藏和用户主页的创建/参与列表共享完整主题帖卡片字段：`defaultSubthread`、`topicTags`、`preview`、`coverImages`、`_count.members/players/posts`。搜索可额外带 `relevance`，本人的收藏管理列表额外带 `bookmarkId` / `bookmarkFolderId`；客户端应复用同一列表卡片模型，不按页面维护较窄副本。公开用户收藏不返回私有收藏元数据。
+首页、主题帖搜索、主题帖收藏和用户主页的创建/参与列表共享完整主题帖卡片字段：`categoryInfo`、`defaultSubthread`、`topicTags`、`preview`、`coverImages`、`_count.members/players/posts`。搜索可额外带 `relevance`，本人的收藏管理列表额外带 `bookmarkId` / `bookmarkFolderId`；客户端应复用同一列表卡片模型，不按页面维护较窄副本。公开用户收藏不返回私有收藏元数据。
 
 用户主页概览使用 `GET /users/:id/activity-summary` 获取精确创作统计：`momentCount`、`createdThreadCount`、`playedThreadCount`、`replyCount`。后两项受现有资料隐私控制，查看者无权时为 `null`，客户端应显示“未公开”而不是当作 0；不要为了统计提前拉取并遍历分页列表。
 
@@ -483,7 +483,7 @@ GET /threads/:threadId/search/posts?q=关键词&cursor=&limit=20
 
 ## 11. 前端开发建议
 
-Web 与 Flutter 都应从仓库内已审核的 `contracts/openapi.json` 生成类型，实际版本读取 `/meta` 或 `X-API-Contract-Version`；成功响应读取 `data`，分页读取 `meta`，错误响应统一按 `{ code, message, data: null }` 处理，业务分支使用生成的 `BusinessErrorCode`。动态的标题、正文和评论文字是纯文本，不得进入 Markdown 渲染链路；分类选项必须从 `GET /thread-categories` 获取并提交其 `slug`。完整移动端策略见 [Flutter / 原生移动端接入](./mobile-client-guide.md)。
+Web 与 Flutter 都应从仓库内已审核的 `contracts/openapi.json` 生成类型，实际版本读取 `/meta` 或 `X-API-Contract-Version`；成功响应读取 `data`，分页读取 `meta`，错误响应统一按 `{ code, message, data: null }` 处理，业务分支使用生成的 `BusinessErrorCode`。动态的标题、正文和评论文字是纯文本，不得进入 Markdown 渲染链路；分类选项必须从 `GET /thread-categories` 获取并提交其 `slug`，既有线程的展示名称直接读取响应 `categoryInfo.name`，不得用启用项列表反查。完整移动端策略见 [Flutter / 原生移动端接入](./mobile-client-guide.md)。
 
 1. **先看 Swagger**：`/api/docs` 有每个端点的请求 Schema（含 example 值）和响应描述，Try it out 可直接调试。
 2. **Token 管理**：封装单航班刷新拦截器；只对 `40101 TOKEN_EXPIRED` 刷新一次并重放请求，其他 401 直接进入对应登录/锁定/注销状态，避免刷新风暴。

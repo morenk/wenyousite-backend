@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayUnique,
@@ -13,7 +14,13 @@ import {
   MinLength,
   Matches,
 } from 'class-validator';
-import { CATEGORY_SLUG_PATTERN } from '../../taxonomy/category-slug';
+import {
+  CATEGORY_SLUG_MAX_LENGTH,
+  CATEGORY_SLUG_MIN_LENGTH,
+  CATEGORY_SLUG_PATTERN,
+  CATEGORY_SLUG_PATTERN_SOURCE,
+  normalizeCategorySlugValue,
+} from '../../taxonomy/category-slug';
 import { TAG_NAME_PATTERN } from '../../tags/tag-name';
 
 /** 原子保存主题帖编辑器中的元数据、默认正文与标签。 */
@@ -25,8 +32,16 @@ export class SaveThreadAggregateDto {
   @MaxLength(100)
   title?: string;
 
-  @ApiPropertyOptional({ example: 'MYSTERY', description: '管理员配置的分类 slug' })
+  @ApiPropertyOptional({
+    example: 'MYSTERY',
+    description: '管理员配置的分类 slug；服务端会去除首尾空白并转为大写',
+    minLength: CATEGORY_SLUG_MIN_LENGTH,
+    maxLength: CATEGORY_SLUG_MAX_LENGTH,
+    pattern: CATEGORY_SLUG_PATTERN_SOURCE,
+  })
   @IsOptional()
+  @Transform(({ value }) => normalizeCategorySlugValue(value))
+  @IsString()
   @Matches(CATEGORY_SLUG_PATTERN)
   category?: string;
 

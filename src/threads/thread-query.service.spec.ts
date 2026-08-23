@@ -7,6 +7,7 @@ const cachedThread = {
   published: true,
   visibility: 'PUBLIC',
   deletedAt: null,
+  categoryInfo: { slug: 'STORY_ROOM', name: '叙事剧场', isActive: true },
   viewCount: 12,
 };
 

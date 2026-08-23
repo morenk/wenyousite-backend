@@ -26,6 +26,10 @@ import { StickerContentService } from '../stickers/sticker-content.service';
 import { computeThreadEngagement, computeThreadSmartScore } from './thread-smart-score';
 import { ThreadCategoriesService } from '../taxonomy/thread-categories.service';
 import { MediaReferenceService } from '../media/media-reference.service';
+import {
+  threadCategoryInfoSelect,
+  withThreadCategoryInfo,
+} from '../taxonomy/thread-category-info';
 
 const ZSET_BY_CREATED = 'threads:by:created';
 const ZSET_BY_ACTIVITY = 'threads:by:activity';
@@ -323,6 +327,7 @@ export class ThreadAggregateService {
           },
           include: {
             owner: { select: authorSelect },
+            categoryDefinition: { select: threadCategoryInfoSelect },
             ...includeSubthreads(),
             topicTags: { include: { tag: true } },
             ...countMembersAndPosts(),
@@ -358,10 +363,10 @@ export class ThreadAggregateService {
         throw error;
       });
 
-    const updated = {
+    const updated = withThreadCategoryInfo({
       ...result.updated,
       subthreads: mapSubthreadBody(result.updated.subthreads),
-    };
+    });
     await attachPlayerCounts(this.prisma, [updated]);
     if (result.publishing) this.initializePublishedThreadCache(updated);
     this.eventEmitter.emit('thread.updated', { threadId });

@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { DiceRollResponseDto, PostAuthorResponseDto } from '../../posts/dto/post-response.dto';
+import { ThreadCategoryInfoDto } from '../../taxonomy/dto/thread-category-info.dto';
 
 class ThreadBodyPostResponseDto {
   @ApiProperty()
@@ -138,6 +139,13 @@ export class ThreadDetailResponseDto {
 
   @ApiProperty({ type: String, nullable: true, example: 'MYSTERY', description: '动态分类 slug' })
   category!: string | null;
+
+  @ApiProperty({
+    type: ThreadCategoryInfoDto,
+    nullable: true,
+    description: '分类展示读模型；名称来自当前分类注册表，历史未知 slug 使用 slug 兜底',
+  })
+  categoryInfo!: ThreadCategoryInfoDto | null;
 
   @ApiProperty({ enum: ['RECRUITING', 'CLOSED', 'FINISHED'] })
   status!: 'RECRUITING' | 'CLOSED' | 'FINISHED';

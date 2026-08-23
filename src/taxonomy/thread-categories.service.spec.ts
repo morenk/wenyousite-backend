@@ -1,39 +1,27 @@
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { PrismaService } from '../prisma/prisma.service';
-import { CacheService } from '../redis/cache.service';
 import { ThreadCategoriesService } from './thread-categories.service';
 
 describe('ThreadCategoriesService', () => {
   const prisma = {
     threadCategoryDefinition: { findMany: jest.fn(), findUnique: jest.fn() },
   };
-  const cache = {
-    buildKey: jest.fn((...parts: string[]) => parts.join(':')),
-    get: jest.fn(),
-    set: jest.fn().mockResolvedValue(undefined),
-    del: jest.fn().mockResolvedValue(undefined),
-  };
   let service: ThreadCategoriesService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    cache.get.mockResolvedValue(undefined);
-    service = new ThreadCategoriesService(
-      prisma as unknown as PrismaService,
-      cache as unknown as CacheService,
-    );
+    service = new ThreadCategoriesService(prisma as unknown as PrismaService);
   });
 
-  it('只返回启用分类并缓存有序结果', async () => {
+  it('每次从事实源返回启用分类并按 sortOrder、slug 稳定排序', async () => {
     const categories = [{ id: 'c1', slug: 'RPG', name: '角色扮演', isActive: true }];
     prisma.threadCategoryDefinition.findMany.mockResolvedValue(categories);
 
     await expect(service.listActive()).resolves.toEqual(categories);
     expect(prisma.threadCategoryDefinition.findMany).toHaveBeenCalledWith({
       where: { isActive: true },
-      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      orderBy: [{ sortOrder: 'asc' }, { slug: 'asc' }],
     });
-    expect(cache.set).toHaveBeenCalledWith('thread-categories:active-v2', categories, 300_000);
   });
 
   it('规范化并接受启用分类', async () => {

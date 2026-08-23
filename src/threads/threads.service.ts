@@ -29,6 +29,10 @@ import { MediaReferenceService } from '../media/media-reference.service';
 import { ThreadReactionService } from './thread-reaction.service';
 import { ThreadInviteService } from './thread-invite.service';
 import { UpdateThreadDto } from './dto/update-thread.dto';
+import {
+  threadCategoryInfoSelect,
+  withThreadCategoryInfo,
+} from '../taxonomy/thread-category-info';
 const ZSET_BY_CREATED = 'threads:by:created';
 const ZSET_BY_ACTIVITY = 'threads:by:activity';
 const ZSET_BY_SMART = 'threads:by:smart';
@@ -143,13 +147,17 @@ export class ThreadsService {
       where: { id: result.threadId, ...notDeleted },
       include: {
         owner: { select: authorSelect },
+        categoryDefinition: { select: threadCategoryInfoSelect },
         ...includeSubthreads(),
         topicTags: { include: { tag: true } },
         ...countMembersAndPosts(),
       },
     });
     if (thread) {
-      const response = { ...thread, subthreads: mapSubthreadBody(thread.subthreads) };
+      const response = withThreadCategoryInfo({
+        ...thread,
+        subthreads: mapSubthreadBody(thread.subthreads),
+      });
       await attachPlayerCounts(this.prisma, [response]);
       return response;
     }
@@ -212,6 +220,7 @@ export class ThreadsService {
             data: updateData,
             include: {
               owner: { select: authorSelect },
+              categoryDefinition: { select: threadCategoryInfoSelect },
               ...includeSubthreads(),
               topicTags: { include: { tag: true } },
               ...countMembersAndPosts(),
@@ -227,7 +236,10 @@ export class ThreadsService {
       throw err;
     });
 
-    const response = { ...updated, subthreads: mapSubthreadBody(updated.subthreads) };
+    const response = withThreadCategoryInfo({
+      ...updated,
+      subthreads: mapSubthreadBody(updated.subthreads),
+    });
     await attachPlayerCounts(this.prisma, [response]);
 
     // 缓存失效事件 + ZSET 维护
@@ -384,6 +396,7 @@ export class ThreadsService {
         },
         include: {
           owner: { select: authorSelect },
+          categoryDefinition: { select: threadCategoryInfoSelect },
           ...includeSubthreads(),
           topicTags: { include: { tag: true } },
           ...countMembersAndPosts(),

@@ -9,10 +9,10 @@ import {
   CreateThreadCategoryDto,
   UpdateThreadCategoryDto,
 } from '../taxonomy/dto/thread-category.dto';
-import { ThreadCategoriesService } from '../taxonomy/thread-categories.service';
 import { AuditService } from '../moderation/audit.service';
 import { CreateManagedTagDto, UpdateManagedTagDto } from './dto/taxonomy.dto';
 import { isUniqueConstraintViolation } from '../common/prisma-errors';
+import { CacheService } from '../redis/cache.service';
 
 interface TaxonomyActor {
   id: string;
@@ -46,13 +46,13 @@ export class AdminTaxonomyService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
-    private readonly categories: ThreadCategoriesService,
     private readonly tags: TagsService,
+    private readonly cache: CacheService,
   ) {}
 
   listCategories() {
     return this.prisma.threadCategoryDefinition.findMany({
-      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      orderBy: [{ sortOrder: 'asc' }, { slug: 'asc' }],
     });
   }
 
@@ -91,7 +91,7 @@ export class AdminTaxonomyService {
         );
         return created;
       });
-      await this.categories.invalidateCache();
+      await this.invalidateThreadCategoryReadModels();
       return category;
     } catch (error) {
       if (isUniqueConstraintViolation(error)) {
@@ -142,7 +142,7 @@ export class AdminTaxonomyService {
         );
         return updated;
       });
-      await this.categories.invalidateCache();
+      await this.invalidateThreadCategoryReadModels();
       return category;
     } catch (error) {
       if (isUniqueConstraintViolation(error)) {
@@ -154,6 +154,13 @@ export class AdminTaxonomyService {
       }
       throw error;
     }
+  }
+
+  private async invalidateThreadCategoryReadModels() {
+    await Promise.all([
+      this.cache.delByPattern(this.cache.buildKey('threads', 'list', '*')),
+      this.cache.delByPattern(this.cache.buildKey('thread', '*')),
+    ]);
   }
 
   async createTag(actor: TaxonomyActor, dto: CreateManagedTagDto, context: TaxonomyRequestContext) {

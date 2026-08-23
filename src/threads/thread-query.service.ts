@@ -22,11 +22,16 @@ import {
   threadListCardInclude,
   type ThreadListCardRow,
 } from './thread-list-card';
+import {
+  threadCategoryInfoSelect,
+  withThreadCategoryInfo,
+} from '../taxonomy/thread-category-info';
 
 const ZSET_BY_SMART = 'threads:by:smart';
 const DISCOVERABLE_THREAD_OWNER_WHERE = { is: { deletedAt: null } } as const;
 const threadDetailInclude = {
   owner: { select: authorSelect },
+  categoryDefinition: { select: threadCategoryInfoSelect },
   ...includeSubthreads(),
   topicTags: { include: { tag: true } },
   ...countMembersAndPosts(),
@@ -37,7 +42,10 @@ type PersistedThreadDetail = Prisma.ThreadGetPayload<{
 }>;
 
 function toThreadDetail(thread: PersistedThreadDetail) {
-  return { ...thread, subthreads: mapSubthreadBody(thread.subthreads) };
+  return withThreadCategoryInfo({
+    ...thread,
+    subthreads: mapSubthreadBody(thread.subthreads),
+  });
 }
 
 type ThreadDetail = ReturnType<typeof toThreadDetail>;
@@ -58,12 +66,13 @@ export class ThreadQueryService {
       where: { ownerId: userId, published: false, ...notDeleted },
       orderBy: { createdAt: 'desc' },
       include: {
+        categoryDefinition: { select: threadCategoryInfoSelect },
         defaultSubthread: { select: { id: true, title: true } },
         topicTags: { include: { tag: true } },
         _count: { select: { subthreads: true, posts: true } },
       },
     });
-    return drafts;
+    return drafts.map(withThreadCategoryInfo);
   }
 
   /** 详情：主题帖 + 子贴列表。未发布帖仅 owner 可查看 */
@@ -72,9 +81,15 @@ export class ThreadQueryService {
     await this.threadAccess.assertAccessible(id, userId);
     const cacheKey = this.cache.buildKey('thread', id);
     let thread = await this.cache.get<ThreadDetail>(cacheKey);
+    const cacheHasCurrentShape = Boolean(thread && 'categoryInfo' in thread);
 
     // 详情缓存只保存公开且已发布的聚合结果；私密帖和草稿始终实时查询。
-    if (!thread?.published || thread.visibility !== 'PUBLIC' || thread.deletedAt) {
+    if (
+      !cacheHasCurrentShape ||
+      !thread?.published ||
+      thread.visibility !== 'PUBLIC' ||
+      thread.deletedAt
+    ) {
       const persistedThread = await this.prisma.thread.findUnique({
         where: { id, ...notDeleted },
         include: threadDetailInclude,
@@ -163,7 +178,7 @@ export class ThreadQueryService {
       `tagId:${query.tagId ?? 'all'}`,
       `filter:${query.filter ?? 'all'}`,
       `limit:${Math.min(query.limit ?? 20, 50)}`,
-      'shape:covers-v1',
+      'shape:category-info-v1',
       'policy:active-owner-v1',
     );
     const cacheableFirstPage = !query.cursor && query.filter !== 'playing';

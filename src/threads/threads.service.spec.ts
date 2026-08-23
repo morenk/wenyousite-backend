@@ -331,7 +331,7 @@ describe('ThreadsService', () => {
         'tagId:all',
         'filter:all',
         'limit:20',
-        'shape:covers-v1',
+        'shape:category-info-v1',
         'policy:active-owner-v1',
       );
     });
@@ -359,7 +359,7 @@ describe('ThreadsService', () => {
         `tagId:${tagId}`,
         'filter:all',
         'limit:20',
-        'shape:covers-v1',
+        'shape:category-info-v1',
         'policy:active-owner-v1',
       );
     });
@@ -621,6 +621,7 @@ describe('ThreadsService', () => {
         published: true,
         visibility: 'PUBLIC',
         deletedAt: null,
+        categoryInfo: { slug: 'RPG', name: '角色扮演', isActive: true },
         viewCount: 9,
         owner: { id: 'u1' },
         subthreads: [],

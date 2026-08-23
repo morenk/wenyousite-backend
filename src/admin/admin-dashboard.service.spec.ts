@@ -116,8 +116,8 @@ describe('AdminDashboardService', () => {
       .mockResolvedValueOnce([{ reasonCode: ReportReasonCode.SPAM, _count: { _all: 1 } }]);
     prisma.thread.groupBy.mockResolvedValue([{ category: 'RPG', _count: { _all: 3 } }]);
     prisma.threadCategoryDefinition.findMany.mockResolvedValue([
-      { slug: 'DEDUCTION' },
-      { slug: 'RPG' },
+      { slug: 'DEDUCTION', name: '演绎', isActive: true },
+      { slug: 'RPG', name: '角色扮演', isActive: false },
     ]);
     prisma.userSanction.groupBy.mockResolvedValue([]);
 
@@ -128,8 +128,8 @@ describe('AdminDashboardService', () => {
     expect(result.reportsByStatus).toContainEqual({ key: ReportStatus.PENDING, count: 2 });
     expect(result.reportsByReason).toContainEqual({ key: ReportReasonCode.SPAM, count: 1 });
     expect(result.threadsByCategory).toEqual([
-      { key: 'DEDUCTION', count: 0 },
-      { key: 'RPG', count: 3 },
+      { key: 'DEDUCTION', name: '演绎', isActive: true, count: 0 },
+      { key: 'RPG', name: '角色扮演', isActive: false, count: 3 },
     ]);
     expect(result.activeSanctionsByType).toEqual([
       { key: UserSanctionType.SUSPENSION, count: 0 },

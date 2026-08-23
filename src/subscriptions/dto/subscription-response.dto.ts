@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { ThreadCategoryInfoDto } from '../../taxonomy/dto/thread-category-info.dto';
 
 class SubscriptionThreadResponseDto {
   @ApiProperty()
@@ -9,6 +10,9 @@ class SubscriptionThreadResponseDto {
 
   @ApiProperty({ type: String, nullable: true, example: 'MYSTERY', description: '动态分类 slug' })
   category!: string | null;
+
+  @ApiProperty({ type: ThreadCategoryInfoDto, nullable: true })
+  categoryInfo!: ThreadCategoryInfoDto | null;
 }
 
 export class SubscriptionResponseDto {

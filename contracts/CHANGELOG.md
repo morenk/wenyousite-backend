@@ -1,5 +1,12 @@
 # API 合同变更
 
+## 5.8.0-dev.20260823.1
+
+- 所有主题帖列表、草稿、详情、邀请预览与订阅响应向后兼容新增必填可空 `categoryInfo: { slug, name, isActive } | null`；原 `category: string | null` 保留。已停用分类仍返回注册表当前名称，未知历史 slug 返回同名且 `isActive=false` 的安全读模型。
+- 分类 slug 统一为去除首尾空白并转大写后的 `^[A-Z][A-Z0-9_]{0,49}$`，发现与管理列表按 `sortOrder ASC, slug ASC` 稳定排序；公开 `/thread-categories` 继续只返回启用分类。
+- 分类定为纯文本能力：`icon`、`mergedIntoId` 仅为数据库和旧线协议兼容字段并在 OpenAPI 标记废弃，新 `categoryInfo` 不包含二者。分类黄金契约升级为 `thread-category-v3-fixtures.json`。
+- 管理员分布统计的 `threadsByCategory` 新增当前 `name` 与 `isActive`，分类写入后失效线程列表和详情读缓存。
+
 ## 5.7.0-dev.20260823.1
 
 - 草稿创建向后兼容新增可选 UUID v4 `clientRequestId`；同一用户以相同键重放相同规范化正文与槽位时返回原草稿，复用到不同载荷返回 `40912 IDEMPOTENCY_KEY_REUSED`。

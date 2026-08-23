@@ -118,6 +118,14 @@ export class AdminDashboardDistributionItemDto {
   count!: number;
 }
 
+export class AdminDashboardCategoryDistributionItemDto extends AdminDashboardDistributionItemDto {
+  @ApiProperty({ example: '角色扮演', description: '当前分类名称' })
+  name!: string;
+
+  @ApiProperty({ example: true, description: '分类当前是否可供新建和筛选选择' })
+  isActive!: boolean;
+}
+
 export class AdminDashboardDistributionsResponseDto {
   @ApiProperty({ type: AdminDashboardDistributionItemDto, isArray: true })
   usersByRole!: AdminDashboardDistributionItemDto[];
@@ -128,8 +136,8 @@ export class AdminDashboardDistributionsResponseDto {
   @ApiProperty({ type: AdminDashboardDistributionItemDto, isArray: true })
   reportsByReason!: AdminDashboardDistributionItemDto[];
 
-  @ApiProperty({ type: AdminDashboardDistributionItemDto, isArray: true })
-  threadsByCategory!: AdminDashboardDistributionItemDto[];
+  @ApiProperty({ type: AdminDashboardCategoryDistributionItemDto, isArray: true })
+  threadsByCategory!: AdminDashboardCategoryDistributionItemDto[];
 
   @ApiProperty({ type: AdminDashboardDistributionItemDto, isArray: true })
   activeSanctionsByType!: AdminDashboardDistributionItemDto[];

@@ -1,33 +1,21 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { Prisma, ThreadCategoryDefinition } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { PrismaService } from '../prisma/prisma.service';
-import { CacheService } from '../redis/cache.service';
 import { normalizeCategorySlug } from './category-slug';
 
 type CategoryClient = PrismaService | Prisma.TransactionClient;
 
 @Injectable()
 export class ThreadCategoriesService {
-  private readonly activeCacheKey: string;
-
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly cache: CacheService,
-  ) {
-    this.activeCacheKey = this.cache.buildKey('thread-categories', 'active-v2');
-  }
+  constructor(private readonly prisma: PrismaService) {}
 
   async listActive() {
-    const cached = await this.cache.get<ThreadCategoryDefinition[]>(this.activeCacheKey);
-    if (cached) return cached;
-    const categories = await this.prisma.threadCategoryDefinition.findMany({
+    return this.prisma.threadCategoryDefinition.findMany({
       where: { isActive: true },
-      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      orderBy: [{ sortOrder: 'asc' }, { slug: 'asc' }],
     });
-    this.cache.set(this.activeCacheKey, categories, 300_000).catch(() => undefined);
-    return categories;
   }
 
   async assertSelectable(slug: string, client: CategoryClient = this.prisma): Promise<string> {
@@ -47,9 +35,5 @@ export class ThreadCategoriesService {
       );
     }
     return category.slug;
-  }
-
-  invalidateCache() {
-    return this.cache.del(this.activeCacheKey);
   }
 }

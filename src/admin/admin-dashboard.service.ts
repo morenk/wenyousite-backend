@@ -190,8 +190,8 @@ export class AdminDashboardService {
           _count: { _all: true },
         }),
         this.prisma.threadCategoryDefinition.findMany({
-          orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-          select: { slug: true },
+          orderBy: [{ sortOrder: 'asc' }, { slug: 'asc' }],
+          select: { slug: true, name: true, isActive: true },
         }),
         this.prisma.userSanction.groupBy({
           by: ['type'],
@@ -213,8 +213,10 @@ export class AdminDashboardService {
         key,
         count: reportsByReason.find((item) => item.reasonCode === key)?._count._all ?? 0,
       })),
-      threadsByCategory: categories.map(({ slug: key }) => ({
+      threadsByCategory: categories.map(({ slug: key, name, isActive }) => ({
         key,
+        name,
+        isActive,
         count: threads.find((item) => item.category === key)?._count._all ?? 0,
       })),
       activeSanctionsByType: Object.values(UserSanctionType).map((key) => ({

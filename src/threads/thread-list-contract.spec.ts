@@ -46,6 +46,7 @@ describe('列表卡片 OpenAPI 契约', () => {
     expect(baseProperties).toEqual([
       '_count',
       'category',
+      'categoryInfo',
       'coverImages',
       'createdAt',
       'defaultSubthread',

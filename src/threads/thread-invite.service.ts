@@ -4,6 +4,10 @@ import { forbidden, notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { authorSelect, notDeleted } from '../common/prisma-helpers';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  mapThreadCategoryInfo,
+  threadCategoryInfoSelect,
+} from '../taxonomy/thread-category-info';
 
 /** 私密主题邀请用例，隔离 token、成员加入和可见性规则。 */
 @Injectable()
@@ -35,6 +39,7 @@ export class ThreadInviteService {
             id: true,
             title: true,
             category: true,
+            categoryDefinition: { select: threadCategoryInfoSelect },
             status: true,
             visibility: true,
             published: true,
@@ -66,6 +71,10 @@ export class ThreadInviteService {
         id: invite.thread.id,
         title: invite.thread.title,
         category: invite.thread.category,
+        categoryInfo: mapThreadCategoryInfo(
+          invite.thread.category,
+          invite.thread.categoryDefinition,
+        ),
         status: invite.thread.status,
         owner: invite.thread.owner,
         memberCount,

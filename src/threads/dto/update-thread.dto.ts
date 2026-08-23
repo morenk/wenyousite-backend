@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsOptional,
   IsString,
@@ -10,7 +11,13 @@ import {
   Min,
   Matches,
 } from 'class-validator';
-import { CATEGORY_SLUG_PATTERN } from '../../taxonomy/category-slug';
+import {
+  CATEGORY_SLUG_MAX_LENGTH,
+  CATEGORY_SLUG_MIN_LENGTH,
+  CATEGORY_SLUG_PATTERN,
+  CATEGORY_SLUG_PATTERN_SOURCE,
+  normalizeCategorySlugValue,
+} from '../../taxonomy/category-slug';
 import type { ThreadStatus, ThreadVisibility } from '@prisma/client';
 
 /** 更新主题帖 DTO：全部可选。published 设为 true 即发布草稿 */
@@ -22,8 +29,15 @@ export class UpdateThreadDto {
   @MaxLength(100)
   title?: string;
 
-  @ApiPropertyOptional({ example: 'MYSTERY', description: '管理员配置的分类 slug' })
+  @ApiPropertyOptional({
+    example: 'MYSTERY',
+    description: '管理员配置的分类 slug；服务端会去除首尾空白并转为大写',
+    minLength: CATEGORY_SLUG_MIN_LENGTH,
+    maxLength: CATEGORY_SLUG_MAX_LENGTH,
+    pattern: CATEGORY_SLUG_PATTERN_SOURCE,
+  })
   @IsOptional()
+  @Transform(({ value }) => normalizeCategorySlugValue(value))
   @IsString()
   @Matches(CATEGORY_SLUG_PATTERN)
   category?: string;

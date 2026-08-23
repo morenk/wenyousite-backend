@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { ThreadCategoryInfoDto } from '../../taxonomy/dto/thread-category-info.dto';
 
 export class InviteLinkResponseDto {
   @ApiProperty()
@@ -34,6 +35,9 @@ class InviteThreadPreviewResponseDto {
 
   @ApiProperty({ type: String, nullable: true, example: 'MYSTERY', description: '动态分类 slug' })
   category: string | null;
+
+  @ApiProperty({ type: ThreadCategoryInfoDto, nullable: true })
+  categoryInfo: ThreadCategoryInfoDto | null;
 
   @ApiProperty({ enum: ['RECRUITING', 'CLOSED', 'FINISHED'], description: '主题帖状态' })
   status: 'RECRUITING' | 'CLOSED' | 'FINISHED';

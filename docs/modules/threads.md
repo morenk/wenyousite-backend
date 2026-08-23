@@ -28,7 +28,7 @@
 
 | Method | Path                              | Guard        | 描述                                                                                                                                                                                                                                               |
 | ------ | --------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/thread-categories`              | Public       | 按管理员排序返回全部启用分类，发帖和筛选使用返回的 `slug`                                                                                                                                                                                          |
+| GET    | `/thread-categories`              | Public       | 按 `sortOrder ASC, slug ASC` 返回全部启用分类，发帖和筛选使用返回的稳定 `slug`                                                                                                                                                                     |
 | GET    | `/threads/draft`                  | AuthRead     | 我的草稿箱列表（published=false 的帖）                                                                                                                                                                                                             |
 | POST   | `/threads`                        | Auth         | 创建主题帖草稿（事务内创建 Thread + OWNER + 默认子贴 + 可选正文 kind=BODY，published=false）。每用户最多 10 条未发布草稿，超限返回 BAD_REQUEST                                                                                                     |
 | GET    | `/threads`                        | OptionalAuth | 首页发现列表：仅已发布且楼主未注销的主题帖，支持分区/排序/状态/标签筛选；`tagId` 按标签 ID 精确筛选，旧 `tag` 参数保留名称模糊筛选；每帖含默认主贴正文的纯文本 `preview`，`coverImages` 只返回主贴第一张普通图片，表情与代码中的图片语法不作为封面 |
@@ -61,6 +61,7 @@
 - 沙盒迭代：楼主可在草稿内自由创建更多子贴（`POST subthreads`）、撰写楼层（`POST posts`），所有端点自动保存
 - 草稿列表：`GET /threads/draft` 返回当前用户所有未发布帖，按 createdAt DESC 排序
 - 发布校验：细粒度 PATCH 与聚合保存发布都校验 —— ① title 非空且非默认值"未命名草稿" ② category 已设置、存在且启用 ③ 默认子贴存在且有可见正文（kind=BODY）。草稿可以暂不选择分类；停用分类保留历史关联，但不能新选或用于发布。
+- 线程列表、草稿、详情、邀请预览和订阅同时返回旧 `category` 与展示读模型 `categoryInfo: { slug, name, isActive } | null`。名称始终取当前注册表；已停用分类仍可读，未知历史 slug 以自身作为名称并标记不可选，空分类返回 null。客户端不得用仅含启用项的发现列表反查历史名称。
 - 聚合保存：按 Thread → 默认 Subthread → BODY 的 version 顺序校验后，在同一事务更新元数据、标题/正文、标签和发布状态；任一冲突返回 `OPTIMISTIC_LOCK_CONFLICT(40002)` 且不产生部分写入。COLLABORATOR 不得修改 visibility 或 published
 - 草稿期各 Post 的内联骰子节点只保存在 `content` 中；发布事务会锁定 Thread，校验并结算全部帖子节点后才翻转 `published=true`，任一步失败整体回滚
 - 发布可靠事件：发布事务为草稿期全部帖子写入 `post.created` Outbox，并写入 `thread.published`；提交后依次补解析 @提及/通知，并通知通过双向拉黑过滤的粉丝

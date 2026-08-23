@@ -266,13 +266,13 @@
 | slug | String | unique, VarChar(50) | 创建后不可修改的机器标识，Thread 外键引用 |
 | name | String | unique, VarChar(50) | 管理员配置的显示名称 |
 | description | String? | VarChar(200) | 描述 |
-| icon | String? | VarChar(50) | 客户端图标键 |
+| icon | String? | VarChar(50) | 废弃兼容列；文本分类不再产生或消费图标键 |
 | sortOrder | Int | default 0 | 展示顺序 |
 | isActive | Boolean | default true | 是否允许新选择；停用不删除历史关联 |
-| mergedIntoId | String? | self FK (SetNull) | 合并目标分类；未合并为 null，响应契约显式保留 |
+| mergedIntoId | String? | self FK (SetNull) | 废弃兼容列；不实现分类合并，新读模型不暴露 |
 | createdAt / updatedAt | DateTime | — | 审计时间 |
 
-旧三类数据由迁移一次性写入注册表并保留原 slug，以维持历史主题帖外键和旧客户端链接；它们不再是运行时代码常量。显示名称、描述、排序和启停状态均以本表为唯一事实源，分类不包含颜色字段。公开接口只返回启用项，管理接口返回全部配置。
+旧三类数据由迁移一次性写入注册表并保留原 slug，以维持历史主题帖外键和旧客户端链接；它们不再是运行时代码常量。`slug` 采用 `^[A-Z][A-Z0-9_]{0,49}$`，显示名称、描述、排序和启停状态均以本表为唯一事实源。分类是纯文本能力，不包含颜色，图标与合并字段仅保留旧存储/线协议兼容。公开接口只返回启用项，管理接口返回全部配置，两者均按 `sortOrder ASC, slug ASC` 排序。
 
 ### threads — 主题帖
 

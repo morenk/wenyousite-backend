@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { PostAuthorResponseDto } from '../../posts/dto/post-response.dto';
+import { ThreadCategoryInfoDto } from '../../taxonomy/dto/thread-category-info.dto';
 import { ThreadTagRelationResponseDto } from './thread-detail-response.dto';
 
 class ThreadListDefaultSubthreadResponseDto {
@@ -33,6 +34,13 @@ export class ThreadListItemResponseDto {
 
   @ApiProperty({ type: String, nullable: true, example: 'MYSTERY', description: '动态分类 slug' })
   category!: string | null;
+
+  @ApiProperty({
+    type: ThreadCategoryInfoDto,
+    nullable: true,
+    description: '分类展示读模型；名称来自当前分类注册表，历史未知 slug 使用 slug 兜底',
+  })
+  categoryInfo!: ThreadCategoryInfoDto | null;
 
   @ApiProperty({ enum: ['RECRUITING', 'CLOSED', 'FINISHED'] })
   status!: 'RECRUITING' | 'CLOSED' | 'FINISHED';
@@ -121,6 +129,9 @@ export class DraftThreadResponseDto {
 
   @ApiProperty({ type: String, nullable: true, example: 'MYSTERY', description: '动态分类 slug' })
   category!: string | null;
+
+  @ApiProperty({ type: ThreadCategoryInfoDto, nullable: true })
+  categoryInfo!: ThreadCategoryInfoDto | null;
 
   @ApiProperty({ enum: ['RECRUITING', 'CLOSED', 'FINISHED'] })
   status!: 'RECRUITING' | 'CLOSED' | 'FINISHED';

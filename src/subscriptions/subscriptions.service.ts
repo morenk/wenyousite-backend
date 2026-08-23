@@ -5,6 +5,10 @@ import { BusinessException, notFound } from '../common/exceptions/business.excep
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { ThreadAccessService } from '../access/thread-access.service';
 import { publishedThreadVisibilityWhere } from '../access/thread-visibility.where';
+import {
+  threadCategoryInfoSelect,
+  withThreadCategoryInfo,
+} from '../taxonomy/thread-category-info';
 
 /** 订阅服务：玩家可订阅特定用户或整个主题帖 */
 @Injectable()
@@ -61,17 +65,27 @@ export class SubscriptionsService {
       throw new BusinessException(ErrorCode.ALREADY_SUBSCRIBED, '已订阅', HttpStatus.CONFLICT);
     }
 
-    return this.prisma.subscription
-      .create({
+    try {
+      const subscription = await this.prisma.subscription.create({
         data: { userId, threadId, type, targetUserId: normalizedTargetUserId },
-        include: { thread: { select: { id: true, title: true } } },
-      })
-      .catch((error) => {
-        if (error?.code === 'P2002') {
-          throw new BusinessException(ErrorCode.ALREADY_SUBSCRIBED, '已订阅', HttpStatus.CONFLICT);
-        }
-        throw error;
+        include: {
+          thread: {
+            select: {
+              id: true,
+              title: true,
+              category: true,
+              categoryDefinition: { select: threadCategoryInfoSelect },
+            },
+          },
+        },
       });
+      return { ...subscription, thread: withThreadCategoryInfo(subscription.thread) };
+    } catch (error) {
+      if ((error as { code?: string })?.code === 'P2002') {
+        throw new BusinessException(ErrorCode.ALREADY_SUBSCRIBED, '已订阅', HttpStatus.CONFLICT);
+      }
+      throw error;
+    }
   }
 
   /** 取消订阅 */
@@ -85,16 +99,27 @@ export class SubscriptionsService {
 
   /** 查看我的订阅列表 */
   async findAll(userId: string) {
-    return this.prisma.subscription.findMany({
+    const subscriptions = await this.prisma.subscription.findMany({
       where: {
         userId,
         thread: publishedThreadVisibilityWhere(userId),
       },
       include: {
-        thread: { select: { id: true, title: true, category: true } },
+        thread: {
+          select: {
+            id: true,
+            title: true,
+            category: true,
+            categoryDefinition: { select: threadCategoryInfoSelect },
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
+    return subscriptions.map((subscription) => ({
+      ...subscription,
+      thread: withThreadCategoryInfo(subscription.thread),
+    }));
   }
 
   /** 获取某个主题帖的所有订阅者（含按用户筛选） */
