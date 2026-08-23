@@ -18,6 +18,17 @@ cp loadtest/runner.env.example loadtest/runner.env
 
 当前目标服务器公网 DNS 可使用 `loadtest-api.wenyou.site`。压测机不需要入站公网 IP；Windows 经路由器/NAT发起请求时，填写服务器实际看到的公网出口 IP，并同步到 `target.env` 的 `LOADTEST_ALLOWED_IP`、`runner.env` 的 `LOADGEN_IP` 和入口/WAF 白名单中。出口 IP 动态变化时，在每轮测试前更新即可。
 
+## VPS 隔离基础设施
+
+隔离 PostgreSQL 和 Redis 由本仓库唯一的 Compose 以 `loadtest` profile 管理，不会复用正式容器、端口或数据卷。填写 `target.env` 的 `LOADTEST_DB_PASSWORD` 后，在 VPS 执行：
+
+```bash
+docker compose --env-file loadtest/target.env --profile loadtest up -d loadtest-postgres loadtest-redis
+docker compose --env-file loadtest/target.env --profile loadtest ps
+```
+
+隔离数据库监听 `127.0.0.1:55432`，隔离 Redis 监听 `127.0.0.1:56379`。不要对公网开放这两个端口；公网只暴露后续配置的压测 API 入口。
+
 ## Windows 执行
 
 官方 k6 支持 Windows。可使用 Windows Package Manager 安装：

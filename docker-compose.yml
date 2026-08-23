@@ -36,8 +36,46 @@ services:
       timeout: 5s
       retries: 10
 
+  # 仅用于 loadtest profile；与正式 PostgreSQL/Redis 使用独立容器、端口和数据卷。
+  loadtest-postgres:
+    image: postgres:17-alpine
+    container_name: wenyousite-loadtest-postgres
+    profiles: ["loadtest"]
+    environment:
+      POSTGRES_USER: wenyou_loadtest
+      POSTGRES_PASSWORD: ${LOADTEST_DB_PASSWORD:?LOADTEST_DB_PASSWORD must be set}
+      POSTGRES_DB: wenyousite_loadtest
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - loadtest_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wenyou_loadtest -d wenyousite_loadtest"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  loadtest-redis:
+    image: redis:7-alpine
+    container_name: wenyousite-loadtest-redis
+    profiles: ["loadtest"]
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--maxmemory-policy", "noeviction"]
+    ports:
+      - "127.0.0.1:56379:6379"
+    volumes:
+      - loadtest_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
 volumes:
   pgdata:
     name: wenyousite_pgdata
   redisdata:
     name: wenyousite_redisdata
+  loadtest_pgdata:
+    name: wenyousite_loadtest_pgdata
+  loadtest_redisdata:
+    name: wenyousite_loadtest_redisdata
