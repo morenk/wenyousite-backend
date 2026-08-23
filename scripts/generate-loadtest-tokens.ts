@@ -44,6 +44,7 @@ async function main() {
     process.cwd(),
     process.env.LOADTEST_TOKEN_OUTPUT ?? 'loadtest/auth-tokens.json',
   );
+  const tokenTtl = process.env.LOADTEST_ACCESS_TOKEN_TTL ?? '2h';
   const prisma = new PrismaClient({ datasources: { db: { url: env.LOADTEST_DATABASE_URL } } });
   const jwt = new JwtService({ secret: env.LOADTEST_JWT_ACCESS_SECRET });
   const passwordHash = await argon2.hash(randomBytes(32).toString('base64url'));
@@ -86,7 +87,7 @@ async function main() {
           expiresAt,
         },
       });
-      tokens.push(await jwt.signAsync({ sub: user.id, sid: family }, { expiresIn: '15m' }));
+      tokens.push(await jwt.signAsync({ sub: user.id, sid: family }, { expiresIn: tokenTtl }));
     }
 
     await mkdir(dirname(outputPath), { recursive: true });

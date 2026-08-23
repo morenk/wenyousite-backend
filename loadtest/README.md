@@ -37,7 +37,7 @@ docker compose --env-file loadtest/target.env --profile loadtest ps
 pnpm loadtest:tokens
 ```
 
-将生成的 `loadtest/auth-tokens.json` 通过安全渠道复制到 Windows 压测机的同一路径；脚本会复用隔离账号、吊销旧移动会话并签发新的 15 分钟 access token。
+将生成的 `loadtest/auth-tokens.json` 通过安全渠道复制到 Windows 压测机的同一路径；脚本会复用隔离账号、吊销旧移动会话并签发默认 2 小时的 access token（可用 `LOADTEST_ACCESS_TOKEN_TTL` 覆盖）。
 
 ## Windows 执行
 
