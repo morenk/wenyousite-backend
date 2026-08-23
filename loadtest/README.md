@@ -12,7 +12,7 @@ cp loadtest/runner.env.example loadtest/runner.env
 ```
 
 - `target.env` 只放隔离后端、Worker、PostgreSQL、Redis 和 RainS3 测试实例配置，应留在目标服务器。
-- `runner.env` 只放公网入口、Windows 压测机固定 IP、k6 参数和结果路径，应留在本地 Windows 压测机。
+- `runner.env` 只放隔离公网入口、Windows 压测机固定 IP、k6 参数和结果路径，应留在本地 Windows 压测机。
 - 两个实际文件已被 Git 忽略；`.example` 文件不包含任何密钥。
 - `AUTH_TOKENS_JSON_PATH` 指向的 Token 文件由隔离环境初始化阶段生成，不要把正式账号 Token 填入配置。
 
