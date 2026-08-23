@@ -29,6 +29,8 @@ docker compose --env-file loadtest/target.env --profile loadtest ps
 
 隔离数据库监听 `127.0.0.1:55432`，隔离 Redis 监听 `127.0.0.1:56379`。不要对公网开放这两个端口；公网只暴露后续配置的压测 API 入口。
 
+隔离后端和图片 Worker 使用 `ops/wenyousite-loadtest-*.service`，其运行时覆盖配置放在被 Git 忽略的 `loadtest/backend.env`。该 unit 只监听后端的隔离端口，不会替换正式 systemd unit。
+
 ## Windows 执行
 
 官方 k6 支持 Windows。可使用 Windows Package Manager 安装：

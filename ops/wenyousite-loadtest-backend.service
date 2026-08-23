@@ -1,0 +1,24 @@
+[Unit]
+Description=Wenyou Site isolated loadtest backend
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/root/wenyousite/wenyousite-backend
+EnvironmentFile=/root/wenyousite/wenyousite-backend/.env
+EnvironmentFile=/root/wenyousite/wenyousite-backend/loadtest/backend.env
+ExecStart=/root/wenyousite/wenyousite-backend/scripts/wenyousite-loadtest-backend-start.sh
+Restart=on-failure
+RestartSec=2s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+NoNewPrivileges=true
+LimitNOFILE=65535
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
