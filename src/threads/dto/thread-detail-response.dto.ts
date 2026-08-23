@@ -55,6 +55,27 @@ export class ThreadTagRelationResponseDto {
   tag!: ThreadTagResponseDto;
 }
 
+export class PostingCapabilityResponseDto {
+  @ApiProperty()
+  canPost!: boolean;
+
+  @ApiProperty({
+    enum: [
+      'AUTHENTICATION_REQUIRED',
+      'BLOCKED_RELATION',
+      'COLLABORATOR_REQUIRED',
+      'PLAYER_REQUIRED',
+    ],
+    nullable: true,
+  })
+  denialReason!:
+    | 'AUTHENTICATION_REQUIRED'
+    | 'BLOCKED_RELATION'
+    | 'COLLABORATOR_REQUIRED'
+    | 'PLAYER_REQUIRED'
+    | null;
+}
+
 class ThreadSubthreadResponseDto {
   @ApiProperty()
   id!: string;
@@ -70,6 +91,9 @@ class ThreadSubthreadResponseDto {
 
   @ApiProperty({ enum: ['PARTICIPANTS', 'COLLABORATORS', 'PLAYERS'] })
   postingPolicy!: 'PARTICIPANTS' | 'COLLABORATORS' | 'PLAYERS';
+
+  @ApiProperty({ type: PostingCapabilityResponseDto })
+  postingCapability!: PostingCapabilityResponseDto;
 
   @ApiProperty({ minimum: 1 })
   version!: number;

@@ -11,6 +11,7 @@ export const DOMAIN_EVENTS = {
   MOMENT_COMMENT_CREATED: 'moment.comment.created',
   DIRECT_MESSAGE_CREATED: 'direct-message.created',
   TIP_COMPLETED: 'tip.completed',
+  THREAD_COLLABORATOR_ROLE_CHANGED: 'thread.collaborator-role.changed',
 } as const;
 
 export interface PostCreatedEvent {
@@ -109,6 +110,17 @@ export interface TipCompletedEvent {
   momentTipTotal?: string | null;
 }
 
+export interface ThreadCollaboratorRoleChangedEvent {
+  eventId: string;
+  threadId: string;
+  threadTitle: string;
+  actorId: string;
+  actorName: string;
+  targetUserId: string;
+  oldRole: 'COLLABORATOR' | 'PARTICIPANT';
+  newRole: 'COLLABORATOR' | 'PARTICIPANT';
+}
+
 export interface DomainEventMap {
   [DOMAIN_EVENTS.POST_CREATED]: PostCreatedEvent;
   [DOMAIN_EVENTS.POST_MENTIONS_UPDATED]: PostMentionsUpdatedEvent;
@@ -120,6 +132,7 @@ export interface DomainEventMap {
   [DOMAIN_EVENTS.MOMENT_COMMENT_CREATED]: MomentCommentCreatedEvent;
   [DOMAIN_EVENTS.DIRECT_MESSAGE_CREATED]: DirectMessageCreatedEvent;
   [DOMAIN_EVENTS.TIP_COMPLETED]: TipCompletedEvent;
+  [DOMAIN_EVENTS.THREAD_COLLABORATOR_ROLE_CHANGED]: ThreadCollaboratorRoleChangedEvent;
 }
 
 export type DomainEventName = keyof DomainEventMap;
@@ -214,6 +227,16 @@ export const DOMAIN_EVENT_SCHEMAS = {
     momentId: nullableId.optional(),
     momentTitle: z.string().nullable().optional(),
     momentTipTotal: z.string().nullable().optional(),
+  }),
+  [DOMAIN_EVENTS.THREAD_COLLABORATOR_ROLE_CHANGED]: z.object({
+    eventId: id,
+    threadId: id,
+    threadTitle: z.string(),
+    actorId: id,
+    actorName: z.string(),
+    targetUserId: id,
+    oldRole: z.enum(['COLLABORATOR', 'PARTICIPANT']),
+    newRole: z.enum(['COLLABORATOR', 'PARTICIPANT']),
   }),
 } satisfies Record<DomainEventName, z.ZodType>;
 

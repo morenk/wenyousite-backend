@@ -63,4 +63,48 @@ describe('ThreadEventsListener', () => {
       expect.objectContaining({ eventKey: 'like:cycle-1' }),
     );
   });
+
+  it.each([
+    [
+      'PARTICIPANT',
+      'COLLABORATOR',
+      'thread_collaborator_added',
+      '你已成为主题「协作主题」的协作者',
+    ],
+    [
+      'COLLABORATOR',
+      'PARTICIPANT',
+      'thread_collaborator_removed',
+      '你已不再是主题「协作主题」的协作者',
+    ],
+  ] as const)(
+    '任免协作者发送带稳定事件键的 system 通知：%s → %s',
+    async (oldRole, newRole, action, content) => {
+      await listener.handleCollaboratorRoleChanged({
+        eventId: 'event-1',
+        threadId: 'thread-1',
+        threadTitle: '协作主题',
+        actorId: 'owner',
+        actorName: '楼主',
+        targetUserId: 'target',
+        oldRole,
+        newRole,
+      });
+
+      expect(notifications.notify).toHaveBeenCalledWith('system', ['target'], content, {
+        threadId: 'thread-1',
+        fromUserId: 'owner',
+        eventKey: 'thread-collaborator-role:event-1',
+        payload: {
+          action,
+          threadId: 'thread-1',
+          threadTitle: '协作主题',
+          actorId: 'owner',
+          actorName: '楼主',
+          oldRole,
+          newRole,
+        },
+      });
+    },
+  );
 });

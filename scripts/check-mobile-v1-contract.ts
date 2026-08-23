@@ -6,7 +6,7 @@ const coverage = JSON.parse(fs.readFileSync(coveragePath, 'utf8')) as Record<str
 const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as Record<string, any>;
 const failures: string[] = [];
 
-const expectedCounts = { total: 207, v1: 98, deferred: 58, notApplicable: 50, infrastructure: 1 };
+const expectedCounts = { total: 208, v1: 99, deferred: 58, notApplicable: 50, infrastructure: 1 };
 for (const [name, expected] of Object.entries(expectedCounts)) {
   if (coverage.counts?.[name] !== expected) {
     failures.push(
@@ -52,6 +52,7 @@ for (const section of [
   'retry',
   'pagination',
   'postFloorAuthorFiltering',
+  'collaborationManagement',
   'categories',
   'media',
   'profileCovers',
@@ -229,6 +230,55 @@ if (
   failures.push(
     'post-reply-author-directory-current-root 必须只返回当前主楼层下实际回复的角色作者',
   );
+}
+const collaborationCases = new Map(
+  (fixture.collaborationManagement as Array<Record<string, any>>).map((item) => [item.id, item]),
+);
+for (const id of [
+  'collaboration-list-scope-and-cursor',
+  'posting-capability-matrix',
+  'posting-capability-blocked-but-readable',
+  'collaborator-appointed-notification',
+  'collaborator-revoked-notification',
+]) {
+  if (!collaborationCases.has(id)) failures.push(`黄金 fixture 缺少协作管理用例 ${id}`);
+}
+const collaborationList = collaborationCases.get('collaboration-list-scope-and-cursor');
+if (
+  collaborationList?.request?.operationId !== 'usersGetMyCollaboratedThreads' ||
+  collaborationList?.expected?.includeRole !== 'COLLABORATOR' ||
+  collaborationList?.expected?.invalidCursorBusinessCode !== 40007
+) {
+  failures.push('collaboration-list-scope-and-cursor 必须固定协作角色范围与非法游标语义');
+}
+const capabilityMatrix = collaborationCases.get('posting-capability-matrix');
+if (
+  capabilityMatrix?.expectedByViewer?.guest?.some(
+    (reason: unknown) => reason !== 'AUTHENTICATION_REQUIRED',
+  ) ||
+  capabilityMatrix?.expectedByViewer?.owner?.some((reason: unknown) => reason !== null) ||
+  capabilityMatrix?.expected?.samePolicyForFloorAndReply !== true
+) {
+  failures.push('posting-capability-matrix 必须固定游客、楼主和楼层/回复统一判定');
+}
+const blockedCapability = collaborationCases.get('posting-capability-blocked-but-readable');
+if (
+  blockedCapability?.expected?.threadRemainsReadable !== true ||
+  blockedCapability?.expected?.denialReasons?.some(
+    (reason: unknown) => reason !== 'BLOCKED_RELATION',
+  )
+) {
+  failures.push('posting-capability-blocked-but-readable 必须固定拉黑后可读但不可发言');
+}
+const appointed = collaborationCases.get('collaborator-appointed-notification');
+const revoked = collaborationCases.get('collaborator-revoked-notification');
+if (
+  appointed?.notification?.action !== 'thread_collaborator_added' ||
+  revoked?.notification?.action !== 'thread_collaborator_removed' ||
+  revoked?.expected?.exitManagementPage !== true ||
+  revoked?.expected?.deduplicateOutboxReplay !== true
+) {
+  failures.push('协作者任免通知必须固定 action、撤权退出管理页与 Outbox 重放幂等');
 }
 const caseIds = Object.values(fixture)
   .filter(Array.isArray)

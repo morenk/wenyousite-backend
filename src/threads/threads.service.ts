@@ -4,6 +4,7 @@ import { ContentRemovalSource, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TagsService } from '../tags/tags.service';
 import { ThreadAccessService } from '../access/thread-access.service';
+import { PostingPolicyService } from '../access/posting-policy.service';
 import { RedisService } from '../redis/redis.service';
 import { CreateThreadDto } from './dto/create-thread.dto';
 import { ThreadQueryDto } from './dto/thread-query.dto';
@@ -29,10 +30,7 @@ import { MediaReferenceService } from '../media/media-reference.service';
 import { ThreadReactionService } from './thread-reaction.service';
 import { ThreadInviteService } from './thread-invite.service';
 import { UpdateThreadDto } from './dto/update-thread.dto';
-import {
-  threadCategoryInfoSelect,
-  withThreadCategoryInfo,
-} from '../taxonomy/thread-category-info';
+import { threadCategoryInfoSelect, withThreadCategoryInfo } from '../taxonomy/thread-category-info';
 const ZSET_BY_CREATED = 'threads:by:created';
 const ZSET_BY_ACTIVITY = 'threads:by:activity';
 const ZSET_BY_SMART = 'threads:by:smart';
@@ -55,6 +53,7 @@ export class ThreadsService {
     private mediaReferences: MediaReferenceService,
     private reactions: ThreadReactionService,
     private invites: ThreadInviteService,
+    private postingPolicy: PostingPolicyService,
   ) {}
   /** 创建主题帖草稿：事务内创建 Thread + Owner + 默认子贴 + 可选子贴正文，一次请求完成 */
   async create(dto: CreateThreadDto, userId: string) {
@@ -159,7 +158,10 @@ export class ThreadsService {
         subthreads: mapSubthreadBody(thread.subthreads),
       });
       await attachPlayerCounts(this.prisma, [response]);
-      return response;
+      return this.postingPolicy.attachToThread(response, userId, {
+        role: 'OWNER',
+        playerMarked: true,
+      });
     }
     return thread;
   }
@@ -186,6 +188,10 @@ export class ThreadsService {
 
   async findByCreatedUser(targetId: string, viewerId?: string, cursor?: string, limit = 20) {
     return this.queries.findByCreatedUser(targetId, viewerId, cursor, limit);
+  }
+
+  async findMyCollaboratedThreads(userId: string, cursor?: string, limit = 20) {
+    return this.queries.findMyCollaboratedThreads(userId, cursor, limit);
   }
 
   /** 修改主题帖（仅 OWNER/COLLABORATOR）。published=true 触发发布 */
@@ -269,7 +275,7 @@ export class ThreadsService {
     }
     this.eventEmitter.emit('thread.updated', { threadId: id });
 
-    return response;
+    return this.postingPolicy.attachToThread(response, userId, manager);
   }
 
   /** 删除：未发布帖硬删除（级联），已发布帖软删除 */

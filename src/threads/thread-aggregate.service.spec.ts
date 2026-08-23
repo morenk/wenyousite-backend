@@ -111,6 +111,7 @@ describe('ThreadAggregateService', () => {
     assertSelectable: jest.fn(async (slug: string) => slug),
   };
   const mediaReferences = { syncPostContent: jest.fn() };
+  const postingPolicy = { attachToThread: jest.fn(async (thread: unknown) => thread) };
   const service = new ThreadAggregateService(
     prisma as never,
     access as never,
@@ -122,11 +123,13 @@ describe('ThreadAggregateService', () => {
     stickerContent as never,
     categories as never,
     mediaReferences as never,
+    postingPolicy as never,
   );
 
   beforeEach(() => {
     jest.clearAllMocks();
     access.assertCanManage.mockResolvedValue({ role: 'OWNER', playerMarked: true });
+    postingPolicy.attachToThread.mockImplementation(async (thread: unknown) => thread);
     prisma.$transaction.mockImplementation((fn: (client: typeof tx) => unknown) => fn(tx));
     prisma.threadMember.groupBy.mockResolvedValue([{ threadId: 't1', _count: 1 }]);
     tx.thread.findUnique.mockResolvedValue(makeCurrent());
@@ -152,6 +155,15 @@ describe('ThreadAggregateService', () => {
   });
 
   it('在单个事务中保存元数据、默认正文、标签并发布', async () => {
+    postingPolicy.attachToThread.mockImplementationOnce(
+      async (thread: ReturnType<typeof makeUpdated>) => ({
+        ...thread,
+        subthreads: thread.subthreads.map((subthread) => ({
+          ...subthread,
+          postingCapability: { canPost: true, denialReason: null },
+        })),
+      }),
+    );
     const result = await service.save(
       't1',
       {
@@ -187,8 +199,15 @@ describe('ThreadAggregateService', () => {
     expect(outbox.enqueue).toHaveBeenCalledTimes(2);
     const mappedSubthread = result.subthreads[0] as (typeof result.subthreads)[number] & {
       bodyPost?: { content: string };
+      postingCapability?: { canPost: boolean; denialReason: string | null };
     };
     expect(mappedSubthread.bodyPost?.content).toBe('正文');
+    expect(mappedSubthread.postingCapability).toEqual({ canPost: true, denialReason: null });
+    expect(postingPolicy.attachToThread).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 't1' }),
+      'u1',
+      expect.objectContaining({ role: 'OWNER', playerMarked: true }),
+    );
   });
 
   it('任一正文版本冲突时拒绝整个聚合保存', async () => {

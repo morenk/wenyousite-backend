@@ -30,7 +30,7 @@ async function bootstrap() {
   );
 
   app.useLogger(app.get(Logger));
-  app.enableShutdownHooks(['SIGTERM', 'SIGINT']);
+  app.enableShutdownHooks(['SIGTERM', 'SIGINT'], { useProcessExit: true });
   app.setGlobalPrefix('api/v1');
 
   app.useGlobalPipes(

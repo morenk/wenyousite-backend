@@ -5,6 +5,9 @@ import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound, forbidden } from '../common/exceptions/business.exception';
 import { publicUserSummarySelect } from '../common/user-summary';
 import { UpdateMemberDto } from './dto/update-member.dto';
+import { randomUUID } from 'node:crypto';
+import { OutboxService } from '../outbox/outbox.service';
+import { DOMAIN_EVENTS } from '../outbox/domain-events';
 
 /** 主题帖参与人服务：候选池加入、角色修改、玩家标记 */
 @Injectable()
@@ -12,6 +15,7 @@ export class ThreadMembersService {
   constructor(
     private prisma: PrismaService,
     private threadAccess: ThreadAccessService,
+    private outbox: OutboxService,
   ) {}
 
   /** 获取参与人列表 */
@@ -74,14 +78,17 @@ export class ThreadMembersService {
       throw forbidden('仅楼主可任免协作者', ErrorCode.NOT_THREAD_OWNER);
     }
 
-    const member = await this.prisma.threadMember.findUnique({
-      where: { threadId_userId: { threadId, userId: targetUserId } },
-    });
-    if (!member) throw notFound(ErrorCode.USER_NOT_FOUND, '该用户不是此主题帖参与人');
-    if (member.role === 'OWNER')
-      throw forbidden('不能修改楼主角色', ErrorCode.CANNOT_MODERATE_OWNER);
-
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "thread_members" WHERE "thread_id" = ${threadId} AND "user_id" = ${targetUserId} FOR UPDATE`;
+      const member = await tx.threadMember.findUnique({
+        where: { threadId_userId: { threadId, userId: targetUserId } },
+        include: { thread: { select: { title: true } } },
+      });
+      if (!member) throw notFound(ErrorCode.USER_NOT_FOUND, '该用户不是此主题帖参与人');
+      if (member.role === 'OWNER') {
+        throw forbidden('不能修改楼主角色', ErrorCode.CANNOT_MODERATE_OWNER);
+      }
+
       const updated = await tx.threadMember.update({
         where: { threadId_userId: { threadId, userId: targetUserId } },
         data: dto,
@@ -100,6 +107,32 @@ export class ThreadMembersService {
       } else if (dto.playerMarked === false) {
         await tx.subscription.deleteMany({
           where: { threadId, type: 'USER', targetUserId },
+        });
+      }
+
+      const newRole = dto.role ?? member.role;
+      if (newRole !== member.role) {
+        const actorUser = await tx.user.findUnique({
+          where: { id: actorId },
+          select: { username: true },
+        });
+        if (!actorUser) throw notFound(ErrorCode.USER_NOT_FOUND, '操作者不存在');
+        const eventId = randomUUID();
+        await this.outbox.enqueue(tx, {
+          eventType: DOMAIN_EVENTS.THREAD_COLLABORATOR_ROLE_CHANGED,
+          aggregateType: 'ThreadMember',
+          aggregateId: member.id,
+          eventKey: `thread-collaborator-role:${eventId}`,
+          payload: {
+            eventId,
+            threadId,
+            threadTitle: member.thread.title ?? '未命名主题',
+            actorId,
+            actorName: actorUser.username,
+            targetUserId,
+            oldRole: member.role,
+            newRole,
+          },
         });
       }
 

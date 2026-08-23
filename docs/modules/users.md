@@ -24,6 +24,7 @@
 | ------ | ----------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | GET    | `/users/search?q=`            | AuthRead     | 搜索用户（@提及用），按用户名模糊匹配                                                                                                                        |
 | GET    | `/users/me`                   | AuthRead     | 获取当前登录用户的完整资料（含邮箱、隐私设置、社交统计）                                                                                                     |
+| GET    | `/users/me/collaborated-threads` | AuthRead  | 当前用户担任协作者的已发布主题，PUBLIC/PRIVATE 均返回，稳定复合游标分页                                                                                       |
 | PATCH  | `/users/me`                   | Auth         | 修改当前用户资料（用户名、Bio、隐私设置），5次/分钟限流                                                                                                      |
 | PATCH  | `/users/me/avatar`            | Auth         | 设置头像（传入 mediaId，校验归属 + 状态 COMPLETED）                                                                                                          |
 | DELETE | `/users/me/avatar`            | Auth         | 移除头像（置空 `user.avatar`，回到首字母占位）                                                                                                               |
@@ -109,6 +110,7 @@
 - 公开收藏 (`GET /users/:id/bookmarks`)：受 `showBookmarks` 控制，关闭时返回 404；未发布帖不显示；私密帖仅对其参与人可见；本人始终可见；Cursor 分页。响应复用首页完整主题帖卡片，但不暴露收藏记录或收藏夹 ID
 - 参与帖子 (`GET /users/:id/played-threads`)：只有被帖子管理者授予玩家身份（`playerMarked=true`）才算参与，仅回复过而生成的候选成员关系不计入。列表始终排除自己创建的帖（`ownerId = targetId`），按加入时间倒序并使用 Cursor 分页。本人可用 `visibility=PUBLIC|PRIVATE` 分类查看已获玩家身份的公开帖或私密帖；他人查看时只返回 PUBLIC 帖，并受 `showPlayerBadges` 控制。非本人请求 PRIVATE 分类固定返回空列表。响应复用首页完整主题帖卡片
 - 创建帖子 (`GET /users/:id/created-threads`)：无隐私开关，由帖本身 visibility 控制——本人可见全部已发布帖（含 PRIVATE），他人仅见 PUBLIC 帖；按创建时间倒序排列；Cursor 分页。响应复用首页完整主题帖卡片
+- 我的协作主题 (`GET /users/me/collaborated-threads`)：只读取当前用户 `COLLABORATOR` 成员关系，排除 OWNER、PARTICIPANT、草稿和已删除主题；PUBLIC/PRIVATE 均按成员资格可读。按 `updatedAt DESC, id DESC` 复合游标分页且不缓存，任命或撤销在下一次查询立即生效；双向拉黑不隐藏主题
 - 活动汇总 (`GET /users/:id/activity-summary`)：动态数过滤删除内容与当前查看者的双向拉黑关系；创建/参与主题数与对应列表采用相同的已发布、未删除、PUBLIC/PRIVATE 范围；参与数排除自建帖。`showPlayerBadges` 或 `showRecentReplies` 对他人关闭时，对应计数返回 `null` 且不执行受保护统计；本人始终可见。
 - 最近动态 (`GET /users/:id/recent-replies`)：受 `showRecentReplies` 控制，关闭时返回 404；他人只看到 PUBLIC 帖，本人可看到自己在已发布 PUBLIC/PRIVATE 帖中的记录。仅返回 `kind=FLOOR` 的楼层/楼中楼回复，排除默认正文 `BODY`；固定返回最近 10 条不分页。每条含 `preview`（Markdown 剥离后的纯文本截断，使用 `truncateMarkdown`）和 `parentPostId`（为 null 则为楼层回复，非 null 则为楼中楼）
 

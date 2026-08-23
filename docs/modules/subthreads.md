@@ -37,6 +37,8 @@
   - PARTICIPANTS：所有已通过主题帖访问校验的登录用户均可发帖，发帖后自动进入参与人候选池
   - COLLABORATORS：仅 OWNER 和 COLLABORATOR 可发帖
   - PLAYERS：仅拥有玩家身份（playerMarked=true）的参与人可发帖；OWNER/COLLABORATOR 绕过限制。玩家身份由楼主或协作者通过参与人管理端点授予/收回
+- 主题详情的每个子贴都返回必填 `postingCapability`。判定优先级为未登录、与楼主任一方向拉黑、策略角色/玩家要求、允许；`canPost=true` 时 `denialReason` 必为 null。该投影与 `PostsService.create` 共用 access 层策略，匿名或不同登录用户的能力不会进入共享详情缓存
+- 双向拉黑不改变主题可见性，但三种策略都返回 `BLOCKED_RELATION` 并拒绝楼层及楼中楼写入
 - CLOSED、FINISHED 仅展示状态，不会自动禁止发帖；如需限制请调整子贴 postingPolicy
 - 软删除通过 deletedAt 字段实现，列表查询过滤 `deletedAt: null`
 - sortOrder 控制子贴在主题帖内的显示顺序（按升序排列）

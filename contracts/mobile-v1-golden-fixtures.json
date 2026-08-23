@@ -1,7 +1,7 @@
 {
   "contract": "wenyousite-mobile-v1",
   "version": 1,
-  "contractVersion": "5.8.1-dev.20260823.1",
+  "contractVersion": "5.9.0-dev.20260823.1",
   "description": "后端与 Flutter 共同消费的移动端 V1 协议旅程；固定状态转换，不固定界面截图。",
   "compatibility": [
     {
@@ -325,6 +325,87 @@
       "expected": {
         "authorIds": ["33333333-3333-4333-8333-333333333333"],
         "scope": "currentRootNonDeletedReplies"
+      }
+    }
+  ],
+  "collaborationManagement": [
+    {
+      "id": "collaboration-list-scope-and-cursor",
+      "request": {
+        "operationId": "usersGetMyCollaboratedThreads",
+        "cursor": "opaque-composite-cursor",
+        "limit": 20
+      },
+      "expected": {
+        "includeVisibilities": ["PUBLIC", "PRIVATE"],
+        "includeRole": "COLLABORATOR",
+        "excludeRoles": ["OWNER", "PARTICIPANT"],
+        "excludeStates": ["UNPUBLISHED", "DELETED"],
+        "order": ["updatedAt DESC", "id DESC"],
+        "preserveCursorVerbatim": true,
+        "invalidCursorBusinessCode": 40007
+      }
+    },
+    {
+      "id": "posting-capability-matrix",
+      "policies": ["PARTICIPANTS", "COLLABORATORS", "PLAYERS"],
+      "expectedByViewer": {
+        "guest": ["AUTHENTICATION_REQUIRED", "AUTHENTICATION_REQUIRED", "AUTHENTICATION_REQUIRED"],
+        "owner": [null, null, null],
+        "collaborator": [null, null, null],
+        "player": [null, "COLLABORATOR_REQUIRED", null],
+        "participant": [null, "COLLABORATOR_REQUIRED", "PLAYER_REQUIRED"]
+      },
+      "expected": {
+        "canPostWhenReasonNull": true,
+        "samePolicyForFloorAndReply": true
+      }
+    },
+    {
+      "id": "posting-capability-blocked-but-readable",
+      "relation": "EITHER_DIRECTION_BLOCKED",
+      "expected": {
+        "threadRemainsReadable": true,
+        "collaborationListRemainsReadable": true,
+        "denialReasons": ["BLOCKED_RELATION", "BLOCKED_RELATION", "BLOCKED_RELATION"],
+        "writeHttpStatus": 403
+      }
+    },
+    {
+      "id": "collaborator-appointed-notification",
+      "roleChange": { "oldRole": "PARTICIPANT", "newRole": "COLLABORATOR" },
+      "notification": {
+        "type": "system",
+        "action": "thread_collaborator_added",
+        "targetKind": "thread",
+        "payloadFields": [
+          "action",
+          "threadId",
+          "threadTitle",
+          "actorId",
+          "actorName",
+          "oldRole",
+          "newRole"
+        ]
+      },
+      "expected": {
+        "refreshCollaborationList": true,
+        "allowOpenManagement": true
+      }
+    },
+    {
+      "id": "collaborator-revoked-notification",
+      "roleChange": { "oldRole": "COLLABORATOR", "newRole": "PARTICIPANT" },
+      "notification": {
+        "type": "system",
+        "action": "thread_collaborator_removed",
+        "targetKind": "thread"
+      },
+      "expected": {
+        "exitManagementPage": true,
+        "refreshMembers": true,
+        "refreshCollaborationList": true,
+        "deduplicateOutboxReplay": true
       }
     }
   ],

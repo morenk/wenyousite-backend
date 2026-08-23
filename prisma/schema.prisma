@@ -590,6 +590,7 @@ model ThreadMember {
 
   @@unique([threadId, userId])
   @@index([userId, playerMarked, joinedAt(sort: Desc)], map: "thread_members_user_played_idx")
+  @@index([userId, role, threadId], map: "thread_members_user_role_thread_idx")
   @@map("thread_members")
 }
 

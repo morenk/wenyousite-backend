@@ -20,6 +20,7 @@ import { ThreadCategoriesService } from '../taxonomy/thread-categories.service';
 import { MediaReferenceService } from '../media/media-reference.service';
 import { ThreadReactionService } from './thread-reaction.service';
 import { ThreadInviteService } from './thread-invite.service';
+import { PostingPolicyService } from '../access/posting-policy.service';
 
 const mockCategories = {
   assertSelectable: jest.fn(async (slug: string) => slug.trim().toUpperCase()),
@@ -106,6 +107,7 @@ const mockCache = {
   del: jest.fn().mockResolvedValue(undefined),
   delByPattern: jest.fn().mockResolvedValue(undefined),
 };
+const mockPostingPolicy = { attachToThread: jest.fn(async (thread: unknown) => thread) };
 
 describe('ThreadsService', () => {
   let service: ThreadsService;
@@ -128,6 +130,7 @@ describe('ThreadsService', () => {
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: RedisService, useValue: mockRedis },
         { provide: CacheService, useValue: mockCache },
+        { provide: PostingPolicyService, useValue: mockPostingPolicy },
         { provide: OutboxService, useValue: mockOutbox },
         { provide: ThreadCategoriesService, useValue: mockCategories },
         {

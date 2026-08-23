@@ -1,5 +1,12 @@
 # API 合同变更
 
+## 5.9.0-dev.20260823.1
+
+- 新增 `GET /users/me/collaborated-threads`（`usersGetMyCollaboratedThreads`）：只返回当前用户角色为 `COLLABORATOR` 的已发布、未删除主题，PUBLIC 与 PRIVATE 均可读；按 `updatedAt DESC, id DESC` 使用不透明复合游标分页，非法游标返回 `40007`。
+- `ThreadDetailResponseDto.subthreads[]` 向后兼容新增必填 `postingCapability: { canPost, denialReason }`。拒绝原因固定为 `AUTHENTICATION_REQUIRED / BLOCKED_RELATION / COLLABORATOR_REQUIRED / PLAYER_REQUIRED`；允许发言时 `denialReason=null`。详情展示与楼层/回复写入共用同一策略。
+- 双向拉黑不隐藏仍有权限读取的主题或协作列表，但优先禁止发言；原写接口继续使用既有 401、`NOT_COLLABORATOR(40302)`、`NOT_PLAYER(40303)` 与拉黑 403 语义。
+- `PARTICIPANT ↔ COLLABORATOR` 的真实角色转换新增可靠 Outbox 事件，并向目标用户发送幂等 `system` 通知。payload 携带 `action/threadId/threadTitle/actorId/actorName/oldRole/newRole`；同角色重放和仅修改玩家标记不产生任免通知。
+
 ## 5.8.1-dev.20260823.1
 
 - 动态卡片与详情向后兼容新增可选 `canInteract`；已注销作者的历史动态在详情、显式搜索和旧收藏中保留墓碑阅读，但禁止新增点赞、评论、收藏、移动收藏和加油。既有点赞/收藏可取消，评论可按正常权限删除或治理。

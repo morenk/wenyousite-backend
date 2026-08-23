@@ -309,6 +309,7 @@ class Client {
 
 const api = new Client();
 const peerApi = new Client(SECOND_TEST_SOURCE_IP);
+const guestApi = new Client(`198.20.${Number(RUN_ID.slice(-4)) % 255}.1`);
 
 // ═══════════════════════════════════════════════════════════════
 // 辅助
@@ -335,6 +336,13 @@ let defaultBookmarkFolderId = '';
 let subscriptionId = '';
 let subscribableThreadId = '';
 let tagId = '';
+let peerUserId = '';
+let privateCollaboratedThreadId = '';
+let collaboratorOnlySubthreadId = '';
+let playersOnlySubthreadId = '';
+let collaboratorParentPostId = '';
+let playersParentPostId = '';
+let postingMatrixClientSequence = 0;
 const useTestuserId = 'cms5zycb900017q0azar1nag2';
 
 /** 从 email_verifications 表中读取最新验证码 */
@@ -359,6 +367,75 @@ async function registerTestClient(client: Client, email: string, username: strin
   );
   client.token = registered.data.accessToken;
   return registered.data.user.id;
+}
+
+async function waitForCondition<T>(
+  read: () => Promise<T | null | undefined | false>,
+  message: string,
+  timeoutMs = 12_000,
+): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const value = await read();
+    if (value) return value;
+    await new Promise((resolveWait) => setTimeout(resolveWait, 250));
+  }
+  throw new Error(`等待超时: ${message}`);
+}
+
+async function assertPostingMatrix(
+  client: Client,
+  label: string,
+  expected: Record<'PARTICIPANTS' | 'COLLABORATORS' | 'PLAYERS', { status: number; code?: number }>,
+) {
+  postingMatrixClientSequence += 1;
+  const requestClient = new Client(
+    `198.21.${Math.floor(postingMatrixClientSequence / 250) + 1}.${(postingMatrixClientSequence % 250) + 1}`,
+  );
+  requestClient.token = client.token;
+  requestClient.cookies = new Map(client.cookies);
+  const targets = [
+    { policy: 'PARTICIPANTS' as const, subthreadId, parentPostId: postId },
+    {
+      policy: 'COLLABORATORS' as const,
+      subthreadId: collaboratorOnlySubthreadId,
+      parentPostId: collaboratorParentPostId,
+    },
+    {
+      policy: 'PLAYERS' as const,
+      subthreadId: playersOnlySubthreadId,
+      parentPostId: playersParentPostId,
+    },
+  ];
+  for (const target of targets) {
+    const expectation = expected[target.policy];
+    for (const body of [
+      { content: `${label}-${target.policy}-楼层`, clientRequestId: crypto.randomUUID() },
+      {
+        content: `${label}-${target.policy}-回复`,
+        parentPostId: target.parentPostId,
+        replyToPostId: target.parentPostId,
+        clientRequestId: crypto.randomUUID(),
+      },
+    ]) {
+      const result = await requestClient.expectStatus(
+        `/subthreads/${target.subthreadId}/posts`,
+        'POST',
+        body,
+      );
+      assert(
+        result.status === expectation.status,
+        `${label}/${target.policy} 发言期望 ${expectation.status}，实际 ${result.status}`,
+      );
+      if (expectation.code !== undefined) {
+        const error = apiErrorSchema.parse(result.json);
+        assert(
+          error.code === expectation.code,
+          `${label}/${target.policy} 错误码应为 ${expectation.code}`,
+        );
+      }
+    }
+  }
 }
 
 async function cleanupUserByEmail(email: string) {
@@ -571,6 +648,13 @@ test(s3, 'POST /threads 创建草稿帖', async () => {
     clientRequestId,
   });
   assert(r.code === 0, `创建草稿应成功 (got: ${r.code} ${r.message})`);
+  assert(
+    r.data.subthreads.every(
+      (item: { postingCapability?: { canPost: boolean; denialReason: string | null } }) =>
+        item.postingCapability?.canPost === true && item.postingCapability.denialReason === null,
+    ),
+    '创建响应的全部子贴应包含楼主发言能力',
+  );
   threadId = r.data.id;
   const replay = await api.post('/threads', {
     title,
@@ -580,6 +664,13 @@ test(s3, 'POST /threads 创建草稿帖', async () => {
     clientRequestId,
   });
   assert(replay.data.id === threadId, '相同创建幂等键应返回原主题帖');
+  assert(
+    replay.data.subthreads.every(
+      (item: { postingCapability?: { canPost: boolean } }) =>
+        item.postingCapability?.canPost === true,
+    ),
+    '创建幂等重放响应也应包含发言能力',
+  );
 });
 
 test(s3, 'GET /threads/draft 草稿箱（含新帖）', async () => {
@@ -594,12 +685,26 @@ test(s3, 'PATCH /threads/:id 发布默认子贴完整的草稿', async () => {
     version: 1,
   });
   assert(r.code === 0, `发布应成功 (got: ${r.code} ${r.message})`);
+  assert(
+    r.data.subthreads.every(
+      (item: { postingCapability?: { canPost: boolean } }) =>
+        item.postingCapability?.canPost === true,
+    ),
+    '更新响应的全部子贴应包含发言能力',
+  );
 });
 
 test(s3, 'GET /threads/:id 获取已发布详情', async () => {
-  const r = await api.get(`/threads/${threadId}`, apiResponse(threadSchema));
+  const r = await api.get(`/threads/${threadId}`);
   assert(r.data.id === threadId, 'ID 应匹配');
   assert(r.data.published === true, '应为已发布');
+  assert(
+    r.data.subthreads.every(
+      (item: { postingCapability?: { canPost: boolean } }) =>
+        item.postingCapability?.canPost === true,
+    ),
+    '详情响应的全部子贴应包含发言能力',
+  );
 });
 
 test(s3, 'PATCH /threads/:id 乐观锁冲突', async () => {
@@ -742,7 +847,340 @@ test(s5, 'DELETE /threads/:id/like 取消点赞', async () => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// 6. 草稿池
+// 6. 协作管理、发言能力与任免通知
+// ═══════════════════════════════════════════════════════════════
+
+const sCollaboration = suite('协作管理、发言能力与任免通知');
+
+test(sCollaboration, '准备协作者、三种发言策略与私密协作主题', async () => {
+  peerUserId = await registerTestClient(peerApi, SECOND_TEST_EMAIL, `e2epeer${RUN_ID.slice(-6)}`);
+  const collaboratorSubthread = await api.post(`/threads/${threadId}/subthreads`, {
+    title: '仅协作者',
+    postingPolicy: 'COLLABORATORS',
+    clientRequestId: crypto.randomUUID(),
+  });
+  collaboratorOnlySubthreadId = collaboratorSubthread.data.id;
+  const playerSubthread = await api.post(`/threads/${threadId}/subthreads`, {
+    title: '仅玩家',
+    postingPolicy: 'PLAYERS',
+    clientRequestId: crypto.randomUUID(),
+  });
+  playersOnlySubthreadId = playerSubthread.data.id;
+
+  for (const targetId of [collaboratorOnlySubthreadId, playersOnlySubthreadId]) {
+    const parent = await api.post(`/subthreads/${targetId}/posts`, {
+      content: '发言矩阵父楼层',
+      clientRequestId: crypto.randomUUID(),
+    });
+    if (targetId === collaboratorOnlySubthreadId) {
+      collaboratorParentPostId = parent.data.id;
+    } else {
+      playersParentPostId = parent.data.id;
+    }
+  }
+
+  const privateDraft = await api.post('/threads', {
+    title: `私密协作主题 ${RUN_ID}`,
+    category: activeCategorySlug,
+    visibility: 'PRIVATE',
+    content: '私密协作正文',
+    clientRequestId: crypto.randomUUID(),
+  });
+  privateCollaboratedThreadId = privateDraft.data.id;
+  await api.patch(`/threads/${privateCollaboratedThreadId}`, { published: true, version: 1 });
+  await e2ePrisma.threadMember.create({
+    data: {
+      threadId: privateCollaboratedThreadId,
+      userId: peerUserId,
+      role: 'COLLABORATOR',
+    },
+  });
+});
+
+test(sCollaboration, '协作列表未登录 401，非法游标返回 40007', async () => {
+  const unauthorized = await guestApi.expectStatus('/users/me/collaborated-threads', 'GET');
+  assert(unauthorized.status === 401, `未登录协作列表期望 401，实际 ${unauthorized.status}`);
+  const invalid = await peerApi.expectStatus(
+    '/users/me/collaborated-threads?cursor=not-json',
+    'GET',
+  );
+  const error = apiErrorSchema.parse(invalid.json);
+  assert(invalid.status === 400 && error.code === 40007, '非法协作游标应返回 400/40007');
+});
+
+test(sCollaboration, '游客、楼主的详情能力与楼层/回复写入矩阵一致', async () => {
+  const guestDetail = await guestApi.get(`/threads/${threadId}`);
+  for (const item of guestDetail.data.subthreads) {
+    assert(
+      item.postingCapability?.denialReason === 'AUTHENTICATION_REQUIRED',
+      '游客全部子贴应要求登录',
+    );
+  }
+  await assertPostingMatrix(guestApi, '游客', {
+    PARTICIPANTS: { status: 401 },
+    COLLABORATORS: { status: 401 },
+    PLAYERS: { status: 401 },
+  });
+
+  const ownerDetail = await api.get(`/threads/${threadId}`);
+  for (const id of [subthreadId, collaboratorOnlySubthreadId, playersOnlySubthreadId]) {
+    const item = ownerDetail.data.subthreads.find(
+      (candidate: { id: string }) => candidate.id === id,
+    );
+    assert(item?.postingCapability?.canPost === true, '楼主三种策略均应允许');
+    assert(item?.postingCapability?.denialReason === null, '允许发言时拒绝原因为 null');
+  }
+  await assertPostingMatrix(api, '楼主', {
+    PARTICIPANTS: { status: 201 },
+    COLLABORATORS: { status: 201 },
+    PLAYERS: { status: 201 },
+  });
+});
+
+test(sCollaboration, '普通参与者与玩家的详情能力和实际写入矩阵一致', async () => {
+  const ordinaryDetail = await peerApi.get(`/threads/${threadId}`);
+  const ordinaryReasons = new Map(
+    ordinaryDetail.data.subthreads.map((item: { id: string; postingCapability: unknown }) => [
+      item.id,
+      item.postingCapability,
+    ]),
+  );
+  assert(
+    (ordinaryReasons.get(subthreadId) as { canPost: boolean }).canPost === true,
+    '普通用户可在 PARTICIPANTS 发言',
+  );
+  assert(
+    (ordinaryReasons.get(collaboratorOnlySubthreadId) as { denialReason: string }).denialReason ===
+      'COLLABORATOR_REQUIRED',
+    '普通用户应提示需要协作者',
+  );
+  assert(
+    (ordinaryReasons.get(playersOnlySubthreadId) as { denialReason: string }).denialReason ===
+      'PLAYER_REQUIRED',
+    '普通用户应提示需要玩家',
+  );
+  await assertPostingMatrix(peerApi, '普通参与者', {
+    PARTICIPANTS: { status: 201 },
+    COLLABORATORS: { status: 403, code: 40302 },
+    PLAYERS: { status: 403, code: 40303 },
+  });
+
+  await api.patch(`/threads/${threadId}/members/${peerUserId}`, { playerMarked: true });
+  const playerDetail = await peerApi.get(`/threads/${threadId}`);
+  const playerOnly = playerDetail.data.subthreads.find(
+    (item: { id: string }) => item.id === playersOnlySubthreadId,
+  );
+  assert(playerOnly.postingCapability.canPost === true, '玩家可在 PLAYERS 发言');
+  await assertPostingMatrix(peerApi, '玩家', {
+    PARTICIPANTS: { status: 201 },
+    COLLABORATORS: { status: 403, code: 40302 },
+    PLAYERS: { status: 201 },
+  });
+});
+
+test(
+  sCollaboration,
+  '并发相同任命只写一条事件，列表立即出现并稳定分页 PUBLIC/PRIVATE',
+  async () => {
+    const before = await peerApi.get('/users/me/collaborated-threads?limit=20');
+    assert(
+      before.data.some((item: { id: string }) => item.id === privateCollaboratedThreadId),
+      '私密协作主题应返回',
+    );
+    assert(
+      !before.data.some((item: { id: string }) => item.id === threadId),
+      '普通参与主题不应进入协作列表',
+    );
+
+    const [left, right] = await Promise.all([
+      api.expectStatus(`/threads/${threadId}/members/${peerUserId}`, 'PATCH', {
+        role: 'COLLABORATOR',
+      }),
+      api.expectStatus(`/threads/${threadId}/members/${peerUserId}`, 'PATCH', {
+        role: 'COLLABORATOR',
+      }),
+    ]);
+    assert(left.status === 200 && right.status === 200, '并发相同任命应幂等成功');
+
+    const roleEvents = await e2ePrisma.domainOutbox.findMany({
+      where: { eventType: 'thread.collaborator-role.changed' },
+    });
+    const appointments = roleEvents.filter((row) => {
+      const payload = row.payload as Record<string, unknown>;
+      return (
+        payload.threadId === threadId &&
+        payload.targetUserId === peerUserId &&
+        payload.newRole === 'COLLABORATOR'
+      );
+    });
+    assert(appointments.length === 1, `并发任命应只有一条事件，实际 ${appointments.length}`);
+
+    const sameTime = new Date('2026-08-23T23:00:00.000Z');
+    await e2ePrisma.thread.updateMany({
+      where: { id: { in: [threadId, privateCollaboratedThreadId] } },
+      data: { updatedAt: sameTime },
+    });
+    const expectedIds = [threadId, privateCollaboratedThreadId].sort().reverse();
+    const first = await peerApi.get('/users/me/collaborated-threads?limit=1');
+    const second = await peerApi.get(
+      `/users/me/collaborated-threads?limit=1&cursor=${encodeURIComponent(first.meta.cursor)}`,
+    );
+    assert(first.meta.hasMore === true, '协作列表首页应有下一页');
+    assert(
+      [first.data[0].id, second.data[0].id].join(',') === expectedIds.join(','),
+      '相同更新时间应按 ID 倒序稳定分页且无重复遗漏',
+    );
+  },
+);
+
+test(sCollaboration, '协作者三种策略均可发言，任命通知 Outbox 重放不重复', async () => {
+  const detail = await peerApi.get(`/threads/${threadId}`);
+  for (const id of [subthreadId, collaboratorOnlySubthreadId, playersOnlySubthreadId]) {
+    const item = detail.data.subthreads.find((candidate: { id: string }) => candidate.id === id);
+    assert(item.postingCapability.canPost === true, '协作者三种策略均应允许');
+  }
+  await assertPostingMatrix(peerApi, '协作者', {
+    PARTICIPANTS: { status: 201 },
+    COLLABORATORS: { status: 201 },
+    PLAYERS: { status: 201 },
+  });
+
+  const appointment = await waitForCondition(async () => {
+    const rows = await e2ePrisma.domainOutbox.findMany({
+      where: { eventType: 'thread.collaborator-role.changed' },
+      orderBy: { createdAt: 'desc' },
+    });
+    return rows.find((row) => {
+      const payload = row.payload as Record<string, unknown>;
+      return (
+        payload.threadId === threadId &&
+        payload.targetUserId === peerUserId &&
+        payload.newRole === 'COLLABORATOR'
+      );
+    });
+  }, '协作者任命 Outbox');
+  const notificationKey = `${appointment.eventKey}:${peerUserId}`;
+  const notification = await waitForCondition(
+    () =>
+      e2ePrisma.notification.findFirst({
+        where: { userId: peerUserId, eventKey: notificationKey },
+      }),
+    '协作者任命通知',
+  );
+  const payload = notification.payload as Record<string, unknown>;
+  assert(notification.type === 'system', '任命通知类型应为 system');
+  assert(
+    notification.threadId === threadId && notification.fromUserId === currentUserId,
+    '任命通知目标与操作者应正确',
+  );
+  assert(payload.action === 'thread_collaborator_added', '任命通知 action 应正确');
+  assert(
+    ['threadId', 'threadTitle', 'actorId', 'actorName', 'oldRole', 'newRole'].every(
+      (key) => key in payload,
+    ),
+    '任命通知 payload 字段应完整',
+  );
+
+  const attempts = appointment.attempts;
+  await e2ePrisma.domainOutbox.update({
+    where: { id: appointment.id },
+    data: { processedAt: null, availableAt: new Date(), lastError: null },
+  });
+  await waitForCondition(async () => {
+    const replayed = await e2ePrisma.domainOutbox.findUnique({ where: { id: appointment.id } });
+    return replayed && replayed.processedAt && replayed.attempts > attempts ? replayed : null;
+  }, '任命 Outbox 重放完成');
+  const count = await e2ePrisma.notification.count({
+    where: { userId: peerUserId, eventKey: notificationKey },
+  });
+  assert(count === 1, `任命 Outbox 重放后通知应仍为一条，实际 ${count}`);
+});
+
+test(sCollaboration, '任一方向拉黑均保持主题可读，但三种策略楼层/回复全部拒绝', async () => {
+  const assertBlockedRelation = async (label: string) => {
+    const list = await peerApi.get('/users/me/collaborated-threads?limit=20');
+    assert(
+      list.data.some((item: { id: string }) => item.id === threadId),
+      `${label}不应隐藏协作主题`,
+    );
+    const detail = await peerApi.get(`/threads/${threadId}`);
+    for (const id of [subthreadId, collaboratorOnlySubthreadId, playersOnlySubthreadId]) {
+      const item = detail.data.subthreads.find((candidate: { id: string }) => candidate.id === id);
+      assert(
+        item.postingCapability.denialReason === 'BLOCKED_RELATION',
+        `${label}应优先投影 BLOCKED_RELATION`,
+      );
+    }
+    await assertPostingMatrix(peerApi, label, {
+      PARTICIPANTS: { status: 403 },
+      COLLABORATORS: { status: 403 },
+      PLAYERS: { status: 403 },
+    });
+  };
+
+  await api.post(`/users/me/block/${peerUserId}`);
+  await assertBlockedRelation('楼主拉黑协作者');
+  await api.del(`/users/me/block/${peerUserId}`);
+
+  await peerApi.post(`/users/me/block/${currentUserId}`);
+  await assertBlockedRelation('协作者拉黑楼主');
+  await peerApi.del(`/users/me/block/${currentUserId}`);
+});
+
+test(
+  sCollaboration,
+  '同角色和玩家标记重放不写事件，角色与标记同时撤销只写一次并立即移出列表',
+  async () => {
+    const countRoleEvents = () =>
+      e2ePrisma.domainOutbox.count({ where: { eventType: 'thread.collaborator-role.changed' } });
+    const before = await countRoleEvents();
+    await api.patch(`/threads/${threadId}/members/${peerUserId}`, { role: 'COLLABORATOR' });
+    await api.patch(`/threads/${threadId}/members/${peerUserId}`, { playerMarked: false });
+    await api.patch(`/threads/${threadId}/members/${peerUserId}`, { playerMarked: true });
+    assert((await countRoleEvents()) === before, '同角色和仅玩家标记变化不得写任免事件');
+
+    await api.patch(`/threads/${threadId}/members/${peerUserId}`, {
+      role: 'PARTICIPANT',
+      playerMarked: false,
+    });
+    assert((await countRoleEvents()) === before + 1, '角色与玩家标记同时撤销只应写一条事件');
+    const list = await peerApi.get('/users/me/collaborated-threads?limit=20');
+    assert(
+      !list.data.some((item: { id: string }) => item.id === threadId),
+      '撤销后下一次协作列表应立即移除主题',
+    );
+    assert(
+      list.data.some((item: { id: string }) => item.id === privateCollaboratedThreadId),
+      '其他私密协作主题不受影响',
+    );
+    const removed = await waitForCondition(async () => {
+      const rows = await e2ePrisma.notification.findMany({
+        where: { userId: peerUserId, threadId, type: 'system' },
+        orderBy: { createdAt: 'desc' },
+      });
+      return rows.find(
+        (row) => (row.payload as Record<string, unknown>).action === 'thread_collaborator_removed',
+      );
+    }, '协作者撤销通知');
+    assert(
+      (removed.payload as Record<string, unknown>).action === 'thread_collaborator_removed',
+      '撤销通知 action 应正确',
+    );
+    await waitForCondition(async () => {
+      const pending = await e2ePrisma.domainOutbox.findMany({
+        where: { eventType: 'post.created', processedAt: null },
+        select: { payload: true },
+      });
+      const hasPendingCollaborationPost = pending.some(
+        (row) => (row.payload as Record<string, unknown>).threadId === threadId,
+      );
+      return hasPendingCollaborationPost ? null : { settled: true };
+    }, '协作发言 Outbox 全部确认');
+  },
+);
+
+// ═══════════════════════════════════════════════════════════════
+// 7. 草稿池
 // ═══════════════════════════════════════════════════════════════
 
 const s6 = suite('草稿池');
@@ -858,7 +1296,9 @@ test(s6, '草稿正文和媒体引用写入任一步失败时整笔事务回滚'
 });
 
 test(s6, '跨账号读取和更新返回 40405，幂等删除不泄露也不删除他人草稿', async () => {
-  await registerTestClient(peerApi, SECOND_TEST_EMAIL, `e2epeer${RUN_ID.slice(-6)}`);
+  if (!peerApi.token) {
+    peerUserId = await registerTestClient(peerApi, SECOND_TEST_EMAIL, `e2epeer${RUN_ID.slice(-6)}`);
+  }
   for (const [method, body] of [
     ['GET', undefined],
     ['PATCH', { content: '越权正文', version: draftVersion }],
@@ -1131,7 +1571,10 @@ test(s11, 'POST /moments 拒绝幂等键复用与非 CUID 媒体', async () => {
 test(s11, 'GET /moments 与搜索可见新动态', async () => {
   const feed = await api.get('/moments?feed=DISCOVER&limit=50');
   assert(feed.code === 0, `发现流应成功 (got: ${feed.code})`);
-  assert(feed.data.some((moment: { id?: string }) => moment.id === momentId), '发现流应包含新动态');
+  assert(
+    feed.data.some((moment: { id?: string }) => moment.id === momentId),
+    '发现流应包含新动态',
+  );
 
   const query = encodeURIComponent(`E2E 动态 ${RUN_ID.slice(-6)}`);
   const searched = await api.get(`/search/moments?q=${query}`);

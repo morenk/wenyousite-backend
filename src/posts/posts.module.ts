@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { PostsController } from './posts.controller';
 import { PostsService } from './posts.service';
 import { MentionsModule } from '../mentions/mentions.module';
-import { PostingPolicyService } from './posting-policy.service';
 import { PostQueryService } from './post-query.service';
 import { OutboxModule } from '../outbox/outbox.module';
 import { AccessPolicyModule } from '../access/access-policy.module';
@@ -22,7 +21,7 @@ import { PostMentionEventsService } from './post-mention-events.service';
     DiceModule,
   ],
   controllers: [PostsController],
-  providers: [PostsService, PostingPolicyService, PostQueryService, PostMentionEventsService],
+  providers: [PostsService, PostQueryService, PostMentionEventsService],
   exports: [PostsService],
 })
 export class PostsModule {}

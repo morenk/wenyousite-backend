@@ -101,6 +101,8 @@ OpenAPI 为兼容 Web 把该头标为 optional；省略或传未知值会创建 
 
 合同 `5.1.0-dev.20260817.1` 起，首页、主题帖搜索、收藏及用户主页创建/参与列表都携带同一完整主题帖卡片字段。Windows 开发环境同步 OpenAPI 并重新生成 SDK 后，应让这些入口复用首页卡片 mapper；搜索的 `relevance` 与本人收藏的 `bookmarkId` / `bookmarkFolderId` 仍作为场景附加字段处理。旧客户端可继续忽略新增字段。
 
+合同 `5.9.0-dev.20260823.1` 起，Windows 移动端需在独立契约同步切片中固定 OpenAPI 并重新生成 SDK，然后完成四项接入：使用 `usersGetMyCollaboratedThreads` 展示协作主题列表；按子贴必填 `postingCapability` 禁用发言并展示对应拒绝原因；识别 `thread_collaborator_added/removed` 通知并跳转主题；收到撤销通知或管理写入返回权限错误时退出该主题的管理页并刷新成员及协作列表。VPS 只维护本指南和事实源，不修改或验证 Flutter 实现。
+
 ## 媒体、Markdown、动态与温油
 
 - 上传遵循“预签名 PUT → `upload-done` → 查询状态”；仅在 `COMPLETED` 后使用衍生图，列表优先 `thumbnailUrl`，详情优先 `mediumUrl`，为空或失败时回退 `url`。不得猜测对象键。

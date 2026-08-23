@@ -76,6 +76,7 @@
 - 主题帖列表卡片是首页、搜索、收藏和用户主页的共享读模型：均包含默认子贴、标签、`preview`、`coverImages` 及成员/玩家/楼层计数；场景可附加搜索相关度或本人收藏记录 ID，但不得复制一套较窄投影。列表接口 `findAll` 仅返回 published=true 的帖；`filter=all`(默认)仅 PUBLIC 帖；`filter=playing`返回被其他楼主标记为玩家（playerMarked=true）的帖（含私密帖，排除自己创建的帖），需登录。支持 `status=RECRUITING|CLOSED|FINISHED` 状态筛选；状态可与分区、排序和标签组合使用。`tagId` 对 `ThreadTopicTag.tagId` 精确匹配，供稳定的标签帖子页使用；兼容参数 `tag` 继续按名称模糊匹配，两者并存时 `tagId` 优先。封面只取默认子贴 BODY 正文中的第一张普通图片，卡片已有封面时摘要移除图片节点，不返回 `bodyPost.content` 全文
 - 发布校验会拒绝纯空白、仅顶层空段落或仅分隔线正文，并以 `40009` 拒绝未转义的白名单外 Markdown；图片、普通列表和安全链接等允许内容可发布。草稿正文仍可暂存为空，但同样执行结构白名单，数据库字段与 Markdown 存储格式不变。
 - 详情接口 `findById`：未发布帖仅 owner 可查看且不递增 viewCount；已发布帖在 Redis 原子 +1，每 10 分钟批量落库，PRIVATE 帖非参与人返回 404；只有公开已发布详情可进入 30 秒共享缓存。登录态浅拷贝附加 `isBookmarked` / `bookmarkId` / `isLiked`、`currentMembership` 和 `capabilities`，身份数据不写入共享缓存
+- 详情中的每个子贴额外按当前查看者浅拷贝附加 `postingCapability`；一次详情只读取一次查看者与楼主的双向拉黑关系，再映射全部子贴。创建、更新和聚合保存返回同一必填形状
 - 排序规则：
   - `sort=newest`：置顶优先，其次按 createdAt DESC
   - `sort=active`：置顶优先，其次按 updatedAt DESC
@@ -90,6 +91,7 @@
 - 修改和删除使用乐观锁（version 字段），并发冲突返回 "主题帖已被修改，请刷新后重试"
 - 参与人管理权限：OWNER 可任免协作者，OWNER/COLLABORATOR 可授予/收回玩家身份；不能修改/收回 OWNER；不提供删除参与人记录的操作
 - 升为协作者、取消玩家标记或主动退出玩家身份会在同一事务清理失效 USER 订阅；成员资格永久保留
+- `PARTICIPANT ↔ COLLABORATOR` 真实转换在目标成员行锁后重读旧角色，并把角色更新、订阅清理与唯一 Outbox 事件放进同一事务。同角色重放及仅修改 `playerMarked` 不发事件；Outbox 重放以事件 ID 派生的通知键复用原通知
 - 私密帖禁止自由加入，仅可通过邀请链接加入；成员资格不会被移出
 - CLOSED、FINISHED 仅展示状态，不改变访问或发言权限
 - 收回玩家身份：取消该参与人的 playerMarked 标记。参与人记录保留，仍可浏览和在 PARTICIPANTS 策略子贴中发帖

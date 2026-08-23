@@ -87,6 +87,9 @@ describe('列表卡片 OpenAPI 契约', () => {
     expect(paginatedItemSchema('/api/v1/users/{id}/created-threads')).toBe(
       'ThreadListItemResponseDto',
     );
+    expect(paginatedItemSchema('/api/v1/users/me/collaborated-threads')).toBe(
+      'ThreadListItemResponseDto',
+    );
   });
 
   it('所有动态列表继续复用同一基础卡片字段', () => {

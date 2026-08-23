@@ -2,6 +2,7 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../access/thread-access.service';
+import { PostingPolicyService } from '../access/posting-policy.service';
 import { RedisService } from '../redis/redis.service';
 import { CacheService } from '../redis/cache.service';
 import { ThreadQueryDto } from './dto/thread-query.dto';
@@ -22,10 +23,7 @@ import {
   threadListCardInclude,
   type ThreadListCardRow,
 } from './thread-list-card';
-import {
-  threadCategoryInfoSelect,
-  withThreadCategoryInfo,
-} from '../taxonomy/thread-category-info';
+import { threadCategoryInfoSelect, withThreadCategoryInfo } from '../taxonomy/thread-category-info';
 
 const ZSET_BY_SMART = 'threads:by:smart';
 const DISCOVERABLE_THREAD_OWNER_WHERE = { is: { deletedAt: null } } as const;
@@ -50,6 +48,43 @@ function toThreadDetail(thread: PersistedThreadDetail) {
 
 type ThreadDetail = ReturnType<typeof toThreadDetail>;
 
+interface CollaboratedThreadsCursor {
+  updatedAt: string;
+  id: string;
+}
+
+function encodeCollaboratedThreadsCursor(thread: { updatedAt: Date; id: string }): string {
+  return Buffer.from(
+    JSON.stringify({ updatedAt: thread.updatedAt.toISOString(), id: thread.id }),
+  ).toString('base64url');
+}
+
+function decodeCollaboratedThreadsCursor(cursor: string): CollaboratedThreadsCursor {
+  try {
+    if (cursor.length === 0 || cursor.length > 512 || !/^[A-Za-z0-9_-]+$/.test(cursor)) {
+      throw new Error('invalid encoding');
+    }
+    const value = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as unknown;
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+      throw new Error('invalid shape');
+    const { updatedAt, id } = value as Record<string, unknown>;
+    if (typeof updatedAt !== 'string' || typeof id !== 'string' || id.length === 0) {
+      throw new Error('invalid fields');
+    }
+    const date = new Date(updatedAt);
+    if (Number.isNaN(date.getTime()) || date.toISOString() !== updatedAt) {
+      throw new Error('invalid date');
+    }
+    return { updatedAt, id };
+  } catch {
+    throw new BusinessException(
+      ErrorCode.INVALID_CURSOR,
+      '无效的协作主题游标',
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+}
+
 /** 主题帖读模型：详情、列表、草稿箱和用户主题聚合查询。 */
 @Injectable()
 export class ThreadQueryService {
@@ -58,6 +93,7 @@ export class ThreadQueryService {
     private readonly threadAccess: ThreadAccessService,
     private readonly redis: RedisService,
     private readonly cache: CacheService,
+    private readonly postingPolicy: PostingPolicyService,
   ) {}
 
   /** 我的草稿列表（未发布帖） */
@@ -139,8 +175,13 @@ export class ThreadQueryService {
       ]);
       const isOwner = currentMembership?.role === 'OWNER' || responseThread.ownerId === userId;
       const canManageThread = isOwner || currentMembership?.role === 'COLLABORATOR';
+      const projectedThread = await this.postingPolicy.attachToThread(
+        responseThread,
+        userId,
+        currentMembership,
+      );
       return {
-        ...responseThread,
+        ...projectedThread,
         isBookmarked: !!bookmark,
         bookmarkId: bookmark?.id ?? null,
         bookmarkFolderId: bookmark?.folderId ?? null,
@@ -154,8 +195,9 @@ export class ThreadQueryService {
       };
     }
 
+    const projectedThread = await this.postingPolicy.attachToThread(responseThread);
     return {
-      ...responseThread,
+      ...projectedThread,
       currentMembership: null,
       capabilities: {
         isOwner: false,
@@ -427,6 +469,45 @@ export class ThreadQueryService {
 
     return paginate(items, {
       cursor: items.length > 0 ? items[items.length - 1].id : null,
+      hasMore,
+    });
+  }
+
+  /** 当前用户担任协作者的已发布主题；公开与私密主题都按成员权限保持可读。 */
+  async findMyCollaboratedThreads(userId: string, cursor?: string, limit = 20) {
+    const take = Math.min(limit, 50);
+    const decoded = cursor ? decodeCollaboratedThreadsCursor(cursor) : undefined;
+    const threadWhere: Prisma.ThreadWhereInput = {
+      published: true,
+      ...notDeleted,
+      ...(decoded
+        ? {
+            OR: [
+              { updatedAt: { lt: new Date(decoded.updatedAt) } },
+              { updatedAt: new Date(decoded.updatedAt), id: { lt: decoded.id } },
+            ],
+          }
+        : {}),
+    };
+    const members = await this.prisma.threadMember.findMany({
+      where: {
+        userId,
+        role: 'COLLABORATOR',
+        thread: threadWhere,
+      },
+      orderBy: [{ thread: { updatedAt: 'desc' } }, { thread: { id: 'desc' } }],
+      take: take + 1,
+      include: { thread: { include: threadListCardInclude } },
+    });
+
+    const hasMore = members.length > take;
+    if (hasMore) members.pop();
+    const threads = members.map((member) => member.thread);
+    await attachPlayerCounts(this.prisma, threads);
+    const items = threads.map(mapThreadListCard);
+    const last = threads.at(-1);
+    return paginate(items, {
+      cursor: last ? encodeCollaboratedThreadsCursor(last) : null,
       hasMore,
     });
   }

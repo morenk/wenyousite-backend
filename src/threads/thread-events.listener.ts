@@ -3,7 +3,12 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationProducer } from '../notifications/notification.producer';
 import { BlockFilterService } from '../access/block-filter.service';
-import { DOMAIN_EVENTS, ThreadLikedEvent, ThreadPublishedEvent } from '../outbox/domain-events';
+import {
+  DOMAIN_EVENTS,
+  ThreadCollaboratorRoleChangedEvent,
+  ThreadLikedEvent,
+  ThreadPublishedEvent,
+} from '../outbox/domain-events';
 
 /** 将主题领域事件翻译为用户通知；领域写入由 Outbox 保证可靠投递。 */
 @Injectable()
@@ -61,6 +66,33 @@ export class ThreadEventsListener {
           threadTitle: event.threadTitle,
           totalCount: 1,
           likers: [{ userId: event.userId, username: event.username }],
+        },
+      },
+    );
+  }
+
+  @OnEvent(DOMAIN_EVENTS.THREAD_COLLABORATOR_ROLE_CHANGED)
+  async handleCollaboratorRoleChanged(event: ThreadCollaboratorRoleChangedEvent): Promise<void> {
+    const added = event.newRole === 'COLLABORATOR';
+    const action = added ? 'thread_collaborator_added' : 'thread_collaborator_removed';
+    await this.notifications.notify(
+      'system',
+      [event.targetUserId],
+      added
+        ? `你已成为主题「${event.threadTitle}」的协作者`
+        : `你已不再是主题「${event.threadTitle}」的协作者`,
+      {
+        threadId: event.threadId,
+        fromUserId: event.actorId,
+        eventKey: `thread-collaborator-role:${event.eventId}`,
+        payload: {
+          action,
+          threadId: event.threadId,
+          threadTitle: event.threadTitle,
+          actorId: event.actorId,
+          actorName: event.actorName,
+          oldRole: event.oldRole,
+          newRole: event.newRole,
         },
       },
     );

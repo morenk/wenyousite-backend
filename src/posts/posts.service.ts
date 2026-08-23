@@ -9,7 +9,7 @@ import { BusinessException, notFound, forbidden } from '../common/exceptions/bus
 import { notDeleted, authorSelect, includeDiceRolls } from '../common/prisma-helpers';
 import { hasVisibleMarkdownContent, prepareMarkdownContent } from '../common/markdown-content';
 import { DiceService } from '../dice/dice.service';
-import { PostingPolicyService } from './posting-policy.service';
+import { PostingPolicyService } from '../access/posting-policy.service';
 import { PostQueryService } from './post-query.service';
 import { ContentRemovalSource } from '@prisma/client';
 import { OutboxService } from '../outbox/outbox.service';

@@ -64,7 +64,7 @@
 | `like` | 有人赞了你的帖子 |
 | `tip` | 有人向你或你的主题帖打赏温油 |
 | `level_up` | 用户经验达到新等级 |
-| `system` | 系统通知（管理员发送，fromUserId 为空） |
+| `system` | 系统通知（站务通知或协作者任免；任免通知携带操作者） |
 
 ### WalletKind / WalletTransactionType — 温油账户与流水
 
@@ -320,7 +320,7 @@
 | playerMarked | Boolean | default false | 是否为玩家（决定能否在 postingPolicy=PLAYERS 的子贴中发帖） |
 | joinedAt | DateTime | — | 加入时间 |
 
-`@@unique([threadId, userId])`；`thread_members_user_played_idx` 支撑用户参与帖倒序读取。
+`@@unique([threadId, userId])`；`thread_members_user_played_idx` 支撑用户参与帖倒序读取，`thread_members_user_role_thread_idx` 支撑按用户角色稳定查询协作主题。
 
 ### subthreads — 子贴
 

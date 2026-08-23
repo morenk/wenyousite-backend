@@ -2,6 +2,7 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Prisma } from '@prisma/client';
 import { ThreadAccessService } from '../access/thread-access.service';
+import { PostingPolicyService } from '../access/posting-policy.service';
 import { BusinessException, forbidden, notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { hasVisibleMarkdownContent, prepareMarkdownContent } from '../common/markdown-content';
@@ -26,10 +27,7 @@ import { StickerContentService } from '../stickers/sticker-content.service';
 import { computeThreadEngagement, computeThreadSmartScore } from './thread-smart-score';
 import { ThreadCategoriesService } from '../taxonomy/thread-categories.service';
 import { MediaReferenceService } from '../media/media-reference.service';
-import {
-  threadCategoryInfoSelect,
-  withThreadCategoryInfo,
-} from '../taxonomy/thread-category-info';
+import { threadCategoryInfoSelect, withThreadCategoryInfo } from '../taxonomy/thread-category-info';
 
 const ZSET_BY_CREATED = 'threads:by:created';
 const ZSET_BY_ACTIVITY = 'threads:by:activity';
@@ -61,6 +59,7 @@ export class ThreadAggregateService {
     private readonly stickerContent: StickerContentService,
     private readonly categories: ThreadCategoriesService,
     private readonly mediaReferences: MediaReferenceService,
+    private readonly postingPolicy: PostingPolicyService,
   ) {}
 
   async save(threadId: string, dto: SaveThreadAggregateDto, userId: string) {
@@ -399,7 +398,7 @@ export class ThreadAggregateService {
         await this.stickerContent.recordUsage(userId, allAssetIds);
       }
     }
-    return updated;
+    return this.postingPolicy.attachToThread(updated, userId, manager);
   }
 
   private optimisticLockConflict(subject: string): never {

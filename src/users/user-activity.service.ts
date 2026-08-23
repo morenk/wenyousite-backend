@@ -79,6 +79,10 @@ export class UserActivityService {
     return this.threads.findByCreatedUser(targetId, viewerId, cursor, limit);
   }
 
+  collaboratedThreads(userId: string, cursor?: string, limit?: number) {
+    return this.threads.findMyCollaboratedThreads(userId, cursor, limit);
+  }
+
   async activitySummary(targetId: string, viewerId?: string) {
     const target = await this.prisma.user.findUnique({
       where: { id: targetId, deletedAt: null },

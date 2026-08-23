@@ -9,7 +9,7 @@ import { CacheService } from '../redis/cache.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { DiceService } from '../dice/dice.service';
-import { PostingPolicyService } from './posting-policy.service';
+import { PostingPolicyService } from '../access/posting-policy.service';
 import { PostQueryService } from './post-query.service';
 import { OutboxService } from '../outbox/outbox.service';
 import { StickerContentService } from '../stickers/sticker-content.service';

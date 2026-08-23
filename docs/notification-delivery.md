@@ -287,6 +287,9 @@ WHERE threadId = {threadId}
 | `preview`        | string    | 正文智能截断纯文本（可选）                    |
 | `subthreadTitle` | string?   | 子贴标题（mention / new_post 时存在）         |
 | `threadTitle`    | string?   | 点赞聚合的主题帖标题                          |
+| `threadId`       | string?   | 协作者任免通知的主题帖 ID                     |
+| `oldRole`        | string?   | 任免前角色（COLLABORATOR / PARTICIPANT）      |
+| `newRole`        | string?   | 任免后角色（COLLABORATOR / PARTICIPANT）      |
 | `eventKeys`      | string[]? | 点赞聚合已处理的事件键，防止队列重试重复累加  |
 
 新版前端优先使用 `actorName`、`action`、`preview` 和 `subthreadTitle` 分段展示；历史通知或结构化字段不完整时回退到 `content`。
@@ -301,7 +304,7 @@ WHERE threadId = {threadId}
 | -------------- | ----------------------------------------------------------------- | ---------------------------------- |
 | 不通知拉黑者   | mention / reply / new_post 中，被引用者若拉黑了发帖人，排除该用户 | `src/post-activity/post-events.listener.ts` |
 | 不通知被拉黑者 | mention / reply / new_post 中，发帖人拉黑的用户从接收者集合中移除 | `src/post-activity/post-events.listener.ts` |
-| 不发帖         | 双向存在拉黑关系时拒绝发帖                                        | `src/posts/posting-policy.service.ts` |
+| 不发帖         | 双向存在拉黑关系时拒绝发帖                                        | `src/access/posting-policy.service.ts` |
 | 关系类通知     | thread_created / follow / like 同样执行双向拉黑过滤                | 对应 thread/user 事件监听器 |
 
 > **注意**：拉黑检查在调用 `NotificationProducer.notify()` 之前完成，投递服务不会重新扩大接收者集合。

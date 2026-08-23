@@ -2,7 +2,7 @@
 
 ## 概述
 
-站内通知的列表查询、未读计数、标记已读/未读、单条删除、一键全部已读、按类型过滤。关注、发帖、点赞、@提及和管理员活动通过 `NotificationProducer` 等待通知直接、幂等地写入 PostgreSQL；可靠业务事件在通知提交后才由 Outbox 确认。本模块同时提供查询、标注和删除。系统通知（`system` 类型）`fromUserId` 为 null，混在普通通知列表中由前端通过该字段区分渲染。响应中的 `type` 使用 OpenAPI 枚举，Web 与 Flutter 必须对未来新增的未知值安全降级。
+站内通知的列表查询、未读计数、标记已读/未读、单条删除、一键全部已读、按类型过滤。关注、发帖、点赞、@提及和管理员活动通过 `NotificationProducer` 等待通知直接、幂等地写入 PostgreSQL；可靠业务事件在通知提交后才由 Outbox 确认。本模块同时提供查询、标注和删除。系统通知使用 `system` 类型；站务通知的 `fromUserId` 可为 null，协作者任免通知则指向实际操作者。响应中的 `type` 使用 OpenAPI 枚举，Web 与 Flutter 必须对未来新增的未知值安全降级。
 
 ## 涉及的模型
 
@@ -38,6 +38,7 @@
 - 通知创建由 `NotificationDeliveryService` 执行，`NotificationProducer` 是业务模块的统一应用入口
 - 通知创建时的结构化导航字段（postId / threadId / fromUserId）在创建时写入，查询时直接关联返回
 - `eventKey` 是同一业务事件的稳定幂等键，实际按 `userId + eventKey` 唯一；队列重试、编辑重试、关注/发布/点赞/系统通知重投不会重复插入
+- 协作者任命/撤销发送 `system` 通知，目标为主题且 `fromUserId` 是操作楼主。`action` 分别为 `thread_collaborator_added` / `thread_collaborator_removed`，payload 固定携带 `threadId/threadTitle/actorId/actorName/oldRole/newRole`；通知 eventKey 由真实角色转换的唯一事件 ID 派生，Outbox 重放只复用原通知
 - 同一篇帖子中，已收到显式 `mention` 的用户不会再收到该事件的 `new_post` / `reply` 次级通知
 - 同一条回复的显式 `mention` 优先级高于 `reply`，只保留一次提醒；同一批通知写入使用 `skipDuplicates` 兜底并发重试
 - 点赞通知按主题帖聚合；聚合事务使用 Serializable 隔离级别，并在 payload 中保留最近事件键，避免并发丢计数或重试重复累加
@@ -57,5 +58,5 @@
 - **内容兼容**：保留 `content` 纯文本字段作为降级渲染，`payload` 为可选 JSON 字段供新版客户端使用
 - **Cursor 分页而非偏移分页**：通知列表高频查询且数据持续增长，Cursor 分页避免 offset 在大数据量下性能衰减
 - **硬删除而非软删除**：通知是可丢弃的 transient 数据，硬删除减少存储开销，无需维护 deletedAt 状态
-- **系统通知混在列表**：系统通知与社交通知共用同一列表，通过 `fromUserId: null` 区分，前端据此展示系统图标/样式
+- **系统通知混在列表**：系统通知与社交通知共用同一列表，通过 `type=system` 区分；`fromUserId` 仅在存在实际操作者时填写
 - **定时清理**：90 天已读通知自动删除，防止表无限增长

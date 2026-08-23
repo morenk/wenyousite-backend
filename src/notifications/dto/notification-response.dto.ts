@@ -48,6 +48,21 @@ export class NotificationPayloadResponseDto {
   threadTitle?: string | null;
 
   @ApiPropertyOptional({ type: String, nullable: true })
+  threadId?: string | null;
+
+  @ApiPropertyOptional({
+    enum: ['COLLABORATOR', 'PARTICIPANT'],
+    nullable: true,
+  })
+  oldRole?: 'COLLABORATOR' | 'PARTICIPANT' | null;
+
+  @ApiPropertyOptional({
+    enum: ['COLLABORATOR', 'PARTICIPANT'],
+    nullable: true,
+  })
+  newRole?: 'COLLABORATOR' | 'PARTICIPANT' | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
   momentTitle?: string | null;
 
   @ApiPropertyOptional({ type: Number, nullable: true, minimum: 1 })

@@ -116,6 +116,7 @@ async function main() {
   const redis = new Redis({ host: redisHost, port: redisPort, db: 15, lazyConnect: true });
   let app: ChildProcess | null = null;
   let output = '';
+  let shutdownLogObserved = false;
   let testError: unknown;
 
   try {
@@ -164,7 +165,9 @@ async function main() {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     const collect = (chunk: Buffer) => {
-      output = `${output}${chunk.toString()}`.slice(-30_000);
+      const nextOutput = `${output}${chunk.toString()}`;
+      if (nextOutput.includes('Application shutdown completed')) shutdownLogObserved = true;
+      output = nextOutput.slice(-30_000);
     };
     app.stdout?.on('data', collect);
     app.stderr?.on('data', collect);
@@ -187,7 +190,10 @@ async function main() {
       exited.code === 0 || exited.signal === 'SIGTERM',
       `隔离后端未干净退出 code=${exited.code} signal=${exited.signal}`,
     );
-    assert(output.includes('Application shutdown completed'), '停机日志缺少生命周期完成记录');
+    assert(
+      shutdownLogObserved,
+      `停机日志缺少生命周期完成记录 code=${exited.code} signal=${exited.signal}`,
+    );
     app = null;
   } catch (error) {
     testError = error;

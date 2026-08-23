@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "5.8.1-dev.20260823.1",
+  "contractVersion": "5.9.0-dev.20260823.1",
   "counts": {
-    "total": 207,
-    "v1": 98,
+    "total": 208,
+    "v1": 99,
     "deferred": 58,
     "notApplicable": 50,
     "infrastructure": 1
@@ -166,6 +166,14 @@
       "operationId": "usersDeleteMe",
       "method": "DELETE",
       "path": "/api/v1/users/me",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "usersGetMyCollaboratedThreads",
+      "method": "GET",
+      "path": "/api/v1/users/me/collaborated-threads",
       "module": "users",
       "disposition": "v1",
       "status": "planned"

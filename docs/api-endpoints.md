@@ -34,6 +34,7 @@
 | GET | `/users/me` | authenticated | 获取当前登录用户资料 |
 | PATCH | `/users/me` | authenticated | 修改当前登录用户资料（5 次/分钟） |
 | DELETE | `/users/me` | authenticated | 注销当前账号 |
+| GET | `/users/me/collaborated-threads` | authenticated | 获取当前用户担任协作者的已发布主题帖（含公开与私密主题） |
 | PATCH | `/users/me/avatar` | authenticated | 设置头像（传入 mediaId，校验归属和 COMPLETED 状态） |
 | DELETE | `/users/me/avatar` | authenticated | 移除头像（置空 user.avatar，回到首字母占位） |
 | PATCH | `/users/me/profile-cover` | authenticated | 设置个人主页双画幅背景图（电脑端 3:1、移动端 2:1） |

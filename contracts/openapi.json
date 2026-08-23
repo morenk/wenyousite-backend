@@ -1504,6 +1504,101 @@
         "x-auth-mode": "authenticated"
       }
     },
+    "/api/v1/users/me/collaborated-threads": {
+      "get": {
+        "operationId": "usersGetMyCollaboratedThreads",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
+            "schema": {
+              "example": "clxabc123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（默认 20，最大 50）",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "协作主题列表，按 updatedAt DESC、id DESC 稳定游标分页",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsersGetMyCollaboratedThreads200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "未登录或 Token 无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "获取当前用户担任协作者的已发布主题帖（含公开与私密主题）",
+        "tags": [
+          "Users"
+        ],
+        "x-auth-mode": "authenticated",
+        "x-pagination": "cursor"
+      }
+    },
     "/api/v1/users/me/avatar": {
       "patch": {
         "operationId": "usersSetAvatar",
@@ -17583,7 +17678,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.8.1-dev.20260823.1",
+    "version": "5.9.0-dev.20260823.1",
     "contact": {}
   },
   "tags": [
@@ -18391,6 +18486,251 @@
           "_count"
         ]
       },
+      "ThreadCategoryInfoDto": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "example": "MYSTERY",
+            "minLength": 1,
+            "maxLength": 50,
+            "pattern": "^[A-Z][A-Z0-9_]{0,49}$"
+          },
+          "name": {
+            "type": "string",
+            "example": "悬疑推理",
+            "description": "分类注册表中的当前名称"
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "当前是否允许新主题选择该分类"
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "isActive"
+        ]
+      },
+      "ThreadListDefaultSubthreadResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "lastPostAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "lastPostAt"
+        ]
+      },
+      "ThreadTagResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "number",
+            "minimum": 0
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "color",
+          "description",
+          "sortOrder",
+          "isActive"
+        ]
+      },
+      "ThreadTagRelationResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "threadId": {
+            "type": "string"
+          },
+          "tagId": {
+            "type": "string"
+          },
+          "tag": {
+            "$ref": "#/components/schemas/ThreadTagResponseDto"
+          }
+        },
+        "required": [
+          "id",
+          "threadId",
+          "tagId",
+          "tag"
+        ]
+      },
+      "ThreadListCountResponseDto": {
+        "type": "object",
+        "properties": {
+          "members": {
+            "type": "number",
+            "minimum": 0
+          },
+          "players": {
+            "type": "number",
+            "minimum": 0
+          },
+          "posts": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "members",
+          "players",
+          "posts"
+        ]
+      },
+      "ThreadListItemResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "nullable": true,
+            "example": "MYSTERY",
+            "description": "动态分类 slug"
+          },
+          "categoryInfo": {
+            "nullable": true,
+            "description": "分类展示读模型；名称来自当前分类注册表，历史未知 slug 使用 slug 兜底",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ThreadCategoryInfoDto"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "RECRUITING",
+              "CLOSED",
+              "FINISHED"
+            ]
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "PUBLIC",
+              "PRIVATE"
+            ]
+          },
+          "published": {
+            "type": "boolean"
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "tipTotal": {
+            "type": "string",
+            "pattern": "^\\d+$",
+            "description": "用户投入的累计打赏升数"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deletedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "owner": {
+            "$ref": "#/components/schemas/PostAuthorResponseDto"
+          },
+          "defaultSubthread": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ThreadListDefaultSubthreadResponseDto"
+              }
+            ]
+          },
+          "topicTags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ThreadTagRelationResponseDto"
+            }
+          },
+          "_count": {
+            "$ref": "#/components/schemas/ThreadListCountResponseDto"
+          },
+          "preview": {
+            "type": "string",
+            "description": "默认主贴正文的纯文本预览"
+          },
+          "coverImages": {
+            "maxItems": 1,
+            "description": "默认主贴正文中的第一张普通图片 URL；无图时返回空数组",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "category",
+          "categoryInfo",
+          "status",
+          "visibility",
+          "published",
+          "pinned",
+          "tipTotal",
+          "createdAt",
+          "updatedAt",
+          "deletedAt",
+          "owner",
+          "defaultSubthread",
+          "topicTags",
+          "_count",
+          "preview",
+          "coverImages"
+        ]
+      },
       "UpdateUserDto": {
         "type": "object",
         "properties": {
@@ -18563,132 +18903,6 @@
         },
         "required": [
           "mediaId"
-        ]
-      },
-      "ThreadCategoryInfoDto": {
-        "type": "object",
-        "properties": {
-          "slug": {
-            "type": "string",
-            "example": "MYSTERY",
-            "minLength": 1,
-            "maxLength": 50,
-            "pattern": "^[A-Z][A-Z0-9_]{0,49}$"
-          },
-          "name": {
-            "type": "string",
-            "example": "悬疑推理",
-            "description": "分类注册表中的当前名称"
-          },
-          "isActive": {
-            "type": "boolean",
-            "description": "当前是否允许新主题选择该分类"
-          }
-        },
-        "required": [
-          "slug",
-          "name",
-          "isActive"
-        ]
-      },
-      "ThreadListDefaultSubthreadResponseDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "lastPostAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
-          }
-        },
-        "required": [
-          "id",
-          "title",
-          "lastPostAt"
-        ]
-      },
-      "ThreadTagResponseDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "color": {
-            "type": "string",
-            "nullable": true
-          },
-          "description": {
-            "type": "string",
-            "nullable": true
-          },
-          "sortOrder": {
-            "type": "number",
-            "minimum": 0
-          },
-          "isActive": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "color",
-          "description",
-          "sortOrder",
-          "isActive"
-        ]
-      },
-      "ThreadTagRelationResponseDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "threadId": {
-            "type": "string"
-          },
-          "tagId": {
-            "type": "string"
-          },
-          "tag": {
-            "$ref": "#/components/schemas/ThreadTagResponseDto"
-          }
-        },
-        "required": [
-          "id",
-          "threadId",
-          "tagId",
-          "tag"
-        ]
-      },
-      "ThreadListCountResponseDto": {
-        "type": "object",
-        "properties": {
-          "members": {
-            "type": "number",
-            "minimum": 0
-          },
-          "players": {
-            "type": "number",
-            "minimum": 0
-          },
-          "posts": {
-            "type": "number",
-            "minimum": 0
-          }
-        },
-        "required": [
-          "members",
-          "players",
-          "posts"
         ]
       },
       "BookmarkThreadResponseDto": {
@@ -18953,125 +19167,6 @@
           "viewerBookmarked",
           "createdAt",
           "updatedAt"
-        ]
-      },
-      "ThreadListItemResponseDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "category": {
-            "type": "string",
-            "nullable": true,
-            "example": "MYSTERY",
-            "description": "动态分类 slug"
-          },
-          "categoryInfo": {
-            "nullable": true,
-            "description": "分类展示读模型；名称来自当前分类注册表，历史未知 slug 使用 slug 兜底",
-            "type": "object",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ThreadCategoryInfoDto"
-              }
-            ]
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "RECRUITING",
-              "CLOSED",
-              "FINISHED"
-            ]
-          },
-          "visibility": {
-            "type": "string",
-            "enum": [
-              "PUBLIC",
-              "PRIVATE"
-            ]
-          },
-          "published": {
-            "type": "boolean"
-          },
-          "pinned": {
-            "type": "boolean"
-          },
-          "tipTotal": {
-            "type": "string",
-            "pattern": "^\\d+$",
-            "description": "用户投入的累计打赏升数"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "deletedAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
-          },
-          "owner": {
-            "$ref": "#/components/schemas/PostAuthorResponseDto"
-          },
-          "defaultSubthread": {
-            "nullable": true,
-            "type": "object",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ThreadListDefaultSubthreadResponseDto"
-              }
-            ]
-          },
-          "topicTags": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ThreadTagRelationResponseDto"
-            }
-          },
-          "_count": {
-            "$ref": "#/components/schemas/ThreadListCountResponseDto"
-          },
-          "preview": {
-            "type": "string",
-            "description": "默认主贴正文的纯文本预览"
-          },
-          "coverImages": {
-            "maxItems": 1,
-            "description": "默认主贴正文中的第一张普通图片 URL；无图时返回空数组",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        "required": [
-          "id",
-          "title",
-          "category",
-          "categoryInfo",
-          "status",
-          "visibility",
-          "published",
-          "pinned",
-          "tipTotal",
-          "createdAt",
-          "updatedAt",
-          "deletedAt",
-          "owner",
-          "defaultSubthread",
-          "topicTags",
-          "_count",
-          "preview",
-          "coverImages"
         ]
       },
       "UserActivitySummaryResponseDto": {
@@ -19403,6 +19498,26 @@
           },
           "threadTitle": {
             "type": "string",
+            "nullable": true
+          },
+          "threadId": {
+            "type": "string",
+            "nullable": true
+          },
+          "oldRole": {
+            "type": "string",
+            "enum": [
+              "COLLABORATOR",
+              "PARTICIPANT"
+            ],
+            "nullable": true
+          },
+          "newRole": {
+            "type": "string",
+            "enum": [
+              "COLLABORATOR",
+              "PARTICIPANT"
+            ],
             "nullable": true
           },
           "momentTitle": {
@@ -20397,6 +20512,28 @@
           }
         }
       },
+      "PostingCapabilityResponseDto": {
+        "type": "object",
+        "properties": {
+          "canPost": {
+            "type": "boolean"
+          },
+          "denialReason": {
+            "type": "string",
+            "enum": [
+              "AUTHENTICATION_REQUIRED",
+              "BLOCKED_RELATION",
+              "COLLABORATOR_REQUIRED",
+              "PLAYER_REQUIRED"
+            ],
+            "nullable": true
+          }
+        },
+        "required": [
+          "canPost",
+          "denialReason"
+        ]
+      },
       "DiceRollResponseDto": {
         "type": "object",
         "properties": {
@@ -20528,6 +20665,9 @@
               "PLAYERS"
             ]
           },
+          "postingCapability": {
+            "$ref": "#/components/schemas/PostingCapabilityResponseDto"
+          },
           "version": {
             "type": "number",
             "minimum": 1
@@ -20565,6 +20705,7 @@
           "title",
           "sortOrder",
           "postingPolicy",
+          "postingCapability",
           "version",
           "lastPostAt",
           "deletedAt",
@@ -27304,6 +27445,27 @@
             "properties": {
               "data": {
                 "$ref": "#/components/schemas/PrivateUserResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "UsersGetMyCollaboratedThreads200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ThreadListItemResponseDto"
+                }
               }
             }
           }

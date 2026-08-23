@@ -92,6 +92,24 @@ export class UsersController {
     return this.usersService.findMe(user.id);
   }
 
+  @Get('me/collaborated-threads')
+  @AuthRead()
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: '获取当前用户担任协作者的已发布主题帖（含公开与私密主题）',
+  })
+  @ApiCursorPaginatedResponse(
+    ThreadListItemResponseDto,
+    '协作主题列表，按 updatedAt DESC、id DESC 稳定游标分页',
+  )
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
+  async getMyCollaboratedThreads(
+    @Query() query: CursorPaginationDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.activity.collaboratedThreads(user.id, query.cursor, query.limit);
+  }
+
   @Patch('me')
   @Auth()
   @Throttle({ default: { limit: 5, ttl: 60000 } })

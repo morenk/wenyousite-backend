@@ -123,6 +123,8 @@ Web 成功响应只返回新的 access token 与 user，新 refresh token 通过
 
 所有列表类端点（threads / posts / notifications / bookmarks 等）使用**不透明游标分页**。多数当前实现以 ID 生成游标，推荐排序使用偏移游标，搜索使用编码后的复合游标；客户端不得解析或自行构造。
 
+`GET /users/me/collaborated-threads` 返回本人担任协作者的 PUBLIC/PRIVATE 已发布主题卡片，按更新时间与 ID 的复合游标稳定分页。任免后重新请求即可取得最新列表；Web 本切片只同步类型，不新增页面。
+
 ### 3.1 请求
 
 | 参数     | 类型   | 说明                                                       |
