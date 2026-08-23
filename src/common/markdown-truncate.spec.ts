@@ -1,6 +1,9 @@
 /** Markdown 摘要清理测试：图片统一降级为占位，不泄漏 Milkdown 比例 alt */
 
-import { truncateMarkdown } from './markdown-truncate';
+import {
+  truncateMarkdown,
+  truncateMarkdownToCompactPlainText,
+} from './markdown-truncate';
 
 describe('truncateMarkdown', () => {
   it('短 Markdown 也应清理语法', () => {
@@ -75,5 +78,17 @@ describe('truncateMarkdown', () => {
 
   it('普通反斜杠路径不受影响', () => {
     expect(truncateMarkdown('保存到 C:\\temp 目录')).toBe('保存到 C:\\temp 目录');
+  });
+
+  it('紧凑预览单遍解码空格实体并折叠段内换行和连续空白', () => {
+    expect(
+      truncateMarkdownToCompactPlainText(
+        '另一种形式的开\n始？\n\n&#x20;  没有死亡的人，无法给出答案。',
+      ),
+    ).toBe('另一种形式的开 始？ 没有死亡的人，无法给出答案。');
+  });
+
+  it('紧凑预览不会递归解码用户原本输入的实体文本', () => {
+    expect(truncateMarkdownToCompactPlainText('&amp;lt;')).toBe('&lt;');
   });
 });

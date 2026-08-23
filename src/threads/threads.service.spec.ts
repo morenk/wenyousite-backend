@@ -334,7 +334,7 @@ describe('ThreadsService', () => {
         'tagId:all',
         'filter:all',
         'limit:20',
-        'shape:category-info-v1',
+        'shape:category-info-compact-preview-v2',
         'policy:active-owner-v1',
       );
     });
@@ -362,7 +362,7 @@ describe('ThreadsService', () => {
         `tagId:${tagId}`,
         'filter:all',
         'limit:20',
-        'shape:category-info-v1',
+        'shape:category-info-compact-preview-v2',
         'policy:active-owner-v1',
       );
     });
@@ -398,6 +398,33 @@ describe('ThreadsService', () => {
         defaultSubthread: { id: 's-cover', title: '主贴' },
       });
       expect(page.items[0].defaultSubthread).not.toHaveProperty('posts');
+    });
+
+    it('首页列表把软换行和空格实体统一为紧凑纯文本预览', async () => {
+      mockPrisma.thread.findMany.mockResolvedValue([
+        {
+          id: 't-compact-preview',
+          title: '跨端预览',
+          defaultSubthread: {
+            id: 's-compact-preview',
+            title: '主贴',
+            posts: [
+              {
+                content:
+                  '另一种形式的开\n始？\n\n&#x20;  没有死亡的人，无法给出答案。',
+              },
+            ],
+          },
+          _count: { members: 1, posts: 0 },
+        },
+      ]);
+      mockPrisma.threadMember.groupBy.mockResolvedValue([]);
+
+      const page = await service.findAll({ sort: 'newest' });
+
+      expect(page.items[0].preview).toBe(
+        '另一种形式的开 始？ 没有死亡的人，无法给出答案。',
+      );
     });
 
     describe('recommended（智能排序）', () => {

@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { authorSelect, countMembersAndPosts, notDeleted } from '../common/prisma-helpers';
-import { truncateMarkdown } from '../common/markdown-truncate';
+import { truncateMarkdownToCompactPlainText } from '../common/markdown-truncate';
 import {
   extractMarkdownCoverImages,
   stripVisibleMarkdownImages,
@@ -40,7 +40,7 @@ export function mapThreadListCard(thread: ThreadListCardRow) {
   const bodyContent = thread.defaultSubthread?.posts?.[0]?.content ?? '';
   const coverImages = extractMarkdownCoverImages(bodyContent);
   const preview = bodyContent
-    ? truncateMarkdown(
+    ? truncateMarkdownToCompactPlainText(
         coverImages.length > 0 ? stripVisibleMarkdownImages(bodyContent) : bodyContent,
       )
     : '';

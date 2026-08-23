@@ -1,6 +1,7 @@
 /** Markdown 安全截断：保证不在标记内部截断，尽量在句子或段落边界处 */
 import removeMd from 'remove-markdown';
 import { formatInternalReferencePreview } from './internal-reference';
+import { decodeEntities } from './utils/decode-html-entities';
 
 /** Milkdown 会转义、且 remove-markdown 会误判为语法的 ASCII 标点集合（与 unsafe.js 转义范围一致） */
 const ESCAPE_CHARS = [...`!"#$%&'()*+,-./:;<=>?@[\\]^_\`{|}~`];
@@ -20,8 +21,7 @@ function restorePlaceholders(s: string): string {
   });
 }
 
-/** 截取 Markdown 正文预览（50~100 字），避免在语法标记中间截断 */
-export function truncateMarkdown(md: string, maxLen = 100, minLen = 50): string {
+function markdownToPlainText(md: string): string {
   if (!md) return '';
 
   // Milkdown 空段落协议标记只在摘要中作为段落分隔，不把标签本身泄漏到通知/列表文案。
@@ -37,10 +37,13 @@ export function truncateMarkdown(md: string, maxLen = 100, minLen = 50): string 
   const protectedContent = withInternalReferenceLabels
     .replace(/\\([!-/:-@[-`{-~])/g, (_, c) => ESCAPE_MAP.get(c) ?? c)
     .replace(/</g, LT_PLACEHOLDER);
-  const plain = restorePlaceholders(removeMd(protectedContent))
+  return restorePlaceholders(removeMd(protectedContent))
     // Milkdown 硬换行（行尾反斜杠 + 换行）还原为普通换行，避免预览残留字面 \。
     .replace(/\\\n/g, '\n')
     .trim();
+}
+
+function truncatePlainText(plain: string, maxLen: number, minLen: number): string {
   if (plain.length <= maxLen) return plain;
 
   let cut = maxLen;
@@ -62,4 +65,21 @@ export function truncateMarkdown(md: string, maxLen = 100, minLen = 50): string 
   }
 
   return plain.slice(0, cut).trimEnd() + '...';
+}
+
+/** 截取 Markdown 正文预览（50~100 字），避免在语法标记中间截断。 */
+export function truncateMarkdown(md: string, maxLen = 100, minLen = 50): string {
+  return truncatePlainText(markdownToPlainText(md), maxLen, minLen);
+}
+
+/**
+ * 生成列表卡片使用的紧凑纯文本：实体按 Markdown 阅读语义解码一次，全部空白折叠为单个空格。
+ */
+export function truncateMarkdownToCompactPlainText(
+  md: string,
+  maxLen = 100,
+  minLen = 50,
+): string {
+  const compact = decodeEntities(markdownToPlainText(md)).replace(/\s+/gu, ' ').trim();
+  return truncatePlainText(compact, maxLen, minLen);
 }
