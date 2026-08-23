@@ -13,6 +13,7 @@ describe('configuration', () => {
     expect(configuration()).toEqual(
       expect.objectContaining({
         port: 3000,
+        host: '0.0.0.0',
         database: {
           url: 'postgresql://wenyou:wenyou@127.0.0.1:5432/wenyousite?schema=public',
         },
@@ -52,6 +53,7 @@ describe('configuration', () => {
   it('解析数字、布尔值、可选路径和自定义配置', () => {
     Object.assign(process['env'], {
       PORT: '4100',
+      HOST: '127.0.0.1',
       REDIS_PORT: '6380',
       REDIS_DB: '15',
       GLOBAL_RATE_LIMIT_PER_SECOND: '1000',
@@ -81,6 +83,7 @@ describe('configuration', () => {
     const result = configuration();
 
     expect(result.port).toBe(4100);
+    expect(result.host).toBe('127.0.0.1');
     expect(result.redis.port).toBe(6380);
     expect(result.redis.db).toBe(15);
     expect(result.throttling.globalRatePerSecond).toBe(1000);

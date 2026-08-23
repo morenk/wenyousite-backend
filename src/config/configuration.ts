@@ -9,6 +9,7 @@ export default function configuration() {
   return {
     // 服务端口
     port: env.PORT,
+    host: env.HOST,
 
     // PostgreSQL 数据库连接串
     database: {

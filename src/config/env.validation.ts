@@ -30,6 +30,10 @@ export class EnvironmentVariables {
   @IsOptional()
   PORT: number = 3000;
 
+  @IsString()
+  @IsOptional()
+  HOST: string = '0.0.0.0';
+
   // 数据库连接串，生产环境必须设置
   @IsString()
   DATABASE_URL: string = 'postgresql://wenyou:wenyou@127.0.0.1:5432/wenyousite?schema=public';

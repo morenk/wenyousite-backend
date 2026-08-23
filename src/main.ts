@@ -83,7 +83,7 @@ async function bootstrap() {
   }
 
   const port = runtime.port;
-  await app.listen(port, '0.0.0.0');
+  await app.listen(port, runtime.host);
   const logger = app.get(Logger);
   logger.log(`温油站 API running on http://localhost:${port}`, 'Bootstrap');
 }
