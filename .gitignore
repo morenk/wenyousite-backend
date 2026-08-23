@@ -18,6 +18,7 @@ backups/
 loadtest/fixtures/
 loadtest/target.env
 loadtest/runner.env
+loadtest/backend.env
 loadtest/results/
 scripts/**/*.js
 scripts/**/*.js.map
