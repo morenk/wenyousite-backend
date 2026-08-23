@@ -5,6 +5,7 @@ import { EconomyService } from './economy.service';
 function buildService() {
   const prisma = {
     user: { findUnique: jest.fn() },
+    moment: { findFirst: jest.fn() },
     wallet: { findUnique: jest.fn() },
     walletTransaction: { findUnique: jest.fn() },
     $transaction: jest.fn(),
@@ -123,6 +124,115 @@ describe('EconomyService', () => {
     ).rejects.toMatchObject({ errorCode: ErrorCode.TIP_NOT_ALLOWED });
     expect(prisma.wallet.findUnique).not.toHaveBeenCalled();
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('已注销作者的历史动态不能接收加油', async () => {
+    const { service, prisma } = buildService();
+    prisma.wallet.findUnique.mockResolvedValue({ id: 'sender-wallet' });
+    prisma.walletTransaction.findUnique.mockResolvedValue(null);
+    prisma.moment.findFirst.mockResolvedValue({
+      id: 'moment-1',
+      authorId: 'recipient-1',
+      title: '历史动态',
+      author: { deletedAt: new Date('2026-08-23T00:00:00.000Z') },
+    });
+
+    await expect(
+      service.tipMoment(
+        { id: 'sender-1' },
+        'moment-1',
+        '2',
+        '5e31a91c-7553-48a2-a53d-5b9d576778ee',
+      ),
+    ).rejects.toMatchObject({ errorCode: ErrorCode.TIP_NOT_ALLOWED, status: 403 });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('加油事务在用户锁后重查收款人注销状态', async () => {
+    const { service, prisma, outbox } = buildService();
+    prisma.wallet.findUnique.mockResolvedValue({ id: 'sender-wallet' });
+    prisma.walletTransaction.findUnique.mockResolvedValue(null);
+    prisma.moment.findFirst.mockResolvedValue({
+      id: 'moment-1',
+      authorId: 'recipient-1',
+      title: '动态',
+      author: { deletedAt: null },
+    });
+    const tx = {
+      user: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValueOnce({ id: 'recipient-1', username: 'receiver', deletedAt: null })
+          .mockResolvedValueOnce({ deletedAt: null })
+          .mockResolvedValueOnce({ deletedAt: new Date('2026-08-23T00:00:00.000Z') }),
+      },
+      wallet: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValueOnce({ id: 'recipient-wallet' })
+          .mockResolvedValueOnce({ id: 'wallet-platform' }),
+        updateMany: jest.fn(),
+        update: jest.fn(),
+      },
+      $queryRaw: jest.fn().mockResolvedValue([]),
+    };
+    prisma.$transaction.mockImplementation(
+      async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx),
+    );
+
+    await expect(
+      service.tipMoment(
+        { id: 'sender-1' },
+        'moment-1',
+        '2',
+        '6e31a91c-7553-48a2-a53d-5b9d576778ee',
+      ),
+    ).rejects.toMatchObject({ errorCode: ErrorCode.TIP_NOT_ALLOWED, status: 403 });
+    expect(tx.wallet.updateMany).not.toHaveBeenCalled();
+    expect(outbox.enqueue).not.toHaveBeenCalled();
+  });
+
+  it('加油事务在用户锁后阻止已先完成的付款人注销', async () => {
+    const { service, prisma, outbox } = buildService();
+    prisma.wallet.findUnique.mockResolvedValue({ id: 'sender-wallet' });
+    prisma.walletTransaction.findUnique.mockResolvedValue(null);
+    prisma.moment.findFirst.mockResolvedValue({
+      id: 'moment-1',
+      authorId: 'recipient-1',
+      title: '动态',
+      author: { deletedAt: null },
+    });
+    const tx = {
+      user: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValueOnce({ id: 'recipient-1', username: 'receiver', deletedAt: null })
+          .mockResolvedValueOnce({ deletedAt: new Date('2026-08-23T00:00:00.000Z') }),
+      },
+      wallet: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValueOnce({ id: 'recipient-wallet' })
+          .mockResolvedValueOnce({ id: 'wallet-platform' }),
+        updateMany: jest.fn(),
+        update: jest.fn(),
+      },
+      $queryRaw: jest.fn().mockResolvedValue([]),
+    };
+    prisma.$transaction.mockImplementation(
+      async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx),
+    );
+
+    await expect(
+      service.tipMoment(
+        { id: 'sender-1' },
+        'moment-1',
+        '2',
+        '7e31a91c-7553-48a2-a53d-5b9d576778ee',
+      ),
+    ).rejects.toMatchObject({ errorCode: ErrorCode.ACCOUNT_DEACTIVATED, status: 401 });
+    expect(tx.wallet.updateMany).not.toHaveBeenCalled();
+    expect(outbox.enqueue).not.toHaveBeenCalled();
   });
 
   it('余额不足时不写账本、统计或 Outbox', async () => {

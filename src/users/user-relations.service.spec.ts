@@ -7,6 +7,7 @@ import { ErrorCode } from '../common/exceptions/error-codes';
 describe('UserRelationsService', () => {
   const prisma = {
     $transaction: jest.fn(),
+    $queryRaw: jest.fn(),
     user: { findUnique: jest.fn() },
     userFollow: {
       createMany: jest.fn(),

@@ -33,16 +33,18 @@ export class CreateMomentDto {
   @MaxLength(1000)
   content: string = '';
 
-  @ApiProperty({ type: [String], maxItems: 9, default: [], description: '已完成处理的图片 ID，顺序即展示顺序' })
+  @ApiProperty({ type: [String], maxItems: 9, default: [], pattern: '^[a-z0-9]{24,26}$', description: '已完成处理的图片 ID，顺序即展示顺序' })
   @IsArray()
   @ArrayMaxSize(9)
   @ArrayUnique()
   @IsString({ each: true })
+  @IsCuid({ each: true })
   mediaIds: string[] = [];
 
-  @ApiPropertyOptional({ type: String, nullable: true, description: '必须属于 mediaIds；无图时为 null' })
+  @ApiPropertyOptional({ type: String, nullable: true, pattern: '^[a-z0-9]{24,26}$', description: '必须属于 mediaIds；无图时为 null' })
   @IsOptional()
   @IsString()
+  @IsCuid()
   coverMediaId?: string | null;
 
   @ApiProperty({ format: 'uuid', description: '发布幂等键，同时决定无图文字封面配色' })
@@ -68,17 +70,19 @@ export class UpdateMomentDto {
   @MaxLength(1000)
   content?: string;
 
-  @ApiPropertyOptional({ type: [String], maxItems: 9 })
+  @ApiPropertyOptional({ type: [String], maxItems: 9, pattern: '^[a-z0-9]{24,26}$' })
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(9)
   @ArrayUnique()
   @IsString({ each: true })
+  @IsCuid({ each: true })
   mediaIds?: string[];
 
-  @ApiPropertyOptional({ type: String, nullable: true })
+  @ApiPropertyOptional({ type: String, nullable: true, pattern: '^[a-z0-9]{24,26}$' })
   @IsOptional()
   @IsString()
+  @IsCuid()
   coverMediaId?: string | null;
 
   @ApiProperty({ minimum: 1, description: '乐观锁版本' })
@@ -100,13 +104,19 @@ export class CreateMomentCommentDto {
   @MaxLength(500)
   content?: string;
 
-  @ApiPropertyOptional({ description: '已完成处理且属于评论者的图片 ID；与 stickerAssetId 互斥' })
+  @ApiPropertyOptional({
+    pattern: '^[a-z0-9]{24,26}$',
+    description: '已完成处理且属于评论者的图片 ID；与 stickerAssetId 互斥',
+  })
   @IsOptional()
   @IsString()
   @IsCuid()
   mediaId?: string;
 
-  @ApiPropertyOptional({ description: '当前收藏夹中的表情资产 ID；与 mediaId 互斥' })
+  @ApiPropertyOptional({
+    pattern: '^[a-z0-9]{24,26}$',
+    description: '当前收藏夹中的表情资产 ID；与 mediaId 互斥',
+  })
   @IsOptional()
   @IsString()
   @IsCuid()

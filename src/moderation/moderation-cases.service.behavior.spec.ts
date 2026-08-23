@@ -18,6 +18,7 @@ import { ModerationService } from './moderation.service';
 describe('ModerationCasesService behavior', () => {
   const prisma = {
     $transaction: jest.fn(),
+    $queryRaw: jest.fn(),
     moderationCase: { findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
     moderationDecision: {
       findMany: jest.fn(),
@@ -36,7 +37,12 @@ describe('ModerationCasesService behavior', () => {
     userSanction: { update: jest.fn() },
     thread: { findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
     post: { findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
-    moment: { findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
+    moment: {
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+    },
     momentComment: { findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
     directMessage: { findMany: jest.fn(), findUnique: jest.fn() },
   };
@@ -448,7 +454,12 @@ describe('ModerationCasesService behavior', () => {
     [
       ReportTargetType.MOMENT_COMMENT,
       'momentComment',
-      { deletedAt: new Date(), removalSource: ContentRemovalSource.ADMIN, momentId: 'moment-1' },
+      {
+        deletedAt: new Date(),
+        removalSource: ContentRemovalSource.ADMIN,
+        momentId: 'moment-1',
+        moment: { deletedAt: null },
+      },
       { targetType: 'MOMENT_COMMENT', momentId: 'moment-1' },
     ],
   ])('推翻内容决定时恢复 %s 并在提交后刷新', async (targetType, model, row, effectShape) => {
@@ -485,8 +496,8 @@ describe('ModerationCasesService behavior', () => {
       expect.objectContaining(effectShape),
     );
     if (targetType === ReportTargetType.MOMENT_COMMENT) {
-      expect(prisma.moment.update).toHaveBeenCalledWith({
-        where: { id: 'moment-1' },
+      expect(prisma.moment.updateMany).toHaveBeenCalledWith({
+        where: { id: 'moment-1', deletedAt: null },
         data: { commentCount: { increment: 1 } },
       });
     }

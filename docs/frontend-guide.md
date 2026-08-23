@@ -258,6 +258,8 @@ GET /subthreads/:id/posts/authors
 
 通知或站内深链接需要定位具体评论时，使用 `GET /moments/:id/comments/:commentId/context`。`commentId` 可以是主评论或楼中楼，响应中的 `root` 用于把回复串注入当前列表，`target` 用于展开、高亮和滚动，`replyCount` 用于保留完整回复计数。目标已删除、因拉黑不可见或不属于该动态时返回 404；不要为定位目标遍历全部评论分页。
 
+动态卡片的可选 `canInteract` 为 `false` 时，当前内容是已注销作者的可读历史墓碑。界面应禁用新增点赞、评论、收藏、移动收藏和加油，但保留取消已有点赞/收藏和有权删除评论的操作。字段缺失时按 `true` 兼容旧服务；即使界面未禁用，服务端仍会以 HTTP 403 / `FORBIDDEN` 拒绝新互动。发现快照返回 `INVALID_CURSOR` 时清空游标刷新；HTTP 503 / `INTERNAL_ERROR` 时保留当前列表并提供重试。
+
 ```
 GET /posts/:id/replies?limit=20&order=OLDEST&authorId=<用户ID> // 获取某楼层的全部回复（分页）
 GET /posts/:id/replies/authors                              // 获取该楼层实际回复过的角色作者

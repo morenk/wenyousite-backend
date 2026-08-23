@@ -83,6 +83,12 @@ export class MomentCardResponseDto {
   @ApiProperty()
   viewerBookmarked!: boolean;
 
+  @ApiPropertyOptional({
+    example: true,
+    description: '是否允许新增点赞、评论、收藏和加油；字段缺失时客户端按 true 兼容旧服务',
+  })
+  canInteract?: boolean;
+
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date;
 

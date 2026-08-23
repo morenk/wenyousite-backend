@@ -5,6 +5,7 @@ import { publicUserSummarySelect } from '../common/user-summary';
 import { OutboxService } from '../outbox/outbox.service';
 import { notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
+import { Prisma } from '@prisma/client';
 
 /** 用户关系用例：关注、粉丝与双向拉黑关系写入和查询。 */
 @Injectable()
@@ -77,9 +78,14 @@ export class UserRelationsService {
 
   async block(userId: string, targetId: string) {
     if (userId === targetId) return { message: '不能拉黑自己' };
-    await this.assertUserExists(targetId);
     const [firstUserId, secondUserId] = userId < targetId ? [userId, targetId] : [targetId, userId];
     await this.prisma.$transaction(async (tx) => {
+      await this.lockUsers(tx, [userId, targetId]);
+      const target = await tx.user.findUnique({
+        where: { id: targetId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!target) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
       await tx.userBlock.upsert({
         where: { blockerId_blockedId: { blockerId: userId, blockedId: targetId } },
         create: { blockerId: userId, blockedId: targetId },
@@ -103,8 +109,11 @@ export class UserRelationsService {
   }
 
   async unblock(userId: string, targetId: string) {
-    await this.prisma.userBlock.deleteMany({
-      where: { blockerId: userId, blockedId: targetId },
+    await this.prisma.$transaction(async (tx) => {
+      await this.lockUsers(tx, [userId, targetId]);
+      await tx.userBlock.deleteMany({
+        where: { blockerId: userId, blockedId: targetId },
+      });
     });
     return { message: '已取消拉黑' };
   }
@@ -122,5 +131,14 @@ export class UserRelationsService {
       select: { id: true },
     });
     if (!user) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
+  }
+
+  private async lockUsers(tx: Prisma.TransactionClient, userIds: string[]) {
+    const ids = [...new Set(userIds)].sort();
+    await tx.$queryRaw(Prisma.sql`
+      SELECT "id" FROM "users"
+      WHERE "id" IN (${Prisma.join(ids)})
+      ORDER BY "id" FOR UPDATE
+    `);
   }
 }

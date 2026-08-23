@@ -1,8 +1,10 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { HttpStatus } from '@nestjs/common';
 import { BookmarksService } from '../bookmarks/bookmarks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { MomentBookmarksService } from './moment-bookmarks.service';
-import { MomentsService } from './moments.service';
+import { MomentAccessService } from './moment-access.service';
+import { BusinessException } from '../common/exceptions/business.exception';
+import { ErrorCode } from '../common/exceptions/error-codes';
 
 const now = new Date('2026-08-18T12:00:00.000Z');
 
@@ -43,7 +45,7 @@ function createMocks() {
       updateMany: jest.fn(),
       deleteMany: jest.fn(),
     },
-    moment: { update: jest.fn(), findUniqueOrThrow: jest.fn() },
+    moment: { update: jest.fn(), updateMany: jest.fn(), findUniqueOrThrow: jest.fn() },
   };
   const prisma = {
     user: { findUnique: jest.fn() },
@@ -51,8 +53,28 @@ function createMocks() {
     $transaction: jest.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
   };
   const folders = { resolveFolder: jest.fn() };
-  const moments = { assertVisible: jest.fn() };
+  const moments = {
+    assertVisible: jest.fn(),
+    lockVisible: jest.fn().mockResolvedValue({
+      id: 'moment-1',
+      authorId: 'author-1',
+      title: '收藏动态',
+      author: { deletedAt: null },
+    }),
+    assertCanAddInteraction: jest.fn(),
+  };
   return { tx, prisma, folders, moments };
+}
+
+async function expectBusiness(
+  promise: Promise<unknown>,
+  errorCode: number,
+  status: HttpStatus,
+) {
+  const error = await promise.catch((reason: unknown) => reason);
+  expect(error).toBeInstanceOf(BusinessException);
+  expect(error).toMatchObject({ errorCode });
+  expect((error as BusinessException).getStatus()).toBe(status);
 }
 
 describe('MomentBookmarksService', () => {
@@ -61,24 +83,25 @@ describe('MomentBookmarksService', () => {
     const service = new MomentBookmarksService(
       prisma as unknown as PrismaService,
       folders as unknown as BookmarksService,
-      moments as unknown as MomentsService,
+      moments as unknown as MomentAccessService,
     );
     tx.momentBookmark.findUnique.mockResolvedValue(null);
     folders.resolveFolder.mockResolvedValue({ id: 'folder-custom' });
     tx.momentBookmark.createMany.mockResolvedValue({ count: 1 });
+    tx.moment.updateMany.mockResolvedValue({ count: 1 });
     tx.moment.findUniqueOrThrow.mockResolvedValue({ bookmarkCount: 4 });
 
     await expect(
       service.set('moment-1', { id: 'viewer-1' }, true, 'folder-custom'),
     ).resolves.toEqual({ momentId: 'moment-1', count: 4, active: true });
 
-    expect(moments.assertVisible).toHaveBeenCalledWith('moment-1', 'viewer-1');
+    expect(moments.lockVisible).toHaveBeenCalledWith(tx, 'moment-1', 'viewer-1');
     expect(tx.momentBookmark.createMany).toHaveBeenCalledWith({
       data: [{ momentId: 'moment-1', userId: 'viewer-1', folderId: 'folder-custom' }],
       skipDuplicates: true,
     });
-    expect(tx.moment.update).toHaveBeenCalledWith({
-      where: { id: 'moment-1' },
+    expect(tx.moment.updateMany).toHaveBeenCalledWith({
+      where: { id: 'moment-1', deletedAt: null },
       data: { bookmarkCount: { increment: 1 } },
     });
   });
@@ -88,7 +111,7 @@ describe('MomentBookmarksService', () => {
     const service = new MomentBookmarksService(
       prisma as unknown as PrismaService,
       folders as unknown as BookmarksService,
-      moments as unknown as MomentsService,
+      moments as unknown as MomentAccessService,
     );
     tx.momentBookmark.findUnique.mockResolvedValue({ id: 'bookmark-1', folderId: 'folder-custom' });
     tx.moment.findUniqueOrThrow.mockResolvedValue({ bookmarkCount: 3 });
@@ -97,7 +120,7 @@ describe('MomentBookmarksService', () => {
 
     expect(folders.resolveFolder).not.toHaveBeenCalled();
     expect(tx.momentBookmark.update).not.toHaveBeenCalled();
-    expect(tx.moment.update).not.toHaveBeenCalled();
+    expect(tx.moment.updateMany).not.toHaveBeenCalled();
   });
 
   it('我的动态收藏可按收藏夹筛选并返回私有归类字段', async () => {
@@ -105,7 +128,7 @@ describe('MomentBookmarksService', () => {
     const service = new MomentBookmarksService(
       prisma as unknown as PrismaService,
       folders as unknown as BookmarksService,
-      moments as unknown as MomentsService,
+      moments as unknown as MomentAccessService,
     );
     folders.resolveFolder.mockResolvedValue({ id: 'folder-custom' });
     prisma.momentBookmark.findMany.mockResolvedValue([
@@ -131,11 +154,13 @@ describe('MomentBookmarksService', () => {
     const service = new MomentBookmarksService(
       prisma as unknown as PrismaService,
       folders as unknown as BookmarksService,
-      moments as unknown as MomentsService,
+      moments as unknown as MomentAccessService,
     );
     prisma.user.findUnique.mockResolvedValueOnce({ id: 'owner-1', showBookmarks: false });
-    await expect(service.listPublic('owner-1', 'viewer-1')).rejects.toBeInstanceOf(
-      NotFoundException,
+    await expectBusiness(
+      service.listPublic('owner-1', 'viewer-1'),
+      ErrorCode.NOT_FOUND,
+      HttpStatus.NOT_FOUND,
     );
 
     prisma.user.findUnique.mockResolvedValueOnce({ id: 'owner-1', showBookmarks: true });
@@ -165,13 +190,15 @@ describe('MomentBookmarksService', () => {
     const service = new MomentBookmarksService(
       prisma as unknown as PrismaService,
       folders as unknown as BookmarksService,
-      moments as unknown as MomentsService,
+      moments as unknown as MomentAccessService,
     );
     prisma.user.findUnique.mockResolvedValue({ id: 'owner-1', showBookmarks: true });
     prisma.momentBookmark.findFirst.mockResolvedValue(null);
-    await expect(
+    await expectBusiness(
       service.listPublic('owner-1', 'viewer-1', 'foreign-cursor'),
-    ).rejects.toBeInstanceOf(BadRequestException);
+      ErrorCode.INVALID_CURSOR,
+      HttpStatus.BAD_REQUEST,
+    );
 
     folders.resolveFolder.mockResolvedValue({ id: 'folder-2' });
     tx.momentBookmark.updateMany.mockResolvedValue({ count: 1 });
@@ -182,6 +209,41 @@ describe('MomentBookmarksService', () => {
     expect(tx.momentBookmark.updateMany).toHaveBeenCalledWith({
       where: { momentId: 'moment-1', userId: 'viewer-1' },
       data: { folderId: 'folder-2' },
+    });
+  });
+
+  it('已注销作者的历史动态拒绝新收藏但允许取消旧收藏', async () => {
+    const { tx, prisma, folders, moments } = createMocks();
+    const service = new MomentBookmarksService(
+      prisma as unknown as PrismaService,
+      folders as unknown as BookmarksService,
+      moments as unknown as MomentAccessService,
+    );
+    moments.lockVisible.mockResolvedValue({
+      id: 'moment-1',
+      authorId: 'author-1',
+      title: '历史动态',
+      author: { deletedAt: new Date('2026-08-23T00:00:00.000Z') },
+    });
+    moments.assertCanAddInteraction.mockImplementation(() => {
+      throw new BusinessException(ErrorCode.FORBIDDEN, '历史动态仅供阅读', HttpStatus.FORBIDDEN);
+    });
+    tx.momentBookmark.findUnique.mockResolvedValue(null);
+
+    await expectBusiness(
+      service.set('moment-1', { id: 'viewer-1' }, true),
+      ErrorCode.FORBIDDEN,
+      HttpStatus.FORBIDDEN,
+    );
+    expect(tx.momentBookmark.createMany).not.toHaveBeenCalled();
+
+    tx.momentBookmark.deleteMany.mockResolvedValue({ count: 1 });
+    tx.moment.updateMany.mockResolvedValue({ count: 1 });
+    tx.moment.findUniqueOrThrow.mockResolvedValue({ bookmarkCount: 0 });
+    await expect(service.set('moment-1', { id: 'viewer-1' }, false)).resolves.toEqual({
+      momentId: 'moment-1',
+      count: 0,
+      active: false,
     });
   });
 });

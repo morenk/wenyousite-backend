@@ -88,6 +88,34 @@ export class RedisService implements OnModuleDestroy {
     return this.redis.zadd(key, ...scoreMembers);
   }
 
+  /** 原子写入 ZSET 并设置 TTL，避免进程在两条命令之间退出后留下永久快照。 */
+  async zaddMultiWithExpiry(
+    key: string,
+    seconds: number,
+    ...scoreMembers: (number | string)[]
+  ): Promise<number> {
+    if (scoreMembers.length === 0) return 0;
+    try {
+      const result = await this.redis
+        .multi()
+        .zadd(key, ...scoreMembers)
+        .expire(key, seconds)
+        .exec();
+      if (
+        !result ||
+        result.length !== 2 ||
+        result.some(([error]) => error !== null) ||
+        Number(result[1][1]) !== 1
+      ) {
+        throw new Error('Redis ZSET snapshot transaction failed');
+      }
+      return Number(result[0][1]);
+    } catch (error) {
+      await this.redis.del(key).catch(() => undefined);
+      throw error;
+    }
+  }
+
   /** 从有序集合移除成员 */
   async zrem(key: string, ...members: string[]) {
     if (members.length === 0) return 0;

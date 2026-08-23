@@ -17583,7 +17583,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.8.0-dev.20260823.1",
+    "version": "5.8.1-dev.20260823.1",
     "contact": {}
   },
   "tags": [
@@ -18920,6 +18920,11 @@
           },
           "viewerBookmarked": {
             "type": "boolean"
+          },
+          "canInteract": {
+            "type": "boolean",
+            "example": true,
+            "description": "是否允许新增点赞、评论、收藏和加油；字段缺失时客户端按 true 兼容旧服务"
           },
           "createdAt": {
             "type": "string",
@@ -21618,6 +21623,11 @@
           "viewerBookmarked": {
             "type": "boolean"
           },
+          "canInteract": {
+            "type": "boolean",
+            "example": true,
+            "description": "是否允许新增点赞、评论、收藏和加油；字段缺失时客户端按 true 兼容旧服务"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -21673,12 +21683,14 @@
             "description": "已完成处理的图片 ID，顺序即展示顺序",
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "pattern": "^[a-z0-9]{24,26}$"
             }
           },
           "coverMediaId": {
             "type": "string",
             "nullable": true,
+            "pattern": "^[a-z0-9]{24,26}$",
             "description": "必须属于 mediaIds；无图时为 null"
           },
           "clientRequestId": {
@@ -21764,6 +21776,11 @@
           "viewerBookmarked": {
             "type": "boolean"
           },
+          "canInteract": {
+            "type": "boolean",
+            "example": true,
+            "description": "是否允许新增点赞、评论、收藏和加油；字段缺失时客户端按 true 兼容旧服务"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -21835,12 +21852,14 @@
             "maxItems": 9,
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "pattern": "^[a-z0-9]{24,26}$"
             }
           },
           "coverMediaId": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "pattern": "^[a-z0-9]{24,26}$"
           },
           "version": {
             "type": "number",
@@ -22154,10 +22173,12 @@
           },
           "mediaId": {
             "type": "string",
+            "pattern": "^[a-z0-9]{24,26}$",
             "description": "已完成处理且属于评论者的图片 ID；与 stickerAssetId 互斥"
           },
           "stickerAssetId": {
             "type": "string",
+            "pattern": "^[a-z0-9]{24,26}$",
             "description": "当前收藏夹中的表情资产 ID；与 mediaId 互斥"
           },
           "replyToCommentId": {
@@ -25507,6 +25528,11 @@
           },
           "viewerBookmarked": {
             "type": "boolean"
+          },
+          "canInteract": {
+            "type": "boolean",
+            "example": true,
+            "description": "是否允许新增点赞、评论、收藏和加油；字段缺失时客户端按 true 兼容旧服务"
           },
           "createdAt": {
             "type": "string",

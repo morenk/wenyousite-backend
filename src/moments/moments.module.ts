@@ -9,6 +9,7 @@ import { MomentEventsListener } from './moment-events.listener';
 import { MomentsController, UserMomentsController } from './moments.controller';
 import { MomentsService } from './moments.service';
 import { MediaReferenceModule } from '../media/media-reference.module';
+import { MomentAccessService } from './moment-access.service';
 
 @Module({
   imports: [
@@ -19,7 +20,13 @@ import { MediaReferenceModule } from '../media/media-reference.module';
     MediaReferenceModule,
   ],
   controllers: [MomentsController, UserMomentsController],
-  providers: [MomentsService, MomentBookmarksService, MomentCommentsService, MomentEventsListener],
-  exports: [MomentsService, MomentBookmarksService],
+  providers: [
+    MomentAccessService,
+    MomentsService,
+    MomentBookmarksService,
+    MomentCommentsService,
+    MomentEventsListener,
+  ],
+  exports: [MomentAccessService, MomentsService, MomentBookmarksService],
 })
 export class MomentsModule {}

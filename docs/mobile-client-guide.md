@@ -112,6 +112,7 @@ OpenAPI 为兼容 Web 把该头标为 optional；省略或传未知值会创建 
 - 动态最多九张图片；评论可使用文字、单张图片或单个收藏表情，图片与表情互斥。
 - 动态楼中楼只有两层视觉结构；筛选回复者时仍保留所属主评论上下文。未知作者、删除媒体和未知枚举都必须安全降级。
 - 动态通知目标携带 `momentCommentId` 时，详情页调用 `momentsCommentContext` 直接取得 `root`、`target` 和当前可见 `replyCount`。主评论目标直接注入并定位；楼中楼目标同时注入所属主评论和目标回复、展开后定位，不扫描评论或回复分页。主评论已删除但目标回复仍可见时保留服务端墓碑；404 保留动态详情与普通评论且不自动重试，临时失败保留内容并允许重试。客户端必须消费 `mobile-v1-golden-fixtures.json` 的 `momentCommentNavigation` 旅程。
+- 合同 `5.8.1-dev.20260823.1` 起，动态卡片可返回 `canInteract=false`，表示已注销作者的可读历史动态。新客户端应禁用新增点赞、评论、收藏、移动收藏和加油，保留取消已有点赞/收藏及有权删除评论的入口；字段缺失时按 `true` 兼容旧服务。发现快照的 `40007` 清空游标刷新，`50000`/503 保留当前列表并稍后重试。此 UI/SDK 变更只能在 Windows 移动端工作区实现，VPS 审查副本不做修改。
 - 合同 `5.8.0-dev.20260823.1` 起，主题帖分类来自 `GET /thread-categories`，保存稳定 `slug`；草稿可为空，发布前选择启用项。Flutter 必须消费 [`thread-category-v3-fixtures.json`](../contracts/thread-category-v3-fixtures.json)：现有线程直接显示响应 `categoryInfo.name`，不再用仅含启用项的发现列表反查；停用项保留当前名称且不可新选，未知 slug 原值降级，空值显示“未分类”。分类是纯文本能力，客户端不得消费兼容字段 `icon / mergedIntoId`，也不得复制任何现有 slug、名称或分类数量为枚举/回退常量。旧客户端继续读取原 `category`，新增字段由生成模型按未知字段兼容策略忽略。
 - 每日启动可调用 `POST /wallet/check-in`；只有 `claimedNow=true` 时展示本次领取。所有温油金额都是十进制整数字符串，不转换为浮点数；打赏继续复用稳定幂等键。
 

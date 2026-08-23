@@ -38,6 +38,7 @@ import {
 import { MomentBookmarksService } from './moment-bookmarks.service';
 import { MomentsService } from './moments.service';
 import { PostAuthorResponseDto } from '../posts/dto/post-response.dto';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Moments')
 @Controller('moments')
@@ -50,6 +51,7 @@ export class MomentsController {
 
   @Get()
   @OptionalAuth()
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: '动态瀑布流；发现为热度，新鲜关注为时间倒序' })
   @ApiCursorPaginatedResponse(MomentCardResponseDto, '动态卡片游标分页')
   list(@Query() query: MomentFeedQueryDto, @CurrentUser() user?: CurrentUserPayload) {
@@ -67,6 +69,7 @@ export class MomentsController {
 
   @Post()
   @Auth()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiBearerAuth()
   @ApiOperation({ summary: '发布纯文本/图片动态，最多 9 张图片' })
   @ApiCreatedResponse({ type: MomentDetailResponseDto })

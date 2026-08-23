@@ -226,9 +226,11 @@ export class EconomyService {
           blockedBy: { none: { blockerId: sender.id } },
         },
       },
-      select: { id: true, authorId: true, title: true },
+      select: { id: true, authorId: true, title: true, author: { select: { deletedAt: true } } },
     });
     if (!moment) throw notFound(ErrorCode.MOMENT_NOT_FOUND, '动态不存在');
+    if (moment.author.deletedAt)
+      throw forbidden('已注销作者的历史动态不能接收加油', ErrorCode.TIP_NOT_ALLOWED);
     return this.tip(
       sender,
       {
@@ -344,20 +346,37 @@ export class EconomyService {
           async (tx) => {
             const [recipient, recipientWallet, platformWallet] = await Promise.all([
               tx.user.findUnique({
-                where: { id: target.recipientId, deletedAt: null },
+                where: { id: target.recipientId },
                 select: { id: true, username: true, deletedAt: true },
               }),
               tx.wallet.findUnique({ where: { userId: target.recipientId } }),
               tx.wallet.findUnique({ where: { id: PLATFORM_WALLET_ID } }),
             ]);
-            if (!recipient || !recipientWallet)
-              throw notFound(ErrorCode.USER_NOT_FOUND, '收款用户不存在');
+            if (!recipient || !recipientWallet) throw notFound(ErrorCode.USER_NOT_FOUND, '收款用户不存在');
             if (!platformWallet)
               throw new BusinessException(
                 ErrorCode.INTERNAL_ERROR,
                 '平台钱包不存在',
                 HttpStatus.INTERNAL_SERVER_ERROR,
               );
+
+            const userIds = [sender.id, target.recipientId].sort();
+            await tx.$queryRaw(Prisma.sql`
+              SELECT "id" FROM "users"
+              WHERE "id" IN (${Prisma.join(userIds)})
+              ORDER BY "id" FOR UPDATE
+            `);
+            const currentSender = await tx.user.findUnique({ where: { id: sender.id }, select: { deletedAt: true } });
+            if (!currentSender || currentSender.deletedAt) {
+              throw new BusinessException(ErrorCode.ACCOUNT_DEACTIVATED, '账号已注销', HttpStatus.UNAUTHORIZED);
+            }
+            const currentRecipient = await tx.user.findUnique({ where: { id: target.recipientId }, select: { deletedAt: true } });
+            if (!currentRecipient || currentRecipient.deletedAt) {
+              if (target.type === 'MOMENT') {
+                throw forbidden('已注销作者的历史动态不能接收加油', ErrorCode.TIP_NOT_ALLOWED);
+              }
+              throw notFound(ErrorCode.USER_NOT_FOUND, '收款用户不存在');
+            }
 
             const walletIds = [senderWallet.id, recipientWallet.id, platformWallet.id].sort();
             await tx.$queryRaw(Prisma.sql`
@@ -410,12 +429,18 @@ export class EconomyService {
             }
 
             if (target.type === 'MOMENT') {
+              await tx.$queryRaw`
+                SELECT "id" FROM "moments" WHERE "id" = ${target.momentId} FOR UPDATE
+              `;
               const currentMoment = await tx.moment.findUnique({
                 where: { id: target.momentId, deletedAt: null },
-                select: { authorId: true },
+                select: { authorId: true, author: { select: { deletedAt: true } } },
               });
               if (!currentMoment || currentMoment.authorId !== target.recipientId) {
                 throw notFound(ErrorCode.MOMENT_NOT_FOUND, '动态不存在');
+              }
+              if (currentMoment.author.deletedAt) {
+                throw forbidden('已注销作者的历史动态不能接收加油', ErrorCode.TIP_NOT_ALLOWED);
               }
             }
 

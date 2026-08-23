@@ -327,6 +327,9 @@ let draftVersion = 0;
 let bookmarkId = '';
 let currentUserId = '';
 let momentId = '';
+let momentCommentId = '';
+const momentClientRequestId = crypto.randomUUID();
+const momentCommentClientRequestId = crypto.randomUUID();
 let momentFolderId = '';
 let defaultBookmarkFolderId = '';
 let subscriptionId = '';
@@ -1090,10 +1093,84 @@ test(s11, 'POST /moments 发布纯文本动态', async () => {
     title: `E2E 动态 ${RUN_ID.slice(-6)}`,
     content: '动态收藏夹端到端验证',
     mediaIds: [],
-    clientRequestId: crypto.randomUUID(),
+    clientRequestId: momentClientRequestId,
   });
   assert(r.code === 0, `发布动态应成功 (got: ${r.code} ${r.message})`);
   momentId = r.data.id;
+  assert(r.data.canInteract === true, '活跃作者的动态应允许互动');
+});
+
+test(s11, 'POST /moments 相同幂等请求稳定重放', async () => {
+  const r = await api.post('/moments', {
+    title: `E2E 动态 ${RUN_ID.slice(-6)}`,
+    content: '动态收藏夹端到端验证',
+    mediaIds: [],
+    clientRequestId: momentClientRequestId,
+  });
+  assert(r.code === 0 && r.data.id === momentId, '幂等重放应返回原动态');
+});
+
+test(s11, 'POST /moments 拒绝幂等键复用与非 CUID 媒体', async () => {
+  const reused = await api.expectStatus('/moments', 'POST', {
+    title: `E2E 动态变更 ${RUN_ID.slice(-6)}`,
+    content: '动态收藏夹端到端验证',
+    mediaIds: [],
+    clientRequestId: momentClientRequestId,
+  });
+  assert(reused.status === 409, `幂等键复用应返回 409，实际 ${reused.status}`);
+  assert((reused.json as { code?: number }).code === 40912, '幂等键复用应返回 40912');
+
+  const invalidMedia = await api.expectStatus('/moments', 'POST', {
+    title: 'E2E 非法媒体',
+    mediaIds: ['not-a-cuid'],
+    clientRequestId: crypto.randomUUID(),
+  });
+  assert(invalidMedia.status === 400, `非 CUID 媒体应返回 400，实际 ${invalidMedia.status}`);
+});
+
+test(s11, 'GET /moments 与搜索可见新动态', async () => {
+  const feed = await api.get('/moments?feed=DISCOVER&limit=50');
+  assert(feed.code === 0, `发现流应成功 (got: ${feed.code})`);
+  assert(feed.data.some((moment: { id?: string }) => moment.id === momentId), '发现流应包含新动态');
+
+  const query = encodeURIComponent(`E2E 动态 ${RUN_ID.slice(-6)}`);
+  const searched = await api.get(`/search/moments?q=${query}`);
+  assert(searched.code === 0, `动态搜索应成功 (got: ${searched.code})`);
+  assert(
+    searched.data.some((moment: { id?: string }) => moment.id === momentId),
+    '动态搜索应包含新动态',
+  );
+});
+
+test(s11, '动态点赞与评论下游计数可一致回收', async () => {
+  const liked = await api.post(`/moments/${momentId}/like`);
+  assert(liked.code === 0 && liked.data.active === true, '点赞应成功');
+
+  const commented = await api.post(`/moments/${momentId}/comments`, {
+    content: 'E2E 动态评论',
+    clientRequestId: momentCommentClientRequestId,
+  });
+  assert(commented.code === 0, `发表评论应成功 (got: ${commented.code})`);
+  momentCommentId = commented.data.id;
+
+  const replayed = await api.post(`/moments/${momentId}/comments`, {
+    content: 'E2E 动态评论',
+    clientRequestId: momentCommentClientRequestId,
+  });
+  assert(replayed.data.id === momentCommentId, '评论幂等重放应返回原评论');
+
+  const detail = await api.get(`/moments/${momentId}`);
+  assert(detail.data.likeCount === 1, '动态点赞计数应为 1');
+  assert(detail.data.commentCount === 1, '重放后评论计数仍应为 1');
+
+  const removedComment = await api.del(`/moments/${momentId}/comments/${momentCommentId}`);
+  assert(removedComment.code === 0, '删除评论应成功');
+  const unliked = await api.del(`/moments/${momentId}/like`);
+  assert(unliked.code === 0 && unliked.data.active === false, '取消点赞应成功');
+
+  const cleaned = await api.get(`/moments/${momentId}`);
+  assert(cleaned.data.likeCount === 0, '取消点赞后计数应归零');
+  assert(cleaned.data.commentCount === 0, '删除评论后计数应归零');
 });
 
 test(s11, 'POST /moments/:id/bookmark 收藏到指定收藏夹', async () => {

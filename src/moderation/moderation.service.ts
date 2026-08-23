@@ -369,6 +369,7 @@ export class ModerationService {
         },
       });
     } else if (targetType === 'MOMENT') {
+      await this.lockMoment(tx, targetId);
       const moment = await tx.moment.findUnique({
         where: { id: targetId },
         select: { deletedAt: true, removalSource: true },
@@ -392,9 +393,21 @@ export class ModerationService {
         },
       });
     } else {
+      const target = await tx.momentComment.findUnique({
+        where: { id: targetId },
+        select: { momentId: true },
+      });
+      if (!target) throw notFound(ErrorCode.MOMENT_NOT_FOUND, '动态评论不存在');
+      await this.lockMoment(tx, target.momentId);
+      await this.lockMomentComment(tx, targetId);
       const comment = await tx.momentComment.findUnique({
         where: { id: targetId },
-        select: { deletedAt: true, removalSource: true, moment: { select: { deletedAt: true } } },
+        select: {
+          momentId: true,
+          deletedAt: true,
+          removalSource: true,
+          moment: { select: { deletedAt: true } },
+        },
       });
       if (!comment || comment.moment.deletedAt)
         throw notFound(ErrorCode.MOMENT_NOT_FOUND, '动态评论不存在');
@@ -415,17 +428,13 @@ export class ModerationService {
           removalReason: reason.trim(),
         },
       });
-      await tx.moment.update({
-        where: {
-          id: (
-            await tx.momentComment.findUniqueOrThrow({
-              where: { id: targetId },
-              select: { momentId: true },
-            })
-          ).momentId,
-        },
+      const updated = await tx.moment.updateMany({
+        where: { id: comment.momentId, deletedAt: null },
         data: { commentCount: { decrement: 1 } },
       });
+      if (updated.count === 0) {
+        throw conflict(ErrorCode.CONTENT_STATE_CONFLICT, '所属动态已不可见，不能隐藏评论');
+      }
     }
     await this.audit.record(
       {
@@ -510,6 +519,7 @@ export class ModerationService {
           data: { deletedAt: null, removalSource: null, removedById: null, removalReason: null },
         });
       } else if (targetType === 'MOMENT') {
+        await this.lockMoment(tx, targetId);
         const moment = await tx.moment.findUnique({
           where: { id: targetId },
           select: { deletedAt: true, removalSource: true },
@@ -523,6 +533,13 @@ export class ModerationService {
           data: { deletedAt: null, removalSource: null, removedById: null, removalReason: null },
         });
       } else {
+        const target = await tx.momentComment.findUnique({
+          where: { id: targetId },
+          select: { momentId: true },
+        });
+        if (!target) throw notFound(ErrorCode.MOMENT_NOT_FOUND, '动态评论不存在');
+        await this.lockMoment(tx, target.momentId);
+        await this.lockMomentComment(tx, targetId);
         const comment = await tx.momentComment.findUnique({
           where: { id: targetId },
           select: {
@@ -542,10 +559,13 @@ export class ModerationService {
           where: { id: targetId },
           data: { deletedAt: null, removalSource: null, removedById: null, removalReason: null },
         });
-        await tx.moment.update({
-          where: { id: comment.momentId },
+        const updated = await tx.moment.updateMany({
+          where: { id: comment.momentId, deletedAt: null },
           data: { commentCount: { increment: 1 } },
         });
+        if (updated.count === 0) {
+          throw conflict(ErrorCode.CONTENT_STATE_CONFLICT, '所属动态仍不可见，不能恢复评论');
+        }
       }
       await this.audit.record(
         {
@@ -578,6 +598,16 @@ export class ModerationService {
 
   async finalizeContentMutation(effect: ContentModerationEffect) {
     await this.projections.finalizeContent(effect);
+  }
+
+  private async lockMoment(tx: Prisma.TransactionClient, momentId: string) {
+    await tx.$queryRaw`SELECT "id" FROM "moments" WHERE "id" = ${momentId} FOR UPDATE`;
+  }
+
+  private async lockMomentComment(tx: Prisma.TransactionClient, commentId: string) {
+    await tx.$queryRaw`
+      SELECT "id" FROM "moment_comments" WHERE "id" = ${commentId} FOR UPDATE
+    `;
   }
 
   private async loadContentEffect(

@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { paginate } from '../common/dto/paginated-result';
 import { hashIdempotencyPayload } from '../common/idempotency';
@@ -13,12 +7,29 @@ import { OutboxService } from '../outbox/outbox.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMomentCommentDto } from './dto/moment-write.dto';
 import { mapMomentComment } from './moment.mapper';
-import { MomentsService } from './moments.service';
 import { ReplyOrder } from '../common/dto/reply-query.dto';
 import { StickersService } from '../stickers/stickers.service';
 import { MediaReferenceService } from '../media/media-reference.service';
+import { BusinessException, notFound } from '../common/exceptions/business.exception';
+import { ErrorCode } from '../common/exceptions/error-codes';
+import { isUniqueConstraintViolation } from '../common/prisma-errors';
+import { MomentAccessService } from './moment-access.service';
 
 type Viewer = { id: string; username?: string; role?: string };
+
+const MAX_PAGE_SIZE = 50;
+
+function badRequest(message: string) {
+  return new BusinessException(ErrorCode.BAD_REQUEST, message, HttpStatus.BAD_REQUEST);
+}
+
+function conflict(code: number, message: string) {
+  return new BusinessException(code, message, HttpStatus.CONFLICT);
+}
+
+function momentNotFound(message: string) {
+  return notFound(ErrorCode.MOMENT_NOT_FOUND, message);
+}
 
 const commentSelect = {
   id: true,
@@ -57,7 +68,7 @@ const commentSelect = {
 export class MomentCommentsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly moments: MomentsService,
+    private readonly access: MomentAccessService,
     private readonly outbox: OutboxService,
     private readonly stickers: StickersService,
     private readonly mediaReferences: MediaReferenceService,
@@ -71,10 +82,10 @@ export class MomentCommentsService {
     order = ReplyOrder.NEWEST,
     authorId?: string,
   ) {
-    const moment = await this.moments.assertVisible(momentId, viewer?.id);
+    const moment = await this.access.assertVisible(momentId, viewer?.id);
     const excludedAuthors = await this.excludedAuthorIds(viewer?.id);
     if (cursor) await this.assertCursor(cursor, momentId, true);
-    const take = Math.min(limit, 30);
+    const take = Math.min(limit, MAX_PAGE_SIZE);
     const direction = order === ReplyOrder.NEWEST ? 'desc' : 'asc';
     const visibleReplyWhere = {
       deletedAt: null,
@@ -152,15 +163,15 @@ export class MomentCommentsService {
     order = ReplyOrder.OLDEST,
     authorId?: string,
   ) {
-    const moment = await this.moments.assertVisible(momentId, viewer?.id);
+    const moment = await this.access.assertVisible(momentId, viewer?.id);
     const root = await this.prisma.momentComment.findFirst({
       where: { id: rootCommentId, momentId, parentCommentId: null },
       select: { id: true },
     });
-    if (!root) throw new NotFoundException('主评论不存在');
+    if (!root) throw momentNotFound('主评论不存在');
     if (cursor) await this.assertCursor(cursor, momentId, false, rootCommentId);
     const excludedAuthors = await this.excludedAuthorIds(viewer?.id);
-    const take = Math.min(limit, 50);
+    const take = Math.min(limit, MAX_PAGE_SIZE);
     const direction = order === ReplyOrder.NEWEST ? 'desc' : 'asc';
     const rows = await this.prisma.momentComment.findMany({
       where: {
@@ -187,7 +198,7 @@ export class MomentCommentsService {
   }
 
   async listAuthors(momentId: string, viewer?: Viewer) {
-    await this.moments.assertVisible(momentId, viewer?.id);
+    await this.access.assertVisible(momentId, viewer?.id);
     const excludedAuthors = await this.excludedAuthorIds(viewer?.id);
     const rows = await this.prisma.momentComment.findMany({
       where: {
@@ -209,7 +220,7 @@ export class MomentCommentsService {
   }
 
   async findContext(momentId: string, commentId: string, viewer?: Viewer) {
-    const moment = await this.moments.assertVisible(momentId, viewer?.id);
+    const moment = await this.access.assertVisible(momentId, viewer?.id);
     const excludedAuthors = await this.excludedAuthorIds(viewer?.id);
     const visibleAuthorWhere = excludedAuthors.length
       ? { authorId: { notIn: excludedAuthors } }
@@ -223,7 +234,7 @@ export class MomentCommentsService {
       },
       select: commentSelect,
     });
-    if (!target) throw new NotFoundException('目标评论不存在或不可见');
+    if (!target) throw momentNotFound('目标评论不存在或不可见');
 
     const rootCommentId = target.parentCommentId ?? target.id;
     const root = target.parentCommentId
@@ -237,7 +248,7 @@ export class MomentCommentsService {
           select: commentSelect,
         })
       : target;
-    if (!root) throw new NotFoundException('目标评论不存在或不可见');
+    if (!root) throw momentNotFound('目标评论不存在或不可见');
 
     const replyCount = await this.prisma.momentComment.count({
       where: {
@@ -254,33 +265,22 @@ export class MomentCommentsService {
   }
 
   async create(momentId: string, dto: CreateMomentCommentDto, viewer: Viewer) {
-    const moment = await this.moments.assertVisible(momentId, viewer.id);
     const content = dto.content?.trim() ?? '';
     const mediaId = dto.mediaId ?? null;
     const stickerAssetId = dto.stickerAssetId ?? null;
     if (!content && !mediaId && !stickerAssetId) {
-      throw new BadRequestException('评论内容、图片或表情至少需要一项');
+      throw badRequest('评论内容、图片或表情至少需要一项');
     }
     if (mediaId && stickerAssetId) {
-      throw new BadRequestException('一条评论只能选择一张图片或一个表情');
+      throw badRequest('一条评论只能选择一张图片或一个表情');
     }
-    let parentCommentId: string | null = null;
-    let replyTarget: { id: string; authorId: string; parentCommentId: string | null } | null = null;
-    if (dto.replyToCommentId) {
-      replyTarget = await this.prisma.momentComment.findFirst({
-        where: { id: dto.replyToCommentId, momentId, deletedAt: null },
-        select: { id: true, authorId: true, parentCommentId: true },
-      });
-      if (!replyTarget) throw new NotFoundException('被回复的评论不存在');
-      await this.assertUsersCanInteract(viewer.id, replyTarget.authorId);
-      parentCommentId = replyTarget.parentCommentId ?? replyTarget.id;
-    }
+    const moment = await this.access.assertVisible(momentId, viewer.id);
     const requestHash = hashIdempotencyPayload({
       momentId,
       content,
       mediaId,
       stickerAssetId,
-      replyToCommentId: replyTarget?.id ?? null,
+      replyToCommentId: dto.replyToCommentId ?? null,
     });
     const replay = await this.prisma.momentComment.findUnique({
       where: {
@@ -290,14 +290,41 @@ export class MomentCommentsService {
     });
     if (replay) {
       if (replay.createRequestHash !== requestHash)
-        throw new ConflictException('同一评论请求不能用于不同内容');
+        throw conflict(ErrorCode.IDEMPOTENCY_KEY_REUSED, '同一评论请求不能用于不同内容');
       return this.findMapped(replay.id, viewer, moment.authorId);
     }
 
-    const recipientId = replyTarget?.authorId ?? moment.authorId;
-    let createdId: string;
     try {
-      const created = await this.prisma.$transaction(async (tx) => {
+      return await this.prisma.$transaction(async (tx) => {
+        const preliminaryReply = dto.replyToCommentId
+          ? await tx.momentComment.findFirst({
+              where: { id: dto.replyToCommentId, momentId, deletedAt: null },
+              select: { authorId: true },
+            })
+          : null;
+        const lockedMoment = await this.access.lockVisible(
+          tx,
+          momentId,
+          viewer.id,
+          preliminaryReply ? [preliminaryReply.authorId] : [],
+        );
+        this.access.assertCanAddInteraction(lockedMoment);
+        const replyTarget = dto.replyToCommentId
+          ? await tx.momentComment.findFirst({
+              where: { id: dto.replyToCommentId, momentId, deletedAt: null },
+              select: { id: true, authorId: true, parentCommentId: true },
+            })
+          : null;
+        if (dto.replyToCommentId && !replyTarget) {
+          throw momentNotFound('被回复的评论不存在');
+        }
+        if (replyTarget) {
+          await this.assertUsersCanInteract(tx, viewer.id, replyTarget.authorId);
+        }
+        const parentCommentId = replyTarget
+          ? replyTarget.parentCommentId ?? replyTarget.id
+          : null;
+        const recipientId = replyTarget?.authorId ?? lockedMoment.authorId;
         await this.assertMediaAvailable(tx, viewer.id, mediaId);
         if (stickerAssetId) await this.stickers.assertFavorite(viewer.id, stickerAssetId, tx);
         const comment = await tx.momentComment.create({
@@ -316,10 +343,11 @@ export class MomentCommentsService {
         });
         if (mediaId) await this.mediaReferences.reconcileMediaIds(tx, [mediaId]);
         if (stickerAssetId) await this.stickers.recordUsage(viewer.id, stickerAssetId, tx);
-        await tx.moment.update({
-          where: { id: momentId },
+        const updated = await tx.moment.updateMany({
+          where: { id: momentId, deletedAt: null },
           data: { commentCount: { increment: 1 } },
         });
+        if (updated.count === 0) throw momentNotFound('动态不存在');
         if (recipientId !== viewer.id) {
           await this.outbox.enqueue(tx, {
             eventType: 'moment.comment.created',
@@ -329,7 +357,7 @@ export class MomentCommentsService {
             payload: {
               commentId: comment.id,
               momentId,
-              momentTitle: moment.title,
+              momentTitle: lockedMoment.title,
               actorId: viewer.id,
               actorUsername: viewer.username ?? '有人',
               recipientId,
@@ -337,45 +365,53 @@ export class MomentCommentsService {
             },
           });
         }
-        return comment;
+        const row = await tx.momentComment.findUniqueOrThrow({
+          where: { id: comment.id },
+          select: commentSelect,
+        });
+        return mapMomentComment(row, viewer, lockedMoment.authorId);
       });
-      createdId = created.id;
     } catch (error) {
-      if ((error as { code?: string }).code !== 'P2002') throw error;
+      if (!isUniqueConstraintViolation(error)) throw error;
       const raced = await this.prisma.momentComment.findUnique({
         where: {
           authorId_clientRequestId: { authorId: viewer.id, clientRequestId: dto.clientRequestId },
         },
         select: { id: true, createRequestHash: true },
       });
-      if (!raced) throw new ConflictException('图片已用于其他评论');
+      if (!raced) throw conflict(ErrorCode.CONFLICT, '图片已用于其他评论');
       if (raced.createRequestHash !== requestHash)
-        throw new ConflictException('同一评论请求不能用于不同内容');
-      createdId = raced.id;
+        throw conflict(ErrorCode.IDEMPOTENCY_KEY_REUSED, '同一评论请求不能用于不同内容');
+      return this.findMapped(raced.id, viewer, moment.authorId);
     }
-    return this.findMapped(createdId, viewer, moment.authorId);
   }
 
   async remove(momentId: string, commentId: string, viewer: Viewer) {
-    const comment = await this.prisma.momentComment.findFirst({
-      where: { id: commentId, momentId },
-      select: {
-        authorId: true,
-        deletedAt: true,
-        mediaId: true,
-        moment: { select: { authorId: true, deletedAt: true } },
-      },
-    });
-    if (!comment || comment.moment.deletedAt) throw new NotFoundException('评论不存在');
-    const admin = viewer.role === 'ADMIN' || viewer.role === 'SUPER_ADMIN';
-    if (comment.authorId !== viewer.id && comment.moment.authorId !== viewer.id && !admin) {
-      throw new ForbiddenException('无权删除该评论');
-    }
-    if (comment.deletedAt) return { message: '评论已删除' };
-    const restorableAdminRemoval = admin && comment.authorId !== viewer.id;
     await this.prisma.$transaction(async (tx) => {
-      const removed = await tx.momentComment.updateMany({
-        where: { id: commentId, deletedAt: null },
+      await tx.$queryRaw`SELECT "id" FROM "moments" WHERE "id" = ${momentId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT "id" FROM "moment_comments" WHERE "id" = ${commentId} FOR UPDATE`;
+      const comment = await tx.momentComment.findFirst({
+        where: { id: commentId, momentId },
+        select: {
+          authorId: true,
+          deletedAt: true,
+          mediaId: true,
+          moment: { select: { authorId: true, deletedAt: true } },
+        },
+      });
+      if (!comment || comment.moment.deletedAt) throw momentNotFound('评论不存在');
+      const admin = viewer.role === 'ADMIN' || viewer.role === 'SUPER_ADMIN';
+      if (comment.authorId !== viewer.id && comment.moment.authorId !== viewer.id && !admin) {
+        throw new BusinessException(
+          ErrorCode.FORBIDDEN,
+          '无权删除该评论',
+          HttpStatus.FORBIDDEN,
+        );
+      }
+      if (comment.deletedAt) return;
+      const restorableAdminRemoval = admin && comment.authorId !== viewer.id;
+      await tx.momentComment.update({
+        where: { id: commentId },
         data: {
           deletedAt: new Date(),
           removalSource: restorableAdminRemoval
@@ -387,14 +423,13 @@ export class MomentCommentsService {
           ...(!restorableAdminRemoval ? { mediaId: null } : {}),
         },
       });
-      if (removed.count > 0) {
-        await tx.moment.update({
-          where: { id: momentId },
-          data: { commentCount: { decrement: 1 } },
-        });
-        if (!restorableAdminRemoval && comment.mediaId) {
-          await this.mediaReferences.reconcileMediaIds(tx, [comment.mediaId]);
-        }
+      const updated = await tx.moment.updateMany({
+        where: { id: momentId, deletedAt: null },
+        data: { commentCount: { decrement: 1 } },
+      });
+      if (updated.count === 0) throw momentNotFound('动态不存在');
+      if (!restorableAdminRemoval && comment.mediaId) {
+        await this.mediaReferences.reconcileMediaIds(tx, [comment.mediaId]);
       }
     });
     return { message: '评论已删除' };
@@ -405,7 +440,7 @@ export class MomentCommentsService {
       where: { id },
       select: commentSelect,
     });
-    if (!row) throw new NotFoundException('评论不存在');
+    if (!row) throw momentNotFound('评论不存在');
     return mapMomentComment(row, viewer, momentAuthorId);
   }
 
@@ -419,7 +454,13 @@ export class MomentCommentsService {
       where: { id, momentId, parentCommentId: root ? null : parentCommentId },
       select: { id: true },
     });
-    if (!row) throw new BadRequestException('无效的评论分页游标');
+    if (!row) {
+      throw new BusinessException(
+        ErrorCode.INVALID_CURSOR,
+        '无效的评论分页游标',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
   }
 
   private async excludedAuthorIds(viewerId?: string) {
@@ -433,9 +474,13 @@ export class MomentCommentsService {
     ];
   }
 
-  private async assertUsersCanInteract(firstId: string, secondId: string) {
+  private async assertUsersCanInteract(
+    client: PrismaService | Prisma.TransactionClient,
+    firstId: string,
+    secondId: string,
+  ) {
     if (firstId === secondId) return;
-    const block = await this.prisma.userBlock.findFirst({
+    const block = await client.userBlock.findFirst({
       where: {
         OR: [
           { blockerId: firstId, blockedId: secondId },
@@ -444,7 +489,13 @@ export class MomentCommentsService {
       },
       select: { id: true },
     });
-    if (block) throw new ForbiddenException('存在拉黑关系，不能回复');
+    if (block) {
+      throw new BusinessException(
+        ErrorCode.FORBIDDEN,
+        '存在拉黑关系，不能回复',
+        HttpStatus.FORBIDDEN,
+      );
+    }
   }
 
   private async assertMediaAvailable(
@@ -464,10 +515,10 @@ export class MomentCommentsService {
       },
     });
     if (!media || media.userId !== userId || media.status !== 'COMPLETED') {
-      throw new BadRequestException('图片不存在、尚未处理完成或不属于当前用户');
+      throw badRequest('图片不存在、尚未处理完成或不属于当前用户');
     }
     if (media.directMessage || media.momentImages.length > 0 || media.momentComment) {
-      throw new ConflictException('图片已用于其他内容');
+      throw conflict(ErrorCode.CONFLICT, '图片已用于其他内容');
     }
   }
 }

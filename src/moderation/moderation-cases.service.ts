@@ -550,6 +550,7 @@ export class ModerationCasesService {
       };
     }
     if (targetType === ReportTargetType.MOMENT) {
+      await tx.$queryRaw`SELECT "id" FROM "moments" WHERE "id" = ${targetId} FOR UPDATE`;
       const target = await tx.moment.findUnique({
         where: { id: targetId },
         select: { deletedAt: true, removalSource: true },
@@ -564,21 +565,45 @@ export class ModerationCasesService {
       return { targetType: 'MOMENT', targetId, hidden: false, deletedAt: null, momentId: targetId };
     }
     if (targetType === ReportTargetType.MOMENT_COMMENT) {
+      const preliminary = await tx.momentComment.findUnique({
+        where: { id: targetId },
+        select: { momentId: true },
+      });
+      if (!preliminary) {
+        throw conflict(ErrorCode.CONTENT_STATE_CONFLICT, '内容已不处于可恢复状态');
+      }
+      await tx.$queryRaw`
+        SELECT "id" FROM "moments" WHERE "id" = ${preliminary.momentId} FOR UPDATE
+      `;
+      await tx.$queryRaw`
+        SELECT "id" FROM "moment_comments" WHERE "id" = ${targetId} FOR UPDATE
+      `;
       const target = await tx.momentComment.findUnique({
         where: { id: targetId },
-        select: { deletedAt: true, removalSource: true, momentId: true },
+        select: {
+          deletedAt: true,
+          removalSource: true,
+          momentId: true,
+          moment: { select: { deletedAt: true } },
+        },
       });
       if (!target || !target.deletedAt || target.removalSource !== ContentRemovalSource.ADMIN) {
         throw conflict(ErrorCode.CONTENT_STATE_CONFLICT, '内容已不处于可恢复状态');
+      }
+      if (target.moment.deletedAt) {
+        throw conflict(ErrorCode.CONTENT_STATE_CONFLICT, '所属动态仍不可见，不能恢复评论');
       }
       await tx.momentComment.update({
         where: { id: targetId },
         data: { deletedAt: null, removalSource: null, removedById: null, removalReason: null },
       });
-      await tx.moment.update({
-        where: { id: target.momentId },
+      const updated = await tx.moment.updateMany({
+        where: { id: target.momentId, deletedAt: null },
         data: { commentCount: { increment: 1 } },
       });
+      if (updated.count === 0) {
+        throw conflict(ErrorCode.CONTENT_STATE_CONFLICT, '所属动态仍不可见，不能恢复评论');
+      }
       return {
         targetType: 'MOMENT_COMMENT',
         targetId,

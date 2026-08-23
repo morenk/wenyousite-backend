@@ -1,6 +1,9 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { HttpStatus } from '@nestjs/common';
 import { MomentCommentsService } from './moment-comments.service';
 import { ReplyOrder } from '../common/dto/reply-query.dto';
+import { BusinessException } from '../common/exceptions/business.exception';
+import { ErrorCode } from '../common/exceptions/error-codes';
+import { hashIdempotencyPayload } from '../common/idempotency';
 
 const author = (id: string, username = id) => ({
   id,
@@ -29,9 +32,17 @@ function commentRow(overrides: Record<string, unknown> = {}) {
 
 function createContext() {
   const tx = {
-    momentComment: { create: jest.fn(), updateMany: jest.fn() },
-    moment: { update: jest.fn() },
+    momentComment: {
+      findFirst: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
+    },
+    moment: { update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
     media: { findUnique: jest.fn() },
+    userBlock: { findFirst: jest.fn() },
+    $queryRaw: jest.fn(),
   };
   const prisma = {
     momentComment: {
@@ -48,7 +59,15 @@ function createContext() {
       id: 'moment-1',
       authorId: 'moment-owner',
       title: '动态标题',
+      author: { deletedAt: null },
     }),
+    lockVisible: jest.fn().mockResolvedValue({
+      id: 'moment-1',
+      authorId: 'moment-owner',
+      title: '动态标题',
+      author: { deletedAt: null },
+    }),
+    assertCanAddInteraction: jest.fn(),
   };
   const outbox = { enqueue: jest.fn() };
   const stickers = { assertFavorite: jest.fn(), recordUsage: jest.fn() };
@@ -67,6 +86,17 @@ function createContext() {
       mediaReferences as never,
     ),
   };
+}
+
+async function expectBusiness(
+  promise: Promise<unknown>,
+  errorCode: number,
+  status: HttpStatus,
+) {
+  const error = await promise.catch((reason: unknown) => reason);
+  expect(error).toBeInstanceOf(BusinessException);
+  expect(error).toMatchObject({ errorCode });
+  expect((error as BusinessException).getStatus()).toBe(status);
 }
 
 describe('MomentCommentsService', () => {
@@ -243,14 +273,15 @@ describe('MomentCommentsService', () => {
 
   it('回复楼中楼时统一归入主评论，并通知实际被回复者', async () => {
     const { service, prisma, tx, outbox } = createContext();
-    prisma.momentComment.findFirst.mockResolvedValue({
+    tx.momentComment.findFirst.mockResolvedValue({
       id: 'nested-comment',
       authorId: 'target',
       parentCommentId: 'root-comment',
     });
-    prisma.userBlock.findFirst.mockResolvedValue(null);
-    prisma.momentComment.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce(commentRow());
+    tx.userBlock.findFirst.mockResolvedValue(null);
+    prisma.momentComment.findUnique.mockResolvedValue(null);
     tx.momentComment.create.mockResolvedValue({ id: 'comment-new' });
+    tx.momentComment.findUniqueOrThrow.mockResolvedValue(commentRow());
 
     const result = await service.create(
       'moment-1',
@@ -283,7 +314,8 @@ describe('MomentCommentsService', () => {
 
   it('允许只发一张已完成且未占用的图片，并把媒体写入幂等载荷', async () => {
     const { service, prisma, tx } = createContext();
-    prisma.momentComment.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce(
+    prisma.momentComment.findUnique.mockResolvedValue(null);
+    tx.momentComment.findUniqueOrThrow.mockResolvedValue(
       commentRow({
         content: '',
         parentCommentId: null,
@@ -325,7 +357,8 @@ describe('MomentCommentsService', () => {
 
   it('允许收藏表情评论并记录最近使用', async () => {
     const { service, prisma, tx, stickers } = createContext();
-    prisma.momentComment.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce(
+    prisma.momentComment.findUnique.mockResolvedValue(null);
+    tx.momentComment.findUniqueOrThrow.mockResolvedValue(
       commentRow({
         content: '',
         parentCommentId: null,
@@ -362,28 +395,33 @@ describe('MomentCommentsService', () => {
     const { service } = createContext();
     const clientRequestId = '00000000-0000-4000-8000-000000000001';
 
-    await expect(
+    await expectBusiness(
       service.create('moment-1', { clientRequestId }, { id: 'viewer' }),
-    ).rejects.toBeInstanceOf(BadRequestException);
-    await expect(
+      ErrorCode.BAD_REQUEST,
+      HttpStatus.BAD_REQUEST,
+    );
+    await expectBusiness(
       service.create(
         'moment-1',
         { content: '文字', mediaId: 'media-1', stickerAssetId: 'sticker-1', clientRequestId },
         { id: 'viewer' },
       ),
-    ).rejects.toBeInstanceOf(BadRequestException);
+      ErrorCode.BAD_REQUEST,
+      HttpStatus.BAD_REQUEST,
+    );
   });
 
   it('存在双向任一拉黑关系时禁止回复', async () => {
-    const { service, prisma } = createContext();
-    prisma.momentComment.findFirst.mockResolvedValue({
+    const { service, prisma, tx } = createContext();
+    tx.momentComment.findFirst.mockResolvedValue({
       id: 'target-comment',
       authorId: 'target',
       parentCommentId: null,
     });
-    prisma.userBlock.findFirst.mockResolvedValue({ id: 'block-1' });
+    tx.userBlock.findFirst.mockResolvedValue({ id: 'block-1' });
+    prisma.momentComment.findUnique.mockResolvedValue(null);
 
-    await expect(
+    await expectBusiness(
       service.create(
         'moment-1',
         {
@@ -393,26 +431,84 @@ describe('MomentCommentsService', () => {
         },
         { id: 'viewer' },
       ),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+      ErrorCode.FORBIDDEN,
+      HttpStatus.FORBIDDEN,
+    );
+  });
+
+  it('评论幂等键不得被复用到不同载荷', async () => {
+    const { service, prisma } = createContext();
+    prisma.momentComment.findUnique.mockResolvedValue({
+      id: 'comment-existing',
+      createRequestHash: hashIdempotencyPayload({
+        momentId: 'moment-1',
+        content: '原评论',
+        mediaId: null,
+        stickerAssetId: null,
+        replyToCommentId: null,
+      }),
+    });
+
+    await expectBusiness(
+      service.create(
+        'moment-1',
+        {
+          content: '新评论',
+          clientRequestId: '00000000-0000-4000-8000-000000000001',
+        },
+        { id: 'viewer' },
+      ),
+      ErrorCode.IDEMPOTENCY_KEY_REUSED,
+      HttpStatus.CONFLICT,
+    );
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('已注销作者的历史动态拒绝新评论', async () => {
+    const { service, prisma, tx, moments } = createContext();
+    prisma.momentComment.findUnique.mockResolvedValue(null);
+    moments.lockVisible.mockResolvedValue({
+      id: 'moment-1',
+      authorId: 'moment-owner',
+      title: '历史动态',
+      author: { deletedAt: new Date('2026-08-23T00:00:00.000Z') },
+    });
+    moments.assertCanAddInteraction.mockImplementation(() => {
+      throw new BusinessException(ErrorCode.FORBIDDEN, '历史动态仅供阅读', HttpStatus.FORBIDDEN);
+    });
+
+    await expectBusiness(
+      service.create(
+        'moment-1',
+        {
+          content: '新评论',
+          clientRequestId: '00000000-0000-4000-8000-000000000001',
+        },
+        { id: 'viewer' },
+      ),
+      ErrorCode.FORBIDDEN,
+      HttpStatus.FORBIDDEN,
+    );
+    expect(tx.momentComment.create).not.toHaveBeenCalled();
   });
 
   it('动态作者可以删除他人的评论并扣减一次计数', async () => {
-    const { service, prisma, tx } = createContext();
-    prisma.momentComment.findFirst.mockResolvedValue({
+    const { service, tx } = createContext();
+    tx.momentComment.findFirst.mockResolvedValue({
       authorId: 'comment-author',
       deletedAt: null,
+      mediaId: null,
       moment: { authorId: 'moment-owner', deletedAt: null },
     });
-    tx.momentComment.updateMany.mockResolvedValue({ count: 1 });
 
     await expect(service.remove('moment-1', 'comment-1', { id: 'moment-owner' })).resolves.toEqual({
       message: '评论已删除',
     });
-    expect(tx.momentComment.updateMany).toHaveBeenCalledWith(
+    expect(tx.momentComment.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ removalSource: 'OWNER' }) }),
     );
-    expect(tx.moment.update).toHaveBeenCalledWith({
-      where: { id: 'moment-1' },
+    expect(tx.moment.updateMany).toHaveBeenCalledWith({
+      where: { id: 'moment-1', deletedAt: null },
       data: { commentCount: { decrement: 1 } },
     });
   });

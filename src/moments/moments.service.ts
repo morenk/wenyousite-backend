@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { paginate } from '../common/dto/paginated-result';
@@ -26,10 +20,12 @@ import {
   visibleMomentAuthorWhere,
 } from './moment-query';
 import { MediaReferenceService } from '../media/media-reference.service';
-import { notFound } from '../common/exceptions/business.exception';
+import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
+import { isUniqueConstraintViolation } from '../common/prisma-errors';
+import { MomentAccessService } from './moment-access.service';
 
-const MAX_PAGE_SIZE = 30;
+const MAX_PAGE_SIZE = 50;
 const DISCOVER_SNAPSHOT_LIMIT = 1000;
 const DISCOVER_SNAPSHOT_TTL_SECONDS = 15 * 60;
 const DISCOVER_SNAPSHOT_KEY_PREFIX = 'moments:discover:snapshot:';
@@ -59,6 +55,22 @@ function encodeCursor(value: object) {
   return Buffer.from(JSON.stringify(value)).toString('base64url');
 }
 
+function badRequest(message: string) {
+  return new BusinessException(ErrorCode.BAD_REQUEST, message, HttpStatus.BAD_REQUEST);
+}
+
+function invalidCursor(message: string) {
+  return new BusinessException(ErrorCode.INVALID_CURSOR, message, HttpStatus.BAD_REQUEST);
+}
+
+function conflict(code: number, message: string) {
+  return new BusinessException(code, message, HttpStatus.CONFLICT);
+}
+
+function momentNotFound(message = '动态不存在') {
+  return notFound(ErrorCode.MOMENT_NOT_FOUND, message);
+}
+
 function decodeDateCursor(cursor: string): DateCursor {
   try {
     const value = JSON.parse(
@@ -68,7 +80,7 @@ function decodeDateCursor(cursor: string): DateCursor {
       throw new Error();
     return value as DateCursor;
   } catch {
-    throw new BadRequestException('无效的动态分页游标');
+    throw invalidCursor('无效的动态分页游标');
   }
 }
 
@@ -89,7 +101,7 @@ function decodeDiscoverCursor(cursor: string): DiscoverCursor {
       throw new Error();
     return value as DiscoverCursor;
   } catch {
-    throw new BadRequestException('无效的动态分页游标');
+    throw invalidCursor('无效的动态分页游标');
   }
 }
 
@@ -108,7 +120,7 @@ function decodeSearchCursor(cursor: string): SearchCursor {
       throw new Error();
     return value as SearchCursor;
   } catch {
-    throw new BadRequestException('无效的动态搜索游标');
+    throw invalidCursor('无效的动态搜索游标');
   }
 }
 
@@ -122,11 +134,18 @@ export class MomentsService {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly mediaReferences: MediaReferenceService,
+    private readonly access: MomentAccessService,
   ) {}
 
   async list(feed: MomentFeedMode, cursor: string | undefined, limit = 20, viewer?: Viewer) {
     if (feed === MomentFeedMode.FOLLOWING) {
-      if (!viewer) throw new ForbiddenException('登录后才能查看关注动态');
+      if (!viewer) {
+        throw new BusinessException(
+          ErrorCode.FORBIDDEN,
+          '登录后才能查看关注动态',
+          HttpStatus.FORBIDDEN,
+        );
+      }
       return this.listFollowing(cursor, limit, viewer);
     }
     return this.listDiscover(cursor, limit, viewer);
@@ -137,7 +156,7 @@ export class MomentsService {
       where: { id, deletedAt: null, ...momentViewerVisibility(viewer?.id) },
       select: momentDetailSelect(viewer?.id),
     });
-    if (!moment) throw new NotFoundException('动态不存在');
+    if (!moment) throw momentNotFound();
     return mapMomentDetail(moment as unknown as MomentDetailRow, viewer);
   }
 
@@ -155,15 +174,15 @@ export class MomentsService {
     });
     if (replay) {
       if (replay.createRequestHash !== requestHash) {
-        throw new ConflictException('同一发布请求不能用于不同动态内容');
+        throw conflict(ErrorCode.IDEMPOTENCY_KEY_REUSED, '同一发布请求不能用于不同动态内容');
       }
       return this.findById(replay.id, viewer);
     }
-    await this.assertMediaUsable(mediaIds, viewer.id);
 
-    let createdId: string;
     try {
-      const created = await this.prisma.$transaction(async (tx) => {
+      return await this.prisma.$transaction(async (tx) => {
+        await this.access.lockActiveUser(tx, viewer.id);
+        await this.assertMediaUsable(tx, mediaIds, viewer.id);
         const moment = await tx.moment.create({
           data: {
             authorId: viewer.id,
@@ -180,88 +199,109 @@ export class MomentsService {
           select: { id: true },
         });
         await this.mediaReferences.reconcileMediaIds(tx, mediaIds);
-        return moment;
+        const detail = await tx.moment.findUniqueOrThrow({
+          where: { id: moment.id },
+          select: momentDetailSelect(viewer.id),
+        });
+        return mapMomentDetail(detail as unknown as MomentDetailRow, viewer);
       });
-      createdId = created.id;
     } catch (error) {
-      if ((error as { code?: string }).code !== 'P2002') throw error;
+      if (!isUniqueConstraintViolation(error)) throw error;
       const raced = await this.prisma.moment.findUnique({
         where: {
           authorId_clientRequestId: { authorId: viewer.id, clientRequestId: dto.clientRequestId },
         },
         select: { id: true, createRequestHash: true },
       });
-      if (!raced) throw new ConflictException('图片已被其他动态使用');
+      if (!raced) throw conflict(ErrorCode.CONFLICT, '图片已被其他动态使用');
       if (raced.createRequestHash !== requestHash)
-        throw new ConflictException('同一发布请求不能用于不同动态内容');
-      createdId = raced.id;
+        throw conflict(ErrorCode.IDEMPOTENCY_KEY_REUSED, '同一发布请求不能用于不同动态内容');
+      return this.findById(raced.id, viewer);
     }
-    return this.findById(createdId, viewer);
   }
 
   async update(id: string, dto: UpdateMomentDto, viewer: Viewer) {
-    const existing = await this.prisma.moment.findUnique({
-      where: { id, deletedAt: null },
-      select: {
-        authorId: true,
-        coverMediaId: true,
-        images: { orderBy: { sortOrder: 'asc' }, select: { mediaId: true } },
-      },
-    });
-    if (!existing) throw new NotFoundException('动态不存在');
-    if (existing.authorId !== viewer.id) throw new ForbiddenException('只能编辑自己的动态');
-
-    const mediaIds = dto.mediaIds ?? existing.images.map((image) => image.mediaId);
-    const requestedCover = Object.prototype.hasOwnProperty.call(dto, 'coverMediaId')
-      ? dto.coverMediaId
-      : existing.coverMediaId;
-    const coverMediaId = this.resolveCover(mediaIds, requestedCover);
-    await this.assertMediaUsable(mediaIds, viewer.id, id);
-
-    const result = await this.prisma.$transaction(async (tx) => {
-      const updated = await tx.moment.updateMany({
-        where: { id, authorId: viewer.id, deletedAt: null, version: dto.version },
-        data: {
-          ...(dto.title !== undefined ? { title: dto.title.trim() } : {}),
-          ...(dto.content !== undefined ? { content: dto.content.trim() } : {}),
-          coverMediaId,
-          version: { increment: 1 },
-        },
-      });
-      if (updated.count === 0) return false;
-      if (dto.mediaIds !== undefined) {
-        await tx.momentImage.deleteMany({ where: { momentId: id } });
-        await tx.momentImage.createMany({
-          data: mediaIds.map((mediaId, sortOrder) => ({ momentId: id, mediaId, sortOrder })),
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const visible = await this.access.lockVisible(tx, id, viewer.id);
+        if (visible.authorId !== viewer.id) {
+          throw new BusinessException(
+            ErrorCode.FORBIDDEN,
+            '只能编辑自己的动态',
+            HttpStatus.FORBIDDEN,
+          );
+        }
+        const existing = await tx.moment.findUniqueOrThrow({
+          where: { id },
+          select: {
+            version: true,
+            coverMediaId: true,
+            images: { orderBy: { sortOrder: 'asc' }, select: { mediaId: true } },
+          },
         });
-      }
-      await this.mediaReferences.reconcileMediaIds(tx, [
-        ...existing.images.map((image) => image.mediaId),
-        ...(existing.coverMediaId ? [existing.coverMediaId] : []),
-        ...mediaIds,
-        ...(coverMediaId ? [coverMediaId] : []),
-      ]);
-      return true;
-    });
-    if (!result) throw new ConflictException('动态已在其他位置更新，请刷新后重试');
-    return this.findById(id, viewer);
+        if (existing.version !== dto.version) {
+          throw conflict(
+            ErrorCode.OPTIMISTIC_LOCK_CONFLICT,
+            '动态已在其他位置更新，请刷新后重试',
+          );
+        }
+        const mediaIds = dto.mediaIds ?? existing.images.map((image) => image.mediaId);
+        const requestedCover = Object.prototype.hasOwnProperty.call(dto, 'coverMediaId')
+          ? dto.coverMediaId
+          : existing.coverMediaId;
+        const coverMediaId = this.resolveCover(mediaIds, requestedCover);
+        await this.assertMediaUsable(tx, mediaIds, viewer.id, id);
+        await tx.moment.update({
+          where: { id },
+          data: {
+            ...(dto.title !== undefined ? { title: dto.title.trim() } : {}),
+            ...(dto.content !== undefined ? { content: dto.content.trim() } : {}),
+            coverMediaId,
+            version: { increment: 1 },
+          },
+        });
+        if (dto.mediaIds !== undefined) {
+          await tx.momentImage.deleteMany({ where: { momentId: id } });
+          await tx.momentImage.createMany({
+            data: mediaIds.map((mediaId, sortOrder) => ({ momentId: id, mediaId, sortOrder })),
+          });
+        }
+        await this.mediaReferences.reconcileMediaIds(tx, [
+          ...existing.images.map((image) => image.mediaId),
+          ...(existing.coverMediaId ? [existing.coverMediaId] : []),
+          ...mediaIds,
+          ...(coverMediaId ? [coverMediaId] : []),
+        ]);
+        const detail = await tx.moment.findUniqueOrThrow({
+          where: { id },
+          select: momentDetailSelect(viewer.id),
+        });
+        return mapMomentDetail(detail as unknown as MomentDetailRow, viewer);
+      });
+    } catch (error) {
+      if (!isUniqueConstraintViolation(error)) throw error;
+      throw conflict(ErrorCode.CONFLICT, '图片已被其他动态使用');
+    }
   }
 
   async remove(id: string, viewer: Viewer) {
-    const moment = await this.prisma.moment.findUnique({
-      where: { id },
-      select: {
-        authorId: true,
-        deletedAt: true,
-        coverMediaId: true,
-        images: { select: { mediaId: true } },
-      },
-    });
-    if (!moment || moment.deletedAt) throw new NotFoundException('动态不存在');
-    const admin = viewer.role === 'ADMIN' || viewer.role === 'SUPER_ADMIN';
-    if (moment.authorId !== viewer.id && !admin) throw new ForbiddenException('无权删除该动态');
-    const restorableAdminRemoval = admin && moment.authorId !== viewer.id;
     await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "moments" WHERE "id" = ${id} FOR UPDATE`;
+      const moment = await tx.moment.findUnique({
+        where: { id },
+        select: {
+          authorId: true,
+          deletedAt: true,
+          coverMediaId: true,
+          images: { select: { mediaId: true } },
+        },
+      });
+      if (!moment || moment.deletedAt) throw momentNotFound();
+      const admin = viewer.role === 'ADMIN' || viewer.role === 'SUPER_ADMIN';
+      if (moment.authorId !== viewer.id && !admin) {
+        throw new BusinessException(ErrorCode.FORBIDDEN, '无权删除该动态', HttpStatus.FORBIDDEN);
+      }
+      const restorableAdminRemoval = admin && moment.authorId !== viewer.id;
       await tx.moment.update({
         where: { id },
         data: {
@@ -283,27 +323,42 @@ export class MomentsService {
   }
 
   async setLike(id: string, viewer: Viewer, active: boolean) {
-    await this.assertVisible(id, viewer.id);
     return this.prisma.$transaction(async (tx) => {
+      const moment = await this.access.lockVisible(tx, id, viewer.id);
       if (active) {
+        const existing = await tx.momentLike.findUnique({
+          where: { momentId_userId: { momentId: id, userId: viewer.id } },
+          select: { id: true },
+        });
+        if (!existing) this.access.assertCanAddInteraction(moment);
         const created = await tx.momentLike.createMany({
           data: [{ momentId: id, userId: viewer.id }],
           skipDuplicates: true,
         });
-        if (created.count > 0)
-          await tx.moment.update({ where: { id }, data: { likeCount: { increment: 1 } } });
+        if (created.count > 0) {
+          const updated = await tx.moment.updateMany({
+            where: { id, deletedAt: null },
+            data: { likeCount: { increment: 1 } },
+          });
+          if (updated.count === 0) throw momentNotFound();
+        }
       } else {
         const removed = await tx.momentLike.deleteMany({
           where: { momentId: id, userId: viewer.id },
         });
-        if (removed.count > 0)
-          await tx.moment.update({ where: { id }, data: { likeCount: { decrement: 1 } } });
+        if (removed.count > 0) {
+          const updated = await tx.moment.updateMany({
+            where: { id, deletedAt: null },
+            data: { likeCount: { decrement: 1 } },
+          });
+          if (updated.count === 0) throw momentNotFound();
+        }
       }
-      const moment = await tx.moment.findUniqueOrThrow({
+      const current = await tx.moment.findUniqueOrThrow({
         where: { id },
         select: { likeCount: true },
       });
-      return { momentId: id, count: moment.likeCount, active };
+      return { momentId: id, count: current.likeCount, active };
     });
   }
 
@@ -344,7 +399,7 @@ export class MomentsService {
 
   async search(q: string, cursor: string | undefined, limit = 20, viewer?: Viewer) {
     const keyword = q.trim();
-    if (Array.from(keyword).length < 2) throw new BadRequestException('动态搜索至少需要 2 个字符');
+    if (Array.from(keyword).length < 2) throw badRequest('动态搜索至少需要 2 个字符');
     const take = Math.min(limit, 20);
     const decoded = cursor ? decodeSearchCursor(cursor) : undefined;
     const likePattern = `%${escapeLikePattern(keyword)}%`;
@@ -370,7 +425,6 @@ export class MomentsService {
           (similarity(m.title, ${keyword}) * 2 + similarity(m.content, ${keyword}))::double precision AS relevance,
           m."created_at" AS "createdAt"
         FROM "moments" m
-        INNER JOIN "users" u ON u.id = m."author_id" AND u."deleted_at" IS NULL
         WHERE m."deleted_at" IS NULL
           AND (m.title ILIKE ${likePattern} ESCAPE '\\' OR m.content ILIKE ${likePattern} ESCAPE '\\')
           ${blockClause}
@@ -404,12 +458,7 @@ export class MomentsService {
   }
 
   async assertVisible(id: string, viewerId?: string) {
-    const moment = await this.prisma.moment.findFirst({
-      where: { id, deletedAt: null, ...momentViewerVisibility(viewerId) },
-      select: { id: true, authorId: true, title: true },
-    });
-    if (!moment) throw new NotFoundException('动态不存在');
-    return moment;
+    return this.access.assertVisible(id, viewerId);
   }
 
   private async listDiscover(cursor: string | undefined, limit: number, viewer?: Viewer) {
@@ -442,15 +491,23 @@ export class MomentsService {
     const snapshotRows = rows.slice(0, DISCOVER_SNAPSHOT_LIMIT);
     const page = snapshotRows.slice(0, take);
     const hasMore = snapshotRows.length > take;
-    const cards = await this.loadCards(
-      page.map((row) => row.id),
-      viewer?.id,
-    );
+    const cards = await this.loadCards(page.map((row) => row.id), viewer?.id, true);
     const snapshotId = hasMore ? randomUUID() : null;
     if (snapshotId) {
       const key = this.discoverSnapshotKey(snapshotId);
-      await this.redis.zaddMulti(key, ...snapshotRows.flatMap((row, index) => [index, row.id]));
-      await this.redis.expire(key, DISCOVER_SNAPSHOT_TTL_SECONDS);
+      try {
+        await this.redis.zaddMultiWithExpiry(
+          key,
+          DISCOVER_SNAPSHOT_TTL_SECONDS,
+          ...snapshotRows.flatMap((row, index) => [index, row.id]),
+        );
+      } catch {
+        throw new BusinessException(
+          ErrorCode.INTERNAL_ERROR,
+          '动态发现流暂时不可用，请稍后重试',
+          HttpStatus.SERVICE_UNAVAILABLE,
+        );
+      }
     }
     return paginate(cards, {
       cursor: snapshotId ? encodeCursor({ snapshotId, offset: page.length }) : null,
@@ -461,15 +518,32 @@ export class MomentsService {
   private async listDiscoverSnapshot(cursor: string, take: number, viewer?: Viewer) {
     const decoded = decodeDiscoverCursor(cursor);
     const key = this.discoverSnapshotKey(decoded.snapshotId);
-    const ids = await this.redis.zrange(key, decoded.offset, decoded.offset + take);
-    if (ids.length === 0) {
-      throw new BadRequestException('动态发现流快照已过期，请刷新后重试');
+    let ids: string[];
+    try {
+      ids = await this.redis.zrange(key, decoded.offset, decoded.offset + take);
+    } catch {
+      throw new BusinessException(
+        ErrorCode.INTERNAL_ERROR,
+        '动态发现流暂时不可用，请稍后重试',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
     }
-    await this.redis.expire(key, DISCOVER_SNAPSHOT_TTL_SECONDS);
+    if (ids.length === 0) {
+      throw invalidCursor('动态发现流快照已过期，请刷新后重试');
+    }
+    try {
+      await this.redis.expire(key, DISCOVER_SNAPSHOT_TTL_SECONDS);
+    } catch {
+      throw new BusinessException(
+        ErrorCode.INTERNAL_ERROR,
+        '动态发现流暂时不可用，请稍后重试',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
 
     const hasMore = ids.length > take;
     const pageIds = ids.slice(0, take);
-    const cards = await this.loadCards(pageIds, viewer?.id);
+    const cards = await this.loadCards(pageIds, viewer?.id, true);
     const nextOffset = decoded.offset + pageIds.length;
     return paginate(cards, {
       cursor: hasMore ? encodeCursor({ snapshotId: decoded.snapshotId, offset: nextOffset }) : null,
@@ -488,6 +562,7 @@ export class MomentsService {
       where: {
         deletedAt: null,
         author: {
+          deletedAt: null,
           followers: { some: { followerId: viewer.id } },
           ...visibleMomentAuthorWhere(viewer.id),
         },
@@ -513,10 +588,21 @@ export class MomentsService {
     });
   }
 
-  private async loadCards(ids: string[], viewerId?: string) {
+  private async loadCards(ids: string[], viewerId?: string, requireActiveAuthor = false) {
     if (ids.length === 0) return [];
     const rows = await this.prisma.moment.findMany({
-      where: { id: { in: ids }, deletedAt: null, ...momentViewerVisibility(viewerId) },
+      where: {
+        id: { in: ids },
+        deletedAt: null,
+        ...(requireActiveAuthor
+          ? {
+              author: {
+                deletedAt: null,
+                ...(viewerId ? visibleMomentAuthorWhere(viewerId) : {}),
+              },
+            }
+          : momentViewerVisibility(viewerId)),
+      },
       select: momentCardSelect(viewerId),
     });
     const byId = new Map(rows.map((row) => [row.id, mapMomentCard(row as MomentCardRow)]));
@@ -528,26 +614,31 @@ export class MomentsService {
 
   private resolveCover(mediaIds: string[], requested?: string | null) {
     if (mediaIds.length === 0) {
-      if (requested) throw new BadRequestException('无图片动态不能指定图片封面');
+      if (requested) throw badRequest('无图片动态不能指定图片封面');
       return null;
     }
     const cover = requested || mediaIds[0];
-    if (!mediaIds.includes(cover)) throw new BadRequestException('封面必须来自动态图片');
+    if (!mediaIds.includes(cover)) throw badRequest('封面必须来自动态图片');
     return cover;
   }
 
-  private async assertMediaUsable(mediaIds: string[], userId: string, currentMomentId?: string) {
+  private async assertMediaUsable(
+    client: PrismaService | Prisma.TransactionClient,
+    mediaIds: string[],
+    userId: string,
+    currentMomentId?: string,
+  ) {
     if (mediaIds.length === 0) return;
-    const media = await this.prisma.media.findMany({
+    const media = await client.media.findMany({
       where: { id: { in: mediaIds }, userId, status: 'COMPLETED' },
       select: { id: true, momentImages: { select: { momentId: true } } },
     });
     if (media.length !== mediaIds.length)
-      throw new BadRequestException('图片不存在、未处理完成或不属于当前用户');
+      throw badRequest('图片不存在、未处理完成或不属于当前用户');
     const occupied = media.some((item) =>
       item.momentImages.some((image) => image.momentId !== currentMomentId),
     );
-    if (occupied) throw new ConflictException('图片已用于其他动态');
+    if (occupied) throw conflict(ErrorCode.CONFLICT, '图片已用于其他动态');
   }
 
   private themeFor(clientRequestId: string) {

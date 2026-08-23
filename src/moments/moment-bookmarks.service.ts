@@ -1,14 +1,14 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { BookmarksService } from '../bookmarks/bookmarks.service';
 import { paginate } from '../common/dto/paginated-result';
 import { PrismaService } from '../prisma/prisma.service';
 import { mapMomentCard, type MomentCardRow } from './moment.mapper';
 import { momentCardSelect, momentViewerVisibility } from './moment-query';
-import { MomentsService } from './moments.service';
-import { notFound } from '../common/exceptions/business.exception';
+import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
+import { MomentAccessService } from './moment-access.service';
 
-const MAX_PAGE_SIZE = 30;
+const MAX_PAGE_SIZE = 50;
 
 type Viewer = { id: string; role?: string };
 
@@ -17,12 +17,12 @@ export class MomentBookmarksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly folders: BookmarksService,
-    private readonly moments: MomentsService,
+    private readonly access: MomentAccessService,
   ) {}
 
   async set(momentId: string, viewer: Viewer, active: boolean, folderId?: string) {
-    await this.moments.assertVisible(momentId, viewer.id);
     return this.prisma.$transaction(async (tx) => {
+      const moment = await this.access.lockVisible(tx, momentId, viewer.id);
       if (active) {
         const existing = await tx.momentBookmark.findUnique({
           where: { momentId_userId: { momentId, userId: viewer.id } },
@@ -30,6 +30,7 @@ export class MomentBookmarksService {
         });
         if (existing) {
           if (folderId && folderId !== existing.folderId) {
+            this.access.assertCanAddInteraction(moment);
             const target = await this.folders.resolveFolder(viewer.id, folderId, tx);
             await tx.momentBookmark.update({
               where: { id: existing.id },
@@ -37,16 +38,20 @@ export class MomentBookmarksService {
             });
           }
         } else {
+          this.access.assertCanAddInteraction(moment);
           const target = await this.folders.resolveFolder(viewer.id, folderId, tx);
           const created = await tx.momentBookmark.createMany({
             data: [{ momentId, userId: viewer.id, folderId: target.id }],
             skipDuplicates: true,
           });
           if (created.count > 0) {
-            await tx.moment.update({
-              where: { id: momentId },
+            const updated = await tx.moment.updateMany({
+              where: { id: momentId, deletedAt: null },
               data: { bookmarkCount: { increment: 1 } },
             });
+            if (updated.count === 0) {
+              throw notFound(ErrorCode.MOMENT_NOT_FOUND, '动态不存在');
+            }
           } else if (folderId) {
             await tx.momentBookmark.updateMany({
               where: { momentId, userId: viewer.id },
@@ -59,29 +64,33 @@ export class MomentBookmarksService {
           where: { momentId, userId: viewer.id },
         });
         if (removed.count > 0) {
-          await tx.moment.update({
-            where: { id: momentId },
+          const updated = await tx.moment.updateMany({
+            where: { id: momentId, deletedAt: null },
             data: { bookmarkCount: { decrement: 1 } },
           });
+          if (updated.count === 0) {
+            throw notFound(ErrorCode.MOMENT_NOT_FOUND, '动态不存在');
+          }
         }
       }
-      const moment = await tx.moment.findUniqueOrThrow({
+      const current = await tx.moment.findUniqueOrThrow({
         where: { id: momentId },
         select: { bookmarkCount: true },
       });
-      return { momentId, count: moment.bookmarkCount, active };
+      return { momentId, count: current.bookmarkCount, active };
     });
   }
 
   async move(momentId: string, userId: string, folderId: string) {
-    await this.moments.assertVisible(momentId, userId);
     return this.prisma.$transaction(async (tx) => {
+      const moment = await this.access.lockVisible(tx, momentId, userId);
+      this.access.assertCanAddInteraction(moment);
       const target = await this.folders.resolveFolder(userId, folderId, tx);
       const updated = await tx.momentBookmark.updateMany({
         where: { momentId, userId },
         data: { folderId: target.id },
       });
-      if (updated.count === 0) throw new NotFoundException('收藏不存在');
+      if (updated.count === 0) throw notFound(ErrorCode.NOT_FOUND, '收藏不存在');
       return { momentId, folderId: target.id };
     });
   }
@@ -105,7 +114,7 @@ export class MomentBookmarksService {
     });
     if (!owner) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
     if (!owner.showBookmarks && ownerId !== viewerId) {
-      throw new NotFoundException('该用户未公开收藏');
+      throw notFound(ErrorCode.NOT_FOUND, '该用户未公开收藏');
     }
     return this.list({ ownerId, viewerId, cursor, limit, includePlacement: false });
   }
@@ -124,7 +133,13 @@ export class MomentBookmarksService {
         where: { id: input.cursor, userId: input.ownerId },
         select: { id: true },
       });
-      if (!valid) throw new BadRequestException('无效的收藏分页游标');
+      if (!valid) {
+        throw new BusinessException(
+          ErrorCode.INVALID_CURSOR,
+          '无效的收藏分页游标',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
     }
     const bookmarks = await this.prisma.momentBookmark.findMany({
       where: {

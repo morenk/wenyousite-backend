@@ -35,4 +35,11 @@ describe('moment mapper', () => {
       `[设定 A](/threads/${threadId}) 和 https://wenyou.site/threads/${threadId}`,
     )).contentExcerpt).toBe('设定 A 和 传送门');
   });
+
+  it('已注销作者的历史动态显式标记为不可互动', () => {
+    const moment = makeMoment('历史正文');
+    moment.author.deletedAt = new Date('2026-08-23T00:00:00.000Z');
+
+    expect(mapMomentCard(moment).canInteract).toBe(false);
+  });
 });

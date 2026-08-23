@@ -79,6 +79,7 @@ export function mapMomentCard(moment: MomentCardRow) {
     tipTotal: moment.tipTotal,
     viewerLiked: moment.likes.length > 0,
     viewerBookmarked: moment.bookmarks.length > 0,
+    canInteract: moment.author.deletedAt === null,
     createdAt: moment.createdAt,
     updatedAt: moment.updatedAt,
   };
