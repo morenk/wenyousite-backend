@@ -31,6 +31,14 @@ docker compose --env-file loadtest/target.env --profile loadtest ps
 
 隔离后端和图片 Worker 使用 `ops/wenyousite-loadtest-*.service`，其运行时覆盖配置放在被 Git 忽略的 `loadtest/backend.env`。该 unit 只监听后端的隔离端口，不会替换正式 systemd unit。
 
+在 VPS 的后端仓库中生成 40 个隔离账号及其 access token（输出文件不会进入 Git）：
+
+```bash
+pnpm loadtest:tokens
+```
+
+将生成的 `loadtest/auth-tokens.json` 通过安全渠道复制到 Windows 压测机的同一路径；脚本会复用隔离账号、吊销旧移动会话并签发新的 15 分钟 access token。
+
 ## Windows 执行
 
 官方 k6 支持 Windows。可使用 Windows Package Manager 安装：

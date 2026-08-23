@@ -16,6 +16,13 @@ function Import-EnvFile([string] $Path) {
 $root = Split-Path -Parent $PSScriptRoot
 Import-EnvFile (Join-Path $root 'loadtest\runner.env')
 
+# k6 resolves open() relative to the process working directory. The runner is
+# invoked from the repository root, so make fixture paths unambiguous even
+# when the script itself is launched from another directory.
+$env:MEDIA_SMALL_FILE = Join-Path $root 'loadtest\fixtures\small.png'
+$env:MEDIA_MEDIUM_FILE = Join-Path $root 'loadtest\fixtures\medium.png'
+$env:MEDIA_LARGE_FILE = Join-Path $root 'loadtest\fixtures\large.png'
+
 if ([string]::IsNullOrWhiteSpace($env:BASE_URL)) { throw 'BASE_URL 不能为空' }
 $tokenPath = [Environment]::ExpandEnvironmentVariables($env:AUTH_TOKENS_JSON_PATH)
 if (-not (Test-Path -LiteralPath $tokenPath)) { throw "找不到专用账号 Token 文件：$tokenPath" }

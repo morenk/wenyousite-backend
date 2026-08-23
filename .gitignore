@@ -19,6 +19,7 @@ loadtest/fixtures/
 loadtest/target.env
 loadtest/runner.env
 loadtest/backend.env
+loadtest/auth-tokens.json
 loadtest/results/
 scripts/**/*.js
 scripts/**/*.js.map

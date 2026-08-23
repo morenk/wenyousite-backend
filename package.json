@@ -27,6 +27,7 @@
     "media:references:audit": "tsx scripts/backfill-media-references.ts",
     "media:references:backfill": "tsx scripts/backfill-media-references.ts --apply",
     "loadtest:fixtures": "tsx loadtest/generate-fixtures.ts",
+    "loadtest:tokens": "tsx scripts/generate-loadtest-tokens.ts",
     "media:latency:summary": "tsx loadtest/summarize-media-log.ts",
     "test:cleanup": "tsx scripts/cleanup-testuser.ts",
     "test": "jest",
