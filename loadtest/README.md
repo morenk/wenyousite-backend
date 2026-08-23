@@ -2,6 +2,44 @@
 
 所有写入压测只允许在隔离数据库、隔离 Redis 和专用对象桶中运行。不要把 `media.js` 指向公网开发环境：它会创建真实媒体记录、队列任务和对象，并消耗上行、存储与 API 配额。
 
+## 配置文件
+
+先分别填写两个本地配置文件：
+
+```bash
+cp loadtest/target.env.example loadtest/target.env
+cp loadtest/runner.env.example loadtest/runner.env
+```
+
+- `target.env` 只放隔离后端、Worker、PostgreSQL、Redis 和 RainS3 测试实例配置，应留在目标服务器。
+- `runner.env` 只放公网入口、Windows 压测机固定 IP、k6 参数和结果路径，应留在本地 Windows 压测机。
+- 两个实际文件已被 Git 忽略；`.example` 文件不包含任何密钥。
+- `AUTH_TOKENS_JSON_PATH` 指向的 Token 文件由隔离环境初始化阶段生成，不要把正式账号 Token 填入配置。
+
+当前目标服务器公网 DNS 可使用 `loadtest-api.wenyou.site`，压测机固定 IP 必须同时填写在 `target.env` 的 `LOADTEST_ALLOWED_IP`、`runner.env` 的 `LOADGEN_IP` 和入口/WAF 白名单中。
+
+## Windows 执行
+
+官方 k6 支持 Windows。可使用 Windows Package Manager 安装：
+
+```powershell
+winget install k6 --source winget
+k6 version
+```
+
+在后端仓库目录执行：
+
+```powershell
+pnpm install
+pnpm loadtest:fixtures
+Copy-Item loadtest\runner.env.example loadtest\runner.env
+# 填写 loadtest\runner.env，并把隔离环境生成的 auth-tokens.json 放到对应路径
+.\loadtest\run-core.ps1
+.\loadtest\run-media.ps1
+```
+
+PowerShell 启动脚本会读取 `runner.env`、创建 `loadtest\results`，并分别保存核心读取和媒体处理摘要。Windows 不需要运行 SSH 服务；Token 文件由隔离环境生成后通过安全渠道提供。
+
 ## 基线模型
 
 - `core.js`：500 个在线会话每 30 秒轮询一次；100 个预分配活跃 VU 以 50 RPS 读取核心接口；第 8 分钟升至 150 RPS，持续 1 分钟后回落。

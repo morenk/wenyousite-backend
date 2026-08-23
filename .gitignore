@@ -16,6 +16,9 @@ backups/
 .cache
 .tmp
 loadtest/fixtures/
+loadtest/target.env
+loadtest/runner.env
+loadtest/results/
 scripts/**/*.js
 scripts/**/*.js.map
 scripts/**/*.d.ts
