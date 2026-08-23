@@ -150,6 +150,9 @@ if [ "$REDIS_READY" = true ]; then
     REDIS_AOF_MIGRATION=true
     echo "检测到 Redis 首次切换 AOF，先停止后端写入..."
     systemctl stop wenyousite-backend.service
+    if systemctl list-unit-files wenyousite-image-worker.service --no-legend 2>/dev/null | grep -q '^wenyousite-image-worker.service'; then
+      systemctl stop wenyousite-image-worker.service
+    fi
     NOTIFICATION_WAITING=$(docker exec "$REDIS_CONTAINER" redis-cli --raw LLEN bull:notification:wait)
     NOTIFICATION_ACTIVE=$(docker exec "$REDIS_CONTAINER" redis-cli --raw LLEN bull:notification:active)
     NOTIFICATION_PAUSED=$(docker exec "$REDIS_CONTAINER" redis-cli --raw LLEN bull:notification:paused)
@@ -235,6 +238,10 @@ if [ "$REDIS_AOF_MIGRATION" = true ]; then
 fi
 
 echo "6. 执行数据库迁移..."
+systemctl stop wenyousite-backend.service
+if systemctl list-unit-files wenyousite-image-worker.service --no-legend 2>/dev/null | grep -q '^wenyousite-image-worker.service'; then
+  systemctl stop wenyousite-image-worker.service
+fi
 (cd "$BACKEND_DIR" && pnpm exec prisma migrate deploy)
 
 echo "7. 记录 revision 并通过 systemd 切换后端..."
@@ -246,19 +253,29 @@ chmod 0644 "$revision_temp"
 mv -f -- "$revision_temp" "$BACKEND_REVISION_FILE"
 revision_temp=""
 install -m 0755 "$SCRIPT_DIR/wenyousite-backend-start.sh" /usr/local/sbin/wenyousite-backend-start
+install -m 0755 "$SCRIPT_DIR/wenyousite-image-worker-start.sh" /usr/local/sbin/wenyousite-image-worker-start
 install -m 0644 "$BACKEND_DIR/ops/wenyousite-backend.service" /etc/systemd/system/wenyousite-backend.service
+install -m 0644 "$BACKEND_DIR/ops/wenyousite-image-worker.service" /etc/systemd/system/wenyousite-image-worker.service
 systemctl daemon-reload
+systemctl enable wenyousite-image-worker.service >/dev/null
+systemctl restart wenyousite-image-worker.service
+if ! systemctl is-active --quiet wenyousite-image-worker.service; then
+  journalctl -u wenyousite-image-worker.service --no-pager -n 100 >&2
+  exit 1
+fi
 systemctl restart wenyousite-backend.service
 if ! wait_for_http \
   http://127.0.0.1:3000/api/v1/health \
   "后端" \
   ""; then
+  systemctl stop wenyousite-image-worker.service
   journalctl -u wenyousite-backend.service --no-pager -n 100 >&2
   exit 1
 fi
 DEPLOYED_BUILD_SHA=$(curl --fail --silent --show-error http://127.0.0.1:3000/api/v1/meta | \
   node -e 'let input=""; process.stdin.on("data", (chunk) => input += chunk).on("end", () => process.stdout.write(JSON.parse(input).data.buildSha ?? ""));')
 if [ "$DEPLOYED_BUILD_SHA" != "$BACKEND_BUILD_SHA" ]; then
+  systemctl stop wenyousite-backend.service wenyousite-image-worker.service
   echo "后端 buildSha 与待部署提交不一致: $DEPLOYED_BUILD_SHA != $BACKEND_BUILD_SHA" >&2
   exit 1
 fi

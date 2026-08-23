@@ -13,6 +13,7 @@ import { RedisService } from '../redis/redis.service';
 import { MediaReferenceService } from './media-reference.service';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { ObjectStorageService } from '../storage/object-storage.service';
+import { MediaProcessingService } from './media-processing.service';
 
 const mockS3 = { send: jest.fn() };
 const mockImageQueue = { add: jest.fn().mockResolvedValue({}) };
@@ -45,6 +46,16 @@ const mockStorage = {
     return failed;
   }),
 };
+const mockProcessing = {
+  markFailed: jest.fn(async (mediaId: string) =>
+    mockPrisma.media.updateMany({
+      where: { id: mediaId, status: 'PROCESSING' },
+      data: { status: 'FAILED', processingStartedAt: null },
+    }),
+  ),
+  cleanupCompletedStagingObjects: jest.fn().mockResolvedValue(0),
+  discardStagingObject: jest.fn().mockResolvedValue(undefined),
+};
 
 const mockConfig = {
   get: jest.fn((key: string) => {
@@ -65,6 +76,9 @@ const makeMedia = (overrides = {}) => ({
   userId: 'u1',
   url: 'https://test.cos.com/test-bucket/...',
   key: 'uploads/2099/01/01/u1/photo.jpg',
+  stagingKey: null,
+  purpose: 'LEGACY',
+  animated: false,
   status: 'UPLOADING',
   contentType: 'image/jpeg',
   size: 100000,
@@ -105,6 +119,7 @@ describe('MediaService', () => {
         { provide: RedisService, useValue: mockRedis },
         { provide: MediaReferenceService, useValue: mockMediaReferences },
         { provide: ObjectStorageService, useValue: mockStorage },
+        { provide: MediaProcessingService, useValue: mockProcessing },
         { provide: 'BullQueue_image', useValue: mockImageQueue },
       ],
     }).compile();
@@ -112,6 +127,8 @@ describe('MediaService', () => {
     jest.clearAllMocks();
     mockS3.send.mockReset();
     mockPrisma.media.findMany.mockReset().mockResolvedValue([]);
+    mockProcessing.cleanupCompletedStagingObjects.mockReset().mockResolvedValue(0);
+    mockProcessing.discardStagingObject.mockReset().mockResolvedValue(undefined);
     mockMediaReferences.reconcileAllMarkers.mockReset().mockResolvedValue(0);
     mockMediaReferences.filterUnreferenced
       .mockReset()
@@ -146,7 +163,7 @@ describe('MediaService', () => {
     });
     expect(result.uploadUrl).toBeDefined();
     expect(result.mediaId).toBe('m1');
-    expect(result.objectKey).toContain('uploads/');
+    expect(result.objectKey).toContain('staging/');
     expect(result.publicUrl).toContain('test-bucket');
     expect(mockPrisma.media.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ contentType: 'image/jpeg', size: 100000 }),
@@ -301,7 +318,7 @@ describe('MediaService', () => {
     const result = await service.confirmUpload('m1', 'u1');
     expect(mockImageQueue.add).toHaveBeenCalledWith(
       'process',
-      expect.objectContaining({ objectKey: 'uploads/2099/01/01/u1/photo.jpg' }),
+      { mediaId: 'm1' },
       expect.objectContaining({ jobId: 'm1' }),
     );
     expect(mockPrisma.media.update).toHaveBeenCalledWith({
@@ -645,6 +662,30 @@ describe('MediaService', () => {
       { id: 'm1', key, url: `https://test.cos.com/test-bucket/${key}`, status: 'FAILED' },
     ]);
     mockS3.send.mockRejectedValue(new Error('delete failed'));
+
+    await service.cleanupOrphanMedia();
+
+    expect(mockPrisma.media.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('cleanupOrphanMedia 临时对象删除失败时保留 DB 记录以便补偿', async () => {
+    const key = 'media/2099/01/01/u1/photo.webp';
+    const stagingKey = 'staging/2099/01/01/u1/photo.jpg';
+    mockPrisma.media.findMany.mockResolvedValue([
+      {
+        id: 'm1',
+        key,
+        stagingKey,
+        url: `https://test.cos.com/test-bucket/${key}`,
+        status: 'FAILED',
+        purpose: 'AVATAR',
+        animated: false,
+      },
+    ]);
+    mockS3.send.mockImplementation(async (command: { Key: string }) => {
+      if (command.Key === stagingKey) throw new Error('delete staging failed');
+      return {};
+    });
 
     await service.cleanupOrphanMedia();
 

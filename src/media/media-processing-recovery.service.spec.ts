@@ -40,7 +40,7 @@ describe('MediaProcessingRecoveryService', () => {
         take: 100,
       }),
     );
-    expect(media.enqueueProcessing).toHaveBeenCalledWith('media-1', 'uploads/source.webp');
+    expect(media.enqueueProcessing).toHaveBeenCalledWith('media-1');
     expect(prisma.media.updateMany).toHaveBeenCalledWith({
       where: { id: 'media-1', status: 'PROCESSING' },
       data: { processingStartedAt: expect.any(Date) },
@@ -78,6 +78,6 @@ describe('MediaProcessingRecoveryService', () => {
     await service.reconcile();
 
     expect(remove).toHaveBeenCalled();
-    expect(media.enqueueProcessing).toHaveBeenCalledWith('media-1', 'uploads/source.webp');
+    expect(media.enqueueProcessing).toHaveBeenCalledWith('media-1');
   });
 });

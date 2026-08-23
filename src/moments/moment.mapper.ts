@@ -8,16 +8,22 @@ export const momentMediaSelect = {
   id: true,
   url: true,
   status: true,
+  contentType: true,
   width: true,
   height: true,
+  purpose: true,
+  animated: true,
 } as const;
 
 type MediaRow = {
   id: string;
   url: string;
   status: string;
+  contentType: string | null;
   width: number | null;
   height: number | null;
+  purpose: string;
+  animated: boolean;
 };
 
 type AuthorRow = {
@@ -53,7 +59,15 @@ export type MomentDetailRow = MomentCardRow & {
 };
 
 function mapMedia(media: MediaRow) {
-  return { ...media, ...mediaVariantUrls(media), status: undefined };
+  return {
+    id: media.id,
+    url: media.url,
+    contentType: media.contentType,
+    width: media.width,
+    height: media.height,
+    animated: media.animated,
+    ...mediaVariantUrls(media),
+  };
 }
 
 function excerpt(value: string, length = 160) {

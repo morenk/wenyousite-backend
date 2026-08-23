@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { MediaPurpose, Prisma } from '@prisma/client';
 import { paginate } from '../common/dto/paginated-result';
 import { hashIdempotencyPayload } from '../common/idempotency';
 import { publicUserSummarySelect } from '../common/user-summary';
@@ -14,6 +14,7 @@ import { BusinessException, notFound } from '../common/exceptions/business.excep
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { isUniqueConstraintViolation } from '../common/prisma-errors';
 import { MomentAccessService } from './moment-access.service';
+import { mediaPurposeAllowed } from '../media/media-policy';
 
 type Viewer = { id: string; username?: string; role?: string };
 
@@ -42,8 +43,11 @@ const commentSelect = {
       id: true,
       url: true,
       status: true,
+      contentType: true,
       width: true,
       height: true,
+      purpose: true,
+      animated: true,
     },
   },
   sticker: {
@@ -509,6 +513,7 @@ export class MomentCommentsService {
       select: {
         userId: true,
         status: true,
+        purpose: true,
         directMessage: { select: { id: true } },
         momentImages: { select: { id: true } },
         momentComment: { select: { id: true } },
@@ -516,6 +521,9 @@ export class MomentCommentsService {
     });
     if (!media || media.userId !== userId || media.status !== 'COMPLETED') {
       throw badRequest('图片不存在、尚未处理完成或不属于当前用户');
+    }
+    if (!mediaPurposeAllowed(media.purpose, MediaPurpose.MOMENT_COMMENT)) {
+      throw badRequest('图片用途与动态评论不匹配');
     }
     if (media.directMessage || media.momentImages.length > 0 || media.momentComment) {
       throw conflict(ErrorCode.CONFLICT, '图片已用于其他内容');

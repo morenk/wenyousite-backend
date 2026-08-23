@@ -11,14 +11,16 @@ import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { randomBytes } from 'crypto';
+import { MediaPurpose } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
-import sharp from 'sharp';
 import { withMediaVariants } from './media-response.mapper';
 import { MediaReferenceService } from './media-reference.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { ObjectStorageService } from '../storage/object-storage.service';
+import { derivativeKey, mediaVariantsFor } from './media-policy';
+import { MediaProcessingService } from './media-processing.service';
 
 /** 允许的文件类型白名单 */
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'];
@@ -39,15 +41,10 @@ const hasErrorCode = (error: unknown, code: string): boolean =>
 /** 图片处理任务类型 */
 export interface ImageProcessJob {
   mediaId: string;
-  objectKey: string;
-  bucket: string;
 }
 
 /** 允许的文件扩展名（与 MIME 白名单对应） */
 const ALLOWED_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif']);
-
-/** 衍生图 Cache-Control：一年强缓存 */
-const DERIVATIVE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 
 /** 媒体服务：S3 预签名上传 URL 生成、上传确认、图片处理、孤儿回收 */
 @Injectable()
@@ -63,6 +60,7 @@ export class MediaService {
     private redis: RedisService,
     private mediaReferences: MediaReferenceService,
     private readonly storage: ObjectStorageService,
+    private readonly processing: MediaProcessingService,
     @InjectQueue('image') private imageQueue: Queue,
   ) {
     this.uploadRatePerHour = this.config.get<number>('upload.ratePerHour') ?? 60;
@@ -76,6 +74,7 @@ export class MediaService {
     contentType: string;
     size: number;
     userId: string;
+    purpose?: MediaPurpose;
   }) {
     if (!ALLOWED_MIME.includes(opts.contentType)) {
       throw new BadRequestException('不支持的文件类型');
@@ -89,16 +88,21 @@ export class MediaService {
     const ext = this.sanitizeExt(opts.filename);
     const date = new Date().toISOString().slice(0, 10).replace(/-/g, '/');
     const randomId = randomBytes(8).toString('hex');
-    const objectKey = `uploads/${date}/${opts.userId}/${Date.now()}-${randomId}.${ext}`;
+    const basename = `${Date.now()}-${randomId}`;
+    const stagingKey = `staging/${date}/${opts.userId}/${basename}.${ext}`;
+    const objectKey = `media/${date}/${opts.userId}/${basename}.${opts.contentType === 'image/gif' ? 'gif' : 'webp'}`;
 
     const bucket = this.storage.bucket;
     const publicUrl = this.storage.publicUrl(objectKey);
+    const purpose = opts.purpose ?? MediaPurpose.LEGACY;
 
     const media = await this.prisma.media.create({
       data: {
         userId: opts.userId,
         url: publicUrl,
         key: objectKey,
+        stagingKey,
+        purpose,
         contentType: opts.contentType,
         size: opts.size,
       },
@@ -106,7 +110,7 @@ export class MediaService {
 
     const uploadUrl = await this.signUploadUrl({
       bucket,
-      key: objectKey,
+      key: stagingKey,
       contentType: opts.contentType,
       size: opts.size,
     });
@@ -114,7 +118,7 @@ export class MediaService {
     return {
       uploadUrl,
       mediaId: media.id,
-      objectKey,
+      objectKey: stagingKey,
       publicUrl,
     };
   }
@@ -127,16 +131,17 @@ export class MediaService {
     if (media.status !== 'UPLOADING' || !media.contentType || !media.size) {
       throw new BadRequestException('当前媒体状态不能重新上传');
     }
+    const uploadKey = media.stagingKey ?? media.key;
     const bucket = this.storage.bucket;
     return {
       uploadUrl: await this.signUploadUrl({
         bucket,
-        key: media.key,
+        key: uploadKey,
         contentType: media.contentType,
         size: media.size,
       }),
       mediaId: media.id,
-      objectKey: media.key,
+      objectKey: uploadKey,
       publicUrl: media.url,
     };
   }
@@ -158,10 +163,11 @@ export class MediaService {
     }
 
     const bucket = this.storage.bucket;
+    const uploadKey = media.stagingKey ?? media.key;
     let head;
 
     try {
-      head = await this.storage.head(media.key, bucket);
+      head = await this.storage.head(uploadKey, bucket);
     } catch (error) {
       const storageError = error as {
         name?: string;
@@ -199,6 +205,9 @@ export class MediaService {
         where: { id: mediaId, status: 'UPLOADING' },
         data: { status: 'FAILED' },
       });
+      if (media.stagingKey) {
+        await this.processing.discardStagingObject(mediaId, media.stagingKey);
+      }
       throw new BadRequestException('上传文件元数据与凭证不一致');
     }
 
@@ -227,7 +236,7 @@ export class MediaService {
     }
 
     try {
-      await this.enqueueProcessing(media.id, media.key, bucket);
+      await this.enqueueProcessing(media.id);
     } catch (error) {
       // 仅回滚仍在等待队列处理的记录；若消费者已完成则不得倒退状态。
       await this.prisma.media.updateMany({
@@ -252,81 +261,23 @@ export class MediaService {
     return withMediaVariants(media);
   }
 
-  /** 生成缩略图和中图，上传至 S3 并更新 Media 记录 */
-  async processImage(job: ImageProcessJob) {
-    const { bucket, objectKey, mediaId } = job;
-
-    const buffer = await this.storage.download(objectKey, bucket);
-
-    const metadata = await sharp(buffer).metadata();
-
-    const thumbBuffer = await sharp(buffer)
-      .resize(300, 300, { fit: 'cover', withoutEnlargement: true })
-      .webp({ quality: 80 })
-      .toBuffer();
-    const thumbKey = objectKey.replace(/(\.[^.]+)$/, '_thumb.webp');
-    await this.storage.upload(thumbKey, thumbBuffer, {
-      bucket,
-      contentType: 'image/webp',
-      cacheControl: DERIVATIVE_CACHE_CONTROL,
-    });
-
-    const feedBuffer = await sharp(buffer)
-      .resize(480, null, { fit: 'inside', withoutEnlargement: true })
-      .webp({ quality: 82 })
-      .toBuffer();
-    const feedKey = objectKey.replace(/(\.[^.]+)$/, '_feed.webp');
-    await this.storage.upload(feedKey, feedBuffer, {
-      bucket,
-      contentType: 'image/webp',
-      cacheControl: DERIVATIVE_CACHE_CONTROL,
-    });
-
-    const mdBuffer = await sharp(buffer)
-      .resize(800, null, { fit: 'inside', withoutEnlargement: true })
-      .webp({ quality: 85 })
-      .toBuffer();
-    const mdKey = objectKey.replace(/(\.[^.]+)$/, '_md.webp');
-    await this.storage.upload(mdKey, mdBuffer, {
-      bucket,
-      contentType: 'image/webp',
-      cacheControl: DERIVATIVE_CACHE_CONTROL,
-    });
-
-    await this.prisma.media.updateMany({
-      where: { id: mediaId, status: 'PROCESSING' },
-      data: {
-        width: metadata.width ?? 0,
-        height: metadata.height ?? 0,
-        size: buffer.length,
-        status: 'COMPLETED',
-        processingStartedAt: null,
-        orphanedAt: new Date(),
-      },
-    });
-
-    this.logger.log(
-      `Image processed: ${objectKey} → thumb + feed + md, ${metadata.width}x${metadata.height}`,
-    );
-  }
-
   /** 标记图片处理失败（由 ImageProcessor 在末次重试时调用） */
   async markFailed(mediaId: string) {
-    await this.prisma.media.updateMany({
-      where: { id: mediaId, status: 'PROCESSING' },
-      data: { status: 'FAILED', processingStartedAt: null },
-    });
-    this.logger.warn(`Image processing permanently failed for mediaId=${mediaId}`);
+    await this.processing.markFailed(mediaId);
   }
 
-  async enqueueProcessing(mediaId: string, objectKey: string, bucket = this.storage.bucket) {
-    await this.imageQueue.add('process', { mediaId, objectKey, bucket } satisfies ImageProcessJob, {
+  async enqueueProcessing(mediaId: string) {
+    await this.imageQueue.add('process', { mediaId } satisfies ImageProcessJob, {
       jobId: mediaId,
       attempts: 2,
       backoff: { type: 'fixed', delay: 10_000 },
       removeOnComplete: { age: 86_400 },
       removeOnFail: { age: 604_800 },
     });
+  }
+
+  cleanupCompletedStagingObjects(limit?: number) {
+    return this.processing.cleanupCompletedStagingObjects(limit);
   }
 
   /** 每用户小时上传配额校验：Redis 计数器，超限抛 429 */
@@ -347,6 +298,8 @@ export class MediaService {
 
   /** 孤儿图片回收：引用标记对账后清理超出宽限期且无存活引用的对象（S3 + DB）。 */
   async cleanupOrphanMedia() {
+    const cleanedStaging = await this.cleanupCompletedStagingObjects();
+    if (cleanedStaging > 0) this.logger.log(`临时图片清理完成: ${cleanedStaging} 条`);
     const reconciled = await this.mediaReferences.reconcileAllMarkers();
     if (reconciled > 0) this.logger.log(`媒体引用标记对账完成: 修复 ${reconciled} 条`);
 
@@ -365,7 +318,14 @@ export class MediaService {
         ],
         stickerImports: { none: { status: 'PROCESSING' } },
       },
-      select: { id: true, key: true, status: true },
+      select: {
+        id: true,
+        key: true,
+        stagingKey: true,
+        status: true,
+        purpose: true,
+        animated: true,
+      },
     });
 
     const unreferencedIds = new Set(
@@ -379,24 +339,25 @@ export class MediaService {
     const deletedIds = new Set<string>();
     for (let i = 0; i < victims.length; i += S3_BATCH_DELETE_LIMIT) {
       const chunk = victims.slice(i, i + S3_BATCH_DELETE_LIMIT);
-      const keys: { key: string; mediaId: string; isOriginal: boolean }[] = [];
+      const keys: { key: string; mediaId: string }[] = [];
       for (const m of chunk) {
-        keys.push({ key: m.key, mediaId: m.id, isOriginal: true });
+        keys.push({ key: m.key, mediaId: m.id });
+        if (m.stagingKey) keys.push({ key: m.stagingKey, mediaId: m.id });
         if (!m.key.toLowerCase().endsWith('.svg')) {
-          const stem = m.key.replace(/\.[^.]+$/, '');
-          keys.push({ key: `${stem}_thumb.webp`, mediaId: m.id, isOriginal: false });
-          keys.push({ key: `${stem}_feed.webp`, mediaId: m.id, isOriginal: false });
-          keys.push({ key: `${stem}_md.webp`, mediaId: m.id, isOriginal: false });
+          for (const variant of mediaVariantsFor(m.purpose, m.animated)) {
+            keys.push({ key: derivativeKey(m.key, variant), mediaId: m.id });
+          }
         }
       }
       const failedKeys = await this.storage.removeMany(
         keys.map((k) => k.key),
         bucket,
       );
-      for (const k of keys) {
-        if (k.isOriginal && !failedKeys.has(k.key)) {
-          deletedIds.add(k.mediaId);
-        }
+      const failedMediaIds = new Set(
+        keys.filter((item) => failedKeys.has(item.key)).map((item) => item.mediaId),
+      );
+      for (const item of chunk) {
+        if (!failedMediaIds.has(item.id)) deletedIds.add(item.id);
       }
     }
 
@@ -414,19 +375,25 @@ export class MediaService {
   async cleanupOrphanByUrl(url: string): Promise<boolean> {
     const media = await this.prisma.media.findFirst({
       where: { url },
-      select: { id: true, key: true, status: true },
+      select: {
+        id: true,
+        key: true,
+        stagingKey: true,
+        status: true,
+        purpose: true,
+        animated: true,
+      },
     });
     if (!media) return false;
     if (media.status === 'COMPLETED') return false;
     if ((await this.mediaReferences.filterUnreferenced([media.id])).length === 0) return false;
 
-    const keys = [media.key];
+    const keys = [media.key, ...(media.stagingKey ? [media.stagingKey] : [])];
     if (!media.key.toLowerCase().endsWith('.svg')) {
-      const stem = media.key.replace(/\.[^.]+$/, '');
-      keys.push(`${stem}_thumb.webp`, `${stem}_feed.webp`, `${stem}_md.webp`);
+      keys.push(...mediaVariantsFor(media.purpose, media.animated).map((variant) => derivativeKey(media.key, variant)));
     }
     const failedKeys = await this.storage.removeMany(keys);
-    if (failedKeys.has(media.key)) return false;
+    if (failedKeys.size > 0) return false;
 
     await this.prisma.media.deleteMany({ where: { id: media.id } });
     this.logger.log(`注销头像已回收 mediaId=${media.id}`);

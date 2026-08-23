@@ -6,11 +6,11 @@
 
 PostgreSQL 备份由 `scripts/backup.sh` 生成并验证 gzip，Redis 备份由 `scripts/backup-redis.sh` 触发 `BGSAVE`、运行 `redis-check-rdb` 并保存 SHA-256。部署会先安装并验证 `vm.overcommit_memory=1`，避免 Redis 后台持久化在内存压力下因 fork 失败。Redis 开启 AOF，使用 `appendfsync everysec` 与 `noeviction`；首次从纯 RDB 切换时，部署脚本会在备份后先对仍加载完整 RDB 数据的现有实例在线开启 AOF，等待重写成功后才受控重建容器，并用哨兵键验证数据跨重启保留。
 
-当前开发部署助手 `scripts/deploy.sh` 只接受目标分支上工作区干净、已推送且与远端完全一致的提交，按“安全审计与门禁 → 再验证提交 → 检查现有基础设施 → 停止旧进程并确认遗留通知队列为空 → PostgreSQL/Redis 备份 → 应用 Compose 并验证 Redis AOF → 迁移 → 记录 revision → 安装 unit → 重启后端 → 公网烟雾”执行。后端启动器从部署写入的 revision 文件读取 `BUILD_SHA`，服务重启不会把可变工作区 HEAD 误报为已部署版本。
+当前开发部署助手 `scripts/deploy.sh` 只接受目标分支上工作区干净、已推送且与远端完全一致的提交，按“安全审计与门禁 → 再验证提交 → 检查现有基础设施 → 停止旧进程并确认遗留通知队列为空 → PostgreSQL/Redis 备份 → 应用 Compose 并验证 Redis AOF → 迁移 → 记录 revision → 安装 unit → 重启图片 Worker 与后端 → 公网烟雾”执行。两个启动器都从部署写入的 revision 文件读取 `BUILD_SHA`，服务重启不会把可变工作区 HEAD 误报为已部署版本。
 
 ## 总体形态
 
-后端采用 NestJS 模块化单体。部署仍是一个进程，但代码按业务能力分模块，并在模块内区分 HTTP 适配、应用用例、查询、领域策略和基础设施。拆分目标是降低变更耦合，不是引入分布式复杂度。
+后端采用 NestJS 模块化单体，公网部署包含 HTTP/定时任务主进程和一个只消费 `image` 队列的图片 Worker。两者使用同一构建与配置，图片 Worker 固定队列并发 2、sharp 并发 1，使图片解码和转码的 CPU/内存压力不再阻塞 HTTP 事件循环；这仍是进程隔离的模块化单体，不引入独立网络服务。
 
 ```text
 Controller / Listener

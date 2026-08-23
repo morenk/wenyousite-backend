@@ -103,6 +103,17 @@ enum MediaStatus {
   FAILED
 }
 
+enum MediaPurpose {
+  AVATAR
+  PROFILE_COVER
+  DIRECT_MESSAGE
+  MOMENT
+  MOMENT_COMMENT
+  RICH_CONTENT
+  STICKER_SOURCE
+  LEGACY
+}
+
 enum DirectConversationStatus {
   PENDING
   ACCEPTED
@@ -830,18 +841,21 @@ model MomentComment {
 }
 
 model Media {
-  id                  String      @id @default(cuid())
-  userId              String      @map("user_id")
+  id                  String       @id @default(cuid())
+  userId              String       @map("user_id")
   url                 String
-  key                 String      @unique
-  contentType         String?     @map("content_type")
+  key                 String       @unique
+  stagingKey          String?      @unique @map("staging_key")
+  purpose             MediaPurpose @default(LEGACY)
+  contentType         String?      @map("content_type")
   size                Int?
   width               Int?
   height              Int?
-  status              MediaStatus @default(UPLOADING)
-  processingStartedAt DateTime?   @map("processing_started_at")
-  createdAt           DateTime    @default(now()) @map("created_at")
-  orphanedAt          DateTime?   @map("orphaned_at")
+  animated            Boolean      @default(false)
+  status              MediaStatus  @default(UPLOADING)
+  processingStartedAt DateTime?    @map("processing_started_at")
+  createdAt           DateTime     @default(now()) @map("created_at")
+  orphanedAt          DateTime?    @map("orphaned_at")
 
   user                   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   avatarUser             User?           @relation("UserAvatar")

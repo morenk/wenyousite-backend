@@ -12,11 +12,12 @@ import { CacheService } from '../redis/cache.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { DEACTIVATED_USER_NAME } from '../common/user-summary';
 import { progressionFor } from '../progression/progression.constants';
-import { UserSanctionType } from '@prisma/client';
+import { MediaPurpose, UserSanctionType } from '@prisma/client';
 import { activeSanctionWhere } from '../access/account-status';
 import { mediaVariantUrls } from '../media/media-response.mapper';
 import { notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
+import { mediaPurposeAllowed } from '../media/media-policy';
 
 const profileCoverMediaSelect = {
   id: true,
@@ -25,6 +26,8 @@ const profileCoverMediaSelect = {
   contentType: true,
   width: true,
   height: true,
+  purpose: true,
+  animated: true,
 } as const;
 
 const userSelectPrivate = {
@@ -352,6 +355,9 @@ export class UsersService {
         `图片尚未处理完成（当前状态: ${media.status}），请稍后重试或查询 GET /media/${media.id}`,
       );
     }
+    if (!mediaPurposeAllowed(media.purpose, MediaPurpose.AVATAR)) {
+      throw new BadRequestException('图片用途与头像不匹配');
+    }
 
     return this.prisma
       .$transaction(async (tx) => {
@@ -447,6 +453,9 @@ export class UsersService {
       throw new BadRequestException(
         `${surfaceLabel}背景尚未处理完成（当前状态: ${media.status}），请稍后重试或查询 GET /media/${media.id}`,
       );
+    }
+    if (!mediaPurposeAllowed(media.purpose, MediaPurpose.PROFILE_COVER)) {
+      throw new BadRequestException(`${surfaceLabel}背景图片用途不匹配`);
     }
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(media.contentType ?? '')) {
       throw new BadRequestException(`${surfaceLabel}背景仅支持 jpg/png/webp 格式`);

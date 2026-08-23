@@ -1,5 +1,11 @@
 # API 合同变更
 
+## 5.10.0-dev.20260823.1
+
+- `POST /media/upload-url` 向后兼容新增可选 `purpose`（`AVATAR / PROFILE_COVER / DIRECT_MESSAGE / MOMENT / MOMENT_COMMENT / RICH_CONTENT / STICKER_SOURCE / LEGACY`）。旧客户端省略时使用 `LEGACY`，继续生成原有三种派生图；业务绑定接口接受同用途或历史 `LEGACY` 媒体。
+- 新上传先写随机临时对象，图片 Worker 校验真实格式后将静态图旋转归正、最长边限制为 2560px、清除元数据并写为 WebP 标准化主图；正式 URL 不再保存静态原件。GIF 在帧数、时长、尺寸与累计像素限制内保留动画原件。处理成功或终态失败后立即删除临时对象，定时任务补偿清理。
+- `MediaResponseDto` 向后兼容新增必填 `purpose` 与 `animated`；私聊和动态媒体响应新增必填 `animated`，动态媒体同时补齐既有可空 `contentType`。派生图按用途最小化生成，客户端只使用响应给出的非空 URL，不再猜测对象键。
+
 ## 5.9.0-dev.20260823.1
 
 - 新增 `GET /users/me/collaborated-threads`（`usersGetMyCollaboratedThreads`）：只返回当前用户角色为 `COLLABORATOR` 的已发布、未删除主题，PUBLIC 与 PRIVATE 均可读；按 `updatedAt DESC, id DESC` 使用不透明复合游标分页，非法游标返回 `40007`。

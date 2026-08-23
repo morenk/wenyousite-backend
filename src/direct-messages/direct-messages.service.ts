@@ -1,6 +1,6 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma, DirectConversationStatus } from '@prisma/client';
+import { Prisma, DirectConversationStatus, MediaPurpose } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { BusinessException, notFound } from '../common/exceptions/business.exception';
@@ -8,16 +8,13 @@ import { ErrorCode } from '../common/exceptions/error-codes';
 import { CreateDirectConversationDto, CreateDirectMessageDto } from './dto/direct-message.dto';
 import { DirectRequestAction } from './dto/direct-conversation-action.dto';
 import { DirectConversationStartResponseDto } from './dto/direct-message-response.dto';
-import {
-  canonicalDirectUserPair,
-  RoutingConversation,
-  routingConversationSelect,
-} from './direct-message-mapper';
+import { canonicalDirectUserPair, RoutingConversation, routingConversationSelect } from './direct-message-mapper';
 import { DirectMessageQueryService } from './direct-message-query.service';
 import { StickersService } from '../stickers/stickers.service';
 import { NormalizedDirectMessageInput, normalizeDirectMessageInput } from './direct-message-input';
 import { DirectMessageEventsService } from './direct-message-events.service';
 import { MediaReferenceService } from '../media/media-reference.service';
+import { mediaPurposeAllowed } from '../media/media-policy';
 
 const RECALL_WINDOW_MS = 10 * 60 * 1000;
 
@@ -475,10 +472,13 @@ export class DirectMessagesService {
     if (!mediaId) return;
     const media = await tx.media.findUnique({
       where: { id: mediaId },
-      select: { userId: true, status: true, directMessage: { select: { id: true } } },
+      select: { userId: true, status: true, purpose: true, directMessage: { select: { id: true } } },
     });
     if (!media || media.userId !== senderId || media.status !== 'COMPLETED') {
       throw this.invalidMessage('图片不存在、尚未处理完成或不属于当前用户');
+    }
+    if (!mediaPurposeAllowed(media.purpose, MediaPurpose.DIRECT_MESSAGE)) {
+      throw this.invalidMessage('图片用途与私聊不匹配');
     }
     if (media.directMessage) throw this.mediaAttached();
   }

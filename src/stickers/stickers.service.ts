@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
-import { Prisma, StickerAsset } from '@prisma/client';
+import { MediaPurpose, Prisma, StickerAsset } from '@prisma/client';
 import { Queue } from 'bullmq';
 import sharp from 'sharp';
 import { PrismaService } from '../prisma/prisma.service';
@@ -96,7 +96,12 @@ export class StickersService {
 
   async importMedia(userId: string, dto: ImportStickerMediaDto) {
     const media = await this.prisma.media.findFirst({
-      where: { id: dto.mediaId, userId, status: 'COMPLETED' },
+      where: {
+        id: dto.mediaId,
+        userId,
+        status: 'COMPLETED',
+        purpose: { in: [MediaPurpose.STICKER_SOURCE, MediaPurpose.LEGACY] },
+      },
       select: { id: true },
     });
     if (!media) throw this.invalid('图片不存在、尚未处理完成或不属于当前账号');

@@ -17678,7 +17678,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.9.0-dev.20260823.1",
+    "version": "5.10.0-dev.20260823.1",
     "contact": {}
   },
   "tags": [
@@ -19045,6 +19045,10 @@
             "type": "string",
             "nullable": true
           },
+          "contentType": {
+            "type": "string",
+            "nullable": true
+          },
           "width": {
             "type": "number",
             "nullable": true
@@ -19052,6 +19056,9 @@
           "height": {
             "type": "number",
             "nullable": true
+          },
+          "animated": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -19060,8 +19067,10 @@
           "thumbnailUrl",
           "feedUrl",
           "mediumUrl",
+          "contentType",
           "width",
-          "height"
+          "height",
+          "animated"
         ]
       },
       "MomentCardResponseDto": {
@@ -26028,6 +26037,21 @@
             "type": "number",
             "example": 204800,
             "description": "文件大小（字节），上限 10MB"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "AVATAR",
+              "PROFILE_COVER",
+              "DIRECT_MESSAGE",
+              "MOMENT",
+              "MOMENT_COMMENT",
+              "RICH_CONTENT",
+              "STICKER_SOURCE",
+              "LEGACY"
+            ],
+            "default": "LEGACY",
+            "description": "图片业务用途；旧客户端省略时按 LEGACY 生成全部兼容派生图"
           }
         },
         "required": [
@@ -26049,11 +26073,11 @@
           },
           "objectKey": {
             "type": "string",
-            "description": "对象存储 key"
+            "description": "本次 PUT 使用的临时对象 key；客户端不得据此拼接读取地址"
           },
           "publicUrl": {
             "type": "string",
-            "description": "原图公开访问地址"
+            "description": "处理完成后的正式媒体地址；静态图为归一化母版，GIF 为保留的动画原件"
           }
         },
         "required": [
@@ -26087,7 +26111,7 @@
           },
           "url": {
             "type": "string",
-            "description": "原图公开访问地址"
+            "description": "正式媒体地址；静态图为归一化母版，GIF 为保留的动画原件"
           },
           "thumbnailUrl": {
             "type": "string",
@@ -26126,6 +26150,23 @@
             "type": "number",
             "nullable": true
           },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "AVATAR",
+              "PROFILE_COVER",
+              "DIRECT_MESSAGE",
+              "MOMENT",
+              "MOMENT_COMMENT",
+              "RICH_CONTENT",
+              "STICKER_SOURCE",
+              "LEGACY"
+            ]
+          },
+          "animated": {
+            "type": "boolean",
+            "description": "是否为保留动画的 GIF"
+          },
           "status": {
             "type": "string",
             "enum": [
@@ -26152,6 +26193,8 @@
           "size",
           "width",
           "height",
+          "purpose",
+          "animated",
           "status",
           "createdAt"
         ]
@@ -26430,6 +26473,9 @@
           "height": {
             "type": "number",
             "nullable": true
+          },
+          "animated": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -26439,7 +26485,8 @@
           "mediumUrl",
           "contentType",
           "width",
-          "height"
+          "height",
+          "animated"
         ]
       },
       "DirectMessageStickerResponseDto": {

@@ -3,10 +3,9 @@ import { BullModule } from '@nestjs/bullmq';
 import { MediaController } from './media.controller';
 import { MediaService } from './media.service';
 import { UserMediaCleanupListener } from './user-media-cleanup.listener';
-import { ImageProcessor } from './image.processor';
 import { MediaReferenceModule } from './media-reference.module';
 import { ObjectStorageModule } from '../storage/object-storage.module';
-import { MediaProcessingRecoveryService } from './media-processing-recovery.service';
+import { MediaProcessingService } from './media-processing.service';
 
 /** 媒体模块：预签名上传 + 上传确认 + 异步图片加工（缩略图/中图） */
 @Module({
@@ -14,10 +13,9 @@ import { MediaProcessingRecoveryService } from './media-processing-recovery.serv
   controllers: [MediaController],
   providers: [
     MediaService,
+    MediaProcessingService,
     UserMediaCleanupListener,
-    ImageProcessor,
-    MediaProcessingRecoveryService,
   ],
-  exports: [MediaService, MediaReferenceModule],
+  exports: [BullModule, MediaService, MediaProcessingService, MediaReferenceModule],
 })
 export class MediaModule {}

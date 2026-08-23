@@ -19,11 +19,17 @@ export class MomentMediaResponseDto {
   @ApiProperty({ type: String, nullable: true })
   mediumUrl!: string | null;
 
+  @ApiProperty({ type: String, nullable: true })
+  contentType!: string | null;
+
   @ApiProperty({ type: Number, nullable: true })
   width!: number | null;
 
   @ApiProperty({ type: Number, nullable: true })
   height!: number | null;
+
+  @ApiProperty()
+  animated!: boolean;
 }
 
 export class MomentActionResponseDto {

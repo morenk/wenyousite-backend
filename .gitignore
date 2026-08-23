@@ -15,6 +15,7 @@ backups/
 *.tsbuildinfo
 .cache
 .tmp
+loadtest/fixtures/
 scripts/**/*.js
 scripts/**/*.js.map
 scripts/**/*.d.ts

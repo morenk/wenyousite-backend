@@ -44,7 +44,7 @@ export class MediaProcessingRecoveryService implements OnModuleInit {
         },
         orderBy: { processingStartedAt: 'asc' },
         take: RECOVERY_BATCH_SIZE,
-        select: { id: true, key: true },
+        select: { id: true },
       });
 
       for (const item of stale) await this.reconcileOne(item);
@@ -53,7 +53,7 @@ export class MediaProcessingRecoveryService implements OnModuleInit {
     }
   }
 
-  private async reconcileOne(item: { id: string; key: string }) {
+  private async reconcileOne(item: { id: string }) {
     const job = await this.queue.getJob(item.id);
     const state = job ? await job.getState() : 'missing';
     if (
@@ -74,7 +74,7 @@ export class MediaProcessingRecoveryService implements OnModuleInit {
       return;
     }
 
-    await this.media.enqueueProcessing(item.id, item.key);
+    await this.media.enqueueProcessing(item.id);
     await this.prisma.media.updateMany({
       where: { id: item.id, status: 'PROCESSING' },
       data: { processingStartedAt: new Date() },

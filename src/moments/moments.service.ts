@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { MediaPurpose, Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { paginate } from '../common/dto/paginated-result';
 import { hashIdempotencyPayload } from '../common/idempotency';
@@ -7,12 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { CreateMomentDto, UpdateMomentDto } from './dto/moment-write.dto';
 import { MomentFeedMode } from './dto/moment-query.dto';
-import {
-  mapMomentCard,
-  mapMomentDetail,
-  type MomentCardRow,
-  type MomentDetailRow,
-} from './moment.mapper';
+import { mapMomentCard, mapMomentDetail, type MomentCardRow, type MomentDetailRow } from './moment.mapper';
 import {
   momentCardSelect,
   momentDetailSelect,
@@ -24,6 +19,7 @@ import { BusinessException, notFound } from '../common/exceptions/business.excep
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { isUniqueConstraintViolation } from '../common/prisma-errors';
 import { MomentAccessService } from './moment-access.service';
+import { mediaPurposeAllowed } from '../media/media-policy';
 
 const MAX_PAGE_SIZE = 50;
 const DISCOVER_SNAPSHOT_LIMIT = 1000;
@@ -631,10 +627,13 @@ export class MomentsService {
     if (mediaIds.length === 0) return;
     const media = await client.media.findMany({
       where: { id: { in: mediaIds }, userId, status: 'COMPLETED' },
-      select: { id: true, momentImages: { select: { momentId: true } } },
+      select: { id: true, purpose: true, momentImages: { select: { momentId: true } } },
     });
     if (media.length !== mediaIds.length)
       throw badRequest('图片不存在、未处理完成或不属于当前用户');
+    if (media.some((item) => !mediaPurposeAllowed(item.purpose, MediaPurpose.MOMENT))) {
+      throw badRequest('图片用途与动态不匹配');
+    }
     const occupied = media.some((item) =>
       item.momentImages.some((image) => image.momentId !== currentMomentId),
     );

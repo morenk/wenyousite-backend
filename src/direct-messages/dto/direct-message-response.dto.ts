@@ -44,12 +44,12 @@ export class DirectMessageMediaResponseDto {
 
   @ApiProperty({ type: Number, nullable: true })
   height!: number | null;
+
+  @ApiProperty()
+  animated!: boolean;
 }
 
 export class DirectMessageStickerResponseDto extends DirectMessageMediaResponseDto {
-  @ApiProperty()
-  animated!: boolean;
-
   @ApiProperty()
   frameCount!: number;
 

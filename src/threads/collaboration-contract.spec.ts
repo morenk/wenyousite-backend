@@ -79,6 +79,6 @@ describe('协作管理 OpenAPI 契约', () => {
     );
     expect(payload.properties?.oldRole?.enum).toEqual(['COLLABORATOR', 'PARTICIPANT']);
     expect(payload.properties?.newRole?.enum).toEqual(['COLLABORATOR', 'PARTICIPANT']);
-    expect(contract.info.version).toBe('5.9.0-dev.20260823.1');
+    expect(contract.info.version).toBe('5.10.0-dev.20260823.1');
   });
 });

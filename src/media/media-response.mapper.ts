@@ -1,6 +1,10 @@
+import { mediaVariantsFor } from './media-policy';
+
 type MediaVariantSource = {
   url: string;
   status?: string;
+  purpose?: string | null;
+  animated?: boolean;
 };
 
 function derivativeUrl(url: string, suffix: '_thumb.webp' | '_feed.webp' | '_md.webp'): string | null {
@@ -13,10 +17,11 @@ export function mediaVariantUrls(media: MediaVariantSource) {
   if (media.status !== 'COMPLETED') {
     return { thumbnailUrl: null, feedUrl: null, mediumUrl: null };
   }
+  const variants = new Set(mediaVariantsFor(media.purpose, media.animated));
   return {
-    thumbnailUrl: derivativeUrl(media.url, '_thumb.webp'),
-    feedUrl: derivativeUrl(media.url, '_feed.webp'),
-    mediumUrl: derivativeUrl(media.url, '_md.webp'),
+    thumbnailUrl: variants.has('thumbnail') ? derivativeUrl(media.url, '_thumb.webp') : null,
+    feedUrl: variants.has('feed') ? derivativeUrl(media.url, '_feed.webp') : null,
+    mediumUrl: variants.has('medium') ? derivativeUrl(media.url, '_md.webp') : null,
   };
 }
 

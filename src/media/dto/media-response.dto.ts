@@ -1,6 +1,8 @@
 /** 媒体响应 DTO：供 Web/Flutter 生成上传链路的强类型客户端 */
 
 import { ApiProperty } from '@nestjs/swagger';
+import { MediaPurpose } from '@prisma/client';
+import { MEDIA_PURPOSES } from '../media-policy';
 
 const MEDIA_STATUSES = ['UPLOADING', 'PROCESSING', 'COMPLETED', 'FAILED'] as const;
 
@@ -12,10 +14,10 @@ export class UploadUrlResponseDto {
   @ApiProperty({ description: '媒体记录 ID，后续确认和轮询使用' })
   mediaId!: string;
 
-  @ApiProperty({ description: '对象存储 key' })
+  @ApiProperty({ description: '本次 PUT 使用的临时对象 key；客户端不得据此拼接读取地址' })
   objectKey!: string;
 
-  @ApiProperty({ description: '原图公开访问地址' })
+  @ApiProperty({ description: '处理完成后的正式媒体地址；静态图为归一化母版，GIF 为保留的动画原件' })
   publicUrl!: string;
 }
 
@@ -27,7 +29,7 @@ export class MediaResponseDto {
   @ApiProperty()
   userId!: string;
 
-  @ApiProperty({ description: '原图公开访问地址' })
+  @ApiProperty({ description: '正式媒体地址；静态图为归一化母版，GIF 为保留的动画原件' })
   url!: string;
 
   @ApiProperty({ type: String, nullable: true, description: '处理完成后的 300px WebP 缩略图地址' })
@@ -53,6 +55,12 @@ export class MediaResponseDto {
 
   @ApiProperty({ type: Number, nullable: true })
   height!: number | null;
+
+  @ApiProperty({ enum: MEDIA_PURPOSES })
+  purpose!: MediaPurpose;
+
+  @ApiProperty({ description: '是否为保留动画的 GIF' })
+  animated!: boolean;
 
   @ApiProperty({ enum: MEDIA_STATUSES })
   status!: (typeof MEDIA_STATUSES)[number];

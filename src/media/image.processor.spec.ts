@@ -1,22 +1,22 @@
 import { Job } from 'bullmq';
 import { mock, MockProxy, mockReset } from 'jest-mock-extended';
 import { ImageProcessor } from './image.processor';
-import { ImageProcessJob, MediaService } from './media.service';
+import { ImageProcessJob } from './media.service';
+import { MediaProcessingService } from './media-processing.service';
 
 function imageJob(attemptsMade: number, attempts?: number) {
   return {
     data: {
       mediaId: 'media-1',
-      objectKey: 'uploads/source.webp',
-      bucket: 'test-bucket',
     },
+    timestamp: Date.now() - 20,
     attemptsMade,
     opts: attempts === undefined ? {} : { attempts },
   } as unknown as Job<ImageProcessJob>;
 }
 
 describe('ImageProcessor', () => {
-  const media: MockProxy<MediaService> = mock<MediaService>();
+  const media: MockProxy<MediaProcessingService> = mock<MediaProcessingService>();
   let processor: ImageProcessor;
 
   beforeEach(() => {
@@ -36,7 +36,9 @@ describe('ImageProcessor', () => {
     const job = imageJob(0, 2);
 
     await expect(processor.process(job)).resolves.toBeUndefined();
-    expect(media.processImage).toHaveBeenCalledWith(job.data);
+    expect(media.processImage).toHaveBeenCalledWith('media-1', {
+      queueWaitMs: expect.any(Number),
+    });
     expect(media.markFailed).not.toHaveBeenCalled();
   });
 

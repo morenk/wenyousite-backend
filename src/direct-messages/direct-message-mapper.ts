@@ -32,6 +32,8 @@ export const directMessageSelect = {
       contentType: true,
       width: true,
       height: true,
+      purpose: true,
+      animated: true,
     },
   },
   sticker: {
@@ -104,6 +106,7 @@ export function mapDirectMessage(message: DirectMessageRecord) {
         contentType: message.media.contentType,
         width: message.media.width,
         height: message.media.height,
+        animated: message.media.animated,
         ...mediaVariantUrls(message.media),
       }
     : null;
@@ -121,6 +124,7 @@ export function mapDirectMessage(message: DirectMessageRecord) {
           contentType: sticker.contentType,
           width: sticker.width,
           height: sticker.height,
+          animated: sticker.animated,
           thumbnailUrl: sticker.thumbnailUrl,
           mediumUrl: sticker.url,
         }

@@ -324,20 +324,21 @@ POST   /notifications/read-all    全部已读
 
 ## 5. 图片上传管线
 
-S3 预签名直传，不经过后端中转：
+静态图先在浏览器归正方向、最长边缩到 2560px、清除元数据并编码为 WebP 85；GIF 不转码。随后预签名直传，不经过后端 HTTP 中转：
 
 ```
 1. POST /media/upload-url
-   { "filename": "photo.jpg", "contentType": "image/jpeg", "size": 204800 }
+   { "filename": "photo.webp", "contentType": "image/webp", "size": 204800,
+     "purpose": "DIRECT_MESSAGE" }
    → 返回 { uploadUrl: "https://s3...", mediaId: "clx...", publicUrl: "https://cdn..." }
 
-2. PUT {uploadUrl}                     // 前端直接 PUT 到 S3
-   Content-Type: image/jpeg
+2. PUT {uploadUrl}                     // 前端直传 staging 临时对象
+   Content-Type: image/webp
    Body: <二进制文件>
 
 3. POST /media/upload-done
-   { "mediaId": "clx..." }            // 确认上传完成，触发服务端缩略图处理
-   → 后台队列生成 300x300 缩略图 + 480px 信息流图 + 800px 中图 (WebP)
+   { "mediaId": "clx..." }            // 触发独立 Worker 归一化
+   → 静态正式主图为 WebP；按 purpose 只生成需要的派生图；staging 随后删除
 
    若返回 404 / MEDIA_OBJECT_MISSING：
    POST /media/:id/upload-url            // 为原 mediaId / objectKey 重签
@@ -347,9 +348,9 @@ S3 预签名直传，不经过后端中转：
    → status: UPLOADING → PROCESSING → COMPLETED
 ```
 
-文件限制：仅允许 jpg/jpeg、png、gif、webp、avif，最大 10MB；明确拒绝 SVG/BMP。处理完成后响应中的 `thumbnailUrl`（300×300 WebP）和 `mediumUrl`（最长边 800 WebP）可直接用于列表与详情，处理中为 `null`。
+文件限制：仅允许 jpg/jpeg、png、gif、webp、avif，最大 10MB；明确拒绝 SVG/BMP。服务端再次校验真实格式、像素和动画边界，不能依赖浏览器预处理。处理完成后只使用响应中非空的 `thumbnailUrl`、`feedUrl` 和 `mediumUrl`，不得猜测用途未生成的对象键。`animated` 明确 GIF 语义。
 
-Web 上传状态机对确认请求的网络/5xx 做有限重试，并允许最长 120 秒处理轮询。上传失败、取消或签名过期时应保存文件指纹与 `mediaId` 恢复点；业务提交失败时保存已经完成的 `mediaId`，重试业务请求而不是重复上传字节。
+Web 上传状态机对确认请求的网络/5xx 做有限重试，并允许最长 120 秒处理轮询。签名与 PUT 必须使用预处理后的文件名、MIME 和大小。上传失败、取消或签名过期时保存文件指纹与 `mediaId` 恢复点；业务提交失败时保存已经完成的 `mediaId`，重试业务请求而不是重复上传字节。私聊在 PUT 开始前插入本地图片气泡并显示上传进度，成功后以同一 `clientRequestId` 原位替换，避免大图期间看起来“点击无响应”。
 
 ### 5.1 主页背景图
 

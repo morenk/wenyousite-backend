@@ -1,7 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { MediaStatus, Prisma } from '@prisma/client';
+import { MediaPurpose, MediaStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { extractMarkdownImageUrls } from '../common/markdown-cover-images';
+import { mediaPurposeAllowed } from './media-policy';
 
 type DbClient = PrismaService | Prisma.TransactionClient;
 
@@ -183,7 +184,7 @@ export class MediaReferenceService {
 
     const rows = await tx.media.findMany({
       where: { url: { in: urls } },
-      select: { id: true, url: true, status: true },
+      select: { id: true, url: true, status: true, purpose: true },
       orderBy: { createdAt: 'desc' },
     });
     const byUrl = new Map<string, (typeof rows)[number]>();
@@ -197,6 +198,9 @@ export class MediaReferenceService {
       if (!media) continue;
       if (media.status !== MediaStatus.COMPLETED) {
         throw new BadRequestException(`正文图片尚未处理完成（mediaId: ${media.id}）`);
+      }
+      if (!mediaPurposeAllowed(media.purpose, MediaPurpose.RICH_CONTENT)) {
+        throw new BadRequestException(`正文图片用途不匹配（mediaId: ${media.id}）`);
       }
       resolved.push(media.id);
     }
