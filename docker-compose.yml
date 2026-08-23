@@ -43,7 +43,8 @@ services:
     profiles: ["loadtest"]
     environment:
       POSTGRES_USER: wenyou_loadtest
-      POSTGRES_PASSWORD: ${LOADTEST_DB_PASSWORD:?LOADTEST_DB_PASSWORD must be set}
+      # loadtest profile 启动时应由 target.env 覆盖；默认值仅让 Compose 门禁可解析。
+      POSTGRES_PASSWORD: ${LOADTEST_DB_PASSWORD:-loadtest-profile-placeholder-do-not-use}
       POSTGRES_DB: wenyousite_loadtest
     ports:
       - "127.0.0.1:55432:5432"

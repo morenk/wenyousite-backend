@@ -17,6 +17,7 @@ describe('configuration', () => {
           url: 'postgresql://wenyou:wenyou@127.0.0.1:5432/wenyousite?schema=public',
         },
         redis: { host: '127.0.0.1', port: 6379, db: 0 },
+        throttling: { globalRatePerSecond: 10 },
         jwt: {
           accessSecret: 'dev-access-secret-change-me',
           accessExpiresIn: '15m',
@@ -53,6 +54,7 @@ describe('configuration', () => {
       PORT: '4100',
       REDIS_PORT: '6380',
       REDIS_DB: '15',
+      GLOBAL_RATE_LIMIT_PER_SECOND: '1000',
       JWT_ACCESS_EXPIRES_IN: '45m',
       AUTH_REFRESH_WEB_TTL_DAYS: '14',
       AUTH_REFRESH_MOBILE_TTL_DAYS: '60',
@@ -81,6 +83,7 @@ describe('configuration', () => {
     expect(result.port).toBe(4100);
     expect(result.redis.port).toBe(6380);
     expect(result.redis.db).toBe(15);
+    expect(result.throttling.globalRatePerSecond).toBe(1000);
     expect(result.jwt).toEqual(
       expect.objectContaining({
         accessExpiresIn: '45m',

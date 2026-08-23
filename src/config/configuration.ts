@@ -22,6 +22,10 @@ export default function configuration() {
       db: env.REDIS_DB,
     },
 
+    throttling: {
+      globalRatePerSecond: env.GLOBAL_RATE_LIMIT_PER_SECOND,
+    },
+
     // JWT 双 Token 配置
     jwt: {
       accessSecret: env.JWT_ACCESS_SECRET,

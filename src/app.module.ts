@@ -149,10 +149,10 @@ function buildPinoTransport(logLevel: PinoLogLevel, nodeEnv: string, logFileDir?
     RedisModule,
     // 全局限流：每秒最多 10 个请求，使用 Redis 存储支持多实例
     ThrottlerModule.forRootAsync({
-      inject: [ThrottlerRedisStorage],
-      useFactory: (storage: ThrottlerStorage) => ({
+      inject: [ThrottlerRedisStorage, ConfigService],
+      useFactory: (storage: ThrottlerStorage, config: ConfigService) => ({
         storage,
-        throttlers: [{ ttl: 1000, limit: 10 }],
+        throttlers: [{ ttl: 1000, limit: config.get<number>('throttling.globalRatePerSecond') ?? 10 }],
       }),
     }),
     // 事件发射器：模块间解耦（发帖 → 通知/提及/订阅等）

@@ -48,6 +48,13 @@ export class EnvironmentVariables {
   @Max(15)
   REDIS_DB: number = 0;
 
+  // 全局请求限流；正式环境默认每秒 10 个请求，隔离压测实例可单独提高。
+  @IsNumber()
+  @IsOptional()
+  @Min(1)
+  @Max(10_000)
+  GLOBAL_RATE_LIMIT_PER_SECOND: number = 10;
+
   @IsString()
   @IsOptional()
   JWT_ACCESS_SECRET: string = 'dev-access-secret-change-me';
