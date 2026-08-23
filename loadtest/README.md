@@ -16,7 +16,7 @@ cp loadtest/runner.env.example loadtest/runner.env
 - 两个实际文件已被 Git 忽略；`.example` 文件不包含任何密钥。
 - `AUTH_TOKENS_JSON_PATH` 指向的 Token 文件由隔离环境初始化阶段生成，不要把正式账号 Token 填入配置。
 
-当前目标服务器公网 DNS 可使用 `loadtest-api.wenyou.site`，压测机固定 IP 必须同时填写在 `target.env` 的 `LOADTEST_ALLOWED_IP`、`runner.env` 的 `LOADGEN_IP` 和入口/WAF 白名单中。
+当前目标服务器公网 DNS 可使用 `loadtest-api.wenyou.site`。压测机不需要入站公网 IP；Windows 经路由器/NAT发起请求时，填写服务器实际看到的公网出口 IP，并同步到 `target.env` 的 `LOADTEST_ALLOWED_IP`、`runner.env` 的 `LOADGEN_IP` 和入口/WAF 白名单中。出口 IP 动态变化时，在每轮测试前更新即可。
 
 ## Windows 执行
 
