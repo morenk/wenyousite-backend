@@ -7,6 +7,11 @@ function cacheFailureReason(error: unknown): string {
   return message.replace(/\s+/g, ' ').slice(0, 300);
 }
 
+function cacheKeyPattern(pattern: string): RegExp {
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+  return new RegExp(`^${escaped}$`);
+}
+
 function cacheSafe<T>(value: T, ancestors = new WeakSet<object>()): T {
   if (typeof value === 'bigint') return value.toString() as T;
   if (!value || typeof value !== 'object') return value;
@@ -78,20 +83,19 @@ export class CacheService {
   /** 批量删除匹配模式的缓存键（通过 cache-manager 遍历 store） */
   async delByPattern(pattern: string): Promise<void> {
     try {
-      const stores = (this.cacheManager as any).stores as {
-        keys?: (pattern?: string) => Promise<string[]>;
-      }[];
-      if (!stores) return;
-      const allKeys: string[] = [];
+      const stores = this.cacheManager.stores;
+      if (!stores?.length) return;
+      const matches = cacheKeyPattern(pattern);
+      const allKeys = new Set<string>();
       for (const store of stores) {
-        if (store.keys) {
-          const keys = await store.keys(pattern);
-          allKeys.push(...keys);
+        if (!store.iterator) continue;
+        for await (const [key] of store.iterator(undefined)) {
+          if (typeof key === 'string' && matches.test(key)) allKeys.add(key);
         }
       }
-      if (allKeys.length > 0) {
-        await Promise.all(allKeys.map((key) => this.cacheManager.del(key)));
-        this.logger.debug(`批量删除缓存 pattern=${pattern} count=${allKeys.length}`);
+      if (allKeys.size > 0) {
+        await Promise.all([...allKeys].map((key) => this.cacheManager.del(key)));
+        this.logger.debug(`批量删除缓存 pattern=${pattern} count=${allKeys.size}`);
       }
     } catch (err) {
       this.logger.warn(`批量缓存删除失败 pattern=${pattern} reason=${cacheFailureReason(err)}`);

@@ -92,20 +92,42 @@ describe('CacheService', () => {
 
   it('从所有 store 汇总匹配键并并行删除', async () => {
     cache.stores = [
-      { keys: jest.fn().mockResolvedValue(['key-1', 'key-2']) },
-      { keys: jest.fn().mockResolvedValue(['key-3']) },
+      {
+        iterator: async function* () {
+          yield ['cache:threads:list:key-1', {}];
+          yield ['cache:thread:key-ignored', {}];
+          yield ['cache:threads:list:key-2', {}];
+        },
+      },
+      {
+        iterator: async function* () {
+          yield ['cache:threads:list:key-3', {}];
+          yield ['cache:threads:list:key-2', {}];
+        },
+      },
       {},
     ];
     cache.del.mockResolvedValue(undefined);
 
     await service.delByPattern('cache:threads:list:*');
 
-    expect(cache.del.mock.calls.map((call) => call[0])).toEqual(['key-1', 'key-2', 'key-3']);
+    expect(cache.del.mock.calls.map((call) => call[0])).toEqual([
+      'cache:threads:list:key-1',
+      'cache:threads:list:key-2',
+      'cache:threads:list:key-3',
+    ]);
   });
 
-  it('底层 store 不支持 keys 或查询失败时安全降级', async () => {
+  it('底层 store 不支持 iterator 或遍历失败时安全降级', async () => {
     await expect(service.delByPattern('pattern')).resolves.toBeUndefined();
-    cache.stores = [{ keys: jest.fn().mockRejectedValue(new Error('scan failed')) }];
+    cache.stores = [
+      {
+        iterator: async function* () {
+          yield ['pattern-before-failure', {}];
+          throw new Error('scan failed');
+        },
+      },
+    ];
     await expect(service.delByPattern('pattern')).resolves.toBeUndefined();
     expect(cache.del).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledWith('批量缓存删除失败 pattern=pattern reason=Error: scan failed');

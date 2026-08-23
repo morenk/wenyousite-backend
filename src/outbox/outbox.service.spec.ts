@@ -1,9 +1,13 @@
+import type { Prisma } from '@prisma/client';
 import { OutboxService } from './outbox.service';
 
 describe('OutboxService', () => {
   it('按事件键幂等写入事务客户端', async () => {
     const upsert = jest.fn().mockResolvedValue({ id: 'event-1' });
-    const tx = { domainOutbox: { upsert } } as any;
+    const tx = { domainOutbox: { upsert } } as unknown as Pick<
+      Prisma.TransactionClient,
+      'domainOutbox'
+    >;
     const service = new OutboxService();
 
     await service.enqueue(tx, {

@@ -112,6 +112,13 @@ const basicTx = () => ({
   },
 });
 
+const invokeTransaction = <T>(callback: unknown, transaction: unknown): T => {
+  if (typeof callback !== 'function') {
+    throw new TypeError('Expected a transaction callback');
+  }
+  return (callback as (tx: unknown) => T)(transaction);
+};
+
 /** 为主题帖创建流程准备 $transaction 模拟 */
 const setupThreadTransaction = (prisma: MockPrisma, threadId = 't1', subthreadId = 's1') => {
   const tx = {
@@ -129,7 +136,7 @@ const setupThreadTransaction = (prisma: MockPrisma, threadId = 't1', subthreadId
     post: { create: jest.fn().mockResolvedValue({ id: 'p1', floorNumber: 1 }) },
     threadTopicTag: prisma.threadTopicTag,
   };
-  prisma.$transaction.mockImplementation(async (fn: any) => fn(tx));
+  prisma.$transaction.mockImplementation(async (fn: unknown) => invokeTransaction(fn, tx));
   return tx;
 };
 
@@ -179,7 +186,7 @@ const setupHelpers = {
     });
     m.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
   },
-  mockSubthread_find: (m: MockPrisma, overrides: any = {}) => {
+  mockSubthread_find: (m: MockPrisma, overrides: Record<string, unknown> = {}) => {
     m.subthread.findUnique.mockResolvedValue({
       id: 's1',
       threadId: 't1',
@@ -190,7 +197,7 @@ const setupHelpers = {
     });
   },
   mockPost_create_withFloor: (m: MockPrisma, maxFloor: number) => {
-    m.$transaction.mockImplementation(async (fn: any) => {
+    m.$transaction.mockImplementation(async (fn: unknown) => {
       const tx = {
         ...basicTx(),
         threadMember: { upsert: m.threadMember.upsert },
@@ -204,7 +211,7 @@ const setupHelpers = {
           }),
         },
       };
-      return fn(tx);
+      return invokeTransaction(fn, tx);
     });
   },
   mockThreadMember_ownerOrCollab: (m: MockPrisma) => {
@@ -229,9 +236,9 @@ describe('发帖全流程集成测试', () => {
     jest.clearAllMocks();
     prisma.post.findMany.mockResolvedValue([]);
     prisma.threadMember.findMany.mockResolvedValue([]);
-    prisma.$transaction.mockImplementation(async (fn: any) => fn(prisma));
+    prisma.$transaction.mockImplementation(async (fn: unknown) => invokeTransaction(fn, prisma));
 
-    const threadAccess = new ThreadAccessService(prisma as any);
+    const threadAccess = new ThreadAccessService(prisma as unknown as PrismaService);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PostsService,
@@ -372,7 +379,7 @@ describe('发帖全流程集成测试', () => {
 
     it('公开列表：仅展示已发布 + 公开帖', async () => {
       prisma.thread.findMany.mockResolvedValue([]);
-      await threadsService.findAll({ sort: 'newest' } as any);
+      await threadsService.findAll({ sort: 'newest' });
       expect(prisma.thread.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ published: true, visibility: 'PUBLIC' }),
@@ -382,7 +389,7 @@ describe('发帖全流程集成测试', () => {
 
     it('公开列表：filter=playing 仅返回 playing 帖', async () => {
       prisma.thread.findMany.mockResolvedValue([]);
-      await threadsService.findAll({ sort: 'newest', filter: 'playing' } as any, 'u1');
+      await threadsService.findAll({ sort: 'newest', filter: 'playing' }, 'u1');
       expect(prisma.thread.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
@@ -621,7 +628,7 @@ describe('发帖全流程集成测试', () => {
     it('创建子贴：含正文 → 创建子贴 + kind=BODY 正文帖（无楼层号）+ 发射事件', async () => {
       setupHelpers.mockThreadMember_ownerOrCollab(prisma);
       prisma.thread.findUnique.mockResolvedValue({ published: true, title: '主题A' });
-      prisma.$transaction.mockImplementation(async (fn: any) => {
+      prisma.$transaction.mockImplementation(async (fn: unknown) => {
         const tx = {
           ...basicTx(),
           subthread: {
@@ -640,10 +647,11 @@ describe('发帖全流程集成测试', () => {
               floorNumber: null,
               content: '正文',
               author: { username: 'test' },
+              diceRolls: [],
             }),
           },
         };
-        return fn(tx);
+        return invokeTransaction(fn, tx);
       });
 
       const result = await subthreadsService.create(
@@ -664,7 +672,7 @@ describe('发帖全流程集成测试', () => {
     it('创建子贴：不含正文 → 仅创建子贴，不创建楼层，不发射事件', async () => {
       setupHelpers.mockThreadMember_ownerOrCollab(prisma);
       prisma.thread.findUnique.mockResolvedValue({ published: true, title: '主题A' });
-      prisma.$transaction.mockImplementation(async (fn: any) => {
+      prisma.$transaction.mockImplementation(async (fn: unknown) => {
         const tx = {
           ...basicTx(),
           subthread: {
@@ -678,7 +686,7 @@ describe('发帖全流程集成测试', () => {
           },
           post: { create: jest.fn() },
         };
-        return fn(tx);
+        return invokeTransaction(fn, tx);
       });
 
       await subthreadsService.create('t1', { title: '空白区' }, 'u1');
@@ -693,7 +701,7 @@ describe('发帖全流程集成测试', () => {
         ownerId: 'u1',
         title: '草稿帖',
       });
-      prisma.$transaction.mockImplementation(async (fn: any) => {
+      prisma.$transaction.mockImplementation(async (fn: unknown) => {
         const tx = {
           ...basicTx(),
           subthread: {
@@ -712,10 +720,11 @@ describe('发帖全流程集成测试', () => {
               floorNumber: null,
               content: '正文',
               author: { username: 'test' },
+              diceRolls: [],
             }),
           },
         };
-        return fn(tx);
+        return invokeTransaction(fn, tx);
       });
 
       await subthreadsService.create('t1', { title: '设定区', content: '正文' }, 'u1');
@@ -725,7 +734,7 @@ describe('发帖全流程集成测试', () => {
     it('创建子贴：指定 sortOrder 冲突 → 409', async () => {
       setupHelpers.mockThreadMember_ownerOrCollab(prisma);
       prisma.thread.findUnique.mockResolvedValue({ published: true, title: '主题A' });
-      prisma.$transaction.mockImplementation(async (fn: any) => {
+      prisma.$transaction.mockImplementation(async (fn: unknown) => {
         const tx = {
           ...basicTx(),
           subthread: {
@@ -736,7 +745,7 @@ describe('发帖全流程集成测试', () => {
             findUnique: jest.fn(),
           },
         };
-        return fn(tx);
+        return invokeTransaction(fn, tx);
       });
 
       await expect(
@@ -783,7 +792,7 @@ describe('发帖全流程集成测试', () => {
           { id: 'c', title: 'sC', sortOrder: 2 },
         ]);
       prisma.subthread.findFirst.mockResolvedValue({ id: 'a' });
-      prisma.$transaction.mockImplementation(async (fn: any) => {
+      prisma.$transaction.mockImplementation(async (fn: unknown) => {
         const tx = {
           $queryRaw: jest.fn(),
           thread: { findUnique: jest.fn().mockResolvedValue({ defaultSubthreadId: 'a' }) },
@@ -792,7 +801,7 @@ describe('发帖全流程集成测试', () => {
             update: jest.fn(),
           },
         };
-        return fn(tx);
+        return invokeTransaction(fn, tx);
       });
       const result = await subthreadsService.reorder('t1', ['a', 'b', 'c'], 'u1');
       expect(result).toHaveLength(3);
@@ -873,8 +882,8 @@ describe('发帖全流程集成测试', () => {
       prisma.threadMember.upsert.mockResolvedValue({});
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
       prisma.post.findUnique.mockResolvedValue({ id: 'p1', subthreadId: 's1', parentPostId: null });
-      const txFn = (fn: any) =>
-        fn({
+      const txFn = (fn: unknown) =>
+        invokeTransaction(fn, {
           ...basicTx(),
           post: {
             aggregate: jest.fn(),
@@ -906,8 +915,8 @@ describe('发帖全流程集成测试', () => {
       prisma.post.findUnique
         .mockResolvedValueOnce({ id: 'p_parent', subthreadId: 's1', parentPostId: null }) // parentPostId 校验
         .mockResolvedValueOnce({ id: 'p_target', subthreadId: 's1' }); // replyToPostId 校验
-      prisma.$transaction.mockImplementation(async (fn: any) =>
-        fn({
+      prisma.$transaction.mockImplementation(async (fn: unknown) =>
+        invokeTransaction(fn, {
           ...basicTx(),
           post: {
             aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 3 } }),
@@ -1061,8 +1070,8 @@ describe('发帖全流程集成测试', () => {
       prisma.subthread.findUnique.mockResolvedValue(subthread);
       prisma.threadMember.upsert.mockResolvedValue({});
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
-      prisma.$transaction.mockImplementation(async (fn: any) =>
-        fn({
+      prisma.$transaction.mockImplementation(async (fn: unknown) =>
+        invokeTransaction(fn, {
           ...basicTx(),
           post: {
             aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 10 } }),
@@ -1104,8 +1113,8 @@ describe('发帖全流程集成测试', () => {
       prisma.subthread.findUnique.mockResolvedValue(subthread);
       prisma.threadMember.upsert.mockResolvedValue({});
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
-      prisma.$transaction.mockImplementation(async (fn: any) =>
-        fn({
+      prisma.$transaction.mockImplementation(async (fn: unknown) =>
+        invokeTransaction(fn, {
           ...basicTx(),
           post: {
             aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 0 } }),
@@ -1135,8 +1144,8 @@ describe('发帖全流程集成测试', () => {
       prisma.threadMember.upsert.mockResolvedValue({});
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
       prisma.post.findUnique.mockResolvedValue({ id: 'p1', subthreadId: 's1', parentPostId: null });
-      prisma.$transaction.mockImplementation(async (fn: any) =>
-        fn({
+      prisma.$transaction.mockImplementation(async (fn: unknown) =>
+        invokeTransaction(fn, {
           ...basicTx(),
           post: {
             aggregate: jest.fn(),

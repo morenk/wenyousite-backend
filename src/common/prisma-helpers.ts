@@ -1,5 +1,6 @@
 /** Prisma 查询辅助：消除软删除过滤、子贴/楼层计数等重复模式 */
 
+import type { PrismaClient } from '@prisma/client';
 import { publicUserSummarySelect } from './user-summary';
 
 /** 展开到 where 子句，过滤已软删除记录 */
@@ -46,7 +47,7 @@ export const includeSubthreads = (select?: Record<string, boolean>) => ({
 /** 把 includeSubthreads 返回的 posts[0]（kind=BODY）映射回响应字段 bodyPost，保持 API 契约不变 */
 export function mapSubthreadBody<T extends { posts?: unknown[] | null }>(subthreads: T[]) {
   return subthreads.map((s) => {
-    const { posts, ...rest } = s as any;
+    const { posts, ...rest } = s;
     return { ...rest, bodyPost: posts?.[0] ?? null };
   });
 }
@@ -67,9 +68,7 @@ export const countMembersAndPosts = () => ({
 /** 批量补全 _count.players：统计各主题帖 playerMarked=true（被授予玩家身份）的参与人数。
  *  Prisma 的 _count 输出键名只能跟关系名（members），无法直接别名 players，故单独 groupBy 后合并 */
 export async function attachPlayerCounts(
-  prisma: {
-    threadMember: { groupBy: (args: any) => Promise<{ threadId: string; _count: number }[]> };
-  },
+  prisma: Pick<PrismaClient, 'threadMember'>,
   threads: { id: string; _count?: Record<string, number> }[],
 ) {
   const ids = threads.map((t) => t.id);

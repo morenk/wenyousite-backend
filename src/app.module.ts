@@ -1,5 +1,6 @@
 import { Module, RequestMethod } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { LoggerModule } from 'nestjs-pino';
@@ -46,14 +47,29 @@ import { MomentsModule } from './moments/moments.module';
 import { SentryModule } from '@sentry/nestjs/setup';
 
 /** 构建 Pino 传输配置：开发环境 colorized 控制台，生产环境支持可选文件日志 */
-function buildPinoTransport(logLevel: string, nodeEnv: string, logFileDir?: string) {
+interface SerializedPinoRequest {
+  id?: unknown;
+  method?: string;
+  routeOptions?: { url?: string };
+  url?: string;
+}
+
+type PinoLogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'silent';
+
+interface PinoTransportTarget {
+  target: string;
+  options: Record<string, string | number | boolean>;
+  level: PinoLogLevel;
+}
+
+function buildPinoTransport(logLevel: PinoLogLevel, nodeEnv: string, logFileDir?: string) {
   const isProd = nodeEnv === 'production';
 
   if (!isProd) {
     return { target: 'pino-pretty', options: { colorize: true, singleLine: true } };
   }
 
-  const targets: any[] = [
+  const targets: PinoTransportTarget[] = [
     {
       target: 'pino-pretty',
       options: { colorize: false, destination: 1, singleLine: true },
@@ -85,14 +101,14 @@ function buildPinoTransport(logLevel: string, nodeEnv: string, logFileDir?: stri
     LoggerModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
-        const logLevel = config.get<string>('log.level') ?? 'info';
+        const logLevel = config.get<PinoLogLevel>('log.level') ?? 'info';
         const logFileDir = config.get<string>('log.fileDir');
         const nodeEnv = config.get<string>('app.nodeEnv') ?? 'development';
         return {
           forRoutes: [{ path: '{*path}', method: RequestMethod.ALL }],
           pinoHttp: {
             level: logLevel,
-            genReqId: (req: any) => requestIdFromHeader(req.headers['x-request-id']),
+            genReqId: (req: IncomingMessage) => requestIdFromHeader(req.headers['x-request-id']),
             transport: buildPinoTransport(logLevel, nodeEnv, logFileDir),
             redact: [
               'req.headers.authorization',
@@ -100,16 +116,16 @@ function buildPinoTransport(logLevel: string, nodeEnv: string, logFileDir?: stri
               `req.headers['x-refresh-token']`,
             ],
             serializers: {
-              req: (req: any) => ({
+              req: (req: SerializedPinoRequest) => ({
                 id: req.id,
                 method: req.method,
                 route: req.routeOptions?.url ?? String(req.url ?? '').split('?', 1)[0],
               }),
-              res: (res: any) => ({ statusCode: res.statusCode }),
-              err: (error: any) => ({
-                type: error?.constructor?.name ?? 'Error',
+              res: (res: ServerResponse) => ({ statusCode: res.statusCode }),
+              err: (error: unknown) => ({
+                type: error instanceof Error ? error.constructor.name : 'Error',
                 stack:
-                  typeof error?.stack === 'string'
+                  error instanceof Error && typeof error.stack === 'string'
                     ? error.stack.split('\n').slice(1).join('\n')
                     : undefined,
               }),

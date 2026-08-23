@@ -217,13 +217,13 @@ describe('ThreadsService', () => {
 
     it('无标题时 title 默认为未命名草稿', async () => {
       const threadId = 't1';
-      let capturedThreadData: any;
+      let capturedThreadData: { data: { title: string } } | undefined;
       mockPrisma.$transaction.mockImplementation(async (fn) =>
         fn({
           $queryRaw: jest.fn().mockResolvedValue([]),
           thread: {
             count: jest.fn().mockResolvedValue(0),
-            create: jest.fn().mockImplementation((args: any) => {
+            create: jest.fn().mockImplementation((args: { data: { title: string } }) => {
               capturedThreadData = args;
               return { id: threadId };
             }),
@@ -250,7 +250,7 @@ describe('ThreadsService', () => {
       });
 
       await service.create({}, 'u1');
-      expect(capturedThreadData.data.title).toBe('未命名草稿');
+      expect(capturedThreadData?.data.title).toBe('未命名草稿');
     });
 
     it('超过草稿上限（10）时拒绝创建', async () => {
@@ -294,7 +294,7 @@ describe('ThreadsService', () => {
   describe('findAll', () => {
     it('只展示已发布且楼主未注销的帖子', async () => {
       mockPrisma.thread.findMany.mockResolvedValue([]);
-      await service.findAll({ sort: 'newest' } as any);
+      await service.findAll({ sort: 'newest' });
       expect(mockPrisma.thread.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
@@ -307,7 +307,7 @@ describe('ThreadsService', () => {
 
     it('优先排列置顶帖', async () => {
       mockPrisma.thread.findMany.mockResolvedValue([]);
-      await service.findAll({ sort: 'newest' } as any);
+      await service.findAll({ sort: 'newest' });
       expect(mockPrisma.thread.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }] }),
       );
@@ -315,7 +315,7 @@ describe('ThreadsService', () => {
 
     it('按主题帖状态筛选', async () => {
       mockPrisma.thread.findMany.mockResolvedValue([]);
-      await service.findAll({ sort: 'newest', status: 'CLOSED' } as any);
+      await service.findAll({ sort: 'newest', status: 'CLOSED' });
       expect(mockPrisma.thread.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ status: 'CLOSED' }),
@@ -387,7 +387,7 @@ describe('ThreadsService', () => {
       ]);
       mockPrisma.threadMember.groupBy.mockResolvedValue([]);
 
-      const page = await service.findAll({ sort: 'newest' } as any);
+      const page = await service.findAll({ sort: 'newest' });
 
       expect(page.items[0]).toMatchObject({
         preview: '正文',
@@ -443,7 +443,7 @@ describe('ThreadsService', () => {
           sort: 'recommended',
           category: 'RPG',
           limit: 2,
-        } as any);
+        });
         expect(page1.items.map((t: { id: string }) => t.id)).toEqual(['r1', 'r2']);
         expect(page1.pagination.hasMore).toBe(true);
         expect(page1.pagination.cursor).toBe('2');
@@ -454,7 +454,7 @@ describe('ThreadsService', () => {
           category: 'RPG',
           limit: 2,
           cursor: '2',
-        } as any);
+        });
         expect(page2.items.map((t: { id: string }) => t.id)).toEqual(['r3']);
         expect(page2.pagination.hasMore).toBe(false);
         expect(page2.pagination.cursor).toBeNull();
@@ -477,7 +477,7 @@ describe('ThreadsService', () => {
           },
         ]);
 
-        const page = await service.findAll({ sort: 'recommended' } as any);
+        const page = await service.findAll({ sort: 'recommended' });
 
         expect(page.items[0].coverImages).toEqual(['https://cdn.example.com/cover.jpg']);
       });
@@ -496,7 +496,7 @@ describe('ThreadsService', () => {
           sort: 'recommended',
           category: 'RPG',
           limit: 2,
-        } as any);
+        });
         expect(mockRedis.zrevrange).toHaveBeenCalledTimes(2);
         expect(page.items.map((t: { id: string }) => t.id)).toEqual(['r1', 'r2']);
         expect(page.pagination.cursor).toBe('2');
@@ -505,7 +505,7 @@ describe('ThreadsService', () => {
       it('ZSET 为空时返回空页', async () => {
         mockRedis.zcard.mockResolvedValue(0);
         mockRedis.zrevrange.mockResolvedValue([]);
-        const page = await service.findAll({ sort: 'recommended' } as any);
+        const page = await service.findAll({ sort: 'recommended' });
         expect(page.items).toEqual([]);
         expect(page.pagination.hasMore).toBe(false);
       });
@@ -521,7 +521,7 @@ describe('ThreadsService', () => {
         mockRedis.zrevrange.mockResolvedValue(['t1']);
         mockPrisma.thread.findMany.mockResolvedValue([]);
 
-        await service.findAll({ sort: 'recommended', status: 'FINISHED' } as any);
+        await service.findAll({ sort: 'recommended', status: 'FINISHED' });
 
         expect(mockPrisma.thread.findMany).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -534,7 +534,7 @@ describe('ThreadsService', () => {
         mockRedis.zrevrange.mockResolvedValue(['t1']);
         mockPrisma.thread.findMany.mockResolvedValue([]);
 
-        await service.findAll({ sort: 'recommended' } as any);
+        await service.findAll({ sort: 'recommended' });
 
         expect(mockPrisma.thread.findMany).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -562,7 +562,7 @@ describe('ThreadsService', () => {
       });
 
       it('未登录 playing 筛选返回空', async () => {
-        const page = await service.findAll({ sort: 'recommended', filter: 'playing' } as any);
+        const page = await service.findAll({ sort: 'recommended', filter: 'playing' });
         expect(page.items).toEqual([]);
         expect(mockPrisma.thread.findMany).not.toHaveBeenCalled();
         expect(mockCache.get).not.toHaveBeenCalled();
@@ -576,7 +576,7 @@ describe('ThreadsService', () => {
         };
         mockCache.get.mockResolvedValueOnce(cached);
 
-        const page = await service.findAll({ sort: 'recommended' } as any);
+        const page = await service.findAll({ sort: 'recommended' });
 
         expect(page).toBeInstanceOf(PaginatedResult);
         expect(page.items).toEqual(cached.items);
@@ -588,7 +588,7 @@ describe('ThreadsService', () => {
       it('playing 筛选排除自己创建的帖', async () => {
         mockPrisma.thread.findMany.mockResolvedValue([]);
         mockPrisma.threadMember.groupBy.mockResolvedValue([]);
-        await service.findAll({ sort: 'newest', filter: 'playing' } as any, 'u1');
+        await service.findAll({ sort: 'newest', filter: 'playing' }, 'u1');
         const args = mockPrisma.thread.findMany.mock.calls[0][0];
         expect(args.where.members).toEqual({ some: { userId: 'u1', playerMarked: true } });
         expect(args.where.ownerId).toEqual({ not: 'u1' });
@@ -643,15 +643,14 @@ describe('ThreadsService', () => {
         visibility: 'PUBLIC',
         owner: { id: 'u1' },
         subthreads: [],
-        _count: { members: 5, posts: 3 } as any,
+        _count: { members: 5, posts: 3 },
       };
       mockPrisma.thread.findUnique.mockResolvedValue(thread);
       mockPrisma.thread.update.mockResolvedValue({});
       mockPrisma.threadMember.groupBy.mockResolvedValue([{ threadId: 't1', _count: 2 }]);
 
       const result = await service.findById('t1');
-      expect((result._count as any).players).toBe(2);
-      expect((result._count as any).members).toBe(5); // 候选池总数保留
+      expect(result._count).toMatchObject({ players: 2, members: 5 }); // 候选池总数保留
       expect(mockPrisma.threadMember.groupBy).toHaveBeenCalledWith({
         by: ['threadId'],
         where: { threadId: { in: ['t1'] }, playerMarked: true },
@@ -667,14 +666,14 @@ describe('ThreadsService', () => {
         visibility: 'PUBLIC',
         owner: { id: 'u1' },
         subthreads: [],
-        _count: { members: 5, posts: 3 } as any,
+        _count: { members: 5, posts: 3 },
       };
       mockPrisma.thread.findUnique.mockResolvedValue(thread);
       mockPrisma.thread.update.mockResolvedValue({});
       mockPrisma.threadMember.groupBy.mockResolvedValue([]);
 
       const result = await service.findById('t1');
-      expect((result._count as any).players).toBe(0);
+      expect(result._count).toMatchObject({ players: 0 });
     });
 
     it('不存在返回404', async () => {
@@ -711,10 +710,8 @@ describe('ThreadsService', () => {
       mockPrisma.userBookmark.findUnique.mockResolvedValue({ id: 'bm1' });
       mockPrisma.threadLike.findUnique.mockResolvedValue({ id: 'like1' });
 
-      const result = (await service.findById('t1', 'u1')) as any;
-      expect(result.isBookmarked).toBe(true);
-      expect(result.bookmarkId).toBe('bm1');
-      expect(result.isLiked).toBe(true);
+      const result = await service.findById('t1', 'u1');
+      expect(result).toMatchObject({ isBookmarked: true, bookmarkId: 'bm1', isLiked: true });
       expect(mockPrisma.userBookmark.findUnique).toHaveBeenCalledWith({
         where: { userId_threadId: { userId: 'u1', threadId: 't1' } },
         select: { id: true, folderId: true },
@@ -737,9 +734,9 @@ describe('ThreadsService', () => {
       mockPrisma.thread.findUnique.mockResolvedValue(thread);
       mockPrisma.thread.update.mockResolvedValue({});
 
-      const result = (await service.findById('t1')) as any;
-      expect(result.isBookmarked).toBeUndefined();
-      expect(result.isLiked).toBeUndefined();
+      const result = await service.findById('t1');
+      expect(result).not.toHaveProperty('isBookmarked');
+      expect(result).not.toHaveProperty('isLiked');
       expect(mockPrisma.userBookmark.findUnique).not.toHaveBeenCalled();
       expect(mockPrisma.threadLike.findUnique).not.toHaveBeenCalled();
     });
@@ -841,7 +838,7 @@ describe('ThreadsService', () => {
       ).resolves.toMatchObject({ title: '协作标题' });
     });
 
-    it.each([[{ visibility: 'PRIVATE' }], [{ published: true }]])(
+    it.each([[{ visibility: 'PRIVATE' as const }], [{ published: true }]])(
       '协作者不能修改楼主专属字段 %#',
       async (fields) => {
         mockThreadAccess.assertCanManage.mockResolvedValueOnce({ role: 'COLLABORATOR' });

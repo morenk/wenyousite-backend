@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { NotificationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { paginate } from '../common/dto/paginated-result';
 import { publicUserSummarySelect } from '../common/user-summary';
@@ -79,7 +80,10 @@ export class NotificationsService {
    *
    * 列表与未读数必须共用这组条件，否则会出现“角标有未读、列表却没有对应通知”。
    */
-  private visibleWhere(userId: string, extra: Record<string, unknown> = {}) {
+  private visibleWhere(
+    userId: string,
+    extra: Prisma.NotificationWhereInput = {},
+  ): Prisma.NotificationWhereInput {
     return {
       ...extra,
       userId,
@@ -116,12 +120,15 @@ export class NotificationsService {
   /** 获取用户通知列表（支持按类型过滤，自动排除已软删帖/子贴） */
   async findAll(userId: string, cursor?: string, limit = 20, types?: string[]) {
     const take = Math.min(limit, 50);
-    const where: any = this.visibleWhere(userId);
+    const where = this.visibleWhere(userId);
     if (types && types.length > 0) {
-      const aliases = types.flatMap((type) =>
-        type === 'new_post' ? ['new_post', 'new_floor', 'subthread_created'] : [type],
-      );
-      where.type = { in: [...new Set(aliases)] as any[] };
+      const aliases = types.flatMap((type): NotificationType[] => {
+        if (type === 'new_post') return ['new_post', 'new_floor', 'subthread_created'];
+        return Object.values(NotificationType).includes(type as NotificationType)
+          ? [type as NotificationType]
+          : [];
+      });
+      where.type = { in: [...new Set(aliases)] };
     }
     const notifs = await this.prisma.notification.findMany({
       where,
@@ -164,7 +171,7 @@ export class NotificationsService {
   /** 创建通知 */
   async create(
     userId: string,
-    type: string,
+    type: NotificationType,
     content: string,
     opts?: {
       postId?: string;
@@ -175,14 +182,14 @@ export class NotificationsService {
     },
   ) {
     return this.prisma.notification.create({
-      data: { userId, type: type as any, content, ...opts },
+      data: { userId, type, content, ...opts },
     });
   }
 
   async createMany(
     notifications: {
       userId: string;
-      type: string;
+      type: NotificationType;
       content: string;
       postId?: string;
       threadId?: string;
@@ -193,7 +200,7 @@ export class NotificationsService {
   ) {
     if (notifications.length === 0) return;
     await this.prisma.notification.createMany({
-      data: notifications.map((n) => ({ ...n, type: n.type as any })),
+      data: notifications,
     });
   }
 

@@ -3,6 +3,7 @@ import { IsOptional, IsString, IsIn, Matches } from 'class-validator';
 import { CursorPaginationDto } from '../../common/dto/pagination.dto';
 import { IsCuid } from '../../common/decorators/is-cuid.decorator';
 import { CATEGORY_SLUG_PATTERN } from '../../taxonomy/category-slug';
+import type { ThreadStatus } from '@prisma/client';
 
 /** 主题帖列表查询 DTO */
 export class ThreadQueryDto extends CursorPaginationDto {
@@ -14,7 +15,7 @@ export class ThreadQueryDto extends CursorPaginationDto {
   @IsOptional()
   @IsString()
   @IsIn(['all', 'playing'])
-  filter?: string = 'all';
+  filter?: 'all' | 'playing' = 'all';
 
   @ApiPropertyOptional({ example: 'MYSTERY', description: '按动态分类 slug 筛选' })
   @IsOptional()
@@ -30,7 +31,7 @@ export class ThreadQueryDto extends CursorPaginationDto {
   @IsOptional()
   @IsString()
   @IsIn(['recommended', 'newest', 'active'])
-  sort?: string = 'recommended';
+  sort?: 'recommended' | 'newest' | 'active' = 'recommended';
 
   @ApiPropertyOptional({
     enum: ['RECRUITING', 'CLOSED', 'FINISHED'],
@@ -39,7 +40,7 @@ export class ThreadQueryDto extends CursorPaginationDto {
   @IsOptional()
   @IsString()
   @IsIn(['RECRUITING', 'CLOSED', 'FINISHED'])
-  status?: string;
+  status?: ThreadStatus;
 
   @ApiPropertyOptional({ example: '无限流', description: '按标签名模糊筛选主题帖' })
   @IsOptional()

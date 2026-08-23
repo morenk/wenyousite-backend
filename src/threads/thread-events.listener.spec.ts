@@ -1,4 +1,7 @@
 import { ThreadEventsListener } from './thread-events.listener';
+import type { PrismaService } from '../prisma/prisma.service';
+import type { NotificationProducer } from '../notifications/notification.producer';
+import type { BlockFilterService } from '../access/block-filter.service';
 
 describe('ThreadEventsListener', () => {
   const prisma = { userFollow: { findMany: jest.fn() } };
@@ -18,14 +21,15 @@ describe('ThreadEventsListener', () => {
     });
     blockFilter.filterRecipients.mockImplementation((ids: string[]) => ids);
     notifications.notify.mockResolvedValue(undefined);
-    listener = new ThreadEventsListener(prisma as any, notifications as any, blockFilter as any);
+    listener = new ThreadEventsListener(
+      prisma as unknown as PrismaService,
+      notifications as unknown as NotificationProducer,
+      blockFilter as unknown as BlockFilterService,
+    );
   });
 
   it('发布后仅通知通过双向拉黑过滤的粉丝', async () => {
-    prisma.userFollow.findMany.mockResolvedValue([
-      { followerId: 'f1' },
-      { followerId: 'blocked' },
-    ]);
+    prisma.userFollow.findMany.mockResolvedValue([{ followerId: 'f1' }, { followerId: 'blocked' }]);
     blockFilter.filterRecipients.mockReturnValue(['f1']);
 
     await listener.handlePublished({

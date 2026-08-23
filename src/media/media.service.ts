@@ -33,6 +33,9 @@ const UPLOADING_STALE_HOURS = 24;
 /** 单次 S3 批量删除对象上限 */
 const S3_BATCH_DELETE_LIMIT = 1000;
 
+const hasErrorCode = (error: unknown, code: string): boolean =>
+  typeof error === 'object' && error !== null && 'code' in error && error.code === code;
+
 /** 图片处理任务类型 */
 export interface ImageProcessJob {
   mediaId: string;
@@ -211,8 +214,8 @@ export class MediaService {
           contentType: actualContentType!,
         },
       });
-    } catch (error: any) {
-      if (error?.code !== 'P2025') throw error;
+    } catch (error: unknown) {
+      if (!hasErrorCode(error, 'P2025')) throw error;
       const current = await this.prisma.media.findUnique({ where: { id: mediaId } });
       if (
         current?.userId === userId &&

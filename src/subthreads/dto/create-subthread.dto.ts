@@ -8,6 +8,7 @@ import {
   IsNumber,
   IsUUID,
 } from 'class-validator';
+import { PostingPolicy } from '@prisma/client';
 
 /** 创建子贴 DTO */
 export class CreateSubthreadDto {
@@ -42,7 +43,7 @@ export class CreateSubthreadDto {
 
   @ApiPropertyOptional({
     example: 'PLAYERS',
-    enum: ['PARTICIPANTS', 'COLLABORATORS', 'PLAYERS'],
+    enum: PostingPolicy,
     default: 'PARTICIPANTS',
     description:
       'PARTICIPANTS=所有参与人可发帖, COLLABORATORS=仅协作者可发帖, PLAYERS=仅被标记为玩家的参与人可发帖',
@@ -50,5 +51,5 @@ export class CreateSubthreadDto {
   @IsOptional()
   @IsString()
   @IsIn(['PARTICIPANTS', 'COLLABORATORS', 'PLAYERS'])
-  postingPolicy?: string;
+  postingPolicy?: PostingPolicy;
 }

@@ -1,4 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../access/thread-access.service';
 import { RedisService } from '../redis/redis.service';
@@ -24,6 +25,22 @@ import {
 
 const ZSET_BY_SMART = 'threads:by:smart';
 const DISCOVERABLE_THREAD_OWNER_WHERE = { is: { deletedAt: null } } as const;
+const threadDetailInclude = {
+  owner: { select: authorSelect },
+  ...includeSubthreads(),
+  topicTags: { include: { tag: true } },
+  ...countMembersAndPosts(),
+} satisfies Prisma.ThreadInclude;
+
+type PersistedThreadDetail = Prisma.ThreadGetPayload<{
+  include: typeof threadDetailInclude;
+}>;
+
+function toThreadDetail(thread: PersistedThreadDetail) {
+  return { ...thread, subthreads: mapSubthreadBody(thread.subthreads) };
+}
+
+type ThreadDetail = ReturnType<typeof toThreadDetail>;
 
 /** 主题帖读模型：详情、列表、草稿箱和用户主题聚合查询。 */
 @Injectable()
@@ -54,23 +71,18 @@ export class ThreadQueryService {
     // 权限状态可能在缓存 TTL 内由 PUBLIC 变为 PRIVATE，必须先实时校验。
     await this.threadAccess.assertAccessible(id, userId);
     const cacheKey = this.cache.buildKey('thread', id);
-    let thread = await this.cache.get<any>(cacheKey);
+    let thread = await this.cache.get<ThreadDetail>(cacheKey);
 
     // 详情缓存只保存公开且已发布的聚合结果；私密帖和草稿始终实时查询。
     if (!thread?.published || thread.visibility !== 'PUBLIC' || thread.deletedAt) {
-      thread = await this.prisma.thread.findUnique({
+      const persistedThread = await this.prisma.thread.findUnique({
         where: { id, ...notDeleted },
-        include: {
-          owner: { select: authorSelect },
-          ...includeSubthreads(),
-          topicTags: { include: { tag: true } },
-          ...countMembersAndPosts(),
-        },
+        include: threadDetailInclude,
       });
-      if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
+      if (!persistedThread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
 
       // 把子贴的 posts[0]（kind=BODY）映射回 bodyPost 响应字段
-      thread.subthreads = mapSubthreadBody(thread.subthreads);
+      thread = toThreadDetail(persistedThread);
       await attachPlayerCounts(this.prisma, [thread]);
 
       if (thread.published && thread.visibility === 'PUBLIC') {
@@ -171,7 +183,7 @@ export class ThreadQueryService {
       return result;
     }
 
-    const where: any = {
+    const where: Prisma.ThreadWhereInput = {
       ...notDeleted,
       published: true,
       owner: DISCOVERABLE_THREAD_OWNER_WHERE,
@@ -199,7 +211,10 @@ export class ThreadQueryService {
     }
 
     const take = Math.min(query.limit ?? 20, 50);
-    const orderBy: any[] = [{ pinned: 'desc' }, { createdAt: 'desc' }];
+    const orderBy: Prisma.ThreadOrderByWithRelationInput[] = [
+      { pinned: 'desc' },
+      { createdAt: 'desc' },
+    ];
 
     if (sort === 'active') {
       orderBy[1] = { updatedAt: 'desc' };
@@ -248,7 +263,7 @@ export class ThreadQueryService {
     }
     const zsetSize = await this.redis.zcard(ZSET_BY_SMART);
 
-    const where: any = {
+    const where: Prisma.ThreadWhereInput = {
       ...notDeleted,
       published: true,
       owner: DISCOVERABLE_THREAD_OWNER_WHERE,
@@ -304,7 +319,7 @@ export class ThreadQueryService {
   }
 
   /** 按 id 列表查询已发布帖（含 owner/defaultSubthread/topicTags/_count），供智能排序过滤用 */
-  private async fetchSmartThreads(ids: string[], where: Record<string, unknown>) {
+  private async fetchSmartThreads(ids: string[], where: Prisma.ThreadWhereInput) {
     return this.prisma.thread.findMany({
       where: { ...where, id: { in: ids } },
       include: threadListCardInclude,
@@ -326,18 +341,19 @@ export class ThreadQueryService {
       return paginate([], { cursor: null, hasMore: false });
     }
 
-    const where: any = {
+    const threadWhere: Prisma.ThreadWhereInput = { ...notDeleted, published: true };
+    const where: Prisma.ThreadMemberWhereInput = {
       userId: targetId,
       playerMarked: true,
-      thread: { ...notDeleted, published: true },
+      thread: threadWhere,
     };
     // 参与列表排除自己创建的帖（自建帖在「创建的帖子」中展示）
-    where.thread.ownerId = { not: targetId };
+    threadWhere.ownerId = { not: targetId };
 
     if (isSelf) {
-      if (visibility) where.thread.visibility = visibility;
+      if (visibility) threadWhere.visibility = visibility;
     } else {
-      where.thread.visibility = 'PUBLIC';
+      threadWhere.visibility = 'PUBLIC';
     }
 
     const members = await this.prisma.threadMember.findMany({
@@ -369,7 +385,7 @@ export class ThreadQueryService {
   /** 查看指定用户创建的主题帖（本人可见全部含私密帖，他人仅见 PUBLIC 已发布帖） */
   async findByCreatedUser(targetId: string, viewerId?: string, cursor?: string, limit = 20) {
     const take = Math.min(limit, 50);
-    const where: any = {
+    const where: Prisma.ThreadWhereInput = {
       ownerId: targetId,
       ...notDeleted,
       published: true,

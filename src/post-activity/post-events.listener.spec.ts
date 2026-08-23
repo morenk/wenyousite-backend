@@ -1,5 +1,10 @@
 import { PostEventsListener, PostCreatedEvent } from './post-events.listener';
-import { BlockSets } from '../access/block-filter.service';
+import type { MentionsService } from '../mentions/mentions.service';
+import type { NotificationProducer } from '../notifications/notification.producer';
+import type { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import type { PrismaService } from '../prisma/prisma.service';
+import type { RedisService } from '../redis/redis.service';
+import type { BlockFilterService, BlockSets } from '../access/block-filter.service';
 
 /** 发帖事件监听器测试：验证 THREAD 订阅仅接收楼主/协作者发言的过滤逻辑 */
 
@@ -38,12 +43,12 @@ function buildListener(overrides: Partial<Record<string, unknown>> = {}) {
     ...overrides,
   };
   const listener = new PostEventsListener(
-    merged.mentionsService as any,
-    merged.notificationProducer as any,
-    merged.subscriptionsService as any,
-    merged.prisma as any,
-    merged.redis as any,
-    merged.blockFilter as any,
+    merged.mentionsService as unknown as MentionsService,
+    merged.notificationProducer as unknown as NotificationProducer,
+    merged.subscriptionsService as unknown as SubscriptionsService,
+    merged.prisma as unknown as PrismaService,
+    merged.redis as unknown as RedisService,
+    merged.blockFilter as unknown as BlockFilterService,
   );
   return {
     listener,
@@ -175,10 +180,12 @@ describe('PostEventsListener 订阅过滤', () => {
 
   it('通知处理失败时向 Outbox 抛出错误以触发重试', async () => {
     const { listener, notificationProducer, subscriptionsService } = buildListener();
-    const loggerError = jest.spyOn(
-      (listener as unknown as { logger: { error: (...args: unknown[]) => void } }).logger,
-      'error',
-    ).mockImplementation(() => undefined);
+    const loggerError = jest
+      .spyOn(
+        (listener as unknown as { logger: { error: (...args: unknown[]) => void } }).logger,
+        'error',
+      )
+      .mockImplementation(() => undefined);
     subscriptionsService.findSubscribers.mockResolvedValue([
       { userId: 'subscriber', type: 'USER', targetUserId: 'author1' },
     ]);

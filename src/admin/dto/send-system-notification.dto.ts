@@ -1,15 +1,28 @@
-import { IsString, IsOptional, IsArray, IsDateString, IsIn, ValidateNested } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsArray,
+  IsDateString,
+  IsEnum,
+  ValidateNested,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import { UserRole } from '@prisma/client';
 import { IsCuid } from '../../common/decorators/is-cuid.decorator';
 
 /** 系统通知用户筛选条件 */
 class UserConditionDto {
-  @ApiProperty({ description: '角色筛选（USER / ADMIN / SUPER_ADMIN）', required: false, isArray: true, enum: ['USER', 'ADMIN', 'SUPER_ADMIN'] })
+  @ApiProperty({
+    description: '角色筛选（USER / ADMIN / SUPER_ADMIN）',
+    required: false,
+    isArray: true,
+    enum: UserRole,
+  })
   @IsOptional()
   @IsArray()
-  @IsIn(['USER', 'ADMIN', 'SUPER_ADMIN'], { each: true })
-  role?: string[];
+  @IsEnum(UserRole, { each: true })
+  role?: UserRole[];
 
   @ApiProperty({ description: '注册时间起始（ISO 8601）', required: false })
   @IsOptional()
@@ -30,9 +43,14 @@ export class SendSystemNotificationDto {
 
   @ApiProperty({ description: '结构化数据（可选，供前端渲染）', required: false })
   @IsOptional()
-  payload?: Record<string, any>;
+  payload?: Record<string, unknown>;
 
-  @ApiProperty({ description: '接收者用户 ID 列表（手动指定，优先级高于条件筛选）', required: false, isArray: true, type: String })
+  @ApiProperty({
+    description: '接收者用户 ID 列表（手动指定，优先级高于条件筛选）',
+    required: false,
+    isArray: true,
+    type: String,
+  })
   @IsOptional()
   @IsArray()
   @IsCuid({ each: true })

@@ -1,6 +1,6 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { ContentRemovalSource } from '@prisma/client';
+import { ContentRemovalSource, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TagsService } from '../tags/tags.service';
 import { ThreadAccessService } from '../access/thread-access.service';
@@ -28,6 +28,7 @@ import { ThreadCategoriesService } from '../taxonomy/thread-categories.service';
 import { MediaReferenceService } from '../media/media-reference.service';
 import { ThreadReactionService } from './thread-reaction.service';
 import { ThreadInviteService } from './thread-invite.service';
+import { UpdateThreadDto } from './dto/update-thread.dto';
 const ZSET_BY_CREATED = 'threads:by:created';
 const ZSET_BY_ACTIVITY = 'threads:by:activity';
 const ZSET_BY_SMART = 'threads:by:smart';
@@ -148,8 +149,9 @@ export class ThreadsService {
       },
     });
     if (thread) {
-      thread.subthreads = mapSubthreadBody(thread.subthreads);
-      await attachPlayerCounts(this.prisma, [thread]);
+      const response = { ...thread, subthreads: mapSubthreadBody(thread.subthreads) };
+      await attachPlayerCounts(this.prisma, [response]);
+      return response;
     }
     return thread;
   }
@@ -179,18 +181,7 @@ export class ThreadsService {
   }
 
   /** 修改主题帖（仅 OWNER/COLLABORATOR）。published=true 触发发布 */
-  async update(
-    id: string,
-    dto: {
-      title?: string;
-      category?: string;
-      status?: string;
-      visibility?: string;
-      published?: boolean;
-      version: number;
-    },
-    userId: string,
-  ) {
+  async update(id: string, dto: UpdateThreadDto, userId: string) {
     const manager = await this.threadAccess.assertCanManage(id, userId);
     if (dto.category !== undefined) {
       dto.category = await this.categories.assertSelectable(dto.category);
@@ -207,7 +198,7 @@ export class ThreadsService {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '已发布主题帖不能撤回为草稿');
     }
 
-    const updateData: any = { ...data, version: { increment: 1 } };
+    const updateData: Prisma.ThreadUpdateInput = { ...data, version: { increment: 1 } };
     if (published !== undefined) {
       updateData.published = published;
       updateData.publishedAt = new Date();
@@ -236,37 +227,37 @@ export class ThreadsService {
       throw err;
     });
 
-    updated.subthreads = mapSubthreadBody(updated.subthreads);
-    await attachPlayerCounts(this.prisma, [updated]);
+    const response = { ...updated, subthreads: mapSubthreadBody(updated.subthreads) };
+    await attachPlayerCounts(this.prisma, [response]);
 
     // 缓存失效事件 + ZSET 维护
     if (published === true) {
       const now = Date.now();
-      this.redis.zadd(ZSET_BY_CREATED, updated.createdAt.getTime(), id).catch(() => {});
+      this.redis.zadd(ZSET_BY_CREATED, response.createdAt.getTime(), id).catch(() => {});
       this.redis.zadd(ZSET_BY_ACTIVITY, now, id).catch(() => {});
       // 初始化计数器（含 createdAt 供智能排序计算年龄）
-      const postCount = (updated as any)._count?.posts ?? 0;
+      const postCount = response._count.posts;
       this.redis
-        .hset(`thread:${id}:stats`, 'views', String(updated.viewCount || 0))
+        .hset(`thread:${id}:stats`, 'views', String(response.viewCount || 0))
         .catch(() => {});
       this.redis.hset(`thread:${id}:stats`, 'replies', String(postCount)).catch(() => {});
       this.redis.hset(`thread:${id}:stats`, 'likes', '0').catch(() => {});
       this.redis
-        .hset(`thread:${id}:stats`, 'tips', (updated.tipTotal ?? 0n).toString())
+        .hset(`thread:${id}:stats`, 'tips', (response.tipTotal ?? 0n).toString())
         .catch(() => {});
       this.redis
-        .hset(`thread:${id}:stats`, 'createdAt', String(updated.createdAt.getTime()))
+        .hset(`thread:${id}:stats`, 'createdAt', String(response.createdAt.getTime()))
         .catch(() => {});
       const initScore = initialThreadSmartScore(
         postCount,
-        updated.viewCount || 0,
-        Number(updated.tipTotal ?? 0n),
+        response.viewCount || 0,
+        Number(response.tipTotal ?? 0n),
       );
       this.redis.zadd(ZSET_BY_SMART, initScore, id).catch(() => {});
     }
     this.eventEmitter.emit('thread.updated', { threadId: id });
 
-    return updated;
+    return response;
   }
 
   /** 删除：未发布帖硬删除（级联），已发布帖软删除 */
@@ -313,7 +304,7 @@ export class ThreadsService {
   private async publishThreadTransaction(
     id: string,
     version: number,
-    data: Record<string, unknown>,
+    data: Pick<UpdateThreadDto, 'title' | 'category' | 'status' | 'visibility'>,
   ) {
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM threads WHERE id = ${id} FOR UPDATE`;

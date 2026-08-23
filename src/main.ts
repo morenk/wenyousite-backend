@@ -47,7 +47,7 @@ async function bootstrap() {
     exposedHeaders: ['X-Request-ID', 'X-API-Contract-Version', 'Retry-After'],
   });
   await app.register(fastifyHelmet);
-  await app.register(fastifyCookie as any);
+  await app.register(fastifyCookie);
   const production = runtime.app.nodeEnv === 'production';
   await app.register(fastifyCsrf, {
     cookieKey: adminCsrfCookieName(production),

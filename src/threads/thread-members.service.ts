@@ -4,6 +4,7 @@ import { ThreadAccessService } from '../access/thread-access.service';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound, forbidden } from '../common/exceptions/business.exception';
 import { publicUserSummarySelect } from '../common/user-summary';
+import { UpdateMemberDto } from './dto/update-member.dto';
 
 /** 主题帖参与人服务：候选池加入、角色修改、玩家标记 */
 @Injectable()
@@ -28,7 +29,9 @@ export class ThreadMembersService {
 
   /** 自由加入（任何人）。未发布帖和私密帖禁止自由加入。 */
   async join(threadId: string, userId: string) {
-    const thread = await this.prisma.thread.findUnique({ where: { id: threadId, deletedAt: null } });
+    const thread = await this.prisma.thread.findUnique({
+      where: { id: threadId, deletedAt: null },
+    });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
     if (!thread.published) throw forbidden('该主题帖尚未发布');
     if (thread.visibility === 'PRIVATE') {
@@ -38,7 +41,12 @@ export class ThreadMembersService {
     const existing = await this.prisma.threadMember.findUnique({
       where: { threadId_userId: { threadId, userId } },
     });
-    if (existing) throw new BusinessException(ErrorCode.ALREADY_MEMBER, '已是该主题帖参与人', HttpStatus.CONFLICT);
+    if (existing)
+      throw new BusinessException(
+        ErrorCode.ALREADY_MEMBER,
+        '已是该主题帖参与人',
+        HttpStatus.CONFLICT,
+      );
 
     return this.prisma.threadMember.create({
       data: { threadId, userId, role: 'PARTICIPANT' },
@@ -52,7 +60,12 @@ export class ThreadMembersService {
    *  - role: COLLABORATOR（协作者）或 PARTICIPANT（参与人）
    *  - playerMarked: 标记为玩家
    *  不能修改 OWNER 角色 */
-  async updateMember(threadId: string, targetUserId: string, dto: { role?: string; playerMarked?: boolean }, actorId: string) {
+  async updateMember(
+    threadId: string,
+    targetUserId: string,
+    dto: UpdateMemberDto,
+    actorId: string,
+  ) {
     const actor = await this.threadAccess.assertCanManage(threadId, actorId);
     if (dto.role === undefined && dto.playerMarked === undefined) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '请至少提供一项要修改的成员信息');
@@ -65,12 +78,13 @@ export class ThreadMembersService {
       where: { threadId_userId: { threadId, userId: targetUserId } },
     });
     if (!member) throw notFound(ErrorCode.USER_NOT_FOUND, '该用户不是此主题帖参与人');
-    if (member.role === 'OWNER') throw forbidden('不能修改楼主角色', ErrorCode.CANNOT_MODERATE_OWNER);
+    if (member.role === 'OWNER')
+      throw forbidden('不能修改楼主角色', ErrorCode.CANNOT_MODERATE_OWNER);
 
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.threadMember.update({
         where: { threadId_userId: { threadId, userId: targetUserId } },
-        data: dto as any,
+        data: dto,
         include: {
           user: { select: publicUserSummarySelect },
         },

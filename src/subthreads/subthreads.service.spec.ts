@@ -51,6 +51,7 @@ const createTxMock = (overrides: Record<string, unknown> = {}) => ({
       floorNumber: null,
       content: 'test',
       author: { username: 'owner' },
+      diceRolls: [],
     }),
   },
   subthread: {

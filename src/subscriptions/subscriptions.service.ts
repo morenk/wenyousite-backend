@@ -1,4 +1,5 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
+import { Prisma, SubscriptionType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
@@ -14,7 +15,7 @@ export class SubscriptionsService {
   ) {}
 
   /** 创建订阅 */
-  async create(userId: string, threadId: string, type: 'THREAD' | 'USER', targetUserId?: string) {
+  async create(userId: string, threadId: string, type: SubscriptionType, targetUserId?: string) {
     await this.threadAccess.assertAccessible(threadId, userId);
     const thread = await this.prisma.thread.findUnique({
       where: { id: threadId, deletedAt: null },
@@ -62,7 +63,7 @@ export class SubscriptionsService {
 
     return this.prisma.subscription
       .create({
-        data: { userId, threadId, type: type as any, targetUserId: normalizedTargetUserId },
+        data: { userId, threadId, type, targetUserId: normalizedTargetUserId },
         include: { thread: { select: { id: true, title: true } } },
       })
       .catch((error) => {
@@ -98,7 +99,7 @@ export class SubscriptionsService {
 
   /** 获取某个主题帖的所有订阅者（含按用户筛选） */
   async findSubscribers(threadId: string, excludeUserId?: string, authorId?: string) {
-    const where: any = { threadId };
+    const where: Prisma.SubscriptionWhereInput = { threadId };
     if (excludeUserId) where.userId = { not: excludeUserId };
     if (authorId) {
       where.OR = [{ type: 'THREAD' }, { type: 'USER', targetUserId: authorId }];

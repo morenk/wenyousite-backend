@@ -48,7 +48,7 @@ const mockStorage = {
 
 const mockConfig = {
   get: jest.fn((key: string) => {
-    const map: Record<string, any> = {
+    const map: Record<string, string | number> = {
       'cos.endpoint': 'https://test.cos.com',
       'cos.region': 'auto',
       'cos.bucket': 'test-bucket',

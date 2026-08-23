@@ -358,9 +358,12 @@ export class ThreadAggregateService {
         throw error;
       });
 
-    result.updated.subthreads = mapSubthreadBody(result.updated.subthreads);
-    await attachPlayerCounts(this.prisma, [result.updated]);
-    if (result.publishing) this.initializePublishedThreadCache(result.updated);
+    const updated = {
+      ...result.updated,
+      subthreads: mapSubthreadBody(result.updated.subthreads),
+    };
+    await attachPlayerCounts(this.prisma, [updated]);
+    if (result.publishing) this.initializePublishedThreadCache(updated);
     this.eventEmitter.emit('thread.updated', { threadId });
     if (result.subthreadTitleChanged) {
       this.eventEmitter.emit('subthread.updated', {
@@ -375,7 +378,7 @@ export class ThreadAggregateService {
         parentPostId: null,
       });
     }
-    if (result.updated.published) {
+    if (updated.published) {
       await this.stickerContent.recordUsage(userId, stickerAssetIds);
       if (result.publishing) {
         const publishedPosts = await this.prisma.post.findMany({
@@ -391,7 +394,7 @@ export class ThreadAggregateService {
         await this.stickerContent.recordUsage(userId, allAssetIds);
       }
     }
-    return result.updated;
+    return updated;
   }
 
   private optimisticLockConflict(subject: string): never {

@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, IsIn, MaxLength, IsInt, Min } from 'class-validator';
+import { PostingPolicy } from '@prisma/client';
 
 /** 更新子贴 DTO */
 export class UpdateSubthreadDto {
@@ -14,11 +15,15 @@ export class UpdateSubthreadDto {
   @IsInt()
   sortOrder?: number;
 
-  @ApiPropertyOptional({ enum: ['PARTICIPANTS', 'COLLABORATORS', 'PLAYERS'], description: 'PARTICIPANTS=所有参与人可发帖, COLLABORATORS=仅协作者可发帖, PLAYERS=仅玩家可发帖' })
+  @ApiPropertyOptional({
+    enum: PostingPolicy,
+    description:
+      'PARTICIPANTS=所有参与人可发帖, COLLABORATORS=仅协作者可发帖, PLAYERS=仅玩家可发帖',
+  })
   @IsOptional()
   @IsString()
   @IsIn(['PARTICIPANTS', 'COLLABORATORS', 'PLAYERS'])
-  postingPolicy?: string;
+  postingPolicy?: PostingPolicy;
 
   @ApiProperty({ example: 1, minimum: 1, description: '乐观锁版本号（必填，过期返回 409）' })
   @IsInt()

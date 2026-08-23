@@ -11,6 +11,7 @@ import {
   Matches,
 } from 'class-validator';
 import { CATEGORY_SLUG_PATTERN } from '../../taxonomy/category-slug';
+import type { ThreadStatus, ThreadVisibility } from '@prisma/client';
 
 /** 更新主题帖 DTO：全部可选。published 设为 true 即发布草稿 */
 export class UpdateThreadDto {
@@ -31,7 +32,7 @@ export class UpdateThreadDto {
   @IsOptional()
   @IsString()
   @IsIn(['RECRUITING', 'CLOSED', 'FINISHED'])
-  status?: string;
+  status?: ThreadStatus;
 
   @ApiPropertyOptional({
     example: 'PUBLIC',
@@ -41,7 +42,7 @@ export class UpdateThreadDto {
   @IsOptional()
   @IsString()
   @IsIn(['PUBLIC', 'PRIVATE'])
-  visibility?: string;
+  visibility?: ThreadVisibility;
 
   @ApiPropertyOptional({
     example: true,

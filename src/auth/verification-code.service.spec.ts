@@ -16,10 +16,21 @@ const mockPrisma = {
   },
 };
 
+interface VerificationRecord {
+  id: string;
+  userId: string | null;
+  email: string;
+  token: string;
+  type: string;
+  expiresAt: Date;
+  lastSendAttemptAt: Date | null;
+  lastSentAt: Date | null;
+}
+
 describe('VerificationCodeService', () => {
   let service: VerificationCodeService;
   const send = jest.fn().mockResolvedValue(undefined);
-  const record = (over: Partial<any> = {}) => ({
+  const record = (over: Partial<VerificationRecord> = {}): VerificationRecord => ({
     id: 'ev1',
     userId: null,
     email: 'a@b.com',

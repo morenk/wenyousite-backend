@@ -10,7 +10,7 @@ import * as argon2 from 'argon2';
 import { AuthSessionService } from './auth-session.service';
 import { ErrorCode } from '../common/exceptions/error-codes';
 
-const mockPrisma: Record<string, any> = {
+const mockPrisma = {
   user: {
     findUnique: jest.fn(),
     findFirst: jest.fn(),
@@ -41,15 +41,13 @@ const mockPrisma: Record<string, any> = {
     create: jest.fn(),
   },
   $queryRaw: jest.fn(),
-  $transaction: jest.fn((input: any): any =>
-    typeof input === 'function' ? input(mockPrisma) : Promise.all(input),
-  ),
+  $transaction: jest.fn(),
 };
 
 const mockJwt = { signAsync: jest.fn() };
 const mockConfig = {
-  get: jest.fn((key: string) => {
-    const map: Record<string, any> = {
+  get: jest.fn((key: string): string | number | undefined => {
+    const map: Record<string, string | number> = {
       'jwt.accessSecret': 'test-secret',
       'argon2.timeCost': 1,
       'argon2.memoryCost': 8192,

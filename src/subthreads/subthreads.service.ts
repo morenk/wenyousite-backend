@@ -1,5 +1,6 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { PostingPolicy, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../access/thread-access.service';
 import { CreateSubthreadDto } from './dto/create-subthread.dto';
@@ -12,6 +13,15 @@ import { OutboxService } from '../outbox/outbox.service';
 import { StickerContentService } from '../stickers/sticker-content.service';
 import { hashIdempotencyPayload } from '../common/idempotency';
 import { MediaReferenceService } from '../media/media-reference.service';
+
+const subthreadBodyPostInclude = {
+  author: { select: { username: true } },
+  diceRolls: { orderBy: { createdAt: 'asc' as const } },
+} satisfies Prisma.PostInclude;
+
+type SubthreadBodyPost = Prisma.PostGetPayload<{
+  include: typeof subthreadBodyPostInclude;
+}>;
 
 /** 子贴服务：CRUD、排序、权限校验 */
 @Injectable()
@@ -71,7 +81,7 @@ export class SubthreadsService {
     }
     const hasBody = hasText || parsedContent.nodes.length > 0;
     const generatedDice = thread.published ? this.diceService.rollNodes(parsedContent.nodes) : [];
-    const postingPolicy = dto.postingPolicy ?? ('PARTICIPANTS' as any);
+    const postingPolicy = dto.postingPolicy ?? PostingPolicy.PARTICIPANTS;
     const requestHash = hashIdempotencyPayload({
       actorId: userId,
       title: dto.title,
@@ -136,7 +146,7 @@ export class SubthreadsService {
           },
         });
 
-        let bodyPost: any = null;
+        let bodyPost: SubthreadBodyPost | null = null;
         if (hasBody) {
           bodyPost = await tx.post.create({
             data: {
@@ -146,7 +156,7 @@ export class SubthreadsService {
               kind: 'BODY',
               content,
             },
-            include: { author: { select: { username: true } } },
+            include: subthreadBodyPostInclude,
           });
           await this.mediaReferences.syncPostContent(tx, bodyPost.id, content);
           if (generatedDice.length > 0) {
@@ -155,13 +165,8 @@ export class SubthreadsService {
             });
             bodyPost = await tx.post.findUniqueOrThrow({
               where: { id: bodyPost.id },
-              include: {
-                author: { select: { username: true } },
-                diceRolls: { orderBy: { createdAt: 'asc' } },
-              },
+              include: subthreadBodyPostInclude,
             });
-          } else {
-            bodyPost.diceRolls = [];
           }
         }
 
@@ -330,7 +335,7 @@ export class SubthreadsService {
   /** 修改子贴（仅 OWNER/COLLABORATOR）。默认子贴不可修改 sortOrder */
   async update(
     id: string,
-    dto: { title?: string; sortOrder?: number; postingPolicy?: string; version: number },
+    dto: { title?: string; sortOrder?: number; postingPolicy?: PostingPolicy; version: number },
     userId: string,
   ) {
     const subthread = await this.prisma.subthread.findUnique({ where: { id, ...notDeleted } });
@@ -365,7 +370,7 @@ export class SubthreadsService {
       }
     }
 
-    const updateData: any = { ...data, version: { increment: 1 } };
+    const updateData: Prisma.SubthreadUpdateInput = { ...data, version: { increment: 1 } };
     if (sortOrder !== undefined) updateData.sortOrder = sortOrder;
 
     const updated = await this.prisma.subthread

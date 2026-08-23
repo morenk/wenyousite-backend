@@ -13,6 +13,16 @@ import {
 } from '../common/prisma-helpers';
 import { ReplyOrder } from '../common/dto/reply-query.dto';
 
+const floorReplyInclude = {
+  author: { select: authorSelect },
+  ...includeDiceRolls(),
+  replyToPost: {
+    select: { id: true, authorId: true, author: { select: authorSelect } },
+  },
+} satisfies Prisma.PostInclude;
+
+type FloorReply = Prisma.PostGetPayload<{ include: typeof floorReplyInclude }>;
+
 /** 帖子读模型：楼层、楼中楼和导航上下文查询。 */
 @Injectable()
 export class PostQueryService {
@@ -98,8 +108,8 @@ export class PostQueryService {
 
     // 为有回复的楼层批量获取前 5 条楼中楼回复
     const floorIdsWithReplies = posts.filter((p) => p._count.replies > 0).map((p) => p.id);
+    const repliesMap = new Map<string, FloorReply[]>();
     if (floorIdsWithReplies.length > 0) {
-      const repliesMap = new Map<string, any[]>();
       // 窗口函数先一次性选出每层前 5 条回复，再统一加载关联数据。
       // 查询数固定为 2，避免一页 20 个楼层产生 20 次并行查询。
       const replyIds = await this.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
@@ -123,13 +133,7 @@ export class PostQueryService {
           ? await this.prisma.post.findMany({
               where: { id: { in: replyIds.map((reply) => reply.id) } },
               orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-              include: {
-                author: { select: authorSelect },
-                ...includeDiceRolls(),
-                replyToPost: {
-                  select: { id: true, authorId: true, author: { select: authorSelect } },
-                },
-              },
+              include: floorReplyInclude,
             })
           : [];
 
@@ -138,16 +142,14 @@ export class PostQueryService {
         grouped.push(reply);
         repliesMap.set(reply.parentPostId!, grouped);
       }
-      for (const post of posts) {
-        (post as any).replies = repliesMap.get(post.id) || [];
-      }
-    } else {
-      for (const post of posts) {
-        (post as any).replies = [];
-      }
     }
 
-    return paginate(posts, {
+    const items = posts.map((post) => ({
+      ...post,
+      replies: repliesMap.get(post.id) ?? [],
+    }));
+
+    return paginate(items, {
       cursor: posts.length > 0 ? posts[posts.length - 1].id : null,
       hasMore,
     });

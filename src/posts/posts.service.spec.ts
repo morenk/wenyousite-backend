@@ -71,6 +71,13 @@ const mockMediaReferences = {
   releasePostContent: jest.fn().mockResolvedValue(undefined),
 };
 
+interface CapturedPostTransaction {
+  $queryRaw: jest.Mock;
+  threadMember: { upsert: jest.Mock };
+  post: { aggregate: jest.Mock; create: jest.Mock };
+  subthread: { update: jest.Mock };
+}
+
 describe('PostsService', () => {
   let service: PostsService;
   let queries: PostQueryService;
@@ -130,7 +137,7 @@ describe('PostsService', () => {
       content: 'test',
       author: { username: 'test' },
     });
-    let tx: any;
+    let tx: CapturedPostTransaction | undefined;
     mockPrisma.$transaction.mockImplementation(async (fn) => {
       tx = {
         $queryRaw: jest.fn(),
@@ -153,7 +160,7 @@ describe('PostsService', () => {
     const result = await service.create('s1', { content: 'test' }, 'u1');
     expect(result.floorNumber).toBe(6);
     // 发帖事务更新子贴和主题帖的最近活动时间，不再回写 bodyPostId
-    expect(tx.subthread.update).toHaveBeenCalledWith(
+    expect(tx?.subthread.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           lastPostAt: expect.any(Date),
@@ -174,7 +181,7 @@ describe('PostsService', () => {
     };
     mockPrisma.subthread.findUnique.mockResolvedValue(subthread);
     mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
-    let tx: any;
+    let tx: CapturedPostTransaction | undefined;
     mockPrisma.$transaction.mockImplementation(async (fn) => {
       tx = {
         $queryRaw: jest.fn(),
@@ -196,7 +203,7 @@ describe('PostsService', () => {
 
     await service.create('s1', { content: '第一段\r\n<br>\r\n![空]()' }, 'u1');
 
-    expect(tx.post.create).toHaveBeenCalledWith(
+    expect(tx?.post.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ content: '第一段\n<br />\n' }),
       }),
@@ -989,7 +996,7 @@ describe('PostsService', () => {
         { id: 'r2', parentPostId: 'p1', author: {}, replyToPost: null },
       ]);
     const result = await service.findAllBySubthread('s1');
-    expect((result.items[0] as any).replies).toHaveLength(2);
+    expect(result.items[0].replies).toHaveLength(2);
     // 楼层查询 where 只包含 kind=FLOOR
     expect(mockPrisma.post.findMany).toHaveBeenNthCalledWith(
       1,
@@ -1037,7 +1044,7 @@ describe('PostsService', () => {
     mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1' });
     mockPrisma.post.findMany.mockResolvedValue([{ id: 'p1', author: {}, _count: { replies: 0 } }]);
     const result = await service.findAllBySubthread('s1');
-    expect((result.items[0] as any).replies).toEqual([]);
+    expect(result.items[0].replies).toEqual([]);
   });
 
   it('findAllBySubthread 支持按楼层号倒序分页', async () => {

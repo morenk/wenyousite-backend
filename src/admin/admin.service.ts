@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationProducer } from '../notifications/notification.producer';
 import { SendSystemNotificationDto } from './dto/send-system-notification.dto';
-import { AuditAction, AuditTargetType } from '@prisma/client';
+import { AuditAction, AuditTargetType, Prisma } from '@prisma/client';
 import { AuditService } from '../moderation/audit.service';
 
 /** 管理后台服务：系统通知发送、预览、历史、用户搜索 */
@@ -24,13 +24,15 @@ export class AdminService {
       return { id: { in: dto.recipientIds }, deletedAt: null };
     }
 
-    const where: any = { deletedAt: null };
+    const where: Prisma.UserWhereInput = { deletedAt: null };
 
     if (dto.conditions) {
       const c = dto.conditions;
       if (c.role?.length) where.role = { in: c.role };
-      if (c.createdAfter) where.createdAt = { ...where.createdAt, gte: new Date(c.createdAfter) };
-      if (c.createdBefore) where.createdAt = { ...where.createdAt, lte: new Date(c.createdBefore) };
+      const createdAt: Prisma.DateTimeFilter = {};
+      if (c.createdAfter) createdAt.gte = new Date(c.createdAfter);
+      if (c.createdBefore) createdAt.lte = new Date(c.createdBefore);
+      if (c.createdAfter || c.createdBefore) where.createdAt = createdAt;
     }
 
     return where;
@@ -105,7 +107,7 @@ export class AdminService {
   /** 系统通知历史（cursor 分页） */
   async getSystemNotificationHistory(cursor?: string, limit = 20) {
     const take = Math.min(limit, 50);
-    const where: any = { type: 'system' };
+    const where: Prisma.NotificationWhereInput = { type: 'system' };
     const notifications = await this.prisma.notification.findMany({
       where,
       select: {

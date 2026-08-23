@@ -1,4 +1,6 @@
 import { UserRelationEventsListener } from './user-relation-events.listener';
+import type { NotificationProducer } from '../notifications/notification.producer';
+import type { BlockFilterService } from '../access/block-filter.service';
 
 describe('UserRelationEventsListener', () => {
   it('过滤拉黑关系后使用领域事件提供的幂等键通知', async () => {
@@ -7,7 +9,10 @@ describe('UserRelationEventsListener', () => {
       loadBlockSets: jest.fn().mockResolvedValue({}),
       filterRecipients: jest.fn().mockReturnValue(['target']),
     };
-    const listener = new UserRelationEventsListener(notifications as any, blockFilter as any);
+    const listener = new UserRelationEventsListener(
+      notifications as unknown as NotificationProducer,
+      blockFilter as unknown as BlockFilterService,
+    );
 
     await listener.handleFollowed({
       actorId: 'actor',
