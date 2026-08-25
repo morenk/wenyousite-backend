@@ -33,14 +33,12 @@ export class ThreadMembersService {
 
   /** 自由加入（任何人）。未发布帖和私密帖禁止自由加入。 */
   async join(threadId: string, userId: string) {
+    await this.threadAccess.assertAccessible(threadId, userId);
     const thread = await this.prisma.thread.findUnique({
       where: { id: threadId, deletedAt: null },
     });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
     if (!thread.published) throw forbidden('该主题帖尚未发布');
-    if (thread.visibility === 'PRIVATE') {
-      throw forbidden('私密帖子仅可通过邀请链接加入');
-    }
 
     const existing = await this.prisma.threadMember.findUnique({
       where: { threadId_userId: { threadId, userId } },
@@ -51,6 +49,11 @@ export class ThreadMembersService {
         '已是该主题帖参与人',
         HttpStatus.CONFLICT,
       );
+
+    // assertAccessible 已保证 PRIVATE 调用者只能是现有成员；若数据竞态破坏该不变量，仍按不存在隐藏。
+    if (thread.visibility === 'PRIVATE') {
+      throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
+    }
 
     return this.prisma.threadMember.create({
       data: { threadId, userId, role: 'PARTICIPANT' },

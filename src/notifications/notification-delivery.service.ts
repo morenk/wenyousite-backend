@@ -3,6 +3,7 @@ import { NotificationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MobilePushProducer } from '../mobile-push/mobile-push.producer';
 import type { NotificationJob } from './notification.producer';
+import { NotificationEligibilityService } from './notification-eligibility.service';
 
 interface LikeLiker {
   userId: string;
@@ -48,12 +49,12 @@ export class NotificationDeliveryService {
   constructor(
     private prisma: PrismaService,
     private readonly pushes: MobilePushProducer,
+    private readonly eligibility: NotificationEligibilityService,
   ) {}
 
   async deliver(job: NotificationJob): Promise<void> {
     const {
       type,
-      recipients,
       content,
       postId,
       threadId,
@@ -64,6 +65,7 @@ export class NotificationDeliveryService {
       eventKey,
       campaignId,
     } = job;
+    const recipients = await this.eligibility.filterRecipients(job);
 
     switch (type) {
       case 'reply':

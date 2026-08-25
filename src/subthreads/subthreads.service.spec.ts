@@ -12,6 +12,7 @@ import { MediaReferenceService } from '../media/media-reference.service';
 
 const mockPrisma = {
   $transaction: jest.fn(),
+  $queryRaw: jest.fn(),
   thread: {
     findUnique: jest.fn(),
     update: jest.fn(),
@@ -30,6 +31,7 @@ const mockPrisma = {
   threadMember: {
     findUnique: jest.fn(),
   },
+  notification: { updateMany: jest.fn() },
 };
 
 const mockThreadAccess = {

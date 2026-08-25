@@ -424,11 +424,22 @@ export class SubthreadsService {
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM threads WHERE id = ${subthread.threadId} FOR UPDATE`;
+      const current = await tx.subthread.findUnique({
+        where: { id, ...notDeleted },
+        select: { id: true },
+      });
+      if (!current) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
       await this.mediaReferences.releaseSubthreadContent(tx, id);
-      return tx.subthread.update({
+      const removed = await tx.subthread.update({
         where: { id, ...notDeleted },
         data: { deletedAt: new Date() },
       });
+      await tx.notification.updateMany({
+        where: { post: { subthreadId: id }, isRead: false },
+        data: { isRead: true },
+      });
+      return removed;
     });
 
     this.eventEmitter.emit('subthread.deleted', {

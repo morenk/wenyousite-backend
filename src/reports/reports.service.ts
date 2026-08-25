@@ -2,6 +2,7 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import {
   AuditAction,
   AuditTargetType,
+  ContentRemovalSource,
   Prisma,
   ReportReasonCode,
   ReportStatus,
@@ -304,7 +305,21 @@ export class ReportsService {
     }
     if (targetType === ReportTargetType.MOMENT_COMMENT) {
       const comment = await this.prisma.momentComment.findFirst({
-        where: { id: targetId, deletedAt: null, moment: { deletedAt: null } },
+        where: {
+          id: targetId,
+          deletedAt: null,
+          moment: { deletedAt: null },
+          OR: [
+            { parentCommentId: null },
+            { parentComment: { deletedAt: null } },
+            {
+              parentComment: {
+                deletedAt: { not: null },
+                removalSource: { not: ContentRemovalSource.ADMIN },
+              },
+            },
+          ],
+        },
         select: {
           id: true,
           content: true,
@@ -344,6 +359,7 @@ export class ReportsService {
         id: targetId,
         deletedAt: null,
         subthread: { deletedAt: null },
+        OR: [{ parentPostId: null }, { parentPost: { deletedAt: null } }],
         thread: {
           published: true,
           visibility: ThreadVisibility.PUBLIC,

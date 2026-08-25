@@ -308,7 +308,9 @@ export class SearchService {
         FROM "posts" p
         INNER JOIN "threads" t ON t."id" = p."thread_id"
         INNER JOIN "subthreads" s ON s."id" = p."subthread_id"
+        LEFT JOIN "posts" parent ON parent."id" = p."parent_post_id"
         WHERE p."deleted_at" IS NULL
+          AND (p."parent_post_id" IS NULL OR parent."deleted_at" IS NULL)
           AND p."kind" = 'FLOOR'
           AND p."content" ILIKE ${likePattern} ESCAPE '\\'
           AND t."deleted_at" IS NULL

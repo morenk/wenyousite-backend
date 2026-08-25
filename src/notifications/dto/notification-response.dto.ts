@@ -94,6 +94,12 @@ export class NotificationTargetResponseDto {
   @ApiProperty({ enum: ['post', 'thread', 'moment', 'user', 'none'] })
   kind!: 'post' | 'thread' | 'moment' | 'user' | 'none';
 
+  @ApiProperty({
+    enum: ['ACTIVE', 'CONTENT_DELETED', 'USER_DEACTIVATED', 'NO_TARGET'],
+    description: '目标当前状态；只有 ACTIVE 可以导航',
+  })
+  state!: 'ACTIVE' | 'CONTENT_DELETED' | 'USER_DEACTIVATED' | 'NO_TARGET';
+
   @ApiProperty({ type: String, nullable: true })
   threadId!: string | null;
 

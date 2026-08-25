@@ -324,4 +324,18 @@ describe('PostQueryService.findAllBySubthread', () => {
       },
     ]);
   });
+
+  it('消息深链指向存活回复时，若父楼层已删除也返回不存在', async () => {
+    prisma.post.findUnique.mockResolvedValueOnce({
+      id: 'reply-1',
+      threadId: 'thread-1',
+      parentPost: { deletedAt: new Date() },
+      subthread: { deletedAt: null },
+    });
+
+    await expect(service.findById('reply-1', 'viewer-user-id')).rejects.toMatchObject({
+      errorCode: expect.any(Number),
+    });
+    expect(threadAccess.assertAccessible).not.toHaveBeenCalled();
+  });
 });

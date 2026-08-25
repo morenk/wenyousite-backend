@@ -14,6 +14,9 @@ const mockPrisma = {
     findMany: jest.fn(),
     deleteMany: jest.fn(),
   },
+  thread: {
+    findUnique: jest.fn(),
+  },
   threadMember: {
     findUnique: jest.fn(),
     findMany: jest.fn(),
@@ -30,7 +33,9 @@ describe('MentionsService', () => {
   let service: MentionsService;
   const mockThreadAccess = { assertAccessible: jest.fn().mockResolvedValue(undefined) };
   const mockBlockFilter = {
-    loadBlockSets: jest.fn().mockResolvedValue({ blockedByUser: new Set(), blockedByAuthor: new Set() }),
+    loadBlockSets: jest
+      .fn()
+      .mockResolvedValue({ blockedByUser: new Set(), blockedByAuthor: new Set() }),
     filterRecipients: jest.fn((ids: string[]) => ids),
   };
 
@@ -45,6 +50,7 @@ describe('MentionsService', () => {
     }).compile();
     service = module.get<MentionsService>(MentionsService);
     jest.clearAllMocks();
+    mockPrisma.thread.findUnique.mockResolvedValue({ visibility: 'PUBLIC' });
     mockPrisma.$transaction.mockImplementation(
       async (callback: (client: typeof mockPrisma) => unknown) => callback(mockPrisma),
     );
@@ -63,7 +69,9 @@ describe('MentionsService', () => {
   });
 
   it('邮箱和单词内部的 @ 不应被解析为历史提及', () => {
-    expect(service.extractUsernames('mail@test.example foo@李四，真正提及 @张三')).toEqual(['张三']);
+    expect(service.extractUsernames('mail@test.example foo@李四，真正提及 @张三')).toEqual([
+      '张三',
+    ]);
   });
 
   it('围栏代码块和成对行内代码中的提及不应触发解析', async () => {
@@ -94,12 +102,7 @@ describe('MentionsService', () => {
     mockPrisma.threadMember.findMany.mockResolvedValue([]);
     mockPrisma.postMention.createMany.mockResolvedValue({});
 
-    const result = await service.syncMentions(
-      'p1',
-      '你好 [@旧名字](/users/u2)',
-      'u1',
-      't1',
-    );
+    const result = await service.syncMentions('p1', '你好 [@旧名字](/users/u2)', 'u1', 't1');
 
     expect(result).toEqual([{ userId: 'u2', username: '新名字', source: 'DIRECT' }]);
     expect(mockPrisma.user.findMany).toHaveBeenCalledWith({
@@ -154,11 +157,11 @@ describe('MentionsService', () => {
 
     const result = await service.parseAndCreate('p1', '@全体玩家', 'u1', 't1');
     expect(result.map((item) => item.userId)).toEqual(['u2', 'u3']);
-    expect(mockPrisma.postMention.createMany).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.arrayContaining([
-        expect.objectContaining({ source: 'ALL_PLAYERS' }),
-      ]),
-    }));
+    expect(mockPrisma.postMention.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.arrayContaining([expect.objectContaining({ source: 'ALL_PLAYERS' })]),
+      }),
+    );
   });
 
   it('canMentionAllPlayers 应按主题帖和用户判断楼主/协作者权限', async () => {
@@ -238,8 +241,33 @@ describe('MentionsService', () => {
 
   it('私密帖不可访问时不应解析提及', async () => {
     mockThreadAccess.assertAccessible.mockRejectedValueOnce(new Error('not found'));
-    await expect(service.parseAndCreate('p1', '@张三', 'u1', 'private-thread')).rejects.toThrow('not found');
+    await expect(service.parseAndCreate('p1', '@张三', 'u1', 'private-thread')).rejects.toThrow(
+      'not found',
+    );
     expect(mockPrisma.user.findMany).not.toHaveBeenCalled();
+  });
+
+  it('私密帖的直接提及只允许当前成员，不能通知仅被关注的用户', async () => {
+    mockPrisma.thread.findUnique.mockResolvedValue({ visibility: 'PRIVATE' });
+    mockPrisma.user.findMany.mockResolvedValue([
+      { id: 'member', username: '成员' },
+      { id: 'followed', username: '仅关注用户' },
+    ]);
+    mockPrisma.postMention.findMany.mockResolvedValue([]);
+    mockPrisma.userFollow.findMany.mockResolvedValue([{ followingId: 'followed' }]);
+    mockPrisma.threadMember.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ userId: 'member' }]);
+    mockPrisma.postMention.createMany.mockResolvedValue({});
+
+    const result = await service.parseAndCreate(
+      'p1',
+      '@成员 @仅关注用户',
+      'author',
+      'private-thread',
+    );
+
+    expect(result.map((item) => item.userId)).toEqual(['member']);
   });
 
   it('候选接口应过滤双向拉黑用户', async () => {

@@ -33,6 +33,24 @@ describe('ThreadAccessService', () => {
     await expect(service.assertAccessible('t1', 'outsider')).rejects.toMatchObject({ status: 404 });
   });
 
+  it('批量通知收件人只保留私密主题当前成员', async () => {
+    prisma.thread.findUnique.mockResolvedValue({
+      visibility: 'PRIVATE',
+      published: true,
+      ownerId: 'owner',
+      members: [{ userId: 'member' }],
+    });
+
+    await expect(
+      service.filterAccessibleUserIds('t1', ['member', 'follower', 'member']),
+    ).resolves.toEqual(['member']);
+  });
+
+  it('删除主题不允许产生任何新通知', async () => {
+    prisma.thread.findUnique.mockResolvedValue(null);
+    await expect(service.filterAccessibleUserIds('deleted', ['member'])).resolves.toEqual([]);
+  });
+
   it('管理权限会先拒绝已删除主题帖', async () => {
     prisma.thread.findUnique.mockResolvedValue(null);
     await expect(service.assertCanManage('deleted', 'collab')).rejects.toMatchObject({
@@ -54,9 +72,12 @@ describe('ThreadAccessService', () => {
   });
 
   it('楼主专属校验拒绝协作者', async () => {
-    prisma.thread.findUnique
-      .mockResolvedValueOnce({ visibility: 'PUBLIC', published: true, ownerId: 'owner' })
-      .mockResolvedValueOnce({ ownerId: 'owner' });
+    prisma.thread.findUnique.mockResolvedValue({ visibility: 'PUBLIC', ownerId: 'owner' });
     await expect(service.assertOwner('t1', 'collab')).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('楼主专属入口对私密帖非楼主隐藏存在性', async () => {
+    prisma.thread.findUnique.mockResolvedValue({ visibility: 'PRIVATE', ownerId: 'owner' });
+    await expect(service.assertOwner('t1', 'outsider')).rejects.toMatchObject({ status: 404 });
   });
 });

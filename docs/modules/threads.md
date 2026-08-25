@@ -64,7 +64,7 @@
 - 线程列表、草稿、详情、邀请预览和订阅同时返回旧 `category` 与展示读模型 `categoryInfo: { slug, name, isActive } | null`。名称始终取当前注册表；已停用分类仍可读，未知历史 slug 以自身作为名称并标记不可选，空分类返回 null。客户端不得用仅含启用项的发现列表反查历史名称。
 - 聚合保存：按 Thread → 默认 Subthread → BODY 的 version 顺序校验后，在同一事务更新元数据、标题/正文、标签和发布状态；任一冲突返回 `OPTIMISTIC_LOCK_CONFLICT(40002)` 且不产生部分写入。COLLABORATOR 不得修改 visibility 或 published
 - 草稿期各 Post 的内联骰子节点只保存在 `content` 中；发布事务会锁定 Thread，校验并结算全部帖子节点后才翻转 `published=true`，任一步失败整体回滚
-- 发布可靠事件：发布事务为草稿期全部帖子写入 `post.created` Outbox，并写入 `thread.published`；提交后依次补解析 @提及/通知，并通知通过双向拉黑过滤的粉丝
+- 发布可靠事件：发布事务为草稿期全部帖子写入 `post.created` Outbox，并写入带 visibility 快照的 `thread.published`；提交后依次补解析 @提及/通知。只有 PUBLIC 主题会通知通过双向拉黑过滤的粉丝，PRIVATE 主题不会产生关注发布通知
 - 草稿内发帖不立即触发 @提及解析和通知；发布事务统一生成事件，失败由 Outbox 重试
 - 草稿仅 owner 可查看和操作，非 owner 访问返回 404
 - 草稿帖删除为硬删除（级联删除子贴/帖子/参与人），已发布帖删除为软删除；只有数据库删除/更新成功后才清理 Redis 排序、计数缓存并发送本地删除事件，数据库失败不制造幽灵副作用
@@ -92,7 +92,7 @@
 - 参与人管理权限：OWNER 可任免协作者，OWNER/COLLABORATOR 可授予/收回玩家身份；不能修改/收回 OWNER；不提供删除参与人记录的操作
 - 升为协作者、取消玩家标记或主动退出玩家身份会在同一事务清理失效 USER 订阅；成员资格永久保留
 - `PARTICIPANT ↔ COLLABORATOR` 真实转换在目标成员行锁后重读旧角色，并把角色更新、订阅清理与唯一 Outbox 事件放进同一事务。同角色重放及仅修改 `playerMarked` 不发事件；Outbox 重放以事件 ID 派生的通知键复用原通知
-- 私密帖禁止自由加入，仅可通过邀请链接加入；成员资格不会被移出
+- 私密帖禁止自由加入，仅可通过邀请链接加入；成员资格不会被移出。普通详情、楼层、搜索、点赞及通知等所有非邀请入口对非成员统一返回或表现为不存在，不泄露标题、作者或存在性
 - CLOSED、FINISHED 仅展示状态，不改变访问或发言权限
 - 收回玩家身份：取消该参与人的 playerMarked 标记。参与人记录保留，仍可浏览和在 PARTICIPANTS 策略子贴中发帖
 - 玩家身份决定 PLAYERS 策略子贴的发帖权限，详见子贴文档
@@ -101,6 +101,7 @@
 
 - 仅已发布的私密帖可生成邀请链接（未发布或公开帖均禁止）
 - `GET /threads/join-by-link/:token`：预览端点（`@AuthRead()`），返回帖子概要（title / category / owner / memberCount）和当前用户的 `alreadyJoined`；前端对已加入用户直接跳转主题帖，不停留在接受邀请页
+- 只有格式与数据库记录均有效的 token 可以读取上述最小概要；普通主题链接不会触发邀请预览，也不能以关注关系替代成员资格。用户显式调用 POST 加入前不得加载完整正文、子贴、成员或互动数据
 - `POST /threads/join-by-link/:token`：正式加入（`@Auth()`），角色为 PARTICIPANT（参与人）；使用唯一键 upsert 保证重复点击和并发请求幂等，已加入时直接返回现有成员记录
 - 邀请链接使用 ThreadInvite 表 upsert，token 为随机 16 位小写字母+数字
 

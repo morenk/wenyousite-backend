@@ -4,22 +4,21 @@ import { forbidden, notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { authorSelect, notDeleted } from '../common/prisma-helpers';
 import { PrismaService } from '../prisma/prisma.service';
-import {
-  mapThreadCategoryInfo,
-  threadCategoryInfoSelect,
-} from '../taxonomy/thread-category-info';
+import { mapThreadCategoryInfo, threadCategoryInfoSelect } from '../taxonomy/thread-category-info';
+import { ThreadAccessService } from '../access/thread-access.service';
 
 /** 私密主题邀请用例，隔离 token、成员加入和可见性规则。 */
 @Injectable()
 export class ThreadInviteService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly threadAccess: ThreadAccessService,
+  ) {}
 
   async create(threadId: string, userId: string) {
+    await this.threadAccess.assertOwner(threadId, userId);
     const thread = await this.prisma.thread.findUnique({ where: { id: threadId, ...notDeleted } });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
-    if (thread.ownerId !== userId) {
-      throw forbidden('仅楼主可管理邀请链接', ErrorCode.NOT_THREAD_OWNER);
-    }
     if (!thread.published) throw forbidden('请先发布主题帖');
     if (thread.visibility !== 'PRIVATE') throw forbidden('仅私密帖可生成邀请链接');
 
@@ -53,8 +52,9 @@ export class ThreadInviteService {
     if (!invite || invite.thread.deletedAt) {
       throw notFound(ErrorCode.INVITE_INVALID, '邀请链接无效或已失效');
     }
-    if (!invite.thread.published) throw forbidden('该主题帖尚未发布');
-    if (invite.thread.visibility !== 'PRIVATE') throw forbidden('该主题帖为公开帖，可直接加入');
+    if (!invite.thread.published || invite.thread.visibility !== 'PRIVATE') {
+      throw notFound(ErrorCode.INVITE_INVALID, '邀请链接无效或已失效');
+    }
 
     const [memberCount, existingMember] = await Promise.all([
       this.prisma.threadMember.count({ where: { threadId: invite.threadId } }),
@@ -94,8 +94,9 @@ export class ThreadInviteService {
     if (!invite || invite.thread.deletedAt) {
       throw notFound(ErrorCode.INVITE_INVALID, '邀请链接无效或已失效');
     }
-    if (!invite.thread.published) throw forbidden('该主题帖尚未发布');
-    if (invite.thread.visibility !== 'PRIVATE') throw forbidden('该主题帖为公开帖，可直接加入');
+    if (!invite.thread.published || invite.thread.visibility !== 'PRIVATE') {
+      throw notFound(ErrorCode.INVITE_INVALID, '邀请链接无效或已失效');
+    }
 
     return this.prisma.threadMember.upsert({
       where: { threadId_userId: { threadId: invite.threadId, userId } },

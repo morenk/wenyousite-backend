@@ -50,6 +50,7 @@ function createPrismaMock() {
     momentImage: { deleteMany: jest.fn(), createMany: jest.fn() },
     momentLike: { findUnique: jest.fn(), createMany: jest.fn(), deleteMany: jest.fn() },
     momentBookmark: { createMany: jest.fn(), deleteMany: jest.fn() },
+    notification: { updateMany: jest.fn() },
     $queryRaw: jest.fn(),
   };
   const prisma = {

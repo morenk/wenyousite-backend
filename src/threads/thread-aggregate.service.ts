@@ -343,6 +343,7 @@ export class ThreadAggregateService {
               threadId,
               ownerId: updated.ownerId,
               ownerUsername: updated.owner.username,
+              visibility: updated.visibility,
               occurredAt: new Date().toISOString(),
             },
           });

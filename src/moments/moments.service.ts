@@ -29,9 +29,7 @@ const TEXT_COVER_THEMES = ['ROSE', 'LILAC', 'MINT', 'AMBER'] as const;
 
 type Viewer = { id: string; role?: string };
 
-interface DiscoverRow {
-  id: string;
-}
+type DiscoverRow = { id: string };
 
 interface DiscoverCursor {
   snapshotId: string;
@@ -306,6 +304,10 @@ export class MomentsService {
           removedById: viewer.id,
           ...(!restorableAdminRemoval ? { coverMediaId: null } : {}),
         },
+      });
+      await tx.notification.updateMany({
+        where: { momentId: id, isRead: false },
+        data: { isRead: true },
       });
       if (!restorableAdminRemoval) {
         await tx.momentImage.deleteMany({ where: { momentId: id } });

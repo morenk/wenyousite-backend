@@ -4,6 +4,7 @@ import { ThreadAccessService } from '../access/thread-access.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { OutboxService } from '../outbox/outbox.service';
+import { ErrorCode } from '../common/exceptions/error-codes';
 
 const mockPrisma = {
   $transaction: jest.fn(),
@@ -53,12 +54,16 @@ describe('ThreadMembersService', () => {
   });
 
   it('私密帖禁止自由加入', async () => {
+    mockThreadAccess.assertAccessible.mockRejectedValueOnce(
+      new BusinessException(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在', 404),
+    );
     mockPrisma.thread.findUnique.mockResolvedValue({
       id: 't1',
       visibility: 'PRIVATE',
       published: true,
     });
-    await expect(service.join('t1', 'u1')).rejects.toThrow(BusinessException);
+    await expect(service.join('t1', 'u1')).rejects.toMatchObject({ status: 404 });
+    expect(mockPrisma.thread.findUnique).not.toHaveBeenCalled();
   });
 
   it('公开帖兼容端点仍允许加入', async () => {

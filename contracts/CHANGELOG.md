@@ -1,5 +1,12 @@
 # API 合同变更
 
+## 5.11.0-dev.20260825.1
+
+- `NotificationTargetResponseDto` 向后兼容新增必填 `state=ACTIVE|CONTENT_DELETED|USER_DEACTIVATED|NO_TARGET`。删除或注销目标保留为历史通知，但返回 `kind=none`、清空导航 ID、强制视为已读且不能标回未读；目标恢复后历史通知仍保持已读。
+- 通知列表按当前主题成员资格隔离 PRIVATE 内容；未获邀请的用户既看不到对应历史记录，也不会计入未读。所有帖子、提及、点赞和订阅通知在最终落库/推送前再次验证目标存活与收件人权限；私密主题发布不再向楼主的关注者发送 `thread_created`。
+- 管理员隐藏主题、帖子、动态或动态评论时，同一事务把相关通知标为已读。被隐藏主楼层下的存活回复不再可通过详情、搜索或回复入口访问；管理员隐藏动态主评论时其回复子树同样不可访问，作者自行删除主评论的既有墓碑语义保持不变。
+- 普通主题详情、楼层和互动入口继续对未获邀请的 PRIVATE 用户返回与不存在一致的 404；只有持有有效邀请 token 的预览端点返回加入所需的最小概要，正式加入后才开放完整内容。
+
 ## 5.10.0-dev.20260823.1
 
 - `POST /media/upload-url` 向后兼容新增可选 `purpose`（`AVATAR / PROFILE_COVER / DIRECT_MESSAGE / MOMENT / MOMENT_COMMENT / RICH_CONTENT / STICKER_SOURCE / LEGACY`）。旧客户端省略时使用 `LEGACY`，继续生成原有三种派生图；业务绑定接口接受同用途或历史 `LEGACY` 媒体。

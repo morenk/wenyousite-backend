@@ -41,48 +41,101 @@ describe('NotificationsService', () => {
     );
   });
 
-  it('findAll 应同时过滤已删除的帖子、子贴和主题帖', async () => {
+  it('findAll 应保留删除目标历史，并按当前成员资格隔离私密主题', async () => {
     mockPrisma.notification.findMany.mockResolvedValue([]);
     await service.findAll('u1', undefined, 20, ['new_post']);
     const call = mockPrisma.notification.findMany.mock.calls[0][0];
     expect(call.where.type.in).toEqual(
       expect.arrayContaining(['new_post', 'new_floor', 'subthread_created']),
     );
-    expect(call.where.AND[0].OR).toEqual(
+    expect(call.where.AND[1].OR).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ postId: null, threadId: null }),
-        expect.objectContaining({ postId: null, threadId: expect.objectContaining({ not: null }) }),
-        expect.objectContaining({ postId: expect.objectContaining({ not: null }) }),
-      ]),
-    );
-    const postTarget = call.where.AND[0].OR.find(
-      (condition: { postId?: { not: null } }) => condition.postId?.not === null,
-    );
-    expect(postTarget.post).toEqual(
-      expect.objectContaining({
-        deletedAt: null,
-        thread: { deletedAt: null },
-        subthread: { deletedAt: null },
-      }),
-    );
-  });
-
-  it('动态评论通知同时要求动态和目标评论仍未删除', async () => {
-    mockPrisma.notification.findMany.mockResolvedValue([]);
-
-    await service.findAll('u1');
-
-    const conditions = mockPrisma.notification.findMany.mock.calls[0][0].where.AND[0].OR;
-    expect(conditions).toEqual(
-      expect.arrayContaining([
+        { threadId: null, postId: null },
         {
-          momentId: { not: null },
-          momentCommentId: { not: null },
-          moment: { deletedAt: null },
-          momentComment: { deletedAt: null },
+          thread: {
+            published: true,
+            visibility: 'PRIVATE',
+            members: { some: { userId: 'u1' } },
+          },
         },
       ]),
     );
+  });
+
+  it('未读条件应排除管理员隐藏根评论下仍存活的回复', async () => {
+    mockPrisma.notification.count.mockResolvedValue(0);
+
+    await service.unreadCount('u1');
+
+    const conditions = mockPrisma.notification.count.mock.calls[0][0].where.AND[1].OR;
+    expect(conditions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          momentId: { not: null },
+          momentCommentId: { not: null },
+          moment: { deletedAt: null },
+          momentComment: expect.objectContaining({
+            deletedAt: null,
+            OR: expect.arrayContaining([
+              {
+                parentComment: {
+                  deletedAt: { not: null },
+                  removalSource: { not: 'ADMIN' },
+                },
+              },
+            ]),
+          }),
+        }),
+      ]),
+    );
+  });
+
+  it('删除目标保留在列表但导航字段清空，并立即持久化为已读', async () => {
+    mockPrisma.notification.findMany.mockResolvedValue([
+      {
+        id: 'n-deleted',
+        userId: 'u1',
+        type: 'reply',
+        content: '有人回复了你',
+        payload: null,
+        postId: 'post-1',
+        threadId: 'thread-1',
+        momentId: null,
+        momentCommentId: null,
+        fromUserId: 'u2',
+        eventKey: 'reply:post-1:u1',
+        isRead: false,
+        createdAt: new Date(),
+        post: {
+          id: 'post-1',
+          floorNumber: null,
+          parentPostId: null,
+          deletedAt: new Date(),
+          parentPost: null,
+          subthread: { deletedAt: null },
+          thread: { deletedAt: null },
+        },
+        thread: { id: 'thread-1', title: '主题', deletedAt: null },
+        moment: null,
+        momentComment: null,
+        fromUser: { id: 'u2', username: '用户', avatar: null, level: 1, deletedAt: null },
+      },
+    ]);
+
+    const result = await service.findAll('u1');
+
+    expect(result.items[0]).toEqual(
+      expect.objectContaining({
+        isRead: true,
+        postId: null,
+        threadId: null,
+        target: expect.objectContaining({ kind: 'none', state: 'CONTENT_DELETED' }),
+      }),
+    );
+    expect(mockPrisma.notification.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['n-deleted'] }, userId: 'u1', isRead: false },
+      data: { isRead: true },
+    });
   });
 
   it('findAll 应把历史 new_floor 类型归一为 new_post', async () => {
@@ -131,27 +184,33 @@ describe('NotificationsService', () => {
   it('unreadCount 应该返回未读数', async () => {
     mockPrisma.notification.count.mockResolvedValue(5);
     expect(await service.unreadCount('u1')).toBe(5);
-    expect(mockPrisma.notification.count).toHaveBeenCalledWith({
-      where: expect.objectContaining({ userId: 'u1', isRead: false, AND: expect.any(Array) }),
-    });
+    const where = mockPrisma.notification.count.mock.calls[0][0].where;
+    expect(where.AND[0]).toEqual(
+      expect.objectContaining({ userId: 'u1', AND: expect.arrayContaining([{ isRead: false }]) }),
+    );
   });
 
   it('markAllAsRead 应该标记全部已读', async () => {
     mockPrisma.notification.updateMany.mockResolvedValue({ count: 3 });
     await service.markAllAsRead('u1');
-    expect(mockPrisma.notification.updateMany).toHaveBeenCalledWith({
-      where: expect.objectContaining({ userId: 'u1', isRead: false, AND: expect.any(Array) }),
-      data: { isRead: true },
-    });
+    expect(mockPrisma.notification.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          userId: 'u1',
+          AND: expect.arrayContaining([{ isRead: false }]),
+        }),
+        data: { isRead: true },
+      }),
+    );
   });
 
   it('setReadStatus 应该支持标记未读', async () => {
     mockPrisma.notification.updateMany.mockResolvedValue({ count: 1 });
     await service.setReadStatus('n1', 'u1', false);
-    expect(mockPrisma.notification.updateMany).toHaveBeenCalledWith({
-      where: { id: 'n1', userId: 'u1' },
-      data: { isRead: false },
-    });
+    const where = mockPrisma.notification.updateMany.mock.calls[0][0].where;
+    expect(where.AND[0]).toEqual(
+      expect.objectContaining({ userId: 'u1', AND: expect.arrayContaining([{ id: 'n1' }]) }),
+    );
   });
 
   it('remove 应该硬删除单条通知', async () => {

@@ -40,6 +40,7 @@ function createContext() {
       updateMany: jest.fn(),
     },
     moment: { update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    notification: { updateMany: jest.fn() },
     media: { findUnique: jest.fn() },
     userBlock: { findFirst: jest.fn() },
     $queryRaw: jest.fn(),
@@ -88,11 +89,7 @@ function createContext() {
   };
 }
 
-async function expectBusiness(
-  promise: Promise<unknown>,
-  errorCode: number,
-  status: HttpStatus,
-) {
+async function expectBusiness(promise: Promise<unknown>, errorCode: number, status: HttpStatus) {
   const error = await promise.catch((reason: unknown) => reason);
   expect(error).toBeInstanceOf(BusinessException);
   expect(error).toMatchObject({ errorCode });
@@ -193,6 +190,7 @@ describe('MomentCommentsService', () => {
         parentCommentId: null,
         replyToComment: null,
         deletedAt: new Date('2026-08-08T13:00:00.000Z'),
+        removalSource: 'AUTHOR',
       }),
     );
     prisma.momentComment.count.mockResolvedValue(7);
@@ -271,6 +269,24 @@ describe('MomentCommentsService', () => {
     expect(prisma.momentComment.count).not.toHaveBeenCalled();
   });
 
+  it('管理员隐藏主评论后，消息深链不能再打开仍存活的楼中楼', async () => {
+    const { service, prisma } = createContext();
+    prisma.userBlock.findMany.mockResolvedValue([]);
+    prisma.momentComment.findFirst.mockResolvedValueOnce(commentRow()).mockResolvedValueOnce(
+      commentRow({
+        id: 'root-comment',
+        parentCommentId: null,
+        deletedAt: new Date(),
+        removalSource: 'ADMIN',
+      }),
+    );
+
+    await expect(service.findContext('moment-1', 'comment-new', { id: 'viewer' })).rejects.toThrow(
+      '目标评论不存在或不可见',
+    );
+    expect(prisma.momentComment.count).not.toHaveBeenCalled();
+  });
+
   it('回复楼中楼时统一归入主评论，并通知实际被回复者', async () => {
     const { service, prisma, tx, outbox } = createContext();
     tx.momentComment.findFirst.mockResolvedValue({
@@ -310,6 +326,33 @@ describe('MomentCommentsService', () => {
       }),
     );
     expect(result.parentCommentId).toBe('root-comment');
+  });
+
+  it('管理员隐藏主评论后不能再通过存活楼中楼继续回复', async () => {
+    const { service, prisma, tx } = createContext();
+    prisma.momentComment.findUnique.mockResolvedValue(null);
+    tx.momentComment.findFirst.mockResolvedValueOnce({ authorId: 'target' }).mockResolvedValueOnce({
+      id: 'nested-comment',
+      authorId: 'target',
+      parentCommentId: 'root-comment',
+      parentComment: {
+        deletedAt: new Date(),
+        removalSource: 'ADMIN',
+      },
+    });
+
+    await expect(
+      service.create(
+        'moment-1',
+        {
+          content: '继续回复',
+          replyToCommentId: 'nested-comment',
+          clientRequestId: '00000000-0000-4000-8000-000000000009',
+        },
+        { id: 'viewer' },
+      ),
+    ).rejects.toThrow('被回复的评论不存在');
+    expect(tx.momentComment.create).not.toHaveBeenCalled();
   });
 
   it('允许只发一张已完成且未占用的图片，并把媒体写入幂等载荷', async () => {

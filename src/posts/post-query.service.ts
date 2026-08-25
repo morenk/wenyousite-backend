@@ -248,10 +248,7 @@ export class PostQueryService {
       .map((row) => {
         const member = memberByUserId.get(row.authorId);
         const role = row.authorId === ownerId ? 'OWNER' : member?.role;
-        if (
-          !role ||
-          (role === 'PARTICIPANT' && !member?.playerMarked)
-        ) {
+        if (!role || (role === 'PARTICIPANT' && !member?.playerMarked)) {
           return null;
         }
         return {
@@ -288,10 +285,17 @@ export class PostQueryService {
   async findById(id: string, userId?: string) {
     const postLight = await this.prisma.post.findUnique({
       where: { id, ...notDeleted },
-      select: { id: true, threadId: true, subthread: { select: { deletedAt: true } } },
+      select: {
+        id: true,
+        threadId: true,
+        parentPost: { select: { deletedAt: true } },
+        subthread: { select: { deletedAt: true } },
+      },
     });
     if (!postLight) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
-    if (postLight.subthread.deletedAt) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
+    if (postLight.subthread.deletedAt || postLight.parentPost?.deletedAt) {
+      throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
+    }
     await this.threadAccess.assertAccessible(postLight.threadId, userId);
 
     const post = await this.prisma.post.findUnique({

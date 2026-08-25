@@ -30,12 +30,13 @@
 
 - 通知列表按 createdAt DESC 排序，Cursor 分页（默认 20 条/页，最大 50）
 - 列表查询 include 关联关系：post（id/floorNumber/parentPostId/deletedAt）、thread（id/title/deletedAt）、fromUser（id/username/avatar/deletedAt），供前端拼接跳转 URL 并识别已删除的跳转对象。系统通知 fromUser 为 null
-- 列表查询自动过滤已软删帖、已软删子贴及其主题帖关联的通知；动态评论通知同时要求动态和目标评论均未删除。无目标的系统/关注通知仍保留
+- 删除目标的通知记录继续保留在历史列表中；`target.state` 固定为 `CONTENT_DELETED` 或 `USER_DEACTIVATED`，`kind=none` 且所有导航 ID 为 null。响应强制显示为已读，数据库也在内容隐藏事务、迁移或首次读取时收敛为已读，且不能再标回未读
+- `target.state=ACTIVE` 才能导航；真正没有业务目标的系统通知使用 `NO_TARGET`，仍可正常参与未读。PRIVATE 主题相关历史先按当前成员资格过滤，未获邀请者不会从通知数量、列表或内容字段获知主题存在
 - 支持按类型过滤（`?type=mention,reply` 逗号分隔多个），兼容旧类型 `new_floor` / `subthread_created`（自动映射为 `new_post`）
-- 未读数与列表共用同一组有效性过滤条件，基于 `isRead: false` count，避免角标与列表不一致
-- `setReadStatus` 支持标记已读（isRead: true）和标记未读（isRead: false）
+- 未读数只统计当前仍可导航的目标和真正无目标的系统通知；删除、注销及无权读取的 PRIVATE 目标不计入角标
+- `setReadStatus` 支持标记已读和标记未读，但不可用目标不能标回未读
 - `remove` 为硬删除，使用 `deleteMany`（where id + userId），即使不存在也不报错；系统通知同样支持删除
-- 通知创建由 `NotificationDeliveryService` 执行，`NotificationProducer` 是业务模块的统一应用入口
+- 通知创建由 `NotificationDeliveryService` 执行，`NotificationProducer` 是业务模块的统一应用入口；最终落库和移动推送前统一复核帖子父级、子贴、主题、动态、评论父级及 PRIVATE 成员资格，上游误算收件人也不会越权投递
 - 通知创建时的结构化导航字段（postId / threadId / fromUserId）在创建时写入，查询时直接关联返回
 - `eventKey` 是同一业务事件的稳定幂等键，实际按 `userId + eventKey` 唯一；队列重试、编辑重试、关注/发布/点赞/系统通知重投不会重复插入
 - 协作者任命/撤销发送 `system` 通知，目标为主题且 `fromUserId` 是操作楼主。`action` 分别为 `thread_collaborator_added` / `thread_collaborator_removed`，payload 固定携带 `threadId/threadTitle/actorId/actorName/oldRole/newRole`；通知 eventKey 由真实角色转换的唯一事件 ID 派生，Outbox 重放只复用原通知
@@ -43,7 +44,7 @@
 - 同一条回复的显式 `mention` 优先级高于 `reply`，只保留一次提醒；同一批通知写入使用 `skipDuplicates` 兜底并发重试
 - 点赞通知按主题帖聚合；聚合事务使用 Serializable 隔离级别，并在 payload 中保留最近事件键，避免并发丢计数或重试重复累加
 - 定时清理任务每天凌晨 4 点清理 90 天前已读的通知
-- 响应把历史 `payload` 规范化为带 `schemaVersion=1` 的类型结构，并额外给出 `target.kind`（post/thread/user/none）及相应 ID；新版 Web/Flutter 按 target 导航，`content` 继续作为旧数据和未知类型的降级字段
+- 响应把历史 `payload` 规范化为带 `schemaVersion=1` 的类型结构，并额外给出 `target.kind/state` 及相应 ID；新版 Web/Flutter 仅在 `state=ACTIVE` 时按 target 导航，`content` 继续作为旧数据和未知类型的降级字段
 - 通知落库后按稳定事件键尽力进入 `mobile-push` 队列；FCM 只发送通用隐私提示，客户端回到 API 拉取权威内容。推送入队失败不会回滚或删除已提交通知，只输出不含正文和用户资料的结构化告警；推送本身允许延迟、折叠或丢失
 - 通知摘要先把 Markdown 图片语法替换为 `[图片]`，再剥离其他 Markdown 标记；纯图片回复仍有可识别预览，同时图片 alt（包括 Milkdown 的 `1.00` 比例占位）不会进入通知文案
 - 通知摘要会把顶层空段落协议标记（`<br />` 及历史变体）转换为空白并折叠，避免空行撑高或标签泄漏

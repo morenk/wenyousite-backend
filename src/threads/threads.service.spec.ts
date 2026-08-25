@@ -71,6 +71,7 @@ const mockPrisma = {
     createMany: jest.fn(),
     deleteMany: jest.fn(),
   },
+  notification: { updateMany: jest.fn() },
 };
 
 const mockTags = {
@@ -80,6 +81,7 @@ const mockTags = {
 const mockThreadAccess = {
   assertAccessible: jest.fn(),
   assertCanManage: jest.fn().mockResolvedValue({ role: 'OWNER' }),
+  assertOwner: jest.fn().mockResolvedValue({ ownerId: 'u1' }),
 };
 const mockBlockFilter = {
   loadBlockSets: jest
@@ -159,6 +161,7 @@ describe('ThreadsService', () => {
         threadMember: mockPrisma.threadMember,
         post: mockPrisma.post,
         diceRoll: mockPrisma.diceRoll,
+        notification: mockPrisma.notification,
       }),
     );
   });
@@ -410,8 +413,7 @@ describe('ThreadsService', () => {
             title: '主贴',
             posts: [
               {
-                content:
-                  '另一种形式的开\n始？\n\n&#x20;  没有死亡的人，无法给出答案。',
+                content: '另一种形式的开\n始？\n\n&#x20;  没有死亡的人，无法给出答案。',
               },
             ],
           },
@@ -422,9 +424,7 @@ describe('ThreadsService', () => {
 
       const page = await service.findAll({ sort: 'newest' });
 
-      expect(page.items[0].preview).toBe(
-        '另一种形式的开 始？ 没有死亡的人，无法给出答案。',
-      );
+      expect(page.items[0].preview).toBe('另一种形式的开 始？ 没有死亡的人，无法给出答案。');
     });
 
     describe('recommended（智能排序）', () => {

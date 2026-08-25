@@ -24,6 +24,7 @@ const mockPrisma = {
   thread: { findUnique: jest.fn() },
   subthread: { findUnique: jest.fn(), update: jest.fn() },
   threadMember: { findUnique: jest.fn(), upsert: jest.fn() },
+  notification: { updateMany: jest.fn() },
   userBlock: { findFirst: jest.fn().mockResolvedValue(null) },
   post: {
     findUnique: jest.fn(),
@@ -73,9 +74,9 @@ const mockMediaReferences = {
 
 interface CapturedPostTransaction {
   $queryRaw: jest.Mock;
-  threadMember: { upsert: jest.Mock };
+  threadMember: { findUnique: jest.Mock; upsert: jest.Mock };
   post: { aggregate: jest.Mock; create: jest.Mock };
-  subthread: { update: jest.Mock };
+  subthread: { findUnique: jest.Mock; update: jest.Mock };
 }
 
 describe('PostsService', () => {
@@ -141,7 +142,7 @@ describe('PostsService', () => {
     mockPrisma.$transaction.mockImplementation(async (fn) => {
       tx = {
         $queryRaw: jest.fn(),
-        threadMember: { upsert: jest.fn() },
+        threadMember: { findUnique: mockPrisma.threadMember.findUnique, upsert: jest.fn() },
         post: {
           aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 5 } }),
           create: jest.fn().mockResolvedValue({
@@ -152,7 +153,7 @@ describe('PostsService', () => {
             author: { username: 'test' },
           }),
         },
-        subthread: { update: jest.fn() },
+        subthread: { findUnique: mockPrisma.subthread.findUnique, update: jest.fn() },
       };
       return fn(tx);
     });
@@ -185,7 +186,7 @@ describe('PostsService', () => {
     mockPrisma.$transaction.mockImplementation(async (fn) => {
       tx = {
         $queryRaw: jest.fn(),
-        threadMember: { upsert: jest.fn() },
+        threadMember: { findUnique: mockPrisma.threadMember.findUnique, upsert: jest.fn() },
         post: {
           aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 0 } }),
           create: jest.fn().mockResolvedValue({
@@ -196,7 +197,7 @@ describe('PostsService', () => {
             author: { username: 'test' },
           }),
         },
-        subthread: { update: jest.fn() },
+        subthread: { findUnique: mockPrisma.subthread.findUnique, update: jest.fn() },
       };
       return fn(tx);
     });
@@ -229,7 +230,7 @@ describe('PostsService', () => {
     mockPrisma.$transaction.mockImplementation(async (fn) =>
       fn({
         $queryRaw: jest.fn(),
-        threadMember: { upsert: jest.fn() },
+        threadMember: { findUnique: mockPrisma.threadMember.findUnique, upsert: jest.fn() },
         post: {
           aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 0 } }),
           create: jest.fn().mockResolvedValue({
@@ -240,7 +241,7 @@ describe('PostsService', () => {
             author: { username: 'test' },
           }),
         },
-        subthread: { update: jest.fn() },
+        subthread: { findUnique: mockPrisma.subthread.findUnique, update: jest.fn() },
       }),
     );
 
@@ -271,14 +272,14 @@ describe('PostsService', () => {
     };
     const tx = {
       $queryRaw: jest.fn(),
-      threadMember: { upsert: jest.fn() },
+      threadMember: { findUnique: mockPrisma.threadMember.findUnique, upsert: jest.fn() },
       post: {
         aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 0 } }),
         create: jest.fn().mockResolvedValue(created),
         findUniqueOrThrow: jest.fn().mockResolvedValue(official),
       },
       diceRoll: { createMany: jest.fn().mockResolvedValue({ count: 1 }) },
-      subthread: { update: jest.fn() },
+      subthread: { findUnique: mockPrisma.subthread.findUnique, update: jest.fn() },
     };
     mockPrisma.$transaction.mockImplementation(async (fn) => fn(tx));
 
@@ -432,8 +433,9 @@ describe('PostsService', () => {
     mockPrisma.$transaction.mockImplementation(async (fn) => {
       const tx = {
         $queryRaw: jest.fn(),
-        threadMember: { upsert: jest.fn() },
+        threadMember: { findUnique: mockPrisma.threadMember.findUnique, upsert: jest.fn() },
         post: {
+          findUnique: mockPrisma.post.findUnique,
           aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 5 } }),
           create: jest.fn().mockResolvedValue({
             id: 'p2',
@@ -444,7 +446,7 @@ describe('PostsService', () => {
             author: { username: 'test' },
           }),
         },
-        subthread: { update: jest.fn() },
+        subthread: { findUnique: mockPrisma.subthread.findUnique, update: jest.fn() },
       };
       return fn(tx);
     });
@@ -452,6 +454,28 @@ describe('PostsService', () => {
     const result = await service.create('s1', { content: 'reply', parentPostId: 'p1' }, 'u1');
     expect(result.floorNumber).toBeNull();
     expect(result.parentPostId).toBe('p1');
+  });
+
+  it('管理员在提交前隐藏父楼层时，事务内复核应拒绝继续回复', async () => {
+    mockPrisma.subthread.findUnique.mockResolvedValue({
+      id: 's1',
+      threadId: 't1',
+      title: '主贴',
+      postingPolicy: 'PARTICIPANTS',
+      thread: { published: true, ownerId: 'owner' },
+    });
+    mockPrisma.threadMember.findUnique.mockResolvedValue({
+      role: 'PARTICIPANT',
+      playerMarked: false,
+    });
+    mockPrisma.post.findUnique
+      .mockResolvedValueOnce({ id: 'root-1', subthreadId: 's1', parentPostId: null })
+      .mockResolvedValueOnce(null);
+
+    await expect(
+      service.create('s1', { content: '回复', parentPostId: 'root-1' }, 'u1'),
+    ).rejects.toMatchObject({ errorCode: ErrorCode.POST_NOT_FOUND });
+    expect(mockPrisma.post.create).not.toHaveBeenCalled();
   });
 
   describe('upsertBody', () => {
@@ -958,7 +982,7 @@ describe('PostsService', () => {
     mockPrisma.$transaction.mockImplementation(async (fn) =>
       fn({
         $queryRaw: jest.fn(),
-        threadMember: { upsert: jest.fn() },
+        threadMember: { findUnique: mockPrisma.threadMember.findUnique, upsert: jest.fn() },
         post: {
           aggregate: jest.fn().mockResolvedValue({ _max: { floorNumber: 0 } }),
           create: jest.fn().mockResolvedValue({
@@ -967,7 +991,7 @@ describe('PostsService', () => {
             author: { username: 'collab' },
           }),
         },
-        subthread: { update: jest.fn() },
+        subthread: { findUnique: mockPrisma.subthread.findUnique, update: jest.fn() },
       }),
     );
 

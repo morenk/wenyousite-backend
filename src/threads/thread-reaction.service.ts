@@ -63,6 +63,8 @@ export class ThreadReactionService {
       select: { id: true, published: true, likeCount: true },
     });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
+    if (!thread.published) throw new BusinessException(ErrorCode.BAD_REQUEST, '草稿暂不支持点赞');
+    await this.access.assertAccessible(id, userId);
 
     const { updated } = await this.prisma.$transaction(async (tx) => {
       const result = await tx.threadLike.deleteMany({ where: { threadId: id, userId } });

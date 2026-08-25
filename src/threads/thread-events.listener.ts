@@ -21,6 +21,17 @@ export class ThreadEventsListener {
 
   @OnEvent(DOMAIN_EVENTS.THREAD_PUBLISHED)
   async handlePublished(event: ThreadPublishedEvent): Promise<void> {
+    const visibility =
+      event.visibility ??
+      (
+        await this.prisma.thread.findUnique({
+          where: { id: event.threadId, deletedAt: null },
+          select: { visibility: true },
+        })
+      )?.visibility;
+    // 私密帖发布不属于“关注动态”，也不能向非成员暴露其存在。
+    if (visibility !== 'PUBLIC') return;
+
     const followers = await this.prisma.userFollow.findMany({
       where: { followingId: event.ownerId },
       select: { followerId: true },

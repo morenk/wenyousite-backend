@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { MediaPurpose, Prisma } from '@prisma/client';
+import { ContentRemovalSource, MediaPurpose, Prisma } from '@prisma/client';
 import { paginate } from '../common/dto/paginated-result';
 import { hashIdempotencyPayload } from '../common/idempotency';
 import { publicUserSummarySelect } from '../common/user-summary';
@@ -65,6 +65,7 @@ const commentSelect = {
   parentCommentId: true,
   replyToComment: { select: { id: true, author: { select: publicUserSummarySelect } } },
   deletedAt: true,
+  removalSource: true,
   createdAt: true,
 } satisfies Prisma.MomentCommentSelect;
 
@@ -100,6 +101,10 @@ export class MomentCommentsService {
       where: {
         momentId,
         parentCommentId: null,
+        NOT: {
+          deletedAt: { not: null },
+          removalSource: ContentRemovalSource.ADMIN,
+        },
         ...(excludedAuthors.length ? { authorId: { notIn: excludedAuthors } } : {}),
         AND: [
           {
@@ -170,9 +175,11 @@ export class MomentCommentsService {
     const moment = await this.access.assertVisible(momentId, viewer?.id);
     const root = await this.prisma.momentComment.findFirst({
       where: { id: rootCommentId, momentId, parentCommentId: null },
-      select: { id: true },
+      select: { id: true, deletedAt: true, removalSource: true },
     });
-    if (!root) throw momentNotFound('主评论不存在');
+    if (!root || (root.deletedAt && root.removalSource === ContentRemovalSource.ADMIN)) {
+      throw momentNotFound('主评论不存在');
+    }
     if (cursor) await this.assertCursor(cursor, momentId, false, rootCommentId);
     const excludedAuthors = await this.excludedAuthorIds(viewer?.id);
     const take = Math.min(limit, MAX_PAGE_SIZE);
@@ -208,6 +215,16 @@ export class MomentCommentsService {
       where: {
         momentId,
         deletedAt: null,
+        OR: [
+          { parentCommentId: null },
+          { parentComment: { deletedAt: null } },
+          {
+            parentComment: {
+              deletedAt: { not: null },
+              removalSource: { not: ContentRemovalSource.ADMIN },
+            },
+          },
+        ],
         ...(excludedAuthors.length ? { authorId: { notIn: excludedAuthors } } : {}),
       },
       distinct: ['authorId'],
@@ -252,7 +269,9 @@ export class MomentCommentsService {
           select: commentSelect,
         })
       : target;
-    if (!root) throw momentNotFound('目标评论不存在或不可见');
+    if (!root || (root.deletedAt && root.removalSource === ContentRemovalSource.ADMIN)) {
+      throw momentNotFound('目标评论不存在或不可见');
+    }
 
     const replyCount = await this.prisma.momentComment.count({
       where: {
@@ -316,17 +335,28 @@ export class MomentCommentsService {
         const replyTarget = dto.replyToCommentId
           ? await tx.momentComment.findFirst({
               where: { id: dto.replyToCommentId, momentId, deletedAt: null },
-              select: { id: true, authorId: true, parentCommentId: true },
+              select: {
+                id: true,
+                authorId: true,
+                parentCommentId: true,
+                parentComment: { select: { deletedAt: true, removalSource: true } },
+              },
             })
           : null;
         if (dto.replyToCommentId && !replyTarget) {
           throw momentNotFound('被回复的评论不存在');
         }
         if (replyTarget) {
+          if (
+            replyTarget.parentComment?.deletedAt &&
+            replyTarget.parentComment.removalSource === ContentRemovalSource.ADMIN
+          ) {
+            throw momentNotFound('被回复的评论不存在');
+          }
           await this.assertUsersCanInteract(tx, viewer.id, replyTarget.authorId);
         }
         const parentCommentId = replyTarget
-          ? replyTarget.parentCommentId ?? replyTarget.id
+          ? (replyTarget.parentCommentId ?? replyTarget.id)
           : null;
         const recipientId = replyTarget?.authorId ?? lockedMoment.authorId;
         await this.assertMediaAvailable(tx, viewer.id, mediaId);
@@ -399,18 +429,24 @@ export class MomentCommentsService {
         select: {
           authorId: true,
           deletedAt: true,
+          removalSource: true,
           mediaId: true,
+          parentComment: { select: { deletedAt: true, removalSource: true } },
           moment: { select: { authorId: true, deletedAt: true } },
         },
       });
-      if (!comment || comment.moment.deletedAt) throw momentNotFound('评论不存在');
+      if (
+        !comment ||
+        comment.moment.deletedAt ||
+        (comment.deletedAt && comment.removalSource === ContentRemovalSource.ADMIN) ||
+        (comment.parentComment?.deletedAt &&
+          comment.parentComment.removalSource === ContentRemovalSource.ADMIN)
+      ) {
+        throw momentNotFound('评论不存在');
+      }
       const admin = viewer.role === 'ADMIN' || viewer.role === 'SUPER_ADMIN';
       if (comment.authorId !== viewer.id && comment.moment.authorId !== viewer.id && !admin) {
-        throw new BusinessException(
-          ErrorCode.FORBIDDEN,
-          '无权删除该评论',
-          HttpStatus.FORBIDDEN,
-        );
+        throw new BusinessException(ErrorCode.FORBIDDEN, '无权删除该评论', HttpStatus.FORBIDDEN);
       }
       if (comment.deletedAt) return;
       const restorableAdminRemoval = admin && comment.authorId !== viewer.id;
@@ -426,6 +462,18 @@ export class MomentCommentsService {
           removedById: viewer.id,
           ...(!restorableAdminRemoval ? { mediaId: null } : {}),
         },
+      });
+      await tx.notification.updateMany({
+        where: restorableAdminRemoval
+          ? {
+              isRead: false,
+              OR: [
+                { momentCommentId: commentId },
+                { momentComment: { parentCommentId: commentId } },
+              ],
+            }
+          : { momentCommentId: commentId, isRead: false },
+        data: { isRead: true },
       });
       const updated = await tx.moment.updateMany({
         where: { id: momentId, deletedAt: null },

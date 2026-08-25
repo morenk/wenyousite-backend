@@ -103,6 +103,8 @@ OpenAPI 为兼容 Web 把该头标为 optional；省略或传未知值会创建 
 
 合同 `5.9.0-dev.20260823.1` 起，Windows 移动端需在独立契约同步切片中固定 OpenAPI 并重新生成 SDK，然后完成四项接入：使用 `usersGetMyCollaboratedThreads` 展示协作主题列表；按子贴必填 `postingCapability` 禁用发言并展示对应拒绝原因；识别 `thread_collaborator_added/removed` 通知并跳转主题；收到撤销通知或管理写入返回权限错误时退出该主题的管理页并刷新成员及协作列表。VPS 只维护本指南和事实源，不修改或验证 Flutter 实现。
 
+合同 `5.11.0-dev.20260825.1` 起，Windows 移动端必须在独立契约同步提交中固定 OpenAPI、重新生成 SDK，并消费通知目标必填 `state`：仅 `ACTIVE` 允许导航，`CONTENT_DELETED` / `USER_DEACTIVATED` 显示不可点击历史态，`NO_TARGET` 按普通系统通知展示。主题、楼层/回复、动态及评论详情从通知或站内链接打开时必须重新验证；403/404 要清除保留详情和回复编辑器，不得继续显示缓存内容或提交回复。普通 PRIVATE 主题链接对非成员显示统一不存在页；只有有效 `/join/{token}` 先显示最小邀请预览，用户明确加入后才进入详情。管理员隐藏动态主评论时清除其回复子树；作者墓碑仍保留。该 Flutter 代码、测试、生成物与 APK 门禁只能在 Windows 工作区完成，VPS 不修改移动端副本。
+
 ## 媒体、Markdown、动态与温油
 
 - 上传遵循“预签名 PUT → `upload-done` → 查询状态”；仅在 `COMPLETED` 后使用衍生图，列表优先 `thumbnailUrl`，详情优先 `mediumUrl`，为空或失败时回退 `url`。不得猜测对象键。

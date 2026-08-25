@@ -35,6 +35,7 @@ type MentionClient = {
   >;
   user: Pick<Prisma.TransactionClient['user'], 'findMany'>;
   userFollow: Pick<Prisma.TransactionClient['userFollow'], 'findMany'>;
+  thread: Pick<Prisma.TransactionClient['thread'], 'findUnique'>;
   threadMember: Pick<Prisma.TransactionClient['threadMember'], 'findMany' | 'findUnique'>;
   userBlock: Pick<Prisma.TransactionClient['userBlock'], 'findMany'>;
 };
@@ -205,6 +206,20 @@ export class MentionsService {
         relation: previous?.relation ?? 'PLAYER',
       });
     }
+    const thread = await this.prisma.thread.findUnique({
+      where: { id: threadId, deletedAt: null },
+      select: { visibility: true },
+    });
+    if (thread?.visibility === 'PRIVATE' && candidates.size > 0) {
+      const members = await this.prisma.threadMember.findMany({
+        where: { threadId, userId: { in: [...candidates.keys()] } },
+        select: { userId: true },
+      });
+      const memberIds = new Set(members.map((member) => member.userId));
+      for (const candidateId of candidates.keys()) {
+        if (!memberIds.has(candidateId)) candidates.delete(candidateId);
+      }
+    }
     const visibleIds = new Set(
       this.blockFilter.filterRecipients([...candidates.keys()], blockSets),
     );
@@ -255,7 +270,11 @@ export class MentionsService {
     if (candidates.length === 0) return [];
     const ids = candidates.filter((candidate) => candidate.id !== userId).map((candidate) => candidate.id);
     if (ids.length === 0) return [];
-    const [followingResult, markedMembersResult] = await Promise.all([
+    const [thread, followingResult, markedMembersResult, memberResult] = await Promise.all([
+      client.thread.findUnique({
+        where: { id: threadId, deletedAt: null },
+        select: { visibility: true },
+      }),
       client.userFollow.findMany({
         where: { followerId: userId, followingId: { in: ids } },
         select: { followingId: true },
@@ -264,13 +283,20 @@ export class MentionsService {
         where: { threadId, playerMarked: true, userId: { in: ids } },
         select: { userId: true },
       }),
+      client.threadMember.findMany({
+        where: { threadId, userId: { in: ids } },
+        select: { userId: true },
+      }),
     ]);
     const following = followingResult ?? [];
     const markedMembers = markedMembersResult ?? [];
-    const allowedIds = new Set([
-      ...following.map((item) => item.followingId),
-      ...markedMembers.map((item) => item.userId),
-    ]);
+    const allowedIds =
+      thread?.visibility === 'PRIVATE'
+        ? new Set((memberResult ?? []).map((item) => item.userId))
+        : new Set([
+            ...following.map((item) => item.followingId),
+            ...markedMembers.map((item) => item.userId),
+          ]);
     const visibleIds = new Set(this.blockFilter.filterRecipients([...allowedIds], blockSets));
     return candidates.filter((candidate) => visibleIds.has(candidate.id));
   }

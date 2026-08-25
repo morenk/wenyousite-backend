@@ -286,9 +286,10 @@ export class ThreadsService {
       throw forbidden('仅楼主可删除主题帖', ErrorCode.NOT_THREAD_OWNER);
 
     const result = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM threads WHERE id = ${id} FOR UPDATE`;
       await this.mediaReferences.releaseThreadContent(tx, id);
       if (!thread.published) return tx.thread.delete({ where: { id } });
-      return tx.thread.update({
+      const removed = await tx.thread.update({
         where: { id, ...notDeleted },
         data: {
           deletedAt: new Date(),
@@ -296,6 +297,11 @@ export class ThreadsService {
           removedById: userId,
         },
       });
+      await tx.notification.updateMany({
+        where: { threadId: id, isRead: false },
+        data: { isRead: true },
+      });
+      return removed;
     });
 
     // ZSET 清理 + 缓存失效 + 计数器清理
@@ -447,6 +453,7 @@ export class ThreadsService {
           threadId: id,
           ownerId: updated.ownerId,
           ownerUsername: updated.owner.username,
+          visibility: updated.visibility,
           occurredAt: new Date().toISOString(),
         },
       });

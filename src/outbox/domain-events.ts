@@ -45,6 +45,8 @@ export interface ThreadPublishedEvent {
   threadId: string;
   ownerId: string;
   ownerUsername: string;
+  /** 旧 Outbox 事件可能缺失；消费者必须回查后再决定是否发送粉丝通知。 */
+  visibility?: 'PUBLIC' | 'PRIVATE';
   occurredAt?: string;
 }
 
@@ -174,6 +176,7 @@ export const DOMAIN_EVENT_SCHEMAS = {
     threadId: id,
     ownerId: id,
     ownerUsername: z.string(),
+    visibility: z.enum(['PUBLIC', 'PRIVATE']).optional(),
     occurredAt: optionalTimestamp,
   }),
   [DOMAIN_EVENTS.THREAD_LIKED]: z.object({

@@ -4,7 +4,10 @@ import type { NotificationProducer } from '../notifications/notification.produce
 import type { BlockFilterService } from '../access/block-filter.service';
 
 describe('ThreadEventsListener', () => {
-  const prisma = { userFollow: { findMany: jest.fn() } };
+  const prisma = {
+    thread: { findUnique: jest.fn() },
+    userFollow: { findMany: jest.fn() },
+  };
   const notifications = { notify: jest.fn() };
   const blockFilter = {
     loadBlockSets: jest.fn(),
@@ -15,6 +18,7 @@ describe('ThreadEventsListener', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     prisma.userFollow.findMany.mockResolvedValue([]);
+    prisma.thread.findUnique.mockResolvedValue({ visibility: 'PUBLIC' });
     blockFilter.loadBlockSets.mockResolvedValue({
       blockedByUser: new Set(),
       blockedByAuthor: new Set(),
@@ -44,6 +48,20 @@ describe('ThreadEventsListener', () => {
       expect.any(String),
       expect.objectContaining({ eventKey: 'thread-created:t1' }),
     );
+  });
+
+  it('私密帖发布不向关注者发送主题创建通知', async () => {
+    prisma.userFollow.findMany.mockResolvedValue([{ followerId: 'f1' }]);
+
+    await listener.handlePublished({
+      threadId: 'private-thread',
+      ownerId: 'owner',
+      ownerUsername: '楼主',
+      visibility: 'PRIVATE',
+    });
+
+    expect(prisma.userFollow.findMany).not.toHaveBeenCalled();
+    expect(notifications.notify).not.toHaveBeenCalled();
   });
 
   it('点赞事件使用本次关系周期的事件键投递幂等通知', async () => {

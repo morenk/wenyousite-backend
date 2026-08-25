@@ -18,7 +18,7 @@ import { StickerContentService } from '../stickers/sticker-content.service';
 import { ReplyOrder } from '../common/dto/reply-query.dto';
 import { MediaReferenceService } from '../media/media-reference.service';
 import { PostMentionEventsService } from './post-mention-events.service';
-/** 楼层服务：发帖（事务楼层编号 + FOR UPDATE）、楼中楼、编辑、软删除 */
+import { lockAndValidatePostCreate } from './post-create-guard';
 @Injectable()
 export class PostsService {
   constructor(
@@ -59,7 +59,6 @@ export class PostsService {
   async findReplyAuthors(postId: string, userId?: string) {
     return this.queries.findReplyAuthors(postId, userId);
   }
-  /** 发帖：楼层或楼中楼回复。先校验访问权限与发帖策略，通过后才自动加入为参与人 */
   async create(subthreadId: string, dto: CreatePostDto, userId: string) {
     const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content));
     const content = parsedContent.content;
@@ -130,6 +129,15 @@ export class PostsService {
     let post;
     try {
       post = await this.prisma.$transaction(async (tx) => {
+        const { subthread: lockedSubthread, member: lockedMember } =
+          await lockAndValidatePostCreate(tx, this.threadAccess, this.postingPolicy, {
+            threadId: subthread.threadId,
+            subthreadId,
+            userId,
+            parentPostId: dto.parentPostId,
+            replyToPostId: dto.replyToPostId,
+          });
+
         // 自动加入与发帖原子提交，后续任何校验或写入失败都不会残留成员记录。
         await tx.threadMember.upsert({
           where: { threadId_userId: { threadId: subthread.threadId, userId } },
@@ -166,7 +174,7 @@ export class PostsService {
         });
         await this.mediaReferences.syncPostContent(tx, p.id, content);
 
-        const generatedDice = subthread.thread.published
+        const generatedDice = lockedSubthread.thread.published
           ? this.diceService.rollNodes(parsedContent.nodes)
           : [];
         if (generatedDice.length > 0) {
@@ -192,7 +200,7 @@ export class PostsService {
                 where: { id: p.id },
                 include: { author: { select: authorSelect }, ...includeDiceRolls() },
               });
-        if (subthread.thread.published) {
+        if (lockedSubthread.thread.published) {
           await this.outbox.enqueue(tx, {
             eventType: 'post.created',
             aggregateType: 'Post',
@@ -206,12 +214,12 @@ export class PostsService {
               occurredAt: new Date().toISOString(),
               threadId: subthread.threadId,
               subthreadId: subthread.id,
-              subthreadTitle: subthread.title,
+              subthreadTitle: lockedSubthread.title,
               parentPostId: dto.parentPostId ?? null,
               replyToPostId: dto.replyToPostId ?? null,
               isSubthreadBody: false,
-              authorRole: member?.role ?? 'PARTICIPANT',
-              authorPlayerMarked: member?.playerMarked ?? false,
+              authorRole: lockedMember?.role ?? 'PARTICIPANT',
+              authorPlayerMarked: lockedMember?.playerMarked ?? false,
               diceRolls: createdPost.diceRolls.map((roll) => ({
                 nodeId: roll.nodeId,
                 notation: roll.notation,
@@ -248,7 +256,12 @@ export class PostsService {
 
   private findByClientRequestId(userId: string, clientRequestId: string) {
     return this.prisma.post.findFirst({
-      where: { authorId: userId, clientRequestId },
+      where: {
+        authorId: userId,
+        clientRequestId,
+        deletedAt: null,
+        OR: [{ parentPostId: null }, { parentPost: { deletedAt: null } }],
+      },
       include: { author: { select: authorSelect }, ...includeDiceRolls() },
     });
   }
@@ -485,11 +498,14 @@ export class PostsService {
         version: true,
         thread: { select: { published: true } },
         diceRolls: { select: { id: true, nodeId: true, notation: true } },
+        parentPost: { select: { deletedAt: true } },
         subthread: { select: { deletedAt: true } },
       },
     });
     if (!postLight) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
-    if (postLight.subthread.deletedAt) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
+    if (postLight.subthread.deletedAt || postLight.parentPost?.deletedAt) {
+      throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
+    }
     await this.threadAccess.assertAccessible(postLight.threadId, userId);
     if (postLight.authorId !== userId) throw forbidden('只能编辑自己的帖子');
 
@@ -576,11 +592,14 @@ export class PostsService {
         kind: true,
         parentPostId: true,
         threadId: true,
+        parentPost: { select: { deletedAt: true } },
         subthread: { select: { deletedAt: true } },
       },
     });
     if (!postLight) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
-    if (postLight.subthread.deletedAt) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
+    if (postLight.subthread.deletedAt || postLight.parentPost?.deletedAt) {
+      throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
+    }
     await this.threadAccess.assertAccessible(postLight.threadId, userId);
     if (postLight.authorId !== userId) {
       await this.threadAccess.assertCanManage(postLight.threadId, userId);
@@ -592,6 +611,7 @@ export class PostsService {
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM threads WHERE id = ${postLight.threadId} FOR UPDATE`;
       const removed = await tx.post.update({
         where: { id, ...notDeleted },
         data: {
@@ -602,6 +622,13 @@ export class PostsService {
               : ContentRemovalSource.THREAD_MANAGER,
           removedById: userId,
         },
+      });
+      await tx.notification.updateMany({
+        where: {
+          isRead: false,
+          OR: [{ postId: id }, { post: { parentPostId: id } }],
+        },
+        data: { isRead: true },
       });
       await this.mediaReferences.releasePostContent(tx, id);
       return removed;

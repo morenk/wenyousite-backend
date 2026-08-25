@@ -52,8 +52,8 @@
 - 数据库 CHECK 固化 BODY/主楼层/楼中楼的字段形状，复合外键保证 `threadId` 与子贴所属主题一致，并阻止 parent/replyTo 跨子贴引用；主楼层被硬删除时其楼中楼级联删除，避免留下无楼层号的伪主楼层
 - 楼中楼平级挂载：所有回复共享同一个 parentPostId，无嵌套深度限制；回复目标通过 replyToPostId 追踪
 - parentPostId 必须属于同一子贴且为主楼层（parentPostId=null），否则拒绝
-- replyToPostId 必须属于同一子贴，否则拒绝
-- 软删除：设置 deletedAt，列表查询过滤已删除帖子；编辑/删除操作也校验子贴是否已软删
+- replyToPostId 必须属于同一子贴且其所属主楼层仍可见，否则拒绝
+- 软删除：设置 deletedAt，列表查询过滤已删除帖子；编辑/删除操作也校验子贴是否已软删。主楼层一旦软删除，其仍存活的楼中楼回复也从单帖详情、正文搜索、通知导航和新回复入口统一视为不存在；创建事务与管理员隐藏共享 Thread 聚合锁并在提交前复核
 - 子贴正文（kind=BODY）不可删除，提示"主体正文不可删除。如需修改请编辑帖子；如需移除请删除整个子贴"
 - 权限校验通过后自动将用户加入主题帖（upsert ThreadMember，角色 PARTICIPANT）
 - 发帖权限由子贴的 postingPolicy 控制；OWNER/COLLABORATOR 可绕过所有子贴策略：

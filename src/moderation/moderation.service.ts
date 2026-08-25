@@ -14,11 +14,10 @@ import { AdminActor, AdminPolicyService } from './admin-policy.service';
 import { AuditService } from './audit.service';
 import { SanctionUserDto } from './dto/moderation.dto';
 import { AdminModerationQueryService } from './admin-moderation-query.service';
-import {
-  ContentModerationEffect,
-  ModerationProjectionService,
-} from './moderation-projection.service';
+import { ContentModerationEffect, ModerationProjectionService } from './moderation-projection.service';
 import { isUniqueConstraintViolation } from '../common/prisma-errors';
+import { markNotificationsReadForHiddenContent } from '../notifications/notification-invalidation';
+import { lockModeratedThreadAggregate } from './moderation-content-lock';
 
 export type { ContentModerationEffect } from './moderation-projection.service';
 
@@ -300,6 +299,7 @@ export class ModerationService {
     reportId?: string,
   ): Promise<ContentModerationEffect> {
     const now = new Date();
+    await lockModeratedThreadAggregate(tx, targetType, targetId);
     if (targetType === 'THREAD') {
       const thread = await tx.thread.findUnique({
         where: { id: targetId },
@@ -436,6 +436,7 @@ export class ModerationService {
         throw conflict(ErrorCode.CONTENT_STATE_CONFLICT, '所属动态已不可见，不能隐藏评论');
       }
     }
+    await markNotificationsReadForHiddenContent(tx, targetType, targetId);
     await this.audit.record(
       {
         actorId: actor.id,

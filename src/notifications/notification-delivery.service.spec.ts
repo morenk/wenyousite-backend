@@ -2,6 +2,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MobilePushProducer } from '../mobile-push/mobile-push.producer';
 import { NotificationDeliveryService } from './notification-delivery.service';
 import { NotificationJob } from './notification.producer';
+import { NotificationEligibilityService } from './notification-eligibility.service';
 
 function buildProcessor() {
   const tx = {
@@ -22,15 +23,20 @@ function buildProcessor() {
     notification,
   };
   const pushes = { enqueue: jest.fn() };
+  const eligibility = {
+    filterRecipients: jest.fn(async (job: NotificationJob) => [...new Set(job.recipients)]),
+  };
   return {
     processor: new NotificationDeliveryService(
       prisma as unknown as PrismaService,
       pushes as unknown as MobilePushProducer,
+      eligibility as unknown as NotificationEligibilityService,
     ),
     tx,
     prisma,
     notification,
     pushes,
+    eligibility,
   };
 }
 

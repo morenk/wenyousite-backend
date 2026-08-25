@@ -258,7 +258,7 @@ GET /subthreads/:id/posts/authors
 
 评论响应会返回互斥的 `media` / `sticker`；图片或表情评论的 `content` 可以是空字符串，删除后正文和媒体都返回 `null`。旧客户端可忽略新增字段并继续发布纯文字评论。
 
-通知或站内深链接需要定位具体评论时，使用 `GET /moments/:id/comments/:commentId/context`。`commentId` 可以是主评论或楼中楼，响应中的 `root` 用于把回复串注入当前列表，`target` 用于展开、高亮和滚动，`replyCount` 用于保留完整回复计数。目标已删除、因拉黑不可见或不属于该动态时返回 404；不要为定位目标遍历全部评论分页。
+通知或站内深链接需要定位具体评论时，使用 `GET /moments/:id/comments/:commentId/context`。`commentId` 可以是主评论或楼中楼，响应中的 `root` 用于把回复串注入当前列表，`target` 用于展开、高亮和滚动，`replyCount` 用于保留完整回复计数。目标已删除、因拉黑不可见、不属于该动态，或所属主评论已被管理员隐藏时返回 404；作者自行删除的主评论仍可作为墓碑返回。不要为定位目标遍历全部评论分页。
 
 动态卡片的可选 `canInteract` 为 `false` 时，当前内容是已注销作者的可读历史墓碑。界面应禁用新增点赞、评论、收藏、移动收藏和加油，但保留取消已有点赞/收藏和有权删除评论的操作。字段缺失时按 `true` 兼容旧服务；即使界面未禁用，服务端仍会以 HTTP 403 / `FORBIDDEN` 拒绝新互动。发现快照返回 `INVALID_CURSOR` 时清空游标刷新；HTTP 503 / `INTERNAL_ERROR` 时保留当前列表并提供重试。
 
@@ -318,7 +318,7 @@ PATCH  /notifications/:id         传 { "isRead": true|false } 设置阅读状�
 POST   /notifications/read-all    全部已读
 ```
 
-每条通知含 `type`、`content`（可读文本）、`payload.schemaVersion` 与具名 `target`。客户端按 `target.kind`（`post` / `thread` / `user` / `none`）导航；新增 payload 字段时保持向后兼容，未知通知类型应降级展示 `content`。
+每条通知含 `type`、`content`（可读文本）、`payload.schemaVersion` 与具名 `target`。只有 `target.state=ACTIVE` 时才按 `target.kind`（`post` / `thread` / `moment` / `user`）导航；`CONTENT_DELETED` / `USER_DEACTIVATED` 是不可点击且已读的历史态，`NO_TARGET` 用于普通系统通知。PRIVATE 主题通知按当前成员资格过滤。新增 payload 字段时保持向后兼容，未知通知类型应降级展示 `content`。
 
 ---
 
