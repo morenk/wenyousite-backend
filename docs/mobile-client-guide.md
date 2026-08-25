@@ -105,6 +105,8 @@ OpenAPI 为兼容 Web 把该头标为 optional；省略或传未知值会创建 
 
 合同 `5.11.0-dev.20260825.1` 起，Windows 移动端必须在独立契约同步提交中固定 OpenAPI、重新生成 SDK，并消费通知目标必填 `state`：仅 `ACTIVE` 允许导航，`CONTENT_DELETED` / `USER_DEACTIVATED` 显示不可点击历史态，`NO_TARGET` 按普通系统通知展示。主题、楼层/回复、动态及评论详情从通知或站内链接打开时必须重新验证；403/404 要清除保留详情和回复编辑器，不得继续显示缓存内容或提交回复。普通 PRIVATE 主题链接对非成员显示统一不存在页；只有有效 `/join/{token}` 先显示最小邀请预览，用户明确加入后才进入详情。管理员隐藏动态主评论时清除其回复子树；作者墓碑仍保留。该 Flutter 代码、测试、生成物与 APK 门禁只能在 Windows 工作区完成，VPS 不修改移动端副本。
 
+合同 `5.11.1-dev.20260825.1` 起，动态主评论的 `order` 不再传入内嵌楼中楼；折叠预览固定返回最早三条，独立楼中楼仍默认 `OLDEST`。当前 Windows 移动端展开列表已经显式传 `OLDEST`，同步固定 OpenAPI、重新生成 SDK 并更新 moments 模块文档后无需修改业务排序逻辑；VPS 不修改或验证 Flutter 实现。
+
 ## 媒体、Markdown、动态与温油
 
 - 上传遵循“预签名 PUT → `upload-done` → 查询状态”；仅在 `COMPLETED` 后使用衍生图，列表优先 `thumbnailUrl`，详情优先 `mediumUrl`，为空或失败时回退 `url`。不得猜测对象键。

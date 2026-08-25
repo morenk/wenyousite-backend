@@ -149,7 +149,7 @@
 | POST | `/moments/{id}/bookmark` | authenticated | 收藏动态，幂等 |
 | PATCH | `/moments/{id}/bookmark` | authenticated | 移动动态收藏到其他收藏夹 |
 | DELETE | `/moments/{id}/bookmark` | authenticated | 取消收藏动态，幂等 |
-| GET | `/moments/{id}/comments` | optional | 主评论列表，支持顺序与作者筛选并内嵌三条楼中楼 |
+| GET | `/moments/{id}/comments` | optional | 主评论列表，支持顺序与作者筛选并内嵌最早三条楼中楼 |
 | POST | `/moments/{id}/comments` | authenticated | 发表文字、单图或单表情评论；回复统一归入两层楼中楼 |
 | GET | `/moments/{id}/comment-authors` | optional | 获取当前可见动态回复串中的作者候选 |
 | GET | `/moments/{id}/comments/{commentId}/context` | optional | 按评论 ID 获取动态主评论与精确定位目标 |

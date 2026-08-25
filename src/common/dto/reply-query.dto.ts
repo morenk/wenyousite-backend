@@ -11,7 +11,8 @@ export enum ReplyOrder {
 export class ReplyQueryDto extends CursorPaginationDto {
   @ApiPropertyOptional({
     enum: ReplyOrder,
-    description: '回复顺序；帖子回复默认 OLDEST，动态主评论默认 NEWEST',
+    description:
+      '列表顺序；帖子回复与动态独立楼中楼默认 OLDEST，动态主评论默认 NEWEST；动态主评论内嵌回复固定 OLDEST',
   })
   @IsOptional()
   @IsEnum(ReplyOrder)

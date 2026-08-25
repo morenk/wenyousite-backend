@@ -7528,7 +7528,7 @@
             "name": "order",
             "required": false,
             "in": "query",
-            "description": "回复顺序；帖子回复默认 OLDEST，动态主评论默认 NEWEST",
+            "description": "列表顺序；帖子回复与动态独立楼中楼默认 OLDEST，动态主评论默认 NEWEST；动态主评论内嵌回复固定 OLDEST",
             "schema": {
               "type": "string",
               "enum": [
@@ -7585,7 +7585,7 @@
             }
           }
         },
-        "summary": "主评论列表，支持顺序与作者筛选并内嵌三条楼中楼",
+        "summary": "主评论列表，支持顺序与作者筛选并内嵌最早三条楼中楼",
         "tags": [
           "Moments"
         ],
@@ -7869,7 +7869,7 @@
             "name": "order",
             "required": false,
             "in": "query",
-            "description": "回复顺序；帖子回复默认 OLDEST，动态主评论默认 NEWEST",
+            "description": "列表顺序；帖子回复与动态独立楼中楼默认 OLDEST，动态主评论默认 NEWEST；动态主评论内嵌回复固定 OLDEST",
             "schema": {
               "type": "string",
               "enum": [
@@ -8854,7 +8854,7 @@
             "name": "order",
             "required": false,
             "in": "query",
-            "description": "回复顺序；帖子回复默认 OLDEST，动态主评论默认 NEWEST",
+            "description": "列表顺序；帖子回复与动态独立楼中楼默认 OLDEST，动态主评论默认 NEWEST；动态主评论内嵌回复固定 OLDEST",
             "schema": {
               "type": "string",
               "enum": [
@@ -17678,7 +17678,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.11.0-dev.20260825.1",
+    "version": "5.11.1-dev.20260825.1",
     "contact": {}
   },
   "tags": [
@@ -22301,7 +22301,7 @@
             "minimum": 0
           },
           "replies": {
-            "description": "按当前筛选与顺序返回的前三条可见楼中楼预览",
+            "description": "按当前作者筛选返回的最早三条可见楼中楼预览，固定时间正序",
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/MomentCommentResponseDto"

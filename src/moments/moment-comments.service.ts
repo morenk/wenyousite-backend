@@ -135,9 +135,10 @@ export class MomentCommentsService {
       take: take + 1,
       select: {
         ...commentSelect,
+        // 主评论的阅读方向不应改变同一回复串内部从早到晚的对话语义。
         replies: {
           where: visibleReplyWhere,
-          orderBy: [{ createdAt: direction }, { id: direction }],
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
           take: 3,
           select: commentSelect,
         },

@@ -79,7 +79,7 @@ describe('协作管理 OpenAPI 契约', () => {
     );
     expect(payload.properties?.oldRole?.enum).toEqual(['COLLABORATOR', 'PARTICIPANT']);
     expect(payload.properties?.newRole?.enum).toEqual(['COLLABORATOR', 'PARTICIPANT']);
-    expect(contract.info.version).toBe('5.11.0-dev.20260825.1');
+    expect(contract.info.version).toBe('5.11.1-dev.20260825.1');
   });
 
   it('通知目标状态为必填枚举，客户端只能导航 ACTIVE 目标', () => {

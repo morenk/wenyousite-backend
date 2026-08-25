@@ -1,5 +1,10 @@
 # API 合同变更
 
+## 5.11.1-dev.20260825.1
+
+- 动态主评论列表的 `order` 只控制主评论；每条主评论内嵌的最早三条楼中楼固定按 `createdAt ASC, id ASC` 返回，不再随主评论倒序。
+- 独立楼中楼列表继续默认 `OLDEST` 并保留显式 `NEWEST` 的兼容能力；响应字段、游标格式和 API v1 路径不变。
+
 ## 5.11.0-dev.20260825.1
 
 - `NotificationTargetResponseDto` 向后兼容新增必填 `state=ACTIVE|CONTENT_DELETED|USER_DEACTIVATED|NO_TARGET`。删除或注销目标保留为历史通知，但返回 `kind=none`、清空导航 ID、强制视为已读且不能标回未读；目标恢复后历史通知仍保持已读。

@@ -209,7 +209,7 @@ export class MomentRootCommentResponseDto extends MomentCommentResponseDto {
 
   @ApiProperty({
     type: [MomentCommentResponseDto],
-    description: '按当前筛选与顺序返回的前三条可见楼中楼预览',
+    description: '按当前作者筛选返回的最早三条可见楼中楼预览，固定时间正序',
   })
   replies!: MomentCommentResponseDto[];
 }

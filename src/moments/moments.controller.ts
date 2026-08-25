@@ -168,7 +168,7 @@ export class MomentsController {
 
   @Get(':id/comments')
   @OptionalAuth()
-  @ApiOperation({ summary: '主评论列表，支持顺序与作者筛选并内嵌三条楼中楼' })
+  @ApiOperation({ summary: '主评论列表，支持顺序与作者筛选并内嵌最早三条楼中楼' })
   @ApiCursorPaginatedResponse(MomentRootCommentResponseDto, '主评论游标分页')
   commentsList(
     @Param('id') id: string,

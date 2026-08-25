@@ -97,7 +97,10 @@ async function expectBusiness(promise: Promise<unknown>, errorCode: number, stat
 }
 
 describe('MomentCommentsService', () => {
-  it('主评论支持倒序切换并把作者筛选贯穿根评论与楼中楼', async () => {
+  it.each([
+    [ReplyOrder.NEWEST, 'desc'],
+    [ReplyOrder.OLDEST, 'asc'],
+  ] as const)('主评论按 %s 排序时，内嵌楼中楼仍保持正序', async (order, direction) => {
     const { service, prisma } = createContext();
     prisma.userBlock.findMany.mockResolvedValue([]);
     prisma.momentComment.findMany.mockResolvedValue([
@@ -119,20 +122,35 @@ describe('MomentCommentsService', () => {
       undefined,
       20,
       { id: 'viewer' },
-      ReplyOrder.OLDEST,
+      order,
       'player',
     );
 
     expect(result.items).toHaveLength(1);
     expect(prisma.momentComment.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        orderBy: [{ createdAt: direction }, { id: direction }],
         select: expect.objectContaining({
           replies: expect.objectContaining({
             where: expect.objectContaining({ authorId: 'player' }),
             orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
           }),
         }),
+      }),
+    );
+  });
+
+  it('楼中楼默认最早优先', async () => {
+    const { service, prisma } = createContext();
+    prisma.momentComment.findFirst.mockResolvedValue({ id: 'root-comment' });
+    prisma.userBlock.findMany.mockResolvedValue([]);
+    prisma.momentComment.findMany.mockResolvedValue([commentRow()]);
+
+    await service.listReplies('moment-1', 'root-comment', undefined, 20, { id: 'viewer' });
+
+    expect(prisma.momentComment.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       }),
     );
   });
