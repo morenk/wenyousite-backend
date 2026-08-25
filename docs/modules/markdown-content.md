@@ -6,7 +6,7 @@
 
 1. [`contracts/markdown-v3-fixtures.json`](../../contracts/markdown-v3-fixtures.json) 固定规范化、可见性、允许/拒绝结果、首个不支持类型和字面降级结果。
 2. [`contracts/markdown-v3-nodes-fixtures.json`](../../contracts/markdown-v3-nodes-fixtures.json) 固定扩展节点的解析、序列化和复制身份。
-3. [`contracts/markdown-editor-roundtrip-v3-fixtures.json`](../../contracts/markdown-editor-roundtrip-v3-fixtures.json) 固定 `structured` 与 `literal-text` 两类编辑器往返，并覆盖结构化行内格式跨普通软换行的序列化。
+3. [`contracts/markdown-editor-roundtrip-v4-fixtures.json`](../../contracts/markdown-editor-roundtrip-v4-fixtures.json) 固定 `structured` 与 `literal-text` 两类编辑器往返，并以解析后的块语义消除相同标点在不同上下文中的歧义。
 
 主题坐标链接仍是普通 Markdown 链接；客户端可额外按 [`站内传送门 v1`](./internal-references.md) 统一其内联视觉和同页导航，不改变 Markdown v3 的存储规则。
 
@@ -17,6 +17,7 @@
 - 存储：UTF-8 Markdown、LF 换行；顶层空段落使用独占一行 `<br />`
 - 允许结构：普通段落、H2/H3、粗体、斜体、删除线、行内代码、安全链接/自动链接、图片、引用、普通有序/无序列表、分隔线，以及提及、骰子、收藏表情和协议空段
 - 普通列表最多嵌套三层
+- 分隔线规范写为 `正文\n\n---\n\n正文`；紧贴上一行正文的历史 `正文\n---` 继续按 CommonMark Setext H2 解析，编辑保存后规范为 `## 正文`
 - 禁止结构：表格、任务列表、围栏/缩进代码块、H1/H4-H6、显式硬换行、任意原始 HTML、未知协议节点、不安全链接和未知 AST 节点
 
 完整正文阅读态保留普通段落内单个 LF 对应的软换行；主题列表卡片的紧凑纯文本 `preview` 不保留排版，会单遍解码 Markdown 实体并把连续空白折叠成一个空格。
@@ -52,7 +53,7 @@
 
 ## 自动门禁
 
-- 三份 fixture 必须为合法 JSON、case id 唯一，并与 Web 同名副本逐字一致；编辑器 fixture 还会在移动端存在同名 v2 副本后参与同步检查。
+- 三份 fixture 必须为合法 JSON、case id 唯一，并与存在同名副本的客户端逐字一致；round-trip v4 的 `blockSemantics` 会分别校验输入与规范输出的实际 Markdown 块解析结果。
 - 单元测试覆盖每一种允许格式和所有禁止类型，字面输出必须合法且幂等。
 - 迁移测试覆盖 dry-run 无写入、版本递增、提及派生关系裁剪和重复规划幂等。
 - OpenAPI、错误码文档、CHANGELOG 与生成客户端必须随错误码和契约版本同步。

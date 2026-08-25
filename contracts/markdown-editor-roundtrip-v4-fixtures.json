@@ -1,8 +1,8 @@
 {
   "contract": "wenyousite-markdown-editor-roundtrip",
-  "version": 3,
+  "version": 4,
   "markdownContractVersion": 3,
-  "description": "Web 与 Flutter 编辑器共用的 Markdown v3 结构化编辑和字面纯文本黄金语料。",
+  "description": "Web 与 Flutter 编辑器共用的 Markdown v3 结构化编辑、块语义和字面纯文本黄金语料。",
   "modes": {
     "structured": "客户端应恢复为结构化编辑状态，并序列化为 serialized",
     "literal-text": "客户端显示源码字符但不得恢复为结构节点，并序列化为安全转义后的 serialized"
@@ -72,6 +72,14 @@
       "serialized": "## 二级标题\n### 三级标题"
     },
     {
+      "id": "setext-heading-2",
+      "capabilities": ["heading"],
+      "mode": "structured",
+      "markdown": "正文\n---",
+      "serialized": "## 正文",
+      "blockSemantics": ["heading-2"]
+    },
+    {
       "id": "unsupported-heading-levels",
       "capabilities": ["heading"],
       "mode": "literal-text",
@@ -117,8 +125,9 @@
       "id": "horizontal-rule",
       "capabilities": ["hr"],
       "mode": "structured",
-      "markdown": "上文\n---\n下文",
-      "serialized": "上文\n---\n下文"
+      "markdown": "正文\n\n---\n\n正文",
+      "serialized": "正文\n\n---\n\n正文",
+      "blockSemantics": ["paragraph", "horizontal-rule", "paragraph"]
     },
     {
       "id": "task-list-source",

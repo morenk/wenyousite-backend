@@ -2,21 +2,54 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import MarkdownIt from 'markdown-it';
 
 type JsonObject = Record<string, unknown>;
 
-const fixturePath = 'contracts/markdown-editor-roundtrip-v3-fixtures.json';
+const fixturePath = 'contracts/markdown-editor-roundtrip-v4-fixtures.json';
 const fixtureSource = fs.readFileSync(fixturePath, 'utf8');
 const fixture = JSON.parse(fixtureSource) as JsonObject;
 const failures: string[] = [];
+const markdownParser = new MarkdownIt({
+  html: true,
+  linkify: true,
+  typographer: false,
+});
 
 function isObject(value: unknown): value is JsonObject {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value));
 }
 
+function parseBlockSemantics(markdown: string): string[] {
+  const semantics: string[] = [];
+  for (const token of markdownParser.parse(markdown, {})) {
+    switch (token.type) {
+      case 'paragraph_open':
+        semantics.push('paragraph');
+        break;
+      case 'heading_open':
+        semantics.push(`heading-${token.tag.slice(1)}`);
+        break;
+      case 'hr':
+        semantics.push('horizontal-rule');
+        break;
+      case 'blockquote_open':
+        semantics.push('blockquote');
+        break;
+      case 'bullet_list_open':
+        semantics.push('bullet-list');
+        break;
+      case 'ordered_list_open':
+        semantics.push('ordered-list');
+        break;
+    }
+  }
+  return semantics;
+}
+
 if (
   fixture.contract !== 'wenyousite-markdown-editor-roundtrip' ||
-  fixture.version !== 3 ||
+  fixture.version !== 4 ||
   fixture.markdownContractVersion !== 3
 ) {
   failures.push('编辑器往返语料的契约标识或版本无效');
@@ -36,6 +69,28 @@ for (const item of cases) {
   if (!isObject(item) || typeof item.id !== 'string') continue;
   if (typeof item.markdown !== 'string' || typeof item.serialized !== 'string') {
     failures.push(`${item.id}: markdown 和 serialized 必须是字符串`);
+  }
+  if (item.blockSemantics !== undefined) {
+    if (
+      !Array.isArray(item.blockSemantics) ||
+      item.blockSemantics.length === 0 ||
+      item.blockSemantics.some((semantic) => typeof semantic !== 'string' || semantic.length === 0)
+    ) {
+      failures.push(`${item.id}: blockSemantics 必须是非空字符串数组`);
+    } else if (typeof item.markdown === 'string' && typeof item.serialized === 'string') {
+      const expected = item.blockSemantics as string[];
+      for (const [field, markdown] of [
+        ['markdown', item.markdown],
+        ['serialized', item.serialized],
+      ] as const) {
+        const actual = parseBlockSemantics(markdown);
+        if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+          failures.push(
+            `${item.id}: ${field} 块语义应为 ${expected.join(', ')}，实际为 ${actual.join(', ')}`,
+          );
+        }
+      }
+    }
   }
   if (item.mode !== 'structured' && item.mode !== 'literal-text') {
     failures.push(`${item.id}: mode 必须是 structured 或 literal-text`);
@@ -75,6 +130,27 @@ for (const capability of [
 }
 for (const mode of ['structured', 'literal-text']) {
   if (!coveredModes.has(mode)) failures.push(`缺少 ${mode} 模式样例`);
+}
+
+const horizontalRuleCase = cases.find((item) => isObject(item) && item.id === 'horizontal-rule');
+if (
+  !isObject(horizontalRuleCase) ||
+  horizontalRuleCase.markdown !== '正文\n\n---\n\n正文' ||
+  horizontalRuleCase.serialized !== '正文\n\n---\n\n正文' ||
+  !Array.isArray(horizontalRuleCase.blockSemantics) ||
+  !horizontalRuleCase.blockSemantics.includes('horizontal-rule')
+) {
+  failures.push('horizontal-rule 必须使用空行分隔的规范写法并断言 horizontal-rule 块语义');
+}
+
+const setextHeadingCase = cases.find((item) => isObject(item) && item.id === 'setext-heading-2');
+if (
+  !isObject(setextHeadingCase) ||
+  setextHeadingCase.markdown !== '正文\n---' ||
+  setextHeadingCase.serialized !== '## 正文' ||
+  JSON.stringify(setextHeadingCase.blockSemantics) !== JSON.stringify(['heading-2'])
+) {
+  failures.push('setext-heading-2 必须保留历史 Setext H2 语义并规范为 ATX H2');
 }
 
 for (const client of ['wenyousite-frontend', 'wenyousite-mobile']) {
