@@ -6,7 +6,7 @@
 
 1. [`contracts/markdown-v3-fixtures.json`](../../contracts/markdown-v3-fixtures.json) 固定规范化、可见性、允许/拒绝结果、首个不支持类型和字面降级结果。
 2. [`contracts/markdown-v3-nodes-fixtures.json`](../../contracts/markdown-v3-nodes-fixtures.json) 固定扩展节点的解析、序列化和复制身份。
-3. [`contracts/markdown-editor-roundtrip-v2-fixtures.json`](../../contracts/markdown-editor-roundtrip-v2-fixtures.json) 固定 `structured` 与 `literal-text` 两类编辑器往返。
+3. [`contracts/markdown-editor-roundtrip-v3-fixtures.json`](../../contracts/markdown-editor-roundtrip-v3-fixtures.json) 固定 `structured` 与 `literal-text` 两类编辑器往返，并覆盖结构化行内格式跨普通软换行的序列化。
 
 主题坐标链接仍是普通 Markdown 链接；客户端可额外按 [`站内传送门 v1`](./internal-references.md) 统一其内联视觉和同页导航，不改变 Markdown v3 的存储规则。
 

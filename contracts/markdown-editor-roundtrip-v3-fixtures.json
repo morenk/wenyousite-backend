@@ -1,6 +1,6 @@
 {
   "contract": "wenyousite-markdown-editor-roundtrip",
-  "version": 2,
+  "version": 3,
   "markdownContractVersion": 3,
   "description": "Web 与 Flutter 编辑器共用的 Markdown v3 结构化编辑和字面纯文本黄金语料。",
   "modes": {
@@ -21,6 +21,13 @@
       "mode": "structured",
       "markdown": "普通 **粗体** 普通",
       "serialized": "普通 **粗体** 普通"
+    },
+    {
+      "id": "bold-soft-break",
+      "capabilities": ["bold", "soft-break"],
+      "mode": "structured",
+      "markdown": "**阿罗**\n下一行",
+      "serialized": "**阿罗**\n下一行"
     },
     {
       "id": "italic",

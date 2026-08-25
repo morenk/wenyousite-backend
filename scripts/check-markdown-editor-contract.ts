@@ -5,7 +5,7 @@ import * as path from 'node:path';
 
 type JsonObject = Record<string, unknown>;
 
-const fixturePath = 'contracts/markdown-editor-roundtrip-v2-fixtures.json';
+const fixturePath = 'contracts/markdown-editor-roundtrip-v3-fixtures.json';
 const fixtureSource = fs.readFileSync(fixturePath, 'utf8');
 const fixture = JSON.parse(fixtureSource) as JsonObject;
 const failures: string[] = [];
@@ -16,7 +16,7 @@ function isObject(value: unknown): value is JsonObject {
 
 if (
   fixture.contract !== 'wenyousite-markdown-editor-roundtrip' ||
-  fixture.version !== 2 ||
+  fixture.version !== 3 ||
   fixture.markdownContractVersion !== 3
 ) {
   failures.push('编辑器往返语料的契约标识或版本无效');
@@ -57,6 +57,7 @@ for (const item of cases) {
 
 for (const capability of [
   'bold',
+  'soft-break',
   'italic',
   'strikethrough',
   'inline-code',
