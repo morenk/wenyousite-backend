@@ -39,6 +39,12 @@ export class NotificationPayloadResponseDto {
   actorName?: string | null;
 
   @ApiPropertyOptional({ type: String, nullable: true })
+  replyTargetUserId?: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  replyTargetName?: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
   preview?: string | null;
 
   @ApiPropertyOptional({ type: String, nullable: true })

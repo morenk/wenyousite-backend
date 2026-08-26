@@ -154,11 +154,109 @@ describe('PostEventsListener 订阅过滤', () => {
     expect(notificationProducer.notify).not.toHaveBeenCalled();
   });
 
+  it('楼中楼回复优先使用 replyToPostId 的作者生成目标语义且不改变接收范围', async () => {
+    const { listener, notificationProducer, subscriptionsService, prisma } = buildListener();
+    subscriptionsService.findSubscribers.mockResolvedValue([
+      { userId: 'subscriber1', type: 'USER', targetUserId: 'author1' },
+    ]);
+    prisma.threadMember.findMany.mockResolvedValue([{ userId: 'owner1' }]);
+    prisma.post.findUnique.mockResolvedValue({
+      authorId: 'target1',
+      author: { username: '阿忠' },
+    });
+
+    await listener.handlePostCreated({
+      ...baseEvent,
+      authorUsername: '科尔诺鹿雅',
+      postId: 'reply-post',
+      parentPostId: 'parent-post',
+      replyToPostId: 'target-post',
+    });
+
+    expect(prisma.post.findUnique).toHaveBeenCalledWith({
+      where: { id: 'target-post', deletedAt: null },
+      select: {
+        authorId: true,
+        author: { select: { username: true } },
+      },
+    });
+    expect(notificationProducer.notify).toHaveBeenCalledWith(
+      'reply',
+      ['target1', 'owner1', 'subscriber1'],
+      '科尔诺鹿雅 回复了阿忠：测试内容',
+      {
+        postId: 'reply-post',
+        threadId: 'thread1',
+        fromUserId: 'author1',
+        eventKey: 'reply:reply-post',
+        payload: {
+          actorName: '科尔诺鹿雅',
+          action: 'reply',
+          preview: '测试内容',
+          replyTargetUserId: 'target1',
+          replyTargetName: '阿忠',
+        },
+      },
+    );
+  });
+
+  it('未指定 replyToPostId 时使用父楼层作者作为回复目标', async () => {
+    const { listener, notificationProducer, prisma } = buildListener();
+    prisma.post.findUnique.mockResolvedValue({
+      authorId: 'floorAuthor',
+      author: { username: '楼层作者' },
+    });
+
+    await listener.handlePostCreated({
+      ...baseEvent,
+      postId: 'reply-post',
+      parentPostId: 'parent-post',
+      replyToPostId: null,
+    });
+
+    expect(prisma.post.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'parent-post', deletedAt: null } }),
+    );
+    expect(notificationProducer.notify).toHaveBeenCalledWith(
+      'reply',
+      ['floorAuthor'],
+      'author1 回复了楼层作者：测试内容',
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          replyTargetUserId: 'floorAuthor',
+          replyTargetName: '楼层作者',
+        }),
+      }),
+    );
+  });
+
+  it('回复自己的帖子时继续不向管理者或订阅者发送 reply 通知', async () => {
+    const { listener, notificationProducer, subscriptionsService, prisma } = buildListener();
+    subscriptionsService.findSubscribers.mockResolvedValue([
+      { userId: 'subscriber1', type: 'USER', targetUserId: 'author1' },
+    ]);
+    prisma.threadMember.findMany.mockResolvedValue([{ userId: 'owner1' }]);
+    prisma.post.findUnique.mockResolvedValue({
+      authorId: 'author1',
+      author: { username: 'author1' },
+    });
+
+    await listener.handlePostCreated({
+      ...baseEvent,
+      parentPostId: 'parent-post',
+    });
+
+    expect(notificationProducer.notify).not.toHaveBeenCalled();
+  });
+
   it('同一条回复显式艾特后，不再发送重复的 reply 次级通知', async () => {
     const { listener, notificationProducer, prisma, mentionsService } = buildListener();
     mentionsService.parseAndCreate.mockResolvedValue([{ userId: 'replyAuthor' }]);
     prisma.threadMember.findMany.mockResolvedValue([{ userId: 'owner1' }]);
-    prisma.post.findUnique.mockResolvedValue({ authorId: 'replyAuthor' });
+    prisma.post.findUnique.mockResolvedValue({
+      authorId: 'replyAuthor',
+      author: { username: '被回复者' },
+    });
 
     await listener.handlePostCreated({
       ...baseEvent,
@@ -176,6 +274,14 @@ describe('PostEventsListener 订阅过滤', () => {
     expect(mentionCall?.[1]).toEqual(['replyAuthor']);
     expect(replyCall?.[1]).not.toContain('replyAuthor');
     expect(replyCall?.[1]).toEqual(expect.arrayContaining(['owner1']));
+    expect(replyCall?.[3]).toEqual(
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          replyTargetUserId: 'replyAuthor',
+          replyTargetName: '被回复者',
+        }),
+      }),
+    );
   });
 
   it('通知处理失败时向 Outbox 抛出错误以触发重试', async () => {

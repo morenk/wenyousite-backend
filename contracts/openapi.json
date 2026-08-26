@@ -17678,7 +17678,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.11.1-dev.20260825.1",
+    "version": "5.12.0-dev.20260826.1",
     "contact": {}
   },
   "tags": [
@@ -19494,6 +19494,14 @@
             "nullable": true
           },
           "actorName": {
+            "type": "string",
+            "nullable": true
+          },
+          "replyTargetUserId": {
+            "type": "string",
+            "nullable": true
+          },
+          "replyTargetName": {
             "type": "string",
             "nullable": true
           },

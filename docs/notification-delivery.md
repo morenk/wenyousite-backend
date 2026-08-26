@@ -40,6 +40,8 @@
 | 楼主 + 协作者 | `ThreadMember.findMany({ role: { in: [OWNER, COLLABORATOR] } })`                                        | 成员表查询  |
 | 订阅者        | `SubscriptionsService.findSubscribers(threadId, authorId)`；仅当发帖者是楼主/协作者时包含 THREAD 订阅者 | 订阅表查询  |
 
+回复目标优先取 `replyToPostId`，省略时取 `parentPostId`。监听器同时读取目标帖作者 ID 与用户名，所有实际收件人的 payload 均携带同一组 `replyTargetUserId/replyTargetName`；字段描述被回复对象，不表示当前通知接收者。
+
 **去重与过滤**：
 
 1. 排除自己（`managerIds` 由全部 OWNER/COLLABORATOR 中剔除作者生成）
@@ -255,7 +257,15 @@ WHERE threadId = {threadId}
   "id": "cm7x...",
   "userId": "user_owner_id",
   "type": "reply",
-  "content": "测试用户 回复了：原来如此，那我改一下这个设定看看效果怎么样，你觉得呢...",
+  "content": "测试用户 回复了阿忠：原来如此，那我改一下这个设定看看效果怎么样，你觉得呢...",
+  "payload": {
+    "schemaVersion": 1,
+    "action": "reply",
+    "actorName": "测试用户",
+    "replyTargetUserId": "user_reply_target_id",
+    "replyTargetName": "阿忠",
+    "preview": "原来如此，那我改一下这个设定看看效果怎么样，你觉得呢..."
+  },
   "postId": "post_abc_id",
   "threadId": "thread_xyz_id",
   "fromUserId": "user_reply_author_id",
@@ -269,7 +279,7 @@ WHERE threadId = {threadId}
 | 类型             | content 格式                                                                                                              |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `new_post`       | `{username} 发布了新楼层：{正文智能截断}` 或 `{username} 创建了新子贴「{title}」：{正文智能截断}`（有 subthreadTitle 时） |
-| `reply`          | `{username} 回复了：{正文智能截断}`                                                                                       |
+| `reply`          | `{username} 回复了{replyTargetName}：{正文智能截断}`                                                                      |
 | `mention`        | `{username} 在「{subthreadTitle}」提到了你：{正文智能截断}`                                                               |
 | `thread_created` | `{username}创建了新主题帖`（无正文预览）                                                                                  |
 | `follow`         | `{username}关注了你`                                                                                                      |
@@ -284,6 +294,8 @@ WHERE threadId = {threadId}
 | ---------------- | --------- | --------------------------------------------- |
 | `actorName`      | string    | 操作者用户名（系统通知为空）                  |
 | `action`         | string    | 动作类型（mention / reply / new_post / like） |
+| `replyTargetUserId` | string? | 实际被回复帖作者 ID（reply 时存在）            |
+| `replyTargetName` | string?  | 实际被回复帖作者用户名（reply 时存在）         |
 | `preview`        | string    | 正文智能截断纯文本（可选）                    |
 | `subthreadTitle` | string?   | 子贴标题（mention / new_post 时存在）         |
 | `threadTitle`    | string?   | 点赞聚合的主题帖标题                          |
@@ -292,7 +304,7 @@ WHERE threadId = {threadId}
 | `newRole`        | string?   | 任免后角色（COLLABORATOR / PARTICIPANT）      |
 | `eventKeys`      | string[]? | 点赞聚合已处理的事件键，防止队列重试重复累加  |
 
-新版前端优先使用 `actorName`、`action`、`preview` 和 `subthreadTitle` 分段展示；历史通知或结构化字段不完整时回退到 `content`。
+新版客户端优先使用结构化字段分段展示。回复目标等于通知 `userId` 时可显示“回复了你”，其他收件人显示“回复了{replyTargetName}”；缺少目标字段的历史 reply 必须降级为中性“回复了”。Web 当前继续使用中性回复文案；结构化字段不完整或动作未知时回退到 `content`。
 
 ---
 

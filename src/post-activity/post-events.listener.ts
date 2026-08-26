@@ -146,10 +146,14 @@ export class PostEventsListener {
         const targetId = event.replyToPostId ?? event.parentPostId;
         const targetPost = await this.prisma.post.findUnique({
           where: { id: targetId, deletedAt: null },
-          select: { authorId: true },
+          select: {
+            authorId: true,
+            author: { select: { username: true } },
+          },
         });
         if (targetPost && targetPost.authorId !== event.userId) {
           const replyTargetId = targetPost.authorId;
+          const replyTargetName = targetPost.author.username;
           const recipients = this.blockFilter.filterRecipients(
             [...new Set([replyTargetId, ...managerIds, ...subscriberIds])].filter(
               (id) => !explicitMentionRecipientIds.has(id),
@@ -160,13 +164,19 @@ export class PostEventsListener {
             await this.notificationProducer.notify(
               'reply',
               recipients,
-              `${username} 回复了：${preview}`,
+              `${username} 回复了${replyTargetName}：${preview}`,
               {
                 postId: event.postId,
                 threadId: event.threadId,
                 fromUserId: event.userId,
                 eventKey: `reply:${event.postId}`,
-                payload: { actorName: username, action: 'reply', preview },
+                payload: {
+                  actorName: username,
+                  action: 'reply',
+                  preview,
+                  replyTargetUserId: replyTargetId,
+                  replyTargetName,
+                },
               },
             );
           }

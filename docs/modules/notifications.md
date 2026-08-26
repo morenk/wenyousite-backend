@@ -38,6 +38,7 @@
 - `remove` 为硬删除，使用 `deleteMany`（where id + userId），即使不存在也不报错；系统通知同样支持删除
 - 通知创建由 `NotificationDeliveryService` 执行，`NotificationProducer` 是业务模块的统一应用入口；最终落库和移动推送前统一复核帖子父级、子贴、主题、动态、评论父级及 PRIVATE 成员资格，上游误算收件人也不会越权投递
 - 通知创建时的结构化导航字段（postId / threadId / fromUserId）在创建时写入，查询时直接关联返回
+- 新建楼中楼 `reply` 通知以 `replyToPostId ?? parentPostId` 定位实际被回复帖作者，并在 payload 写入 `replyTargetUserId/replyTargetName`；所有收件人共享同一目标语义。兼容正文同时写为“发送者 回复了目标用户：预览”，历史通知不回填
 - `eventKey` 是同一业务事件的稳定幂等键，实际按 `userId + eventKey` 唯一；队列重试、编辑重试、关注/发布/点赞/系统通知重投不会重复插入
 - 协作者任命/撤销发送 `system` 通知，目标为主题且 `fromUserId` 是操作楼主。`action` 分别为 `thread_collaborator_added` / `thread_collaborator_removed`，payload 固定携带 `threadId/threadTitle/actorId/actorName/oldRole/newRole`；通知 eventKey 由真实角色转换的唯一事件 ID 派生，Outbox 重放只复用原通知
 - 同一篇帖子中，已收到显式 `mention` 的用户不会再收到该事件的 `new_post` / `reply` 次级通知

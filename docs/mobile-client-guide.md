@@ -122,6 +122,7 @@ OpenAPI 为兼容 Web 把该头标为 optional；省略或传未知值会创建 
 - 合同 `5.8.1-dev.20260823.1` 起，动态卡片可返回 `canInteract=false`，表示已注销作者的可读历史动态。新客户端应禁用新增点赞、评论、收藏、移动收藏和加油，保留取消已有点赞/收藏及有权删除评论的入口；字段缺失时按 `true` 兼容旧服务。发现快照的 `40007` 清空游标刷新，`50000`/503 保留当前列表并稍后重试。此 UI/SDK 变更只能在 Windows 移动端工作区实现，VPS 审查副本不做修改。
 - 合同 `5.8.0-dev.20260823.1` 起，主题帖分类来自 `GET /thread-categories`，保存稳定 `slug`；草稿可为空，发布前选择启用项。Flutter 必须消费 [`thread-category-v3-fixtures.json`](../contracts/thread-category-v3-fixtures.json)：现有线程直接显示响应 `categoryInfo.name`，不再用仅含启用项的发现列表反查；停用项保留当前名称且不可新选，未知 slug 原值降级，空值显示“未分类”。分类是纯文本能力，客户端不得消费兼容字段 `icon / mergedIntoId`，也不得复制任何现有 slug、名称或分类数量为枚举/回退常量。旧客户端继续读取原 `category`，新增字段由生成模型按未知字段兼容策略忽略。
 - 每日启动可调用 `POST /wallet/check-in`；只有 `claimedNow=true` 时展示本次领取。所有温油金额都是十进制整数字符串，不转换为浮点数；打赏继续复用稳定幂等键。
+- 合同 `5.12.0-dev.20260826.1` 起，新建 `reply` 通知 payload 可选携带 `replyTargetUserId/replyTargetName`。Windows 移动端必须在独立契约同步提交中固定 OpenAPI、重新生成 SDK，并修改通知展示：目标 ID 等于通知 `userId` 时显示“发送者 回复了你”，否则显示“发送者 回复了目标用户”；历史通知或字段不完整时安全降级为“发送者 回复了”，不得再把所有 reply 指向当前用户。通知链接、分类与接收范围不变；VPS 不修改或验证 Flutter 实现。
 
 ## FCM 设备与消息生命周期
 

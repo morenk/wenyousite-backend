@@ -1,5 +1,10 @@
 # API 合同变更
 
+## 5.12.0-dev.20260826.1
+
+- `NotificationPayloadResponseDto` 向后兼容新增可选、可空 `replyTargetUserId` 与 `replyTargetName`。新建 `reply` 通知固定写入实际被回复帖作者的 ID 和用户名；`schemaVersion=1`、`type/action=reply`、导航目标与通知分类保持不变。
+- 回复目标优先取 `replyToPostId`，省略时取 `parentPostId`；兼容正文改为“发送者 回复了目标用户：预览”。历史通知不回填，新客户端遇到缺少回复目标的旧 payload 必须使用不指向当前用户的中性文案。
+
 ## 5.11.3-dev.20260825.1
 
 - 编辑器往返黄金契约升级为 v4：分隔线规范为 `正文\n\n---\n\n正文`，并新增实际块语义断言；历史 `正文\n---` 继续按 Setext H2 解析，编辑保存后规范为 `## 正文`。正文 Markdown 版本、HTTP API 与字段均不变。
