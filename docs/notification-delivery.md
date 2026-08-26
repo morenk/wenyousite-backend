@@ -8,7 +8,7 @@
 | ---------- | ---------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | 楼中楼回复 | `reply`          | `post.created`（`parentPostId` 非空 + `!isSubthreadBody`）                             | `PostEventsListener`                                                              | `src/post-activity/post-events.listener.ts`                      |
 | @提及      | `mention`        | `post.created`（新帖提及）或 `post.mentions.updated`（编辑新增提及）                  | `PostEventsListener`                                                              | `src/post-activity/post-events.listener.ts`                      |
-| 新帖通知   | `new_post`       | `post.created`（`!parentPostId` 或 `isSubthreadBody`）                                 | `PostEventsListener`                                                              | `src/post-activity/post-events.listener.ts`                      |
+| 新帖通知   | `new_post`       | `post.created`（主楼层/正文，或楼中楼的管理者与订阅观察原因）                         | `PostEventsListener`                                                              | `src/post-activity/post-events.listener.ts`                      |
 | 新主题帖   | `thread_created` | 主题帖 PATCH published=true                                                            | `ThreadEventsListener`                                                            | `src/threads/thread-events.listener.ts`                          |
 | 被关注     | `follow`         | 首次关注关系写入                                                                       | `UserRelationEventsListener`                                                      | `src/users/user-relation-events.listener.ts`                     |
 | 被点赞     | `like`           | 首次点赞主题帖                                                                         | `ThreadsService.like()`                                                           | `src/threads/threads.service.ts`                                 |
@@ -20,9 +20,9 @@
 
 **事件驱动模型**：
 
-`post.created` 由 PostsService / SubthreadsService 在写帖子同一事务中写入 `domain_outbox`，`OutboxDispatcher` 提交后使用 `emitAsync` 投递给 `PostEventsListener`。同一个事件可能触发 `mention`、`new_post`、`reply` 多种通知；任一可靠副作用失败都会使事件退避重试。
+`post.created` 由 PostsService / SubthreadsService 在写帖子同一事务中写入 `domain_outbox`，`OutboxDispatcher` 提交后使用 `emitAsync` 投递给 `PostEventsListener`。同一个事件可能触发 `mention`、`reply`、`new_post` 多种原因；收件人按该顺序去重，每人最多一条。任一可靠副作用失败都会使事件退避重试。
 
-编辑时，正文与 `PostMention` 投影在同一 Prisma 事务中更新；新增收件人以 `post.mentions.updated` 写入 Outbox。提及同步或 Outbox 写入失败会使正文编辑整体回滚，通知重试使用稳定 `mention:{postId}` 键保持幂等。
+新帖首次解析后会持久化完整 `PostMention` 快照；Outbox 重试继续返回该快照并使用稳定 `mention:{postId}`，不会因“本次无新增记录”而丢失提及或降级成其他通知。编辑时，正文与 `PostMention` 投影在同一 Prisma 事务中更新；新增收件人以 `post.mentions.updated` 写入 Outbox。
 
 ---
 
@@ -34,21 +34,17 @@
 
 **接收者**：
 
-| 角色          | 获取方式                                                                                                | 来源        |
-| ------------- | ------------------------------------------------------------------------------------------------------- | ----------- |
-| 被回复者      | 优先取 `replyToPostId` 的作者，未指定时取 `parentPostId` 的作者                                         | 单个用户 ID |
-| 楼主 + 协作者 | `ThreadMember.findMany({ role: { in: [OWNER, COLLABORATOR] } })`                                        | 成员表查询  |
-| 订阅者        | `SubscriptionsService.findSubscribers(threadId, authorId)`；仅当发帖者是楼主/协作者时包含 THREAD 订阅者 | 订阅表查询  |
+| 角色     | 获取方式                                                                        | 来源        |
+| -------- | ------------------------------------------------------------------------------- | ----------- |
+| 被回复者 | 发帖事务内快照：优先取 `replyToPostId` 作者，未指定时取 `parentPostId` 作者     | 单个用户 ID |
 
-回复目标优先取 `replyToPostId`，省略时取 `parentPostId`。监听器同时读取目标帖作者 ID 与用户名，所有实际收件人的 payload 均携带同一组 `replyTargetUserId/replyTargetName`；字段描述被回复对象，不表示当前通知接收者。
+直接回复通知的 payload 携带 `replyTargetUserId/replyTargetName`。升级前的旧 Outbox 事件会回查目标；回查暂时失败时保持事件待重试，但不会阻断下述管理者/订阅观察更新。
 
 **去重与过滤**：
 
-1. 排除自己（`managerIds` 由全部 OWNER/COLLABORATOR 中剔除作者生成）
-2. 排除被回复者 = 自己的情况（`if targetPost.authorId !== event.userId`）
-3. **角色快照限制**：THREAD 仅在发帖时角色为 OWNER/COLLABORATOR 时触发；USER 仅在发帖时角色为 `PARTICIPANT + playerMarked=true` 时触发
-4. 合并三者到 `Set` → 去重 → 过滤发帖者拉黑的用户（`authorBlockedIds`）
-5. 过滤拉黑发帖者的用户（`blockedAuthorIds`，确保拉黑者也不会收到通知）
+1. 被回复者等于作者本人时不发送直接回复通知
+2. 显式 mention 已覆盖时不再发送 reply
+3. 双向过滤拉黑关系；该用户即使也是管理者或订阅者，也不再进入低优先级观察通知
 
 ### 2. mention — @提及
 
@@ -68,7 +64,7 @@
 
 ### 3. new_post — 新帖通知（子贴正文 / 新楼层）
 
-**触发条件**：帖子 `parentPostId` 为空（顶楼）或 `isSubthreadBody = true`（子贴创建时附带正文）
+**触发条件**：主楼层/正文更新，或楼中楼的管理者与订阅观察原因
 
 > 合并了原 `new_floor` 和 `subthread_created` 两种类型，通过 payload 中的 `subthreadTitle` 字段区分子贴。
 
@@ -85,7 +81,7 @@
 2. **角色快照限制**：THREAD 仅在发帖时角色为 OWNER/COLLABORATOR 时触发；USER 仅在发帖时角色为 `PARTICIPANT + playerMarked=true` 时触发
 3. 合并到 `Set` → 去重
 4. 双向过滤拉黑（`authorBlockedIds` + `blockedAuthorIds`）
-5. 显式 mention 已覆盖的用户从同一 `post.created` 事件的 `new_post` / `reply` 收件人中移除，避免一次发帖产生重复提醒
+5. 显式 mention 与直接 reply 已覆盖的用户从观察者中移除；楼中楼观察通知使用 `action=new_reply`
 6. 通知投递使用稳定 `eventKey`，按 `userId + eventKey` 唯一，Outbox 重放安全
 
 候选接口与正文解析还会校验主题帖访问权限，并在提及记录写入前过滤双向拉黑用户，避免候选菜单和 `PostMention` 留下最终不会投递的目标。
@@ -222,7 +218,7 @@ WHERE threadId = {threadId}
   )
 ```
 
-返回的订阅者列表被合并到 `reply` 和 `new_post` 通知的接收者集合中。
+返回的订阅者列表进入 `new_post` 观察者集合；楼中楼使用开放式 `action=new_reply`。直接被回复且同时订阅时，由 `reply` 原因优先覆盖。
 
 > **角色快照限制**：`PostEventsListener` 使用事件中的 `authorRole` / `authorPlayerMarked`，而非异步处理时的当前成员角色。THREAD 只保留楼主/协作者发言，USER 只保留已标记普通玩家发言。
 
@@ -278,7 +274,7 @@ WHERE threadId = {threadId}
 
 | 类型             | content 格式                                                                                                              |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `new_post`       | `{username} 发布了新楼层：{正文智能截断}` 或 `{username} 创建了新子贴「{title}」：{正文智能截断}`（有 subthreadTitle 时） |
+| `new_post`       | 主楼层/正文沿用“发布了新楼层/创建了新子贴”；楼中楼观察更新为 `{username} 发布了楼中楼回复：{正文智能截断}`             |
 | `reply`          | `{username} 回复了{replyTargetName}：{正文智能截断}`                                                                      |
 | `mention`        | `{username} 在「{subthreadTitle}」提到了你：{正文智能截断}`                                                               |
 | `thread_created` | `{username}创建了新主题帖`（无正文预览）                                                                                  |
@@ -293,7 +289,7 @@ WHERE threadId = {threadId}
 | 字段             | 类型      | 说明                                          |
 | ---------------- | --------- | --------------------------------------------- |
 | `actorName`      | string    | 操作者用户名（系统通知为空）                  |
-| `action`         | string    | 动作类型（mention / reply / new_post / like） |
+| `action`         | string    | 开放式动作（mention / reply / new_post / new_reply / like 等） |
 | `replyTargetUserId` | string? | 实际被回复帖作者 ID（reply 时存在）            |
 | `replyTargetName` | string?  | 实际被回复帖作者用户名（reply 时存在）         |
 | `preview`        | string    | 正文智能截断纯文本（可选）                    |
@@ -304,7 +300,7 @@ WHERE threadId = {threadId}
 | `newRole`        | string?   | 任免后角色（COLLABORATOR / PARTICIPANT）      |
 | `eventKeys`      | string[]? | 点赞聚合已处理的事件键，防止队列重试重复累加  |
 
-新版客户端优先使用结构化字段分段展示。回复目标等于通知 `userId` 时可显示“回复了你”，其他收件人显示“回复了{replyTargetName}”；缺少目标字段的历史 reply 必须降级为中性“回复了”。Web 当前继续使用中性回复文案；结构化字段不完整或动作未知时回退到 `content`。
+新版客户端优先使用结构化字段分段展示。直接回复目标等于通知 `userId` 时可显示“回复了你”；`new_reply` 显示“发布了楼中楼回复”并归入 `new_post` 所在订阅分组。结构化字段不完整或动作未知时回退到完整 `content`。
 
 ---
 

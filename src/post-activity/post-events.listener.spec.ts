@@ -154,7 +154,7 @@ describe('PostEventsListener 订阅过滤', () => {
     expect(notificationProducer.notify).not.toHaveBeenCalled();
   });
 
-  it('楼中楼回复优先使用 replyToPostId 的作者生成目标语义且不改变接收范围', async () => {
+  it('楼中楼把直接回复者与更新观察者按原因分流', async () => {
     const { listener, notificationProducer, subscriptionsService, prisma } = buildListener();
     subscriptionsService.findSubscribers.mockResolvedValue([
       { userId: 'subscriber1', type: 'USER', targetUserId: 'author1' },
@@ -182,7 +182,7 @@ describe('PostEventsListener 订阅过滤', () => {
     });
     expect(notificationProducer.notify).toHaveBeenCalledWith(
       'reply',
-      ['target1', 'owner1', 'subscriber1'],
+      ['target1'],
       '科尔诺鹿雅 回复了阿忠：测试内容',
       {
         postId: 'reply-post',
@@ -195,6 +195,22 @@ describe('PostEventsListener 订阅过滤', () => {
           preview: '测试内容',
           replyTargetUserId: 'target1',
           replyTargetName: '阿忠',
+        },
+      },
+    );
+    expect(notificationProducer.notify).toHaveBeenCalledWith(
+      'new_post',
+      ['owner1', 'subscriber1'],
+      '科尔诺鹿雅 发布了楼中楼回复：测试内容',
+      {
+        postId: 'reply-post',
+        threadId: 'thread1',
+        fromUserId: 'author1',
+        eventKey: 'new-reply:reply-post',
+        payload: {
+          actorName: '科尔诺鹿雅',
+          action: 'new_reply',
+          preview: '测试内容',
         },
       },
     );
@@ -230,12 +246,15 @@ describe('PostEventsListener 订阅过滤', () => {
     );
   });
 
-  it('回复自己的帖子时继续不向管理者或订阅者发送 reply 通知', async () => {
+  it('楼主回复自己的楼层时仍通知其他管理者与 THREAD 订阅者', async () => {
     const { listener, notificationProducer, subscriptionsService, prisma } = buildListener();
     subscriptionsService.findSubscribers.mockResolvedValue([
-      { userId: 'subscriber1', type: 'USER', targetUserId: 'author1' },
+      { userId: 'subscriber1', type: 'THREAD', targetUserId: null },
     ]);
-    prisma.threadMember.findMany.mockResolvedValue([{ userId: 'owner1' }]);
+    prisma.threadMember.findMany.mockResolvedValue([
+      { userId: 'author1' },
+      { userId: 'collaborator1' },
+    ]);
     prisma.post.findUnique.mockResolvedValue({
       authorId: 'author1',
       author: { username: 'author1' },
@@ -244,15 +263,29 @@ describe('PostEventsListener 订阅过滤', () => {
     await listener.handlePostCreated({
       ...baseEvent,
       parentPostId: 'parent-post',
+      authorRole: 'OWNER',
     });
 
-    expect(notificationProducer.notify).not.toHaveBeenCalled();
+    expect(notificationProducer.notify).toHaveBeenCalledTimes(1);
+    expect(notificationProducer.notify).toHaveBeenCalledWith(
+      'new_post',
+      ['collaborator1', 'subscriber1'],
+      'author1 发布了楼中楼回复：测试内容',
+      expect.objectContaining({
+        eventKey: 'new-reply:post1',
+        payload: expect.objectContaining({ action: 'new_reply' }),
+      }),
+    );
   });
 
-  it('同一条回复显式艾特后，不再发送重复的 reply 次级通知', async () => {
-    const { listener, notificationProducer, prisma, mentionsService } = buildListener();
+  it('同一条回复显式提及后覆盖直接回复与订阅次级通知', async () => {
+    const { listener, notificationProducer, subscriptionsService, prisma, mentionsService } =
+      buildListener();
     mentionsService.parseAndCreate.mockResolvedValue([{ userId: 'replyAuthor' }]);
     prisma.threadMember.findMany.mockResolvedValue([{ userId: 'owner1' }]);
+    subscriptionsService.findSubscribers.mockResolvedValue([
+      { userId: 'replyAuthor', type: 'USER', targetUserId: 'author1' },
+    ]);
     prisma.post.findUnique.mockResolvedValue({
       authorId: 'replyAuthor',
       author: { username: '被回复者' },
@@ -271,17 +304,155 @@ describe('PostEventsListener 订阅过滤', () => {
     const replyCall = notificationProducer.notify.mock.calls.find(
       (call: unknown[]) => call[0] === 'reply',
     );
-    expect(mentionCall?.[1]).toEqual(['replyAuthor']);
-    expect(replyCall?.[1]).not.toContain('replyAuthor');
-    expect(replyCall?.[1]).toEqual(expect.arrayContaining(['owner1']));
-    expect(replyCall?.[3]).toEqual(
-      expect.objectContaining({
-        payload: expect.objectContaining({
-          replyTargetUserId: 'replyAuthor',
-          replyTargetName: '被回复者',
-        }),
-      }),
+    const observerCall = notificationProducer.notify.mock.calls.find(
+      (call: unknown[]) => call[0] === 'new_post',
     );
+    expect(mentionCall?.[1]).toEqual(['replyAuthor']);
+    expect(replyCall).toBeUndefined();
+    expect(observerCall?.[1]).toEqual(['owner1']);
+    expect(observerCall?.[3]).toEqual(
+      expect.objectContaining({ payload: expect.objectContaining({ action: 'new_reply' }) }),
+    );
+  });
+
+  it('直接回复者同时是管理者或订阅者时只收到互动通知', async () => {
+    const { listener, notificationProducer, subscriptionsService, prisma } = buildListener();
+    subscriptionsService.findSubscribers.mockResolvedValue([
+      { userId: 'target1', type: 'THREAD', targetUserId: null },
+    ]);
+    prisma.threadMember.findMany.mockResolvedValue([
+      { userId: 'target1' },
+      { userId: 'observer1' },
+    ]);
+    prisma.post.findUnique.mockResolvedValue({
+      authorId: 'target1',
+      author: { username: '目标用户' },
+    });
+
+    await listener.handlePostCreated({
+      ...baseEvent,
+      postId: 'reply-overlap',
+      parentPostId: 'parent-post',
+      authorRole: 'OWNER',
+    });
+
+    const callsForTarget = notificationProducer.notify.mock.calls.filter((call: unknown[]) =>
+      (call[1] as string[]).includes('target1'),
+    );
+    expect(callsForTarget).toHaveLength(1);
+    expect(callsForTarget[0][0]).toBe('reply');
+    expect(notificationProducer.notify).toHaveBeenCalledWith(
+      'new_post',
+      ['observer1'],
+      expect.any(String),
+      expect.objectContaining({ payload: expect.objectContaining({ action: 'new_reply' }) }),
+    );
+  });
+
+  it('协作者楼中楼回复触发 THREAD 订阅更新', async () => {
+    const { listener, notificationProducer, subscriptionsService, prisma } = buildListener();
+    subscriptionsService.findSubscribers.mockResolvedValue([
+      { userId: 'subscriber1', type: 'THREAD', targetUserId: null },
+    ]);
+    prisma.threadMember.findMany.mockResolvedValue([{ userId: 'owner1' }, { userId: 'author1' }]);
+    prisma.post.findUnique.mockResolvedValue({
+      authorId: 'target1',
+      author: { username: '目标用户' },
+    });
+
+    await listener.handlePostCreated({
+      ...baseEvent,
+      parentPostId: 'parent-post',
+      authorRole: 'COLLABORATOR',
+      authorPlayerMarked: false,
+    });
+
+    expect(notificationProducer.notify).toHaveBeenCalledWith(
+      'new_post',
+      ['owner1', 'subscriber1'],
+      expect.any(String),
+      expect.objectContaining({ payload: expect.objectContaining({ action: 'new_reply' }) }),
+    );
+  });
+
+  it('已标记玩家楼中楼回复触发对应 USER 订阅更新', async () => {
+    const { listener, notificationProducer, subscriptionsService, prisma } = buildListener();
+    subscriptionsService.findSubscribers.mockResolvedValue([
+      { userId: 'player-subscriber', type: 'USER', targetUserId: 'author1' },
+    ]);
+    prisma.threadMember.findMany.mockResolvedValue([{ userId: 'owner1' }]);
+    prisma.post.findUnique.mockResolvedValue({
+      authorId: 'target1',
+      author: { username: '目标用户' },
+    });
+
+    await listener.handlePostCreated({
+      ...baseEvent,
+      parentPostId: 'parent-post',
+      authorRole: 'PARTICIPANT',
+      authorPlayerMarked: true,
+    });
+
+    expect(notificationProducer.notify).toHaveBeenCalledWith(
+      'new_post',
+      ['owner1', 'player-subscriber'],
+      expect.any(String),
+      expect.objectContaining({ payload: expect.objectContaining({ action: 'new_reply' }) }),
+    );
+  });
+
+  it('回复目标缺失时仍发送管理者与订阅者更新', async () => {
+    const { listener, notificationProducer, subscriptionsService, prisma } = buildListener();
+    subscriptionsService.findSubscribers.mockResolvedValue([
+      { userId: 'subscriber1', type: 'THREAD', targetUserId: null },
+    ]);
+    prisma.threadMember.findMany.mockResolvedValue([{ userId: 'owner1' }]);
+    prisma.post.findUnique.mockResolvedValue(null);
+
+    await listener.handlePostCreated({
+      ...baseEvent,
+      parentPostId: 'parent-post',
+      authorRole: 'OWNER',
+    });
+
+    expect(notificationProducer.notify).toHaveBeenCalledTimes(1);
+    expect(notificationProducer.notify).toHaveBeenCalledWith(
+      'new_post',
+      ['owner1', 'subscriber1'],
+      expect.any(String),
+      expect.objectContaining({ payload: expect.objectContaining({ action: 'new_reply' }) }),
+    );
+  });
+
+  it('Outbox 重试复用完整提及快照，不降级为订阅通知', async () => {
+    const { listener, notificationProducer, subscriptionsService, mentionsService } =
+      buildListener();
+    mentionsService.parseAndCreate.mockResolvedValue([{ userId: 'subscriber1' }]);
+    subscriptionsService.findSubscribers.mockResolvedValue([
+      { userId: 'subscriber1', type: 'THREAD', targetUserId: null },
+    ]);
+    notificationProducer.notify.mockRejectedValueOnce(new Error('database unavailable'));
+    const loggerError = jest
+      .spyOn(
+        (listener as unknown as { logger: { error: (...args: unknown[]) => void } }).logger,
+        'error',
+      )
+      .mockImplementation(() => undefined);
+
+    await expect(listener.handlePostCreated({ ...baseEvent, authorRole: 'OWNER' })).rejects.toThrow(
+      'post.created event processing failed',
+    );
+    await listener.handlePostCreated({ ...baseEvent, authorRole: 'OWNER' });
+
+    expect(mentionsService.parseAndCreate).toHaveBeenCalledTimes(2);
+    const recipientCalls = notificationProducer.notify.mock.calls.filter((call: unknown[]) =>
+      (call[1] as string[]).includes('subscriber1'),
+    );
+    expect(recipientCalls).toHaveLength(2);
+    expect(recipientCalls.every((call: unknown[]) => call[0] === 'mention')).toBe(true);
+    expect(recipientCalls[0][3]).toEqual(expect.objectContaining({ eventKey: 'mention:post1' }));
+    expect(recipientCalls[1][3]).toEqual(expect.objectContaining({ eventKey: 'mention:post1' }));
+    loggerError.mockRestore();
   });
 
   it('通知处理失败时向 Outbox 抛出错误以触发重试', async () => {

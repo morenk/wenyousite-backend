@@ -468,9 +468,7 @@ describe('PostsService', () => {
       role: 'PARTICIPANT',
       playerMarked: false,
     });
-    mockPrisma.post.findUnique
-      .mockResolvedValueOnce({ id: 'root-1', subthreadId: 's1', parentPostId: null })
-      .mockResolvedValueOnce(null);
+    mockPrisma.post.findUnique.mockResolvedValueOnce(null);
 
     await expect(
       service.create('s1', { content: '回复', parentPostId: 'root-1' }, 'u1'),
@@ -680,6 +678,43 @@ describe('PostsService', () => {
     await expect(service.create('s1', { content: 'test' }, 'u1')).rejects.toThrow(
       BusinessException,
     );
+  });
+
+  it('create 指定 replyToPostId 却缺少 parentPostId 时返回 400', async () => {
+    mockPrisma.subthread.findUnique.mockResolvedValue({
+      id: 's1',
+      threadId: 't1',
+      postingPolicy: 'PARTICIPANTS',
+      thread: { published: true, ownerId: 'owner' },
+    });
+
+    await expect(
+      service.create('s1', { content: 'test', replyToPostId: 'reply-1' }, 'u1'),
+    ).rejects.toMatchObject({ errorCode: ErrorCode.BAD_REQUEST, status: 400 });
+    expect(mockPrisma.post.findUnique).not.toHaveBeenCalled();
+    expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('create 拒绝同一子贴内跨主楼层指定回复目标', async () => {
+    mockPrisma.subthread.findUnique.mockResolvedValue({
+      id: 's1',
+      threadId: 't1',
+      postingPolicy: 'PARTICIPANTS',
+      thread: { published: true, ownerId: 'owner' },
+    });
+    mockPrisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
+    mockPrisma.post.findUnique
+      .mockResolvedValueOnce({ id: 'root-1', subthreadId: 's1', parentPostId: null })
+      .mockResolvedValueOnce({ id: 'reply-2', subthreadId: 's1', parentPostId: 'root-2' });
+
+    await expect(
+      service.create(
+        's1',
+        { content: 'test', parentPostId: 'root-1', replyToPostId: 'reply-2' },
+        'u1',
+      ),
+    ).rejects.toMatchObject({ errorCode: ErrorCode.BAD_REQUEST, status: 400 });
+    expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
   });
 
   it('create 不存在的父楼层应该返回404', async () => {

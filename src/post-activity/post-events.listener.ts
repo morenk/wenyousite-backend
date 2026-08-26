@@ -140,51 +140,103 @@ export class PostEventsListener {
       }
     }
 
-    // 3. 楼中楼回复：通知被回复者 + 楼主协作者 + 订阅者（排除自己，过滤拉黑）
-    try {
-      if (event.parentPostId && !event.isSubthreadBody) {
-        const targetId = event.replyToPostId ?? event.parentPostId;
-        const targetPost = await this.prisma.post.findUnique({
-          where: { id: targetId, deletedAt: null },
-          select: {
-            authorId: true,
-            author: { select: { username: true } },
-          },
-        });
-        if (targetPost && targetPost.authorId !== event.userId) {
-          const replyTargetId = targetPost.authorId;
-          const replyTargetName = targetPost.author.username;
-          const recipients = this.blockFilter.filterRecipients(
-            [...new Set([replyTargetId, ...managerIds, ...subscriberIds])].filter(
-              (id) => !explicitMentionRecipientIds.has(id),
-            ),
-            blockSets,
-          );
-          if (recipients.length > 0) {
-            await this.notificationProducer.notify(
-              'reply',
-              recipients,
-              `${username} 回复了${replyTargetName}：${preview}`,
-              {
-                postId: event.postId,
-                threadId: event.threadId,
-                fromUserId: event.userId,
-                eventKey: `reply:${event.postId}`,
-                payload: {
-                  actorName: username,
-                  action: 'reply',
-                  preview,
-                  replyTargetUserId: replyTargetId,
-                  replyTargetName,
-                },
-              },
-            );
+    // 3. 楼中楼按原因分流：直接回复进入互动；管理者/订阅者更新进入订阅。
+    if (event.parentPostId && !event.isSubthreadBody) {
+      let replyTarget = event.replyTargetUserId
+        ? {
+            authorId: event.replyTargetUserId,
+            username: event.replyTargetName ?? '目标用户',
           }
+        : null;
+
+      // 兼容升级前已落入 Outbox 的事件。新事件使用发帖事务内快照，不依赖二次读取。
+      if (!replyTarget) {
+        const targetId = event.replyToPostId ?? event.parentPostId;
+        try {
+          const targetPost = await this.prisma.post.findUnique({
+            where: { id: targetId, deletedAt: null },
+            select: {
+              authorId: true,
+              author: { select: { username: true } },
+            },
+          });
+          if (targetPost) {
+            replyTarget = {
+              authorId: targetPost.authorId,
+              username: targetPost.author.username,
+            };
+          }
+        } catch (e) {
+          // 观察者更新不依赖回复目标；保留失败让旧事件稍后补做直接回复通知。
+          this.logger.error('reply target lookup failed', e);
+          failures.push(e);
         }
       }
-    } catch (e) {
-      this.logger.error('reply notification failed', e);
-      failures.push(e);
+
+      const directReplyRecipientId =
+        replyTarget && replyTarget.authorId !== event.userId ? replyTarget.authorId : null;
+      const directReplyRecipients = directReplyRecipientId
+        ? this.blockFilter.filterRecipients(
+            explicitMentionRecipientIds.has(directReplyRecipientId) ? [] : [directReplyRecipientId],
+            blockSets,
+          )
+        : [];
+
+      if (directReplyRecipients.length > 0 && replyTarget) {
+        try {
+          await this.notificationProducer.notify(
+            'reply',
+            directReplyRecipients,
+            `${username} 回复了${replyTarget.username}：${preview}`,
+            {
+              postId: event.postId,
+              threadId: event.threadId,
+              fromUserId: event.userId,
+              eventKey: `reply:${event.postId}`,
+              payload: {
+                actorName: username,
+                action: 'reply',
+                preview,
+                replyTargetUserId: replyTarget.authorId,
+                replyTargetName: replyTarget.username,
+              },
+            },
+          );
+        } catch (e) {
+          this.logger.error('reply notification failed', e);
+          failures.push(e);
+        }
+      }
+
+      const observerRecipients = this.blockFilter.filterRecipients(
+        [...new Set([...managerIds, ...subscriberIds])].filter(
+          (id) => id !== directReplyRecipientId && !explicitMentionRecipientIds.has(id),
+        ),
+        blockSets,
+      );
+      if (observerRecipients.length > 0) {
+        try {
+          await this.notificationProducer.notify(
+            'new_post',
+            observerRecipients,
+            `${username} 发布了楼中楼回复：${preview}`,
+            {
+              postId: event.postId,
+              threadId: event.threadId,
+              fromUserId: event.userId,
+              eventKey: `new-reply:${event.postId}`,
+              payload: {
+                actorName: username,
+                action: 'new_reply',
+                preview,
+              },
+            },
+          );
+        } catch (e) {
+          this.logger.error('new_reply notification failed', e);
+          failures.push(e);
+        }
+      }
     }
 
     if (failures.length > 0) {

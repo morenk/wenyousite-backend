@@ -52,7 +52,7 @@ export class MentionsService {
     private blockFilter: BlockFilterService,
   ) {}
 
-  /** 创建时同步提及快照；返回本次新增的收件人，供通知队列使用。 */
+  /** 创建时同步并返回完整提及快照；Outbox 重试不得退化为空收件人。 */
   async parseAndCreate(
     postId: string,
     content: string,
@@ -60,7 +60,19 @@ export class MentionsService {
     threadId?: string,
     previousContent?: string,
   ) {
-    return this.syncMentions(postId, content, excludeUserId, threadId, previousContent);
+    if (!threadId) return [];
+    await this.threadAccess.assertAccessible(threadId, excludeUserId);
+    return this.prisma.$transaction((tx) =>
+      this.syncMentionsInTransaction(
+        tx,
+        postId,
+        content,
+        excludeUserId,
+        threadId,
+        previousContent,
+        true,
+      ),
+    );
   }
 
   async syncMentions(
@@ -94,6 +106,7 @@ export class MentionsService {
     excludeUserId: string,
     threadId: string,
     previousContent?: string,
+    returnFullSnapshot = false,
   ): Promise<MentionedUser[]> {
     const tokens = this.extractMentionTokens(content);
     if (tokens.usernames.length === 0 && tokens.userIds.length === 0 && !tokens.allPlayers) {
@@ -127,7 +140,7 @@ export class MentionsService {
         ? this.extractMentionTokens(previousContent).allPlayers
         : false;
       const existingGroup = existing.filter((mention) => mention.source === 'ALL_PLAYERS');
-      const groupUsers = previousHadGroup && existingGroup.length > 0
+      const groupUsers = (previousHadGroup || returnFullSnapshot) && existingGroup.length > 0
         ? existingGroup.map((mention) => mention.mentionedUser)
         : await this.findMarkedPlayers(client, threadId, blockSets);
 
@@ -168,7 +181,7 @@ export class MentionsService {
 
     // 同一用户同时被单人和全体命中时只发一条通知；记录层仍保留两个来源。
     const uniqueUsers = new Map<string, MentionedUser>();
-    for (const mention of added) {
+    for (const mention of returnFullSnapshot ? desired.values() : added) {
       if (!uniqueUsers.has(mention.userId)) {
         uniqueUsers.set(mention.userId, mention);
       }

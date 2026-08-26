@@ -20,6 +20,9 @@ export async function lockAndValidatePostCreate(
   context: PostCreateContext,
 ) {
   const { threadId, subthreadId, userId, parentPostId, replyToPostId } = context;
+  if (replyToPostId && !parentPostId) {
+    throw new BusinessException(ErrorCode.BAD_REQUEST, '指定回复目标时必须同时指定父楼层');
+  }
   await tx.$queryRaw`SELECT id FROM threads WHERE id = ${threadId} FOR UPDATE`;
   await threadAccess.assertAccessible(threadId, userId, tx);
   const subthread = await tx.subthread.findUnique({
@@ -44,10 +47,23 @@ export async function lockAndValidatePostCreate(
     member,
   });
 
+  let parent: {
+    id: string;
+    subthreadId: string;
+    parentPostId: string | null;
+    authorId: string;
+    author: { username: string };
+  } | null = null;
   if (parentPostId) {
-    const parent = await tx.post.findUnique({
+    parent = await tx.post.findUnique({
       where: { id: parentPostId, deletedAt: null },
-      select: { subthreadId: true, parentPostId: true },
+      select: {
+        id: true,
+        subthreadId: true,
+        parentPostId: true,
+        authorId: true,
+        author: { select: { username: true } },
+      },
     });
     if (!parent) throw notFound(ErrorCode.POST_NOT_FOUND, '父楼层不存在');
     if (parent.subthreadId !== subthreadId) {
@@ -58,10 +74,18 @@ export async function lockAndValidatePostCreate(
     }
   }
 
+  let replyTarget = parent;
   if (replyToPostId) {
     const target = await tx.post.findUnique({
       where: { id: replyToPostId, deletedAt: null },
-      select: { subthreadId: true, parentPost: { select: { deletedAt: true } } },
+      select: {
+        id: true,
+        subthreadId: true,
+        parentPostId: true,
+        authorId: true,
+        author: { select: { username: true } },
+        parentPost: { select: { deletedAt: true } },
+      },
     });
     if (!target || target.parentPost?.deletedAt) {
       throw notFound(ErrorCode.POST_NOT_FOUND, '被回复的帖子不存在');
@@ -69,7 +93,11 @@ export async function lockAndValidatePostCreate(
     if (target.subthreadId !== subthreadId) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '不能跨子贴回复');
     }
+    if ((target.parentPostId ?? target.id) !== parentPostId) {
+      throw new BusinessException(ErrorCode.BAD_REQUEST, '回复目标必须属于同一主楼层');
+    }
+    replyTarget = target;
   }
 
-  return { subthread, member };
+  return { subthread, member, replyTarget };
 }

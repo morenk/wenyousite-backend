@@ -1179,6 +1179,84 @@ test(
   },
 );
 
+test(sCollaboration, '楼中楼订阅更新与直接回复按原因去重并精确定位', async () => {
+  const subscription = await peerApi.post('/subscriptions', {
+    threadId,
+    type: 'THREAD',
+  });
+  assert(subscription.code === 0, '普通用户应可订阅楼主更新');
+
+  const ownerSelfReply = await api.post(`/subthreads/${subthreadId}/posts`, {
+    content: `E2E 楼主楼中楼更新 ${RUN_ID}`,
+    parentPostId: postId,
+    replyToPostId: postId,
+    clientRequestId: crypto.randomUUID(),
+  });
+  const subscribedNotification = await waitForCondition(
+    () =>
+      e2ePrisma.notification.findFirst({
+        where: {
+          userId: peerUserId,
+          postId: ownerSelfReply.data.id,
+          eventKey: `new-reply:${ownerSelfReply.data.id}:${peerUserId}`,
+        },
+      }),
+    '楼主楼中楼订阅通知',
+  );
+  assert(subscribedNotification.type === 'new_post', '订阅更新类型应为 new_post');
+  assert(
+    (subscribedNotification.payload as Record<string, unknown>).action === 'new_reply',
+    '订阅更新 action 应为 new_reply',
+  );
+  assert(
+    (await e2ePrisma.notification.count({
+      where: { userId: peerUserId, postId: ownerSelfReply.data.id },
+    })) === 1,
+    '楼主楼中楼更新应只产生一条订阅通知',
+  );
+  const subscriptionList = await peerApi.get('/notifications?type=new_post&limit=50');
+  const subscriptionItem = subscriptionList.data.find(
+    (item: { id: string }) => item.id === subscribedNotification.id,
+  );
+  assert(!!subscriptionItem, '订阅分类应包含楼中楼更新');
+  assert(
+    subscriptionItem.target?.postId === ownerSelfReply.data.id &&
+      subscriptionItem.post?.parentPostId === postId,
+    '订阅通知应精确指向新回复及其父楼层',
+  );
+
+  const peerFloor = await peerApi.post(`/subthreads/${subthreadId}/posts`, {
+    content: `E2E 直接回复目标 ${RUN_ID}`,
+    clientRequestId: crypto.randomUUID(),
+  });
+  const directReply = await api.post(`/subthreads/${subthreadId}/posts`, {
+    content: `E2E 直接回复且已订阅 ${RUN_ID}`,
+    parentPostId: peerFloor.data.id,
+    replyToPostId: peerFloor.data.id,
+    clientRequestId: crypto.randomUUID(),
+  });
+  const directNotification = await waitForCondition(
+    () =>
+      e2ePrisma.notification.findFirst({
+        where: {
+          userId: peerUserId,
+          postId: directReply.data.id,
+          eventKey: `reply:${directReply.data.id}:${peerUserId}`,
+        },
+      }),
+    '直接回复互动通知',
+  );
+  assert(directNotification.type === 'reply', '直接被回复时应进入互动通知');
+  assert(
+    (await e2ePrisma.notification.count({
+      where: { userId: peerUserId, postId: directReply.data.id },
+    })) === 1,
+    '直接回复者与订阅者重叠时应按 reply 优先且仅一条',
+  );
+
+  await peerApi.del(`/subscriptions/${subscription.data.id}`);
+});
+
 // ═══════════════════════════════════════════════════════════════
 // 7. 草稿池
 // ═══════════════════════════════════════════════════════════════
@@ -1710,6 +1788,29 @@ test(s13, 'POST /subthreads/:id/posts 空内容 → 400', async () => {
     content: '',
   });
   assert(status === 400, `期望 400, 实际 ${status}`);
+});
+
+test(s13, 'POST /subthreads/:id/posts replyTo 缺少 parent → 400', async () => {
+  const { status } = await api.expectStatus(`/subthreads/${subthreadId}/posts`, 'POST', {
+    content: '缺少父楼层的非法回复',
+    replyToPostId: postId,
+    clientRequestId: crypto.randomUUID(),
+  });
+  assert(status === 400, `replyTo 缺少 parent 期望 400, 实际 ${status}`);
+});
+
+test(s13, 'POST /subthreads/:id/posts 跨主楼层 replyTo → 400', async () => {
+  const otherRoot = await api.post(`/subthreads/${subthreadId}/posts`, {
+    content: '另一主楼层',
+    clientRequestId: crypto.randomUUID(),
+  });
+  const { status } = await api.expectStatus(`/subthreads/${subthreadId}/posts`, 'POST', {
+    content: '跨主楼层非法回复',
+    parentPostId: postId,
+    replyToPostId: otherRoot.data.id,
+    clientRequestId: crypto.randomUUID(),
+  });
+  assert(status === 400, `跨主楼层 replyTo 期望 400, 实际 ${status}`);
 });
 
 test(s13, '普通用户不能调用前台管理员隐藏接口 → 403', async () => {

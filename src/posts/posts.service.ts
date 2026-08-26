@@ -77,6 +77,10 @@ export class PostsService {
     // 校验主题帖访问权限（私密帖非参与人在此被拦截）
     await this.threadAccess.assertAccessible(subthread.threadId, userId);
 
+    if (dto.replyToPostId && !dto.parentPostId) {
+      throw new BusinessException(ErrorCode.BAD_REQUEST, '指定回复目标时必须同时指定父楼层');
+    }
+
     if (dto.clientRequestId) {
       const existingRequest = await this.findByClientRequestId(userId, dto.clientRequestId);
       if (existingRequest) {
@@ -97,46 +101,22 @@ export class PostsService {
       member,
     });
 
-    // 验证 parentPost 存在、属于同一子贴、且为主楼层
-    if (dto.parentPostId) {
-      const parent = await this.prisma.post.findUnique({
-        where: { id: dto.parentPostId, ...notDeleted },
-        select: { id: true, subthreadId: true, parentPostId: true },
-      });
-      if (!parent) throw notFound(ErrorCode.POST_NOT_FOUND, '父楼层不存在');
-      if (parent.subthreadId !== subthreadId) {
-        throw new BusinessException(ErrorCode.BAD_REQUEST, '不能跨子贴回复');
-      }
-      if (parent.parentPostId !== null) {
-        throw new BusinessException(ErrorCode.BAD_REQUEST, '只能回复主楼层');
-      }
-    }
-
-    // 验证 replyToPost 存在且属于同一子贴
-    if (dto.replyToPostId) {
-      const target = await this.prisma.post.findUnique({
-        where: { id: dto.replyToPostId, ...notDeleted },
-        select: { id: true, subthreadId: true },
-      });
-      if (!target) throw notFound(ErrorCode.POST_NOT_FOUND, '被回复的帖子不存在');
-      if (target.subthreadId !== subthreadId) {
-        throw new BusinessException(ErrorCode.BAD_REQUEST, '不能跨子贴回复');
-      }
-    }
-
-    // 事务：SELECT FOR UPDATE 锁子贴行 → 读 MAX → 创建楼层 → 更新 lastPostAt
+    // 事务内统一复核父楼、回复目标与权限，再分配楼层号并写入事件。
     let duplicateRequest = false;
     let post;
     try {
       post = await this.prisma.$transaction(async (tx) => {
-        const { subthread: lockedSubthread, member: lockedMember } =
-          await lockAndValidatePostCreate(tx, this.threadAccess, this.postingPolicy, {
-            threadId: subthread.threadId,
-            subthreadId,
-            userId,
-            parentPostId: dto.parentPostId,
-            replyToPostId: dto.replyToPostId,
-          });
+        const {
+          subthread: lockedSubthread,
+          member: lockedMember,
+          replyTarget,
+        } = await lockAndValidatePostCreate(tx, this.threadAccess, this.postingPolicy, {
+          threadId: subthread.threadId,
+          subthreadId,
+          userId,
+          parentPostId: dto.parentPostId,
+          replyToPostId: dto.replyToPostId,
+        });
 
         // 自动加入与发帖原子提交，后续任何校验或写入失败都不会残留成员记录。
         await tx.threadMember.upsert({
@@ -217,6 +197,8 @@ export class PostsService {
               subthreadTitle: lockedSubthread.title,
               parentPostId: dto.parentPostId ?? null,
               replyToPostId: dto.replyToPostId ?? null,
+              replyTargetUserId: replyTarget?.authorId ?? null,
+              replyTargetName: replyTarget?.author?.username ?? null,
               isSubthreadBody: false,
               authorRole: lockedMember?.role ?? 'PARTICIPANT',
               authorPlayerMarked: lockedMember?.playerMarked ?? false,
@@ -385,6 +367,8 @@ export class PostsService {
                 subthreadTitle: subthread.title,
                 parentPostId: null,
                 replyToPostId: null,
+                replyTargetUserId: null,
+                replyTargetName: null,
                 isSubthreadBody: true,
                 authorRole: manager.role,
                 authorPlayerMarked: manager.playerMarked,

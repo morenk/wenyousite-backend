@@ -36,8 +36,8 @@
 - 列表只返回仍可访问的已发布主题帖
 - `findSubscribers(threadId, excludeUserId?, authorId?)` 是供 `PostEventsListener` 调用的核心接口，用于合并订阅者进入通知接收人列表
 - 当提供 `authorId` 时，查询 WHERE 条件为 OR：`type='THREAD'` 或 `type='USER' AND targetUserId=authorId`，即合并"订阅整帖"与"订阅了发帖者"的用户
-- **THREAD 订阅限制**：只有发帖时角色快照是 OWNER/COLLABORATOR 时，THREAD 订阅者才会收到 `new_post` / `reply` 通知；USER 订阅仅在发帖时角色快照为已标记普通玩家时触发
-- 订阅通知在 `new_post` 和 `reply` 两类通知中使用，@提及通知不走订阅逻辑
+- **THREAD 订阅限制**：只有发帖时角色快照是 OWNER/COLLABORATOR 时才触发；USER 订阅仅在发帖时角色快照为已标记普通玩家时触发
+- 订阅来源统一使用 `new_post`；楼层/正文为 `action=new_post`，楼中楼为 `action=new_reply`。直接被回复者若同时订阅，仍只收到优先级更高的 `reply`；@提及优先于两者
 
 ## 设计决策
 

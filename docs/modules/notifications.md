@@ -38,11 +38,11 @@
 - `remove` 为硬删除，使用 `deleteMany`（where id + userId），即使不存在也不报错；系统通知同样支持删除
 - 通知创建由 `NotificationDeliveryService` 执行，`NotificationProducer` 是业务模块的统一应用入口；最终落库和移动推送前统一复核帖子父级、子贴、主题、动态、评论父级及 PRIVATE 成员资格，上游误算收件人也不会越权投递
 - 通知创建时的结构化导航字段（postId / threadId / fromUserId）在创建时写入，查询时直接关联返回
-- 新建楼中楼 `reply` 通知以 `replyToPostId ?? parentPostId` 定位实际被回复帖作者，并在 payload 写入 `replyTargetUserId/replyTargetName`；所有收件人共享同一目标语义。兼容正文同时写为“发送者 回复了目标用户：预览”，历史通知不回填
+- 新建楼中楼按原因分流：直接被回复者收到 `reply/action=reply`，payload 写入 `replyTargetUserId/replyTargetName`；其他管理者与有效订阅者收到 `new_post/action=new_reply`，兼容正文为“发送者 发布了楼中楼回复：预览”。历史通知不回填
 - `eventKey` 是同一业务事件的稳定幂等键，实际按 `userId + eventKey` 唯一；队列重试、编辑重试、关注/发布/点赞/系统通知重投不会重复插入
 - 协作者任命/撤销发送 `system` 通知，目标为主题且 `fromUserId` 是操作楼主。`action` 分别为 `thread_collaborator_added` / `thread_collaborator_removed`，payload 固定携带 `threadId/threadTitle/actorId/actorName/oldRole/newRole`；通知 eventKey 由真实角色转换的唯一事件 ID 派生，Outbox 重放只复用原通知
-- 同一篇帖子中，已收到显式 `mention` 的用户不会再收到该事件的 `new_post` / `reply` 次级通知
-- 同一条回复的显式 `mention` 优先级高于 `reply`，只保留一次提醒；同一批通知写入使用 `skipDuplicates` 兜底并发重试
+- 同一篇帖子按 `mention → 直接 reply → 管理者/订阅 new_post` 优先级去重，每个用户最多一条；同一批通知写入使用 `skipDuplicates` 兜底并发重试
+- 新帖提及在 Outbox 重试时返回已持久化的完整 `PostMention` 快照并沿用 `mention:{postId}`，首次通知失败不会丢失或降级为回复/订阅通知
 - 点赞通知按主题帖聚合；聚合事务使用 Serializable 隔离级别，并在 payload 中保留最近事件键，避免并发丢计数或重试重复累加
 - 定时清理任务每天凌晨 4 点清理 90 天前已读的通知
 - 响应把历史 `payload` 规范化为带 `schemaVersion=1` 的类型结构，并额外给出 `target.kind/state` 及相应 ID；新版 Web/Flutter 仅在 `state=ACTIVE` 时按 target 导航，`content` 继续作为旧数据和未知类型的降级字段

@@ -125,6 +125,27 @@ describe('MentionsService', () => {
     expect(result).toHaveLength(2);
   });
 
+  it('parseAndCreate 重试时返回已持久化的完整提及快照', async () => {
+    mockPrisma.user.findMany.mockResolvedValue([{ id: 'u2', username: '张三', avatar: null }]);
+    mockPrisma.userFollow.findMany.mockResolvedValue([{ followingId: 'u2' }]);
+    mockPrisma.threadMember.findMany.mockResolvedValue([]);
+    mockPrisma.postMention.findMany.mockResolvedValue([
+      {
+        id: 'mention-1',
+        mentionedUserId: 'u2',
+        source: 'DIRECT',
+        mentionedUser: { id: 'u2', username: '张三', avatar: null },
+      },
+    ]);
+
+    const firstRetry = await service.parseAndCreate('p1', '@张三', 'u1', 't1');
+    const secondRetry = await service.parseAndCreate('p1', '@张三', 'u1', 't1');
+
+    expect(firstRetry).toEqual([{ userId: 'u2', username: '张三', source: 'DIRECT' }]);
+    expect(secondRetry).toEqual(firstRetry);
+    expect(mockPrisma.postMention.createMany).not.toHaveBeenCalled();
+  });
+
   it('@自己 不应该创建通知', async () => {
     mockPrisma.user.findMany.mockResolvedValue([{ id: 'u1', username: '张三' }]);
     const result = await service.parseAndCreate('p1', '你好 @张三', 'u1', 't1');

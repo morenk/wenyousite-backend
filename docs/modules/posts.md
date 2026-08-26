@@ -52,7 +52,7 @@
 - 数据库 CHECK 固化 BODY/主楼层/楼中楼的字段形状，复合外键保证 `threadId` 与子贴所属主题一致，并阻止 parent/replyTo 跨子贴引用；主楼层被硬删除时其楼中楼级联删除，避免留下无楼层号的伪主楼层
 - 楼中楼平级挂载：所有回复共享同一个 parentPostId，无嵌套深度限制；回复目标通过 replyToPostId 追踪
 - parentPostId 必须属于同一子贴且为主楼层（parentPostId=null），否则拒绝
-- replyToPostId 必须属于同一子贴且其所属主楼层仍可见，否则拒绝
+- 携带 replyToPostId 时必须同时携带 parentPostId；目标必须是该主楼层本身或其直属楼中楼回复，否则返回 400。父楼与目标在聚合锁内、写入前统一复核
 - 软删除：设置 deletedAt，列表查询过滤已删除帖子；编辑/删除操作也校验子贴是否已软删。主楼层一旦软删除，其仍存活的楼中楼回复也从单帖详情、正文搜索、通知导航和新回复入口统一视为不存在；创建事务与管理员隐藏共享 Thread 聚合锁并在提交前复核
 - 子贴正文（kind=BODY）不可删除，提示"主体正文不可删除。如需修改请编辑帖子；如需移除请删除整个子贴"
 - 权限校验通过后自动将用户加入主题帖（upsert ThreadMember，角色 PARTICIPANT）
@@ -62,7 +62,7 @@
   - PLAYERS：仅 playerMarked=true 的参与人可发帖，管理者绕过该限制
 - 已发布帖在创建帖子同一事务中写入 `post.created` Outbox，由 PostEventsListener 解耦处理 @提及、通知和 Redis 投影
 - 编辑使用乐观锁 version 防止并发编辑冲突，且仅作者可编辑；删除允许作者或 OWNER/COLLABORATOR 软删除他人楼层/回复
-- `post.created` 事件携带发帖时 `authorRole` 与 `authorPlayerMarked` 快照，订阅通知不读取异步处理时的当前角色
+- `post.created` 事件携带发帖时 `authorRole`、`authorPlayerMarked` 与直接回复目标快照；订阅通知不读取异步处理时的当前角色，目标二次读取失败也不阻断仍有效的观察者更新
 - 通知和最近动态摘要会在原文位置显示 `表达式=总计`；纯骰子帖也能生成摘要。编辑骰子节点不发射 `post.created`
 
 ## 创建幂等

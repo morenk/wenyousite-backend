@@ -913,12 +913,19 @@ describe('发帖全流程集成测试', () => {
       prisma.threadMember.upsert.mockResolvedValue({});
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
       prisma.post.findUnique
-        .mockResolvedValueOnce({ id: 'p_parent', subthreadId: 's1', parentPostId: null }) // parentPostId 校验
-        .mockResolvedValueOnce({ id: 'p_target', subthreadId: 's1' }) // replyToPostId 校验
-        .mockResolvedValueOnce({ id: 'p_parent', subthreadId: 's1', parentPostId: null })
+        .mockResolvedValueOnce({
+          id: 'p_parent',
+          subthreadId: 's1',
+          parentPostId: null,
+          authorId: 'floor-author',
+          author: { username: '楼层作者' },
+        })
         .mockResolvedValueOnce({
           id: 'p_target',
           subthreadId: 's1',
+          parentPostId: 'p_parent',
+          authorId: 'target-author',
+          author: { username: '目标作者' },
           parentPost: { deletedAt: null },
         });
       prisma.$transaction.mockImplementation(async (fn: unknown) =>
@@ -952,9 +959,21 @@ describe('发帖全流程集成测试', () => {
       setupHelpers.mockThreadAccess_pass(prisma);
       prisma.threadMember.upsert.mockResolvedValue({});
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'PARTICIPANT' });
-      prisma.post.findUnique.mockResolvedValueOnce(null); // replyToPostId not found
+      prisma.post.findUnique
+        .mockResolvedValueOnce({
+          id: 'p_parent',
+          subthreadId: 's1',
+          parentPostId: null,
+          authorId: 'floor-author',
+          author: { username: '楼层作者' },
+        })
+        .mockResolvedValueOnce(null);
       await expect(
-        postsService.create('s1', { content: 'reply', replyToPostId: 'x' }, 'u2'),
+        postsService.create(
+          's1',
+          { content: 'reply', parentPostId: 'p_parent', replyToPostId: 'x' },
+          'u2',
+        ),
       ).rejects.toThrow(BusinessException);
     });
 

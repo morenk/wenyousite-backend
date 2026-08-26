@@ -24,7 +24,7 @@ export class CreatePostDto {
 
   @ApiPropertyOptional({
     example: 'clxreply001...',
-    description: '回复目标帖 ID（追踪具体回复哪个帖子，可为同楼层其他回复）',
+    description: '回复目标帖 ID；必须同时提供 parentPostId，且目标属于该主楼层',
   })
   @IsOptional()
   @IsString()

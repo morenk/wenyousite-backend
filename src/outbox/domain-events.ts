@@ -25,6 +25,9 @@ export interface PostCreatedEvent {
   subthreadTitle: string;
   parentPostId: string | null;
   replyToPostId: string | null;
+  /** 发帖事务内固定的直接回复目标；旧 Outbox 事件可能缺失。 */
+  replyTargetUserId?: string | null;
+  replyTargetName?: string | null;
   isSubthreadBody?: boolean;
   authorRole: 'OWNER' | 'COLLABORATOR' | 'PARTICIPANT';
   authorPlayerMarked: boolean;
@@ -156,6 +159,8 @@ export const DOMAIN_EVENT_SCHEMAS = {
     subthreadTitle: z.string(),
     parentPostId: nullableId,
     replyToPostId: nullableId,
+    replyTargetUserId: nullableId.optional(),
+    replyTargetName: z.string().nullable().optional(),
     isSubthreadBody: z.boolean().optional(),
     authorRole: z.enum(['OWNER', 'COLLABORATOR', 'PARTICIPANT']),
     authorPlayerMarked: z.boolean(),

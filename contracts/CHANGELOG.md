@@ -1,5 +1,11 @@
 # API 合同变更
 
+## 5.12.2-dev.20260826.1
+
+- `POST /subthreads/:subthreadId/posts` 收紧楼中楼父级不变量：携带 `replyToPostId` 时必须同时携带 `parentPostId`，且回复目标必须是该主楼层本身或其直属楼中楼回复；非法组合返回 HTTP 400，现有合法请求不变。
+- 楼中楼通知按 `mention → reply → new_post` 原因去重。直接被回复者继续收到 `reply/action=reply`；楼主、协作者、THREAD 订阅者及对应 USER 订阅者改收 `new_post/action=new_reply`，兼容正文为“发布了楼中楼回复”。每个用户对同一次发言最多收到一条通知。
+- 新帖 Outbox 重试复用已持久化的完整提及快照与稳定通知键；首次提及投递失败后不会丢失，也不会降级成重复的回复或订阅通知。历史通知不补发。
+
 ## 5.12.1-dev.20260826.1
 
 - `DELETE /threads/:id`、`POST /threads/:id/like` 与 `DELETE /threads/:id/like` 现在都先经过统一主题访问校验，再读取所有权、发布状态或互动数据。不存在、已删除、他人草稿及 PRIVATE 非成员统一返回 HTTP 404 / `THREAD_NOT_FOUND`，不会通过 403 或“草稿暂不支持点赞”泄露主题存在性。

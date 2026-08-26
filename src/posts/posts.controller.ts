@@ -7,6 +7,7 @@ import {
   ApiOkResponse,
   ApiCreatedResponse,
   ApiUnauthorizedResponse,
+  ApiBadRequestResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiConflictResponse,
@@ -137,6 +138,9 @@ export class PostsController {
     description: '创建的帖子（含楼层号或 parentPostId）',
   })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
+  @ApiBadRequestResponse({
+    description: '回复目标缺少父楼层，或回复目标与父楼层不属于同一主楼层',
+  })
   @ApiForbiddenResponse({ description: '无发帖权限（未加入子贴或权限不足）' })
   @ApiConflictResponse({ description: 'clientRequestId 已用于不同发帖载荷' })
   async create(
