@@ -98,11 +98,7 @@ async function prepareMigrationWorkspace(schema: string) {
 function deployMigrations(schemaPath: string, databaseUrl: string) {
   execFileSync('pnpm', ['exec', 'prisma', 'migrate', 'deploy', '--schema', schemaPath], {
     cwd: process.cwd(),
-    env: {
-      ...process.env,
-      DATABASE_URL: databaseUrl,
-      DIRECT_DATABASE_URL: databaseUrl,
-    },
+    env: { ...process.env, DATABASE_URL: databaseUrl },
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   });

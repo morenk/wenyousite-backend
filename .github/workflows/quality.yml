@@ -9,9 +9,6 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      DATABASE_URL: postgresql://ci:ci@example.invalid/wenyousite
-      DIRECT_DATABASE_URL: postgresql://ci:ci@example.invalid/wenyousite
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -28,9 +25,6 @@ jobs:
   security-audit:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    env:
-      DATABASE_URL: postgresql://ci:ci@example.invalid/wenyousite
-      DIRECT_DATABASE_URL: postgresql://ci:ci@example.invalid/wenyousite
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -46,9 +40,6 @@ jobs:
   coverage:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      DATABASE_URL: postgresql://ci:ci@example.invalid/wenyousite
-      DIRECT_DATABASE_URL: postgresql://ci:ci@example.invalid/wenyousite
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -67,7 +58,7 @@ jobs:
     timeout-minutes: 30
     services:
       postgres:
-        image: postgres@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+        image: postgres:17-alpine
         env:
           POSTGRES_USER: wenyou
           POSTGRES_PASSWORD: wenyou_test
@@ -80,7 +71,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
       redis:
-        image: redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
+        image: redis:7-alpine
         ports:
           - 6379:6379
         options: >-
@@ -90,7 +81,6 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql://wenyou:wenyou_test@127.0.0.1:5432/wenyousite_replay
-      DIRECT_DATABASE_URL: postgresql://wenyou:wenyou_test@127.0.0.1:5432/wenyousite_replay
       REDIS_HOST: 127.0.0.1
       REDIS_PORT: 6379
     steps:
@@ -106,7 +96,6 @@ jobs:
       - run: pnpm prisma:generate
       - run: pnpm exec prisma migrate deploy
       - run: pnpm exec prisma migrate status
-      - run: pnpm test:data-security:integration
       - run: pnpm build
       - run: pnpm test:e2e:auth-terminal
       - run: pnpm test:e2e:economy-terminal

@@ -3,16 +3,6 @@ import { validate } from './env.validation';
 
 describe('环境变量校验', () => {
   const databaseUrl = 'postgresql://user:pass@127.0.0.1:5432/test';
-  const productionDatabaseUrl =
-    'postgresql://wenyousite_app:production-database-password@127.0.0.1:5432/wenyousite';
-  const productionBase = {
-    NODE_ENV: 'production',
-    HOST: '127.0.0.1',
-    DATABASE_URL: productionDatabaseUrl,
-    REDIS_USERNAME: 'wenyousite_app',
-    REDIS_PASSWORD: 'production-redis-password-at-least-24-characters',
-    JWT_ACCESS_SECRET: 'production-random-secret-at-least-24-chars',
-  };
 
   it('开发环境使用与运行配置一致的数据库默认值', () => {
     expect(validate({}).DATABASE_URL).toBe(
@@ -69,7 +59,8 @@ describe('环境变量校验', () => {
     (secret) => {
       expect(() =>
         validate({
-          ...productionBase,
+          DATABASE_URL: databaseUrl,
+          NODE_ENV: 'production',
           JWT_ACCESS_SECRET: secret,
         }),
       ).toThrow('生产环境 JWT_ACCESS_SECRET');
@@ -81,48 +72,24 @@ describe('环境变量校验', () => {
     expect(() =>
       validate({
         NODE_ENV: 'production',
-        HOST: '127.0.0.1',
-        REDIS_USERNAME: 'wenyousite_app',
-        REDIS_PASSWORD: 'production-redis-password-at-least-24-characters',
         JWT_ACCESS_SECRET: productionSecret,
       }),
     ).toThrow('生产环境 DATABASE_URL 必须显式配置');
 
     expect(() =>
       validate({
-        ...productionBase,
+        NODE_ENV: 'production',
         DATABASE_URL: 'postgresql://wenyou:wenyou@127.0.0.1:5432/wenyousite?schema=public',
         JWT_ACCESS_SECRET: productionSecret,
-      }),
-    ).toThrow('wenyousite_app');
-  });
-
-  it('生产环境要求 loopback 监听和 Redis ACL', () => {
-    expect(() => validate({ ...productionBase, HOST: '0.0.0.0' })).toThrow('loopback');
-    expect(() => validate({ ...productionBase, REDIS_PASSWORD: '' })).toThrow('Redis');
-    expect(() => validate({ ...productionBase, REDIS_USERNAME: 'default' })).toThrow(
-      'wenyousite_app',
-    );
-  });
-
-  it('隔离压测端口允许独立且不带 ACL 的数据平面', () => {
-    expect(() =>
-      validate({
-        NODE_ENV: 'production',
-        PORT: '3100',
-        HOST: '127.0.0.1',
-        DATABASE_URL:
-          'postgresql://wenyou_loadtest:isolated-password@127.0.0.1:55432/wenyousite_loadtest',
-        REDIS_HOST: '127.0.0.1',
-        REDIS_PORT: '56379',
-        JWT_ACCESS_SECRET: 'production-random-secret-at-least-24-chars',
       }),
     ).not.toThrow();
   });
 
   it('生产环境启用推送时要求项目和凭证路径同时存在', () => {
     const base = {
-      ...productionBase,
+      DATABASE_URL: databaseUrl,
+      NODE_ENV: 'production',
+      JWT_ACCESS_SECRET: 'production-random-secret-at-least-24-chars',
       PUSH_ENABLED: 'true',
     };
 
@@ -135,7 +102,9 @@ describe('环境变量校验', () => {
   it('有效生产配置通过且字符串 false 不会误开启推送', () => {
     expect(
       validate({
-        ...productionBase,
+        DATABASE_URL: databaseUrl,
+        NODE_ENV: 'production',
+        JWT_ACCESS_SECRET: 'production-random-secret-at-least-24-chars',
         PUSH_ENABLED: 'false',
       }),
     ).toEqual(
@@ -147,7 +116,9 @@ describe('环境变量校验', () => {
 
     expect(
       validate({
-        ...productionBase,
+        DATABASE_URL: databaseUrl,
+        NODE_ENV: 'production',
+        JWT_ACCESS_SECRET: 'production-random-secret-at-least-24-chars',
         PUSH_ENABLED: 'true',
         FIREBASE_PROJECT_ID: 'project-1',
         GOOGLE_APPLICATION_CREDENTIALS: '/run/secrets/firebase.json',

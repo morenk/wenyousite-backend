@@ -123,7 +123,7 @@ async function main() {
     await admin.$executeRawUnsafe(`CREATE DATABASE "${testDatabase}"`);
     execFileSync('pnpm', ['exec', 'prisma', 'migrate', 'deploy'], {
       cwd: process.cwd(),
-      env: { ...process.env, DATABASE_URL: testUrl, DIRECT_DATABASE_URL: testUrl },
+      env: { ...process.env, DATABASE_URL: testUrl },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     const prisma = new PrismaClient({ datasourceUrl: testUrl });
@@ -141,7 +141,6 @@ async function main() {
       NODE_ENV: 'test',
       PORT: String(port),
       DATABASE_URL: testUrl,
-      DIRECT_DATABASE_URL: testUrl,
       REDIS_HOST: redisHost,
       REDIS_PORT: String(redisPort),
       REDIS_DB: '15',

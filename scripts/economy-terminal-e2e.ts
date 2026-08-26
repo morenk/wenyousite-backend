@@ -83,11 +83,7 @@ function isolatedDatabaseUrl(databaseUrl: string, database: string) {
 function deployMigrations(databaseUrl: string) {
   execFileSync('pnpm', ['exec', 'prisma', 'migrate', 'deploy'], {
     cwd: process.cwd(),
-    env: {
-      ...process.env,
-      DATABASE_URL: databaseUrl,
-      DIRECT_DATABASE_URL: databaseUrl,
-    },
+    env: { ...process.env, DATABASE_URL: databaseUrl },
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   });

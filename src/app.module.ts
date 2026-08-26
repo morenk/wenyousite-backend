@@ -45,7 +45,6 @@ import { ActivityModule } from './activity/activity.module';
 import { TaxonomyModule } from './taxonomy/taxonomy.module';
 import { MomentsModule } from './moments/moments.module';
 import { SentryModule } from '@sentry/nestjs/setup';
-import { redisConnectionOptions } from './redis/redis-connection';
 
 /** 构建 Pino 传输配置：开发环境 colorized 控制台，生产环境支持可选文件日志 */
 interface SerializedPinoRequest {
@@ -139,7 +138,11 @@ function buildPinoTransport(logLevel: PinoLogLevel, nodeEnv: string, logFileDir?
     BullModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        connection: redisConnectionOptions(config),
+        connection: {
+          host: config.get<string>('redis.host'),
+          port: config.get<number>('redis.port'),
+          db: config.get<number>('redis.db'),
+        },
       }),
     }),
     // Redis 模块（缓存、计数器、限流存储）

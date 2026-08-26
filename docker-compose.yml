@@ -4,125 +4,41 @@ name: wenyousite
 # Caddy、NestJS 和 Next.js 由宿主机进程管理；Compose 只管理有状态依赖。
 services:
   postgres:
-    build:
-      context: .
-      dockerfile: docker/postgres/Dockerfile
-    image: wenyousite-postgres:17.10-pgbackrest-2.58.0
+    image: postgres:17-alpine
     container_name: wenyousite-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_OWNER_USER:-wenyou}
-      POSTGRES_PASSWORD_FILE: /run/secrets/wenyousite/postgres-owner-password
-      POSTGRES_DB: ${POSTGRES_DATABASE:-wenyousite}
-    command:
-      - postgres
-      - -c
-      - password_encryption=scram-sha-256
-      - -c
-      - hba_file=/run/secrets/wenyousite/pg_hba.conf
-      - -c
-      - wal_level=replica
-      - -c
-      - archive_mode=${POSTGRES_ARCHIVE_MODE:-off}
-      - -c
-      - archive_timeout=${POSTGRES_ARCHIVE_TIMEOUT:-300s}
-      - -c
-      - archive_command=pgbackrest --config=/run/secrets/wenyousite/pgbackrest.conf --stanza=wenyousite archive-push %p
-      - -c
-      - restore_command=pgbackrest --config=/run/secrets/wenyousite/pgbackrest.conf --stanza=wenyousite archive-get %f %p
+      POSTGRES_USER: wenyou
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-wenyou}
+      POSTGRES_DB: wenyousite
     ports:
       - "127.0.0.1:5432:5432"
-    group_add:
-      - ${WENYOUSITE_SECRETS_GID:-0}
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - type: bind
-        source: ${WENYOUSITE_SECRETS_DIR:-./ops/development-secrets}/postgres-owner-password
-        target: /run/secrets/wenyousite/postgres-owner-password
-        read_only: true
-        bind:
-          create_host_path: false
-      - type: bind
-        source: ${WENYOUSITE_SECRETS_DIR:-./ops/development-secrets}/postgres-backup-password
-        target: /run/secrets/wenyousite/postgres-backup-password
-        read_only: true
-        bind:
-          create_host_path: false
-      - type: bind
-        source: ${WENYOUSITE_SECRETS_DIR:-./ops/development-secrets}/pg_hba.conf
-        target: /run/secrets/wenyousite/pg_hba.conf
-        read_only: true
-        bind:
-          create_host_path: false
-      - type: bind
-        source: ${WENYOUSITE_SECRETS_DIR:-./ops/development-secrets}/pgbackrest.conf
-        target: /run/secrets/wenyousite/pgbackrest.conf
-        read_only: true
-        bind:
-          create_host_path: false
     healthcheck:
-      test: ["CMD-SHELL", "[ \"$$(cat /proc/1/comm)\" = postgres ] && pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U wenyou -d wenyousite"]
       interval: 5s
       timeout: 5s
       retries: 10
 
   redis:
-    image: redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
+    image: redis:7-alpine
     container_name: wenyousite-redis
     restart: unless-stopped
-    command:
-      - redis-server
-      - --aclfile
-      - /run/secrets/wenyousite/redis-users.acl
-      - --appendonly
-      - "yes"
-      - --appendfsync
-      - everysec
-      - --maxmemory-policy
-      - noeviction
-    environment:
-      REDIS_HEALTH_USERNAME: ${REDIS_HEALTH_USERNAME:-default}
-      REDIS_OPS_USERNAME: ${REDIS_OPS_USERNAME:-default}
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--maxmemory-policy", "noeviction"]
     ports:
       - "127.0.0.1:6379:6379"
-    group_add:
-      - ${WENYOUSITE_SECRETS_GID:-0}
     volumes:
       - redisdata:/data
-      - type: bind
-        source: ${WENYOUSITE_SECRETS_DIR:-./ops/development-secrets}/redis-users.acl
-        target: /run/secrets/wenyousite/redis-users.acl
-        read_only: true
-        bind:
-          create_host_path: false
-      - type: bind
-        source: ${WENYOUSITE_SECRETS_DIR:-./ops/development-secrets}/redis-ops-password
-        target: /run/secrets/wenyousite/redis-ops-password
-        read_only: true
-        bind:
-          create_host_path: false
-      - type: bind
-        source: ${WENYOUSITE_SECRETS_DIR:-./ops/development-secrets}/redis-health-password
-        target: /run/secrets/wenyousite/redis-health-password
-        read_only: true
-        bind:
-          create_host_path: false
     healthcheck:
-      test:
-        - CMD-SHELL
-        - >-
-          if [ -s /run/secrets/wenyousite/redis-health-password ]; then
-            REDISCLI_AUTH=$$(cat /run/secrets/wenyousite/redis-health-password);
-            export REDISCLI_AUTH;
-          fi;
-          redis-cli --user "$${REDIS_HEALTH_USERNAME:-default}" --no-auth-warning ping | grep -qx PONG
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 10
 
   # 仅用于 loadtest profile；与正式 PostgreSQL/Redis 使用独立容器、端口和数据卷。
   loadtest-postgres:
-    image: postgres@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+    image: postgres:17-alpine
     container_name: wenyousite-loadtest-postgres
     profiles: ["loadtest"]
     environment:
@@ -135,13 +51,13 @@ services:
     volumes:
       - loadtest_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "[ \"$$(cat /proc/1/comm)\" = postgres ] && pg_isready -U wenyou_loadtest -d wenyousite_loadtest"]
+      test: ["CMD-SHELL", "pg_isready -U wenyou_loadtest -d wenyousite_loadtest"]
       interval: 5s
       timeout: 5s
       retries: 20
 
   loadtest-redis:
-    image: redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
+    image: redis:7-alpine
     container_name: wenyousite-loadtest-redis
     profiles: ["loadtest"]
     command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--maxmemory-policy", "noeviction"]
@@ -157,9 +73,9 @@ services:
 
 volumes:
   pgdata:
-    name: ${POSTGRES_VOLUME:-wenyousite_pgdata}
+    name: wenyousite_pgdata
   redisdata:
-    name: ${REDIS_VOLUME:-wenyousite_redisdata}
+    name: wenyousite_redisdata
   loadtest_pgdata:
     name: wenyousite_loadtest_pgdata
   loadtest_redisdata:
