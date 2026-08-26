@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "5.12.3-dev.20260826.1",
+  "contractVersion": "5.13.0-dev.20260826.1",
   "counts": {
-    "total": 208,
+    "total": 210,
     "v1": 99,
-    "deferred": 58,
+    "deferred": 60,
     "notApplicable": 50,
     "infrastructure": 1
   },
@@ -710,6 +710,22 @@
       "operationId": "momentsBookmarks",
       "method": "GET",
       "path": "/api/v1/moments/bookmarks",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsBookmarkFolders",
+      "method": "GET",
+      "path": "/api/v1/moments/bookmark-folders",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsCreateBookmarkFolder",
+      "method": "POST",
+      "path": "/api/v1/moments/bookmark-folders",
       "module": "moments",
       "disposition": "deferred",
       "status": "deferred"

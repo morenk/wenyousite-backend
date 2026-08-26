@@ -18,6 +18,9 @@ const mockPrisma = {
     findFirst: jest.fn(),
     create: jest.fn(),
   },
+  momentBookmarkFolder: {
+    findMany: jest.fn(),
+  },
   user: { findUnique: jest.fn() },
   thread: { findUnique: jest.fn() },
   threadMember: { findUnique: jest.fn(), groupBy: jest.fn() },
@@ -380,8 +383,11 @@ describe('BookmarksService', () => {
         isDefault: true,
         createdAt: new Date('2026-08-09T00:00:00.000Z'),
         updatedAt: new Date('2026-08-09T00:00:00.000Z'),
-        _count: { bookmarks: 3, momentBookmarks: 2 },
+        _count: { bookmarks: 3 },
       },
+    ]);
+    mockPrisma.momentBookmarkFolder.findMany.mockResolvedValue([
+      { name: '默认收藏夹', _count: { bookmarks: 2 } },
     ]);
 
     const result = await service.findFolders('u1');
@@ -398,6 +404,10 @@ describe('BookmarksService', () => {
     ]);
     expect(result[0]).not.toHaveProperty('userId');
     expect(result[0]).not.toHaveProperty('updatedAt');
+    expect(mockPrisma.momentBookmarkFolder.findMany).toHaveBeenCalledWith({
+      where: { userId: 'u1', name: { in: ['默认收藏夹'] } },
+      select: { name: true, _count: { select: { bookmarks: true } } },
+    });
   });
 
   it('按收藏夹筛选时校验归属并只查询该分类', async () => {

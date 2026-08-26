@@ -7,11 +7,10 @@ import { PaginatedResult, paginate } from '../common/dto/paginated-result';
 import { publishedThreadVisibilityWhere } from '../access/thread-visibility.where';
 import { attachPlayerCounts } from '../common/prisma-helpers';
 import { mapThreadListCard, threadListCardInclude } from '../threads/thread-list-card';
+import { DEFAULT_BOOKMARK_FOLDER_NAME } from './bookmark-folder.constants';
 
 type BookmarkThread = ReturnType<typeof mapThreadListCard>;
 type OwnBookmarkThread = BookmarkThread & { bookmarkId: string; bookmarkFolderId: string };
-
-export const DEFAULT_BOOKMARK_FOLDER_NAME = '默认收藏夹';
 
 /** 收藏服务：CRUD + 可见性过滤 */
 @Injectable()
@@ -64,25 +63,32 @@ export class BookmarksService {
     );
   }
 
-  /** 当前用户的收藏夹；默认收藏夹始终位于首位。 */
+  /** 当前用户的主题帖收藏夹；默认收藏夹始终位于首位。 */
   async findFolders(userId: string) {
     await this.ensureDefaultFolder(this.prisma, userId);
     const folders = await this.prisma.bookmarkFolder.findMany({
       where: { userId },
       orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
-      include: { _count: { select: { bookmarks: true, momentBookmarks: true } } },
+      include: { _count: { select: { bookmarks: true } } },
     });
+    const momentFolders = await this.prisma.momentBookmarkFolder.findMany({
+      where: { userId, name: { in: folders.map((folder) => folder.name) } },
+      select: { name: true, _count: { select: { bookmarks: true } } },
+    });
+    const momentCounts = new Map(
+      momentFolders.map((folder) => [folder.name, folder._count.bookmarks]),
+    );
     return folders.map((folder) => ({
       id: folder.id,
       name: folder.name,
       isDefault: folder.isDefault,
       createdAt: folder.createdAt,
       bookmarkCount: folder._count.bookmarks,
-      momentBookmarkCount: folder._count.momentBookmarks,
+      momentBookmarkCount: momentCounts.get(folder.name) ?? 0,
     }));
   }
 
-  /** 新建自定义收藏夹。 */
+  /** 新建自定义主题帖收藏夹。 */
   async createFolder(userId: string, rawName: string) {
     const name = rawName.trim();
     if (!name) throw new BusinessException(ErrorCode.BAD_REQUEST, '收藏夹名称不能为空');

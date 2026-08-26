@@ -1,5 +1,11 @@
 # API 合同变更
 
+## 5.13.0-dev.20260826.1
+
+- 主题帖夹与动态夹拆为两套独立目录：新增 `moment_bookmark_folders`，动态收藏外键只能引用动态夹；同一账号可在两套目录中分别创建同名条目，各自拥有默认夹、唯一约束、计数和筛选范围。
+- 新增 `GET /moments/bookmark-folders`（`momentsBookmarkFolders`）与 `POST /moments/bookmark-folders`（`momentsCreateBookmarkFolder`）。原 `GET/POST /bookmarks/folders` 明确只管理主题帖夹；原响应中的 `momentBookmarkCount` 标记为旧客户端兼容字段，新客户端不得据此合并目录。
+- 迁移把既有目录等 ID 复制到动态夹表，旧无请求体动态收藏继续进入动态默认夹；旧客户端传原主题帖夹 ID 时只映射到独立的同名动态夹，不会让动态收藏引用主题帖夹。公开收藏响应、`showBookmarks`、收藏计数与内容可见性不变。
+
 ## 5.12.3-dev.20260826.1
 
 - 他人在主题内发表新主楼层时，主题楼主现在收到 `type/action=reply` 的直接互动通知，`replyTargetUserId/replyTargetName` 指向楼主；客户端因此显示“发送者 回复了你”并归入“互动”。

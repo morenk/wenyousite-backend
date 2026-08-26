@@ -6,7 +6,7 @@
 
 发现/关注流、动态搜索、当前用户收藏、公开用户收藏和用户主页动态统一复用 `MomentCardResponseDto` 投影。搜索只额外附加可选相关度；本人的动态收藏额外附加私有 `bookmarkFolderId`，公开动态收藏不包含收藏记录或收藏夹字段。各入口自己的排序和游标保持独立，登录查看时 `viewerLiked` / `viewerBookmarked` 都按当前查看者计算。
 
-动态收藏与主题帖共用私有收藏夹。`POST /moments/:id/bookmark` 的请求体和 `folderId` 均可省略以兼容旧客户端；首次收藏进入默认收藏夹。本人可通过 `GET /moments/bookmarks?folderId=` 筛选并用 `PATCH /moments/:id/bookmark` 移动。`GET /users/:id/moment-bookmarks` 服从 `showBookmarks`，并继续应用软删除和双向拉黑过滤。
+动态收藏使用独立于主题帖夹的私有动态夹；`GET/POST /moments/bookmark-folders` 分别负责目录读取与新建，同一账号可在两套目录中使用相同名称。`POST /moments/:id/bookmark` 的请求体和 `folderId` 均可省略以兼容旧客户端；首次收藏进入动态默认夹。本人可通过 `GET /moments/bookmarks?folderId=` 筛选并用 `PATCH /moments/:id/bookmark` 移动。迁移保留旧共享目录 ID，旧客户端传主题帖夹 ID 时只会映射到独立的同名动态夹。`GET /users/:id/moment-bookmarks` 服从 `showBookmarks`，并继续应用软删除和双向拉黑过滤。
 
 已注销作者的未删除动态是可定位的历史墓碑：详情、显式搜索、本人已收藏和公开收藏可继续读取，响应返回 `canInteract=false`；发现流、关注流和已注销用户的主页动态列表不展示这些内容。墓碑禁止新增点赞、评论、收藏、移动收藏和加油；已有点赞/收藏可取消，既有评论仍可由有权用户删除、举报或治理。旧客户端忽略新字段，服务端仍是写入权限的事实源。
 

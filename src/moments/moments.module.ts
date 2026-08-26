@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { BookmarksModule } from '../bookmarks/bookmarks.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { OutboxModule } from '../outbox/outbox.module';
 import { StickersModule } from '../stickers/stickers.module';
@@ -12,13 +11,7 @@ import { MediaReferenceModule } from '../media/media-reference.module';
 import { MomentAccessService } from './moment-access.service';
 
 @Module({
-  imports: [
-    BookmarksModule,
-    NotificationsModule,
-    OutboxModule,
-    StickersModule,
-    MediaReferenceModule,
-  ],
+  imports: [NotificationsModule, OutboxModule, StickersModule, MediaReferenceModule],
   controllers: [MomentsController, UserMomentsController],
   providers: [
     MomentAccessService,

@@ -79,8 +79,8 @@
 |---|---|---|---|
 | GET | `/bookmarks` | authenticated | 我的收藏列表（Cursor 分页） |
 | POST | `/bookmarks` | authenticated | 收藏主题帖 |
-| GET | `/bookmarks/folders` | authenticated | 获取我的收藏夹分类 |
-| POST | `/bookmarks/folders` | authenticated | 新建收藏夹分类 |
+| GET | `/bookmarks/folders` | authenticated | 获取我的主题帖收藏夹分类 |
+| POST | `/bookmarks/folders` | authenticated | 新建主题帖收藏夹分类 |
 | PATCH | `/bookmarks/{id}` | authenticated | 移动收藏到其他收藏夹 |
 | DELETE | `/bookmarks/{id}` | authenticated | 取消收藏 |
 
@@ -141,6 +141,8 @@
 | GET | `/moments` | optional | 动态瀑布流；发现为热度，新鲜关注为时间倒序 |
 | POST | `/moments` | authenticated | 发布纯文本/图片动态，最多 9 张图片 |
 | GET | `/moments/bookmarks` | authenticated | 当前用户收藏的动态 |
+| GET | `/moments/bookmark-folders` | authenticated | 获取我的动态收藏夹分类 |
+| POST | `/moments/bookmark-folders` | authenticated | 新建动态收藏夹分类 |
 | GET | `/moments/{id}` | optional | 获取动态详情 |
 | PATCH | `/moments/{id}` | authenticated | 编辑自己的动态，使用 version 乐观锁 |
 | DELETE | `/moments/{id}` | authenticated | 软删除动态 |

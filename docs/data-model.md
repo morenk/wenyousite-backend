@@ -455,9 +455,15 @@
 
 ### bookmark_folders / user_bookmarks — 主题帖收藏夹
 
-`bookmark_folders` 保存用户私有分类：`userId + name` 唯一，`isDefault` 标识不可缺少的默认收藏夹，数据库部分唯一索引保证每个用户最多一个默认夹。`user_bookmarks.folderId` 为必填外键并按收藏夹和创建时间建立索引；`userId + threadId` 仍保持唯一，因此同一主题帖不能重复放入多个收藏夹，只能移动分类。
+`bookmark_folders` 只保存主题帖私有分类：`userId + name` 唯一，`isDefault` 标识不可缺少的主题帖默认夹，数据库部分唯一索引保证每个用户最多一个默认夹。`user_bookmarks.folderId` 为必填外键并按收藏夹和创建时间建立索引；`userId + threadId` 仍保持唯一，因此同一主题帖不能重复放入多个收藏夹，只能移动分类。
 
 迁移为所有已有用户创建“默认收藏夹”并回填历史收藏；新用户注册事务同步创建。删除用户级联删除收藏夹和收藏，删除主题帖仍级联删除对应收藏。
+
+### moment_bookmark_folders / moment_bookmarks — 动态收藏夹
+
+`moment_bookmark_folders` 是与主题帖夹物理独立的动态目录，拥有自己的 `userId + name` 唯一约束和每用户单默认夹约束。因此两套目录可分别存在同名条目，`moment_bookmarks.folderId` 的外键只能指向动态夹。
+
+拆分迁移把历史 `bookmark_folders` 等 ID 复制到动态夹表，并把动态收藏外键切换到新表，所以旧客户端保存的目录 ID 在兼容窗口内仍可使用。新账号注册事务同时创建主题帖默认夹和动态默认夹；以后任一目录集的新建、计数与筛选均不影响另一目录集。
 
 ### topic_tags — 平台全局标签
 

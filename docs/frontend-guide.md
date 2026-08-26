@@ -256,6 +256,8 @@ GET /subthreads/:id/posts/authors
 
 `POST /moments/:id/comments` 支持纯文本以及可选的单个媒体位：普通图片传 `mediaId`，收藏表情传 `stickerAssetId`。正文、图片、表情至少提供一项；`mediaId` 与 `stickerAssetId` 不能同时出现。普通图片必须由当前用户上传、已完成处理且尚未绑定其他内容，表情必须仍在当前用户收藏夹中。
 
+合同 `5.13.0` 起，主题帖夹与动态夹是两套独立目录。主题帖目录使用 `GET/POST /bookmarks/folders`，动态目录使用 `GET/POST /moments/bookmark-folders`；筛选、创建、移动和缓存 key 都必须按内容类型隔离。两套目录允许同名，客户端不得按名称或旧共享 ID 合并列表。
+
 评论响应会返回互斥的 `media` / `sticker`；图片或表情评论的 `content` 可以是空字符串，删除后正文和媒体都返回 `null`。旧客户端可忽略新增字段并继续发布纯文字评论。
 
 `GET /moments/:id/comments` 的 `order` 只控制主评论，默认 `NEWEST`；每条主评论内嵌的最早三条楼中楼固定按时间正序返回。`GET /moments/:id/comments/:commentId/replies` 默认 `OLDEST`，仍兼容显式 `NEWEST`。产品界面应让主评论排序与楼中楼排序解耦，折叠预览和展开列表都默认从最早回复排到最新回复。

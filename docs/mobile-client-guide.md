@@ -95,9 +95,9 @@ OpenAPI 为兼容 Web 把该头标为 optional；省略或传未知值会创建 
 
 合同 `5.5.0-dev.20260822.1` 起，`postsFindFloors` 可传 `authorId` 只筛选主楼层。合同 `5.6.0-dev.20260823.1` 向后兼容新增 deferred 的 `postsFindFloorAuthors` 与 `postsFindReplyAuthors`：前者只给出当前子贴实际发布过主楼层的角色作者，后者只给出指定主楼层下实际回复过的角色作者。当前移动端可继续省略新接口并沿用原排序、分页和响应；Windows 后续同步固定 OpenAPI、重新生成 SDK 后，应以这两个范围化目录替代 `threadMembersFindAll` 的整帖候选。应用作者或顺序筛选时清空 cursor 并一次重载首页，主楼层筛选不得在客户端二次裁剪内嵌楼中楼。
 
-用户公开资料的 `accountStatus` 只用于显示“暂时封禁 / 永久封禁”，客户端不得推算或展示处罚截止时间。主题帖快捷收藏继续只传 `threadId` 即可进入默认收藏夹；支持分类管理的客户端再读取 `/bookmarks/folders`、传可选 `folderId` 并使用 `PATCH /bookmarks/:id` 移动。合同 `5.2.0-dev.20260818.1` 起，动态收藏也可选传 `folderId`，按分类读取 `/moments/bookmarks` 并通过 `PATCH /moments/:id/bookmark` 移动；旧的无请求体收藏调用继续进入默认夹。收藏夹名称和本人归类字段只能在本人界面展示。
+用户公开资料的 `accountStatus` 只用于显示“暂时封禁 / 永久封禁”，客户端不得推算或展示处罚截止时间。主题帖快捷收藏继续只传 `threadId` 即可进入主题帖默认夹；分类管理读取和新建 `/bookmarks/folders`，并使用 `PATCH /bookmarks/:id` 移动。合同 `5.13.0` 起，动态夹与主题帖夹完全独立，读取和新建使用 `/moments/bookmark-folders`，动态收藏按分类读取 `/moments/bookmarks` 并通过 `PATCH /moments/:id/bookmark` 移动；两套目录可分别创建同名条目。旧的无请求体收藏调用继续进入动态默认夹，旧客户端传原共享目录 ID 时后端会兼容映射到同名动态夹。收藏夹名称和本人归类字段只能在本人界面展示。
 
-公开资料可通过 `/users/:id/moment-bookmarks` 展示动态收藏，并与主题帖收藏共同服从 `showBookmarks`。公开接口不得展示 `bookmarkFolderId` 或收藏夹名称；移动端动态与动态收藏仍为 deferred，实际实现必须在 Windows 环境完成。
+公开资料可通过 `/users/:id/moment-bookmarks` 展示动态收藏，并与主题帖收藏共同服从 `showBookmarks`。公开接口不得展示 `bookmarkFolderId` 或收藏夹名称；移动端必须在 Windows 环境同步目录拆分契约，把目录仓储、创建入口、筛选和选择器按内容类型拆开，VPS 不修改或生成移动端代码。
 
 合同 `5.1.0-dev.20260817.1` 起，首页、主题帖搜索、收藏及用户主页创建/参与列表都携带同一完整主题帖卡片字段。Windows 开发环境同步 OpenAPI 并重新生成 SDK 后，应让这些入口复用首页卡片 mapper；搜索的 `relevance` 与本人收藏的 `bookmarkId` / `bookmarkFolderId` 仍作为场景附加字段处理。旧客户端可继续忽略新增字段。
 

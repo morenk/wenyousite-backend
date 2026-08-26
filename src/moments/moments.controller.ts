@@ -29,7 +29,9 @@ import {
 } from './dto/moment-response.dto';
 import { CreateMomentCommentDto, CreateMomentDto, UpdateMomentDto } from './dto/moment-write.dto';
 import {
+  CreateMomentBookmarkFolderDto,
   CreateMomentBookmarkDto,
+  MomentBookmarkFolderResponseDto,
   MomentBookmarkPlacementResponseDto,
   MomentBookmarkQueryDto,
   MoveMomentBookmarkDto,
@@ -65,6 +67,27 @@ export class MomentsController {
   @ApiCursorPaginatedResponse(OwnMomentBookmarkResponseDto, '动态收藏游标分页，含私有收藏夹 ID')
   bookmarks(@Query() query: MomentBookmarkQueryDto, @CurrentUser() user: CurrentUserPayload) {
     return this.bookmarksService.listMine(query.cursor, query.limit, user, query.folderId);
+  }
+
+  @Get('bookmark-folders')
+  @AuthRead()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '获取我的动态收藏夹分类' })
+  @ApiOkResponse({ type: MomentBookmarkFolderResponseDto, isArray: true })
+  bookmarkFolders(@CurrentUser() user: CurrentUserPayload) {
+    return this.bookmarksService.listFolders(user.id);
+  }
+
+  @Post('bookmark-folders')
+  @Auth()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '新建动态收藏夹分类' })
+  @ApiCreatedResponse({ type: MomentBookmarkFolderResponseDto })
+  createBookmarkFolder(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() dto: CreateMomentBookmarkFolderDto,
+  ) {
+    return this.bookmarksService.createFolder(user.id, dto.name);
   }
 
   @Post()

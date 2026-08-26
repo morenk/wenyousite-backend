@@ -198,6 +198,9 @@ export class AuthService {
               bookmarkFolders: {
                 create: { name: '默认收藏夹', isDefault: true },
               },
+              momentBookmarkFolders: {
+                create: { name: '默认收藏夹', isDefault: true },
+              },
             },
             select: userSelectPublic,
           });

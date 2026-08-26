@@ -3977,7 +3977,7 @@
             "bearer": []
           }
         ],
-        "summary": "获取我的收藏夹分类",
+        "summary": "获取我的主题帖收藏夹分类",
         "tags": [
           "Bookmarks"
         ],
@@ -4039,7 +4039,7 @@
             "bearer": []
           }
         ],
-        "summary": "新建收藏夹分类",
+        "summary": "新建主题帖收藏夹分类",
         "tags": [
           "Bookmarks"
         ],
@@ -6946,6 +6946,122 @@
         ],
         "x-auth-mode": "authenticated",
         "x-pagination": "cursor"
+      }
+    },
+    "/api/v1/moments/bookmark-folders": {
+      "get": {
+        "operationId": "momentsBookmarkFolders",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsBookmarkFolders200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "获取我的动态收藏夹分类",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "authenticated"
+      },
+      "post": {
+        "operationId": "momentsCreateBookmarkFolder",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMomentBookmarkFolderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MomentsCreateBookmarkFolder201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "新建动态收藏夹分类",
+        "tags": [
+          "Moments"
+        ],
+        "x-auth-mode": "authenticated"
       }
     },
     "/api/v1/moments/{id}": {
@@ -17732,7 +17848,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.12.3-dev.20260826.1",
+    "version": "5.13.0-dev.20260826.1",
     "contact": {}
   },
   "tags": [
@@ -20201,7 +20317,8 @@
           "momentBookmarkCount": {
             "type": "number",
             "minimum": 0,
-            "description": "该收藏夹中的动态收藏数量"
+            "deprecated": true,
+            "description": "旧客户端兼容字段：同名动态收藏夹中的收藏数量"
           },
           "createdAt": {
             "type": "string",
@@ -21883,6 +22000,49 @@
           "createdAt",
           "updatedAt",
           "bookmarkFolderId"
+        ]
+      },
+      "MomentBookmarkFolderResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "momentBookmarkCount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "isDefault",
+          "momentBookmarkCount",
+          "createdAt"
+        ]
+      },
+      "CreateMomentBookmarkFolderDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "稍后阅读",
+            "minLength": 1,
+            "maxLength": 24
+          }
+        },
+        "required": [
+          "name"
         ]
       },
       "CreateMomentDto": {
@@ -28837,6 +28997,45 @@
                 "items": {
                   "$ref": "#/components/schemas/OwnMomentBookmarkResponseDto"
                 }
+              }
+            }
+          }
+        ]
+      },
+      "MomentsBookmarkFolders200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MomentBookmarkFolderResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "MomentsCreateBookmarkFolder201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MomentBookmarkFolderResponseDto"
               }
             }
           }

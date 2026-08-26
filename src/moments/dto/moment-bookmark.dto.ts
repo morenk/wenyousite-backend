@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, Length } from 'class-validator';
 import { IsCuid } from '../../common/decorators/is-cuid.decorator';
 import { CursorPaginationDto } from '../../common/dto/pagination.dto';
 import { MomentCardResponseDto } from './moment-response.dto';
@@ -25,6 +25,30 @@ export class MoveMomentBookmarkDto {
   @IsString()
   @IsCuid()
   folderId!: string;
+}
+
+export class CreateMomentBookmarkFolderDto {
+  @ApiProperty({ example: '稍后阅读', minLength: 1, maxLength: 24 })
+  @IsString()
+  @Length(1, 24)
+  name!: string;
+}
+
+export class MomentBookmarkFolderResponseDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty()
+  isDefault!: boolean;
+
+  @ApiProperty({ minimum: 0 })
+  momentBookmarkCount!: number;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  createdAt!: Date;
 }
 
 export class OwnMomentBookmarkResponseDto extends MomentCardResponseDto {

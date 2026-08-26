@@ -1,8 +1,14 @@
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req } from '@nestjs/common';
 import {
-  Controller, Get, Post, Patch, Delete,
-  Body, Param, Query, Req,
-} from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse, ApiCreatedResponse, ApiUnauthorizedResponse, ApiConflictResponse, ApiNotFoundResponse } from '@nestjs/swagger';
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiCreatedResponse,
+  ApiUnauthorizedResponse,
+  ApiConflictResponse,
+  ApiNotFoundResponse,
+} from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { BookmarksService } from './bookmarks.service';
 import { CreateBookmarkDto } from './dto/create-bookmark.dto';
@@ -28,7 +34,10 @@ export class BookmarksController {
   @Get()
   @AuthRead()
   @ApiOperation({ summary: '我的收藏列表（Cursor 分页）' })
-  @ApiCursorPaginatedResponse(OwnBookmarkThreadResponseDto, '我的收藏列表（cursor 分页，含帖子摘要）')
+  @ApiCursorPaginatedResponse(
+    OwnBookmarkThreadResponseDto,
+    '我的收藏列表（cursor 分页，含帖子摘要）',
+  )
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   async findAll(@Req() req: FastifyRequest, @Query() query: BookmarkQueryDto) {
     const user = req['user'] as { id: string };
@@ -37,7 +46,7 @@ export class BookmarksController {
 
   @Get('folders')
   @AuthRead()
-  @ApiOperation({ summary: '获取我的收藏夹分类' })
+  @ApiOperation({ summary: '获取我的主题帖收藏夹分类' })
   @ApiOkResponse({ type: BookmarkFolderResponseDto, isArray: true })
   findFolders(@Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
@@ -46,7 +55,7 @@ export class BookmarksController {
 
   @Post('folders')
   @Auth()
-  @ApiOperation({ summary: '新建收藏夹分类' })
+  @ApiOperation({ summary: '新建主题帖收藏夹分类' })
   @ApiCreatedResponse({ type: BookmarkFolderResponseDto })
   createFolder(@Req() req: FastifyRequest, @Body() dto: CreateBookmarkFolderDto) {
     const user = req['user'] as { id: string };
@@ -70,11 +79,7 @@ export class BookmarksController {
   @ApiOperation({ summary: '移动收藏到其他收藏夹' })
   @ApiOkResponse({ type: BookmarkResponseDto })
   @ApiNotFoundResponse({ description: '收藏或收藏夹不存在' })
-  move(
-    @Req() req: FastifyRequest,
-    @Param('id') id: string,
-    @Body() dto: MoveBookmarkDto,
-  ) {
+  move(@Req() req: FastifyRequest, @Param('id') id: string, @Body() dto: MoveBookmarkDto) {
     const user = req['user'] as { id: string };
     return this.bookmarksService.move(id, user.id, dto.folderId);
   }
