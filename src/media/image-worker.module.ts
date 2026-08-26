@@ -9,6 +9,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { RedisModule } from '../redis/redis.module';
 import { MediaModule } from './media.module';
 import { ImageProcessor } from './image.processor';
+import { redisConnectionOptions } from '../redis/redis-connection';
 
 /** 独立图片 Worker：只消费 image 队列，不启动 HTTP 服务器或其他业务消费者。 */
 @Module({
@@ -22,11 +23,7 @@ import { ImageProcessor } from './image.processor';
     BullModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        connection: {
-          host: config.get<string>('redis.host'),
-          port: config.get<number>('redis.port'),
-          db: config.get<number>('redis.db'),
-        },
+        connection: redisConnectionOptions(config),
       }),
     }),
     EventEmitterModule.forRoot(),

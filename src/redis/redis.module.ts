@@ -7,6 +7,7 @@ import { RedisService } from './redis.service';
 import { CacheService } from './cache.service';
 import { ThrottlerRedisStorage } from './throttler-redis.storage';
 import { CacheInvalidationListener } from './cache-invalidation.listener';
+import { redisConnectionOptions, redisConnectionUrl } from './redis-connection';
 
 /** Redis 全局模块：提供缓存(CacheManager)、计数器(RedisService)、限流存储(ThrottlerRedisStorage) */
 @Global()
@@ -16,13 +17,9 @@ import { CacheInvalidationListener } from './cache-invalidation.listener';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
-        const host = config.get<string>('redis.host');
-        const port = config.get<number>('redis.port');
-        const db = config.get<number>('redis.db') ?? 0;
+        const connection = redisConnectionOptions(config);
         return {
-          stores: [
-            createKeyv(`redis://${host}:${port}/${db}`),
-          ],
+          stores: [createKeyv(redisConnectionUrl(connection))],
           ttl: 60000, // 默认 60 秒
         };
       },
@@ -34,9 +31,7 @@ import { CacheInvalidationListener } from './cache-invalidation.listener';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         return new Redis({
-          host: config.get<string>('redis.host'),
-          port: config.get<number>('redis.port'),
-          db: config.get<number>('redis.db') ?? 0,
+          ...redisConnectionOptions(config),
           lazyConnect: true,
           maxRetriesPerRequest: null, // BullMQ 兼容
           retryStrategy: (times) => Math.min(times * 50, 2000),

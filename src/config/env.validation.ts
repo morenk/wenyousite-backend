@@ -38,6 +38,11 @@ export class EnvironmentVariables {
   @IsString()
   DATABASE_URL: string = 'postgresql://wenyou:wenyou@127.0.0.1:5432/wenyousite?schema=public';
 
+  // Prisma CLI / migration 专用连接；运行进程不得读取此凭据。
+  @IsString()
+  @IsOptional()
+  DIRECT_DATABASE_URL: string = '';
+
   @IsString()
   @IsOptional()
   REDIS_HOST: string = '127.0.0.1';
@@ -51,6 +56,14 @@ export class EnvironmentVariables {
   @Min(0)
   @Max(15)
   REDIS_DB: number = 0;
+
+  @IsString()
+  @IsOptional()
+  REDIS_USERNAME: string = '';
+
+  @IsString()
+  @IsOptional()
+  REDIS_PASSWORD: string = '';
 
   // 全局请求限流；正式环境默认每秒 10 个请求，隔离压测实例可单独提高。
   @IsNumber()
@@ -309,6 +322,48 @@ export function validate(config: Record<string, unknown>) {
     const configuredDatabaseUrl = config.DATABASE_URL;
     if (typeof configuredDatabaseUrl !== 'string' || !configuredDatabaseUrl.trim()) {
       throw new Error('生产环境 DATABASE_URL 必须显式配置');
+    }
+    let databaseUrl: URL;
+    try {
+      databaseUrl = new URL(validatedConfig.DATABASE_URL);
+    } catch {
+      throw new Error('生产环境 DATABASE_URL 必须是合法 PostgreSQL URL');
+    }
+    if (
+      !['postgres:', 'postgresql:'].includes(databaseUrl.protocol) ||
+      !databaseUrl.username ||
+      !databaseUrl.password
+    ) {
+      throw new Error('生产环境 DATABASE_URL 必须包含 PostgreSQL 运行角色和密码');
+    }
+    if (validatedConfig.HOST !== '127.0.0.1' && validatedConfig.HOST !== '::1') {
+      throw new Error('生产环境 HOST 必须只监听 loopback');
+    }
+    const databasePort = databaseUrl.port || '5432';
+    const isolatedLoadtest =
+      validatedConfig.PORT === 3100 &&
+      databaseUrl.hostname === '127.0.0.1' &&
+      databasePort === '55432' &&
+      decodeURIComponent(databaseUrl.username) === 'wenyou_loadtest' &&
+      validatedConfig.REDIS_HOST === '127.0.0.1' &&
+      validatedConfig.REDIS_PORT === 56379;
+    if (!isolatedLoadtest) {
+      if (
+        decodeURIComponent(databaseUrl.username) !== 'wenyousite_app' ||
+        decodeURIComponent(databaseUrl.password) === 'wenyou'
+      ) {
+        throw new Error('生产环境 DATABASE_URL 必须使用非默认 wenyousite_app 运行凭据');
+      }
+      if (!validatedConfig.REDIS_USERNAME || !validatedConfig.REDIS_PASSWORD) {
+        throw new Error('生产环境 Redis 必须配置 ACL 用户名和密码');
+      }
+      if (
+        validatedConfig.REDIS_USERNAME !== 'wenyousite_app' ||
+        validatedConfig.REDIS_PASSWORD.length < 24 ||
+        validatedConfig.REDIS_PASSWORD.startsWith('change-me')
+      ) {
+        throw new Error('生产环境 Redis 必须使用至少 24 字符的 wenyousite_app ACL 凭据');
+      }
     }
     if (
       !validatedConfig.JWT_ACCESS_SECRET ||
