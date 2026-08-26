@@ -38,6 +38,7 @@
 - 当提供 `authorId` 时，查询 WHERE 条件为 OR：`type='THREAD'` 或 `type='USER' AND targetUserId=authorId`，即合并"订阅整帖"与"订阅了发帖者"的用户
 - **THREAD 订阅限制**：只有发帖时角色快照是 OWNER/COLLABORATOR 时才触发；USER 订阅仅在发帖时角色快照为已标记普通玩家时触发
 - 订阅来源统一使用 `new_post`；楼层/正文为 `action=new_post`，楼中楼为 `action=new_reply`。直接被回复者若同时订阅，仍只收到优先级更高的 `reply`；@提及优先于两者
+- 他人发表新主楼层时，主题楼主因内容归属收到 `reply` 互动而非订阅通知；非作者协作者和实际订阅者继续收到 `new_post`
 
 ## 设计决策
 

@@ -1,5 +1,10 @@
 # API 合同变更
 
+## 5.12.3-dev.20260826.1
+
+- 他人在主题内发表新主楼层时，主题楼主现在收到 `type/action=reply` 的直接互动通知，`replyTargetUserId/replyTargetName` 指向楼主；客户端因此显示“发送者 回复了你”并归入“互动”。
+- 同一主楼层对非作者协作者和实际订阅者仍使用 `type/action=new_post` 与“发布了新楼层”，继续归入“订阅”；子贴正文和 5.12.2 的楼中楼原因分流保持不变。显式提及仍优先，拉黑与 PRIVATE 成员过滤、导航目标和接收范围均不扩大；历史通知不回填。
+
 ## 5.12.2-dev.20260826.1
 
 - `POST /subthreads/:subthreadId/posts` 收紧楼中楼父级不变量：携带 `replyToPostId` 时必须同时携带 `parentPostId`，且回复目标必须是该主楼层本身或其直属楼中楼回复；非法组合返回 HTTP 400，现有合法请求不变。

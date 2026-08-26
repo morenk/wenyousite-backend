@@ -6,7 +6,7 @@
 
 | 类型       | 枚举值           | 触发事件                                                                               | 触发源                                                                            | 触发位置                                                         |
 | ---------- | ---------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| 楼中楼回复 | `reply`          | `post.created`（`parentPostId` 非空 + `!isSubthreadBody`）                             | `PostEventsListener`                                                              | `src/post-activity/post-events.listener.ts`                      |
+| 直接回复   | `reply`          | `post.created`（新主楼层对主题楼主，或楼中楼对直接被回复者）                          | `PostEventsListener`                                                              | `src/post-activity/post-events.listener.ts`                      |
 | @提及      | `mention`        | `post.created`（新帖提及）或 `post.mentions.updated`（编辑新增提及）                  | `PostEventsListener`                                                              | `src/post-activity/post-events.listener.ts`                      |
 | 新帖通知   | `new_post`       | `post.created`（主楼层/正文，或楼中楼的管理者与订阅观察原因）                         | `PostEventsListener`                                                              | `src/post-activity/post-events.listener.ts`                      |
 | 新主题帖   | `thread_created` | 主题帖 PATCH published=true                                                            | `ThreadEventsListener`                                                            | `src/threads/thread-events.listener.ts`                          |
@@ -28,23 +28,27 @@
 
 ## 接收者矩阵
 
-### 1. reply — 楼中楼回复
+### 1. reply — 主题或楼层的直接回复
 
-**触发条件**：帖子 `parentPostId` 非空（即楼中楼回复）
+**触发条件**：
+
+- 他人发表新主楼层（`parentPostId` 为空且 `!isSubthreadBody`）时，对主题楼主生成直接互动
+- 帖子 `parentPostId` 非空时，对楼中楼的直接被回复者生成互动
 
 **接收者**：
 
-| 角色     | 获取方式                                                                        | 来源        |
-| -------- | ------------------------------------------------------------------------------- | ----------- |
-| 被回复者 | 发帖事务内快照：优先取 `replyToPostId` 作者，未指定时取 `parentPostId` 作者     | 单个用户 ID |
+| 场景       | 直接目标                                                                     | 其他接收者                                           |
+| ---------- | ---------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 新主楼层   | 主题楼主                                                                     | 无；非作者协作者和实际订阅者另收 `new_post`         |
+| 楼中楼回复 | 发帖事务内快照：优先取 `replyToPostId` 作者，未指定时取 `parentPostId` 作者 | 管理者和有效订阅者按 5.12.2 另收 `new_post/new_reply` |
 
-直接回复通知的 payload 携带 `replyTargetUserId/replyTargetName`。升级前的旧 Outbox 事件会回查目标；回查暂时失败时保持事件待重试，但不会阻断下述管理者/订阅观察更新。
+新主楼层的目标是主题楼主；楼中楼使用发帖事务内的直接目标快照。两种直接回复通知都携带 `replyTargetUserId/replyTargetName`。升级前的旧楼中楼 Outbox 事件会回查目标；回查暂时失败时保持事件待重试，但不会阻断下述管理者/订阅观察更新。
 
 **去重与过滤**：
 
-1. 被回复者等于作者本人时不发送直接回复通知
+1. 新主楼层不向主题楼主本人发帖的情况发送互动；楼中楼被回复者等于作者本人时也不发送直接回复通知
 2. 显式 mention 已覆盖时不再发送 reply
-3. 双向过滤拉黑关系；该用户即使也是管理者或订阅者，也不再进入低优先级观察通知
+3. 双向过滤拉黑关系；楼主或楼中楼目标即使也是其他通知来源的接收者，也不再进入低优先级观察通知
 
 ### 2. mention — @提及
 
@@ -72,12 +76,12 @@
 
 | 角色          | 获取方式                                                                                        |
 | ------------- | ----------------------------------------------------------------------------------------------- |
-| 楼主 + 协作者 | `ThreadMember.findMany({ role: { in: [OWNER, COLLABORATOR] }, userId: { not: event.userId } })` |
+| 楼主 + 协作者 | 子贴正文通知全部非作者管理者；新主楼层排除楼主（楼主另收 `reply`），保留非作者协作者             |
 | 订阅者        | `SubscriptionsService.findSubscribers()`；仅当发帖者是楼主/协作者时包含 THREAD 订阅者           |
 
 **去重与过滤**：
 
-1. 成员查询已排除发帖者自己
+1. 成员查询已排除发帖者自己；新主楼层再排除已转为 `reply` 的主题楼主
 2. **角色快照限制**：THREAD 仅在发帖时角色为 OWNER/COLLABORATOR 时触发；USER 仅在发帖时角色为 `PARTICIPANT + playerMarked=true` 时触发
 3. 合并到 `Set` → 去重
 4. 双向过滤拉黑（`authorBlockedIds` + `blockedAuthorIds`）
@@ -290,8 +294,8 @@ WHERE threadId = {threadId}
 | ---------------- | --------- | --------------------------------------------- |
 | `actorName`      | string    | 操作者用户名（系统通知为空）                  |
 | `action`         | string    | 开放式动作（mention / reply / new_post / new_reply / like 等） |
-| `replyTargetUserId` | string? | 实际被回复帖作者 ID（reply 时存在）            |
-| `replyTargetName` | string?  | 实际被回复帖作者用户名（reply 时存在）         |
+| `replyTargetUserId` | string? | 实际回复目标用户 ID：新主楼层为主题楼主，楼中楼为目标帖作者 |
+| `replyTargetName` | string?  | 实际回复目标用户名（reply 时存在）                         |
 | `preview`        | string    | 正文智能截断纯文本（可选）                    |
 | `subthreadTitle` | string?   | 子贴标题（mention / new_post 时存在）         |
 | `threadTitle`    | string?   | 点赞聚合的主题帖标题                          |
@@ -300,7 +304,7 @@ WHERE threadId = {threadId}
 | `newRole`        | string?   | 任免后角色（COLLABORATOR / PARTICIPANT）      |
 | `eventKeys`      | string[]? | 点赞聚合已处理的事件键，防止队列重试重复累加  |
 
-新版客户端优先使用结构化字段分段展示。直接回复目标等于通知 `userId` 时可显示“回复了你”；`new_reply` 显示“发布了楼中楼回复”并归入 `new_post` 所在订阅分组。结构化字段不完整或动作未知时回退到完整 `content`。
+新版客户端优先使用结构化字段分段展示。新主楼层对主题楼主，以及楼中楼对直接目标，都在目标等于通知 `userId` 时显示“回复了你”；`new_reply` 显示“发布了楼中楼回复”并归入 `new_post` 所在订阅分组。结构化字段不完整或动作未知时回退到完整 `content`。
 
 ---
 

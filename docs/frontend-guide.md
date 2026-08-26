@@ -324,6 +324,8 @@ POST   /notifications/read-all    全部已读
 
 每条通知含 `type`、`content`（可读文本）、`payload.schemaVersion` 与具名 `target`。只有 `target.state=ACTIVE` 时才按 `target.kind`（`post` / `thread` / `moment` / `user`）导航；`CONTENT_DELETED` / `USER_DEACTIVATED` 是不可点击且已读的历史态，`NO_TARGET` 用于普通系统通知。PRIVATE 主题通知按当前成员资格过滤。新增 payload 字段时保持向后兼容，未知通知类型应降级展示 `content`。
 
+他人发表新主楼层时，主题楼主收到 `type/action=reply`，`replyTargetUserId/replyTargetName` 指向楼主并归入互动；非作者协作者和实际订阅者对同一楼层仍收到 `new_post`。Web 可继续使用中性“回复了”文案，跳转仍定位新楼层。
+
 ---
 
 ## 5. 图片上传管线

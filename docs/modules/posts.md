@@ -63,6 +63,7 @@
 - 已发布帖在创建帖子同一事务中写入 `post.created` Outbox，由 PostEventsListener 解耦处理 @提及、通知和 Redis 投影
 - 编辑使用乐观锁 version 防止并发编辑冲突，且仅作者可编辑；删除允许作者或 OWNER/COLLABORATOR 软删除他人楼层/回复
 - `post.created` 事件携带发帖时 `authorRole`、`authorPlayerMarked` 与直接回复目标快照；订阅通知不读取异步处理时的当前角色，目标二次读取失败也不阻断仍有效的观察者更新
+- 他人发表主楼层时，主题楼主收到以楼主为目标的 `reply` 互动；非作者协作者和实际订阅者仍收到 `new_post` 更新。子贴正文和楼中楼的既有原因分流不变
 - 通知和最近动态摘要会在原文位置显示 `表达式=总计`；纯骰子帖也能生成摘要。编辑骰子节点不发射 `post.created`
 
 ## 创建幂等

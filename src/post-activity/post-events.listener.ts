@@ -49,11 +49,16 @@ export class PostEventsListener {
           threadId: event.threadId,
           role: { in: ['OWNER', 'COLLABORATOR'] },
         },
-        select: { userId: true },
+        select: {
+          userId: true,
+          role: true,
+          user: { select: { username: true } },
+        },
       }),
     ]);
     // 角色取发帖时快照，避免异步处理期间的角色变化改变本次通知语义。
     const managerIdSet = new Set(managers.map((m) => m.userId));
+    const threadOwner = managers.find((manager) => manager.role === 'OWNER');
     const authorIsManager = event.authorRole === 'OWNER' || event.authorRole === 'COLLABORATOR';
     const authorIsEligiblePlayer = event.authorRole === 'PARTICIPANT' && event.authorPlayerMarked;
     const managerIds = [...managerIdSet].filter((id) => id !== event.userId);
@@ -67,6 +72,13 @@ export class PostEventsListener {
     const username = event.authorUsername ?? '有人';
     const preview = buildPostPreview(event.content, event.diceRolls);
     const explicitMentionRecipientIds = new Set<string>();
+    const threadOwnerReplyTarget =
+      !event.parentPostId &&
+      !event.isSubthreadBody &&
+      threadOwner &&
+      threadOwner.userId !== event.userId
+        ? threadOwner
+        : null;
 
     // 1. @提及：解析正文中的 @用户名，验证权限规则，双向过滤拉黑，入队通知
     try {
@@ -107,12 +119,12 @@ export class PostEventsListener {
       failures.push(e);
     }
 
-    // 2. 新帖通知（子贴正文 / 新楼层）：通知楼主 + 协作者 + 订阅者（排除自己，过滤拉黑）
+    // 2. 新帖通知：新主楼层的楼主另按直接互动通知，其余管理者和订阅者接收内容更新。
     if (!event.parentPostId || event.isSubthreadBody) {
       try {
         const recipients = this.blockFilter.filterRecipients(
           [...new Set([...managerIds, ...subscriberIds])].filter(
-            (id) => !explicitMentionRecipientIds.has(id),
+            (id) => id !== threadOwnerReplyTarget?.userId && !explicitMentionRecipientIds.has(id),
           ),
           blockSets,
         );
@@ -140,7 +152,42 @@ export class PostEventsListener {
       }
     }
 
-    // 3. 楼中楼按原因分流：直接回复进入互动；管理者/订阅者更新进入订阅。
+    // 3. 新主楼层是对主题帖的直接回复：楼主收到互动，协作者和订阅者保持更新语义。
+    if (threadOwnerReplyTarget) {
+      const recipients = this.blockFilter.filterRecipients(
+        explicitMentionRecipientIds.has(threadOwnerReplyTarget.userId)
+          ? []
+          : [threadOwnerReplyTarget.userId],
+        blockSets,
+      );
+      if (recipients.length > 0) {
+        try {
+          await this.notificationProducer.notify(
+            'reply',
+            recipients,
+            `${username} 回复了${threadOwnerReplyTarget.user.username}：${preview}`,
+            {
+              postId: event.postId,
+              threadId: event.threadId,
+              fromUserId: event.userId,
+              eventKey: `reply:${event.postId}`,
+              payload: {
+                actorName: username,
+                action: 'reply',
+                preview,
+                replyTargetUserId: threadOwnerReplyTarget.userId,
+                replyTargetName: threadOwnerReplyTarget.user.username,
+              },
+            },
+          );
+        } catch (e) {
+          this.logger.error('thread owner reply notification failed', e);
+          failures.push(e);
+        }
+      }
+    }
+
+    // 4. 楼中楼按原因分流：直接回复进入互动；管理者/订阅者更新进入订阅。
     if (event.parentPostId && !event.isSubthreadBody) {
       let replyTarget = event.replyTargetUserId
         ? {

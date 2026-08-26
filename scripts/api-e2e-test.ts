@@ -1179,7 +1179,7 @@ test(
   },
 );
 
-test(sCollaboration, '楼中楼订阅更新与直接回复按原因去重并精确定位', async () => {
+test(sCollaboration, '主题楼主互动、楼中楼订阅更新与直接回复按原因去重', async () => {
   const subscription = await peerApi.post('/subscriptions', {
     threadId,
     type: 'THREAD',
@@ -1229,6 +1229,41 @@ test(sCollaboration, '楼中楼订阅更新与直接回复按原因去重并精�
     content: `E2E 直接回复目标 ${RUN_ID}`,
     clientRequestId: crypto.randomUUID(),
   });
+  const ownerThreadReply = await waitForCondition(
+    () =>
+      e2ePrisma.notification.findFirst({
+        where: {
+          userId: currentUserId,
+          postId: peerFloor.data.id,
+          eventKey: `reply:${peerFloor.data.id}:${currentUserId}`,
+        },
+      }),
+    '新主楼层对主题楼主的互动通知',
+  );
+  const ownerThreadReplyPayload = ownerThreadReply.payload as Record<string, unknown>;
+  assert(ownerThreadReply.type === 'reply', '他人主楼层对主题楼主应进入互动通知');
+  assert(ownerThreadReplyPayload.action === 'reply', '主题楼主互动 action 应为 reply');
+  assert(
+    ownerThreadReplyPayload.replyTargetUserId === currentUserId,
+    '主题楼主互动的回复目标应为楼主本人',
+  );
+  assert(
+    (await e2ePrisma.notification.count({
+      where: { userId: currentUserId, postId: peerFloor.data.id },
+    })) === 1,
+    '主题楼主对同一新主楼层应只收到一条互动通知',
+  );
+  const ownerInteractionList = await api.get('/notifications?type=reply&limit=50');
+  const ownerInteractionItem = ownerInteractionList.data.find(
+    (item: { id: string }) => item.id === ownerThreadReply.id,
+  );
+  assert(!!ownerInteractionItem, '互动分类应包含他人向本人主题发表的主楼层');
+  assert(
+    ownerInteractionItem.target?.postId === peerFloor.data.id &&
+      ownerInteractionItem.post?.parentPostId === null,
+    '主题楼主互动通知应精确指向新主楼层',
+  );
+
   const directReply = await api.post(`/subthreads/${subthreadId}/posts`, {
     content: `E2E 直接回复且已订阅 ${RUN_ID}`,
     parentPostId: peerFloor.data.id,

@@ -31,7 +31,7 @@
 
 | 枚举               | 值               | 说明            |
 | ------------------ | ---------------- | --------------- |
-| `NotificationType` | `reply`          | 楼中楼回复通知  |
+| `NotificationType` | `reply`          | 主题/楼层回复通知 |
 | `NotificationType` | `mention`        | @提及通知       |
 | `NotificationType` | `new_post`       | 新正文/楼层通知 |
 | `NotificationType` | `thread_created` | 主题帖创建通知  |
@@ -49,10 +49,11 @@
    - 过滤拉黑关系（拉黑发帖人者不通知）
    - 直接走幂等通知投递服务，**不**合并订阅者
 3. **新楼层通知**（`parentPostId === null`）：
-   - 通知对象：楼主/协作者 + 订阅者（去重，排除自己）
+   - 主题楼主收到 `reply` 直接互动；非作者协作者和实际订阅者收到 `new_post` 内容更新
+   - 子贴正文仍向全部非作者管理者和实际订阅者发送 `new_post`
    - 过滤发帖人拉黑的用户
 4. **楼中楼回复通知**（`replyToPostId` 非空）：
-   - 通知对象：被回复者 + 楼主/协作者 + 订阅者（去重，排除自己）
+   - 直接被回复者收到 `reply`；其他管理者和有效订阅者收到 `new_post/new_reply`
    - 同样过滤拉黑关系
 5. 所有通知均通过 `NotificationProducer.notify()` 等待 PostgreSQL 权威记录提交；失败会使 Outbox 保持未确认并退避重试
 

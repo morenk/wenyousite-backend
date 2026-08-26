@@ -74,6 +74,18 @@ const baseEvent: PostCreatedEvent = {
   authorPlayerMarked: true,
 };
 
+const ownerManager = (userId = 'owner1', username = '楼主') => ({
+  userId,
+  role: 'OWNER',
+  user: { username },
+});
+
+const collaboratorManager = (userId = 'collab1', username = '协作者') => ({
+  userId,
+  role: 'COLLABORATOR',
+  user: { username },
+});
+
 describe('PostEventsListener 订阅过滤', () => {
   it('发帖者是楼主时只触发 THREAD 官方更新订阅', async () => {
     const { listener, notificationProducer, subscriptionsService, prisma } = buildListener();
@@ -81,7 +93,7 @@ describe('PostEventsListener 订阅过滤', () => {
       { userId: 'sub_thread', type: 'THREAD', targetUserId: null },
       { userId: 'sub_user', type: 'USER', targetUserId: 'author1' },
     ]);
-    prisma.threadMember.findMany.mockResolvedValue([{ userId: 'author1' }]);
+    prisma.threadMember.findMany.mockResolvedValue([ownerManager('author1', 'author1')]);
 
     await listener.handlePostCreated({
       ...baseEvent,
@@ -95,14 +107,18 @@ describe('PostEventsListener 订阅过滤', () => {
       expect.any(String),
       expect.any(Object),
     );
+    expect(notificationProducer.notify).toHaveBeenCalledTimes(1);
   });
 
-  it('发帖者是协作者时，THREAD 订阅者应收到新帖通知', async () => {
+  it('协作者发表主楼层时楼主收到互动，THREAD 订阅者仍收到内容更新', async () => {
     const { listener, notificationProducer, subscriptionsService, prisma } = buildListener();
     subscriptionsService.findSubscribers.mockResolvedValue([
       { userId: 'sub_thread', type: 'THREAD', targetUserId: null },
     ]);
-    prisma.threadMember.findMany.mockResolvedValue([{ userId: 'owner1' }, { userId: 'author1' }]);
+    prisma.threadMember.findMany.mockResolvedValue([
+      ownerManager(),
+      collaboratorManager('author1'),
+    ]);
 
     await listener.handlePostCreated({
       ...baseEvent,
@@ -110,25 +126,90 @@ describe('PostEventsListener 订阅过滤', () => {
       authorPlayerMarked: false,
     });
 
-    const args = notificationProducer.notify.mock.calls[0];
-    expect(args[0]).toBe('new_post');
-    expect(args[1]).toContain('sub_thread');
+    expect(notificationProducer.notify).toHaveBeenCalledWith(
+      'new_post',
+      ['sub_thread'],
+      'author1 发布了新楼层：测试内容',
+      expect.any(Object),
+    );
+    expect(notificationProducer.notify).toHaveBeenCalledWith(
+      'reply',
+      ['owner1'],
+      'author1 回复了楼主：测试内容',
+      expect.objectContaining({
+        eventKey: 'reply:post1',
+        payload: expect.objectContaining({
+          action: 'reply',
+          replyTargetUserId: 'owner1',
+          replyTargetName: '楼主',
+        }),
+      }),
+    );
   });
 
-  it('发帖者是普通玩家时，THREAD 订阅者不应收到通知，USER 订阅者仍收到', async () => {
+  it('普通玩家发表主楼层时楼主收到互动，其他管理者和 USER 订阅者收到内容更新', async () => {
     const { listener, notificationProducer, subscriptionsService, prisma } = buildListener();
     subscriptionsService.findSubscribers.mockResolvedValue([
       { userId: 'sub_thread', type: 'THREAD', targetUserId: null },
       { userId: 'sub_user', type: 'USER', targetUserId: 'author1' },
     ]);
-    prisma.threadMember.findMany.mockResolvedValue([{ userId: 'owner1' }, { userId: 'collab1' }]);
+    prisma.threadMember.findMany.mockResolvedValue([ownerManager(), collaboratorManager()]);
 
     await listener.handlePostCreated(baseEvent);
 
-    const args = notificationProducer.notify.mock.calls[0];
-    expect(args[0]).toBe('new_post');
-    expect(args[1]).toContain('sub_user');
-    expect(args[1]).not.toContain('sub_thread');
+    const newPostCall = notificationProducer.notify.mock.calls.find(
+      (call: unknown[]) => call[0] === 'new_post',
+    );
+    expect(newPostCall?.[1]).toEqual(['collab1', 'sub_user']);
+    expect(newPostCall?.[1]).not.toContain('owner1');
+    expect(newPostCall?.[1]).not.toContain('sub_thread');
+    expect(notificationProducer.notify).toHaveBeenCalledWith(
+      'reply',
+      ['owner1'],
+      'author1 回复了楼主：测试内容',
+      expect.objectContaining({
+        postId: 'post1',
+        payload: expect.objectContaining({
+          replyTargetUserId: 'owner1',
+          replyTargetName: '楼主',
+        }),
+      }),
+    );
+  });
+
+  it('主楼层显式提及楼主时 mention 优先且不再重复发送 reply', async () => {
+    const { listener, notificationProducer, prisma, mentionsService } = buildListener();
+    mentionsService.parseAndCreate.mockResolvedValue([{ userId: 'owner1' }]);
+    prisma.threadMember.findMany.mockResolvedValue([ownerManager()]);
+
+    await listener.handlePostCreated(baseEvent);
+
+    expect(notificationProducer.notify).toHaveBeenCalledWith(
+      'mention',
+      ['owner1'],
+      expect.any(String),
+      expect.any(Object),
+    );
+    expect(
+      notificationProducer.notify.mock.calls.find((call: unknown[]) => call[0] === 'reply'),
+    ).toBeUndefined();
+  });
+
+  it('子贴正文仍作为内容更新通知楼主，不改写为主题回复', async () => {
+    const { listener, notificationProducer, prisma } = buildListener();
+    prisma.threadMember.findMany.mockResolvedValue([ownerManager()]);
+
+    await listener.handlePostCreated({ ...baseEvent, isSubthreadBody: true });
+
+    expect(notificationProducer.notify).toHaveBeenCalledWith(
+      'new_post',
+      ['owner1'],
+      'author1 创建了新子贴「子贴」：测试内容',
+      expect.any(Object),
+    );
+    expect(
+      notificationProducer.notify.mock.calls.find((call: unknown[]) => call[0] === 'reply'),
+    ).toBeUndefined();
   });
 
   it('普通玩家发言时，若无人符合接收条件则不产生通知', async () => {

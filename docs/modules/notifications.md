@@ -39,6 +39,7 @@
 - 通知创建由 `NotificationDeliveryService` 执行，`NotificationProducer` 是业务模块的统一应用入口；最终落库和移动推送前统一复核帖子父级、子贴、主题、动态、评论父级及 PRIVATE 成员资格，上游误算收件人也不会越权投递
 - 通知创建时的结构化导航字段（postId / threadId / fromUserId）在创建时写入，查询时直接关联返回
 - 新建楼中楼按原因分流：直接被回复者收到 `reply/action=reply`，payload 写入 `replyTargetUserId/replyTargetName`；其他管理者与有效订阅者收到 `new_post/action=new_reply`，兼容正文为“发送者 发布了楼中楼回复：预览”。历史通知不回填
+- 他人发表新主楼层时，主题楼主因内容归属收到 `reply/action=reply`，回复目标就是楼主；同一楼层对非作者协作者和实际订阅者仍使用 `new_post/action=new_post`。显式 mention 继续覆盖两类次级通知
 - `eventKey` 是同一业务事件的稳定幂等键，实际按 `userId + eventKey` 唯一；队列重试、编辑重试、关注/发布/点赞/系统通知重投不会重复插入
 - 协作者任命/撤销发送 `system` 通知，目标为主题且 `fromUserId` 是操作楼主。`action` 分别为 `thread_collaborator_added` / `thread_collaborator_removed`，payload 固定携带 `threadId/threadTitle/actorId/actorName/oldRole/newRole`；通知 eventKey 由真实角色转换的唯一事件 ID 派生，Outbox 重放只复用原通知
 - 同一篇帖子按 `mention → 直接 reply → 管理者/订阅 new_post` 优先级去重，每个用户最多一条；同一批通知写入使用 `skipDuplicates` 兜底并发重试
