@@ -270,6 +270,41 @@ describe('MentionsService', () => {
     expect(result.map((item) => item.userId)).toEqual(['member']);
   });
 
+  it('私密帖手写稳定提及或普通提及都不能命中非成员', async () => {
+    mockPrisma.thread.findUnique.mockResolvedValue({ visibility: 'PRIVATE' });
+    mockPrisma.user.findMany.mockResolvedValue([
+      { id: 'outsider', username: '外部用户', avatar: null },
+    ]);
+    mockPrisma.postMention.findMany.mockResolvedValue([]);
+    mockPrisma.userFollow.findMany.mockResolvedValue([{ followingId: 'outsider' }]);
+    mockPrisma.threadMember.findMany.mockResolvedValue([]);
+
+    const result = await service.parseAndCreate(
+      'p1',
+      '[@外部用户](/users/outsider) @外部用户',
+      'author',
+      'private-thread',
+    );
+
+    expect(result).toEqual([]);
+    expect(mockPrisma.postMention.createMany).not.toHaveBeenCalled();
+  });
+
+  it('私密帖提及候选菜单只保留当前成员', async () => {
+    mockPrisma.thread.findUnique.mockResolvedValue({ visibility: 'PRIVATE' });
+    mockPrisma.userFollow.findMany.mockResolvedValue([
+      { following: { id: 'member', username: '成员', avatar: null } },
+      { following: { id: 'outsider', username: '外部用户', avatar: null } },
+    ]);
+    mockPrisma.threadMember.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ userId: 'member' }]);
+
+    const result = await service.findCandidates('private-thread', 'author');
+
+    expect(result.map((candidate) => candidate.id)).toEqual(['member']);
+  });
+
   it('候选接口应过滤双向拉黑用户', async () => {
     mockPrisma.userFollow.findMany.mockResolvedValue([
       { following: { id: 'u2', username: '张三', avatar: null } },

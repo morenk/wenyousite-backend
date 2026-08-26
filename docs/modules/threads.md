@@ -26,23 +26,23 @@
 
 ## API 端点
 
-| Method | Path                              | Guard        | 描述                                                                                                                                                                                                                                               |
-| ------ | --------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/thread-categories`              | Public       | 按 `sortOrder ASC, slug ASC` 返回全部启用分类，发帖和筛选使用返回的稳定 `slug`                                                                                                                                                                     |
-| GET    | `/threads/draft`                  | AuthRead     | 我的草稿箱列表（published=false 的帖）                                                                                                                                                                                                             |
-| POST   | `/threads`                        | Auth         | 创建主题帖草稿（事务内创建 Thread + OWNER + 默认子贴 + 可选正文 kind=BODY，published=false）。每用户最多 10 条未发布草稿，超限返回 BAD_REQUEST                                                                                                     |
+| Method | Path                              | Guard        | 描述                                                                                                                                                                                                                                                                                 |
+| ------ | --------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GET    | `/thread-categories`              | Public       | 按 `sortOrder ASC, slug ASC` 返回全部启用分类，发帖和筛选使用返回的稳定 `slug`                                                                                                                                                                                                       |
+| GET    | `/threads/draft`                  | AuthRead     | 我的草稿箱列表（published=false 的帖）                                                                                                                                                                                                                                               |
+| POST   | `/threads`                        | Auth         | 创建主题帖草稿（事务内创建 Thread + OWNER + 默认子贴 + 可选正文 kind=BODY，published=false）。每用户最多 10 条未发布草稿，超限返回 BAD_REQUEST                                                                                                                                       |
 | GET    | `/threads`                        | OptionalAuth | 首页发现列表：仅已发布且楼主未注销的主题帖，支持分区/排序/状态/标签筛选；`tagId` 按标签 ID 精确筛选，旧 `tag` 参数保留名称模糊筛选；每帖含默认主贴正文的紧凑纯文本 `preview`（实体单遍解码、连续空白折叠），`coverImages` 只返回主贴第一张普通图片，表情与代码中的图片语法不作为封面 |
-| GET    | `/threads/:id`                    | OptionalAuth | 详情（含子贴列表和标签）。公开已发布帖允许匿名访问；未发布帖仅 owner 可查看；PRIVATE 帖非成员 404。登录时附加收藏/点赞、当前用户成员关系和 capability 投影，不查询全量成员                                                                         |
-| PATCH  | `/threads/:id`                    | Auth         | 修改（OWNER/COLLABORATOR，乐观锁）；visibility、published 仅 OWNER，已发布帖不可撤回草稿                                                                                                                                                           |
-| PATCH  | `/threads/:id/aggregate`          | Auth         | 原子保存主题帖编辑器聚合：Thread 元数据、默认子贴标题/正文、主题标签及可选发布；校验三层 version，发布时同事务结算骰子和 Outbox                                                                                                                    |
-| DELETE | `/threads/:id`                    | Auth         | 删除（仅 OWNER）。草稿帖硬删除（级联），已发布帖软删除                                                                                                                                                                                             |
-| POST   | `/threads/:id/like`               | Auth         | 点赞主题帖（幂等，不通知自己）                                                                                                                                                                                                                     |
-| DELETE | `/threads/:id/like`               | Auth         | 取消点赞主题帖（幂等）                                                                                                                                                                                                                             |
-| POST   | `/threads/:id/invite-link`        | Auth         | 生成/刷新私密帖邀请链接（需已发布，仅 OWNER）                                                                                                                                                                                                      |
-| GET    | `/threads/join-by-link/:token`    | AuthRead     | 预览邀请链接对应的私密帖概要并返回 `alreadyJoined`（不创建成员）                                                                                                                                                                                   |
-| POST   | `/threads/join-by-link/:token`    | Auth         | 幂等地通过邀请链接加入私密帖（需已发布）                                                                                                                                                                                                           |
-| GET    | `/threads/:threadId/members`      | OptionalAuth | 参与人列表；按主题帖可见性校验                                                                                                                                                                                                                     |
-| POST   | `/threads/:threadId/members/join` | Auth         | 自由加入（兼容旧客户端，deprecated；Web 不提供入口）                                                                                                                                                                                               |
+| GET    | `/threads/:id`                    | OptionalAuth | 详情（含子贴列表和标签）。公开已发布帖允许匿名访问；未发布帖仅 owner 可查看；PRIVATE 帖非成员 404。登录时附加收藏/点赞、当前用户成员关系和 capability 投影，不查询全量成员                                                                                                           |
+| PATCH  | `/threads/:id`                    | Auth         | 修改（OWNER/COLLABORATOR，乐观锁）；visibility、published 仅 OWNER，已发布帖不可撤回草稿                                                                                                                                                                                             |
+| PATCH  | `/threads/:id/aggregate`          | Auth         | 原子保存主题帖编辑器聚合：Thread 元数据、默认子贴标题/正文、主题标签及可选发布；校验三层 version，发布时同事务结算骰子和 Outbox                                                                                                                                                      |
+| DELETE | `/threads/:id`                    | Auth         | 删除（仅 OWNER）。先校验主题可见性；不可见统一 404，可见但非 OWNER 返回 403。草稿帖硬删除（级联），已发布帖软删除                                                                                                                                                                    |
+| POST   | `/threads/:id/like`               | Auth         | 点赞主题帖（幂等，不通知自己）。不可见主题统一 404；楼主对本人草稿操作返回 400                                                                                                                                                                                                       |
+| DELETE | `/threads/:id/like`               | Auth         | 取消点赞主题帖（幂等）。不可见主题统一 404；楼主对本人草稿操作返回 400                                                                                                                                                                                                               |
+| POST   | `/threads/:id/invite-link`        | Auth         | 生成/刷新私密帖邀请链接（需已发布，仅 OWNER）                                                                                                                                                                                                                                        |
+| GET    | `/threads/join-by-link/:token`    | AuthRead     | 预览邀请链接对应的私密帖概要并返回 `alreadyJoined`（不创建成员）                                                                                                                                                                                                                     |
+| POST   | `/threads/join-by-link/:token`    | Auth         | 幂等地通过邀请链接加入私密帖（需已发布）                                                                                                                                                                                                                                             |
+| GET    | `/threads/:threadId/members`      | OptionalAuth | 参与人列表；按主题帖可见性校验                                                                                                                                                                                                                                                       |
+| POST   | `/threads/:threadId/members/join` | Auth         | 自由加入（兼容旧客户端，deprecated；Web 不提供入口）                                                                                                                                                                                                                                 |
 
 > 主题帖稳定访问链接为 `/threads/{threadId}`，由前端根据详情响应中的 `id` 生成；复制主题帖链接不新增后端端点。
 > | PATCH | `/threads/:threadId/members/:userId` | Auth | OWNER 可任免协作者；OWNER/COLLABORATOR 可修改玩家标记 |
@@ -67,7 +67,7 @@
 - 发布可靠事件：发布事务为草稿期全部帖子写入 `post.created` Outbox，并写入带 visibility 快照的 `thread.published`；提交后依次补解析 @提及/通知。只有 PUBLIC 主题会通知通过双向拉黑过滤的粉丝，PRIVATE 主题不会产生关注发布通知
 - 草稿内发帖不立即触发 @提及解析和通知；发布事务统一生成事件，失败由 Outbox 重试
 - 草稿仅 owner 可查看和操作，非 owner 访问返回 404
-- 草稿帖删除为硬删除（级联删除子贴/帖子/参与人），已发布帖删除为软删除；只有数据库删除/更新成功后才清理 Redis 排序、计数缓存并发送本地删除事件，数据库失败不制造幽灵副作用
+- 草稿帖删除为硬删除（级联删除子贴/帖子/参与人），已发布帖删除为软删除；删除入口先调用统一访问策略，因此不存在、他人草稿和 PRIVATE 非成员都在资源所有权查询前返回 `THREAD_NOT_FOUND(404)`，已获访问权但非楼主才返回 403。只有数据库删除/更新成功后才清理 Redis 排序、计数缓存并发送本地删除事件，数据库失败不制造幽灵副作用
 
 ### 列表与详情
 
@@ -97,6 +97,13 @@
 - 收回玩家身份：取消该参与人的 playerMarked 标记。参与人记录保留，仍可浏览和在 PARTICIPANTS 策略子贴中发帖
 - 玩家身份决定 PLAYERS 策略子贴的发帖权限，详见子贴文档
 
+### 私密主题存在性边界
+
+- 删除、点赞和取消点赞以 `ThreadAccessService.assertAccessible()` 为首个资源状态边界；其他按 ID 访问主题的普通入口继续复用同一策略。不存在、已删除、他人草稿和未获邀请的 PRIVATE 用户统一得到 HTTP 404 / `THREAD_NOT_FOUND`，不会先暴露所有权、发布状态、计数或互动记录，也不会产生事务、Outbox 或 Redis 副作用
+- PRIVATE 主题的提及候选只包含当前成员。手写稳定提及或普通 `@用户名` 即使指向非成员，也只保留原正文，不创建 `PostMention`、不发送通知；通知落库前还会按当前成员资格再次过滤
+- 有效邀请 token 的预览端点是唯一可在加入前读取最小主题概要的入口；显式接受邀请并成为成员后，普通详情和互动入口才开放
+- 本边界只约束主题及其业务 API；媒体对象 URL 与对象存储读取策略由媒体模块独立维护，本次不改变
+
 ### 邀请链接
 
 - 仅已发布的私密帖可生成邀请链接（未发布或公开帖均禁止）
@@ -113,6 +120,7 @@
 - Redis `thread:{id}:stats` 的 `likes` 字段同步维护，供智能排序公式使用
 - 点赞通知发送给楼主（不通知自己），包含拉黑过滤；通知聚合采用 X/Twitter 风格（同帖同类型未读通知聚合为一条，已读后新赞新建）
 - 草稿帖不支持点赞（`published=false` 时返回错误）
+- 点赞和取消点赞先执行统一访问校验，再读取发布状态、计数或互动记录：不可见主题与不存在一致返回 `THREAD_NOT_FOUND(404)`；有权访问本人草稿的楼主仍收到既有 400
 - 点赞/取消点赞发射 `thread.liked` / `thread.unliked` 事件，更新 Redis 智能排序分并失效缓存
 
 ## Thread 与 Subthread 的关系

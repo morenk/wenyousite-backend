@@ -107,6 +107,8 @@ OpenAPI 为兼容 Web 把该头标为 optional；省略或传未知值会创建 
 
 合同 `5.11.1-dev.20260825.1` 起，动态主评论的 `order` 不再传入内嵌楼中楼；折叠预览固定返回最早三条，独立楼中楼仍默认 `OLDEST`。当前 Windows 移动端展开列表已经显式传 `OLDEST`，同步固定 OpenAPI、重新生成 SDK 并更新 moments 模块文档后无需修改业务排序逻辑；VPS 不修改或验证 Flutter 实现。
 
+合同 `5.12.1-dev.20260826.1` 起，主题删除、点赞和取消点赞在读取主题状态前统一校验可见性；不存在、他人草稿和 PRIVATE 非成员都返回 HTTP 404 / `THREAD_NOT_FOUND`，可见但非楼主的删除仍为 403，楼主操作本人草稿的点赞入口仍为 400。响应结构没有变化；Windows 移动端下一次契约同步时固定新版 OpenAPI 并重新生成 SDK，继续沿用现有 403/404 清理详情与编辑状态的行为即可。邀请、提及、通知和媒体 URL 行为不变，VPS 不修改或运行 Flutter 门禁。
+
 ## 媒体、Markdown、动态与温油
 
 - 上传遵循“预签名 PUT → `upload-done` → 查询状态”；仅在 `COMPLETED` 后使用衍生图，列表优先 `thumbnailUrl`，详情优先 `mediumUrl`，为空或失败时回退 `url`。不得猜测对象键。

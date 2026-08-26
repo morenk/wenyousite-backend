@@ -293,6 +293,8 @@ DELETE /threads/:id/like     取消点赞
 
 `likeCount` 在 Post 对象上直接返回，无需额外查询。
 
+删除、点赞和取消点赞都先经过主题可见性校验。不存在、他人草稿或 PRIVATE 非成员统一按 404 不存在处理；已获访问权但非楼主删除时仍为 403，楼主操作本人草稿的点赞入口仍为 400。Web 继续使用既有错误页和失效缓存策略，不需要新增展示分支。
+
 ### 4.5 私密帖 + 邀请
 
 ```
@@ -303,7 +305,7 @@ POST   /threads/join-by-link/:token   通过 16 位 token 幂等加入私密帖
 
 前端收到邀请链接后，先调 `GET` 预览。`alreadyJoined=true` 时直接进入 `/threads/{id}`；否则展示确认页面，用户确认后再调 `POST` 正式加入。POST 使用唯一键 upsert，重复或并发提交都返回现有成员记录。
 
-私密帖 `visibility=PRIVATE` 不在公开列表/搜索中出现。非成员访问详情返回 404。
+私密帖 `visibility=PRIVATE` 不在公开列表/搜索中出现。非成员访问详情、删除、点赞和取消点赞都返回与不存在一致的 404。
 
 用户主页 `GET /users/:id/played-threads`：仅返回用户已被授予玩家身份（`playerMarked=true`）的非自建帖子，回复生成的普通成员关系不计入；本人可用 `visibility=PUBLIC|PRIVATE` 分类，查看他人时只返回 PUBLIC 帖。
 

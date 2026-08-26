@@ -280,6 +280,7 @@ export class ThreadsService {
 
   /** 删除：未发布帖硬删除（级联），已发布帖软删除 */
   async remove(id: string, userId: string) {
+    await this.threadAccess.assertAccessible(id, userId);
     const thread = await this.prisma.thread.findUnique({ where: { id, ...notDeleted } });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
     if (thread.ownerId !== userId)

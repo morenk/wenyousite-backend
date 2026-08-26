@@ -8,7 +8,7 @@ import { ThreadAccessService } from '../access/thread-access.service';
 import { BlockFilterService } from '../access/block-filter.service';
 import { RedisService } from '../redis/redis.service';
 import { CacheService } from '../redis/cache.service';
-import { BusinessException } from '../common/exceptions/business.exception';
+import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { DiceService } from '../dice/dice.service';
 import { PaginatedResult } from '../common/dto/paginated-result';
@@ -151,6 +151,7 @@ describe('ThreadsService', () => {
     service = module.get<ThreadsService>(ThreadsService);
     diceService = module.get<DiceService>(DiceService);
     jest.clearAllMocks();
+    mockThreadAccess.assertAccessible.mockResolvedValue(undefined);
     mockPrisma.thread.findFirst.mockResolvedValue(null);
     mockPrisma.post.findMany.mockResolvedValue([]);
     mockPrisma.threadMember.findMany.mockResolvedValue([]);
@@ -1137,16 +1138,49 @@ describe('ThreadsService', () => {
   });
 
   describe('remove', () => {
-    it('仅楼主可删除', async () => {
-      mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', ownerId: 'u1', published: true });
-      await expect(service.remove('t1', 'u2')).rejects.toThrow(BusinessException);
-    });
+    it.each(['不存在的主题', 'PRIVATE 主题非成员', '他人的草稿'])(
+      '%s 在资源查询和任何副作用前统一返回 404',
+      async () => {
+        mockThreadAccess.assertAccessible.mockRejectedValueOnce(
+          notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在'),
+        );
+
+        await expect(service.remove('t1', 'outsider')).rejects.toMatchObject({
+          status: 404,
+          errorCode: ErrorCode.THREAD_NOT_FOUND,
+        });
+
+        expect(mockPrisma.thread.findUnique).not.toHaveBeenCalled();
+        expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+        expect(mockRedis.zrem).not.toHaveBeenCalled();
+        expect(mockEventEmitter.emit).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(['PUBLIC 主题非楼主', 'PRIVATE 主题成员但非楼主'])(
+      '%s 在通过访问校验后返回 403',
+      async () => {
+        mockPrisma.thread.findUnique.mockResolvedValue({
+          id: 't1',
+          ownerId: 'u1',
+          published: true,
+        });
+
+        await expect(service.remove('t1', 'u2')).rejects.toMatchObject({
+          status: 403,
+          errorCode: ErrorCode.NOT_THREAD_OWNER,
+        });
+        expect(mockThreadAccess.assertAccessible).toHaveBeenCalledWith('t1', 'u2');
+        expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+      },
+    );
 
     it('已发布帖软删除', async () => {
       mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', ownerId: 'u1', published: true });
       mockPrisma.thread.update.mockResolvedValue({ id: 't1', deletedAt: new Date() });
       const result = await service.remove('t1', 'u1');
       expect(result.deletedAt).toBeDefined();
+      expect(mockThreadAccess.assertAccessible).toHaveBeenCalledWith('t1', 'u1');
       expect(mockPrisma.thread.update).toHaveBeenCalled();
     });
 
@@ -1154,6 +1188,7 @@ describe('ThreadsService', () => {
       mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', ownerId: 'u1', published: false });
       mockPrisma.thread.delete.mockResolvedValue({ id: 't1' });
       await service.remove('t1', 'u1');
+      expect(mockThreadAccess.assertAccessible).toHaveBeenCalledWith('t1', 'u1');
       expect(mockPrisma.thread.delete).toHaveBeenCalledWith({ where: { id: 't1' } });
     });
 
@@ -1174,6 +1209,48 @@ describe('ThreadsService', () => {
   });
 
   describe('like counters', () => {
+    for (const hiddenCase of ['不存在的主题', 'PRIVATE 主题非成员', '他人的草稿']) {
+      it.each([
+        ['点赞', () => service.like('t1', 'outsider', '访客')],
+        ['取消点赞', () => service.unlike('t1', 'outsider')],
+      ])(`${hiddenCase}在%s时先返回 404 且不产生副作用`, async (_action, invoke) => {
+        mockThreadAccess.assertAccessible.mockRejectedValueOnce(
+          notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在'),
+        );
+
+        await expect(invoke()).rejects.toMatchObject({
+          status: 404,
+          errorCode: ErrorCode.THREAD_NOT_FOUND,
+        });
+
+        expect(mockPrisma.thread.findUnique).not.toHaveBeenCalled();
+        expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+        expect(mockOutbox.enqueue).not.toHaveBeenCalled();
+      });
+    }
+
+    it.each([
+      ['点赞', () => service.like('t1', 'owner', '楼主')],
+      ['取消点赞', () => service.unlike('t1', 'owner')],
+    ])('草稿楼主%s仍返回 400，且不进入互动事务', async (_action, invoke) => {
+      mockPrisma.thread.findUnique.mockResolvedValue({
+        id: 't1',
+        published: false,
+        ownerId: 'owner',
+        title: '草稿',
+        likeCount: 0,
+      });
+
+      await expect(invoke()).rejects.toMatchObject({
+        status: 400,
+        errorCode: ErrorCode.BAD_REQUEST,
+      });
+
+      expect(mockThreadAccess.assertAccessible).toHaveBeenCalledWith('t1', 'owner');
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+      expect(mockOutbox.enqueue).not.toHaveBeenCalled();
+    });
+
     it('点赞事务只更新数据库并发事件，Redis 由投影监听器单点维护', async () => {
       mockPrisma.thread.findUnique.mockResolvedValue({
         id: 't1',
@@ -1194,6 +1271,9 @@ describe('ThreadsService', () => {
         likeCount: 1,
       });
 
+      expect(mockThreadAccess.assertAccessible.mock.invocationCallOrder[0]).toBeLessThan(
+        mockPrisma.thread.findUnique.mock.invocationCallOrder[0],
+      );
       expect(mockRedis.hincrby).not.toHaveBeenCalled();
       expect(mockOutbox.enqueue).toHaveBeenCalledWith(
         expect.anything(),
@@ -1218,6 +1298,9 @@ describe('ThreadsService', () => {
         likeCount: 0,
       });
 
+      expect(mockThreadAccess.assertAccessible.mock.invocationCallOrder[0]).toBeLessThan(
+        mockPrisma.thread.findUnique.mock.invocationCallOrder[0],
+      );
       expect(mockRedis.hincrby).not.toHaveBeenCalled();
       expect(mockOutbox.enqueue).toHaveBeenCalledWith(
         expect.anything(),

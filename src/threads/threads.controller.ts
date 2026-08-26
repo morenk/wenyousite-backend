@@ -155,7 +155,9 @@ export class ThreadsController {
   @ApiOkResponse({ type: MessageResponseDto, description: '主题帖已删除' })
   @ApiUnauthorizedResponse({ description: '未登录' })
   @ApiForbiddenResponse({ description: '非 OWNER 不可删除' })
-  @ApiNotFoundResponse({ description: '主题帖不存在' })
+  @ApiNotFoundResponse({
+    description: '主题帖不存在、已删除，或当前用户无权访问未发布/PRIVATE 主题',
+  })
   async remove(@Param('id') id: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     await this.threadsService.remove(id, user.id);
@@ -168,6 +170,9 @@ export class ThreadsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '点赞主题帖（幂等，不通知自己）' })
   @ApiCreatedResponse({ type: ThreadLikeResponseDto, description: '主题帖 ID 与最新点赞数' })
+  @ApiNotFoundResponse({
+    description: '主题帖不存在、已删除，或当前用户无权访问未发布/PRIVATE 主题',
+  })
   async like(@Param('id') id: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string; username: string };
     return this.threadsService.like(id, user.id, user.username);
@@ -179,6 +184,9 @@ export class ThreadsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '取消点赞主题帖（幂等）' })
   @ApiOkResponse({ type: ThreadLikeResponseDto, description: '主题帖 ID 与最新点赞数' })
+  @ApiNotFoundResponse({
+    description: '主题帖不存在、已删除，或当前用户无权访问未发布/PRIVATE 主题',
+  })
   async unlike(@Param('id') id: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     return this.threadsService.unlike(id, user.id);

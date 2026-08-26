@@ -17,13 +17,13 @@ export class ThreadReactionService {
   ) {}
 
   async like(id: string, userId: string, username: string) {
+    await this.access.assertAccessible(id, userId);
     const thread = await this.prisma.thread.findUnique({
       where: { id, ...notDeleted },
       select: { id: true, published: true, ownerId: true, title: true, likeCount: true },
     });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
     if (!thread.published) throw new BusinessException(ErrorCode.BAD_REQUEST, '草稿暂不支持点赞');
-    await this.access.assertAccessible(id, userId);
 
     const { updated } = await this.prisma.$transaction(async (tx) => {
       const result = await tx.threadLike.createMany({
@@ -58,13 +58,13 @@ export class ThreadReactionService {
   }
 
   async unlike(id: string, userId: string) {
+    await this.access.assertAccessible(id, userId);
     const thread = await this.prisma.thread.findUnique({
       where: { id, ...notDeleted },
       select: { id: true, published: true, likeCount: true },
     });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
     if (!thread.published) throw new BusinessException(ErrorCode.BAD_REQUEST, '草稿暂不支持点赞');
-    await this.access.assertAccessible(id, userId);
 
     const { updated } = await this.prisma.$transaction(async (tx) => {
       const result = await tx.threadLike.deleteMany({ where: { threadId: id, userId } });
