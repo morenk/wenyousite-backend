@@ -1,10 +1,8 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { MediaPurpose, Prisma } from '@prisma/client';
-import { randomUUID } from 'crypto';
 import { paginate } from '../common/dto/paginated-result';
 import { hashIdempotencyPayload } from '../common/idempotency';
 import { PrismaService } from '../prisma/prisma.service';
-import { RedisService } from '../redis/redis.service';
 import { CreateMomentDto, UpdateMomentDto } from './dto/moment-write.dto';
 import { MomentFeedMode } from './dto/moment-query.dto';
 import { mapMomentCard, mapMomentDetail, type MomentCardRow, type MomentDetailRow } from './moment.mapper';
@@ -22,22 +20,17 @@ import { MomentAccessService } from './moment-access.service';
 import { mediaPurposeAllowed } from '../media/media-policy';
 
 const MAX_PAGE_SIZE = 50;
-const DISCOVER_SNAPSHOT_LIMIT = 1000;
-const DISCOVER_SNAPSHOT_TTL_SECONDS = 15 * 60;
-const DISCOVER_SNAPSHOT_KEY_PREFIX = 'moments:discover:snapshot:';
 const TEXT_COVER_THEMES = ['ROSE', 'LILAC', 'MINT', 'AMBER'] as const;
 
 type Viewer = { id: string; role?: string };
 
-type DiscoverRow = { id: string };
-
-interface DiscoverCursor {
-  snapshotId: string;
-  offset: number;
-}
-
 interface DateCursor {
   createdAt: string;
+  id: string;
+}
+
+interface FeedCursor {
+  activityAt: string;
   id: string;
 }
 
@@ -78,22 +71,15 @@ function decodeDateCursor(cursor: string): DateCursor {
   }
 }
 
-function decodeDiscoverCursor(cursor: string): DiscoverCursor {
+function decodeFeedCursor(cursor: string): FeedCursor {
   try {
     const value = JSON.parse(
       Buffer.from(cursor, 'base64url').toString('utf8'),
-    ) as Partial<DiscoverCursor>;
-    if (
-      !value.snapshotId ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-        value.snapshotId,
-      ) ||
-      !Number.isInteger(value.offset) ||
-      value.offset! < 1 ||
-      value.offset! >= DISCOVER_SNAPSHOT_LIMIT
-    )
+    ) as Partial<FeedCursor>;
+    if (!value.id || !value.activityAt || Number.isNaN(Date.parse(value.activityAt))) {
       throw new Error();
-    return value as DiscoverCursor;
+    }
+    return value as FeedCursor;
   } catch {
     throw invalidCursor('无效的动态分页游标');
   }
@@ -126,7 +112,6 @@ function escapeLikePattern(keyword: string) {
 export class MomentsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly redis: RedisService,
     private readonly mediaReferences: MediaReferenceService,
     private readonly access: MomentAccessService,
   ) {}
@@ -140,9 +125,9 @@ export class MomentsService {
           HttpStatus.FORBIDDEN,
         );
       }
-      return this.listFollowing(cursor, limit, viewer);
+      return this.listFeed(cursor, limit, viewer, viewer.id);
     }
-    return this.listDiscover(cursor, limit, viewer);
+    return this.listFeed(cursor, limit, viewer);
   }
 
   async findById(id: string, viewer?: Viewer) {
@@ -459,15 +444,14 @@ export class MomentsService {
     return this.access.assertVisible(id, viewerId);
   }
 
-  private async listDiscover(cursor: string | undefined, limit: number, viewer?: Viewer) {
+  private async listFeed(
+    cursor: string | undefined,
+    limit: number,
+    viewer?: Viewer,
+    followingViewerId?: string,
+  ) {
     const take = Math.min(limit, MAX_PAGE_SIZE);
-    if (cursor) return this.listDiscoverSnapshot(cursor, take, viewer);
-
-    const asOf = new Date();
-    const scoreExpression = Prisma.sql`(
-      1 + m."like_count" * 2 + m."comment_count" * 4 + m."bookmark_count" * 3
-        + LN(1 + m."tip_total"::numeric) * 5
-      ) / POWER(GREATEST(EXTRACT(EPOCH FROM (${asOf} - m."created_at")) / 3600, 0) + 2, 1.25)`;
+    const decoded = cursor ? decodeFeedCursor(cursor) : undefined;
     const blockClause = viewer
       ? Prisma.sql`AND NOT EXISTS (
           SELECT 1 FROM "user_blocks" b
@@ -475,113 +459,50 @@ export class MomentsService {
              OR (b."blocker_id" = m."author_id" AND b."blocked_id" = ${viewer.id})
         )`
       : Prisma.empty;
-    const rows = await this.prisma.$queryRaw<DiscoverRow[]>(Prisma.sql`
-      WITH ranked AS (
-        SELECT m.id, (${scoreExpression})::double precision AS score, m."created_at" AS "createdAt"
-        FROM "moments" m
-        INNER JOIN "users" u ON u.id = m."author_id" AND u."deleted_at" IS NULL
-        WHERE m."deleted_at" IS NULL AND m."created_at" <= ${asOf} ${blockClause}
-      )
-      SELECT id FROM ranked
-      ORDER BY score DESC, "createdAt" DESC, id DESC
-      LIMIT ${DISCOVER_SNAPSHOT_LIMIT + 1}
+    const followingClause = followingViewerId
+      ? Prisma.sql`AND EXISTS (
+          SELECT 1 FROM "user_follows" f
+          WHERE f."follower_id" = ${followingViewerId} AND f."following_id" = m."author_id"
+        )`
+      : Prisma.empty;
+    const cursorClause = decoded
+      ? Prisma.sql`AND (
+          activity."activityAt" < ${new Date(decoded.activityAt)}
+          OR (activity."activityAt" = ${new Date(decoded.activityAt)} AND m.id < ${decoded.id})
+        )`
+      : Prisma.empty;
+    const rows = await this.prisma.$queryRaw<Array<{ id: string; activityAt: Date }>>(Prisma.sql`
+      SELECT m.id, activity."activityAt"
+      FROM "moments" m
+      INNER JOIN "users" u ON u.id = m."author_id" AND u."deleted_at" IS NULL
+      CROSS JOIN LATERAL (
+        SELECT COALESCE(
+          (
+            SELECT c."created_at"
+            FROM "moment_comments" c
+            WHERE c."moment_id" = m.id AND c."deleted_at" IS NULL
+            ORDER BY c."created_at" DESC, c.id DESC
+            LIMIT 1
+          ),
+          m."created_at"
+        ) AS "activityAt"
+      ) activity
+      WHERE m."deleted_at" IS NULL ${blockClause} ${followingClause} ${cursorClause}
+      ORDER BY activity."activityAt" DESC, m.id DESC
+      LIMIT ${take + 1}
     `);
-    const snapshotRows = rows.slice(0, DISCOVER_SNAPSHOT_LIMIT);
-    const page = snapshotRows.slice(0, take);
-    const hasMore = snapshotRows.length > take;
-    const cards = await this.loadCards(page.map((row) => row.id), viewer?.id, true);
-    const snapshotId = hasMore ? randomUUID() : null;
-    if (snapshotId) {
-      const key = this.discoverSnapshotKey(snapshotId);
-      try {
-        await this.redis.zaddMultiWithExpiry(
-          key,
-          DISCOVER_SNAPSHOT_TTL_SECONDS,
-          ...snapshotRows.flatMap((row, index) => [index, row.id]),
-        );
-      } catch {
-        throw new BusinessException(
-          ErrorCode.INTERNAL_ERROR,
-          '动态发现流暂时不可用，请稍后重试',
-          HttpStatus.SERVICE_UNAVAILABLE,
-        );
-      }
-    }
-    return paginate(cards, {
-      cursor: snapshotId ? encodeCursor({ snapshotId, offset: page.length }) : null,
-      hasMore,
-    });
-  }
-
-  private async listDiscoverSnapshot(cursor: string, take: number, viewer?: Viewer) {
-    const decoded = decodeDiscoverCursor(cursor);
-    const key = this.discoverSnapshotKey(decoded.snapshotId);
-    let ids: string[];
-    try {
-      ids = await this.redis.zrange(key, decoded.offset, decoded.offset + take);
-    } catch {
-      throw new BusinessException(
-        ErrorCode.INTERNAL_ERROR,
-        '动态发现流暂时不可用，请稍后重试',
-        HttpStatus.SERVICE_UNAVAILABLE,
-      );
-    }
-    if (ids.length === 0) {
-      throw invalidCursor('动态发现流快照已过期，请刷新后重试');
-    }
-    try {
-      await this.redis.expire(key, DISCOVER_SNAPSHOT_TTL_SECONDS);
-    } catch {
-      throw new BusinessException(
-        ErrorCode.INTERNAL_ERROR,
-        '动态发现流暂时不可用，请稍后重试',
-        HttpStatus.SERVICE_UNAVAILABLE,
-      );
-    }
-
-    const hasMore = ids.length > take;
-    const pageIds = ids.slice(0, take);
-    const cards = await this.loadCards(pageIds, viewer?.id, true);
-    const nextOffset = decoded.offset + pageIds.length;
-    return paginate(cards, {
-      cursor: hasMore ? encodeCursor({ snapshotId: decoded.snapshotId, offset: nextOffset }) : null,
-      hasMore,
-    });
-  }
-
-  private discoverSnapshotKey(snapshotId: string) {
-    return `${DISCOVER_SNAPSHOT_KEY_PREFIX}${snapshotId}`;
-  }
-
-  private async listFollowing(cursor: string | undefined, limit: number, viewer: Viewer) {
-    const take = Math.min(limit, MAX_PAGE_SIZE);
-    const decoded = cursor ? decodeDateCursor(cursor) : undefined;
-    const rows = await this.prisma.moment.findMany({
-      where: {
-        deletedAt: null,
-        author: {
-          deletedAt: null,
-          followers: { some: { followerId: viewer.id } },
-          ...visibleMomentAuthorWhere(viewer.id),
-        },
-        ...(decoded
-          ? {
-              OR: [
-                { createdAt: { lt: new Date(decoded.createdAt) } },
-                { createdAt: new Date(decoded.createdAt), id: { lt: decoded.id } },
-              ],
-            }
-          : {}),
-      },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: take + 1,
-      select: momentCardSelect(viewer.id),
-    });
     const hasMore = rows.length > take;
-    const page = rows.slice(0, take) as MomentCardRow[];
+    const page = rows.slice(0, take);
+    const cards = await this.loadCards(
+      page.map((row) => row.id),
+      viewer?.id,
+      true,
+    );
     const last = page.at(-1);
-    return paginate(page.map(mapMomentCard), {
-      cursor: last ? encodeCursor({ createdAt: last.createdAt.toISOString(), id: last.id }) : null,
+    return paginate(cards, {
+      cursor: last
+        ? encodeCursor({ activityAt: last.activityAt.toISOString(), id: last.id })
+        : null,
       hasMore,
     });
   }

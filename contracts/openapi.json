@@ -6750,7 +6750,7 @@
             }
           }
         },
-        "summary": "动态瀑布流；发现为热度，新鲜关注为时间倒序",
+        "summary": "动态瀑布流；发现与关注均按最后回复时间顶帖",
         "tags": [
           "Moments"
         ],
@@ -17848,7 +17848,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.13.0-dev.20260826.1",
+    "version": "5.13.1-dev.20260827.1",
     "contact": {}
   },
   "tags": [

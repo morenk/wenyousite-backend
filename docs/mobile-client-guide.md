@@ -91,7 +91,7 @@ OpenAPI 为兼容 Web 把该头标为 optional；省略或传未知值会创建 
 
 合同 `5.7.0-dev.20260823.1` 起，云草稿创建可选携带 `clientRequestId`，并可用 `GET /drafts/state` 原子读取五槽列表和用量；Windows 客户端同步契约后应为每次创建持久化稳定键。覆盖继续使用草稿 ID 与 version 的 PATCH，删除改传 `?version=<当前版本>`；409 时读取最新版并保留本机正文，不得自动强制覆盖。兼容期旧调用仍可省略新增字段。
 
-`meta.cursor` 是不透明字符串。筛选或排序变化时清空 cursor；收到 `INVALID_CURSOR` 时清空列表并从首页加载。动态发现流 cursor 绑定服务端快照，快照空闲 15 分钟后失效，客户端刷新即可取得新快照。收到 `RATE_LIMITED` 时遵守 `Retry-After` 并加入随机抖动。
+`meta.cursor` 是不透明字符串。筛选或排序变化时清空 cursor；收到 `INVALID_CURSOR` 时清空列表并从首页加载。合同 `5.13.1-dev.20260827.1` 起，动态发现与关注流共用“最后未删除评论时间，没有评论则动态发布时间”的顶帖顺序；点赞、收藏、加油和编辑不顶帖。旧发现快照和关注流 cursor 升级后会失效，现有 `INVALID_CURSOR` 首页重载逻辑即可兼容。收到 `RATE_LIMITED` 时遵守 `Retry-After` 并加入随机抖动。
 
 合同 `5.5.0-dev.20260822.1` 起，`postsFindFloors` 可传 `authorId` 只筛选主楼层。合同 `5.6.0-dev.20260823.1` 向后兼容新增 deferred 的 `postsFindFloorAuthors` 与 `postsFindReplyAuthors`：前者只给出当前子贴实际发布过主楼层的角色作者，后者只给出指定主楼层下实际回复过的角色作者。当前移动端可继续省略新接口并沿用原排序、分页和响应；Windows 后续同步固定 OpenAPI、重新生成 SDK 后，应以这两个范围化目录替代 `threadMembersFindAll` 的整帖候选。应用作者或顺序筛选时清空 cursor 并一次重载首页，主楼层筛选不得在客户端二次裁剪内嵌楼中楼。
 
@@ -121,7 +121,7 @@ OpenAPI 为兼容 Web 把该头标为 optional；省略或传未知值会创建 
 - 合同 `5.10.0-dev.20260823.1` 起，图片签名请求可选传业务 `purpose`；Windows 移动端应在独立契约同步切片中为头像、主页背景、私聊、动态、动态评论、正文和表情来源分别传对应枚举，并使用响应中的 `animated` 与非空派生 URL。静态图片在选图后应先旋转归正、最长边缩至 2560px、清除元数据并编码为 WebP（质量约 85）再直传；GIF 不在客户端转码。旧版本省略 `purpose` 仍由后端按 `LEGACY` 兼容，后端还会再次标准化且不会长期保存静态原件。VPS 只维护契约和迁移说明，Flutter 实现与门禁留给 Windows。
 - 动态楼中楼只有两层视觉结构；筛选回复者时仍保留所属主评论上下文。未知作者、删除媒体和未知枚举都必须安全降级。
 - 动态通知目标携带 `momentCommentId` 时，详情页调用 `momentsCommentContext` 直接取得 `root`、`target` 和当前可见 `replyCount`。主评论目标直接注入并定位；楼中楼目标同时注入所属主评论和目标回复、展开后定位，不扫描评论或回复分页。主评论已删除但目标回复仍可见时保留服务端墓碑；404 保留动态详情与普通评论且不自动重试，临时失败保留内容并允许重试。客户端必须消费 `mobile-v1-golden-fixtures.json` 的 `momentCommentNavigation` 旅程。
-- 合同 `5.8.1-dev.20260823.1` 起，动态卡片可返回 `canInteract=false`，表示已注销作者的可读历史动态。新客户端应禁用新增点赞、评论、收藏、移动收藏和加油，保留取消已有点赞/收藏及有权删除评论的入口；字段缺失时按 `true` 兼容旧服务。发现快照的 `40007` 清空游标刷新，`50000`/503 保留当前列表并稍后重试。此 UI/SDK 变更只能在 Windows 移动端工作区实现，VPS 审查副本不做修改。
+- 合同 `5.8.1-dev.20260823.1` 起，动态卡片可返回 `canInteract=false`，表示已注销作者的可读历史动态。新客户端应禁用新增点赞、评论、收藏、移动收藏和加油，保留取消已有点赞/收藏及有权删除评论的入口；字段缺失时按 `true` 兼容旧服务。合同 `5.13.1-dev.20260827.1` 已移除发现快照专属 503 路径，两种主 Feed 的 `40007` 都清空游标并从首页刷新。相关 UI/SDK 或模块文档变更只能在 Windows 移动端工作区实现，VPS 审查副本不做修改。
 - 合同 `5.8.0-dev.20260823.1` 起，主题帖分类来自 `GET /thread-categories`，保存稳定 `slug`；草稿可为空，发布前选择启用项。Flutter 必须消费 [`thread-category-v3-fixtures.json`](../contracts/thread-category-v3-fixtures.json)：现有线程直接显示响应 `categoryInfo.name`，不再用仅含启用项的发现列表反查；停用项保留当前名称且不可新选，未知 slug 原值降级，空值显示“未分类”。分类是纯文本能力，客户端不得消费兼容字段 `icon / mergedIntoId`，也不得复制任何现有 slug、名称或分类数量为枚举/回退常量。旧客户端继续读取原 `category`，新增字段由生成模型按未知字段兼容策略忽略。
 - 每日启动可调用 `POST /wallet/check-in`；只有 `claimedNow=true` 时展示本次领取。所有温油金额都是十进制整数字符串，不转换为浮点数；打赏继续复用稳定幂等键。
 - 合同 `5.12.0-dev.20260826.1` 起，新建 `reply` 通知 payload 可选携带 `replyTargetUserId/replyTargetName`。Windows 移动端必须在独立契约同步提交中固定 OpenAPI、重新生成 SDK，并修改通知展示：目标 ID 等于通知 `userId` 时显示“发送者 回复了你”，否则显示“发送者 回复了目标用户”；历史通知或字段不完整时安全降级为“发送者 回复了”，不得再把所有 reply 指向当前用户。通知链接、分类与接收范围不变；VPS 不修改或验证 Flutter 实现。

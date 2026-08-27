@@ -54,7 +54,7 @@ export class MomentsController {
   @Get()
   @OptionalAuth()
   @Throttle({ default: { limit: 10, ttl: 60000 } })
-  @ApiOperation({ summary: '动态瀑布流；发现为热度，新鲜关注为时间倒序' })
+  @ApiOperation({ summary: '动态瀑布流；发现与关注均按最后回复时间顶帖' })
   @ApiCursorPaginatedResponse(MomentCardResponseDto, '动态卡片游标分页')
   list(@Query() query: MomentFeedQueryDto, @CurrentUser() user?: CurrentUserPayload) {
     return this.moments.list(query.feed, query.cursor, query.limit, user);

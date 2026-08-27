@@ -92,10 +92,9 @@ function createPrismaMock() {
 }
 
 const mediaReferences = { reconcileMediaIds: jest.fn() };
-const createService = (prisma: unknown, redis: unknown, access?: unknown) =>
+const createService = (prisma: unknown, _redis: unknown, access?: unknown) =>
   new MomentsService(
     prisma as never,
-    redis as never,
     mediaReferences as never,
     (access ?? createPrismaMock().access) as never,
   );
@@ -395,10 +394,10 @@ describe('MomentsService', () => {
     );
   });
 
-  it('发现流排名后二次装载仍会重新应用双向拉黑可见性', async () => {
+  it('顶帖排序后二次装载仍会重新应用双向拉黑可见性', async () => {
     const { prisma, redis } = createPrismaMock();
     const service = createService(prisma, redis);
-    prisma.$queryRaw.mockResolvedValue([{ id: 'moment-1', score: 1, createdAt: now }]);
+    prisma.$queryRaw.mockResolvedValue([{ id: 'moment-1', activityAt: now }]);
     prisma.moment.findMany.mockResolvedValue([]);
 
     await service.list(MomentFeedMode.DISCOVER, undefined, 20, { id: 'viewer-1' });
@@ -418,13 +417,15 @@ describe('MomentsService', () => {
     );
   });
 
-  it('发现流首屏固化候选顺序，并排除快照时间之后发布的动态', async () => {
+  it('发现流只按最后未删除评论时间顶帖，无评论时使用发布时间', async () => {
     const { prisma, redis } = createPrismaMock();
     const service = createService(prisma, redis);
+    const firstActivity = new Date('2026-08-08T15:00:00.000Z');
+    const secondActivity = new Date('2026-08-08T14:00:00.000Z');
     prisma.$queryRaw.mockResolvedValue([
-      { id: 'moment-1' },
-      { id: 'moment-2' },
-      { id: 'moment-3' },
+      { id: 'moment-1', activityAt: firstActivity },
+      { id: 'moment-2', activityAt: secondActivity },
+      { id: 'moment-3', activityAt: now },
     ]);
     prisma.moment.findMany.mockResolvedValue([
       detailRow({ id: 'moment-1' }),
@@ -439,47 +440,48 @@ describe('MomentsService', () => {
     expect(result.pagination.hasMore).toBe(true);
     const decoded = JSON.parse(
       Buffer.from(result.pagination.cursor!, 'base64url').toString('utf8'),
-    ) as { snapshotId: string; offset: number };
-    expect(decoded).toEqual({ snapshotId: expect.any(String), offset: 2 });
-    const snapshotKey = `moments:discover:snapshot:${decoded.snapshotId}`;
-    expect(redis.zaddMultiWithExpiry).toHaveBeenCalledWith(
-      snapshotKey,
-      15 * 60,
-      0,
-      'moment-1',
-      1,
-      'moment-2',
-      2,
-      'moment-3',
-    );
-    expect(redis.expire).not.toHaveBeenCalled();
+    ) as { activityAt: string; id: string };
+    expect(decoded).toEqual({ activityAt: secondActivity.toISOString(), id: 'moment-2' });
     const query = prisma.$queryRaw.mock.calls[0][0] as { strings: string[] };
-    expect(query.strings.join(' ')).toContain('m."created_at" <=');
+    const sql = query.strings.join(' ');
+    expect(sql).toContain('COALESCE');
+    expect(sql).toContain('c."deleted_at" IS NULL');
+    expect(sql).toContain('ORDER BY c."created_at" DESC, c.id DESC');
+    expect(sql).toContain('ORDER BY activity."activityAt" DESC, m.id DESC');
+    expect(sql).not.toContain('like_count');
+    expect(sql).not.toContain('bookmark_count');
+    expect(sql).not.toContain('tip_total');
   });
 
-  it('发现流后续页只读取固定快照，不受实时排名变化影响', async () => {
+  it('发现流后续页沿用顶帖时间和动态 ID 组成的游标', async () => {
     const { prisma, redis } = createPrismaMock();
     const service = createService(prisma, redis);
-    const snapshotId = '550e8400-e29b-41d4-a716-446655440000';
-    const cursor = Buffer.from(JSON.stringify({ snapshotId, offset: 2 })).toString('base64url');
-    redis.zrange.mockResolvedValue(['moment-3', 'moment-4']);
+    const activityAt = new Date('2026-08-08T14:00:00.000Z');
+    const cursor = Buffer.from(
+      JSON.stringify({ activityAt: activityAt.toISOString(), id: 'moment-2' }),
+    ).toString('base64url');
+    prisma.$queryRaw.mockResolvedValue([
+      { id: 'moment-3', activityAt: now },
+      { id: 'moment-4', activityAt: now },
+    ]);
     prisma.moment.findMany.mockResolvedValue([detailRow({ id: 'moment-3' })]);
 
     const result = await service.list(MomentFeedMode.DISCOVER, cursor, 1, {
       id: 'viewer-1',
     });
 
-    expect(prisma.$queryRaw).not.toHaveBeenCalled();
-    expect(redis.zrange).toHaveBeenCalledWith(`moments:discover:snapshot:${snapshotId}`, 2, 3);
     expect(result.items.map((item) => item.id)).toEqual(['moment-3']);
     expect(result.pagination.hasMore).toBe(true);
     const next = JSON.parse(
       Buffer.from(result.pagination.cursor!, 'base64url').toString('utf8'),
-    ) as { snapshotId: string; offset: number };
-    expect(next).toEqual({ snapshotId, offset: 3 });
+    ) as { activityAt: string; id: string };
+    expect(next).toEqual({ activityAt: now.toISOString(), id: 'moment-3' });
+    const query = prisma.$queryRaw.mock.calls[0][0] as { strings: string[]; values: unknown[] };
+    expect(query.strings.join(' ')).toContain('activity."activityAt" <');
+    expect(query.values).toEqual(expect.arrayContaining([activityAt, 'moment-2']));
   });
 
-  it('发现流快照过期后要求客户端刷新', async () => {
+  it('旧快照游标在切换顶帖排序后要求客户端刷新', async () => {
     const { prisma, redis } = createPrismaMock();
     const service = createService(prisma, redis);
     const cursor = Buffer.from(
@@ -496,6 +498,21 @@ describe('MomentsService', () => {
       HttpStatus.BAD_REQUEST,
     );
     expect(prisma.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('关注流复用顶帖排序并只保留当前用户关注的作者', async () => {
+    const { prisma, redis, access } = createPrismaMock();
+    const service = createService(prisma, redis, access);
+    prisma.$queryRaw.mockResolvedValue([]);
+
+    await service.list(MomentFeedMode.FOLLOWING, undefined, 20, { id: 'viewer-1' });
+
+    const query = prisma.$queryRaw.mock.calls[0][0] as { strings: string[]; values: unknown[] };
+    const sql = query.strings.join(' ');
+    expect(sql).toContain('FROM "user_follows" f');
+    expect(sql).toContain('f."following_id" = m."author_id"');
+    expect(sql).toContain('ORDER BY activity."activityAt" DESC, m.id DESC');
+    expect(query.values).toContain('viewer-1');
   });
 
   it('新增互动会拒绝已注销作者的历史动态', async () => {
@@ -547,51 +564,14 @@ describe('MomentsService', () => {
     expect(query.strings.join(' ')).not.toContain('JOIN "users"');
   });
 
-  it('发现流 Redis 写入或读取失败时返回可重试的 503', async () => {
-    const first = createPrismaMock();
-    first.prisma.$queryRaw.mockResolvedValue([{ id: 'moment-1' }, { id: 'moment-2' }]);
-    first.prisma.moment.findMany.mockResolvedValue([detailRow()]);
-    first.redis.zaddMultiWithExpiry.mockRejectedValue(new Error('redis unavailable'));
-    await expectBusiness(
-      createService(first.prisma, first.redis, first.access).list(
-        MomentFeedMode.DISCOVER,
-        undefined,
-        1,
-        { id: 'viewer-1' },
-      ),
-      ErrorCode.INTERNAL_ERROR,
-      HttpStatus.SERVICE_UNAVAILABLE,
-    );
-
-    const next = createPrismaMock();
-    next.redis.zrange.mockRejectedValue(new Error('redis unavailable'));
-    const cursor = Buffer.from(
-      JSON.stringify({
-        snapshotId: '550e8400-e29b-41d4-a716-446655440000',
-        offset: 1,
-      }),
-    ).toString('base64url');
-    await expectBusiness(
-      createService(next.prisma, next.redis, next.access).list(
-        MomentFeedMode.DISCOVER,
-        cursor,
-        20,
-        { id: 'viewer-1' },
-      ),
-      ErrorCode.INTERNAL_ERROR,
-      HttpStatus.SERVICE_UNAVAILABLE,
-    );
-  });
-
   it('非搜索列表的单页上限固定为 50', async () => {
     const { prisma, redis, access } = createPrismaMock();
     const service = createService(prisma, redis, access);
-    prisma.moment.findMany.mockResolvedValue([]);
+    prisma.$queryRaw.mockResolvedValue([]);
 
     await service.list(MomentFeedMode.FOLLOWING, undefined, 100, { id: 'viewer-1' });
 
-    expect(prisma.moment.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ take: 51 }),
-    );
+    const query = prisma.$queryRaw.mock.calls[0][0] as { values: unknown[] };
+    expect(query.values).toContain(51);
   });
 });

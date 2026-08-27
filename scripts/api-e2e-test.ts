@@ -1698,6 +1698,49 @@ test(s11, 'GET /moments 与搜索可见新动态', async () => {
   );
 });
 
+test(s11, '发现与关注流只由新评论顶帖，删除最新评论后自动回落', async () => {
+  await e2ePrisma.moment.update({
+    where: { id: momentId },
+    data: { createdAt: new Date(Date.now() - 60_000) },
+  });
+  const newer = await api.post('/moments', {
+    title: `E2E 顶帖对照 ${RUN_ID.slice(-6)}`,
+    content: '没有评论的较新动态',
+    mediaIds: [],
+    clientRequestId: crypto.randomUUID(),
+  });
+  const newerMomentId = newer.data.id as string;
+  await peerApi.post(`/users/follow/${currentUserId}`);
+  await peerApi.post(`/moments/${momentId}/like`);
+
+  const assertBefore = async (feed: 'DISCOVER' | 'FOLLOWING', first: string, second: string) => {
+    const result = await peerApi.get(`/moments?feed=${feed}&limit=50`);
+    const ids = result.data.map((moment: { id: string }) => moment.id) as string[];
+    const firstIndex = ids.indexOf(first);
+    const secondIndex = ids.indexOf(second);
+    assert(firstIndex >= 0 && secondIndex >= 0, `${feed} 应同时包含两条顶帖验证动态`);
+    assert(firstIndex < secondIndex, `${feed} 应按最后回复或发布时间排序`);
+  };
+
+  await assertBefore('DISCOVER', newerMomentId, momentId);
+  await assertBefore('FOLLOWING', newerMomentId, momentId);
+
+  const bumped = await peerApi.post(`/moments/${momentId}/comments`, {
+    content: 'E2E 顶帖评论',
+    clientRequestId: crypto.randomUUID(),
+  });
+  await assertBefore('DISCOVER', momentId, newerMomentId);
+  await assertBefore('FOLLOWING', momentId, newerMomentId);
+
+  await api.del(`/moments/${momentId}/comments/${bumped.data.id}`);
+  await assertBefore('DISCOVER', newerMomentId, momentId);
+  await assertBefore('FOLLOWING', newerMomentId, momentId);
+
+  await peerApi.del(`/moments/${momentId}/like`);
+  await peerApi.del(`/users/follow/${currentUserId}`);
+  await api.del(`/moments/${newerMomentId}`);
+});
+
 test(s11, '动态点赞与评论下游计数可一致回收', async () => {
   const liked = await api.post(`/moments/${momentId}/like`);
   assert(liked.code === 0 && liked.data.active === true, '点赞应成功');

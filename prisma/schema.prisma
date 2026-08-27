@@ -852,6 +852,7 @@ model MomentComment {
 
   @@unique([authorId, clientRequestId])
   @@index([momentId, parentCommentId, deletedAt, createdAt(sort: Desc), id(sort: Desc)], map: "moment_comments_roots_idx")
+  @@index([momentId, deletedAt, createdAt(sort: Desc), id(sort: Desc)], map: "moment_comments_feed_bump_idx")
   @@index([parentCommentId, createdAt, id], map: "moment_comments_replies_idx")
   @@index([stickerAssetId])
   @@map("moment_comments")

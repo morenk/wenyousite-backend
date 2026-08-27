@@ -138,7 +138,7 @@
 
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
-| GET | `/moments` | optional | 动态瀑布流；发现为热度，新鲜关注为时间倒序 |
+| GET | `/moments` | optional | 动态瀑布流；发现与关注均按最后回复时间顶帖 |
 | POST | `/moments` | authenticated | 发布纯文本/图片动态，最多 9 张图片 |
 | GET | `/moments/bookmarks` | authenticated | 当前用户收藏的动态 |
 | GET | `/moments/bookmark-folders` | authenticated | 获取我的动态收藏夹分类 |
