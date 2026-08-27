@@ -150,7 +150,8 @@ unfinished_migrations=$(docker exec --user postgres "$validation_postgres" psql 
   --username postgres --dbname wenyousite --tuples-only --no-align --command \
   'SELECT count(*) FROM "_prisma_migrations" WHERE finished_at IS NULL AND rolled_back_at IS NULL')
 [ "$unfinished_migrations" = 0 ] || { echo "恢复候选包含未完成 Prisma migration" >&2; exit 1; }
-docker exec --user postgres "$validation_postgres" pg_amcheck --all --no-dependent-indexes
+docker exec --user postgres "$validation_postgres" pg_amcheck \
+  --all --install-missing --no-dependent-indexes
 docker stop --time 60 "$validation_postgres" >/dev/null
 docker rm "$validation_postgres" >/dev/null
 validation_postgres=""

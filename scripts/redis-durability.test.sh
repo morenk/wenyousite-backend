@@ -71,6 +71,7 @@ done
 grep -q 'ACTIVATE_WENYOUSITE_RESTORE' "$SCRIPT_DIR/restore-activate.sh" || { echo "恢复切换缺少显式确认" >&2; exit 1; }
 grep -q 'restore-candidate=true' "$SCRIPT_DIR/restore-prepare.sh" || { echo "恢复卷缺少来源标签" >&2; exit 1; }
 grep -q 'pg_amcheck' "$SCRIPT_DIR/restore-prepare.sh" || { echo "PITR 候选缺少离线校验" >&2; exit 1; }
+grep -q -- '--install-missing' "$SCRIPT_DIR/restore-prepare.sh" || { echo "PITR 完整性检查未安装缺失的 amcheck 扩展" >&2; exit 1; }
 grep -Fq 'pgbackrest_target=$(date -u -d "$target_utc"' "$SCRIPT_DIR/restore-prepare.sh" || { echo "PITR 目标未转换为 pgBackRest 时间格式" >&2; exit 1; }
 grep -Fq 'pgbackrest_target_type=name' "$SCRIPT_DIR/restore-prepare.sh" || { echo "PITR 不支持确定性的命名恢复点" >&2; exit 1; }
 grep -Fq -- '--type="$pgbackrest_target_type"' "$SCRIPT_DIR/restore-prepare.sh" || { echo "PITR 未使用受控恢复类型" >&2; exit 1; }
