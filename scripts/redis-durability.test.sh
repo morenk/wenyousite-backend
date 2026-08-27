@@ -5,7 +5,8 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 BACKEND_DIR=$(cd -- "$SCRIPT_DIR/.." && pwd)
 COMPOSE_FILE="$BACKEND_DIR/docker-compose.yml"
 
-rendered=$(docker compose -f "$COMPOSE_FILE" config)
+rendered=$(env -u POSTGRES_ARCHIVE_MODE -u POSTGRES_ARCHIVE_TIMEOUT \
+  docker compose -f "$COMPOSE_FILE" config)
 for expected in \
   'archive_mode=off' \
   'archive_timeout=300s' \
@@ -17,6 +18,8 @@ for expected in \
   'noeviction'; do
   grep -q -- "$expected" <<<"$rendered" || { echo "Compose 缺少数据耐久配置: $expected" >&2; exit 1; }
 done
+production_rendered=$(POSTGRES_ARCHIVE_MODE=on docker compose -f "$COMPOSE_FILE" config)
+grep -q 'archive_mode=on' <<<"$production_rendered" || { echo "Compose 不能启用生产 WAL 归档" >&2; exit 1; }
 [ "$(grep -c 'host_ip: 127.0.0.1' <<<"$rendered")" -ge 2 ] || { echo "数据端口未绑定 loopback" >&2; exit 1; }
 grep -q '^[[:space:]]*user: postgres$' <<<"$rendered" || { echo "PostgreSQL 未以原生用户保留密钥补充组" >&2; exit 1; }
 grep -q '^[[:space:]]*user: redis$' <<<"$rendered" || { echo "Redis 未以原生用户保留密钥补充组" >&2; exit 1; }
