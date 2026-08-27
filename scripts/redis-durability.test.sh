@@ -93,6 +93,8 @@ grep -q 'listen_addresses=' "$SCRIPT_DIR/restore-prepare.sh" || { echo "PITR 校
 grep -q 'replace_active_volumes' "$SCRIPT_DIR/restore-activate.sh" || { echo "恢复卷没有单文件原子切换" >&2; exit 1; }
 grep -q '\.work_.*candidate_id' "$SCRIPT_DIR/restore-discard.sh" || { echo "候选删除未清理临时 RDB" >&2; exit 1; }
 grep -q 'validate_release_tree' "$SCRIPT_DIR/assemble-backend-release.sh" || { echo "不可变 release 缺少所有权/写权限校验" >&2; exit 1; }
+grep -q "dist/app.module.js.*dist/media/image-worker.module.js" "$SCRIPT_DIR/assemble-backend-release.sh" || { echo "不可变 release 缺少生产依赖加载校验" >&2; exit 1; }
+node -e 'const p=require(process.argv[1]); if (!p.dependencies?.zod || p.devDependencies?.zod) process.exit(1)' "$BACKEND_DIR/package.json" || { echo "运行时代码使用的 zod 未声明为生产依赖" >&2; exit 1; }
 
 drill_line=$(grep -n 'bash "$SCRIPT_DIR/restore-drill.sh"' "$SCRIPT_DIR/activate-data-security.sh" | cut -d: -f1)
 marker_line=$(grep -n 'activation_marker=' "$SCRIPT_DIR/activate-data-security.sh" | cut -d: -f1)

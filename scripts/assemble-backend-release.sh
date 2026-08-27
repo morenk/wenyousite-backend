@@ -62,6 +62,11 @@ if [ ! -d "$release_dir" ]; then
     SCARF_ANALYTICS=false DO_NOT_TRACK=1 \
     pnpm --dir "$staging_dir" install --prod --offline --frozen-lockfile
   [ -d "$staging_dir/node_modules/prisma" ] || { echo "release 缺少 Prisma migration CLI" >&2; exit 1; }
+  (cd "$staging_dir" && NODE_ENV=test "$NODE_SOURCE" -e \
+    "require('./dist/app.module.js'); require('./dist/media/image-worker.module.js')") || {
+    echo "release 生产依赖不能完整加载后端与图片 Worker 模块" >&2
+    exit 1
+  }
   if find "$staging_dir" -maxdepth 2 -type f \( -name .env -o -name '*.pem' -o -name '*.key' \) | grep -q .; then
     echo "release 包含禁止的凭据文件" >&2
     exit 1
