@@ -1624,8 +1624,8 @@ test(s10, 'GET /users/:id/bookmarks 公开收藏', async () => {
 
 const s11 = suite('动态收藏夹');
 
-test(s11, 'GET /bookmarks/folders 获取共享收藏夹', async () => {
-  const r = await api.get('/bookmarks/folders');
+test(s11, 'GET /moments/bookmark-folders 获取动态收藏夹', async () => {
+  const r = await api.get('/moments/bookmark-folders');
   assert(r.code === 0 && Array.isArray(r.data), '收藏夹列表应成功');
   const defaultFolder = r.data.find((folder: { isDefault?: boolean }) => folder.isDefault);
   assert(!!defaultFolder, '应存在默认收藏夹');
@@ -1633,8 +1633,8 @@ test(s11, 'GET /bookmarks/folders 获取共享收藏夹', async () => {
   assert(typeof defaultFolder.momentBookmarkCount === 'number', '收藏夹应返回动态收藏计数');
 });
 
-test(s11, 'POST /bookmarks/folders 新建动态收藏夹', async () => {
-  const r = await api.post('/bookmarks/folders', {
+test(s11, 'POST /moments/bookmark-folders 新建动态收藏夹', async () => {
+  const r = await api.post('/moments/bookmark-folders', {
     name: `E2E动态${RUN_ID.slice(-6)}`,
   });
   assert(r.code === 0, `新建收藏夹应成功 (got: ${r.code} ${r.message})`);
