@@ -82,6 +82,7 @@ grep -q 'string.sub(k,1,5).*bull:' "$SCRIPT_DIR/restore-prepare.sh" || { echo "R
 grep -q -- '--appendonly no' "$SCRIPT_DIR/restore-prepare.sh" || { echo "Redis 恢复没有先加载 RDB" >&2; exit 1; }
 grep -q 'redis_sentinel' "$SCRIPT_DIR/restore-prepare.sh" || { echo "Redis 恢复未验证 AOF 跨重启" >&2; exit 1; }
 grep -q 'redis-check-aof' "$SCRIPT_DIR/restore-prepare.sh" || { echo "Redis 恢复未校验 AOF" >&2; exit 1; }
+grep -Fq 'cp -a /data/appendonlydir "$aof_check_dir/appendonlydir"' "$SCRIPT_DIR/restore-prepare.sh" || { echo "Redis AOF 未复制到可写临时层进行离线校验" >&2; exit 1; }
 grep -q 'target_nanoseconds' "$SCRIPT_DIR/restore-prepare.sh" || { echo "Redis 快照未按精确时间选择" >&2; exit 1; }
 grep -Fq -- '--postgres-target-name "$restore_point"' "$SCRIPT_DIR/restore-drill.sh" || { echo "恢复演练未使用已归档的命名恢复点" >&2; exit 1; }
 grep -q 'pgbackrest.conf:/run/secrets/wenyousite/pgbackrest.conf:ro' "$SCRIPT_DIR/restore-prepare.sh" || { echo "PITR 启动缺少 WAL 拉取配置" >&2; exit 1; }

@@ -281,7 +281,9 @@ docker rm "$validation_redis" >/dev/null
 validation_redis=""
 docker run --rm --volume "$redis_volume:/data:ro" "$REDIS_IMAGE" sh -eu -c '
   redis-check-rdb /data/dump.rdb >/dev/null
-  redis-check-aof /data/appendonlydir/appendonly.aof.manifest >/dev/null
+  aof_check_dir=$(mktemp -d /tmp/wenyousite-aof-check.XXXXXX)
+  cp -a /data/appendonlydir "$aof_check_dir/appendonlydir"
+  redis-check-aof "$aof_check_dir/appendonlydir/appendonly.aof.manifest" >/dev/null
 '
 
 manifest_temp=$(mktemp "$CANDIDATE_DIR/.manifest.$candidate_id.XXXXXX")
