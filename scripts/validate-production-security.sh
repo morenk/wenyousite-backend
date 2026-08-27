@@ -85,7 +85,11 @@ require_secret_file() {
   else
     (( (8#$mode & 8#027) == 0 )) || fail "$file 权限过宽: $mode"
   fi
-  if grep -qE 'CHANGE_ME|change-me' "$file"; then
+  if awk '
+    /^[[:space:]]*(#|$)/ { next }
+    /CHANGE_ME|change-me/ { found = 1 }
+    END { exit found ? 0 : 1 }
+  ' "$file"; then
     fail "$file 仍包含占位值"
   fi
 }

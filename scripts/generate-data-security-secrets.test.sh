@@ -46,8 +46,26 @@ done
   printf 'SES_SMTP_USER=ops@example.test\n'
   printf 'SES_SMTP_PASS=test-smtp-password\n'
   printf 'SES_FROM_ADDRESS=alerts@example.test\n'
+  printf 'UNUSED_PLACEHOLDER=change-me-before-production\n'
 } >"$SOURCE_ENV"
 chmod 0644 "$SOURCE_ENV"
+
+if WENYOUSITE_CONFIG_ROOT="$CONFIG_ROOT" \
+  WENYOUSITE_SOURCE_ENV="$SOURCE_ENV" \
+  WENYOUSITE_RECOVERY_FILE="$RECOVERY_FILE" \
+  WENYOUSITE_APP_USER="$TEST_USER" \
+  WENYOUSITE_MIGRATOR_USER="$TEST_USER" \
+  WENYOUSITE_SECRETS_GROUP="$TEST_GROUP" \
+  WENYOUSITE_FILE_OWNER="$TEST_USER" \
+  WENYOUSITE_PRIVATE_GROUP="$TEST_GROUP" \
+  WENYOUSITE_SECRET_GENERATION_TEST_MODE=true \
+  bash "$SCRIPT_DIR/generate-data-security-secrets.sh" --apply >/dev/null 2>&1; then
+  echo "生成器错误接受了源环境文件中的占位值" >&2
+  exit 1
+fi
+[ ! -e "$RECOVERY_FILE" ]
+[ ! -s "$CONFIG_ROOT/backend.env" ]
+sed -i '/^UNUSED_PLACEHOLDER=/d' "$SOURCE_ENV"
 
 WENYOUSITE_CONFIG_ROOT="$CONFIG_ROOT" \
 WENYOUSITE_SOURCE_ENV="$SOURCE_ENV" \

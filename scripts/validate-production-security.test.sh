@@ -81,6 +81,7 @@ redis_ops_hash=$(printf '%s' "$redis_ops_password" | sha256sum | cut -d' ' -f1)
 redis_health_hash=$(printf '%s' "$redis_health_password" | sha256sum | cut -d' ' -f1)
 
 cat >"$CONFIG_ROOT/compose.env" <<ENV
+# Values marked CHANGE_ME are rejected; comments are not configuration values.
 WENYOUSITE_SECRETS_DIR=$SECRETS_DIR
 WENYOUSITE_SECRETS_GID=4242
 POSTGRES_OWNER_USER=wenyousite_owner
@@ -181,6 +182,16 @@ ENV
 
 PATH="$FAKE_BIN:$PATH" WENYOUSITE_CONFIG_ROOT="$CONFIG_ROOT" \
   bash "$SCRIPT_DIR/validate-production-security.sh" >/dev/null
+
+cp "$CONFIG_ROOT/compose.env" "$TEST_ROOT/compose.env.valid"
+sed -i 's/^WENYOUSITE_SECRETS_GID=4242$/WENYOUSITE_SECRETS_GID=CHANGE_ME_NUMERIC_GID/' \
+  "$CONFIG_ROOT/compose.env"
+if PATH="$FAKE_BIN:$PATH" WENYOUSITE_CONFIG_ROOT="$CONFIG_ROOT" \
+  bash "$SCRIPT_DIR/validate-production-security.sh" >/dev/null 2>&1; then
+  echo "门禁错误接受了非注释配置中的占位值" >&2
+  exit 1
+fi
+cp "$TEST_ROOT/compose.env.valid" "$CONFIG_ROOT/compose.env"
 
 cp "$SECRETS_DIR/redis-users.acl" "$TEST_ROOT/redis-users.acl.valid"
 sed -i 's/ -config / /' "$SECRETS_DIR/redis-users.acl"

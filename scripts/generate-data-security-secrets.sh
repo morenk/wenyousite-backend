@@ -81,6 +81,14 @@ unsafe_keys=$(awk -F= '
   }
 ' "$SOURCE_ENV" | sort -u)
 [ -z "$unsafe_keys" ] || fail "$SOURCE_ENV 含不能安全迁入 systemd EnvironmentFile 的键: $(tr '\n' ' ' <<<"$unsafe_keys")"
+placeholder_keys=$(awk -F= '
+  /^[[:space:]]*(#|$)/ { next }
+  /^[A-Za-z_][A-Za-z0-9_]*=/ {
+    value = substr($0, index($0, "=") + 1)
+    if (value ~ /CHANGE_ME|change-me/) print $1
+  }
+' "$SOURCE_ENV" | sort -u)
+[ -z "$placeholder_keys" ] || fail "$SOURCE_ENV 仍包含占位值: $(tr '\n' ' ' <<<"$placeholder_keys")"
 
 env_value() {
   local key=$1
