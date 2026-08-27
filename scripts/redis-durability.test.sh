@@ -71,6 +71,10 @@ done
 grep -q 'ACTIVATE_WENYOUSITE_RESTORE' "$SCRIPT_DIR/restore-activate.sh" || { echo "恢复切换缺少显式确认" >&2; exit 1; }
 grep -q 'restore-candidate=true' "$SCRIPT_DIR/restore-prepare.sh" || { echo "恢复卷缺少来源标签" >&2; exit 1; }
 grep -q 'pg_amcheck' "$SCRIPT_DIR/restore-prepare.sh" || { echo "PITR 候选缺少离线校验" >&2; exit 1; }
+grep -Fq 'pgbackrest_target=$(date -u -d "$target_utc"' "$SCRIPT_DIR/restore-prepare.sh" || { echo "PITR 目标未转换为 pgBackRest 时间格式" >&2; exit 1; }
+grep -Fq -- '--target="$pgbackrest_target"' "$SCRIPT_DIR/restore-prepare.sh" || { echo "PITR 未使用转换后的恢复目标" >&2; exit 1; }
+[ "$(grep -c -- '--user postgres' "$SCRIPT_DIR/restore-prepare.sh")" -ge 2 ] || { echo "PITR 校验容器未固定 PostgreSQL 原生用户" >&2; exit 1; }
+[ "$(grep -c -- '--user redis' "$SCRIPT_DIR/restore-prepare.sh")" -ge 2 ] || { echo "Redis 校验容器未固定 Redis 原生用户" >&2; exit 1; }
 grep -q 'string.sub(k,1,5).*bull:' "$SCRIPT_DIR/restore-prepare.sh" || { echo "Redis 恢复未清除派生键" >&2; exit 1; }
 grep -q -- '--appendonly no' "$SCRIPT_DIR/restore-prepare.sh" || { echo "Redis 恢复没有先加载 RDB" >&2; exit 1; }
 grep -q 'redis_sentinel' "$SCRIPT_DIR/restore-prepare.sh" || { echo "Redis 恢复未验证 AOF 跨重启" >&2; exit 1; }

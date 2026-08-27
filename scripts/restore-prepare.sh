@@ -24,6 +24,11 @@ target_utc=$2
 }
 target_epoch=$(date -u -d "$target_utc" +%s 2>/dev/null) || { echo "无效恢复目标时间" >&2; exit 2; }
 (( target_epoch <= $(date +%s) )) || { echo "恢复目标不能在未来" >&2; exit 2; }
+pgbackrest_target=$(date -u -d "$target_utc" '+%Y-%m-%d %H:%M:%S+00')
+[[ "$pgbackrest_target" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}\ [0-9]{2}:[0-9]{2}:[0-9]{2}\+00$ ]] || {
+  echo "无法生成 pgBackRest 恢复目标时间" >&2
+  exit 2
+}
 [ "$(id -u)" -eq 0 ] || { echo "恢复准备必须以 root 运行" >&2; exit 1; }
 
 bash "$SCRIPT_DIR/validate-production-security.sh"
@@ -90,12 +95,13 @@ docker run --rm --user postgres --group-add "$WENYOUSITE_SECRETS_GID" \
   --volume "$SECRETS_DIR/pgbackrest.conf:/run/secrets/wenyousite/pgbackrest.conf:ro" \
   "$postgres_image" pgbackrest \
   --config=/run/secrets/wenyousite/pgbackrest.conf --stanza=wenyousite \
-  --type=time --target="$target_utc" --target-action=promote --archive-mode=off restore
+  --type=time --target="$pgbackrest_target" --target-action=promote --archive-mode=off restore
 
 validation_postgres="wenyousite-restore-postgres-$candidate_id"
 # No port is published and PostgreSQL listens only on its Unix socket. The
 # container still needs outbound HTTPS so restore_command can fetch WAL.
 docker run --detach --name "$validation_postgres" \
+  --user postgres \
   --group-add "$WENYOUSITE_SECRETS_GID" \
   --volume "$pg_volume:/var/lib/postgresql/data" \
   --volume "$SECRETS_DIR/pg_hba.conf:/run/secrets/wenyousite/pg_hba.conf:ro" \
@@ -171,6 +177,7 @@ docker run --rm --user root --volume "$redis_volume:/data" --volume "$work_dir:/
   ' restore-copy "$redis_basename"
 validation_redis="wenyousite-restore-redis-$candidate_id"
 docker run --detach --name "$validation_redis" --network none \
+  --user redis \
   --group-add "$WENYOUSITE_SECRETS_GID" \
   --env REDIS_OPS_USERNAME=wenyousite_ops \
   --volume "$redis_volume:/data" \
@@ -225,6 +232,7 @@ validation_redis=""
 
 validation_redis="wenyousite-restore-redis-$candidate_id"
 docker run --detach --name "$validation_redis" --network none \
+  --user redis \
   --group-add "$WENYOUSITE_SECRETS_GID" \
   --env REDIS_OPS_USERNAME=wenyousite_ops \
   --volume "$redis_volume:/data" \
