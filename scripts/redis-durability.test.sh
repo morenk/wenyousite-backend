@@ -93,6 +93,7 @@ grep -q 'listen_addresses=' "$SCRIPT_DIR/restore-prepare.sh" || { echo "PITR 校
 grep -q 'replace_active_volumes' "$SCRIPT_DIR/restore-activate.sh" || { echo "恢复卷没有单文件原子切换" >&2; exit 1; }
 grep -q '\.work_.*candidate_id' "$SCRIPT_DIR/restore-discard.sh" || { echo "候选删除未清理临时 RDB" >&2; exit 1; }
 grep -q 'validate_release_tree' "$SCRIPT_DIR/assemble-backend-release.sh" || { echo "不可变 release 缺少所有权/写权限校验" >&2; exit 1; }
+grep -q 'docker-compose.yml.*node_modules' "$SCRIPT_DIR/assemble-backend-release.sh" || { echo "不可变 release 未包含数据平面清单" >&2; exit 1; }
 grep -q "dist/app.module.js.*dist/media/image-worker.module.js" "$SCRIPT_DIR/assemble-backend-release.sh" || { echo "不可变 release 缺少生产依赖加载校验" >&2; exit 1; }
 node -e 'const p=require(process.argv[1]); for (const name of ["zod", "pino-pretty"]) if (!p.dependencies?.[name] || p.devDependencies?.[name]) process.exit(1)' "$BACKEND_DIR/package.json" || { echo "运行时代码依赖未全部声明为生产依赖" >&2; exit 1; }
 

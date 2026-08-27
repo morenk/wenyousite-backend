@@ -35,7 +35,7 @@ build_sha=$2
 id "$APP_USER" >/dev/null 2>&1 || { echo "缺少非 root 运行用户 $APP_USER" >&2; exit 1; }
 getent group "$RUNTIME_GROUP" >/dev/null || { echo "缺少共享只读运行组 $RUNTIME_GROUP" >&2; exit 1; }
 [ -x "$NODE_SOURCE" ] || { echo "Node 运行时不可执行: $NODE_SOURCE" >&2; exit 1; }
-for path in dist/main.js dist/image-worker.js node_modules package.json pnpm-lock.yaml pnpm-workspace.yaml prisma scripts; do
+for path in dist/main.js dist/image-worker.js docker docker-compose.yml node_modules package.json pnpm-lock.yaml pnpm-workspace.yaml prisma scripts; do
   [ -e "$BACKEND_DIR/$path" ] || { echo "release 输入缺失: $path" >&2; exit 1; }
 done
 
@@ -54,7 +54,8 @@ if [ ! -d "$release_dir" ]; then
   }
   trap cleanup EXIT
   install -d -m 0755 "$staging_dir"
-  cp -a -- "$BACKEND_DIR/dist" "$BACKEND_DIR/prisma" "$BACKEND_DIR/scripts" \
+  cp -a -- "$BACKEND_DIR/dist" "$BACKEND_DIR/docker" "$BACKEND_DIR/docker-compose.yml" \
+    "$BACKEND_DIR/prisma" "$BACKEND_DIR/scripts" \
     "$BACKEND_DIR/package.json" "$BACKEND_DIR/pnpm-lock.yaml" "$BACKEND_DIR/pnpm-workspace.yaml" \
     "$staging_dir/"
   DATABASE_URL=postgresql://release:release@example.invalid/wenyousite \
