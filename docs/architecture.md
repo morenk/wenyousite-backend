@@ -2,11 +2,11 @@
 
 ## 公网开发环境运行拓扑
 
-后端仓库的 `docker-compose.yml` 是基础设施唯一且受版本控制的 Compose 事实源，只管理 `wenyousite-postgres` 与 `wenyousite-redis`。Caddy、NestJS production build 与 Next.js standalone 均由宿主机 systemd 管理，分别通过 `wenyousite-backend.service` 和 `wenyousite-frontend.service` 监听 3000 与 `127.0.0.1:3001`。工作区根目录和前端仓库不得再添加重复 Compose，也不得假定存在 `api`、`web`、`caddy` Compose 服务。
+后端仓库的 `docker-compose.yml` 是基础设施唯一且受版本控制的 Compose 事实源，只管理 `wenyousite-postgres` 与 `wenyousite-redis`。Caddy、不可变 NestJS release 与 Next.js standalone 均由宿主机 systemd 管理；后端和图片 Worker 使用专用 `wenyousite-backend` 用户，从 `/var/lib/wenyousite/backend/releases/<sha>` 运行，分别监听回环 3000 或只消费队列。工作区根目录和前端仓库不得再添加重复 Compose，也不得假定存在 `api`、`web`、`caddy` Compose 服务。
 
-PostgreSQL 备份由 `scripts/backup.sh` 生成并验证 gzip，Redis 备份由 `scripts/backup-redis.sh` 触发 `BGSAVE`、运行 `redis-check-rdb` 并保存 SHA-256。部署会先安装并验证 `vm.overcommit_memory=1`，避免 Redis 后台持久化在内存压力下因 fork 失败。Redis 开启 AOF，使用 `appendfsync everysec` 与 `noeviction`；首次从纯 RDB 切换时，部署脚本会在备份后先对仍加载完整 RDB 数据的现有实例在线开启 AOF，等待重写成功后才受控重建容器，并用哨兵键验证数据跨重启保留。
+PostgreSQL 使用 pgBackRest 将连续 WAL 和周 full/日 differential 加密写入私有 S3 仓库，并保留每日 custom-format 逻辑出口；Redis 使用 AOF `everysec` 与每 10 分钟校验 RDB 的 restic 加密副本。异地历史保留 35 天，五分钟巡检同时验证备份时间戳、WAL、data checksums、pgBackRest 和 AOF，失败通过限频 SMTP 告警。恢复只写新卷，离线运行 `pg_amcheck`/RDB 校验后才能显式切换；完整规则见 [数据库安全、备份与恢复](database-operations.md)。
 
-当前开发部署助手 `scripts/deploy.sh` 只接受目标分支上工作区干净、已推送且与远端完全一致的提交，按“安全审计与门禁 → 再验证提交 → 检查现有基础设施 → 停止旧进程并确认遗留通知队列为空 → PostgreSQL/Redis 备份 → 应用 Compose 并验证 Redis AOF → 迁移 → 记录 revision → 安装 unit → 重启图片 Worker 与后端 → 公网烟雾”执行。两个启动器都从部署写入的 revision 文件读取 `BUILD_SHA`，服务重启不会把可变工作区 HEAD 误报为已部署版本。
+当前开发部署助手 `scripts/deploy.sh` 只接受目标分支上工作区干净、已推送且与远端完全一致的提交，按“安全审计与门禁 → 再验证提交 → 物理/逻辑/Redis 异地备份 → 固定镜像与运行安全验证 → 组装不可变 release → owner migration → 非 root Worker/API → 公网烟雾”执行。启动器从当前不可变 release 的 `BUILD_SHA` 读取版本，服务重启不会把可变工作区 HEAD 误报为已部署版本。
 
 ## 总体形态
 

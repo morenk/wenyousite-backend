@@ -21,6 +21,8 @@ export default function configuration() {
       host: env.REDIS_HOST,
       port: env.REDIS_PORT,
       db: env.REDIS_DB,
+      username: env.REDIS_USERNAME || undefined,
+      password: env.REDIS_PASSWORD || undefined,
     },
 
     throttling: {

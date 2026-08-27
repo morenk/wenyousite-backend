@@ -1,0 +1,11 @@
+[Unit]
+Description=Apply 35-day offsite retention and check restic daily
+
+[Timer]
+OnCalendar=*-*-* 05:15:00 UTC
+RandomizedDelaySec=10m
+Persistent=true
+Unit=wenyousite-restic-maintenance.service
+
+[Install]
+WantedBy=timers.target
