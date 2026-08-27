@@ -14,21 +14,36 @@ validation_postgres=""
 validation_redis=""
 
 usage() {
-  echo "用法: $0 --target YYYY-MM-DDTHH:MM:SSZ" >&2
+  echo "用法: $0 --target YYYY-MM-DDTHH:MM:SSZ [--postgres-target-name wenyousite_drill_YYYYMMDDTHHMMSSZ]" >&2
 }
-[ "$#" -eq 2 ] && [ "$1" = --target ] || { usage; exit 2; }
+[ "$#" -eq 2 ] || [ "$#" -eq 4 ] || { usage; exit 2; }
+[ "$1" = --target ] || { usage; exit 2; }
 target_utc=$2
+postgres_target_name=""
+if [ "$#" -eq 4 ]; then
+  [ "$3" = --postgres-target-name ] || { usage; exit 2; }
+  postgres_target_name=$4
+  [[ "$postgres_target_name" =~ ^wenyousite_drill_[0-9]{8}T[0-9]{6}Z$ ]] || {
+    echo "PostgreSQL 命名恢复点非法" >&2
+    exit 2
+  }
+fi
 [[ "$target_utc" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || {
   echo "恢复目标必须是 UTC RFC3339 秒精度" >&2
   exit 2
 }
 target_epoch=$(date -u -d "$target_utc" +%s 2>/dev/null) || { echo "无效恢复目标时间" >&2; exit 2; }
 (( target_epoch <= $(date +%s) )) || { echo "恢复目标不能在未来" >&2; exit 2; }
+pgbackrest_target_type=time
 pgbackrest_target=$(date -u -d "$target_utc" '+%Y-%m-%d %H:%M:%S+00')
 [[ "$pgbackrest_target" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}\ [0-9]{2}:[0-9]{2}:[0-9]{2}\+00$ ]] || {
   echo "无法生成 pgBackRest 恢复目标时间" >&2
   exit 2
 }
+if [ -n "$postgres_target_name" ]; then
+  pgbackrest_target_type=name
+  pgbackrest_target=$postgres_target_name
+fi
 [ "$(id -u)" -eq 0 ] || { echo "恢复准备必须以 root 运行" >&2; exit 1; }
 
 bash "$SCRIPT_DIR/validate-production-security.sh"
@@ -78,6 +93,8 @@ preparing_manifest=$(mktemp "$CANDIDATE_DIR/.manifest.$candidate_id.XXXXXX")
   printf 'candidate_id=%s\n' "$candidate_id"
   printf 'status=preparing\n'
   printf 'target_utc=%s\n' "$target_utc"
+  printf 'postgres_target_type=%s\n' "$pgbackrest_target_type"
+  printf 'postgres_target=%s\n' "$pgbackrest_target"
   printf 'postgres_volume=%s\n' "$pg_volume"
   printf 'redis_volume=%s\n' "$redis_volume"
   printf 'prepared_started_utc=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -95,7 +112,8 @@ docker run --rm --user postgres --group-add "$WENYOUSITE_SECRETS_GID" \
   --volume "$SECRETS_DIR/pgbackrest.conf:/run/secrets/wenyousite/pgbackrest.conf:ro" \
   "$postgres_image" pgbackrest \
   --config=/run/secrets/wenyousite/pgbackrest.conf --stanza=wenyousite \
-  --type=time --target="$pgbackrest_target" --target-action=promote --archive-mode=off restore
+  --type="$pgbackrest_target_type" --target="$pgbackrest_target" \
+  --target-action=promote --archive-mode=off restore
 
 validation_postgres="wenyousite-restore-postgres-$candidate_id"
 # No port is published and PostgreSQL listens only on its Unix socket. The
@@ -270,6 +288,8 @@ manifest_temp=$(mktemp "$CANDIDATE_DIR/.manifest.$candidate_id.XXXXXX")
   printf 'candidate_id=%s\n' "$candidate_id"
   printf 'status=validated\n'
   printf 'target_utc=%s\n' "$target_utc"
+  printf 'postgres_target_type=%s\n' "$pgbackrest_target_type"
+  printf 'postgres_target=%s\n' "$pgbackrest_target"
   printf 'postgres_volume=%s\n' "$pg_volume"
   printf 'redis_volume=%s\n' "$redis_volume"
   printf 'redis_snapshot_id=%s\n' "$redis_snapshot_id"

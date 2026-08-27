@@ -46,7 +46,8 @@ docker exec --user postgres "$POSTGRES_CONTAINER" pgbackrest \
   --config=/run/secrets/wenyousite/pgbackrest.conf --stanza=wenyousite check
 
 output_file=$(mktemp "$CANDIDATE_DIR/.drill-output.XXXXXX")
-if ! bash "$SCRIPT_DIR/restore-prepare.sh" --target "$target_utc" | tee "$output_file"; then
+if ! bash "$SCRIPT_DIR/restore-prepare.sh" --target "$target_utc" \
+  --postgres-target-name "$restore_point" | tee "$output_file"; then
   candidate_id=$(awk -F= '$1 == "CANDIDATE_ID" { print $2; exit }' "$output_file")
   exit 1
 fi

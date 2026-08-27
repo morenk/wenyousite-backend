@@ -72,6 +72,8 @@ grep -q 'ACTIVATE_WENYOUSITE_RESTORE' "$SCRIPT_DIR/restore-activate.sh" || { ech
 grep -q 'restore-candidate=true' "$SCRIPT_DIR/restore-prepare.sh" || { echo "恢复卷缺少来源标签" >&2; exit 1; }
 grep -q 'pg_amcheck' "$SCRIPT_DIR/restore-prepare.sh" || { echo "PITR 候选缺少离线校验" >&2; exit 1; }
 grep -Fq 'pgbackrest_target=$(date -u -d "$target_utc"' "$SCRIPT_DIR/restore-prepare.sh" || { echo "PITR 目标未转换为 pgBackRest 时间格式" >&2; exit 1; }
+grep -Fq 'pgbackrest_target_type=name' "$SCRIPT_DIR/restore-prepare.sh" || { echo "PITR 不支持确定性的命名恢复点" >&2; exit 1; }
+grep -Fq -- '--type="$pgbackrest_target_type"' "$SCRIPT_DIR/restore-prepare.sh" || { echo "PITR 未使用受控恢复类型" >&2; exit 1; }
 grep -Fq -- '--target="$pgbackrest_target"' "$SCRIPT_DIR/restore-prepare.sh" || { echo "PITR 未使用转换后的恢复目标" >&2; exit 1; }
 [ "$(grep -c -- '--user postgres' "$SCRIPT_DIR/restore-prepare.sh")" -ge 2 ] || { echo "PITR 校验容器未固定 PostgreSQL 原生用户" >&2; exit 1; }
 [ "$(grep -c -- '--user redis' "$SCRIPT_DIR/restore-prepare.sh")" -ge 2 ] || { echo "Redis 校验容器未固定 Redis 原生用户" >&2; exit 1; }
@@ -80,6 +82,7 @@ grep -q -- '--appendonly no' "$SCRIPT_DIR/restore-prepare.sh" || { echo "Redis �
 grep -q 'redis_sentinel' "$SCRIPT_DIR/restore-prepare.sh" || { echo "Redis 恢复未验证 AOF 跨重启" >&2; exit 1; }
 grep -q 'redis-check-aof' "$SCRIPT_DIR/restore-prepare.sh" || { echo "Redis 恢复未校验 AOF" >&2; exit 1; }
 grep -q 'target_nanoseconds' "$SCRIPT_DIR/restore-prepare.sh" || { echo "Redis 快照未按精确时间选择" >&2; exit 1; }
+grep -Fq -- '--postgres-target-name "$restore_point"' "$SCRIPT_DIR/restore-drill.sh" || { echo "恢复演练未使用已归档的命名恢复点" >&2; exit 1; }
 grep -q 'pgbackrest.conf:/run/secrets/wenyousite/pgbackrest.conf:ro' "$SCRIPT_DIR/restore-prepare.sh" || { echo "PITR 启动缺少 WAL 拉取配置" >&2; exit 1; }
 grep -q 'listen_addresses=' "$SCRIPT_DIR/restore-prepare.sh" || { echo "PITR 校验实例未关闭 TCP 监听" >&2; exit 1; }
 grep -q 'replace_active_volumes' "$SCRIPT_DIR/restore-activate.sh" || { echo "恢复卷没有单文件原子切换" >&2; exit 1; }
