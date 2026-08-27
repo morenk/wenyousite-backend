@@ -10,6 +10,9 @@ services:
     image: wenyousite-postgres:17.10-pgbackrest-2.58.0
     container_name: wenyousite-postgres
     restart: unless-stopped
+    # Start as the image-native user so Docker's supplementary secrets GID is
+    # preserved instead of being dropped by the root entrypoint's gosu hop.
+    user: postgres
     environment:
       POSTGRES_USER: ${POSTGRES_OWNER_USER:-wenyou}
       POSTGRES_PASSWORD_FILE: /run/secrets/wenyousite/postgres-owner-password
@@ -70,6 +73,9 @@ services:
     image: redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
     container_name: wenyousite-redis
     restart: unless-stopped
+    # See postgres above: the native user keeps WENYOUSITE_SECRETS_GID in the
+    # process supplementary groups while retaining the image's normal UID.
+    user: redis
     command:
       - redis-server
       - --aclfile

@@ -18,6 +18,8 @@ for expected in \
   grep -q -- "$expected" <<<"$rendered" || { echo "Compose 缺少数据耐久配置: $expected" >&2; exit 1; }
 done
 [ "$(grep -c 'host_ip: 127.0.0.1' <<<"$rendered")" -ge 2 ] || { echo "数据端口未绑定 loopback" >&2; exit 1; }
+grep -q '^[[:space:]]*user: postgres$' <<<"$rendered" || { echo "PostgreSQL 未以原生用户保留密钥补充组" >&2; exit 1; }
+grep -q '^[[:space:]]*user: redis$' <<<"$rendered" || { echo "Redis 未以原生用户保留密钥补充组" >&2; exit 1; }
 ! grep -qE 'target: /run/secrets/wenyousite$' <<<"$rendered" || { echo "容器仍挂载整份数据密钥目录" >&2; exit 1; }
 for secret_target in pg_hba.conf pgbackrest.conf postgres-owner-password postgres-backup-password redis-users.acl redis-ops-password redis-health-password; do
   grep -q "target: /run/secrets/wenyousite/$secret_target" <<<"$rendered" || { echo "缺少逐文件密钥挂载: $secret_target" >&2; exit 1; }
