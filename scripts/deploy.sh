@@ -109,6 +109,7 @@ current_backend_sha=$(bash "$SCRIPT_DIR/assert-releasable-repo.sh" "$BACKEND_DIR
 assert_same_sha "后端提交" "$BACKEND_BUILD_SHA" "$current_backend_sha"
 install -m 0755 "$SCRIPT_DIR/wenyousite-backend-start.sh" /usr/local/sbin/wenyousite-backend-start
 install -m 0755 "$SCRIPT_DIR/wenyousite-image-worker-start.sh" /usr/local/sbin/wenyousite-image-worker-start
+install -m 0755 "$SCRIPT_DIR/promote-android-release.sh" /usr/local/sbin/wenyousite-promote-android
 for unit_file in \
   wenyousite-backend.service \
   wenyousite-image-worker.service \

@@ -18,7 +18,7 @@ Android 安装包由 Windows 开发机直接上传 RainS3，VPS 只校验公开�
 wenyou-release ALL=(root) NOPASSWD: /usr/local/sbin/wenyousite-promote-android *
 ```
 
-该用户不能读取后端 `.env`、写对象存储或执行任意 root 命令。RainS3 发布 AccessKey 只保留在开发机。
+该用户不能读取后端 `/etc/wenyousite/backend.env`、写对象存储或执行任意 root 命令。RainS3 发布 AccessKey 只保留在开发机。后端部署会从已推送提交把 `scripts/promote-android-release.sh` 安装到上述受限命令路径，避免运行脚本与当前 systemd 拓扑漂移。
 
 晋级脚本执行以下检查：
 
@@ -26,7 +26,7 @@ wenyou-release ALL=(root) NOPASSWD: /usr/local/sbin/wenyousite-promote-android *
 2. HEAD 的 Content-Type、Content-Length、immutable 缓存、attachment 和 `x-amz-meta-*` 必须与开发机构建一致。
 3. 公开 `.apk.sha256` sidecar 必须匹配待晋级摘要。
 4. 构建号不得降低；同一构建号不得改绑 URL。
-5. 原子更新 `.env`，重启后端并验证本地/公网健康与 `/meta`；失败自动恢复旧配置。
+5. 原子更新 systemd 实际读取的 `/etc/wenyousite/backend.env`，重启后端并验证本地/公网健康与 `/meta`；失败自动恢复旧配置。
 
 VPS 只在 `/var/lib/wenyousite/mobile-release-history.tsv` 保存小型发布历史，不保存安装包。
 

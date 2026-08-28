@@ -2,6 +2,16 @@
 set -euo pipefail
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+PROMOTE_SCRIPT="$SCRIPT_DIR/promote-android-release.sh"
+DEPLOY_SCRIPT="$SCRIPT_DIR/deploy.sh"
+grep -Fq 'ENV_FILE=${BACKEND_ENV_FILE:-/etc/wenyousite/backend.env}' "$PROMOTE_SCRIPT" || {
+  echo "移动发布脚本必须默认更新 systemd 运行环境文件" >&2
+  exit 1
+}
+grep -Fq 'install -m 0755 "$SCRIPT_DIR/promote-android-release.sh" /usr/local/sbin/wenyousite-promote-android' "$DEPLOY_SCRIPT" || {
+  echo "后端部署必须同步安装移动发布脚本" >&2
+  exit 1
+}
 TEST_ROOT=$(mktemp -d)
 cleanup() { rm -rf -- "$TEST_ROOT"; }
 trap cleanup EXIT

@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BACKEND_DIR=${WENYOU_BACKEND_DIR:-/root/wenyousite/wenyousite-backend}
-ENV_FILE=${BACKEND_ENV_FILE:-$BACKEND_DIR/.env}
+ENV_FILE=${BACKEND_ENV_FILE:-/etc/wenyousite/backend.env}
 HISTORY_FILE=${MOBILE_RELEASE_HISTORY_FILE:-/var/lib/wenyousite/mobile-release-history.tsv}
 ALLOWED_BASE_URL=${MOBILE_RELEASE_ALLOWED_BASE_URL:-https://wenyou-apk.cn-nb1.rains3.com/mobile/android}
 BACKEND_SERVICE=${MOBILE_RELEASE_BACKEND_SERVICE:-wenyousite-backend.service}
