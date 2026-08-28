@@ -1,0 +1,130 @@
+{
+  "contract": "wenyousite-editor-clipboard",
+  "version": 1,
+  "markdownContractVersion": 3,
+  "webEnvelope": {
+    "versionAttribute": "data-wenyou-clipboard",
+    "versionValue": "1",
+    "sourceAttribute": "data-wenyou-clipboard-source",
+    "sources": ["reader", "editor"],
+    "validation": "strict-allowlist",
+    "authentication": "none"
+  },
+  "mobileTransport": {
+    "structuredCarrier": "in-process-delta",
+    "systemClipboardPayload": "visible-text",
+    "systemClipboardMarker": "random-per-capture",
+    "requiredMatch": ["visible-text", "marker", "authenticated-session", "maximum-age"],
+    "maximumAgeSeconds": 600,
+    "interoperability": "plain-text-only"
+  },
+  "plainTextFallback": {
+    "projection": "rendered-visible-text",
+    "lineEndings": "LF",
+    "generatedMarkdownDelimiters": "omit",
+    "userVisibleLiteralCharacters": "preserve",
+    "atomicTargetsAndHiddenIds": "omit"
+  },
+  "entryPoints": [
+    { "id": "web-reader-selection", "platform": "web", "surface": "reader-selection", "copyMode": "structured", "scope": "single-markdown-root" },
+    { "id": "web-reader-menu", "platform": "web", "surface": "reader-menu", "copyMode": "structured", "scope": "whole-content" },
+    { "id": "web-editor", "platform": "web", "surface": "editor", "copyMode": "structured", "scope": "editor-selection" },
+    { "id": "mobile-reader-selection", "platform": "mobile", "surface": "reader-selection", "copyMode": "visible-text", "scope": "system-selection" },
+    { "id": "mobile-reader-menu", "platform": "mobile", "surface": "reader-menu", "copyMode": "structured", "scope": "whole-content" },
+    { "id": "mobile-editor", "platform": "mobile", "surface": "editor", "copyMode": "structured", "scope": "editor-selection" }
+  ],
+  "pasteRules": [
+    { "source": "site-fragment-v1", "result": "structured" },
+    { "source": "single-valid-internal-url", "result": "internal-reference" },
+    { "source": "external-text-or-html", "result": "literal-text" },
+    { "source": "external-drop", "result": "literal-text" },
+    { "source": "external-file", "result": "ignore" },
+    { "source": "missing-invalid-or-expired-marker", "result": "visible-text" }
+  ],
+  "nodeRules": [
+    { "nodeType": "internal_reference", "readerCopy": "preserve", "editorCopy": "preserve", "paste": "preserve-target-and-label", "plainText": "label" },
+    { "nodeType": "mention", "readerCopy": "preserve", "editorCopy": "preserve", "paste": "preserve-user-id-and-label", "plainText": "label" },
+    { "nodeType": "mention_all_players", "readerCopy": "preserve", "editorCopy": "preserve", "paste": "preserve-group-semantics", "plainText": "label" },
+    { "nodeType": "dice", "readerCopy": "preserve-notation", "editorCopy": "preserve", "paste": "regenerate-node-id-unrolled", "cutPaste": "preserve-node-id", "plainText": "visible-label" },
+    { "nodeType": "image", "readerCopy": "label", "editorCopy": "preserve", "paste": "reader-label-editor-node", "plainText": "[图片]" },
+    { "nodeType": "sticker", "readerCopy": "label", "editorCopy": "preserve", "paste": "reader-label-editor-node", "plainText": "[表情]" }
+  ],
+  "goldenCases": [
+    {
+      "id": "reader-rich-structure",
+      "kind": "reader-copy",
+      "markdown": "## 标题\n\n**粗体**、*斜体*、~~删除~~、`代码`\n\n> 引用\n\n- 甲\n- 乙\n\n---",
+      "expectedPlainText": "标题\n\n粗体、斜体、删除、代码\n\n引用\n\n• 甲\n• 乙",
+      "expectedBlockSemantics": ["heading-2", "paragraph", "blockquote", "bullet-list", "horizontal-rule"],
+      "expectedInlineSemantics": ["strong", "emphasis", "strikethrough", "inline-code"],
+      "expectedAtoms": []
+    },
+    {
+      "id": "reader-atoms-and-media",
+      "kind": "reader-copy",
+      "markdown": "[传送门](/threads/cmsewdo0h000x7qv6aa77ll1v) [@张三](/users/user-zhang) @全体玩家 [[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20+2]] ![表情](https://cdn.example.com/stickers/a.webp \"wenyousite-sticker:v1:cm1234567890123456789012\") ![图片](https://cdn.example.com/images/a.png)",
+      "expectedPlainText": "传送门 @张三 @全体玩家 1d20+2 = ? [表情] [图片]",
+      "expectedBlockSemantics": ["paragraph"],
+      "expectedInlineSemantics": ["link", "mention", "mention-all", "dice"],
+      "expectedAtoms": [
+        { "type": "internal_reference", "href": "/threads/cmsewdo0h000x7qv6aa77ll1v", "label": "传送门" },
+        { "type": "mention", "userId": "user-zhang", "label": "@张三" },
+        { "type": "mention_all_players", "label": "@全体玩家" },
+        { "type": "dice", "notation": "1d20+2", "nodeId": "regenerate", "rollState": "pending" }
+      ]
+    },
+    {
+      "id": "reader-settled-dice-discards-result-on-paste",
+      "kind": "reader-copy",
+      "markdown": "结果 [[dice:v1:7c9e6679-7425-40de-944b-e07fc1f90ae7:2d6+1]]",
+      "diceRolls": [
+        {
+          "nodeId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+          "notation": "2d6+1",
+          "results": [4, 6],
+          "modifier": 1,
+          "total": 11
+        }
+      ],
+      "expectedPlainText": "结果 2d6+1 = 11",
+      "expectedBlockSemantics": ["paragraph"],
+      "expectedInlineSemantics": ["dice"],
+      "expectedAtoms": [
+        { "type": "dice", "notation": "2d6+1", "nodeId": "regenerate", "rollState": "discard-result-on-paste" }
+      ]
+    },
+    {
+      "id": "external-markdown-is-literal",
+      "kind": "external-paste",
+      "plainText": "## 标题\n\n- **项目**\n\n| A | B |\n| - | - |",
+      "html": "",
+      "expectedMode": "literal-text",
+      "expectedText": "## 标题\n\n- **项目**\n\n| A | B |\n| - | - |"
+    },
+    {
+      "id": "external-html-prefers-visible-text",
+      "kind": "external-paste",
+      "plainText": "标题\n项目",
+      "html": "<h2 style=\"color:red\">标题</h2><ul><li><strong>项目</strong></li></ul>",
+      "expectedMode": "literal-text",
+      "expectedText": "标题\n项目"
+    },
+    {
+      "id": "single-internal-url-keeps-portal-exception",
+      "kind": "internal-url-paste",
+      "plainText": "https://wenyou.site/threads/cmsewdo0h000x7qv6aa77ll1v",
+      "expectedMode": "internal-reference",
+      "expectedHref": "/threads/cmsewdo0h000x7qv6aa77ll1v",
+      "expectedLabel": "传送门"
+    },
+    {
+      "id": "invalid-envelope-falls-back-silently",
+      "kind": "invalid-envelope",
+      "plainText": "可见内容",
+      "html": "<div data-wenyou-clipboard=\"999\"><strong>可见内容</strong></div>",
+      "expectedMode": "visible-text",
+      "expectedText": "可见内容",
+      "feedback": "silent"
+    }
+  ]
+}

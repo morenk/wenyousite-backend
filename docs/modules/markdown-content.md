@@ -2,11 +2,12 @@
 
 ## 目标与事实源
 
-本模块定义 Web、后端与 Flutter 共用的正文存储和工具栏能力白名单。机器契约分为三层，自然语言文档不能覆盖黄金语料：
+本模块定义 Web、后端与 Flutter 共用的正文存储和工具栏能力白名单。机器契约分为四层，自然语言文档不能覆盖黄金语料：
 
 1. [`contracts/markdown-v3-fixtures.json`](../../contracts/markdown-v3-fixtures.json) 固定规范化、可见性、允许/拒绝结果、首个不支持类型和字面降级结果。
 2. [`contracts/markdown-v3-nodes-fixtures.json`](../../contracts/markdown-v3-nodes-fixtures.json) 固定扩展节点的解析、序列化和复制身份。
 3. [`contracts/markdown-editor-roundtrip-v5-fixtures.json`](../../contracts/markdown-editor-roundtrip-v5-fixtures.json) 固定 `structured` 与 `literal-text` 两类编辑器往返，并以解析后的块语义和行内语义消除相同标点在不同上下文中的歧义。
+4. [`contracts/editor-clipboard-v1-fixtures.json`](../../contracts/editor-clipboard-v1-fixtures.json) 固定 Web/Flutter 的复制入口、站内结构片段、外部字面粘贴、原子节点身份与可见文本回退。
 
 主题坐标链接仍是普通 Markdown 链接；客户端可额外按 [`站内传送门 v1`](./internal-references.md) 统一其内联视觉和同页导航，不改变 Markdown v3 的存储规则。
 
@@ -33,6 +34,13 @@
 
 客户端对粘贴、手输、重开和草稿恢复中的不支持结构静默转成字面文本，不显示格式提示。阅读端也在交给 Markdown 渲染器前做相同防御降级。服务端不依赖客户端行为，直接 API 调用仍严格拒绝。
 
+## 剪贴板 v1
+
+- Web 阅读态同一正文内的选区和整篇菜单复制结构化站内片段；Flutter 只让整篇菜单结构化，系统任意选区保持可见纯文本。编辑器内部复制在两端都保留结构。
+- Web 结构片段使用带版本和来源的 HTML envelope，并始终携带不含 Markdown 定界符和隐藏身份的 `text/plain`。Envelope 只用于来源体验判定，不是认证边界；粘贴前仍必须执行严格节点、属性和 URL 白名单。
+- 站内片段保留 H2/H3、文字 marks、列表、引用、分隔线、安全链接、传送门、提及与骰子表达式。阅读端图片固定为 `[图片]`，表情固定为 `[表情]`；骰子粘贴生成新 ID 且不继承结果。
+- 无合法 v1 标记的 HTML、Word 和 Markdown 全部按可见文字插入；单独的合法本站坐标继续生成传送门。标记丢失、未知版本和跨端传输均静默退回可见纯文本。
+
 ## 规范化与可见性
 
 1. CRLF/CR 统一为 LF。
@@ -54,7 +62,7 @@
 
 ## 自动门禁
 
-- 三份 fixture 必须为合法 JSON、case id 唯一，并与存在同名副本的客户端逐字一致；round-trip v5 的 `blockSemantics` 会分别校验输入与规范输出的实际 Markdown 块解析结果，`inlineSemantics` 会校验规范输出的实际行内解析结果。
+- 四份 fixture 必须为合法 JSON、case id 唯一，并与存在同名副本的客户端逐字一致；round-trip v5 的 `blockSemantics` 会分别校验输入与规范输出的实际 Markdown 块解析结果，`inlineSemantics` 会校验规范输出的实际行内解析结果；clipboard v1 还必须覆盖 Web/Flutter 六个入口、全部来源降级和六类原子节点。
 - 单元测试覆盖每一种允许格式和所有禁止类型，字面输出必须合法且幂等。
 - 迁移测试覆盖 dry-run 无写入、版本递增、提及派生关系裁剪和重复规划幂等。
 - OpenAPI、错误码文档、CHANGELOG 与生成客户端必须随错误码和契约版本同步。
