@@ -6,7 +6,7 @@ import MarkdownIt from 'markdown-it';
 
 type JsonObject = Record<string, unknown>;
 
-const fixturePath = 'contracts/markdown-editor-roundtrip-v4-fixtures.json';
+const fixturePath = 'contracts/markdown-editor-roundtrip-v5-fixtures.json';
 const fixtureSource = fs.readFileSync(fixturePath, 'utf8');
 const fixture = JSON.parse(fixtureSource) as JsonObject;
 const failures: string[] = [];
@@ -47,9 +47,30 @@ function parseBlockSemantics(markdown: string): string[] {
   return semantics;
 }
 
+function parseInlineSemantics(markdown: string): string[] {
+  const semantics: string[] = [];
+  for (const token of markdownParser.parse(markdown, {})) {
+    if (token.type !== 'inline' || !token.children) continue;
+    for (const child of token.children) {
+      switch (child.type) {
+        case 'strong_open':
+          semantics.push('strong');
+          break;
+        case 'em_open':
+          semantics.push('emphasis');
+          break;
+        case 's_open':
+          semantics.push('strikethrough');
+          break;
+      }
+    }
+  }
+  return semantics;
+}
+
 if (
   fixture.contract !== 'wenyousite-markdown-editor-roundtrip' ||
-  fixture.version !== 4 ||
+  fixture.version !== 5 ||
   fixture.markdownContractVersion !== 3
 ) {
   failures.push('编辑器往返语料的契约标识或版本无效');
@@ -89,6 +110,28 @@ for (const item of cases) {
             `${item.id}: ${field} 块语义应为 ${expected.join(', ')}，实际为 ${actual.join(', ')}`,
           );
         }
+      }
+    }
+  }
+  if (item.inlineSemantics !== undefined) {
+    if (
+      !Array.isArray(item.inlineSemantics) ||
+      item.inlineSemantics.length === 0 ||
+      item.inlineSemantics.some(
+        (semantic) =>
+          semantic !== 'strong' && semantic !== 'emphasis' && semantic !== 'strikethrough',
+      )
+    ) {
+      failures.push(
+        `${item.id}: inlineSemantics 必须是只含 strong、emphasis 或 strikethrough 的非空数组`,
+      );
+    } else if (typeof item.serialized === 'string') {
+      const expected = item.inlineSemantics as string[];
+      const actual = parseInlineSemantics(item.serialized);
+      if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+        failures.push(
+          `${item.id}: serialized 行内语义应为 ${expected.join(', ')}，实际为 ${actual.join(', ')}`,
+        );
       }
     }
   }
@@ -151,6 +194,26 @@ if (
   JSON.stringify(setextHeadingCase.blockSemantics) !== JSON.stringify(['heading-2'])
 ) {
   failures.push('setext-heading-2 必须保留历史 Setext H2 语义并规范为 ATX H2');
+}
+
+for (const requiredId of [
+  'attention-boundary-bold-live-content',
+  'attention-boundary-italic',
+  'attention-boundary-nested-emphasis',
+  'attention-boundary-strikethrough',
+  'attention-boundary-underscore-italic',
+  'attention-boundary-underscore-bold',
+  'attention-boundary-underscore-nested',
+]) {
+  const boundaryCase = cases.find((item) => isObject(item) && item.id === requiredId);
+  if (
+    !isObject(boundaryCase) ||
+    boundaryCase.mode !== 'structured' ||
+    !Array.isArray(boundaryCase.inlineSemantics) ||
+    boundaryCase.inlineSemantics.length === 0
+  ) {
+    failures.push(`${requiredId} 必须声明 structured 模式和 inlineSemantics`);
+  }
 }
 
 for (const client of ['wenyousite-frontend', 'wenyousite-mobile']) {

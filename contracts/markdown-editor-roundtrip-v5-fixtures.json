@@ -1,8 +1,8 @@
 {
   "contract": "wenyousite-markdown-editor-roundtrip",
-  "version": 4,
+  "version": 5,
   "markdownContractVersion": 3,
-  "description": "Web 与 Flutter 编辑器共用的 Markdown v3 结构化编辑、块语义和字面纯文本黄金语料。",
+  "description": "Web 与 Flutter 编辑器共用的 Markdown v3 结构化编辑、块语义、行内边界语义和字面纯文本黄金语料。",
   "modes": {
     "structured": "客户端应恢复为结构化编辑状态，并序列化为 serialized",
     "literal-text": "客户端显示源码字符但不得恢复为结构节点，并序列化为安全转义后的 serialized"
@@ -49,6 +49,62 @@
       "mode": "structured",
       "markdown": "***粗斜体***",
       "serialized": "***粗斜体***"
+    },
+    {
+      "id": "attention-boundary-bold-live-content",
+      "capabilities": ["bold"],
+      "mode": "structured",
+      "markdown": "选择你的DeerSeek模型：**【注意注意！并不是真的AI！DeerSeek就是我！】**DeerSeek v4 pro",
+      "serialized": "选择你的DeerSeek模型：**【注意注意！并不是真的AI！DeerSeek就是我！】**&#x44;eerSeek v4 pro",
+      "inlineSemantics": ["strong"]
+    },
+    {
+      "id": "attention-boundary-italic",
+      "capabilities": ["italic"],
+      "mode": "structured",
+      "markdown": "前*（斜体）*后",
+      "serialized": "&#x524D;*（斜体）*&#x540E;",
+      "inlineSemantics": ["emphasis"]
+    },
+    {
+      "id": "attention-boundary-nested-emphasis",
+      "capabilities": ["bold", "italic"],
+      "mode": "structured",
+      "markdown": "前***【粗斜体】***后",
+      "serialized": "&#x524D;***【粗斜体】***&#x540E;",
+      "inlineSemantics": ["emphasis", "strong"]
+    },
+    {
+      "id": "attention-boundary-strikethrough",
+      "capabilities": ["strikethrough"],
+      "mode": "structured",
+      "markdown": "前~~【删除】~~后",
+      "serialized": "&#x524D;~~【删除】~~&#x540E;",
+      "inlineSemantics": ["strikethrough"]
+    },
+    {
+      "id": "attention-boundary-underscore-italic",
+      "capabilities": ["italic"],
+      "mode": "structured",
+      "markdown": "前_（斜体）_后",
+      "serialized": "&#x524D;*（斜体）*&#x540E;",
+      "inlineSemantics": ["emphasis"]
+    },
+    {
+      "id": "attention-boundary-underscore-bold",
+      "capabilities": ["bold"],
+      "mode": "structured",
+      "markdown": "前__【粗体】__后",
+      "serialized": "&#x524D;**【粗体】**&#x540E;",
+      "inlineSemantics": ["strong"]
+    },
+    {
+      "id": "attention-boundary-underscore-nested",
+      "capabilities": ["bold", "italic"],
+      "mode": "structured",
+      "markdown": "前___【粗斜体】___后",
+      "serialized": "&#x524D;***【粗斜体】***&#x540E;",
+      "inlineSemantics": ["emphasis", "strong"]
     },
     {
       "id": "inline-code",
