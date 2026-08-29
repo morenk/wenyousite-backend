@@ -16,10 +16,10 @@ type ContractNode =
   | { type: 'image'; url: string; alt: string; title: string | null };
 
 const fixtures = JSON.parse(
-  readFileSync(resolve(__dirname, '../../contracts/markdown-v3-nodes-fixtures.json'), 'utf8'),
+  readFileSync(resolve(__dirname, '../../contracts/markdown-v4-nodes-fixtures.json'), 'utf8'),
 ) as { cases: Array<{ id: string; markdown: string; nodes: ContractNode[] }> };
 
-describe('Markdown v3 节点跨端契约', () => {
+describe('Markdown v4 节点跨端契约', () => {
   const dice = new DiceService();
   const stickers = new StickerContentService({} as PrismaService);
   const mentions = new MentionsService(
@@ -38,29 +38,34 @@ describe('Markdown v3 节点跨端契约', () => {
     const expectedDice = fixture.nodes
       .filter((node): node is Extract<ContractNode, { type: 'dice' }> => node.type === 'dice')
       .map(({ nodeId, notation }) => ({ nodeId, notation }));
-    expect(dice.parseContent(fixture.markdown).nodes.map(({ nodeId, notation }) => ({
-      nodeId,
-      notation,
-    }))).toEqual(expectedDice);
+    expect(
+      dice.parseContent(fixture.markdown).nodes.map(({ nodeId, notation }) => ({
+        nodeId,
+        notation,
+      })),
+    ).toEqual(expectedDice);
 
     const expectedImages = fixture.nodes
-      .filter((node): node is Extract<ContractNode, { type: 'image' | 'sticker' }> =>
-        node.type === 'image' || node.type === 'sticker',
+      .filter(
+        (node): node is Extract<ContractNode, { type: 'image' | 'sticker' }> =>
+          node.type === 'image' || node.type === 'sticker',
       )
-      .map((node) => node.type === 'sticker'
-        ? {
-            url: node.url,
-            title: `${STICKER_MARKER_PREFIX}${node.assetId}`,
-            stickerAssetId: node.assetId,
-          }
-        : { url: node.url, title: node.title, stickerAssetId: null });
+      .map((node) =>
+        node.type === 'sticker'
+          ? {
+              url: node.url,
+              title: `${STICKER_MARKER_PREFIX}${node.assetId}`,
+              stickerAssetId: node.assetId,
+            }
+          : { url: node.url, title: node.title, stickerAssetId: null },
+      );
     expect(stickers.extract(fixture.markdown)).toEqual(expectedImages);
 
     const mentionTokens = mentions.extractMentionTokens(fixture.markdown);
     expect(mentionTokens.userIds).toEqual(
       fixture.nodes
-        .filter((node): node is Extract<ContractNode, { type: 'mention' }> =>
-          node.type === 'mention',
+        .filter(
+          (node): node is Extract<ContractNode, { type: 'mention' }> => node.type === 'mention',
         )
         .map((node) => node.userId),
     );

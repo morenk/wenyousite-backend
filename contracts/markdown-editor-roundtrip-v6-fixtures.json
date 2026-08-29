@@ -1,8 +1,8 @@
 {
   "contract": "wenyousite-markdown-editor-roundtrip",
-  "version": 5,
-  "markdownContractVersion": 3,
-  "description": "Web 与 Flutter 编辑器共用的 Markdown v3 结构化编辑、块语义、行内边界语义和字面纯文本黄金语料。",
+  "version": 6,
+  "markdownContractVersion": 4,
+  "description": "Web 与 Flutter 编辑器共用的 Markdown v4 结构化编辑、块对齐语义、行内边界语义和字面纯文本黄金语料。",
   "modes": {
     "structured": "客户端应恢复为结构化编辑状态，并序列化为 serialized",
     "literal-text": "客户端显示源码字符但不得恢复为结构节点，并序列化为安全转义后的 serialized"
@@ -126,6 +126,24 @@
       "mode": "structured",
       "markdown": "## 二级标题\n### 三级标题",
       "serialized": "## 二级标题\n### 三级标题"
+    },
+    {
+      "id": "aligned-paragraphs",
+      "capabilities": ["alignment"],
+      "mode": "structured",
+      "markdown": "[wenyousite-align-v1-center]: #\n第一段\n\n[wenyousite-align-v1-right]: #\n第二段",
+      "serialized": "[wenyousite-align-v1-center]: #\n第一段\n\n[wenyousite-align-v1-right]: #\n第二段",
+      "blockSemantics": ["paragraph", "paragraph"],
+      "blockAlignments": ["center", "right"]
+    },
+    {
+      "id": "aligned-headings",
+      "capabilities": ["heading", "alignment"],
+      "mode": "structured",
+      "markdown": "[wenyousite-align-v1-center]: #\n## 二级标题\n\n[wenyousite-align-v1-right]: #\n### 三级标题",
+      "serialized": "[wenyousite-align-v1-center]: #\n## 二级标题\n\n[wenyousite-align-v1-right]: #\n### 三级标题",
+      "blockSemantics": ["heading-2", "heading-3"],
+      "blockAlignments": ["center", "right"]
     },
     {
       "id": "setext-heading-2",

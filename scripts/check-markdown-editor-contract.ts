@@ -6,7 +6,7 @@ import MarkdownIt from 'markdown-it';
 
 type JsonObject = Record<string, unknown>;
 
-const fixturePath = 'contracts/markdown-editor-roundtrip-v5-fixtures.json';
+const fixturePath = 'contracts/markdown-editor-roundtrip-v6-fixtures.json';
 const fixtureSource = fs.readFileSync(fixturePath, 'utf8');
 const fixture = JSON.parse(fixtureSource) as JsonObject;
 const failures: string[] = [];
@@ -68,10 +68,28 @@ function parseInlineSemantics(markdown: string): string[] {
   return semantics;
 }
 
+function parseBlockAlignments(markdown: string): string[] {
+  const lines = markdown.split('\n');
+  return markdownParser
+    .parse(markdown, {})
+    .filter(
+      (token) =>
+        token.level === 0 &&
+        token.map &&
+        (token.type === 'paragraph_open' || token.type === 'heading_open'),
+    )
+    .map((token) => {
+      const marker = lines[(token.map?.[0] ?? 0) - 1]?.match(
+        /^\[wenyousite-align-v1-(center|right)\]: #$/u,
+      );
+      return marker?.[1] ?? 'left';
+    });
+}
+
 if (
   fixture.contract !== 'wenyousite-markdown-editor-roundtrip' ||
-  fixture.version !== 5 ||
-  fixture.markdownContractVersion !== 3
+  fixture.version !== 6 ||
+  fixture.markdownContractVersion !== 4
 ) {
   failures.push('编辑器往返语料的契约标识或版本无效');
 }
@@ -135,6 +153,30 @@ for (const item of cases) {
       }
     }
   }
+  if (item.blockAlignments !== undefined) {
+    if (
+      !Array.isArray(item.blockAlignments) ||
+      item.blockAlignments.length === 0 ||
+      item.blockAlignments.some(
+        (alignment) => alignment !== 'left' && alignment !== 'center' && alignment !== 'right',
+      )
+    ) {
+      failures.push(`${item.id}: blockAlignments 必须是只含 left、center 或 right 的非空数组`);
+    } else if (typeof item.markdown === 'string' && typeof item.serialized === 'string') {
+      const expected = item.blockAlignments as string[];
+      for (const [field, markdown] of [
+        ['markdown', item.markdown],
+        ['serialized', item.serialized],
+      ] as const) {
+        const actual = parseBlockAlignments(markdown);
+        if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+          failures.push(
+            `${item.id}: ${field} 块对齐应为 ${expected.join(', ')}，实际为 ${actual.join(', ')}`,
+          );
+        }
+      }
+    }
+  }
   if (item.mode !== 'structured' && item.mode !== 'literal-text') {
     failures.push(`${item.id}: mode 必须是 structured 或 literal-text`);
   } else {
@@ -161,6 +203,7 @@ for (const capability of [
   'inline-code',
   'link',
   'heading',
+  'alignment',
   'quote',
   'bullet-list',
   'ordered-list',
@@ -213,6 +256,18 @@ for (const requiredId of [
     boundaryCase.inlineSemantics.length === 0
   ) {
     failures.push(`${requiredId} 必须声明 structured 模式和 inlineSemantics`);
+  }
+}
+
+for (const requiredId of ['aligned-paragraphs', 'aligned-headings']) {
+  const alignmentCase = cases.find((item) => isObject(item) && item.id === requiredId);
+  if (
+    !isObject(alignmentCase) ||
+    alignmentCase.mode !== 'structured' ||
+    !Array.isArray(alignmentCase.blockAlignments) ||
+    alignmentCase.blockAlignments.length === 0
+  ) {
+    failures.push(`${requiredId} 必须声明 structured 模式和 blockAlignments`);
   }
 }
 

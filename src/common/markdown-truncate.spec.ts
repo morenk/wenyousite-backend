@@ -1,9 +1,6 @@
 /** Markdown 摘要清理测试：图片统一降级为占位，不泄漏 Milkdown 比例 alt */
 
-import {
-  truncateMarkdown,
-  truncateMarkdownToCompactPlainText,
-} from './markdown-truncate';
+import { truncateMarkdown, truncateMarkdownToCompactPlainText } from './markdown-truncate';
 
 describe('truncateMarkdown', () => {
   it('短 Markdown 也应清理语法', () => {
@@ -15,8 +12,9 @@ describe('truncateMarkdown', () => {
   });
 
   it('图文混排在原位置保留图片占位', () => {
-    expect(truncateMarkdown('开头 ![1.00](https://cdn.example.com/a.jpg) 后续内容'))
-      .toBe('开头 [图片] 后续内容');
+    expect(truncateMarkdown('开头 ![1.00](https://cdn.example.com/a.jpg) 后续内容')).toBe(
+      '开头 [图片] 后续内容',
+    );
   });
 
   it('图片正常 alt 也统一显示为图片占位', () => {
@@ -65,6 +63,19 @@ describe('truncateMarkdown', () => {
     expect(truncateMarkdown('1. 有序')).toBe('有序');
   });
 
+  it('普通和紧凑摘要都移除 Markdown v4 对齐元数据', () => {
+    const markdown = [
+      '[wenyousite-align-v1-center]: #',
+      '## 居中标题',
+      '',
+      '[wenyousite-align-v1-right]: #',
+      '居右正文',
+    ].join('\n');
+
+    expect(truncateMarkdown(markdown)).toBe('居中标题\n\n居右正文');
+    expect(truncateMarkdownToCompactPlainText(markdown)).toBe('居中标题 居右正文');
+  });
+
   it('站内传送门摘要保留自定义名称，裸链接使用默认名称', () => {
     const threadId = 'cmsewdo0h000x7qv6aa77ll1v';
     expect(truncateMarkdown(`[设定 A](/threads/${threadId})`)).toBe('设定 A');
@@ -72,8 +83,9 @@ describe('truncateMarkdown', () => {
   });
 
   it('Milkdown 硬换行（行尾反斜杠）还原为换行，不残留反斜杠', () => {
-    expect(truncateMarkdown('<看看呢>\\\n\\>看看呢<\n\n<\n\n\\>'))
-      .toBe('<看看呢>\n>看看呢<\n\n<\n\n>');
+    expect(truncateMarkdown('<看看呢>\\\n\\>看看呢<\n\n<\n\n\\>')).toBe(
+      '<看看呢>\n>看看呢<\n\n<\n\n>',
+    );
   });
 
   it('普通反斜杠路径不受影响', () => {

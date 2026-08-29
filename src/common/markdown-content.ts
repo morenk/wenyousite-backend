@@ -1,4 +1,4 @@
-/** Markdown v3 内容规则：规范化、工具栏能力白名单与字面文本降级。 */
+/** Markdown v4 内容规则：规范化、工具栏能力白名单与字面文本降级。 */
 
 import { HttpStatus } from '@nestjs/common';
 import MarkdownIt from 'markdown-it';
@@ -15,12 +15,16 @@ const THEMATIC_BREAK_RE = /^ {0,3}(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$/;
 const EMPTY_PARAGRAPH_RE = /^ {0,3}<br\s*\/?>[\t ]*$/iu;
 const TASK_LIST_RE = /^(?: {0,3}>[\t ]*)*[\t ]*(?:[-+*]|\d+[.)])[\t ]+\[[ xX]\](?:[\t ]|$)/u;
 const UNKNOWN_PROTOCOL_RE = /\[\[([a-z][a-z0-9_-]*):v(\d+):/giu;
+const ALIGNMENT_MARKER_RE = /^\[wenyousite-align-v1-(center|right)\]: #$/u;
+const ALIGNMENT_PROTOCOL_RE = /\[wenyousite-align-v(\d+)-([a-z][a-z-]*)\]:/giu;
+const STICKER_TITLE_PREFIX = 'wenyousite-sticker:v1:';
 const WORD_JOINER = '\u2060';
 const MAX_LIST_DEPTH = 3;
 
 /** 仅用于可见性判断；保留原文，避免破坏 ZWJ Emoji 和变体选择符。 */
-// eslint-disable-next-line no-misleading-character-class -- 此处按 Unicode code point 明确列举默认不可见字符及组合选择符。
-const DEFAULT_IGNORABLE_RE = /[\u00AD\u034F\u061C\u115F\u1160\u17B4\u17B5\u180B-\u180F\u200B-\u200F\u202A-\u202E\u2060-\u206F\u3164\uFE00-\uFE0F\uFEFF\uFFA0]/gu;
+const DEFAULT_IGNORABLE_RE =
+  // eslint-disable-next-line no-misleading-character-class -- 此处按 Unicode code point 明确列举默认不可见字符及组合选择符。
+  /[\u00AD\u034F\u061C\u115F\u1160\u17B4\u17B5\u180B-\u180F\u200B-\u200F\u202A-\u202E\u2060-\u206F\u3164\uFE00-\uFE0F\uFEFF\uFFA0]/gu;
 
 export const UNSUPPORTED_MARKDOWN_TYPE_LABELS = {
   table: '表格',
@@ -32,6 +36,7 @@ export const UNSUPPORTED_MARKDOWN_TYPE_LABELS = {
   'hard-break': '显式硬换行',
   'raw-html': '原始 HTML',
   'unknown-protocol': '未知协议节点',
+  'invalid-alignment': '无效的段落对齐',
   'list-depth': '超过三层的嵌套列表',
   'unsafe-link': '不安全链接',
   'unknown-node': '未知 Markdown 节点',
@@ -51,7 +56,7 @@ const markdownParser = new MarkdownIt({
   typographer: false,
 });
 
-/** 将跨端 Markdown 转为 v3 标准存储形式；不 trim、不做 Unicode 归一化。 */
+/** 将跨端 Markdown 转为 v4 标准存储形式；不 trim、不做 Unicode 归一化。 */
 export function normalizeMarkdownContent(markdown: string): string {
   const lines = markdown.replace(/\r\n?/g, '\n').split('\n');
   let fence: { marker: '`' | '~'; length: number } | null = null;
@@ -146,8 +151,9 @@ export function findUnsupportedMarkdownFormats(markdown: string): UnsupportedMar
     .join('\n');
   const issues: UnsupportedMarkdownIssue[] = [];
   let listDepth = 0;
+  const tokens = markdownParser.parse(parseSource, {});
 
-  for (const token of markdownParser.parse(parseSource, {})) {
+  for (const token of tokens) {
     switch (token.type) {
       case 'table_open':
         issues.push(issue('table', token.map));
@@ -233,11 +239,59 @@ export function findUnsupportedMarkdownFormats(markdown: string): UnsupportedMar
     }
   }
 
+  const topLevelBlocks = new Map(
+    tokens
+      .filter(
+        (token) =>
+          token.level === 0 &&
+          token.map &&
+          (token.type === 'paragraph_open' || token.type === 'heading_open'),
+      )
+      .map((token) => [token.map![0], token]),
+  );
+
   for (let line = 0; line < lines.length; line++) {
     if (TASK_LIST_RE.test(lines[line])) {
       issues.push({ type: 'task-list', startLine: line, endLine: line });
     }
     const masked = maskInlineCode(lines[line]);
+    const alignmentMarker = lines[line].match(ALIGNMENT_MARKER_RE);
+    if (alignmentMarker) {
+      const target = topLevelBlocks.get(line + 1);
+      const inline = target
+        ? tokens.find(
+            (token) =>
+              token.type === 'inline' &&
+              token.map?.[0] === target.map?.[0] &&
+              token.map?.[1] === target.map?.[1],
+          )
+        : undefined;
+      const hasRegularImage = inline?.children?.some(
+        (child) =>
+          child.type === 'image' && !child.attrGet('title')?.startsWith(STICKER_TITLE_PREFIX),
+      );
+      const eligibleHeading =
+        target?.type === 'heading_open' &&
+        (target.tag === 'h2' || target.tag === 'h3') &&
+        !hasRegularImage;
+      const eligibleParagraph =
+        target?.type === 'paragraph_open' &&
+        !EMPTY_PARAGRAPH_RE.test(lines[line + 1] ?? '') &&
+        !hasRegularImage;
+      if (!eligibleHeading && !eligibleParagraph) {
+        issues.push({ type: 'invalid-alignment', startLine: line, endLine: line });
+      }
+      continue;
+    }
+    for (const match of masked.matchAll(ALIGNMENT_PROTOCOL_RE)) {
+      if (isEscaped(lines[line], match.index ?? 0)) continue;
+      issues.push({
+        type: match[1] === '1' ? 'invalid-alignment' : 'unknown-protocol',
+        startLine: line,
+        endLine: line,
+      });
+      break;
+    }
     for (const match of masked.matchAll(UNKNOWN_PROTOCOL_RE)) {
       if (isEscaped(lines[line], match.index ?? 0)) continue;
       if (match[1].toLowerCase() === 'dice' && match[2] === '1') continue;
@@ -313,7 +367,14 @@ export function hasVisibleMarkdownContent(markdown: string): boolean {
   const lines = normalizeMarkdownContent(markdown).split('\n');
   for (const rawLine of lines) {
     const line = rawLine.trim();
-    if (!line || THEMATIC_BREAK_RE.test(rawLine) || EMPTY_PARAGRAPH_RE.test(rawLine)) continue;
+    if (
+      !line ||
+      THEMATIC_BREAK_RE.test(rawLine) ||
+      EMPTY_PARAGRAPH_RE.test(rawLine) ||
+      ALIGNMENT_MARKER_RE.test(rawLine)
+    ) {
+      continue;
+    }
     if (IMAGE_RE.test(line)) return true;
     if (HTTP_AUTOLINK_RE.test(line)) return true;
     const visible = line

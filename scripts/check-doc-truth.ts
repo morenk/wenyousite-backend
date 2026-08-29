@@ -101,9 +101,9 @@ if (mobileUiBoundary.includes('pending-client-integration')) {
 }
 
 for (const fixtureName of [
-  'markdown-v3-fixtures.json',
-  'markdown-v3-nodes-fixtures.json',
-  'markdown-editor-roundtrip-v5-fixtures.json',
+  'markdown-v4-fixtures.json',
+  'markdown-v4-nodes-fixtures.json',
+  'markdown-editor-roundtrip-v6-fixtures.json',
 ]) {
   const backendFixture = fs.readFileSync(path.join('contracts', fixtureName), 'utf8');
   for (const client of ['wenyousite-frontend', 'wenyousite-mobile']) {

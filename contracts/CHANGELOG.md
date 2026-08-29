@@ -2,6 +2,9 @@
 
 ## 5.14.0-dev.20260829.1
 
+- 正文契约升级为 Markdown v4：普通段落与 H2/H3 可通过紧邻前置的 `[wenyousite-align-v1-center|right]: #` 隐藏引用定义保存对齐；左对齐不写标记。列表、引用、普通图片、分隔线、协议空段、孤立或未知版本标记仍被拒绝，提及、骰子和收藏表情继承合法父段落。
+- 编辑器往返黄金契约升级为 v6，剪贴板契约升级为 v2：本站结构片段保留合法块对齐，`text/plain` 与外部粘贴不携带或推断对齐；v2 读取器继续接受不含对齐的 v1 envelope。Foundation 正式依赖版本为 `v6.7.0`。
+- 后端先向前兼容接受 v4 正文，当前 `/meta.markdownContractVersion` 继续返回 `3`，因此旧移动端不会被锁出且 Web 不开放对齐写入。Windows 移动端需先消费 v4/v6/v2 契约并支持版本 4，随后由独立后端提交激活版本声明。
 - 新增可选鉴权端点 `GET /threads/:threadId/posts/latest`（`postsFindLatestInThread`），一次返回主题全部存活子贴内按 `createdAt DESC, id DESC` 定位的最新有效主楼层或楼中楼回复；编辑旧内容不会改变定位结果。
 - 响应 `LatestThreadPostResponseDto` 只包含 `id / threadId / subthreadId / parentPostId / createdAt`，客户端可直接复用主楼层与楼中楼稳定链接，不需要遍历子贴或分页。正文 `BODY`、已删除帖子、已删除子贴和父楼已删除的回复均不参与定位。
 - 接口复用主题可见性与 404 防泄漏语义；主题内暂无楼层或回复时返回 `POST_NOT_FOUND`。这是向后兼容新增，旧 Web 与移动端无需迁移；Windows 移动端接入留给独立契约同步切片。

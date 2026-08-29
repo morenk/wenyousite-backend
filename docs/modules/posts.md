@@ -45,7 +45,7 @@
 - 正文发布校验只过滤空白、空段落和独立分隔线；纯数字正文、裸 HTTP(S) URL 和 CommonMark 自动链接均属于有效内容
 - 楼层和楼中楼允许正文只包含内联骰子节点；BODY 发布时必须保留节点之外的可见正文
 - 客户端只提交含 `[[dice:v1:<nodeId>:<notation>]]` 节点的正文，正式点数由服务端生成。已发布帖移动节点复用结果，删除节点物理删除结果，同一 nodeId 不得改写表达式；单帖最多 20 个节点
-- 创建、正文 upsert 和编辑在骰子、图片、表情、提及及存库前统一执行 Markdown v3 工具栏白名单校验；白名单外格式返回 `40009`，事件和通知摘要使用同一 canonical 正文
+- 创建、正文 upsert 和编辑在骰子、图片、表情、提及及存库前统一执行 Markdown v4 工具栏白名单校验；白名单外格式返回 `40009`，事件和通知摘要忽略对齐引用定义并使用同一 canonical 正文
 - 新版客户端创建楼层/楼中楼时携带 UUID `clientRequestId`；后端按 `authorId + clientRequestId` 唯一，相同请求重试返回首次创建的 Post，不重复占楼层号或发事件
 - 同一 `clientRequestId` 若复用于不同子贴、正文（包括内联骰子节点）、parentPostId 或 replyToPostId，返回 HTTP 409，禁止把不同业务请求误判为重试
 - 发帖权限校验在自动加入之前：被 PostingPolicy 拒绝时不会写入 ThreadMember 记录

@@ -1,8 +1,8 @@
 {
   "contract": "wenyousite-markdown-nodes",
   "version": 1,
-  "markdownContractVersion": 3,
-  "description": "Web、Flutter 与后端共用的 Markdown v3 扩展节点解析、序列化和往返黄金语料；nodes 只列出工具栏白名单内的扩展/媒体节点。",
+  "markdownContractVersion": 4,
+  "description": "Web、Flutter 与后端共用的 Markdown v4 扩展节点解析、序列化和往返黄金语料；nodes 只列出工具栏白名单内的扩展/媒体节点。",
   "cases": [
     {
       "id": "direct-mention",
