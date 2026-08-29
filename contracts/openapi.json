@@ -17930,7 +17930,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.14.0-dev.20260829.1",
+    "version": "5.14.1-dev.20260829.1",
     "contact": {}
   },
   "tags": [
@@ -27110,7 +27110,7 @@
           },
           "markdownContractVersion": {
             "type": "number",
-            "example": 3
+            "example": 4
           },
           "capabilities": {
             "$ref": "#/components/schemas/ApiCapabilitiesResponseDto"

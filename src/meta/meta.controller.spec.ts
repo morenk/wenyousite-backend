@@ -10,7 +10,7 @@ describe('MetaController', () => {
     expect(controller.getMeta()).toEqual({
       contractVersion: API_CONTRACT_VERSION,
       buildSha: null,
-      markdownContractVersion: 3,
+      markdownContractVersion: 4,
       capabilities: {
         stickers: true,
         directMessages: true,
