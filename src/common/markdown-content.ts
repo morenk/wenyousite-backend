@@ -270,12 +270,15 @@ export function findUnsupportedMarkdownFormats(markdown: string): UnsupportedMar
         (child) =>
           child.type === 'image' && !child.attrGet('title')?.startsWith(STICKER_TITLE_PREFIX),
       );
+      const hasInlineContent = Boolean(inline?.content.trim());
       const eligibleHeading =
         target?.type === 'heading_open' &&
         (target.tag === 'h2' || target.tag === 'h3') &&
+        hasInlineContent &&
         !hasRegularImage;
       const eligibleParagraph =
         target?.type === 'paragraph_open' &&
+        hasInlineContent &&
         !EMPTY_PARAGRAPH_RE.test(lines[line + 1] ?? '') &&
         !hasRegularImage;
       if (!eligibleHeading && !eligibleParagraph) {
