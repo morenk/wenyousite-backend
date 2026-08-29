@@ -237,6 +237,7 @@ GET /threads?tagId=:id&sort=recommended&limit=20
 ```
 GET /subthreads/:id/posts?limit=20&order=OLDEST&authorId=<用户ID>
 GET /subthreads/:id/posts/authors
+GET /threads/:threadId/posts/latest
 ```
 
 `order` 可选 `OLDEST | NEWEST`，默认 `OLDEST`；`authorId` 可选，只看当前主题楼主、协作者或已标记玩家创建的主楼层。两者都属于游标分页条件，切换时客户端必须从第一页重新读取。省略 `authorId` 时行为不变；作者筛选不作用于每层内嵌的最早 5 条楼中楼回复。
@@ -249,6 +250,8 @@ GET /subthreads/:id/posts/authors
 - `_count.replies`：该楼层总的楼中楼回复数
 - `replies`：前 5 条楼中楼回复的内嵌数组（含 author / replyToPost）
 - 如果 `_count.replies > 5`，前端应显示"查看全部 N 条回复"入口
+
+主题级“跳到最新发言”使用 `GET /threads/:threadId/posts/latest`，服务端会跨全部存活子贴按创建时间定位最新主楼层或楼中楼回复。响应只含导航所需的 `id / threadId / subthreadId / parentPostId / createdAt`：`parentPostId=null` 时跳到 `/threads/{threadId}?post={id}`，否则跳到 `/threads/{threadId}/posts/{parentPostId}/replies?post={id}`。客户端不应逐子贴遍历分页；切换目标前应清除会遮蔽目标的作者筛选。编辑旧发言不改变“最新”，目标在请求期间被删除时按既有 404 错误态处理。
 
 ### 4.3 楼中楼
 

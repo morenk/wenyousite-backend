@@ -174,6 +174,7 @@
 
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
+| GET | `/threads/{threadId}/posts/latest` | optional | 定位主题帖内最新发布的楼层或楼中楼回复 |
 | GET | `/subthreads/{subthreadId}/posts` | optional | 获取子贴的楼层列表（Cursor 分页） |
 | POST | `/subthreads/{subthreadId}/posts` | authenticated | 发帖（创建新楼层或楼中楼回复） |
 | GET | `/subthreads/{subthreadId}/posts/authors` | optional | 获取当前子贴中实际发布过主楼层的角色作者候选 |

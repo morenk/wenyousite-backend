@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "5.13.1-dev.20260827.1",
+  "contractVersion": "5.14.0-dev.20260829.1",
   "counts": {
-    "total": 210,
-    "v1": 99,
+    "total": 211,
+    "v1": 100,
     "deferred": 60,
     "notApplicable": 50,
     "infrastructure": 1
@@ -895,6 +895,14 @@
       "method": "PUT",
       "path": "/api/v1/threads/{threadId}/subthreads/reorder",
       "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "postsFindLatestInThread",
+      "method": "GET",
+      "path": "/api/v1/threads/{threadId}/posts/latest",
+      "module": "posts",
       "disposition": "v1",
       "status": "planned"
     },

@@ -1,5 +1,11 @@
 # API 合同变更
 
+## 5.14.0-dev.20260829.1
+
+- 新增可选鉴权端点 `GET /threads/:threadId/posts/latest`（`postsFindLatestInThread`），一次返回主题全部存活子贴内按 `createdAt DESC, id DESC` 定位的最新有效主楼层或楼中楼回复；编辑旧内容不会改变定位结果。
+- 响应 `LatestThreadPostResponseDto` 只包含 `id / threadId / subthreadId / parentPostId / createdAt`，客户端可直接复用主楼层与楼中楼稳定链接，不需要遍历子贴或分页。正文 `BODY`、已删除帖子、已删除子贴和父楼已删除的回复均不参与定位。
+- 接口复用主题可见性与 404 防泄漏语义；主题内暂无楼层或回复时返回 `POST_NOT_FOUND`。这是向后兼容新增，旧 Web 与移动端无需迁移；Windows 移动端接入留给独立契约同步切片。
+
 ## 5.13.2-dev.20260828.1
 
 - 编辑器往返黄金契约升级为 v5：新增 `* / _ / ~~` 行内定界符在标点或符号边界紧邻正文时的语义恢复与安全规范输出，覆盖粗体、斜体、粗斜体、删除线及下划线别名；转义、代码、空白边界与普通单词内下划线仍保持字面文本。正文 Markdown 版本继续为 v3，HTTP API、OpenAPI、字段和数据库均不变。

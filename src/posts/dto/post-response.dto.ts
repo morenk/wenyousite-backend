@@ -64,6 +64,24 @@ export class DiscussionAuthorResponseDto extends PostAuthorResponseDto {
   playerMarked!: boolean;
 }
 
+/** 主题帖内按发布时间定位到的最新有效楼层或楼中楼回复。 */
+export class LatestThreadPostResponseDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  threadId!: string;
+
+  @ApiProperty()
+  subthreadId!: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  parentPostId!: string | null;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  createdAt!: Date;
+}
+
 /** 帖子公共字段 */
 export class PostBaseResponseDto {
   @ApiProperty()

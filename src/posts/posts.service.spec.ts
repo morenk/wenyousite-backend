@@ -1099,6 +1099,21 @@ describe('PostsService', () => {
     query.mockRestore();
   });
 
+  it('findLatestInThread 将主题和当前身份传给查询层', async () => {
+    const query = jest.spyOn(queries, 'findLatestInThread').mockResolvedValue({
+      id: 'reply-latest',
+      threadId: 'thread-1',
+      subthreadId: 'subthread-2',
+      parentPostId: 'floor-9',
+      createdAt: new Date('2026-08-29T08:00:00.000Z'),
+    });
+
+    await service.findLatestInThread('thread-1', 'viewer-1');
+
+    expect(query).toHaveBeenCalledWith('thread-1', 'viewer-1');
+    query.mockRestore();
+  });
+
   it('findAllBySubthread 无回复楼层应返回空 replies 数组', async () => {
     mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1' });
     mockPrisma.post.findMany.mockResolvedValue([{ id: 'p1', author: {}, _count: { replies: 0 } }]);

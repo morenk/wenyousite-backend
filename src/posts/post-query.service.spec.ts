@@ -1,13 +1,14 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../access/thread-access.service';
 import { ReplyOrder } from '../common/dto/reply-query.dto';
+import { ErrorCode } from '../common/exceptions/error-codes';
 import { PostQueryService } from './post-query.service';
 
 const prisma = {
   $queryRaw: jest.fn(),
   subthread: { findUnique: jest.fn() },
   threadMember: { findMany: jest.fn(), findUnique: jest.fn() },
-  post: { findMany: jest.fn(), findUnique: jest.fn() },
+  post: { findFirst: jest.fn(), findMany: jest.fn(), findUnique: jest.fn() },
 };
 
 const threadAccess = {
@@ -64,6 +65,62 @@ describe('PostQueryService.findAllBySubthread', () => {
       ],
       pagination: { cursor: 'floor-2', hasMore: false },
     });
+  });
+
+  it('跨全部存活子贴按创建时间和 ID 定位最新有效楼层或回复', async () => {
+    const createdAt = new Date('2026-08-29T08:00:00.000Z');
+    prisma.post.findFirst.mockResolvedValue({
+      id: 'reply-latest',
+      threadId: 'thread-1',
+      subthreadId: 'subthread-2',
+      parentPostId: 'floor-9',
+      createdAt,
+    });
+
+    const result = await service.findLatestInThread('thread-1', 'viewer-user-id');
+
+    expect(threadAccess.assertAccessible).toHaveBeenCalledWith('thread-1', 'viewer-user-id');
+    expect(prisma.post.findFirst).toHaveBeenCalledWith({
+      where: {
+        threadId: 'thread-1',
+        kind: 'FLOOR',
+        deletedAt: null,
+        subthread: { deletedAt: null },
+        OR: [{ parentPostId: null }, { parentPost: { deletedAt: null } }],
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: {
+        id: true,
+        threadId: true,
+        subthreadId: true,
+        parentPostId: true,
+        createdAt: true,
+      },
+    });
+    expect(result).toEqual({
+      id: 'reply-latest',
+      threadId: 'thread-1',
+      subthreadId: 'subthread-2',
+      parentPostId: 'floor-9',
+      createdAt,
+    });
+  });
+
+  it('主题内没有有效楼层或回复时返回帖子不存在', async () => {
+    prisma.post.findFirst.mockResolvedValue(null);
+
+    await expect(service.findLatestInThread('thread-1')).rejects.toMatchObject({
+      errorCode: ErrorCode.POST_NOT_FOUND,
+    });
+  });
+
+  it('主题不可访问时不查询最新发言', async () => {
+    threadAccess.assertAccessible.mockRejectedValueOnce(new Error('不可访问'));
+
+    await expect(service.findLatestInThread('private-thread', 'outsider-user-id')).rejects.toThrow(
+      '不可访问',
+    );
+    expect(prisma.post.findFirst).not.toHaveBeenCalled();
   });
 
   it.each([

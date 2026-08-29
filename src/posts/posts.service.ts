@@ -59,6 +59,9 @@ export class PostsService {
   async findReplyAuthors(postId: string, userId?: string) {
     return this.queries.findReplyAuthors(postId, userId);
   }
+  async findLatestInThread(threadId: string, userId?: string) {
+    return this.queries.findLatestInThread(threadId, userId);
+  }
   async create(subthreadId: string, dto: CreatePostDto, userId: string) {
     const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content));
     const content = parsedContent.content;

@@ -14,8 +14,9 @@
 
 ## API 端点
 
-| Method | Path                             | Guard  | 描述                                                                                                                    |
-| ------ | -------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------- |
+| Method | Path                                     | Guard         | 描述                                                                                                                    |
+| ------ | ---------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/threads/:threadId/posts/latest`         | Optional Auth | 跨主题全部子贴定位最新发布的有效主楼层或楼中楼回复                                                                      |
 | GET    | `/subthreads/:subthreadId/posts`         | Public | 楼层列表（Cursor 分页；支持 `order=OLDEST\|NEWEST` 与角色作者 `authorId`；仅筛选主楼层，内嵌每层前 5 条楼中楼保持原样） |
 | GET    | `/subthreads/:subthreadId/posts/authors` | Public | 当前子贴中实际发布过未删除主楼层的角色作者候选                                                                        |
 | GET    | `/posts/:id/replies`                     | Public | 主楼层的楼中楼回复列表（Cursor 分页；支持 `order=OLDEST\|NEWEST` 与 `authorId`；仅接受 parentPostId=null 的 FLOOR）     |
@@ -31,6 +32,7 @@
 - 楼层分页接口的 `data` 为 `FloorResponseDto[]`，楼中楼分页接口的 `data` 为 `ReplyResponseDto[]`，游标位于统一 envelope 的 `meta`。
 - 创建楼层、upsert 子贴正文和编辑帖子的 `data` 为 `PostResponseDto`。
 - 帖子详情的 `data` 为 `PostDetailResponseDto`，包含帖、子贴、父楼和回复计数导航上下文。
+- 主题最新发言接口的 `data` 为 `LatestThreadPostResponseDto`，只包含 `id / threadId / subthreadId / parentPostId / createdAt`；`parentPostId=null` 表示主楼层，否则表示楼中楼回复。
 - 两个作者候选接口的 `data` 为 `DiscussionAuthorResponseDto[]`，包含公开作者字段、当前主题角色与 `playerMarked`。
 - Web/Flutter 必须使用 Swagger 生成类型，不再手写帖子响应结构。
 - Post 响应的 `content` 包含内联骰子节点，`diceRolls` 按 `nodeId` 提供服务端正式结果；未发布节点没有对应结果。
@@ -38,6 +40,8 @@
 ## 核心业务规则
 
 - 发帖前校验主题帖访问权限（`ThreadAccessService.assertAccessible`）：私密帖非参与人被拒绝，未发布帖非 owner 被拒绝
+- 最新发言定位先执行相同的主题访问校验，再跨全部未删除子贴按 `createdAt DESC, id DESC` 查询；只认创建时间，编辑旧帖不会顶为最新
+- 最新发言只包含存活 `FLOOR`，排除 `BODY`、已删除帖子、已删除子贴及父楼已删除的回复；没有可导航发言时返回 `POST_NOT_FOUND`
 - 正文发布校验只过滤空白、空段落和独立分隔线；纯数字正文、裸 HTTP(S) URL 和 CommonMark 自动链接均属于有效内容
 - 楼层和楼中楼允许正文只包含内联骰子节点；BODY 发布时必须保留节点之外的可见正文
 - 客户端只提交含 `[[dice:v1:<nodeId>:<notation>]]` 节点的正文，正式点数由服务端生成。已发布帖移动节点复用结果，删除节点物理删除结果，同一 nodeId 不得改写表达式；单帖最多 20 个节点
@@ -82,6 +86,7 @@
 - 内嵌回复使用窗口函数一次选出每个楼层前 5 条 ID，再一次批量加载作者、骰子和回复目标；一页楼层的回复查询固定为 2 次，不随有回复的楼层数增长
 - 楼中楼回复稳定链接格式为 `/threads/{threadId}/posts/{parentPostId}/replies?post={replyId}`，由前端根据现有响应字段生成，不新增后端端点
 - 主楼层稳定链接格式为 `/threads/{threadId}?post={postId}`，由前端根据现有响应字段生成，不新增后端端点
+- “跳到最新发言”先调用 `GET /threads/:threadId/posts/latest`，再按 `parentPostId` 选择上述主楼层或楼中楼稳定链接；不得逐个子贴或分页扫描
 - 子贴正文通过 `PUT /subthreads/:subthreadId/body` upsert：无正文时创建 kind=BODY 帖（floorNumber=null），有正文时乐观锁更新（version 不匹配返回 409）。后端把子贴的 kind=BODY 帖映射回响应字段 `bodyPost`（不再有 `bodyPostId`），编辑器依赖 `subthread.bodyPost` 加载可编辑正文
 - `_count.posts`（子贴与线程）只统计楼层（kind=FLOOR），正文（kind=BODY）不计入
 - 楼层列表接口只返回 kind=FLOOR，不含正文；正文经详情接口的 `bodyPost` 字段返回

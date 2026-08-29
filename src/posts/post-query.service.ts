@@ -60,6 +60,31 @@ export class PostQueryService {
     return post;
   }
 
+  /** 跨全部存活子贴定位主题内按创建时间最新的楼层或楼中楼回复。 */
+  async findLatestInThread(threadId: string, userId?: string) {
+    await this.threadAccess.assertAccessible(threadId, userId);
+
+    const post = await this.prisma.post.findFirst({
+      where: {
+        threadId,
+        kind: 'FLOOR',
+        deletedAt: null,
+        subthread: { deletedAt: null },
+        OR: [{ parentPostId: null }, { parentPost: { deletedAt: null } }],
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: {
+        id: true,
+        threadId: true,
+        subthreadId: true,
+        parentPostId: true,
+        createdAt: true,
+      },
+    });
+    if (!post) throw notFound(ErrorCode.POST_NOT_FOUND, '主题帖暂无楼层或回复');
+    return post;
+  }
+
   /** 获取子贴的楼层列表（Cursor 分页），内嵌每个楼层的前 5 条楼中楼回复。已软删子贴返回 404 */
   async findAllBySubthread(
     subthreadId: string,

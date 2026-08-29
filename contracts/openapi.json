@@ -8671,6 +8671,88 @@
         "x-auth-mode": "authenticated"
       }
     },
+    "/api/v1/threads/{threadId}/posts/latest": {
+      "get": {
+        "operationId": "postsFindLatestInThread",
+        "parameters": [
+          {
+            "name": "threadId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "跨全部存活子贴、按创建时间定位的最新有效发言",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostsFindLatestInThread200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "主题帖不可访问，或主题帖内暂无有效楼层/回复",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "定位主题帖内最新发布的楼层或楼中楼回复",
+        "tags": [
+          "Posts"
+        ],
+        "x-auth-mode": "optional",
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
+      }
+    },
     "/api/v1/subthreads/{subthreadId}/posts": {
       "get": {
         "operationId": "postsFindFloors",
@@ -17848,7 +17930,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.13.1-dev.20260827.1",
+    "version": "5.14.0-dev.20260829.1",
     "contact": {}
   },
   "tags": [
@@ -22824,6 +22906,35 @@
         },
         "required": [
           "version"
+        ]
+      },
+      "LatestThreadPostResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "threadId": {
+            "type": "string"
+          },
+          "subthreadId": {
+            "type": "string"
+          },
+          "parentPostId": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "threadId",
+          "subthreadId",
+          "parentPostId",
+          "createdAt"
         ]
       },
       "PostCountResponseDto": {
@@ -29432,6 +29543,24 @@
                 "items": {
                   "$ref": "#/components/schemas/ReorderedSubthreadResponseDto"
                 }
+              }
+            }
+          }
+        ]
+      },
+      "PostsFindLatestInThread200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/LatestThreadPostResponseDto"
               }
             }
           }

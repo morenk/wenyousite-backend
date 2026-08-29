@@ -22,6 +22,7 @@ import { Auth, OptionalAuth } from '../auth/decorators/auth.decorator';
 import {
   DiscussionAuthorResponseDto,
   FloorResponseDto,
+  LatestThreadPostResponseDto,
   PostDetailResponseDto,
   PostResponseDto,
   ReplyResponseDto,
@@ -35,6 +36,19 @@ import { ReplyOrder, ReplyQueryDto } from '../common/dto/reply-query.dto';
 @Controller()
 export class PostsController {
   constructor(private postsService: PostsService) {}
+
+  @Get('threads/:threadId/posts/latest')
+  @OptionalAuth()
+  @ApiOperation({ summary: '定位主题帖内最新发布的楼层或楼中楼回复' })
+  @ApiOkResponse({
+    type: LatestThreadPostResponseDto,
+    description: '跨全部存活子贴、按创建时间定位的最新有效发言',
+  })
+  @ApiNotFoundResponse({ description: '主题帖不可访问，或主题帖内暂无有效楼层/回复' })
+  async findLatestInThread(@Param('threadId') threadId: string, @Req() req: FastifyRequest) {
+    const user = req.user as { id: string } | undefined;
+    return this.postsService.findLatestInThread(threadId, user?.id);
+  }
 
   @Get('subthreads/:subthreadId/posts')
   @OptionalAuth()

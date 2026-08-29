@@ -6,6 +6,7 @@ import { PostsController } from './posts.controller';
 import {
   DiscussionAuthorResponseDto,
   FloorResponseDto,
+  LatestThreadPostResponseDto,
   PostDetailResponseDto,
   PostResponseDto,
   ReplyResponseDto,
@@ -54,6 +55,19 @@ describe('PostsController Swagger 响应契约', () => {
 
   it('帖子详情声明 PostDetailResponseDto', () => {
     expect(responseMetadata('findById')[200].type).toBe(PostDetailResponseDto);
+  });
+
+  it('主题最新发言声明 LatestThreadPostResponseDto 并传递可选身份', async () => {
+    expect(responseMetadata('findLatestInThread')[200].type).toBe(LatestThreadPostResponseDto);
+
+    const postsService = {
+      findLatestInThread: jest.fn().mockResolvedValue({ id: 'reply-latest' }),
+    };
+    const controller = new PostsController(postsService as never);
+
+    await controller.findLatestInThread('thread-1', { user: { id: 'viewer-1' } } as never);
+
+    expect(postsService.findLatestInThread).toHaveBeenCalledWith('thread-1', 'viewer-1');
   });
 
   it('创建帖子声明 409 幂等键冲突', () => {
