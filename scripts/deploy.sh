@@ -10,6 +10,7 @@ CONFIG_ROOT=${WENYOUSITE_CONFIG_ROOT:-/etc/wenyousite}
 COMPOSE_ENV=${WENYOUSITE_COMPOSE_ENV:-$CONFIG_ROOT/compose.env}
 DEPLOY_LOCK_FILE=${WENYOU_DEPLOY_LOCK_FILE:-/var/lib/wenyousite/deploy.lock}
 DEPLOY_FRONTEND=true
+IMAGE_WORKER_UNIT=wenyousite-image-worker.service
 
 usage() {
   echo "用法: $0 [--all|--backend-only]" >&2
@@ -45,6 +46,17 @@ wait_for_http() {
     sleep 1
   done
   echo "$service_name 未在 60 秒内通过健康检查: $url" >&2
+  return 1
+}
+wait_for_systemd_active() {
+  local unit=$1
+  local service_name=$2
+  for _attempt in $(seq 1 30); do
+    if systemctl is-active --quiet "$unit"; then return 0; fi
+    sleep 1
+  done
+  echo "$service_name 未在 30 秒内保持 active: $unit" >&2
+  systemctl show "$unit" -p ActiveState -p SubState -p Result -p ExecMainStatus -p NRestarts --no-pager >&2 || true
   return 1
 }
 assert_same_sha() {
@@ -136,17 +148,30 @@ systemctl stop wenyousite-backend.service || true
 systemctl stop wenyousite-image-worker.service || true
 systemctl start wenyousite-database-migrate.service
 systemctl enable wenyousite-backend.service wenyousite-image-worker.service >/dev/null
-systemctl restart wenyousite-image-worker.service
-systemctl restart wenyousite-backend.service
+if ! systemctl restart "$IMAGE_WORKER_UNIT"; then
+  echo "图片 Worker 重启失败，拒绝继续启动后端" >&2
+  systemctl show "$IMAGE_WORKER_UNIT" -p ActiveState -p SubState -p Result -p ExecMainStatus -p NRestarts --no-pager >&2 || true
+  systemctl stop wenyousite-backend.service "$IMAGE_WORKER_UNIT" || true
+  exit 1
+fi
+if ! wait_for_systemd_active "$IMAGE_WORKER_UNIT" "图片 Worker"; then
+  systemctl stop wenyousite-backend.service "$IMAGE_WORKER_UNIT" || true
+  exit 1
+fi
+if ! systemctl restart wenyousite-backend.service; then
+  echo "后端重启失败，停止图片 Worker" >&2
+  systemctl stop wenyousite-backend.service "$IMAGE_WORKER_UNIT" || true
+  exit 1
+fi
 if ! wait_for_http http://127.0.0.1:3000/api/v1/health "后端"; then
-  systemctl stop wenyousite-backend.service wenyousite-image-worker.service
+  systemctl stop wenyousite-backend.service "$IMAGE_WORKER_UNIT"
   journalctl -u wenyousite-backend.service --no-pager -n 120 >&2
   exit 1
 fi
 DEPLOYED_BUILD_SHA=$(curl --fail --silent --show-error http://127.0.0.1:3000/api/v1/meta | \
   node -e 'let input=""; process.stdin.on("data", c => input += c).on("end", () => process.stdout.write(JSON.parse(input).data.buildSha ?? ""));')
 [ "$DEPLOYED_BUILD_SHA" = "$BACKEND_BUILD_SHA" ] || {
-  systemctl stop wenyousite-backend.service wenyousite-image-worker.service
+  systemctl stop wenyousite-backend.service "$IMAGE_WORKER_UNIT"
   echo "后端 buildSha 不一致: $DEPLOYED_BUILD_SHA != $BACKEND_BUILD_SHA" >&2
   exit 1
 }
@@ -169,7 +194,7 @@ fi
 echo "9. 验证公网入口和数据安全状态..."
 curl --fail --silent --show-error https://wenyou.site/api/v1/health >/dev/null
 if [ "$DEPLOY_FRONTEND" = true ]; then curl --fail --silent --show-error --head https://wenyou.site >/dev/null; fi
-bash "$SCRIPT_DIR/validate-running-data-security.sh"
+bash "$SCRIPT_DIR/validate-running-data-security.sh" --require-image-worker
 
 echo "=== 部署完成 ==="
 echo "backendGitSha: $BACKEND_BUILD_SHA"

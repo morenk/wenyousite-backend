@@ -103,6 +103,7 @@ REDIS_PORT=6379
 REDIS_DB=0
 REDIS_USERNAME=wenyousite_app
 REDIS_PASSWORD=$redis_app_password
+CORS_ORIGINS=https://wenyou.site
 ENV
 cat >"$CONFIG_ROOT/migration.env" <<ENV
 DATABASE_URL=postgresql://wenyousite_owner:$owner_password@127.0.0.1:5432/wenyousite?schema=public
@@ -192,6 +193,23 @@ if PATH="$FAKE_BIN:$PATH" WENYOUSITE_CONFIG_ROOT="$CONFIG_ROOT" \
   exit 1
 fi
 cp "$TEST_ROOT/compose.env.valid" "$CONFIG_ROOT/compose.env"
+
+cp "$CONFIG_ROOT/backend.env" "$TEST_ROOT/backend.env.valid"
+sed -i '/^CORS_ORIGINS=/d' "$CONFIG_ROOT/backend.env"
+if PATH="$FAKE_BIN:$PATH" WENYOUSITE_CONFIG_ROOT="$CONFIG_ROOT" \
+  bash "$SCRIPT_DIR/validate-production-security.sh" >/dev/null 2>&1; then
+  echo "门禁错误接受了缺失 CORS_ORIGINS 的生产配置" >&2
+  exit 1
+fi
+cp "$TEST_ROOT/backend.env.valid" "$CONFIG_ROOT/backend.env"
+
+sed -i 's#^CORS_ORIGINS=.*$#CORS_ORIGINS=http://wenyou.site#' "$CONFIG_ROOT/backend.env"
+if PATH="$FAKE_BIN:$PATH" WENYOUSITE_CONFIG_ROOT="$CONFIG_ROOT" \
+  bash "$SCRIPT_DIR/validate-production-security.sh" >/dev/null 2>&1; then
+  echo "门禁错误接受了非 HTTPS CORS origin" >&2
+  exit 1
+fi
+cp "$TEST_ROOT/backend.env.valid" "$CONFIG_ROOT/backend.env"
 
 cp "$SECRETS_DIR/redis-users.acl" "$TEST_ROOT/redis-users.acl.valid"
 sed -i 's/ -config / /' "$SECRETS_DIR/redis-users.acl"

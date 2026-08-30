@@ -9,6 +9,7 @@ HEALTH_WARN_MS="${WENYOU_HEALTH_WARN_MS:-2000}"
 OUTBOX_AGE_WARN_SECONDS="${WENYOU_OUTBOX_AGE_WARN_SECONDS:-300}"
 HEALTH_URL="${WENYOU_HEALTH_URL:-http://127.0.0.1:3000/api/v1/health}"
 BACKEND_UNIT="${WENYOU_BACKEND_UNIT:-wenyousite-backend.service}"
+IMAGE_WORKER_UNIT="${WENYOU_IMAGE_WORKER_UNIT:-wenyousite-image-worker.service}"
 
 number_ge() {
   awk -v value="$1" -v threshold="$2" 'BEGIN { exit !(value + 0 >= threshold + 0) }'
@@ -135,6 +136,13 @@ redis_overcommit_memory="${WENYOU_REDIS_OVERCOMMIT_MEMORY_OVERRIDE:-$(sysctl -n 
 load1="$(awk '{ print $1 }' /proc/loadavg 2>/dev/null || printf 'unknown')"
 memory_available_kb="$(awk '$1 == "MemAvailable:" { print $2 }' /proc/meminfo 2>/dev/null || printf 'unknown')"
 restarts="$(systemctl show "$BACKEND_UNIT" -p NRestarts --value 2>/dev/null || printf 'unknown')"
+if [[ -n "${WENYOU_IMAGE_WORKER_STATUS_OVERRIDE:-}" ]]; then
+  image_worker_status="$WENYOU_IMAGE_WORKER_STATUS_OVERRIDE"
+elif systemctl is-active --quiet "$IMAGE_WORKER_UNIT" 2>/dev/null; then
+  image_worker_status=active
+else
+  image_worker_status=inactive
+fi
 
 reasons=()
 if [[ -z "$psi" ]] || [[ -z "$await_ms" ]]; then
@@ -166,11 +174,14 @@ fi
 if [[ "$redis_overcommit_memory" != "1" ]]; then
   reasons+=("redis_overcommit")
 fi
+if [[ "$image_worker_status" != "active" ]]; then
+  reasons+=("image_worker")
+fi
 
 if (( ${#reasons[@]} > 0 )); then
   reason_csv="$(IFS=,; printf '%s' "${reasons[*]}")"
-  printf 'host_health_warning reasons=%s io_psi_full_avg10=%s disk_await_ms=%s health_status=%s health_ms=%s load1=%s memory_available_kb=%s backend_restarts=%s recent_5xx=%s recent_p2028=%s outbox_oldest_seconds=%s outbox_high_retry=%s redis_aof_enabled=%s redis_aof_status=%s redis_overcommit_memory=%s\n' \
+  printf 'host_health_warning reasons=%s io_psi_full_avg10=%s disk_await_ms=%s health_status=%s health_ms=%s load1=%s memory_available_kb=%s backend_restarts=%s image_worker_status=%s recent_5xx=%s recent_p2028=%s outbox_oldest_seconds=%s outbox_high_retry=%s redis_aof_enabled=%s redis_aof_status=%s redis_overcommit_memory=%s\n' \
     "$reason_csv" "${psi:-unknown}" "${await_ms:-unknown}" "${health_status:-000}" "${health_ms:-unknown}" \
-    "$load1" "$memory_available_kb" "$restarts" "${recent_5xx:-0}" "${recent_p2028:-0}" \
+    "$load1" "$memory_available_kb" "$restarts" "$image_worker_status" "${recent_5xx:-0}" "${recent_p2028:-0}" \
     "$outbox_oldest_seconds" "$outbox_high_retry" "$redis_aof_enabled" "$redis_aof_status" "$redis_overcommit_memory"
 fi

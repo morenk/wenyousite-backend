@@ -6,6 +6,19 @@ BACKEND_DIR=$(cd -- "$SCRIPT_DIR/.." && pwd)
 COMPOSE_FILE="$BACKEND_DIR/docker-compose.yml"
 CONFIG_ROOT=${WENYOUSITE_CONFIG_ROOT:-/etc/wenyousite}
 COMPOSE_ENV=${WENYOUSITE_COMPOSE_ENV:-$CONFIG_ROOT/compose.env}
+REQUIRE_IMAGE_WORKER=false
+
+if [ "$#" -gt 1 ]; then
+  echo "用法: $0 [--require-image-worker]" >&2
+  exit 2
+fi
+if [ "$#" -eq 1 ]; then
+  [ "$1" = --require-image-worker ] || {
+    echo "用法: $0 [--require-image-worker]" >&2
+    exit 2
+  }
+  REQUIRE_IMAGE_WORKER=true
+fi
 
 fail() { echo "运行数据安全验证失败: $*" >&2; exit 1; }
 bash "$SCRIPT_DIR/validate-production-security.sh" >/dev/null
@@ -109,6 +122,9 @@ redis_binding=$(docker inspect -f '{{(index (index .HostConfig.PortBindings "637
 
 if systemctl is-active --quiet wenyousite-backend.service; then
   [ "$(systemctl show -p User --value wenyousite-backend.service)" = wenyousite-backend ] || fail "后端仍以 root 运行"
+  if [ "$REQUIRE_IMAGE_WORKER" = true ] && ! systemctl is-active --quiet wenyousite-image-worker.service; then
+    fail "图片 Worker 未运行"
+  fi
 fi
 if systemctl is-active --quiet wenyousite-image-worker.service; then
   [ "$(systemctl show -p User --value wenyousite-image-worker.service)" = wenyousite-backend ] || fail "Worker 仍以 root 运行"

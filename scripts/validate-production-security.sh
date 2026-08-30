@@ -156,6 +156,37 @@ done
 host=$(require_value "$BACKEND_ENV" HOST)
 [ "$host" = 127.0.0.1 ] || fail "后端必须监听 IPv4 loopback"
 [ "$(require_value "$BACKEND_ENV" PORT)" = 3000 ] || fail "公网后端端口必须为 3000"
+cors_origins=$(require_value "$BACKEND_ENV" CORS_ORIGINS)
+if ! CORS_ORIGINS="$cors_origins" node - <<'NODE' >/dev/null
+const raw = process.env.CORS_ORIGINS ?? '';
+const origins = raw.split(',').map((origin) => origin.trim()).filter(Boolean);
+if (origins.length === 0) process.exit(1);
+for (const origin of origins) {
+  let parsed;
+  try {
+    parsed = new URL(origin);
+  } catch {
+    process.exit(1);
+  }
+  const canonical = parsed.origin;
+  const hasOnlyOriginPath = parsed.pathname === '' || parsed.pathname === '/';
+  const hasNoCredentials = !parsed.username && !parsed.password;
+  const hasNoQueryOrFragment = !parsed.search && !parsed.hash;
+  const hasCanonicalForm = origin === canonical || origin === `${canonical}/`;
+  if (
+    parsed.protocol !== 'https:' ||
+    !hasOnlyOriginPath ||
+    !hasNoCredentials ||
+    !hasNoQueryOrFragment ||
+    !hasCanonicalForm
+  ) {
+    process.exit(1);
+  }
+}
+NODE
+then
+  fail "生产环境 CORS_ORIGINS 必须是一个或多个精确 HTTPS origin"
+fi
 database_url=$(require_value "$BACKEND_ENV" DATABASE_URL)
 database_url_without_query=${database_url%%\?*}
 [[ "$database_url_without_query" == postgresql://wenyousite_app:*@127.0.0.1:5432/wenyousite ]] || fail "DATABASE_URL 必须使用 app 角色、精确数据库名和 loopback"

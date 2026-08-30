@@ -39,7 +39,7 @@
     "test:mobile-release": "bash scripts/mobile-release.test.sh",
     "test:host-health-monitor": "bash scripts/host-health-monitor.test.sh",
     "test:deploy-preflight": "bash scripts/assert-releasable-repo.test.sh",
-    "test:deploy-runtime": "bash scripts/wenyousite-backend-start.test.sh && bash scripts/wenyousite-image-worker-start.test.sh",
+    "test:deploy-runtime": "bash scripts/wenyousite-backend-start.test.sh && bash scripts/wenyousite-image-worker-start.test.sh && bash scripts/deploy-worker-readiness.test.sh",
     "test:redis-durability": "bash scripts/redis-durability.test.sh",
     "test:data-security": "bash scripts/redis-durability.test.sh && bash scripts/generate-data-security-secrets.test.sh && bash scripts/validate-production-security.test.sh",
     "test:data-security:integration": "bash scripts/harden-database-roles.integration.test.sh",
