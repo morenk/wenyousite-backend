@@ -21,6 +21,44 @@ export enum Environment {
   Test = 'test',
 }
 
+/** 解析并校验 CORS 来源；生产环境只允许精确的 HTTPS origin。 */
+export function parseCorsOrigins(raw: string, strict = false): string[] {
+  const origins = raw
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  if (!strict) return origins;
+  if (origins.length === 0) {
+    throw new Error('生产环境 CORS_ORIGINS 必须显式配置至少一个 HTTPS origin');
+  }
+
+  return origins.map((origin) => {
+    let parsed: URL;
+    try {
+      parsed = new URL(origin);
+    } catch {
+      throw new Error(`生产环境 CORS origin 非法：${origin}`);
+    }
+
+    const canonical = parsed.origin;
+    const hasOnlyOriginPath = parsed.pathname === '' || parsed.pathname === '/';
+    const hasNoCredentials = !parsed.username && !parsed.password;
+    const hasNoQueryOrFragment = !parsed.search && !parsed.hash;
+    const hasCanonicalForm = origin === canonical || origin === `${canonical}/`;
+    if (
+      parsed.protocol !== 'https:' ||
+      !hasOnlyOriginPath ||
+      !hasNoCredentials ||
+      !hasNoQueryOrFragment ||
+      !hasCanonicalForm
+    ) {
+      throw new Error(`生产环境 CORS origin 必须是精确 HTTPS origin：${origin}`);
+    }
+    return canonical;
+  });
+}
+
 export class EnvironmentVariables {
   @IsEnum(Environment)
   @IsOptional()
@@ -276,7 +314,8 @@ export class EnvironmentVariables {
     if (value === 'false' || value === false) return false;
     return value;
   })
-  ENABLE_API_DOCS: boolean | 'true' | 'false' = true;
+  /** 默认关闭；生产环境即使显式开启也拒绝公开挂载。 */
+  ENABLE_API_DOCS: boolean | 'true' | 'false' = false;
 }
 
 /** 校验函数：在 ConfigModule.forRoot 中调用，启动时验证环境变量完整性 */
@@ -338,6 +377,10 @@ export function validate(config: Record<string, unknown>) {
     }
     if (validatedConfig.HOST !== '127.0.0.1' && validatedConfig.HOST !== '::1') {
       throw new Error('生产环境 HOST 必须只监听 loopback');
+    }
+    parseCorsOrigins(validatedConfig.CORS_ORIGINS, true);
+    if (validatedConfig.ENABLE_API_DOCS === true) {
+      throw new Error('生产环境禁止公开 API 文档');
     }
     const databasePort = databaseUrl.port || '5432';
     const isolatedLoadtest =

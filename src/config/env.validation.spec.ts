@@ -12,6 +12,7 @@ describe('环境变量校验', () => {
     REDIS_USERNAME: 'wenyousite_app',
     REDIS_PASSWORD: 'production-redis-password-at-least-24-characters',
     JWT_ACCESS_SECRET: 'production-random-secret-at-least-24-chars',
+    CORS_ORIGINS: 'https://web.example.com',
   };
 
   it('开发环境使用与运行配置一致的数据库默认值', () => {
@@ -85,6 +86,7 @@ describe('环境变量校验', () => {
         REDIS_USERNAME: 'wenyousite_app',
         REDIS_PASSWORD: 'production-redis-password-at-least-24-characters',
         JWT_ACCESS_SECRET: productionSecret,
+        CORS_ORIGINS: 'https://web.example.com',
       }),
     ).toThrow('生产环境 DATABASE_URL 必须显式配置');
 
@@ -116,8 +118,23 @@ describe('环境变量校验', () => {
         REDIS_HOST: '127.0.0.1',
         REDIS_PORT: '56379',
         JWT_ACCESS_SECRET: 'production-random-secret-at-least-24-chars',
+        CORS_ORIGINS: 'https://web.example.com',
       }),
     ).not.toThrow();
+  });
+
+  it('生产环境要求精确 HTTPS CORS allowlist 且禁止公开 API 文档', () => {
+    expect(() => validate({ ...productionBase, CORS_ORIGINS: '' })).toThrow('CORS_ORIGINS');
+    expect(() => validate({ ...productionBase, CORS_ORIGINS: '*' })).toThrow('CORS origin');
+    expect(() => validate({ ...productionBase, CORS_ORIGINS: 'http://web.example.com' })).toThrow(
+      '精确 HTTPS origin',
+    );
+    expect(() => validate({ ...productionBase, CORS_ORIGINS: 'https://web.example.com/path' })).toThrow(
+      '精确 HTTPS origin',
+    );
+    expect(() => validate({ ...productionBase, ENABLE_API_DOCS: 'true' })).toThrow(
+      '禁止公开 API 文档',
+    );
   });
 
   it('生产环境启用推送时要求项目和凭证路径同时存在', () => {

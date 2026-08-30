@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsOptional, IsString, IsIn, Matches } from 'class-validator';
+import { IsOptional, IsString, IsIn, Matches, MaxLength } from 'class-validator';
 import { CursorPaginationDto } from '../../common/dto/pagination.dto';
 import { IsCuid } from '../../common/decorators/is-cuid.decorator';
 import {
@@ -59,6 +59,7 @@ export class ThreadQueryDto extends CursorPaginationDto {
   @ApiPropertyOptional({ example: '无限流', description: '按标签名模糊筛选主题帖' })
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   tag?: string;
 
   @ApiPropertyOptional({

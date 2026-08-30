@@ -43,7 +43,7 @@
     "test:redis-durability": "bash scripts/redis-durability.test.sh",
     "test:data-security": "bash scripts/redis-durability.test.sh && bash scripts/generate-data-security-secrets.test.sh && bash scripts/validate-production-security.test.sh",
     "test:data-security:integration": "bash scripts/harden-database-roles.integration.test.sh",
-    "security:audit": "pnpm audit --prod --audit-level=high",
+    "security:audit": "pnpm audit --prod && bash scripts/check-unsafe-sql.sh",
     "docs:generate": "tsx scripts/generate-api-endpoints.ts && tsx scripts/generate-error-code-doc.ts",
     "docs:check": "tsx scripts/check-doc-links.ts && tsx scripts/generate-api-endpoints.ts --check && tsx scripts/generate-error-code-doc.ts --check && tsx scripts/check-doc-truth.ts && tsx scripts/check-markdown-node-contract.ts && tsx scripts/check-markdown-editor-contract.ts && tsx scripts/check-editor-clipboard-contract.ts && tsx scripts/check-internal-reference-contract.ts && tsx scripts/check-thread-category-contract.ts && tsx scripts/check-mobile-push-contract.ts && tsx scripts/generate-mobile-v1-coverage.ts --check && tsx scripts/check-mobile-v1-contract.ts",
     "arch:check": "tsx scripts/check-architecture.ts",

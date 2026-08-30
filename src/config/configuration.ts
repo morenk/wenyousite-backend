@@ -1,4 +1,4 @@
-import { validate } from './env.validation';
+import { Environment, parseCorsOrigins, validate } from './env.validation';
 
 /** 应用配置：从环境变量读取配置，提供类型安全访问 */
 export default function configuration() {
@@ -84,10 +84,10 @@ export default function configuration() {
       nodeEnv: env.NODE_ENV,
       apiDocsEnabled: env.ENABLE_API_DOCS,
       buildSha: env.BUILD_SHA || undefined,
-      corsOrigins: (env.CORS_ORIGINS || env.APP_URL || 'http://localhost:3001')
-        .split(',')
-        .map((origin) => origin.trim())
-        .filter(Boolean),
+      corsOrigins: parseCorsOrigins(
+        env.CORS_ORIGINS || env.APP_URL || 'http://localhost:3001',
+        env.NODE_ENV === Environment.Production,
+      ),
       webUrl: env.WEB_APP_URL,
       adminWebEntryUrl: env.ADMIN_WEB_ENTRY_URL,
     },

@@ -112,6 +112,19 @@ describe('EmailService', () => {
     }));
   });
 
+  it('邮箱变更通知会转义 HTML 内容', async () => {
+    await service.sendEmailChanged('new@example.com"><img src=x onerror=alert(1)>');
+
+    expect(mockSendMail).toHaveBeenCalledWith(expect.objectContaining({
+      html: expect.stringContaining(
+        'new@example.com&quot;&gt;&lt;img src=x onerror=alert(1)&gt;',
+      ),
+    }));
+    expect(mockSendMail).not.toHaveBeenCalledWith(expect.objectContaining({
+      html: expect.stringContaining('<img src=x onerror=alert(1)>'),
+    }));
+  });
+
   it('透传 SMTP 发送失败供上层重试或返回错误', async () => {
     mockSendMail.mockRejectedValue(new Error('smtp unavailable'));
 

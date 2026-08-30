@@ -92,7 +92,7 @@ export class EmailService {
       from,
       to: newEmail,
       subject: '温油站 — 邮箱绑定成功',
-      html: `<p>你的邮箱已成功更换为 ${newEmail}。</p><p>如非本人操作，请立即联系支持。</p>`,
+      html: `<p>你的邮箱已成功更换为 ${escapeHtml(newEmail)}。</p><p>如非本人操作，请立即联系支持。</p>`,
     });
   }
 

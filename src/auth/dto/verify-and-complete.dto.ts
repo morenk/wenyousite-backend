@@ -5,6 +5,7 @@ import { IsEmail, IsString, MinLength, MaxLength, Matches } from 'class-validato
 export class VerifyAndCompleteDto {
   @ApiProperty({ example: 'user@example.com', description: '注册邮箱（需与上一步一致）' })
   @IsEmail()
+  @MaxLength(254, { message: '邮箱地址过长' })
   email: string;
 
   @ApiProperty({ example: '209794', minLength: 6, maxLength: 6, description: '6 位数字验证码' })

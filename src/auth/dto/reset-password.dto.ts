@@ -5,6 +5,7 @@ import { IsEmail, IsString, MinLength, MaxLength, Matches } from 'class-validato
 export class ResetPasswordDto {
   @ApiProperty({ example: 'user@example.com', description: '需要重置密码的邮箱' })
   @IsEmail()
+  @MaxLength(254, { message: '邮箱地址过长' })
   email: string;
 
   @ApiProperty({ example: '8a7b3c', minLength: 6, maxLength: 6, description: '6 位密码重置验证码' })

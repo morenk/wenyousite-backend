@@ -5,11 +5,13 @@ import { IsEmail, IsString, MinLength, MaxLength } from 'class-validator';
 export class ChangeEmailRequestDto {
   @ApiProperty({ example: 'newemail@example.com', description: '新邮箱地址' })
   @IsEmail()
+  @MaxLength(254, { message: '邮箱地址过长' })
   newEmail: string;
 
   @ApiProperty({ example: 'CurrentPass123', description: '当前密码（二次认证）' })
   @IsString()
   @MinLength(1)
+  @MaxLength(100, { message: '密码最多 100 个字符' })
   oldPassword: string;
 }
 
@@ -17,6 +19,7 @@ export class ChangeEmailRequestDto {
 export class ChangeEmailVerifyDto {
   @ApiProperty({ example: 'newemail@example.com', description: '新邮箱地址' })
   @IsEmail()
+  @MaxLength(254, { message: '邮箱地址过长' })
   newEmail: string;
 
   @ApiProperty({ example: '123456', minLength: 6, maxLength: 6, description: '6 位邮箱验证码' })
