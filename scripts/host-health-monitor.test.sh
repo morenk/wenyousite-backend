@@ -5,6 +5,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MONITOR="$SCRIPT_DIR/monitor-host-health.sh"
 
+grep -Fq 'docker exec --user postgres' "$MONITOR" || {
+  printf 'Outbox 采集必须使用 PostgreSQL 本机 postgres 用户\n' >&2
+  exit 1
+}
+grep -Fq 'redis_cli "$redis_container" INFO persistence' "$MONITOR" || {
+  printf 'Redis 采集必须使用受控 ops ACL\n' >&2
+  exit 1
+}
+
 healthy="$(
   WENYOU_PSI_FULL_AVG10_OVERRIDE=0 \
   WENYOU_DISK_AWAIT_OVERRIDE=1 \

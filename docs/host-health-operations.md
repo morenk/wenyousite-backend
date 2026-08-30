@@ -26,7 +26,7 @@ systemctl daemon-reload
 systemctl enable --now wenyousite-host-health.timer
 ```
 
-正常样本不写日志；任一阈值触发时输出一行 `host_health_warning`。默认阈值为 I/O PSI full avg10 `20%`、根盘 await `100 ms`、本机健康接口 `2000 ms`、最老未确认 Outbox `300 秒`，并额外记录最近两分钟的 HTTP 5xx、Prisma 事务关闭次数、Outbox 重试至少 5 次的条数、Redis AOF 开启状态与最近写入状态、`vm.overcommit_memory`、负载、可用内存和后端重启数。Redis AOF 未开启、最近写入失败、内核 overcommit 不为 `1`，或 Outbox 采集失败都会告警。可通过 `WENYOU_IO_PSI_FULL_AVG10_WARN`、`WENYOU_DISK_AWAIT_WARN_MS`、`WENYOU_HEALTH_WARN_MS`、`WENYOU_OUTBOX_AGE_WARN_SECONDS` 调整阈值。
+正常样本不写日志；任一阈值触发时输出一行 `host_health_warning`。默认阈值为 I/O PSI full avg10 `20%`、根盘 await `100 ms`、本机健康接口 `2000 ms`、最老未确认 Outbox `300 秒`，并额外记录最近两分钟的 HTTP 5xx、Prisma 事务关闭次数、Outbox 重试至少 5 次的条数、Redis AOF 开启状态与最近写入状态、`vm.overcommit_memory`、负载、可用内存、后端重启数和图片 Worker 状态。Outbox 采集使用容器内本机 `postgres` 用户，Redis 采集使用受控 ops ACL；图片 Worker 未 active、Redis AOF 未开启、最近写入失败、内核 overcommit 不为 `1`，或 Outbox/Redis 采集失败都会告警。可通过 `WENYOU_IO_PSI_FULL_AVG10_WARN`、`WENYOU_DISK_AWAIT_WARN_MS`、`WENYOU_HEALTH_WARN_MS`、`WENYOU_OUTBOX_AGE_WARN_SECONDS` 调整阈值。
 
 ```bash
 systemctl list-timers wenyousite-host-health.timer

@@ -3,6 +3,7 @@
 
 set -uo pipefail
 
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 PSI_WARN="${WENYOU_IO_PSI_FULL_AVG10_WARN:-20}"
 AWAIT_WARN_MS="${WENYOU_DISK_AWAIT_WARN_MS:-100}"
 HEALTH_WARN_MS="${WENYOU_HEALTH_WARN_MS:-2000}"
@@ -10,6 +11,8 @@ OUTBOX_AGE_WARN_SECONDS="${WENYOU_OUTBOX_AGE_WARN_SECONDS:-300}"
 HEALTH_URL="${WENYOU_HEALTH_URL:-http://127.0.0.1:3000/api/v1/health}"
 BACKEND_UNIT="${WENYOU_BACKEND_UNIT:-wenyousite-backend.service}"
 IMAGE_WORKER_UNIT="${WENYOU_IMAGE_WORKER_UNIT:-wenyousite-image-worker.service}"
+# shellcheck source=backup-common.sh
+source "$SCRIPT_DIR/backup-common.sh"
 
 number_ge() {
   awk -v value="$1" -v threshold="$2" 'BEGIN { exit !(value + 0 >= threshold + 0) }'
@@ -103,7 +106,8 @@ outbox_sample() {
     printf 'unknown unknown\n'
     return
   fi
-  docker exec "$postgres_container" psql -U wenyou -d wenyousite -Atc \
+  docker exec --user postgres "$postgres_container" psql --no-psqlrc \
+    --username postgres --dbname wenyousite --tuples-only --no-align --field-separator='|' --command \
     "SELECT COALESCE(EXTRACT(EPOCH FROM (NOW() - MIN(created_at)))::bigint, 0), COUNT(*) FILTER (WHERE attempts >= 5) FROM domain_outbox WHERE processed_at IS NULL" \
     2>/dev/null | tr '|' ' ' || printf 'unknown unknown\n'
 }
@@ -119,7 +123,7 @@ redis_persistence_sample() {
     printf 'unknown unknown\n'
     return
   fi
-  persistence="$(docker exec "$redis_container" redis-cli --raw INFO persistence 2>/dev/null | tr -d '\r')"
+  persistence="$(redis_cli "$redis_container" INFO persistence 2>/dev/null | tr -d '\r')"
   enabled="$(awk -F: '$1 == "aof_enabled" { print $2 }' <<<"$persistence")"
   status="$(awk -F: '$1 == "aof_last_write_status" { print $2 }' <<<"$persistence")"
   printf '%s %s\n' "${enabled:-unknown}" "${status:-unknown}"
