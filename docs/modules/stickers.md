@@ -2,7 +2,7 @@
 
 ## 范围
 
-每位用户拥有一个私有表情收藏夹，可从本地上传、自己已上传的媒体、可访问帖子中的站内图片以及本人参与的私聊消息中收藏。收藏不公开、不通知原作者，也不增加原内容计数。
+每位用户拥有一个私有表情收藏夹，可从本地上传、自己已上传的媒体、可访问帖子和动态中的站内图片、动态评论图片以及本人参与的私聊消息中收藏。收藏不公开、不通知原作者，也不增加原内容计数。
 
 收藏保存的是服务端独立的 `StickerAsset`，原帖子删除、私聊撤回、来源媒体回收或原账号注销都不会使已收藏表情失效。取消收藏只删除当前用户的关联，不影响其他收藏者和已经发送的消息或帖子。
 
@@ -14,11 +14,15 @@
 | POST   | `/stickers/imports/media`          | 以本人 `COMPLETED` 的 `mediaId` 导入                    |
 | POST   | `/stickers/imports/direct-message` | 收藏本人参与且未撤回私聊中的图片或表情                  |
 | POST   | `/stickers/imports/post-image`     | 收藏当前可访问帖子正文中的指定站内图片或表情            |
+| POST   | `/stickers/imports/moment-image`   | 收藏当前可访问动态正文中的指定图片                      |
+| POST   | `/stickers/imports/moment-comment-image` | 收藏当前可访问动态评论中的指定图片                 |
 | GET    | `/stickers/imports/:id`            | 轮询异步规范化结果                                      |
 | PUT    | `/stickers/reorder`                | 使用完整收藏 ID 列表和版本号原子重排                    |
 | DELETE | `/stickers/:favoriteId`            | 移除自己的收藏                                          |
 
 导入请求使用 UUID v4 `clientRequestId` 幂等。相同内容按 SHA-256 全局复用资产；用户重复收藏返回 `alreadySaved=true`，不会改变原排序。新收藏排在最前，手动排序使用乐观锁版本，满 200 个时拒绝新增。
+
+动态图片导入必须提供图片所属的动态/评论 ID 与 `mediaId`，服务端不接受只凭 URL 的猜测。父动态删除或对查看者不可见时返回 `MOMENT_NOT_FOUND`；评论不存在、已删除、媒体不匹配或评论作者与查看者双向拉黑时返回 `STICKER_NOT_FOUND`。
 
 ## 图片规范化
 

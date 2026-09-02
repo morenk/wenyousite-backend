@@ -39,6 +39,38 @@ export class ImportStickerPostImageDto {
   clientRequestId!: string;
 }
 
+export class ImportStickerMomentImageDto {
+  @ApiProperty({ description: '当前用户可访问动态中的图片媒体 ID 所属动态' })
+  @IsString()
+  @IsCuid()
+  momentId!: string;
+
+  @ApiProperty({ description: '动态图片的媒体 ID' })
+  @IsString()
+  @IsCuid()
+  mediaId!: string;
+
+  @ApiProperty({ format: 'uuid', description: '导入幂等键' })
+  @IsUUID('4')
+  clientRequestId!: string;
+}
+
+export class ImportStickerMomentCommentImageDto {
+  @ApiProperty({ description: '当前用户可访问动态中的评论 ID' })
+  @IsString()
+  @IsCuid()
+  momentCommentId!: string;
+
+  @ApiProperty({ description: '动态评论图片的媒体 ID' })
+  @IsString()
+  @IsCuid()
+  mediaId!: string;
+
+  @ApiProperty({ format: 'uuid', description: '导入幂等键' })
+  @IsUUID('4')
+  clientRequestId!: string;
+}
+
 export class ReorderStickersDto {
   @ApiProperty({ minimum: 1, description: 'GET /stickers 返回的收藏夹版本' })
   @IsInt()

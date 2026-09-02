@@ -1,5 +1,11 @@
 # API 合同变更
 
+## 5.15.0-dev.20260902.1
+
+- 新增 `POST /stickers/imports/moment-image`（`stickersImportMomentImage`）和 `POST /stickers/imports/moment-comment-image`（`stickersImportMomentCommentImage`），分别接收 `momentId + mediaId + clientRequestId` 与 `momentCommentId + mediaId + clientRequestId`，返回既有 `StickerImportResponseDto`。
+- 动态正文导入要求动态未删除且对当前用户可见，并确认图片属于该动态的 `MomentImage`；评论导入额外确认评论未删除、媒体精确匹配，且评论作者与当前用户不存在任一方向拉黑。父动态不存在或不可见统一返回 `MOMENT_NOT_FOUND`，评论来源不合法统一返回 `STICKER_NOT_FOUND`，不泄露资源存在性。
+- 两个端点复用既有异步规范化、容量限制、队列和幂等实现；未增加数据库迁移。Windows 移动端后续同步固定 OpenAPI、重新生成客户端，并把动态正文/评论原图接入既有“图片操作”菜单和原图查看页；VPS 不修改 Flutter 工作区。
+
 ## 5.14.1-dev.20260829.1
 
 - `/meta.markdownContractVersion` 从 `3` 激活为 `4`。已审查的 Windows 移动端提交 `6a14e84a3cd58ed7705e645a4e590e52ab57f2e2` 同时接受 v3/v4，并已实现 Markdown v4 块对齐、编辑能力门控与 clipboard v2；Web 在读取到 v4 后开放正文对齐入口。

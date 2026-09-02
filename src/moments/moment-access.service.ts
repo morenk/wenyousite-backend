@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { PrismaService } from '../prisma/prisma.service';
-import { momentViewerVisibility } from './moment-query';
+import { momentViewerVisibility } from '../access/moment-visibility.where';
 
 export type VisibleMoment = {
   id: string;

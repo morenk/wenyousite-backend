@@ -124,6 +124,8 @@
 | POST | `/stickers/imports/media` | authenticated | 将自己已上传的站内图片导入表情收藏 |
 | POST | `/stickers/imports/direct-message` | authenticated | 收藏私聊消息中的图片或表情 |
 | POST | `/stickers/imports/post-image` | authenticated | 收藏可访问帖子正文中的站内图片或表情 |
+| POST | `/stickers/imports/moment-image` | authenticated | 收藏可访问动态正文中的指定图片 |
+| POST | `/stickers/imports/moment-comment-image` | authenticated | 收藏可访问动态评论中的指定图片 |
 | GET | `/stickers/imports/{id}` | authenticated | 查询单次表情导入处理状态 |
 | PUT | `/stickers/reorder` | authenticated | 按完整 ID 列表手动重排收藏 |
 | DELETE | `/stickers/{favoriteId}` | authenticated | 从自己的收藏夹移除表情 |

@@ -263,6 +263,20 @@ GET /threads/:threadId/posts/latest
 
 评论响应会返回互斥的 `media` / `sticker`；图片或表情评论的 `content` 可以是空字符串，删除后正文和媒体都返回 `null`。旧客户端可忽略新增字段并继续发布纯文字评论。
 
+#### 从动态图片导入表情
+
+动态原图查看页可将站内图片加入当前用户的表情收藏夹：
+
+```http
+POST /api/v1/stickers/imports/moment-image
+{ "momentId": "<动态 ID>", "mediaId": "<图片媒体 ID>", "clientRequestId": "<UUID v4>" }
+
+POST /api/v1/stickers/imports/moment-comment-image
+{ "momentCommentId": "<评论 ID>", "mediaId": "<图片媒体 ID>", "clientRequestId": "<UUID v4>" }
+```
+
+两个请求都返回异步 `StickerImportResponseDto`，客户端应使用同一个 `clientRequestId` 重试并按导入 ID 轮询。服务端会确认动态可见、图片关系有效；父动态不存在或不可见返回 `MOMENT_NOT_FOUND`，评论不存在、已删除、媒体不匹配或作者双向拉黑返回 `STICKER_NOT_FOUND`。
+
 `GET /moments/:id/comments` 的 `order` 只控制主评论，默认 `NEWEST`；每条主评论内嵌的最早三条楼中楼固定按时间正序返回。`GET /moments/:id/comments/:commentId/replies` 默认 `OLDEST`，仍兼容显式 `NEWEST`。产品界面应让主评论排序与楼中楼排序解耦，折叠预览和展开列表都默认从最早回复排到最新回复。
 
 通知或站内深链接需要定位具体评论时，使用 `GET /moments/:id/comments/:commentId/context`。`commentId` 可以是主评论或楼中楼，响应中的 `root` 用于把回复串注入当前列表，`target` 用于展开、高亮和滚动，`replyCount` 用于保留完整回复计数。目标已删除、因拉黑不可见、不属于该动态，或所属主评论已被管理员隐藏时返回 404；作者自行删除的主评论仍可作为墓碑返回。不要为定位目标遍历全部评论分页。

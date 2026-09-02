@@ -1,10 +1,18 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Req } from '@nestjs/common';
-import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { Auth, AuthRead } from '../auth/decorators/auth.decorator';
 import {
   ImportStickerDirectMessageDto,
   ImportStickerMediaDto,
+  ImportStickerMomentCommentImageDto,
+  ImportStickerMomentImageDto,
   ImportStickerPostImageDto,
   ReorderStickersDto,
   StickerCollectionResponseDto,
@@ -51,6 +59,31 @@ export class StickersController {
   @ApiCreatedResponse({ type: StickerImportResponseDto })
   importPostImage(@Req() req: FastifyRequest, @Body() dto: ImportStickerPostImageDto) {
     return this.stickers.importPostImage((req.user as { id: string }).id, dto);
+  }
+
+  @Post('imports/moment-image')
+  @Auth()
+  @ApiOperation({
+    operationId: 'stickersImportMomentImage',
+    summary: '收藏可访问动态正文中的指定图片',
+  })
+  @ApiCreatedResponse({ type: StickerImportResponseDto })
+  importMomentImage(@Req() req: FastifyRequest, @Body() dto: ImportStickerMomentImageDto) {
+    return this.stickers.importMomentImage((req.user as { id: string }).id, dto);
+  }
+
+  @Post('imports/moment-comment-image')
+  @Auth()
+  @ApiOperation({
+    operationId: 'stickersImportMomentCommentImage',
+    summary: '收藏可访问动态评论中的指定图片',
+  })
+  @ApiCreatedResponse({ type: StickerImportResponseDto })
+  importMomentCommentImage(
+    @Req() req: FastifyRequest,
+    @Body() dto: ImportStickerMomentCommentImageDto,
+  ) {
+    return this.stickers.importMomentCommentImage((req.user as { id: string }).id, dto);
   }
 
   @Get('imports/:id')

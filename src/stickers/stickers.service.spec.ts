@@ -89,6 +89,9 @@ describe('StickersService', () => {
     media: { findFirst: jest.fn() },
     directMessage: { findFirst: jest.fn() },
     post: { findUnique: jest.fn(), findFirst: jest.fn() },
+    moment: { findFirst: jest.fn() },
+    momentImage: { findFirst: jest.fn() },
+    momentComment: { findUnique: jest.fn(), findFirst: jest.fn() },
     draft: { findFirst: jest.fn() },
   };
   const access = { assertAccessible: jest.fn() };
@@ -127,6 +130,10 @@ describe('StickersService', () => {
     prisma.stickerImport.deleteMany.mockResolvedValue({ count: 0 });
     prisma.stickerAsset.findMany.mockResolvedValue([]);
     prisma.stickerAsset.deleteMany.mockResolvedValue({ count: 1 });
+    prisma.moment.findFirst.mockResolvedValue({ id: 'moment-1' });
+    prisma.momentImage.findFirst.mockResolvedValue({ mediaId: 'media-1' });
+    prisma.momentComment.findUnique.mockResolvedValue({ momentId: 'moment-1' });
+    prisma.momentComment.findFirst.mockResolvedValue({ mediaId: 'media-1' });
     access.assertAccessible.mockResolvedValue(undefined);
     content.extract.mockReturnValue([]);
     content.markdown.mockReturnValue('![表情](https://cdn.example.com/asset.webp)');
@@ -326,6 +333,131 @@ describe('StickersService', () => {
       where: { id: 'asset-1', url: asset.url },
       select: { id: true },
     });
+  });
+
+  it('动态正文导入先校验查看者可见性，再校验 MomentImage 关系', async () => {
+    prisma.stickerImport.findFirst.mockResolvedValue(pendingImport);
+
+    await expect(
+      service.importMomentImage('user-1', {
+        momentId: 'moment-1',
+        mediaId: 'media-1',
+        clientRequestId: 'request-1',
+      }),
+    ).resolves.toMatchObject({ id: 'import-1', status: 'PROCESSING' });
+    expect(prisma.moment.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'moment-1',
+        deletedAt: null,
+        author: {
+          userBlocks: { none: { blockedId: 'user-1' } },
+          blockedBy: { none: { blockerId: 'user-1' } },
+        },
+      },
+      select: { id: true },
+    });
+    expect(prisma.momentImage.findFirst).toHaveBeenCalledWith({
+      where: { momentId: 'moment-1', mediaId: 'media-1' },
+      select: { mediaId: true },
+    });
+  });
+
+  it('动态不存在或不可见时正文图片导入统一返回 MOMENT_NOT_FOUND', async () => {
+    prisma.moment.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.importMomentImage('user-1', {
+        momentId: 'moment-1',
+        mediaId: 'media-1',
+        clientRequestId: 'request-1',
+      }),
+    ).rejects.toMatchObject({ errorCode: ErrorCode.MOMENT_NOT_FOUND });
+    expect(prisma.momentImage.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('动态正文未匹配到 MomentImage 时返回 STICKER_NOT_FOUND', async () => {
+    prisma.momentImage.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.importMomentImage('user-1', {
+        momentId: 'moment-1',
+        mediaId: 'media-2',
+        clientRequestId: 'request-1',
+      }),
+    ).rejects.toMatchObject({ errorCode: ErrorCode.STICKER_NOT_FOUND });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('动态评论图片导入校验父动态、未删除评论、媒体匹配和评论作者可见性', async () => {
+    prisma.stickerImport.findFirst.mockResolvedValue(pendingImport);
+
+    await expect(
+      service.importMomentCommentImage('user-1', {
+        momentCommentId: 'comment-1',
+        mediaId: 'media-1',
+        clientRequestId: 'request-1',
+      }),
+    ).resolves.toMatchObject({ id: 'import-1', status: 'PROCESSING' });
+    expect(prisma.momentComment.findUnique).toHaveBeenCalledWith({
+      where: { id: 'comment-1' },
+      select: { momentId: true },
+    });
+    expect(prisma.moment.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'moment-1',
+        deletedAt: null,
+        author: {
+          userBlocks: { none: { blockedId: 'user-1' } },
+          blockedBy: { none: { blockerId: 'user-1' } },
+        },
+      },
+      select: { id: true },
+    });
+    expect(prisma.momentComment.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'comment-1',
+        momentId: 'moment-1',
+        deletedAt: null,
+        mediaId: 'media-1',
+        author: {
+          userBlocks: { none: { blockedId: 'user-1' } },
+          blockedBy: { none: { blockerId: 'user-1' } },
+        },
+      },
+      select: { mediaId: true },
+    });
+  });
+
+  it('动态评论不存在或来源不合法时按 STICKER_NOT_FOUND 处理，父动态不可见按 MOMENT_NOT_FOUND 处理', async () => {
+    prisma.momentComment.findUnique.mockResolvedValue(null);
+    await expect(
+      service.importMomentCommentImage('user-1', {
+        momentCommentId: 'comment-1',
+        mediaId: 'media-1',
+        clientRequestId: 'request-1',
+      }),
+    ).rejects.toMatchObject({ errorCode: ErrorCode.STICKER_NOT_FOUND });
+
+    prisma.momentComment.findUnique.mockResolvedValue({ momentId: 'moment-1' });
+    prisma.moment.findFirst.mockResolvedValue(null);
+    await expect(
+      service.importMomentCommentImage('user-1', {
+        momentCommentId: 'comment-1',
+        mediaId: 'media-1',
+        clientRequestId: 'request-2',
+      }),
+    ).rejects.toMatchObject({ errorCode: ErrorCode.MOMENT_NOT_FOUND });
+
+    prisma.moment.findFirst.mockResolvedValue({ id: 'moment-1' });
+    prisma.momentComment.findFirst.mockResolvedValue(null);
+    await expect(
+      service.importMomentCommentImage('user-1', {
+        momentCommentId: 'comment-1',
+        mediaId: 'media-2',
+        clientRequestId: 'request-3',
+      }),
+    ).rejects.toMatchObject({ errorCode: ErrorCode.STICKER_NOT_FOUND });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('排序拒绝重复 ID 和过期版本', async () => {

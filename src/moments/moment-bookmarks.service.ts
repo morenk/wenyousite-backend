@@ -4,7 +4,8 @@ import { DEFAULT_BOOKMARK_FOLDER_NAME } from '../bookmarks/bookmark-folder.const
 import { paginate } from '../common/dto/paginated-result';
 import { PrismaService } from '../prisma/prisma.service';
 import { mapMomentCard, type MomentCardRow } from './moment.mapper';
-import { momentCardSelect, momentViewerVisibility } from './moment-query';
+import { momentCardSelect } from './moment-query';
+import { momentViewerVisibility } from '../access/moment-visibility.where';
 import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { MomentAccessService } from './moment-access.service';

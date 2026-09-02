@@ -5,12 +5,18 @@ import { MediaPurpose, Prisma, StickerAsset } from '@prisma/client';
 import { Queue } from 'bullmq';
 import sharp from 'sharp';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  momentViewerVisibility,
+  visibleMomentAuthorWhere,
+} from '../access/moment-visibility.where';
 import { ThreadAccessService } from '../access/thread-access.service';
 import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import {
   ImportStickerDirectMessageDto,
   ImportStickerMediaDto,
+  ImportStickerMomentCommentImageDto,
+  ImportStickerMomentImageDto,
   ImportStickerPostImageDto,
   ReorderStickersDto,
 } from './dto/sticker.dto';
@@ -149,6 +155,48 @@ export class StickersService {
     });
     if (!media) throw this.invalid('该图片不是可收藏的站内图片');
     return this.startMediaImport(userId, media.id, dto.clientRequestId);
+  }
+
+  async importMomentImage(userId: string, dto: ImportStickerMomentImageDto) {
+    const moment = await this.prisma.moment.findFirst({
+      where: { id: dto.momentId, deletedAt: null, ...momentViewerVisibility(userId) },
+      select: { id: true },
+    });
+    if (!moment) throw notFound(ErrorCode.MOMENT_NOT_FOUND, '动态不存在');
+
+    const image = await this.prisma.momentImage.findFirst({
+      where: { momentId: dto.momentId, mediaId: dto.mediaId },
+      select: { mediaId: true },
+    });
+    if (!image) throw notFound(ErrorCode.STICKER_NOT_FOUND, '动态中的图片不存在');
+    return this.startMediaImport(userId, image.mediaId, dto.clientRequestId);
+  }
+
+  async importMomentCommentImage(userId: string, dto: ImportStickerMomentCommentImageDto) {
+    const comment = await this.prisma.momentComment.findUnique({
+      where: { id: dto.momentCommentId },
+      select: { momentId: true },
+    });
+    if (!comment) throw notFound(ErrorCode.STICKER_NOT_FOUND, '动态评论中的图片不存在');
+
+    const moment = await this.prisma.moment.findFirst({
+      where: { id: comment.momentId, deletedAt: null, ...momentViewerVisibility(userId) },
+      select: { id: true },
+    });
+    if (!moment) throw notFound(ErrorCode.MOMENT_NOT_FOUND, '动态不存在');
+
+    const image = await this.prisma.momentComment.findFirst({
+      where: {
+        id: dto.momentCommentId,
+        momentId: comment.momentId,
+        deletedAt: null,
+        mediaId: dto.mediaId,
+        author: visibleMomentAuthorWhere(userId),
+      },
+      select: { mediaId: true },
+    });
+    if (!image) throw notFound(ErrorCode.STICKER_NOT_FOUND, '动态评论中的图片不存在');
+    return this.startMediaImport(userId, image.mediaId!, dto.clientRequestId);
   }
 
   async getImport(userId: string, id: string) {

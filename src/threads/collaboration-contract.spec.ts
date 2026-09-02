@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { API_CONTRACT_VERSION } from '../common/swagger/openapi-document';
 
 type Schema = {
   properties?: Record<string, { $ref?: string; nullable?: boolean; enum?: string[] }>;
@@ -83,7 +84,7 @@ describe('协作管理 OpenAPI 契约', () => {
     expect(payload.properties?.replyTargetName).toMatchObject({ nullable: true });
     expect(payload.properties?.oldRole?.enum).toEqual(['COLLABORATOR', 'PARTICIPANT']);
     expect(payload.properties?.newRole?.enum).toEqual(['COLLABORATOR', 'PARTICIPANT']);
-    expect(contract.info.version).toBe('5.14.1-dev.20260829.1');
+    expect(contract.info.version).toBe(API_CONTRACT_VERSION);
   });
 
   it('通知目标状态为必填枚举，客户端只能导航 ACTIVE 目标', () => {

@@ -9,9 +9,8 @@ import { mapMomentCard, mapMomentDetail, type MomentCardRow, type MomentDetailRo
 import {
   momentCardSelect,
   momentDetailSelect,
-  momentViewerVisibility,
-  visibleMomentAuthorWhere,
 } from './moment-query';
+import { momentViewerVisibility, visibleMomentAuthorWhere } from '../access/moment-visibility.where';
 import { MediaReferenceService } from '../media/media-reference.service';
 import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';

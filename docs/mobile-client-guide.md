@@ -4,7 +4,7 @@
 
 界面、字体、文字缩放和页面状态由公开 `wenyousite-foundation` 维护；仓库边界与入口见 [`mobile-ui-contract.md`](./mobile-ui-contract.md)，实际版本以 Flutter 客户端的 `foundation.lock.json` 为准。
 
-正文图片对齐扩展使用 [`markdown-v5-image-alignment-fixtures.json`](../contracts/markdown-v5-image-alignment-fixtures.json) 作为迁移输入。当前已审查移动端提交 `471410d1212601b9f758bb849ccf24ab5ab671e4` 仍声明 Markdown v3/v4；客户端升级时需让独立普通图片块支持左/中/右对齐，保留收藏表情的行内继承语义，且拒绝文字与普通图片混排对齐，再同步编辑器、Delta 编解码和站内剪贴板。服务端在移动端能力完成前继续声明 v4。
+正文图片对齐扩展使用 [`markdown-v5-image-alignment-fixtures.json`](../contracts/markdown-v5-image-alignment-fixtures.json) 作为迁移输入。当前已审查移动端提交 `fa19e17577552e3418fe6f225c350f5851cb6c9a` 仍声明 Markdown v3/v4；客户端升级时需让独立普通图片块支持左/中/右对齐，保留收藏表情的行内继承语义，且拒绝文字与普通图片混排对齐，再同步编辑器、Delta 编解码和站内剪贴板。服务端在移动端能力完成前继续声明 v4。
 
 ## 启动、构建兼容与诊断
 
@@ -124,6 +124,7 @@ OpenAPI 为兼容 Web 把该头标为 optional；省略或传未知值会创建 
 - 编辑器必须消费站内传送门 fixture 的 `editorPasteCases`：剪贴板纯文本整体是一个合法坐标时，以当前选区文字或默认名称“传送门”插入规范化相对链接并立即显示为传送门；混合文本、站外地址、非法邀请 token 及带查询参数的邀请沿用普通粘贴。邀请 token 是访问凭据；除用户明确保存的正文或草稿外，不得把它写入日志、诊断、分析事件或独立缓存，也不得用于预取私密帖元数据。
 - 私聊会话列表消费 `directMessagePreviewCases`：普通传送门显示名称，邀请或残留 `/join/{token}` 统一显示“邀请传送门”。完整消息与复制使用原始字符串；私聊邀请不弹公开分享确认，公开主题、楼层、回复、动态和评论则在内容首次提交或邀请内容变化后确认。
 - 动态最多九张图片；评论可使用文字、单张图片或单个收藏表情，图片与表情互斥。
+- 合同 `5.15.0-dev.20260902.1` 新增 `stickersImportMomentImage` 与 `stickersImportMomentCommentImage`：原图查看页分别提交 `momentId + mediaId` 或 `momentCommentId + mediaId`，并沿用同一 UUID v4 `clientRequestId` 重试、轮询既有 `StickerImportResponseDto`。Windows 移动端同步 OpenAPI 并重新生成 SDK 后，把动态正文和评论接入现有“图片操作”菜单；父动态 404 使用 `MOMENT_NOT_FOUND`，评论来源 404 使用 `STICKER_NOT_FOUND`。VPS 只维护后端契约，不修改 Flutter 源码、生成物或测试。
 - 合同 `5.10.0-dev.20260823.1` 起，图片签名请求可选传业务 `purpose`；Windows 移动端应在独立契约同步切片中为头像、主页背景、私聊、动态、动态评论、正文和表情来源分别传对应枚举，并使用响应中的 `animated` 与非空派生 URL。静态图片在选图后应先旋转归正、最长边缩至 2560px、清除元数据并编码为 WebP（质量约 85）再直传；GIF 不在客户端转码。旧版本省略 `purpose` 仍由后端按 `LEGACY` 兼容，后端还会再次标准化且不会长期保存静态原件。VPS 只维护契约和迁移说明，Flutter 实现与门禁留给 Windows。
 - 动态楼中楼只有两层视觉结构；筛选回复者时仍保留所属主评论上下文。未知作者、删除媒体和未知枚举都必须安全降级。
 - 动态通知目标携带 `momentCommentId` 时，详情页调用 `momentsCommentContext` 直接取得 `root`、`target` 和当前可见 `replyCount`。主评论目标直接注入并定位；楼中楼目标同时注入所属主评论和目标回复、展开后定位，不扫描评论或回复分页。主评论已删除但目标回复仍可见时保留服务端墓碑；404 保留动态详情与普通评论且不自动重试，临时失败保留内容并允许重试。客户端必须消费 `mobile-v1-golden-fixtures.json` 的 `momentCommentNavigation` 旅程。

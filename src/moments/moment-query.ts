@@ -1,17 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { momentAuthorSelect, momentMediaSelect } from './moment.mapper';
 
-export function visibleMomentAuthorWhere(viewerId: string): Prisma.UserWhereInput {
-  return {
-    userBlocks: { none: { blockedId: viewerId } },
-    blockedBy: { none: { blockerId: viewerId } },
-  };
-}
-
-export function momentViewerVisibility(viewerId?: string): Prisma.MomentWhereInput {
-  return viewerId ? { author: visibleMomentAuthorWhere(viewerId) } : {};
-}
-
 export function momentCardSelect(viewerId?: string): Prisma.MomentSelect {
   return {
     id: true,

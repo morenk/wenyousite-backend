@@ -43,3 +43,5 @@ pnpm docs:check
 Web 与 Flutter 不直接下载线上 `/api/docs-json`。发布分支同步固定的 `contracts/openapi.json` 后再生成客户端，生成器版本也应锁定。生成结果的 diff 属于契约评审的一部分；出现非预期删除、nullable/required 变化或大量匿名模型时阻止合并。
 
 移动端范围以 [`mobile-v1-operation-coverage.json`](../contracts/mobile-v1-operation-coverage.json) 为唯一覆盖清单，以 [`mobile-v1-golden-fixtures.json`](../contracts/mobile-v1-golden-fixtures.json) 固定跨端协议旅程。OpenAPI 中的全部 operationId 必须在生成清单中且仅分类一次；状态改为 `implemented` 时必须记录自动测试证据，手写文档不复制容易漂移的接口总数。
+
+合同 `5.15.0-dev.20260902.1` 起，登录客户端可使用 `stickersImportMomentImage` 或 `stickersImportMomentCommentImage`，分别提交动态/评论 ID、`mediaId` 和稳定的 UUID v4 `clientRequestId`，并轮询既有 `StickerImportResponseDto`。Windows 移动端同步 `contracts/openapi.json` 后再生成客户端；父动态不可见按 `MOMENT_NOT_FOUND` 处理，评论来源不合法按 `STICKER_NOT_FOUND` 处理，VPS 不修改移动端生成物。

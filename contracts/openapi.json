@@ -6433,6 +6433,134 @@
         "x-auth-mode": "authenticated"
       }
     },
+    "/api/v1/stickers/imports/moment-image": {
+      "post": {
+        "operationId": "stickersImportMomentImage",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportStickerMomentImageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StickersImportMomentImage201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "收藏可访问动态正文中的指定图片",
+        "tags": [
+          "Stickers"
+        ],
+        "x-auth-mode": "authenticated"
+      }
+    },
+    "/api/v1/stickers/imports/moment-comment-image": {
+      "post": {
+        "operationId": "stickersImportMomentCommentImage",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportStickerMomentCommentImageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StickersImportMomentCommentImage201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "收藏可访问动态评论中的指定图片",
+        "tags": [
+          "Stickers"
+        ],
+        "x-auth-mode": "authenticated"
+      }
+    },
     "/api/v1/stickers/imports/{id}": {
       "get": {
         "operationId": "stickersGetImport",
@@ -17930,7 +18058,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.14.1-dev.20260829.1",
+    "version": "5.15.0-dev.20260902.1",
     "contact": {}
   },
   "tags": [
@@ -21888,6 +22016,52 @@
         "required": [
           "postId",
           "imageUrl",
+          "clientRequestId"
+        ]
+      },
+      "ImportStickerMomentImageDto": {
+        "type": "object",
+        "properties": {
+          "momentId": {
+            "type": "string",
+            "description": "当前用户可访问动态中的图片媒体 ID 所属动态"
+          },
+          "mediaId": {
+            "type": "string",
+            "description": "动态图片的媒体 ID"
+          },
+          "clientRequestId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "导入幂等键"
+          }
+        },
+        "required": [
+          "momentId",
+          "mediaId",
+          "clientRequestId"
+        ]
+      },
+      "ImportStickerMomentCommentImageDto": {
+        "type": "object",
+        "properties": {
+          "momentCommentId": {
+            "type": "string",
+            "description": "当前用户可访问动态中的评论 ID"
+          },
+          "mediaId": {
+            "type": "string",
+            "description": "动态评论图片的媒体 ID"
+          },
+          "clientRequestId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "导入幂等键"
+          }
+        },
+        "required": [
+          "momentCommentId",
+          "mediaId",
           "clientRequestId"
         ]
       },
@@ -28961,6 +29135,42 @@
         ]
       },
       "StickersImportPostImage201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/StickerImportResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "StickersImportMomentImage201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/StickerImportResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "StickersImportMomentCommentImage201Response": {
         "allOf": [
           {
             "$ref": "#/components/schemas/ApiSuccessEnvelope"
