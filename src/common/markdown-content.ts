@@ -21,6 +21,14 @@ const STICKER_TITLE_PREFIX = 'wenyousite-sticker:v1:';
 const WORD_JOINER = '\u2060';
 const MAX_LIST_DEPTH = 3;
 
+/** 当前公网仍声明 v4；v5 仅在完成客户端能力门控后启用。 */
+export const ACTIVE_MARKDOWN_CONTRACT_VERSION = 4;
+export const IMAGE_ALIGNMENT_MARKDOWN_CONTRACT_VERSION = 5;
+
+export interface MarkdownValidationOptions {
+  markdownContractVersion?: number;
+}
+
 /** 仅用于可见性判断；保留原文，避免破坏 ZWJ Emoji 和变体选择符。 */
 const DEFAULT_IGNORABLE_RE =
   // eslint-disable-next-line no-misleading-character-class -- 此处按 Unicode code point 明确列举默认不可见字符及组合选择符。
@@ -143,7 +151,14 @@ function maskInlineCode(line: string): string {
 }
 
 /** 返回按源码位置排序的全部不支持结构；空段落协议行会在解析前被安全占位。 */
-export function findUnsupportedMarkdownFormats(markdown: string): UnsupportedMarkdownIssue[] {
+export function findUnsupportedMarkdownFormats(
+  markdown: string,
+  options: MarkdownValidationOptions = {},
+): UnsupportedMarkdownIssue[] {
+  const markdownContractVersion =
+    options.markdownContractVersion ?? ACTIVE_MARKDOWN_CONTRACT_VERSION;
+  const imageAlignmentEnabled =
+    markdownContractVersion >= IMAGE_ALIGNMENT_MARKDOWN_CONTRACT_VERSION;
   const normalized = normalizeMarkdownContent(markdown);
   const lines = normalized.split('\n');
   const parseSource = lines
@@ -266,10 +281,16 @@ export function findUnsupportedMarkdownFormats(markdown: string): UnsupportedMar
               token.map?.[1] === target.map?.[1],
           )
         : undefined;
-      const hasRegularImage = inline?.children?.some(
+      const inlineChildren = inline?.children ?? [];
+      const hasRegularImage = inlineChildren.some(
         (child) =>
           child.type === 'image' && !child.attrGet('title')?.startsWith(STICKER_TITLE_PREFIX),
       );
+      const hasStandaloneRegularImage =
+        imageAlignmentEnabled &&
+        inlineChildren.length === 1 &&
+        inlineChildren[0]?.type === 'image' &&
+        !inlineChildren[0].attrGet('title')?.startsWith(STICKER_TITLE_PREFIX);
       const hasInlineContent = Boolean(inline?.content.trim());
       const eligibleHeading =
         target?.type === 'heading_open' &&
@@ -278,9 +299,8 @@ export function findUnsupportedMarkdownFormats(markdown: string): UnsupportedMar
         !hasRegularImage;
       const eligibleParagraph =
         target?.type === 'paragraph_open' &&
-        hasInlineContent &&
         !EMPTY_PARAGRAPH_RE.test(lines[line + 1] ?? '') &&
-        !hasRegularImage;
+        ((hasInlineContent && !hasRegularImage) || hasStandaloneRegularImage);
       if (!eligibleHeading && !eligibleParagraph) {
         issues.push({ type: 'invalid-alignment', startLine: line, endLine: line });
       }
@@ -314,8 +334,11 @@ export function findUnsupportedMarkdownFormats(markdown: string): UnsupportedMar
     });
 }
 
-export function assertSupportedMarkdown(markdown: string): void {
-  const first = findUnsupportedMarkdownFormats(markdown)[0];
+export function assertSupportedMarkdown(
+  markdown: string,
+  options: MarkdownValidationOptions = {},
+): void {
+  const first = findUnsupportedMarkdownFormats(markdown, options)[0];
   if (!first) return;
   throw new BusinessException(
     ErrorCode.UNSUPPORTED_MARKDOWN_FORMAT,
@@ -325,9 +348,12 @@ export function assertSupportedMarkdown(markdown: string): void {
 }
 
 /** 所有正文写入口必须先调用本函数，再进入骰子、图片、提及或持久化处理。 */
-export function prepareMarkdownContent(markdown: string): string {
+export function prepareMarkdownContent(
+  markdown: string,
+  options: MarkdownValidationOptions = {},
+): string {
   const normalized = normalizeMarkdownContent(markdown);
-  assertSupportedMarkdown(normalized);
+  assertSupportedMarkdown(normalized, options);
   return normalized;
 }
 
@@ -339,9 +365,12 @@ function escapeLiteralLine(line: string): string {
 }
 
 /** 将不支持节点的原始源码保留为可见普通文字；用于客户端防御降级与数据迁移。 */
-export function literalizeUnsupportedMarkdown(markdown: string): string {
+export function literalizeUnsupportedMarkdown(
+  markdown: string,
+  options: MarkdownValidationOptions = {},
+): string {
   const normalized = normalizeMarkdownContent(markdown);
-  const issues = findUnsupportedMarkdownFormats(normalized);
+  const issues = findUnsupportedMarkdownFormats(normalized, options);
   if (issues.length === 0) return normalized;
   const lines = normalized.split('\n');
   const affected = new Set<number>();

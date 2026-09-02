@@ -1,0 +1,43 @@
+{
+  "contract": "wenyousite-markdown-image-alignment",
+  "version": 1,
+  "markdownContractVersion": 5,
+  "defaultAlignment": "left",
+  "rules": {
+    "standaloneRegularImage": "alignable",
+    "mixedTextAndRegularImage": "rejected",
+    "sticker": "inline-inherits-parent-alignment"
+  },
+  "cases": [
+    {
+      "id": "default-left-image",
+      "markdown": "![默认图片](https://cdn.example.com/default.webp)",
+      "supported": true,
+      "expectedAlignment": "left"
+    },
+    {
+      "id": "center-standalone-image",
+      "markdown": "[wenyousite-align-v1-center]: #\n![居中图片](https://cdn.example.com/center.webp)",
+      "supported": true,
+      "expectedAlignment": "center"
+    },
+    {
+      "id": "right-standalone-image-with-caption",
+      "markdown": "[wenyousite-align-v1-right]: #\n![居右图片](https://cdn.example.com/right.webp \"图注\")",
+      "supported": true,
+      "expectedAlignment": "right"
+    },
+    {
+      "id": "mixed-text-and-image-rejected",
+      "markdown": "[wenyousite-align-v1-center]: #\n正文 ![行内图片](https://cdn.example.com/mixed.webp)",
+      "supported": false,
+      "expectedAlignment": null
+    },
+    {
+      "id": "sticker-inherits-paragraph-alignment",
+      "markdown": "[wenyousite-align-v1-center]: #\n![表情](https://cdn.example.com/sticker.webp \"wenyousite-sticker:v1:asset-1\")",
+      "supported": true,
+      "expectedAlignment": "center"
+    }
+  ]
+}

@@ -9,6 +9,7 @@ import {
   hasVisibleMarkdownContent,
   literalizeUnsupportedMarkdown,
   normalizeMarkdownContent,
+  prepareMarkdownContent,
   type UnsupportedMarkdownType,
 } from './markdown-content';
 
@@ -29,8 +30,27 @@ interface MarkdownFixtureFile {
   cases: MarkdownFixtureCase[];
 }
 
+interface ImageAlignmentFixtureCase {
+  id: string;
+  markdown: string;
+  supported: boolean;
+  expectedAlignment: 'left' | 'center' | 'right' | null;
+}
+
+interface ImageAlignmentFixtureFile {
+  contract: string;
+  version: number;
+  markdownContractVersion: number;
+  defaultAlignment: string;
+  rules: Record<string, string>;
+  cases: ImageAlignmentFixtureCase[];
+}
+
 const fixturePath = resolve(__dirname, '../../contracts/markdown-v4-fixtures.json');
 const fixtures = JSON.parse(readFileSync(fixturePath, 'utf8')) as MarkdownFixtureFile;
+const imageAlignmentFixtures = JSON.parse(
+  readFileSync(resolve(__dirname, '../../contracts/markdown-v5-image-alignment-fixtures.json'), 'utf8'),
+) as ImageAlignmentFixtureFile;
 
 describe('Markdown v4 黄金语料', () => {
   it('协议标识、版本和 case id 合法', () => {
@@ -84,5 +104,43 @@ describe('Markdown v4 黄金语料', () => {
       { type: 'hard-break', startLine: 1, endLine: 1 },
     ]);
     expect(findUnsupportedMarkdownFormats(literal)).toEqual([]);
+  });
+});
+
+describe('Markdown v5 图片块对齐扩展', () => {
+  const v4 = { markdownContractVersion: 4 };
+  const v5 = { markdownContractVersion: imageAlignmentFixtures.markdownContractVersion };
+
+  it('图片对齐扩展 fixture 保持版本与 case id 合法', () => {
+    expect(imageAlignmentFixtures.contract).toBe('wenyousite-markdown-image-alignment');
+    expect(imageAlignmentFixtures.version).toBe(1);
+    expect(imageAlignmentFixtures.defaultAlignment).toBe('left');
+    expect(new Set(imageAlignmentFixtures.cases.map((item) => item.id)).size)
+      .toBe(imageAlignmentFixtures.cases.length);
+  });
+
+  it.each(imageAlignmentFixtures.cases)('$id 遵守图片块对齐白名单', ({ markdown, supported }) => {
+    const issues = findUnsupportedMarkdownFormats(markdown, v5);
+    expect(issues[0]?.type ?? null).toBe(supported ? null : 'invalid-alignment');
+    if (supported) {
+      expect(() => assertSupportedMarkdown(markdown, v5)).not.toThrow();
+    }
+  });
+
+  it('只允许独占一行的普通图片使用居中或居右标记', () => {
+    const centered = '[wenyousite-align-v1-center]: #\n![图片](https://cdn.example.com/a.png)';
+    const mixed = '[wenyousite-align-v1-center]: #\n文字 ![图片](https://cdn.example.com/a.png)';
+    const sticker = '[wenyousite-align-v1-center]: #\n![表情](https://cdn.example.com/a.webp "wenyousite-sticker:v1:asset")';
+
+    expect(findUnsupportedMarkdownFormats(centered, v4)[0]?.type).toBe('invalid-alignment');
+    expect(findUnsupportedMarkdownFormats(centered, v5)).toEqual([]);
+    expect(() => assertSupportedMarkdown(centered, v5)).not.toThrow();
+    expect(findUnsupportedMarkdownFormats(mixed, v5)[0]?.type).toBe('invalid-alignment');
+    expect(findUnsupportedMarkdownFormats(sticker, v5)).toEqual([]);
+  });
+
+  it('左对齐仍使用无标记的默认状态', () => {
+    const source = '![图片](https://cdn.example.com/a.png)';
+    expect(prepareMarkdownContent(source, v5)).toBe(source);
   });
 });

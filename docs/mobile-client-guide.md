@@ -4,6 +4,8 @@
 
 界面、字体、文字缩放和页面状态由公开 `wenyousite-foundation` 维护；仓库边界与入口见 [`mobile-ui-contract.md`](./mobile-ui-contract.md)，实际版本以 Flutter 客户端的 `foundation.lock.json` 为准。
 
+正文图片对齐扩展使用 [`markdown-v5-image-alignment-fixtures.json`](../contracts/markdown-v5-image-alignment-fixtures.json) 作为迁移输入。当前已审查移动端提交 `471410d1212601b9f758bb849ccf24ab5ab671e4` 仍声明 Markdown v3/v4；客户端升级时需让独立普通图片块支持左/中/右对齐，保留收藏表情的行内继承语义，且拒绝文字与普通图片混排对齐，再同步编辑器、Delta 编解码和站内剪贴板。服务端在移动端能力完成前继续声明 v4。
+
 ## 启动、构建兼容与诊断
 
 1. 客户端只从随版本固定的 OpenAPI 生成 API/model 代码，不在构建时下载线上 Swagger。
