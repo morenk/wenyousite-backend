@@ -9,11 +9,14 @@ allowBuilds:
   prisma: true
   protobufjs: true
   unrs-resolver: true
+minimumReleaseAgeExclude:
+  - fast-uri@3.1.7 || 4.1.4
 overrides:
   brace-expansion@2.1.2: 2.1.4
   brace-expansion@5.0.8: 5.0.9
   deepmerge-ts@7.1.5: 8.0.0
-  fast-uri@3.1.4: 3.1.5
-  fast-uri@4.1.1: 4.1.2
+  fast-uri@3.1.4: 3.1.7
+  fast-uri@4.1.1: 4.1.4
+  fastify@5.11.3: 5.12.1
   find-my-way@9.6.0: 9.7.0
   uuid@9.0.1: 11.1.1
