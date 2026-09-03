@@ -47,6 +47,19 @@ import { ApiCursorPaginatedResponse } from '../common/swagger/api-cursor-paginat
 import { ThreadExportDto } from './dto/thread-export.dto';
 import { ThreadExportService } from './thread-export.service';
 
+export function buildExportContentDisposition(filename: string): string {
+  const legacyStem = filename
+    .replace(/\.zip$/iu, '')
+    .replace(/[^\x20-\x7e]/gu, '')
+    .trim();
+  const legacyFilename = `${legacyStem || 'wenyou-thread-export'}.zip`;
+  const encodedFilename = encodeURIComponent(filename).replace(
+    /[!'()*]/gu,
+    (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+  return `attachment; filename="${legacyFilename}"; filename*=UTF-8''${encodedFilename}`;
+}
+
 /** 主题帖控制器：草稿箱、列表、详情、修改、发布、删除、点赞 */
 @ApiTags('Threads')
 @Controller('threads')
@@ -120,7 +133,8 @@ export class ThreadsController {
   @ApiOperation({ summary: '导出已发布主题帖档案 ZIP（仅 OWNER/COLLABORATOR）' })
   @ApiProduces('application/zip')
   @ApiOkResponse({
-    description: 'ZIP 包含 thread.md、thread.txt、可选 media/ 和必要时的 export-notes.txt',
+    description:
+      'ZIP 包含以帖子标题命名的 .md/.txt 正文文件、可选 media/ 和必要时的 export-notes.txt',
     schema: { type: 'string', format: 'binary' },
   })
   @ApiBadRequestResponse({ description: '导出选项格式不正确' })
@@ -137,7 +151,7 @@ export class ThreadsController {
     const { stream, filename } = await this.threadExportService.createArchive(id, user.id, dto);
     return reply
       .header('Content-Type', 'application/zip')
-      .header('Content-Disposition', `attachment; filename="${filename}"`)
+      .header('Content-Disposition', buildExportContentDisposition(filename))
       .send(stream);
   }
 

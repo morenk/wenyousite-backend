@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { AUTH_MODE_KEY, AuthMode } from '../auth/decorators/auth-mode.constants';
-import { ThreadsController } from './threads.controller';
+import { ThreadsController, buildExportContentDisposition } from './threads.controller';
 
 const contract = JSON.parse(
   readFileSync(resolve(__dirname, '../../contracts/openapi.json'), 'utf8'),
@@ -47,5 +47,13 @@ describe('ThreadsController 私密存在性 OpenAPI 契约', () => {
         },
       },
     });
+  });
+});
+
+describe('主题帖导出文件名响应头', () => {
+  it('同时提供 ASCII 回退名和 UTF-8 标题文件名', () => {
+    expect(buildExportContentDisposition('星海 第一章.zip')).toBe(
+      'attachment; filename="wenyou-thread-export.zip"; filename*=UTF-8\'\'%E6%98%9F%E6%B5%B7%20%E7%AC%AC%E4%B8%80%E7%AB%A0.zip',
+    );
   });
 });

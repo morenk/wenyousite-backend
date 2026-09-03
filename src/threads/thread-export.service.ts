@@ -105,6 +105,10 @@ const EXPORT_MEDIA_EXTENSIONS: Readonly<Record<string, string>> = {
   'image/avif': '.avif',
   'image/svg+xml': '.svg',
 };
+const EXPORT_FILENAME_FALLBACK = '未命名主题帖';
+const EXPORT_FILENAME_MAX_LENGTH = 80;
+const EXPORT_FILENAME_UNSAFE_PATTERN = /[\p{Cc}<>:"/\\|?*]/gu;
+const EXPORT_FILENAME_RESERVED_PATTERN = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/iu;
 const EXPORT_TIME_FORMATTER = new Intl.DateTimeFormat('en-US', {
   timeZone: 'Asia/Shanghai',
   calendar: 'gregory',
@@ -129,6 +133,25 @@ export function getExportMediaExtension(contentType: string | null): string {
   const mediaType = contentType?.split(';', 1)[0].trim().toLowerCase();
   if (!mediaType) return '.bin';
   return EXPORT_MEDIA_EXTENSIONS[mediaType] ?? '.bin';
+}
+
+export function getExportFilenameStem(title: string | null): string {
+  const normalized = title?.normalize('NFKC').trim() ?? '';
+  const cleaned = Array.from(
+    normalized
+      .replace(EXPORT_FILENAME_UNSAFE_PATTERN, ' ')
+      .replace(/\s+/gu, ' ')
+      .replace(/^[. ]+|[. ]+$/gu, ''),
+  )
+    .slice(0, EXPORT_FILENAME_MAX_LENGTH)
+    .join('')
+    .replace(/[. ]+$/u, '');
+
+  if (!cleaned || cleaned === '.' || cleaned === '..') return EXPORT_FILENAME_FALLBACK;
+  if (EXPORT_FILENAME_RESERVED_PATTERN.test(cleaned)) {
+    return Array.from(`主题帖-${cleaned}`).slice(0, EXPORT_FILENAME_MAX_LENGTH).join('');
+  }
+  return cleaned;
 }
 
 /**
@@ -405,10 +428,18 @@ export class ThreadExportService {
     }
     const markdown = buildMarkdown(thread, rendered, options, webUrl);
     const text = buildText(thread, rendered, options, webUrl);
-    const stream = this.startArchive(markdown, text, assets, warnings, options.format);
+    const filenameStem = getExportFilenameStem(thread.title);
+    const stream = this.startArchive(
+      markdown,
+      text,
+      assets,
+      warnings,
+      options.format,
+      filenameStem,
+    );
     return {
       stream,
-      filename: `wenyou-thread-${thread.id.replace(/[^a-zA-Z0-9_-]/gu, '') || 'export'}.zip`,
+      filename: `${filenameStem}.zip`,
     };
   }
 
@@ -468,6 +499,7 @@ export class ThreadExportService {
     assets: ReadonlyMap<string, PreparedAsset>,
     warnings: ReadonlySet<string>,
     format: ThreadExportFormat,
+    filenameStem: string,
   ) {
     const archive = (archiver as unknown as (format: string) => Archiver)('zip');
     const stream = new PassThrough();
@@ -475,9 +507,9 @@ export class ThreadExportService {
     archive.pipe(stream);
     void (async () => {
       if (format === ThreadExportFormat.MARKDOWN || format === ThreadExportFormat.BOTH)
-        archive.append(Buffer.from(markdown, 'utf8'), { name: 'thread.md' });
+        archive.append(Buffer.from(markdown, 'utf8'), { name: `${filenameStem}.md` });
       if (format === ThreadExportFormat.TXT || format === ThreadExportFormat.BOTH)
-        archive.append(Buffer.from(text, 'utf8'), { name: 'thread.txt' });
+        archive.append(Buffer.from(text, 'utf8'), { name: `${filenameStem}.txt` });
       for (const asset of assets.values()) archive.append(asset.buffer, { name: asset.path });
       if (warnings.size > 0)
         archive.append(

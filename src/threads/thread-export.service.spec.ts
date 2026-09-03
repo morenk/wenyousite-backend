@@ -2,6 +2,7 @@ import {
   renderExportContent,
   formatExportTime,
   getExportMediaExtension,
+  getExportFilenameStem,
   ThreadExportService,
   type PreparedAsset,
   type RenderContext,
@@ -131,6 +132,14 @@ describe('renderExportContent', () => {
     expect(getExportMediaExtension('application/octet-stream')).toBe('.bin');
   });
 
+  it('将帖子标题安全化为文件名 stem', () => {
+    expect(getExportFilenameStem('星海 / 第一章: 归来?')).toBe('星海 第一章 归来');
+    expect(getExportFilenameStem(null)).toBe('未命名主题帖');
+    expect(getExportFilenameStem('   ...   ')).toBe('未命名主题帖');
+    expect(getExportFilenameStem('CON')).toBe('主题帖-CON');
+    expect(getExportFilenameStem('温油'.repeat(60))).toBe('温油'.repeat(40));
+  });
+
   it('按导出格式选择 ZIP 中的正文文件', async () => {
     const service = new ThreadExportService(
       undefined as never,
@@ -148,9 +157,17 @@ describe('renderExportContent', () => {
             assets: ReadonlyMap<string, PreparedAsset>,
             warnings: ReadonlySet<string>,
             selectedFormat: ThreadExportFormat,
+            filenameStem: string,
           ) => NodeJS.ReadableStream;
         }
-      ).startArchive('markdown', 'text', new Map<string, PreparedAsset>(), new Set(), format);
+      ).startArchive(
+        'markdown',
+        'text',
+        new Map<string, PreparedAsset>(),
+        new Set(),
+        format,
+        'topic-title',
+      );
     const read = (stream: NodeJS.ReadableStream) =>
       new Promise<Buffer>((resolve, reject) => {
         const chunks: Buffer[] = [];
@@ -160,9 +177,9 @@ describe('renderExportContent', () => {
       });
 
     for (const [format, included, omitted] of [
-      [ThreadExportFormat.TXT, ['thread.txt'], ['thread.md']],
-      [ThreadExportFormat.MARKDOWN, ['thread.md'], ['thread.txt']],
-      [ThreadExportFormat.BOTH, ['thread.md', 'thread.txt'], []],
+      [ThreadExportFormat.TXT, ['topic-title.txt'], ['topic-title.md']],
+      [ThreadExportFormat.MARKDOWN, ['topic-title.md'], ['topic-title.txt']],
+      [ThreadExportFormat.BOTH, ['topic-title.md', 'topic-title.txt'], []],
     ] as const) {
       const bytes = await read(archive(format));
       const archiveText = bytes.toString('latin1');
