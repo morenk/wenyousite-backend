@@ -1,11 +1,17 @@
 import {
   renderExportContent,
+  formatExportTime,
+  getExportMediaExtension,
+  ThreadExportService,
+  type PreparedAsset,
   type RenderContext,
   type ThreadExportDiceRoll,
   type ThreadExportOptions,
 } from './thread-export.service';
+import { ThreadExportFormat } from './dto/thread-export.dto';
 
 const options: ThreadExportOptions = {
+  format: ThreadExportFormat.BOTH,
   includeAuthors: true,
   includeTimestamps: true,
   includeFloorNumbers: true,
@@ -40,7 +46,7 @@ describe('renderExportContent', () => {
         assets: new Map([
           [
             'image:https://cdn.example/map.png',
-            { path: 'media/001-image', buffer: Buffer.from('map') },
+            { path: 'media/001-image.png', buffer: Buffer.from('map') },
           ],
         ]),
         diceRolls: [diceRoll],
@@ -50,7 +56,7 @@ describe('renderExportContent', () => {
     expect(result).toContain('**章节**');
     expect(result).toContain('骰子（1d20+2 = 17，结果：15）');
     expect(result).toContain('回到主题');
-    expect(result).toContain('![地图](media/001-image)');
+    expect(result).toContain('![地图](media/001-image.png)');
     expect(result).not.toContain('cjldummythreadid000000000000');
   });
 
@@ -73,8 +79,14 @@ describe('renderExportContent', () => {
       `[[dice:v1:${firstId}:1d6]] [[dice:v1:${secondId}:1d8]] ![一](https://cdn.example/1.png) ![二](https://cdn.example/2.png)`,
       context({
         assets: new Map([
-          ['image:https://cdn.example/1.png', { path: 'media/001-image', buffer: Buffer.from('1') }],
-          ['image:https://cdn.example/2.png', { path: 'media/002-image', buffer: Buffer.from('2') }],
+          [
+            'image:https://cdn.example/1.png',
+            { path: 'media/001-image.png', buffer: Buffer.from('1') },
+          ],
+          [
+            'image:https://cdn.example/2.png',
+            { path: 'media/002-image.png', buffer: Buffer.from('2') },
+          ],
         ]),
         diceRolls: [
           { nodeId: firstId, notation: '1d6', total: 4, results: [4] },
@@ -85,7 +97,77 @@ describe('renderExportContent', () => {
 
     expect(result).toContain('骰子（1d6 = 4，结果：4）');
     expect(result).toContain('骰子（1d8 = 7，结果：7）');
-    expect(result).toContain('![一](media/001-image)');
-    expect(result).toContain('![二](media/002-image)');
+    expect(result).toContain('![一](media/001-image.png)');
+    expect(result).toContain('![二](media/002-image.png)');
+  });
+
+  it('表情只保留替代文字，不生成媒体链接', () => {
+    const result = renderExportContent(
+      '![笑脸](https://cdn.example/sticker.webp "wenyousite-sticker:v1:123e4567-e89b-42d3-a456-426614174000")',
+      context({
+        assets: new Map([
+          [
+            'sticker:123e4567-e89b-42d3-a456-426614174000',
+            { path: 'media/001-sticker', buffer: Buffer.from('sticker') },
+          ],
+        ]),
+      }),
+    );
+
+    expect(result).toBe('笑脸');
+    expect(result).not.toContain('sticker.webp');
+    expect(result).not.toContain('media/001-sticker');
+  });
+
+  it('时间固定格式化为北京时间', () => {
+    expect(formatExportTime(new Date('2026-01-01T00:00:00.000Z'))).toBe(
+      '2026-01-01 08:00:00（北京时间）',
+    );
+  });
+
+  it('根据可信 MIME 类型生成媒体后缀，未知类型安全回退', () => {
+    expect(getExportMediaExtension('image/jpeg')).toBe('.jpg');
+    expect(getExportMediaExtension('image/webp; charset=binary')).toBe('.webp');
+    expect(getExportMediaExtension('application/octet-stream')).toBe('.bin');
+  });
+
+  it('按导出格式选择 ZIP 中的正文文件', async () => {
+    const service = new ThreadExportService(
+      undefined as never,
+      undefined as never,
+      undefined as never,
+      undefined as never,
+      undefined as never,
+    );
+    const archive = (format: ThreadExportFormat) =>
+      (
+        service as unknown as {
+          startArchive: (
+            markdown: string,
+            text: string,
+            assets: ReadonlyMap<string, PreparedAsset>,
+            warnings: ReadonlySet<string>,
+            selectedFormat: ThreadExportFormat,
+          ) => NodeJS.ReadableStream;
+        }
+      ).startArchive('markdown', 'text', new Map<string, PreparedAsset>(), new Set(), format);
+    const read = (stream: NodeJS.ReadableStream) =>
+      new Promise<Buffer>((resolve, reject) => {
+        const chunks: Buffer[] = [];
+        stream.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)));
+        stream.on('end', () => resolve(Buffer.concat(chunks)));
+        stream.on('error', reject);
+      });
+
+    for (const [format, included, omitted] of [
+      [ThreadExportFormat.TXT, ['thread.txt'], ['thread.md']],
+      [ThreadExportFormat.MARKDOWN, ['thread.md'], ['thread.txt']],
+      [ThreadExportFormat.BOTH, ['thread.md', 'thread.txt'], []],
+    ] as const) {
+      const bytes = await read(archive(format));
+      const archiveText = bytes.toString('latin1');
+      for (const filename of included) expect(archiveText).toContain(filename);
+      for (const filename of omitted) expect(archiveText).not.toContain(filename);
+    }
   });
 });

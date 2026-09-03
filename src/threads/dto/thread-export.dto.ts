@@ -1,8 +1,23 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsOptional } from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional } from 'class-validator';
+
+export enum ThreadExportFormat {
+  TXT = 'TXT',
+  MARKDOWN = 'MARKDOWN',
+  BOTH = 'BOTH',
+}
 
 /** 主题帖本地档案导出选项。 */
 export class ThreadExportDto {
+  @ApiPropertyOptional({
+    enum: ThreadExportFormat,
+    default: ThreadExportFormat.BOTH,
+    description: '导出格式：TXT、Markdown 或两者',
+  })
+  @IsOptional()
+  @IsEnum(ThreadExportFormat)
+  format = ThreadExportFormat.BOTH;
+
   @ApiPropertyOptional({ type: Boolean, default: true, description: '是否保留作者名' })
   @IsOptional()
   @IsBoolean()
@@ -23,7 +38,11 @@ export class ThreadExportDto {
   @IsBoolean()
   includeReplyTargets = true;
 
-  @ApiPropertyOptional({ type: Boolean, default: false, description: '是否保留站内来源链接；邀请链接始终脱敏' })
+  @ApiPropertyOptional({
+    type: Boolean,
+    default: false,
+    description: '是否保留站内来源链接；邀请链接始终脱敏',
+  })
   @IsOptional()
   @IsBoolean()
   includeSourceLinks = false;

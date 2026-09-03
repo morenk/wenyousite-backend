@@ -18204,7 +18204,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.16.0-dev.20260903.1",
+    "version": "5.16.0-dev.20260903.3",
     "contact": {}
   },
   "tags": [
@@ -21506,6 +21506,16 @@
       "ThreadExportDto": {
         "type": "object",
         "properties": {
+          "format": {
+            "type": "string",
+            "enum": [
+              "TXT",
+              "MARKDOWN",
+              "BOTH"
+            ],
+            "default": "BOTH",
+            "description": "导出格式：TXT、Markdown 或两者"
+          },
           "includeAuthors": {
             "type": "boolean",
             "default": true,

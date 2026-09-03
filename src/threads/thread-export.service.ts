@@ -20,11 +20,13 @@ import {
 import { DEACTIVATED_USER_NAME } from '../common/user-summary';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { notFound } from '../common/exceptions/business.exception';
-import type { ThreadExportDto } from './dto/thread-export.dto';
+import { ThreadExportFormat, type ThreadExportDto } from './dto/thread-export.dto';
 import { authorSelect, notDeleted } from '../common/prisma-helpers';
+import { threadCategoryInfoSelect } from '../taxonomy/thread-category-info';
 
 const exportThreadInclude = {
   owner: { select: authorSelect },
+  categoryDefinition: { select: threadCategoryInfoSelect },
   topicTags: { include: { tag: { select: { name: true } } } },
   subthreads: {
     where: notDeleted,
@@ -55,6 +57,7 @@ type ExportThread = Prisma.ThreadGetPayload<{ include: typeof exportThreadInclud
 type ExportPost = ExportThread['subthreads'][number]['posts'][number];
 
 export interface ThreadExportOptions {
+  format: ThreadExportFormat;
   includeAuthors: boolean;
   includeTimestamps: boolean;
   includeFloorNumbers: boolean;
@@ -94,6 +97,39 @@ const ALIGNMENT_PATTERN = /^\[wenyousite-align-v\d+-[a-z][a-z-]*\]: #[\t ]*(?:\n
 const MARKDOWN_INTERNAL_LINK_PATTERN = /\[((?:\\.|[^\]\\\r\n])+)\]\(([^)\r\n]+)\)/gu;
 const INVITE_LINK_PATTERN =
   /(?:https:\/\/(?:www\.)?wenyou\.site)?\/join\/[A-Za-z0-9_-]{16}(?:[?#][^\s<>()\]}"']*)?/giu;
+const EXPORT_MEDIA_EXTENSIONS: Readonly<Record<string, string>> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+  'image/avif': '.avif',
+  'image/svg+xml': '.svg',
+};
+const EXPORT_TIME_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Asia/Shanghai',
+  calendar: 'gregory',
+  numberingSystem: 'latn',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23',
+});
+
+export function formatExportTime(value: Date): string {
+  const parts = Object.fromEntries(
+    EXPORT_TIME_FORMATTER.formatToParts(value).map(({ type, value: part }) => [type, part]),
+  );
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}（北京时间）`;
+}
+
+export function getExportMediaExtension(contentType: string | null): string {
+  const mediaType = contentType?.split(';', 1)[0].trim().toLowerCase();
+  if (!mediaType) return '.bin';
+  return EXPORT_MEDIA_EXTENSIONS[mediaType] ?? '.bin';
+}
 
 /**
  * 公开的纯转换函数，便于在不连接数据库时验证协议降级。
@@ -116,11 +152,12 @@ export function renderExportContent(content: string, context: RenderContext): st
     const stickerAssetId = title?.startsWith('wenyousite-sticker:v1:')
       ? title.slice('wenyousite-sticker:v1:'.length)
       : null;
-    const reference = stickerAssetId ? `sticker:${stickerAssetId}` : `image:${url}`;
+    if (stickerAssetId) return alt || '表情';
+    const reference = `image:${url}`;
     const asset = context.assets.get(reference);
-    if (asset) return `![${alt || (stickerAssetId ? '表情' : '图片')}](${asset.path})`;
+    if (asset) return `![${alt || '图片'}](${asset.path})`;
     if (context.options.includeSourceLinks) return `![${alt}](${url})`;
-    const placeholder = stickerAssetId ? '表情' : alt ? `图片：${alt}` : '图片';
+    const placeholder = alt ? `图片：${alt}` : '图片';
     return `[${placeholder}]`;
   });
   rendered = replaceVisible(rendered, ALIGNMENT_PATTERN, () => {
@@ -224,15 +261,22 @@ function postHeading(
   headingLevel = 3,
 ): string {
   const parts: string[] = [];
-  if (post.kind === 'FLOOR' && options.includeFloorNumbers) {
-    parts.push(`第${post.floorNumber ?? '?'}楼`);
+  if (
+    post.kind === 'FLOOR' &&
+    !post.parentPostId &&
+    options.includeFloorNumbers &&
+    post.floorNumber != null
+  ) {
+    parts.push(`第${post.floorNumber}楼`);
+  } else if (post.kind === 'FLOOR' && post.parentPostId) {
+    parts.push('回复');
   } else if (post.kind === 'FLOOR') {
     parts.push('楼层');
   } else {
     parts.push('正文');
   }
   if (options.includeAuthors) parts.push(displayName(post.author));
-  if (options.includeTimestamps) parts.push(post.createdAt.toISOString());
+  if (options.includeTimestamps) parts.push(formatExportTime(post.createdAt));
   if (options.includeReplyTargets && post.replyToPost) {
     parts.push(`回复 @${displayName(post.replyToPost.author)}`);
   }
@@ -251,12 +295,12 @@ function buildMarkdown(
   const lines = [`# ${thread.title?.trim() || '未命名主题帖'}`, ''];
   lines.push(`- 导出范围：已发布主题帖的可见正文、楼层和回复`);
   if (options.includeAuthors) lines.push(`- 楼主：${displayName(thread.owner)}`);
-  if (thread.category) lines.push(`- 分类：${thread.category}`);
+  if (thread.categoryDefinition?.name) lines.push(`- 分类：${thread.categoryDefinition.name}`);
   const tags = thread.topicTags.map(({ tag }) => tag.name);
   if (tags.length > 0) lines.push(`- 标签：${tags.join('、')}`);
   if (options.includeTimestamps) {
-    lines.push(`- 创建时间：${thread.createdAt.toISOString()}`);
-    if (thread.publishedAt) lines.push(`- 发布时间：${thread.publishedAt.toISOString()}`);
+    lines.push(`- 创建时间：${formatExportTime(thread.createdAt)}`);
+    if (thread.publishedAt) lines.push(`- 发布时间：${formatExportTime(thread.publishedAt)}`);
   }
   if (options.includeSourceLinks) {
     lines.push(`- 主题来源：[打开主题帖](${new URL(`/threads/${thread.id}`, webUrl).toString()})`);
@@ -361,7 +405,7 @@ export class ThreadExportService {
     }
     const markdown = buildMarkdown(thread, rendered, options, webUrl);
     const text = buildText(thread, rendered, options, webUrl);
-    const stream = this.startArchive(markdown, text, assets, warnings);
+    const stream = this.startArchive(markdown, text, assets, warnings, options.format);
     return {
       stream,
       filename: `wenyou-thread-${thread.id.replace(/[^a-zA-Z0-9_-]/gu, '') || 'export'}.zip`,
@@ -387,10 +431,7 @@ export class ThreadExportService {
           mediaByUrl.set(attachment.media.url, attachment.media);
         try {
           for (const token of this.stickers.extract(post.content)) {
-            const reference = token.stickerAssetId
-              ? `sticker:${token.stickerAssetId}`
-              : `image:${token.url}`;
-            tokens.set(reference, token);
+            if (!token.stickerAssetId) tokens.set(`image:${token.url}`, token);
           }
         } catch {
           warnings.add('部分表情标记无法解析，已按普通图片占位处理。');
@@ -398,43 +439,23 @@ export class ThreadExportService {
       }
     }
 
-    const stickerIds = [...tokens.values()]
-      .map((token) => token.stickerAssetId)
-      .filter((id): id is string => Boolean(id));
-    const stickerAssets =
-      stickerIds.length > 0
-        ? await this.prisma.stickerAsset.findMany({
-            where: { id: { in: [...new Set(stickerIds)] } },
-            select: { id: true, key: true },
-          })
-        : [];
-    const stickerById = new Map(stickerAssets.map((asset) => [asset.id, asset]));
     let assetIndex = 0;
     for (const [reference, token] of tokens) {
-      const record = token.stickerAssetId
-        ? stickerById.get(token.stickerAssetId)
-        : mediaByUrl.get(token.url);
-      if (
-        !record ||
-        (!token.stickerAssetId && 'status' in record && record.status !== 'COMPLETED')
-      ) {
-        warnings.add(
-          `${token.stickerAssetId ? '表情' : '图片'}未找到可打包的站内文件：${token.url}`,
-        );
+      const record = mediaByUrl.get(token.url);
+      if (!record || record.status !== 'COMPLETED') {
+        warnings.add(`图片未找到可打包的站内文件：${token.url}`);
         continue;
       }
       let buffer: Buffer;
       try {
         buffer = await this.storage.download(record.key);
       } catch {
-        warnings.add(
-          `${token.stickerAssetId ? '表情' : '图片'}下载失败，已保留文字占位：${token.url}`,
-        );
+        warnings.add(`图片下载失败，已保留文字占位：${token.url}`);
         continue;
       }
       assetIndex++;
       assets.set(reference, {
-        path: `media/${String(assetIndex).padStart(3, '0')}-${token.stickerAssetId ? 'sticker' : 'image'}`,
+        path: `media/${String(assetIndex).padStart(3, '0')}-image${getExportMediaExtension(record.contentType)}`,
         buffer,
       });
     }
@@ -446,14 +467,17 @@ export class ThreadExportService {
     text: string,
     assets: ReadonlyMap<string, PreparedAsset>,
     warnings: ReadonlySet<string>,
+    format: ThreadExportFormat,
   ) {
     const archive = (archiver as unknown as (format: string) => Archiver)('zip');
     const stream = new PassThrough();
     archive.on('error', (error) => stream.destroy(error));
     archive.pipe(stream);
     void (async () => {
-      archive.append(Buffer.from(markdown, 'utf8'), { name: 'thread.md' });
-      archive.append(Buffer.from(text, 'utf8'), { name: 'thread.txt' });
+      if (format === ThreadExportFormat.MARKDOWN || format === ThreadExportFormat.BOTH)
+        archive.append(Buffer.from(markdown, 'utf8'), { name: 'thread.md' });
+      if (format === ThreadExportFormat.TXT || format === ThreadExportFormat.BOTH)
+        archive.append(Buffer.from(text, 'utf8'), { name: 'thread.txt' });
       for (const asset of assets.values()) archive.append(asset.buffer, { name: asset.path });
       if (warnings.size > 0)
         archive.append(
@@ -470,6 +494,7 @@ export class ThreadExportService {
 
 function normalizeOptions(input: ThreadExportDto): ThreadExportOptions {
   return {
+    format: input.format ?? ThreadExportFormat.BOTH,
     includeAuthors: input.includeAuthors !== false,
     includeTimestamps: input.includeTimestamps !== false,
     includeFloorNumbers: input.includeFloorNumbers !== false,

@@ -55,8 +55,8 @@
 ### 档案导出
 
 - `POST /threads/:id/export` 只允许已发布且未删除主题帖的 OWNER/COLLABORATOR，沿用 `ThreadAccessService.assertCanManage()`；草稿、删除帖和无管理权限用户不会读取正文快照。
-- 请求体选项均为布尔值：`includeAuthors`、`includeTimestamps`、`includeFloorNumbers`、`includeReplyTargets`、`includeSourceLinks`、`includeMedia`。默认保留作者、时间、楼层号、回复目标和站内媒体，不默认加入来源链接。
-- 服务端按子贴排序，再按楼层号和回复创建时间组织正文；同时生成 Markdown 与纯文本。站内媒体只使用已关联的对象存储 key，外链图片不执行网络请求；失败或协议降级会写入 `export-notes.txt`。
+- 请求体包含 `format`（`TXT`、`MARKDOWN`、`BOTH`，默认 `BOTH`）以及布尔选项 `includeAuthors`、`includeTimestamps`、`includeFloorNumbers`、`includeReplyTargets`、`includeSourceLinks`、`includeMedia`。格式决定 ZIP 是否包含 `thread.txt`、`thread.md`；默认保留作者、时间、楼层号、回复目标和站内媒体，不默认加入来源链接。
+- 服务端按子贴排序，再按楼层号和回复创建时间组织正文；同时生成 Markdown 与纯文本。分类使用注册表展示名称，时间固定为北京时间，楼中楼显示为回复层级；收藏表情只保留文字，不打包表情文件。站内普通媒体只使用已关联的对象存储 key，文件名扩展名根据可信 MIME 类型生成，未知类型回退 `.bin`；外链图片不执行网络请求，失败或协议降级会写入 `export-notes.txt`。
 - 归档为同步 ZIP 响应并限流为每用户每分钟 2 次。当前不保存导出任务历史；若档案体积或整理时间超过 HTTP 可接受范围，再演进为队列任务。
 
 ## 核心业务规则
