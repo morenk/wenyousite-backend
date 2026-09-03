@@ -108,6 +108,18 @@ describe('Markdown v4 黄金语料', () => {
   });
 });
 
+describe('行内格式边界空格', () => {
+  it.each([
+    '**粗体** `代码`',
+    '**粗体 **`代码`',
+    '*斜体 *`代码`',
+    '~~删除 ~~`代码`',
+    '***粗斜体 ***`代码`',
+  ])('正文写入不改写客户端空格归属：%s', (source) => {
+    expect(prepareMarkdownContent(source, v4)).toBe(source);
+  });
+});
+
 describe('Markdown v5 图片块对齐扩展', () => {
   const v5 = { markdownContractVersion: imageAlignmentFixtures.markdownContractVersion };
 
