@@ -1,5 +1,11 @@
 # API 合同变更
 
+## 5.16.0-dev.20260903.1
+
+- 新增 `POST /threads/:id/export`，仅已发布主题帖的 OWNER/COLLABORATOR 可同步导出 `thread.md`、`thread.txt`、可选站内媒体和导出说明 ZIP。
+- 导出服务端统一处理楼层/回复排序、作者与时间选项、骰子和站内引用降级；邀请 token 始终脱敏，外链媒体不由服务端抓取。
+- 无数据库迁移。移动端仅同步后端 OpenAPI 后可复用该接口，本切片不修改 Flutter 工作区。
+
 ## 5.15.1-dev.20260903.1
 
 - `/meta.markdownContractVersion` 激活为 `5`。已审查移动端提交 `6b6083bcdb9eecf799d2357d082ad10fc1a28e00` 同时支持 v3/v4/v5，并实现独立普通图片块的左/中/右对齐、混排拒绝、编辑器、Delta 编解码和剪贴板能力；Web 与后端开放 v5 图片对齐写入。

@@ -8,6 +8,7 @@ import {
   Param,
   Query,
   Req,
+  Res,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -19,8 +20,11 @@ import {
   ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiConflictResponse,
+  ApiBadRequestResponse,
+  ApiProduces,
 } from '@nestjs/swagger';
-import { FastifyRequest } from 'fastify';
+import { FastifyReply, FastifyRequest } from 'fastify';
+import { Throttle } from '@nestjs/throttler';
 import { ThreadsService } from './threads.service';
 import { CreateThreadDto } from './dto/create-thread.dto';
 import { UpdateThreadDto } from './dto/update-thread.dto';
@@ -40,6 +44,8 @@ import {
   ThreadLikeResponseDto,
 } from './dto/thread-action-response.dto';
 import { ApiCursorPaginatedResponse } from '../common/swagger/api-cursor-paginated-response.decorator';
+import { ThreadExportDto } from './dto/thread-export.dto';
+import { ThreadExportService } from './thread-export.service';
 
 /** 主题帖控制器：草稿箱、列表、详情、修改、发布、删除、点赞 */
 @ApiTags('Threads')
@@ -48,6 +54,7 @@ export class ThreadsController {
   constructor(
     private threadsService: ThreadsService,
     private threadAggregateService: ThreadAggregateService,
+    private threadExportService: ThreadExportService,
   ) {}
 
   @Get('draft')
@@ -104,6 +111,34 @@ export class ThreadsController {
   async findById(@Param('id') id: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string } | undefined;
     return this.threadsService.findById(id, user?.id);
+  }
+
+  @Post(':id/export')
+  @Auth()
+  @Throttle({ default: { limit: 2, ttl: 60000 } })
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '导出已发布主题帖档案 ZIP（仅 OWNER/COLLABORATOR）' })
+  @ApiProduces('application/zip')
+  @ApiOkResponse({
+    description: 'ZIP 包含 thread.md、thread.txt、可选 media/ 和必要时的 export-notes.txt',
+    schema: { type: 'string', format: 'binary' },
+  })
+  @ApiBadRequestResponse({ description: '导出选项格式不正确' })
+  @ApiUnauthorizedResponse({ description: '未登录' })
+  @ApiForbiddenResponse({ description: '无主题帖管理权限' })
+  @ApiNotFoundResponse({ description: '主题帖不存在、已删除或尚未发布' })
+  async export(
+    @Param('id') id: string,
+    @Body() dto: ThreadExportDto,
+    @Req() req: FastifyRequest,
+    @Res() reply: FastifyReply,
+  ) {
+    const user = req.user as { id: string };
+    const { stream, filename } = await this.threadExportService.createArchive(id, user.id, dto);
+    return reply
+      .header('Content-Type', 'application/zip')
+      .header('Content-Disposition', `attachment; filename="${filename}"`)
+      .send(stream);
   }
 
   @Patch(':id')

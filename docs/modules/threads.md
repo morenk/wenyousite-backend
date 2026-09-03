@@ -4,7 +4,7 @@
 
 ## 概述
 
-主题帖的草稿创建、沙盒迭代、发布、列表、详情、修改、删除，参与人候选池管理（授予/移除协作者身份、授予/收回玩家身份），私密帖邀请链接，置顶排序，标签管理。
+主题帖的草稿创建、沙盒迭代、发布、列表、详情、修改、删除，参与人候选池管理（授予/移除协作者身份、授予/收回玩家身份），私密帖邀请链接，置顶排序，标签管理，以及已发布主题帖档案导出。
 
 **核心流程**：所有主题帖创建统一走"草稿 → 发布"两阶段 —— `POST /threads` 事务内创建 Thread + OWNER + 默认子贴（可选正文，kind=BODY），Web 编辑器随后通过 `PATCH /threads/:id/aggregate` 在单个事务内保存元数据、默认子贴标题/正文、标签与发布状态。发布前帖子不出现在列表/搜索中，仅楼主本人可访问。
 
@@ -33,6 +33,7 @@
 | POST   | `/threads`                        | Auth         | 创建主题帖草稿（事务内创建 Thread + OWNER + 默认子贴 + 可选正文 kind=BODY，published=false）。每用户最多 10 条未发布草稿，超限返回 BAD_REQUEST                                                                                                                                       |
 | GET    | `/threads`                        | OptionalAuth | 首页发现列表：仅已发布且楼主未注销的主题帖，支持分区/排序/状态/标签筛选；`tagId` 按标签 ID 精确筛选，旧 `tag` 参数保留名称模糊筛选；每帖含默认主贴正文的紧凑纯文本 `preview`（实体单遍解码、连续空白折叠），`coverImages` 只返回主贴第一张普通图片，表情与代码中的图片语法不作为封面 |
 | GET    | `/threads/:id`                    | OptionalAuth | 详情（含子贴列表和标签）。公开已发布帖允许匿名访问；未发布帖仅 owner 可查看；PRIVATE 帖非成员 404。登录时附加收藏/点赞、当前用户成员关系和 capability 投影，不查询全量成员                                                                                                           |
+| POST   | `/threads/:id/export`              | Auth         | 导出已发布主题帖 ZIP（仅 OWNER/COLLABORATOR）。同步生成 `thread.md`、`thread.txt`、可选 `media/` 和必要时的 `export-notes.txt`；邀请链接始终脱敏，外链媒体不由服务端抓取                                                                                              |
 | PATCH  | `/threads/:id`                    | Auth         | 修改（OWNER/COLLABORATOR，乐观锁）；visibility、published 仅 OWNER，已发布帖不可撤回草稿                                                                                                                                                                                             |
 | PATCH  | `/threads/:id/aggregate`          | Auth         | 原子保存主题帖编辑器聚合：Thread 元数据、默认子贴标题/正文、主题标签及可选发布；校验三层 version，发布时同事务结算骰子和 Outbox                                                                                                                                                      |
 | DELETE | `/threads/:id`                    | Auth         | 删除（仅 OWNER）。先校验主题可见性；不可见统一 404，可见但非 OWNER 返回 403。草稿帖硬删除（级联），已发布帖软删除                                                                                                                                                                    |
@@ -50,6 +51,13 @@
 > | GET | `/threads/:threadId/tags` | OptionalAuth | 主题帖标签列表；按主题帖可见性校验 |
 > | POST | `/threads/:threadId/tags` | Auth | 添加标签（OWNER/COLLABORATOR） |
 > | DELETE | `/threads/:threadId/tags/:tagId` | Auth | 移除标签 |
+
+### 档案导出
+
+- `POST /threads/:id/export` 只允许已发布且未删除主题帖的 OWNER/COLLABORATOR，沿用 `ThreadAccessService.assertCanManage()`；草稿、删除帖和无管理权限用户不会读取正文快照。
+- 请求体选项均为布尔值：`includeAuthors`、`includeTimestamps`、`includeFloorNumbers`、`includeReplyTargets`、`includeSourceLinks`、`includeMedia`。默认保留作者、时间、楼层号、回复目标和站内媒体，不默认加入来源链接。
+- 服务端按子贴排序，再按楼层号和回复创建时间组织正文；同时生成 Markdown 与纯文本。站内媒体只使用已关联的对象存储 key，外链图片不执行网络请求；失败或协议降级会写入 `export-notes.txt`。
+- 归档为同步 ZIP 响应并限流为每用户每分钟 2 次。当前不保存导出任务历史；若档案体积或整理时间超过 HTTP 可接受范围，再演进为队列任务。
 
 ## 核心业务规则
 

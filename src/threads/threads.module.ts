@@ -20,6 +20,8 @@ import { MediaReferenceModule } from '../media/media-reference.module';
 import { DiceModule } from '../dice/dice.module';
 import { ThreadReactionService } from './thread-reaction.service';
 import { ThreadInviteService } from './thread-invite.service';
+import { ObjectStorageModule } from '../storage/object-storage.module';
+import { ThreadExportService } from './thread-export.service';
 
 /** 主题帖模块：CRUD、参与人管理、标签关联 */
 @Module({
@@ -33,6 +35,7 @@ import { ThreadInviteService } from './thread-invite.service';
     TaxonomyModule,
     MediaReferenceModule,
     DiceModule,
+    ObjectStorageModule,
   ],
   controllers: [ThreadsController, ThreadMembersController, ThreadTagsController],
   providers: [
@@ -45,6 +48,7 @@ import { ThreadInviteService } from './thread-invite.service';
     ThreadAggregateService,
     ThreadReactionService,
     ThreadInviteService,
+    ThreadExportService,
   ],
   exports: [ThreadsService],
 })

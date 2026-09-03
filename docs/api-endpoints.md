@@ -94,6 +94,7 @@
 | GET | `/threads/{id}` | optional | 主题帖详情（含 全部子贴列表 + 楼层数 + 参与人数） |
 | PATCH | `/threads/{id}` | authenticated | 修改/发布主题帖（仅 OWNER/COLLABORATOR）。设置 published=true 发布，带乐观锁 version |
 | DELETE | `/threads/{id}` | authenticated | 删除主题帖。未发布帖硬删除（级联），已发布帖软删除（仅 OWNER） |
+| POST | `/threads/{id}/export` | authenticated | 导出已发布主题帖档案 ZIP（仅 OWNER/COLLABORATOR） |
 | PATCH | `/threads/{id}/aggregate` | authenticated | 原子保存主题帖元数据、默认子贴标题/正文和标签，可同时发布草稿 |
 | POST | `/threads/{id}/like` | authenticated | 点赞主题帖（幂等，不通知自己） |
 | DELETE | `/threads/{id}/like` | authenticated | 取消点赞主题帖（幂等） |
