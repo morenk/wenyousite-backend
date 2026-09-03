@@ -51,6 +51,7 @@ const fixtures = JSON.parse(readFileSync(fixturePath, 'utf8')) as MarkdownFixtur
 const imageAlignmentFixtures = JSON.parse(
   readFileSync(resolve(__dirname, '../../contracts/markdown-v5-image-alignment-fixtures.json'), 'utf8'),
 ) as ImageAlignmentFixtureFile;
+const v4 = { markdownContractVersion: 4 };
 
 describe('Markdown v4 黄金语料', () => {
   it('协议标识、版本和 case id 合法', () => {
@@ -73,21 +74,21 @@ describe('Markdown v4 黄金语料', () => {
   });
 
   it.each(fixtures.cases)('$id 白名单结果一致', ({ canonical, supported, unsupportedType }) => {
-    const first = findUnsupportedMarkdownFormats(canonical)[0];
+    const first = findUnsupportedMarkdownFormats(canonical, v4)[0];
     expect(first?.type ?? null).toBe(unsupportedType);
     if (supported) {
-      expect(() => assertSupportedMarkdown(canonical)).not.toThrow();
+      expect(() => assertSupportedMarkdown(canonical, v4)).not.toThrow();
     } else {
-      expect(() => assertSupportedMarkdown(canonical)).toThrow(
+      expect(() => assertSupportedMarkdown(canonical, v4)).toThrow(
         expect.objectContaining({ errorCode: ErrorCode.UNSUPPORTED_MARKDOWN_FORMAT }),
       );
     }
   });
 
   it.each(fixtures.cases)('$id 字面降级稳定且自身合法', ({ canonical, literal }) => {
-    expect(literalizeUnsupportedMarkdown(canonical)).toBe(literal);
-    expect(findUnsupportedMarkdownFormats(literal)).toEqual([]);
-    expect(literalizeUnsupportedMarkdown(literal)).toBe(literal);
+    expect(literalizeUnsupportedMarkdown(canonical, v4)).toBe(literal);
+    expect(findUnsupportedMarkdownFormats(literal, v4)).toEqual([]);
+    expect(literalizeUnsupportedMarkdown(literal, v4)).toBe(literal);
   });
 
   it('逐行降级嵌套任务项与同段内的每个显式硬换行', () => {
@@ -108,7 +109,6 @@ describe('Markdown v4 黄金语料', () => {
 });
 
 describe('Markdown v5 图片块对齐扩展', () => {
-  const v4 = { markdownContractVersion: 4 };
   const v5 = { markdownContractVersion: imageAlignmentFixtures.markdownContractVersion };
 
   it('图片对齐扩展 fixture 保持版本与 case id 合法', () => {
@@ -134,7 +134,9 @@ describe('Markdown v5 图片块对齐扩展', () => {
 
     expect(findUnsupportedMarkdownFormats(centered, v4)[0]?.type).toBe('invalid-alignment');
     expect(findUnsupportedMarkdownFormats(centered, v5)).toEqual([]);
+    expect(findUnsupportedMarkdownFormats(centered)).toEqual([]);
     expect(() => assertSupportedMarkdown(centered, v5)).not.toThrow();
+    expect(() => assertSupportedMarkdown(centered)).not.toThrow();
     expect(findUnsupportedMarkdownFormats(mixed, v5)[0]?.type).toBe('invalid-alignment');
     expect(findUnsupportedMarkdownFormats(sticker, v5)).toEqual([]);
   });

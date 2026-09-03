@@ -2,6 +2,7 @@ import { Controller, Get } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiOkResponse, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { Public } from '../auth/decorators/public.decorator';
+import { ACTIVE_MARKDOWN_CONTRACT_VERSION } from '../common/markdown-content';
 import { API_CONTRACT_VERSION } from '../common/swagger/openapi-document';
 
 class ApiCapabilitiesResponseDto {
@@ -41,7 +42,7 @@ class ApiMetaResponseDto {
   @ApiProperty({ type: String, nullable: true })
   buildSha!: string | null;
 
-  @ApiProperty({ example: 4 })
+  @ApiProperty({ example: ACTIVE_MARKDOWN_CONTRACT_VERSION })
   markdownContractVersion!: number;
 
   @ApiProperty({ type: ApiCapabilitiesResponseDto })
@@ -64,7 +65,7 @@ export class MetaController {
     return {
       contractVersion: API_CONTRACT_VERSION,
       buildSha: this.config.get<string>('app.buildSha') ?? null,
-      markdownContractVersion: 4,
+      markdownContractVersion: ACTIVE_MARKDOWN_CONTRACT_VERSION,
       capabilities: {
         stickers: true,
         directMessages: true,

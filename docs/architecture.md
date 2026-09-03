@@ -80,7 +80,7 @@ OutboxDispatcher（FOR UPDATE SKIP LOCKED）
 - 用户端及管理端成功响应都必须使用具名 DTO，不保留匿名响应预算；
 - 每个操作的兜底错误以及已声明的 4xx/5xx 响应都必须引用 `ApiErrorEnvelope`。
 
-`pnpm docs:check` 额外校验生成端点表、错误码表、Markdown v4 的正文、节点、编辑器往返和剪贴板黄金语料，以及已知历史错误。客户端生成必须消费仓库内已审核的契约产物，不直接抓取某个正在运行的开发实例。
+`pnpm docs:check` 额外校验生成端点表、错误码表、Markdown v4/v5 的正文、节点、编辑器往返、图片块对齐和剪贴板黄金语料，以及已知历史错误。客户端生成必须消费仓库内已审核的契约产物，不直接抓取某个正在运行的开发实例。
 
 TypeScript 开启 `noImplicitAny` 等严格增量选项。Fastify 的 Passport `request.user` 通过模块声明统一建模，新的控制器优先使用 `@CurrentUser()`。
 

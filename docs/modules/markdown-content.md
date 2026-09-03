@@ -1,4 +1,4 @@
-# Markdown v4 正文协议
+# Markdown v5 正文协议
 
 ## 目标与事实源
 
@@ -9,12 +9,12 @@
 3. [`contracts/markdown-editor-roundtrip-v6-fixtures.json`](../../contracts/markdown-editor-roundtrip-v6-fixtures.json) 固定 `structured` 与 `literal-text` 两类编辑器往返，并校验块语义、块对齐和行内语义。
 4. [`contracts/editor-clipboard-v2-fixtures.json`](../../contracts/editor-clipboard-v2-fixtures.json) 固定 Web/Flutter 的复制入口、站内结构片段、外部字面粘贴、对齐属性、原子节点身份与可见文本回退。
 
-主题坐标链接仍是普通 Markdown 链接；客户端可额外按 [`站内传送门 v1`](./internal-references.md) 统一其内联视觉和同页导航，不改变 Markdown v4 的存储规则。
+主题坐标链接仍是普通 Markdown 链接；客户端可额外按 [`站内传送门 v1`](./internal-references.md) 统一其内联视觉和同页导航，不改变 Markdown v5 的存储规则。
 
 ## 格式与白名单
 
 - 协议标识：`wenyousite-markdown`
-- 版本：`4`
+- 版本：`5`
 - 存储：UTF-8 Markdown、LF 换行；顶层空段落使用独占一行 `<br />`
 - 允许结构：普通段落、H2/H3、粗体、斜体、删除线、行内代码、安全链接/自动链接、图片、引用、普通有序/无序列表、分隔线，以及提及、骰子、收藏表情和协议空段
 - 普通列表最多嵌套三层
@@ -39,15 +39,15 @@
 ```
 
 - 标记只能精确写为 `center` 或 `right`，必须顶层、独占一行并紧邻一个普通段落或 H2/H3；左对齐通过删除标记恢复。
-- 当前 v4 规则下，列表、引用、普通图片、分隔线和协议空段不能携带对齐。含普通图片的段落也不能对齐；提及、骰子和收藏表情是内联原子节点，随合法父段落对齐。
+- v4 基础规则下，列表、引用、普通图片、分隔线和协议空段不能携带对齐；v5 仅为独立普通图片块增加例外。含文字与普通图片混排的段落仍不能单独移动图片；提及、骰子和收藏表情是内联原子节点，随合法父段落对齐。
 - 孤立标记、标记间空行、重复标记、`left` 标记、未知值或未知版本都按白名单外结构拒绝；需要显示同形源码时必须转义。
-- v3 正文不含上述标记，是 v4 的严格子集。后端已接受并保存 v4，`/meta.markdownContractVersion` 现声明 `4`；Web 与已升级移动端据此开放对齐写入，旧正文无需迁移。
+- v3 正文不含上述标记，是 v5 的严格子集；v4 正文仍可读取和写入。后端已接受并保存 v5，`/meta.markdownContractVersion` 现声明 `5`；Web 与已升级移动端据此开放图片块对齐写入，旧正文无需迁移。
 
 ## 图片块对齐扩展
 
 Markdown v5 为普通图片增加独立图片块对齐能力：普通图片单独占据一个顶层段落时，可以消费紧邻上一行的 v1 对齐标记；无标记仍表示默认左对齐。图片与文字混排的段落继续拒绝对齐，收藏表情仍是行内图片并继承其父段落对齐。
 
-后端校验器和 Web 阅读器已具备按 `markdownContractVersion` 选择 v5 规则的兼容路径，黄金样例见 [`contracts/markdown-v5-image-alignment-fixtures.json`](../../contracts/markdown-v5-image-alignment-fixtures.json)。当前 `/meta.markdownContractVersion` 仍为 `4`，因此公共写入和 Web 编辑器不会向旧移动端发送或生成图片对齐标记；启用前需要移动端完成同一 Markdown/Delta 编解码、编辑入口和剪贴板能力，并更新其能力声明。
+后端校验器和 Web 阅读器按 `markdownContractVersion` 选择 v4/v5 规则，黄金样例见 [`contracts/markdown-v5-image-alignment-fixtures.json`](../../contracts/markdown-v5-image-alignment-fixtures.json)。当前 `/meta.markdownContractVersion` 已为 `5`，公共写入和 Web 编辑器可以生成图片对齐标记；v4 客户端仍通过能力门控安全降级，不会被要求读取 v5 写入。
 
 ## 写入与错误
 
@@ -81,7 +81,7 @@ Markdown v5 为普通图片增加独立图片块对齐能力：普通图片单�
 
 ## 数据迁移
 
-现有 v3 正文无需数据改写即可作为 v4 读取。历史清理命令 `pnpm markdown:v3:migrate` 仍默认只扫描并输出 dry-run 汇总；应用前必须运行 `scripts/backup.sh`，随后使用 `pnpm markdown:v3:migrate --apply --backup-confirmed`。迁移按源码行转义不支持节点、递增 Post/Draft 乐观锁版本、同步骰子与提及派生关系并清理正文缓存；不发通知、活动或业务事件。重复执行不再改变正文或版本，应用后全库不允许残留不支持节点。
+现有 v3/v4 正文无需数据改写即可作为 v5 读取。历史清理命令 `pnpm markdown:v3:migrate` 仍默认只扫描并输出 dry-run 汇总；应用前必须运行 `scripts/backup.sh`，随后使用 `pnpm markdown:v3:migrate --apply --backup-confirmed`。迁移按源码行转义不支持节点、递增 Post/Draft 乐观锁版本、同步骰子与提及派生关系并清理正文缓存；不发通知、活动或业务事件。重复执行不再改变正文或版本，应用后全库不允许残留不支持节点。
 
 ## 自动门禁
 

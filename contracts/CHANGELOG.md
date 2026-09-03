@@ -1,5 +1,10 @@
 # API 合同变更
 
+## 5.15.1-dev.20260903.1
+
+- `/meta.markdownContractVersion` 激活为 `5`。已审查移动端提交 `6b6083bcdb9eecf799d2357d082ad10fc1a28e00` 同时支持 v3/v4/v5，并实现独立普通图片块的左/中/右对齐、混排拒绝、编辑器、Delta 编解码和剪贴板能力；Web 与后端开放 v5 图片对齐写入。
+- Markdown v4 仍是 v5 的兼容子集；无图片对齐标记的历史正文无需迁移，旧客户端通过 `/meta` 能力门控继续安全读写兼容正文。
+
 ## 5.15.0-dev.20260902.1
 
 - 新增 `POST /stickers/imports/moment-image`（`stickersImportMomentImage`）和 `POST /stickers/imports/moment-comment-image`（`stickersImportMomentCommentImage`），分别接收 `momentId + mediaId + clientRequestId` 与 `momentCommentId + mediaId + clientRequestId`，返回既有 `StickerImportResponseDto`。

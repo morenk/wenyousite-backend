@@ -5,7 +5,7 @@ import { applyErrorResponseEnvelope } from './error-response-envelope';
 import { applyResponseHeaders } from './response-headers';
 
 /** 破坏性 API 变更时递增；Web 与 Flutter 生成客户端均记录该版本。 */
-export const API_CONTRACT_VERSION = '5.15.0-dev.20260902.1';
+export const API_CONTRACT_VERSION = '5.15.1-dev.20260903.1';
 
 type AuthMode = 'public' | 'optional' | 'authenticated' | 'appeal' | 'admin';
 

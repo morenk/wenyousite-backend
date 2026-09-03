@@ -1,4 +1,4 @@
-/** Markdown v4 内容规则：规范化、工具栏能力白名单与字面文本降级。 */
+/** Markdown v5 内容规则：规范化、工具栏能力白名单与字面文本降级。 */
 
 import { HttpStatus } from '@nestjs/common';
 import MarkdownIt from 'markdown-it';
@@ -21,8 +21,8 @@ const STICKER_TITLE_PREFIX = 'wenyousite-sticker:v1:';
 const WORD_JOINER = '\u2060';
 const MAX_LIST_DEPTH = 3;
 
-/** 当前公网仍声明 v4；v5 仅在完成客户端能力门控后启用。 */
-export const ACTIVE_MARKDOWN_CONTRACT_VERSION = 4;
+/** 当前公网声明的 Markdown 正文契约版本。 */
+export const ACTIVE_MARKDOWN_CONTRACT_VERSION = 5;
 export const IMAGE_ALIGNMENT_MARKDOWN_CONTRACT_VERSION = 5;
 
 export interface MarkdownValidationOptions {
