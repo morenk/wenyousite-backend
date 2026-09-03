@@ -289,6 +289,10 @@ export class ThreadsService {
     const result = await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM threads WHERE id = ${id} FOR UPDATE`;
       await this.mediaReferences.releaseThreadContent(tx, id);
+      await tx.post.updateMany({
+        where: { threadId: id, pinnedAt: { not: null } },
+        data: { pinnedAt: null },
+      });
       if (!thread.published) return tx.thread.delete({ where: { id } });
       const removed = await tx.thread.update({
         where: { id, ...notDeleted },

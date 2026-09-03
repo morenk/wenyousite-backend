@@ -19,6 +19,8 @@ import { ReplyOrder } from '../common/dto/reply-query.dto';
 import { MediaReferenceService } from '../media/media-reference.service';
 import { PostMentionEventsService } from './post-mention-events.service';
 import { lockAndValidatePostCreate } from './post-create-guard';
+import { PostPinService } from './post-pin.service';
+
 @Injectable()
 export class PostsService {
   constructor(
@@ -32,6 +34,7 @@ export class PostsService {
     private outbox: OutboxService,
     private stickerContent: StickerContentService,
     private mediaReferences: MediaReferenceService,
+    private postPins: PostPinService,
   ) {}
   async findAllBySubthread(
     subthreadId: string,
@@ -569,6 +572,14 @@ export class PostsService {
     return updated;
   }
 
+  async pin(id: string, userId: string) {
+    await this.postPins.pin(id, userId);
+  }
+
+  async unpin(id: string, userId: string) {
+    await this.postPins.unpin(id, userId);
+  }
+
   /** 软删除帖子 */
   async remove(id: string, userId: string) {
     const postLight = await this.prisma.post.findUnique({
@@ -608,6 +619,7 @@ export class PostsService {
               ? ContentRemovalSource.AUTHOR
               : ContentRemovalSource.THREAD_MANAGER,
           removedById: userId,
+          pinnedAt: null,
         },
       });
       await tx.notification.updateMany({

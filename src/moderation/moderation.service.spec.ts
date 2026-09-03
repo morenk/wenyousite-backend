@@ -21,7 +21,12 @@ describe('ModerationService', () => {
     },
     refreshToken: { updateMany: jest.fn() },
     thread: { findUnique: jest.fn(), update: jest.fn() },
-    post: { findUnique: jest.fn(), findUniqueOrThrow: jest.fn(), update: jest.fn() },
+    post: {
+      findUnique: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
+    },
     notification: { updateMany: jest.fn() },
     auditLog: { findMany: jest.fn() },
   };

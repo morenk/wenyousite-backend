@@ -26,6 +26,7 @@ import { MediaReferenceService } from '../media/media-reference.service';
 import { PostMentionEventsService } from '../posts/post-mention-events.service';
 import { ThreadReactionService } from '../threads/thread-reaction.service';
 import { ThreadInviteService } from '../threads/thread-invite.service';
+import { PostPinService } from '../posts/post-pin.service';
 
 // ============ Mock 基础设施 ============
 const createMockPrisma = () => ({
@@ -68,6 +69,7 @@ const createMockPrisma = () => ({
     aggregate: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
   },
   diceRoll: { createMany: jest.fn() },
   postMention: { createMany: jest.fn(), findMany: jest.fn(), deleteMany: jest.fn() },
@@ -100,7 +102,12 @@ const basicTx = (prisma: ReturnType<typeof createMockPrisma>) => ({
     findUnique: prisma.thread.findUnique,
     updateMany: jest.fn().mockResolvedValue({ count: 1 }),
   },
-  post: { findUnique: prisma.post.findUnique, aggregate: jest.fn(), create: jest.fn() },
+  post: {
+    findUnique: prisma.post.findUnique,
+    aggregate: jest.fn(),
+    create: jest.fn(),
+    updateMany: jest.fn(),
+  },
   subthread: {
     update: jest.fn().mockResolvedValue({}),
     create: jest.fn(),
@@ -243,6 +250,7 @@ describe('发帖全流程集成测试', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PostsService,
+        PostPinService,
         SubthreadsService,
         ThreadsService,
         ThreadMembersService,
@@ -1290,6 +1298,7 @@ describe('发帖全流程集成测试', () => {
           where: { deletedAt: null, id: 'p1' },
           data: {
             deletedAt: expect.any(Date),
+            pinnedAt: null,
             removalSource: 'AUTHOR',
             removedById: 'u1',
           },

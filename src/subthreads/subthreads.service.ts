@@ -431,6 +431,10 @@ export class SubthreadsService {
       });
       if (!current) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
       await this.mediaReferences.releaseSubthreadContent(tx, id);
+      await tx.post.updateMany({
+        where: { subthreadId: id, pinnedAt: { not: null } },
+        data: { pinnedAt: null },
+      });
       const removed = await tx.subthread.update({
         where: { id, ...notDeleted },
         data: { deletedAt: new Date() },

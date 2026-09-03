@@ -12,6 +12,7 @@ import {
   ReplyResponseDto,
 } from './dto/post-response.dto';
 import { ReplyOrder } from '../common/dto/reply-query.dto';
+import { MessageResponseDto } from '../common/dto/message-response.dto';
 
 function responseMetadata(method: keyof PostsController) {
   return Reflect.getMetadata(DECORATORS.API_RESPONSE, PostsController.prototype[method]) as Record<
@@ -55,6 +56,13 @@ describe('PostsController Swagger 响应契约', () => {
 
   it('帖子详情声明 PostDetailResponseDto', () => {
     expect(responseMetadata('findById')[200].type).toBe(PostDetailResponseDto);
+  });
+
+  it.each([
+    ['pin', 200],
+    ['unpin', 200],
+  ] as const)('%s 声明 MessageResponseDto', (method, status) => {
+    expect(responseMetadata(method)[status].type).toBe(MessageResponseDto);
   });
 
   it('主题最新发言声明 LatestThreadPostResponseDto 并传递可选身份', async () => {

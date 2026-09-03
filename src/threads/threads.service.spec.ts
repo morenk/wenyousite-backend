@@ -61,6 +61,7 @@ const mockPrisma = {
   post: {
     findMany: jest.fn().mockResolvedValue([]),
     update: jest.fn(),
+    updateMany: jest.fn(),
   },
   diceRoll: { createMany: jest.fn() },
   userBookmark: {

@@ -350,6 +350,7 @@
 | floorNumber | Int? | unique per subthread | 楼层号（正文与楼中楼为 null） |
 | parentPostId | String? | FK posts (Cascade) | 父楼层（楼中楼用，必须位于同一子贴；父楼层硬删除时级联清理回复） |
 | replyToPostId | String? | FK posts | 被回复的帖子 ID（必须位于同一子贴） |
+| pinnedAt | DateTime? | — | 主楼层置顶到当前子贴的时间；BODY 和楼中楼回复必须为 null |
 | content | String | — | 正文（Markdown，含图片 URL 与内联骰子节点） |
 | version | Int | default 1 | 乐观锁 |
 | deletedAt | DateTime? | — | 软删除时间 |
@@ -358,9 +359,9 @@
 | createdAt | DateTime | — | — |
 | updatedAt | DateTime | @updatedAt | — |
 
-索引：`@@index([subthreadId, kind])`, `@@index([subthreadId, createdAt])`, `@@index([threadId, createdAt])`, `@@index([parentPostId, createdAt])`（楼中楼分页），以及 `posts_content_trgm_idx`（GIN + `gin_trgm_ops`，正文子串搜索）。三类 trigram 索引由迁移启用 PostgreSQL `pg_trgm` 扩展。
+索引：`@@index([subthreadId, kind])`, `@@index([subthreadId, createdAt])`, `@@index([threadId, createdAt])`, `@@index([parentPostId, createdAt])`（楼中楼分页），`posts_subthread_pinned_active_idx`（当前子贴有效置顶主楼层），以及 `posts_content_trgm_idx`（GIN + `gin_trgm_ops`，正文子串搜索）。三类 trigram 索引由迁移启用 PostgreSQL `pg_trgm` 扩展。
 
-> 子贴正文不单独建表：部分唯一索引保证每个子贴至多一个未删除的 `kind=BODY` 帖子，通过 `PUT /subthreads/:id/body` upsert 维护；楼层接口只返回 `kind=FLOOR`。数据库 CHECK 同时约束 BODY 不得带楼层号/父回复，主楼层必须使用大于 0 的楼层号，楼中楼不得带楼层号；复合外键阻止跨主题、跨子贴引用。
+> 子贴正文不单独建表：部分唯一索引保证每个子贴至多一个未删除的 `kind=BODY` 帖子，通过 `PUT /subthreads/:id/body` upsert 维护；楼层接口只返回 `kind=FLOOR`。数据库 CHECK 同时约束 BODY 不得带楼层号/父回复，主楼层必须使用大于 0 的楼层号，楼中楼不得带楼层号，置顶时间只能出现在主楼层；复合外键阻止跨主题、跨子贴引用。
 
 ### dice_rolls — 正式骰子结果
 

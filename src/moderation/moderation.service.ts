@@ -18,7 +18,6 @@ import { ContentModerationEffect, ModerationProjectionService } from './moderati
 import { isUniqueConstraintViolation } from '../common/prisma-errors';
 import { markNotificationsReadForHiddenContent } from '../notifications/notification-invalidation';
 import { lockModeratedThreadAggregate } from './moderation-content-lock';
-
 export type { ContentModerationEffect } from './moderation-projection.service';
 
 export interface AdminRequestContext {
@@ -331,6 +330,7 @@ export class ModerationService {
           removalReason: reason.trim(),
         },
       });
+      await tx.post.updateMany({ where: { threadId: targetId, pinnedAt: { not: null } }, data: { pinnedAt: null } });
     } else if (targetType === 'POST') {
       const post = await tx.post.findUnique({
         where: { id: targetId },
@@ -362,7 +362,7 @@ export class ModerationService {
       await tx.post.update({
         where: { id: targetId, deletedAt: null },
         data: {
-          deletedAt: now,
+          deletedAt: now, pinnedAt: null,
           removalSource: ContentRemovalSource.ADMIN,
           removedById: actor.id,
           removalReason: reason.trim(),

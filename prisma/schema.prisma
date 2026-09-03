@@ -1047,6 +1047,7 @@ model Post {
   version         Int                   @default(1) @map("lock_version")
   createdAt       DateTime              @default(now()) @map("created_at")
   updatedAt       DateTime              @updatedAt @map("updated_at")
+  pinnedAt        DateTime?             @map("pinned_at")
   deletedAt       DateTime?             @map("deleted_at")
   removalSource   ContentRemovalSource? @map("removal_source")
   removedById     String?               @map("removed_by_id")

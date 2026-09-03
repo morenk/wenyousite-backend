@@ -27,6 +27,7 @@ const mockPrisma = {
   },
   post: {
     create: jest.fn(),
+    updateMany: jest.fn(),
   },
   threadMember: {
     findUnique: jest.fn(),
@@ -55,6 +56,7 @@ const createTxMock = (overrides: Record<string, unknown> = {}) => ({
       author: { username: 'owner' },
       diceRolls: [],
     }),
+    updateMany: jest.fn().mockResolvedValue({ count: 0 }),
   },
   subthread: {
     aggregate: jest.fn().mockResolvedValue({ _max: { sortOrder: 0 } }),

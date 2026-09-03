@@ -25,6 +25,8 @@
 | PUT    | `/subthreads/:subthreadId/body`  | Auth   | upsert 子贴正文（kind=BODY：无正文创建，有正文乐观锁更新，version 不匹配返回 409；仅 OWNER/COLLABORATOR）               |
 | GET    | `/posts/:id`                     | Public | 帖子详情（含导航上下文：帖/子贴/父楼）                                                                                  |
 | PATCH  | `/posts/:id`                     | Auth   | 编辑帖子（仅作者，乐观锁 version）                                                                                      |
+| POST   | `/posts/:id/pin`                 | Auth   | 置顶所属子贴的主楼层（仅 OWNER/COLLABORATOR；每个子贴最多 10 条）                                                        |
+| DELETE | `/posts/:id/pin`                 | Auth   | 取消所属子贴的主楼层置顶                                                                                                  |
 | DELETE | `/posts/:id`                     | Auth   | 软删除楼层（作者或 OWNER/COLLABORATOR；正文 kind=BODY 不可删）                                                          |
 
 ## 响应契约
@@ -36,6 +38,7 @@
 - 两个作者候选接口的 `data` 为 `DiscussionAuthorResponseDto[]`，包含公开作者字段、当前主题角色与 `playerMarked`。
 - Web/Flutter 必须使用 Swagger 生成类型，不再手写帖子响应结构。
 - Post 响应的 `content` 包含内联骰子节点，`diceRolls` 按 `nodeId` 提供服务端正式结果；未发布节点没有对应结果。
+- Post 响应可包含 `pinnedAt`；非空表示主楼层已置顶，正文和楼中楼回复为空。置顶/取消置顶接口返回统一消息响应。
 
 ## 核心业务规则
 
@@ -76,6 +79,9 @@
 - 重试不重复分配楼层号，`eventKey=post-created:{postId}` 保证 Outbox 事件幂等；同一请求 ID 用于不同载荷返回 409。
 - 数据库唯一约束兜底并发双请求。
 - 楼层列表默认按 floorNumber ASC 排序，`order=NEWEST` 时按 floorNumber DESC 排序；排序方向属于游标查询条件，切换后必须从第一页重新读取
+- 楼层列表首屏先返回当前子贴最多 10 条置顶主楼层（按 `pinnedAt DESC, id DESC`），再返回按原排序读取的普通主楼层；置顶楼层不占普通楼层 `limit`，后续 cursor 页只返回普通楼层。作者筛选同时作用于置顶和普通楼层，排序方向不改变置顶区顺序。
+- 只有 `kind=FLOOR` 且 `parentPostId=null` 的主楼层可置顶；BODY 和楼中楼回复均拒绝。置顶不改变 floorNumber、创建时间、搜索/最新发言/导出顺序，也不产生通知。
+- 置顶由楼主或协作者管理；重复置顶和重复取消置顶幂等。达到 10 条上限时拒绝新增置顶；删除或管理员隐藏楼层时同步清除置顶状态。
 - 楼层列表的可选 `authorId` 只接受当前主题的楼主、协作者或已标记玩家；普通参与者返回空页。作者、排序与 cursor 属于同一主楼层查询范围，切换后必须从第一页重新读取；省略作者时原有查询与响应不变
 - 主楼层作者候选先按当前子贴的未删除主楼层取实际作者，再保留楼主、协作者或已标记玩家；不会返回只在其他子贴发言的成员
 - 主楼层顺序不影响内嵌楼中楼；内嵌回复始终按 createdAt ASC、id ASC 稳定返回最早 5 条，`parentPostId + createdAt` 复合索引支撑上百条回复的分页读取

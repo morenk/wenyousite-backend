@@ -16,6 +16,7 @@ import { StickerContentService } from '../stickers/sticker-content.service';
 import { ReplyOrder } from '../common/dto/reply-query.dto';
 import { MediaReferenceService } from '../media/media-reference.service';
 import { PostMentionEventsService } from './post-mention-events.service';
+import { PostPinService } from './post-pin.service';
 
 const mockPrisma = {
   $transaction: jest.fn(),
@@ -29,9 +30,11 @@ const mockPrisma = {
   post: {
     findUnique: jest.fn(),
     aggregate: jest.fn(),
+    count: jest.fn(),
     create: jest.fn(),
     findMany: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
     findFirst: jest.fn(),
     findUniqueOrThrow: jest.fn(),
   },
@@ -87,6 +90,7 @@ describe('PostsService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PostsService,
+        PostPinService,
         PostQueryService,
         DiceService,
         PostMentionEventsService,
@@ -938,6 +942,92 @@ describe('PostsService', () => {
     );
   });
 
+  describe('pin', () => {
+    it('仅允许管理者置顶有效主楼层，并锁定主题和子贴', async () => {
+      mockPrisma.post.findUnique.mockResolvedValue({
+        id: 'floor-1',
+        threadId: 't1',
+        subthreadId: 's1',
+        kind: 'FLOOR',
+        parentPostId: null,
+        pinnedAt: null,
+        subthread: { deletedAt: null },
+      });
+      mockPrisma.post.count.mockResolvedValue(0);
+
+      await service.pin('floor-1', 'manager-1');
+
+      expect(mockThreadAccess.assertCanManage).toHaveBeenCalledWith('t1', 'manager-1');
+      expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(2);
+      expect(mockPrisma.post.count).toHaveBeenCalledWith({
+        where: {
+          subthreadId: 's1',
+          kind: 'FLOOR',
+          parentPostId: null,
+          pinnedAt: { not: null },
+          deletedAt: null,
+        },
+      });
+      expect(mockPrisma.post.update).toHaveBeenCalledWith({
+        where: { id: 'floor-1' },
+        data: { pinnedAt: expect.any(Date) },
+      });
+    });
+
+    it('拒绝置顶楼中楼，达到十条时拒绝第十一条', async () => {
+      mockPrisma.post.findUnique.mockResolvedValue({
+        id: 'reply-1',
+        threadId: 't1',
+        subthreadId: 's1',
+        kind: 'FLOOR',
+        parentPostId: 'floor-1',
+        subthread: { deletedAt: null },
+      });
+      await expect(service.pin('reply-1', 'manager-1')).rejects.toMatchObject({
+        errorCode: ErrorCode.BAD_REQUEST,
+      });
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+
+      jest.clearAllMocks();
+      mockPrisma.post.findUnique.mockResolvedValue({
+        id: 'floor-11',
+        threadId: 't1',
+        subthreadId: 's1',
+        kind: 'FLOOR',
+        parentPostId: null,
+        pinnedAt: null,
+        subthread: { deletedAt: null },
+      });
+      mockPrisma.post.count.mockResolvedValue(10);
+      await expect(service.pin('floor-11', 'manager-1')).rejects.toMatchObject({
+        errorCode: ErrorCode.BAD_REQUEST,
+      });
+      expect(mockPrisma.post.update).not.toHaveBeenCalled();
+    });
+
+    it('取消置顶幂等，已置顶再次置顶不更新时间', async () => {
+      const pinnedAt = new Date('2026-09-03T10:00:00.000Z');
+      mockPrisma.post.findUnique.mockResolvedValue({
+        id: 'floor-1',
+        threadId: 't1',
+        subthreadId: 's1',
+        kind: 'FLOOR',
+        parentPostId: null,
+        pinnedAt,
+        subthread: { deletedAt: null },
+      });
+
+      await service.pin('floor-1', 'manager-1');
+      expect(mockPrisma.post.update).not.toHaveBeenCalled();
+
+      await service.unpin('floor-1', 'manager-1');
+      expect(mockPrisma.post.update).toHaveBeenCalledWith({
+        where: { id: 'floor-1' },
+        data: { pinnedAt: null },
+      });
+    });
+  });
+
   it('remove 软删除非第一楼应该成功', async () => {
     mockPrisma.post.findUnique.mockResolvedValue({
       id: 'p1',
@@ -952,7 +1042,7 @@ describe('PostsService', () => {
     await service.remove('p1', 'u1');
     expect(mockPrisma.post.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ deletedAt: expect.any(Date) }),
+        data: expect.objectContaining({ deletedAt: expect.any(Date), pinnedAt: null }),
       }),
     );
   });
@@ -1049,6 +1139,7 @@ describe('PostsService', () => {
     mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1' });
     mockPrisma.$queryRaw.mockResolvedValue([{ id: 'r1' }, { id: 'r2' }]);
     mockPrisma.post.findMany
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 'p1', author: {}, _count: { replies: 2 } }])
       .mockResolvedValueOnce([
         { id: 'r1', parentPostId: 'p1', author: {}, replyToPost: null },
@@ -1058,13 +1149,13 @@ describe('PostsService', () => {
     expect(result.items[0].replies).toHaveLength(2);
     // 楼层查询 where 只包含 kind=FLOOR
     expect(mockPrisma.post.findMany).toHaveBeenNthCalledWith(
-      1,
+      2,
       expect.objectContaining({
         where: expect.objectContaining({ kind: 'FLOOR', parentPostId: null }),
       }),
     );
     expect(mockPrisma.post.findMany).toHaveBeenNthCalledWith(
-      2,
+      3,
       expect.objectContaining({
         where: { id: { in: ['r1', 'r2'] } },
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
@@ -1116,7 +1207,9 @@ describe('PostsService', () => {
 
   it('findAllBySubthread 无回复楼层应返回空 replies 数组', async () => {
     mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1' });
-    mockPrisma.post.findMany.mockResolvedValue([{ id: 'p1', author: {}, _count: { replies: 0 } }]);
+    mockPrisma.post.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'p1', author: {}, _count: { replies: 0 } }]);
     const result = await service.findAllBySubthread('s1');
     expect(result.items[0].replies).toEqual([]);
   });

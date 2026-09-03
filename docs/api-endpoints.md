@@ -187,6 +187,8 @@
 | GET | `/posts/{id}` | optional | 获取帖子详情 |
 | PATCH | `/posts/{id}` | authenticated | 编辑帖子 |
 | DELETE | `/posts/{id}` | authenticated | 软删除楼层（子贴正文 kind=BODY 不可删除） |
+| POST | `/posts/{id}/pin` | authenticated | 将主楼层置顶到所属子贴 |
+| DELETE | `/posts/{id}/pin` | authenticated | 取消主楼层在所属子贴的置顶 |
 
 ## Drafts
 

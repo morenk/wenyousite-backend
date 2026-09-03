@@ -21,6 +21,14 @@ const floorReplyInclude = {
   },
 } satisfies Prisma.PostInclude;
 
+const floorInclude = {
+  author: { select: authorSelect },
+  ...includeDiceRolls(),
+  _count: { select: { replies: { where: notDeleted } } },
+} satisfies Prisma.PostInclude;
+
+const MAX_PINNED_FLOORS = 10;
+
 type FloorReply = Prisma.PostGetPayload<{ include: typeof floorReplyInclude }>;
 
 /** 帖子读模型：楼层、楼中楼和导航上下文查询。 */
@@ -109,22 +117,32 @@ export class PostQueryService {
 
     const take = Math.min(limit, 50);
     const direction = order === ReplyOrder.NEWEST ? 'desc' : 'asc';
+    const floorWhere = {
+      subthreadId,
+      kind: 'FLOOR' as const,
+      parentPostId: null,
+      ...notDeleted,
+      ...(authorId ? { authorId } : {}),
+    };
+    const pinnedPosts = cursor
+      ? []
+      : await this.prisma.post.findMany({
+          where: { ...floorWhere, pinnedAt: { not: null } },
+          orderBy: [{ pinnedAt: 'desc' }, { id: 'desc' }],
+          take: MAX_PINNED_FLOORS,
+          include: floorInclude,
+        });
     const posts = await this.prisma.post.findMany({
       where: {
-        subthreadId,
-        kind: 'FLOOR',
-        parentPostId: null,
-        ...notDeleted,
-        ...(authorId ? { authorId } : {}),
+        ...floorWhere,
+        pinnedAt: null,
       },
       orderBy: { floorNumber: direction },
       take: take + 1,
       cursor: cursor ? { id: cursor } : undefined,
       skip: cursor ? 1 : 0,
       include: {
-        author: { select: authorSelect },
-        ...includeDiceRolls(),
-        _count: { select: { replies: { where: notDeleted } } },
+        ...floorInclude,
       },
     });
 
@@ -132,7 +150,8 @@ export class PostQueryService {
     if (hasMore) posts.pop();
 
     // 为有回复的楼层批量获取前 5 条楼中楼回复
-    const floorIdsWithReplies = posts.filter((p) => p._count.replies > 0).map((p) => p.id);
+    const allPosts = [...pinnedPosts, ...posts];
+    const floorIdsWithReplies = allPosts.filter((p) => p._count.replies > 0).map((p) => p.id);
     const repliesMap = new Map<string, FloorReply[]>();
     if (floorIdsWithReplies.length > 0) {
       // 窗口函数先一次性选出每层前 5 条回复，再统一加载关联数据。
@@ -169,7 +188,7 @@ export class PostQueryService {
       }
     }
 
-    const items = posts.map((post) => ({
+    const items = allPosts.map((post) => ({
       ...post,
       replies: repliesMap.get(post.id) ?? [],
     }));

@@ -189,6 +189,36 @@ export class PostsController {
     return this.postsService.update(id, dto, user.id);
   }
 
+  @Post('posts/:id/pin')
+  @Auth()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '将主楼层置顶到所属子贴' })
+  @ApiOkResponse({ type: MessageResponseDto, description: '楼层已置顶' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
+  @ApiBadRequestResponse({ description: '仅支持置顶主楼层，或当前子贴置顶数量已达上限' })
+  @ApiForbiddenResponse({ description: '仅楼主或协作者可置顶' })
+  @ApiNotFoundResponse({ description: '楼层不存在或当前不可访问' })
+  async pin(@Param('id') id: string, @Req() req: FastifyRequest) {
+    const user = req['user'] as { id: string };
+    await this.postsService.pin(id, user.id);
+    return { message: '楼层已置顶' };
+  }
+
+  @Delete('posts/:id/pin')
+  @Auth()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '取消主楼层在所属子贴的置顶' })
+  @ApiOkResponse({ type: MessageResponseDto, description: '楼层已取消置顶' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
+  @ApiBadRequestResponse({ description: '仅支持取消主楼层置顶' })
+  @ApiForbiddenResponse({ description: '仅楼主或协作者可取消置顶' })
+  @ApiNotFoundResponse({ description: '楼层不存在或当前不可访问' })
+  async unpin(@Param('id') id: string, @Req() req: FastifyRequest) {
+    const user = req['user'] as { id: string };
+    await this.postsService.unpin(id, user.id);
+    return { message: '楼层已取消置顶' };
+  }
+
   @Delete('posts/:id')
   @Auth()
   @ApiBearerAuth()

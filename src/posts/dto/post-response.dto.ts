@@ -1,6 +1,6 @@
 /** 帖子响应 DTO：统一楼层、楼中楼和编辑器读写链路的跨端类型 */
 
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 const POST_KINDS = ['BODY', 'FLOOR'] as const;
 
@@ -133,6 +133,14 @@ export class PostBaseResponseDto {
 
   @ApiProperty({ type: String, format: 'date-time' })
   updatedAt!: Date;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: '主楼层置顶到当前子贴的时间；正文和楼中楼回复为 null',
+  })
+  pinnedAt?: Date | null;
 
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   deletedAt!: Date | null;

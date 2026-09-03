@@ -36,10 +36,12 @@ describe('PostQueryService.findAllBySubthread', () => {
   });
 
   it('未筛选时保持既有主楼条件、默认排序、游标和响应行为', async () => {
-    prisma.post.findMany.mockResolvedValue([
-      { id: 'floor-1', _count: { replies: 0 } },
-      { id: 'floor-2', _count: { replies: 0 } },
-    ]);
+    prisma.post.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { id: 'floor-1', _count: { replies: 0 } },
+        { id: 'floor-2', _count: { replies: 0 } },
+      ]);
 
     const result = await service.findAllBySubthread('subthread-1');
 
@@ -50,6 +52,7 @@ describe('PostQueryService.findAllBySubthread', () => {
           subthreadId: 'subthread-1',
           kind: 'FLOOR',
           parentPostId: null,
+          pinnedAt: null,
           deletedAt: null,
         },
         orderBy: { floorNumber: 'asc' },
@@ -129,9 +132,11 @@ describe('PostQueryService.findAllBySubthread', () => {
     ['玩家', 'player-user-id', { role: 'PARTICIPANT', playerMarked: true }],
   ] as const)('支持按%s筛选主楼层', async (_label, authorId, member) => {
     if (member) prisma.threadMember.findUnique.mockResolvedValue(member);
-    prisma.post.findMany.mockResolvedValue([
-      { id: 'floor-filtered', authorId, _count: { replies: 0 } },
-    ]);
+    prisma.post.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { id: 'floor-filtered', authorId, _count: { replies: 0 } },
+      ]);
 
     const result = await service.findAllBySubthread(
       'subthread-1',
@@ -227,6 +232,7 @@ describe('PostQueryService.findAllBySubthread', () => {
     });
     prisma.$queryRaw.mockResolvedValue([{ id: 'reply-other-author' }]);
     prisma.post.findMany
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
         {
           id: 'floor-filtered',
@@ -252,13 +258,13 @@ describe('PostQueryService.findAllBySubthread', () => {
     );
 
     expect(prisma.post.findMany).toHaveBeenNthCalledWith(
-      1,
+      2,
       expect.objectContaining({
         where: expect.objectContaining({ authorId: 'collaborator-user-id' }),
       }),
     );
     expect(prisma.post.findMany).toHaveBeenNthCalledWith(
-      2,
+      3,
       expect.objectContaining({
         where: { id: { in: ['reply-other-author'] } },
       }),
@@ -267,6 +273,44 @@ describe('PostQueryService.findAllBySubthread', () => {
       id: 'floor-filtered',
       replies: [{ id: 'reply-other-author', authorId: 'other-user-id' }],
     });
+  });
+
+  it('首屏将置顶主楼层放在普通楼层前，作者筛选仍生效', async () => {
+    const pinnedAt = new Date('2026-09-03T10:00:00.000Z');
+    prisma.threadMember.findUnique.mockResolvedValue({ role: 'COLLABORATOR' });
+    prisma.post.findMany
+      .mockResolvedValueOnce([
+        { id: 'pinned-floor', authorId: 'collaborator-user-id', pinnedAt, _count: { replies: 0 } },
+      ])
+      .mockResolvedValueOnce([
+        { id: 'ordinary-floor', authorId: 'collaborator-user-id', pinnedAt: null, _count: { replies: 0 } },
+      ]);
+
+    const result = await service.findAllBySubthread(
+      'subthread-1',
+      undefined,
+      20,
+      'viewer-user-id',
+      ReplyOrder.NEWEST,
+      'collaborator-user-id',
+    );
+
+    expect(result.items.map((item) => item.id)).toEqual(['pinned-floor', 'ordinary-floor']);
+    expect(prisma.post.findMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: expect.objectContaining({ pinnedAt: { not: null }, authorId: 'collaborator-user-id' }),
+        orderBy: [{ pinnedAt: 'desc' }, { id: 'desc' }],
+        take: 10,
+      }),
+    );
+    expect(prisma.post.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: expect.objectContaining({ pinnedAt: null, authorId: 'collaborator-user-id' }),
+        orderBy: { floorNumber: 'desc' },
+      }),
+    );
   });
 
   it('主楼层作者候选只保留当前子贴实际发言的楼主、协作者和玩家', async () => {
