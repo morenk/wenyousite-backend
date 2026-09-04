@@ -5,18 +5,25 @@ import { hashIdempotencyPayload } from '../common/idempotency';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMomentDto, UpdateMomentDto } from './dto/moment-write.dto';
 import { MomentFeedMode } from './dto/moment-query.dto';
-import { mapMomentCard, mapMomentDetail, type MomentCardRow, type MomentDetailRow } from './moment.mapper';
 import {
-  momentCardSelect,
-  momentDetailSelect,
-} from './moment-query';
-import { momentViewerVisibility, visibleMomentAuthorWhere } from '../access/moment-visibility.where';
+  mapMomentCard,
+  mapMomentDetail,
+  type MomentCardRow,
+  type MomentDetailRow,
+} from './moment.mapper';
+import { momentCardSelect, momentDetailSelect } from './moment-query';
+import {
+  momentViewerVisibility,
+  visibleMomentAuthorWhere,
+} from '../access/moment-visibility.where';
 import { MediaReferenceService } from '../media/media-reference.service';
 import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { isUniqueConstraintViolation } from '../common/prisma-errors';
 import { MomentAccessService } from './moment-access.service';
 import { mediaPurposeAllowed } from '../media/media-policy';
+import { OutboxService } from '../outbox/outbox.service';
+import { DOMAIN_EVENTS } from '../outbox/domain-events';
 
 const MAX_PAGE_SIZE = 50;
 const TEXT_COVER_THEMES = ['ROSE', 'LILAC', 'MINT', 'AMBER'] as const;
@@ -113,6 +120,7 @@ export class MomentsService {
     private readonly prisma: PrismaService,
     private readonly mediaReferences: MediaReferenceService,
     private readonly access: MomentAccessService,
+    private readonly outbox: OutboxService,
   ) {}
 
   async list(feed: MomentFeedMode, cursor: string | undefined, limit = 20, viewer?: Viewer) {
@@ -174,9 +182,20 @@ export class MomentsService {
               create: mediaIds.map((mediaId, sortOrder) => ({ mediaId, sortOrder })),
             },
           },
-          select: { id: true },
+          select: { id: true, createdAt: true },
         });
         await this.mediaReferences.reconcileMediaIds(tx, mediaIds);
+        await this.outbox.enqueue(tx, {
+          eventType: DOMAIN_EVENTS.MOMENT_CREATED,
+          aggregateType: 'Moment',
+          aggregateId: moment.id,
+          eventKey: `moment-created:${moment.id}`,
+          payload: {
+            momentId: moment.id,
+            authorId: viewer.id,
+            occurredAt: moment.createdAt.toISOString(),
+          },
+        });
         const detail = await tx.moment.findUniqueOrThrow({
           where: { id: moment.id },
           select: momentDetailSelect(viewer.id),
@@ -218,10 +237,7 @@ export class MomentsService {
           },
         });
         if (existing.version !== dto.version) {
-          throw conflict(
-            ErrorCode.OPTIMISTIC_LOCK_CONFLICT,
-            '动态已在其他位置更新，请刷新后重试',
-          );
+          throw conflict(ErrorCode.OPTIMISTIC_LOCK_CONFLICT, '动态已在其他位置更新，请刷新后重试');
         }
         const mediaIds = dto.mediaIds ?? existing.images.map((image) => image.mediaId);
         const requestedCover = Object.prototype.hasOwnProperty.call(dto, 'coverMediaId')

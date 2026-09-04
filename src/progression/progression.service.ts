@@ -37,6 +37,21 @@ export class ProgressionService {
     return this.prisma.$transaction((tx) => this.grantInTransaction(tx, input));
   }
 
+  /** 同一业务事件共用事务，并按用户 ID 排序拿锁，减少连接和交叉锁等待。 */
+  async grantMany(inputs: GrantExperienceInput[]): Promise<GrantExperienceResult[]> {
+    if (inputs.length === 0) return [];
+    const ordered = inputs
+      .map((input, index) => ({ input, index }))
+      .sort((left, right) => left.input.userId.localeCompare(right.input.userId));
+    return this.prisma.$transaction(async (tx) => {
+      const results = new Array<GrantExperienceResult>(inputs.length);
+      for (const { input, index } of ordered) {
+        results[index] = await this.grantInTransaction(tx, input);
+      }
+      return results;
+    });
+  }
+
   async grantInTransaction(
     tx: Prisma.TransactionClient,
     input: GrantExperienceInput,

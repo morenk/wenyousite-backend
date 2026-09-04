@@ -434,6 +434,8 @@ export class ThreadsService {
             authorUsername: post.author.username,
             occurredAt: new Date().toISOString(),
             threadId: id,
+            threadOwnerId: updated.ownerId,
+            threadVisibility: updated.visibility,
             subthreadId: post.subthreadId,
             subthreadTitle: post.subthread.title,
             parentPostId: post.parentPostId ?? null,

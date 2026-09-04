@@ -9,7 +9,12 @@ export const EXPERIENCE_RULES = {
     counter: 'checkInCount',
   },
   [ExperienceEventType.THREAD_PUBLISHED]: {
-    delta: 20,
+    delta: 30,
+    dailyCap: 1,
+    counter: 'threadPublishCount',
+  },
+  [ExperienceEventType.PRIVATE_THREAD_ACTIVATED]: {
+    delta: 15,
     dailyCap: 1,
     counter: 'threadPublishCount',
   },
@@ -18,10 +23,40 @@ export const EXPERIENCE_RULES = {
     dailyCap: 5,
     counter: 'postCreateCount',
   },
+  [ExperienceEventType.THREAD_REPLY_RECEIVED]: {
+    delta: 2,
+    dailyCap: 5,
+    counter: 'receivedReplyCount',
+  },
   [ExperienceEventType.THREAD_LIKED]: {
     delta: 2,
     dailyCap: 10,
     counter: 'receivedLikeCount',
+  },
+  [ExperienceEventType.MOMENT_PUBLISHED]: {
+    delta: 4,
+    dailyCap: 3,
+    counter: 'momentPublishCount',
+  },
+  [ExperienceEventType.MOMENT_COMMENT_CREATED]: {
+    delta: 2,
+    dailyCap: 5,
+    counter: 'momentCommentCount',
+  },
+  [ExperienceEventType.MOMENT_REPLY_RECEIVED]: {
+    delta: 1,
+    dailyCap: 5,
+    counter: 'momentReplyReceivedCount',
+  },
+  [ExperienceEventType.TIP_SENT]: {
+    delta: 1,
+    dailyCap: 3,
+    counter: 'tipSentCount',
+  },
+  [ExperienceEventType.TIP_RECEIVED]: {
+    delta: 2,
+    dailyCap: 5,
+    counter: 'tipReceivedCount',
   },
 } as const;
 

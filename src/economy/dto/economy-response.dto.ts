@@ -36,7 +36,12 @@ export class DailyCheckInResponseDto {
   @ApiProperty({ type: String, enum: ['1', '2', '3'] })
   rewardAmount!: string;
 
-  @ApiProperty({ example: 2 })
+  @ApiProperty({
+    minimum: 0,
+    maximum: 2,
+    example: 2,
+    description: '当天尚未领取日活经验时为 2，否则为 0',
+  })
   experienceAwarded!: number;
 
   @ApiProperty({ type: String, pattern: '^\\d+$' })

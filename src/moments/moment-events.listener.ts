@@ -9,6 +9,7 @@ export class MomentEventsListener {
 
   @OnEvent(DOMAIN_EVENTS.MOMENT_COMMENT_CREATED)
   async commentCreated(event: MomentCommentCreatedEvent) {
+    if (event.recipientId === event.actorId) return;
     await this.notifications.notify(
       'reply',
       [event.recipientId],

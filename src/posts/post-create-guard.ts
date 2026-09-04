@@ -32,7 +32,7 @@ export async function lockAndValidatePostCreate(
       title: true,
       postingPolicy: true,
       threadId: true,
-      thread: { select: { ownerId: true, published: true } },
+      thread: { select: { ownerId: true, published: true, visibility: true } },
     },
   });
   if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');

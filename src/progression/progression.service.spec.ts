@@ -17,7 +17,13 @@ function buildService() {
         checkInCount: 0,
         threadPublishCount: 0,
         postCreateCount: 0,
+        receivedReplyCount: 0,
         receivedLikeCount: 0,
+        momentPublishCount: 0,
+        momentCommentCount: 0,
+        momentReplyReceivedCount: 0,
+        tipSentCount: 0,
+        tipReceivedCount: 0,
       }),
       update: jest.fn().mockResolvedValue(undefined),
     },
@@ -26,6 +32,7 @@ function buildService() {
   const outbox = { enqueue: jest.fn().mockResolvedValue(undefined) };
   return {
     service: new ProgressionService(prisma as never, outbox as never),
+    prisma,
     tx,
     outbox,
   };
@@ -59,7 +66,13 @@ describe('ProgressionService', () => {
       checkInCount: 0,
       threadPublishCount: 0,
       postCreateCount: 5,
+      receivedReplyCount: 0,
       receivedLikeCount: 0,
+      momentPublishCount: 0,
+      momentCommentCount: 0,
+      momentReplyReceivedCount: 0,
+      tipSentCount: 0,
+      tipReceivedCount: 0,
     });
 
     const result = await service.grant({
@@ -86,5 +99,25 @@ describe('ProgressionService', () => {
 
     expect(result.granted).toBe(false);
     expect(tx.experienceDailyStat.upsert).not.toHaveBeenCalled();
+  });
+
+  it('同一业务事件的多笔经验共用一个事务', async () => {
+    const { service, prisma } = buildService();
+
+    const result = await service.grantMany([
+      {
+        userId: 'user-z',
+        type: ExperienceEventType.POST_CREATED,
+        idempotencyKey: 'experience:post-created:post-z',
+      },
+      {
+        userId: 'user-a',
+        type: ExperienceEventType.MOMENT_PUBLISHED,
+        idempotencyKey: 'experience:moment-published:moment-a',
+      },
+    ]);
+
+    expect(result).toHaveLength(2);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
   });
 });

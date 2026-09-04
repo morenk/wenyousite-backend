@@ -60,7 +60,7 @@ OutboxDispatcher（FOR UPDATE SKIP LOCKED）
 - 已处理事件保留 7 天供审计，未处理事件永不由清理任务删除。
 - 进程收到 `SIGTERM` / `SIGINT` 后停止领取新 Outbox，等待当前批次结束，再由 NestJS 完成资源关闭。
 
-当前可靠事件包括 `post.created`、`post.mentions.updated`、`thread.published`、`thread.liked`、`thread.unliked`、`thread.collaborator-role.changed`、`user.followed`、`user.level_up`、`moment.comment.created`、`direct-message.created` 与 `tip.completed`。缓存失效等可重建的本地事件仍可直接使用进程内事件。
+当前可靠事件包括 `post.created`、`post.mentions.updated`、`thread.published`、`thread.liked`、`thread.unliked`、`thread.collaborator-role.changed`、`user.followed`、`user.level_up`、`moment.created`、`moment.comment.created`、`direct-message.created` 与 `tip.completed`。缓存失效等可重建的本地事件仍可直接使用进程内事件。
 
 ## API 与类型契约
 

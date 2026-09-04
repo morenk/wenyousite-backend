@@ -382,7 +382,7 @@
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
 | GET | `/wallet` | authenticated | 获取当前用户温油钱包余额与收款统计 |
-| POST | `/wallet/check-in` | authenticated | 按北京时间自动签到；每日幂等获得 1–3 升温油和 2 经验 |
+| POST | `/wallet/check-in` | authenticated | 按北京时间自动签到；每日幂等获得 1–3 升温油，日活经验由签到或首次有效行为领取 |
 | GET | `/wallet/transactions` | authenticated | 获取当前用户温油收支流水 |
 | POST | `/threads/{id}/tips` | authenticated | 向已发布主题帖楼主打赏温油 |
 | POST | `/users/{id}/tips` | authenticated | 直接向用户打赏温油 |

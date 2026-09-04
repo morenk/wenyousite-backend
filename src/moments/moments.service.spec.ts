@@ -92,18 +92,21 @@ function createPrismaMock() {
 }
 
 const mediaReferences = { reconcileMediaIds: jest.fn() };
-const createService = (prisma: unknown, _redis: unknown, access?: unknown) =>
+const createOutbox = () => ({ enqueue: jest.fn().mockResolvedValue(undefined) });
+const createService = (
+  prisma: unknown,
+  _redis: unknown,
+  access?: unknown,
+  outbox = createOutbox(),
+) =>
   new MomentsService(
     prisma as never,
     mediaReferences as never,
     (access ?? createPrismaMock().access) as never,
+    outbox as never,
   );
 
-async function expectBusiness(
-  promise: Promise<unknown>,
-  errorCode: number,
-  status: HttpStatus,
-) {
+async function expectBusiness(promise: Promise<unknown>, errorCode: number, status: HttpStatus) {
   const error = await promise.catch((reason: unknown) => reason);
   expect(error).toBeInstanceOf(BusinessException);
   expect(error).toMatchObject({ errorCode });
@@ -124,9 +127,10 @@ describe('MomentsService', () => {
 
   it('发布纯文字动态时裁剪文本并生成稳定文字封面', async () => {
     const { prisma, tx, redis, access } = createPrismaMock();
-    const service = createService(prisma, redis, access);
+    const outbox = createOutbox();
+    const service = createService(prisma, redis, access, outbox);
     prisma.moment.findUnique.mockResolvedValue(null);
-    tx.moment.create.mockResolvedValue({ id: 'moment-1' });
+    tx.moment.create.mockResolvedValue({ id: 'moment-1', createdAt: now });
     tx.moment.findUniqueOrThrow.mockResolvedValue(detailRow());
 
     const result = await service.create(
@@ -152,6 +156,18 @@ describe('MomentsService', () => {
     expect(result.coverType).toBe('TEXT');
     expect(result.canEdit).toBe(true);
     expect(result.canInteract).toBe(true);
+    expect(outbox.enqueue).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        eventType: 'moment.created',
+        aggregateId: 'moment-1',
+        payload: expect.objectContaining({
+          momentId: 'moment-1',
+          authorId: 'user-1',
+          occurredAt: now.toISOString(),
+        }),
+      }),
+    );
   });
 
   it('幂等键被不同内容复用时拒绝发布', async () => {
@@ -540,9 +556,7 @@ describe('MomentsService', () => {
   it('显式搜索保留已注销作者的历史动态并返回不可互动标记', async () => {
     const { prisma, redis, access } = createPrismaMock();
     const service = createService(prisma, redis, access);
-    prisma.$queryRaw.mockResolvedValue([
-      { id: 'moment-1', relevance: 1.5, createdAt: now },
-    ]);
+    prisma.$queryRaw.mockResolvedValue([{ id: 'moment-1', relevance: 1.5, createdAt: now }]);
     prisma.moment.findMany.mockResolvedValue([
       detailRow({
         author: {
@@ -557,9 +571,7 @@ describe('MomentsService', () => {
 
     const result = await service.search('历史动态', undefined, 20, { id: 'viewer-1' });
 
-    expect(result.items).toEqual([
-      expect.objectContaining({ id: 'moment-1', canInteract: false }),
-    ]);
+    expect(result.items).toEqual([expect.objectContaining({ id: 'moment-1', canInteract: false })]);
     const query = prisma.$queryRaw.mock.calls[0][0] as { strings: string[] };
     expect(query.strings.join(' ')).not.toContain('JOIN "users"');
   });

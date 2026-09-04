@@ -17949,7 +17949,7 @@
             "bearer": []
           }
         ],
-        "summary": "按北京时间自动签到；每日幂等获得 1–3 升温油和 2 经验",
+        "summary": "按北京时间自动签到；每日幂等获得 1–3 升温油，日活经验由签到或首次有效行为领取",
         "tags": [
           "Wallet"
         ],
@@ -18472,7 +18472,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.16.0-dev.20260903.5",
+    "version": "5.16.0-dev.20260904.1",
     "contact": {}
   },
   "tags": [
@@ -27859,7 +27859,10 @@
           },
           "experienceAwarded": {
             "type": "number",
-            "example": 2
+            "minimum": 0,
+            "maximum": 2,
+            "example": 2,
+            "description": "当天尚未领取日活经验时为 2，否则为 0"
           },
           "balance": {
             "type": "string",

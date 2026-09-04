@@ -82,8 +82,15 @@ enum MomentTextCoverTheme {
 enum ExperienceEventType {
   DAILY_CHECK_IN
   THREAD_PUBLISHED
+  PRIVATE_THREAD_ACTIVATED
   POST_CREATED
+  THREAD_REPLY_RECEIVED
   THREAD_LIKED
+  MOMENT_PUBLISHED
+  MOMENT_COMMENT_CREATED
+  MOMENT_REPLY_RECEIVED
+  TIP_SENT
+  TIP_RECEIVED
   REVERSAL
 }
 
@@ -1525,15 +1532,21 @@ model ExperienceEvent {
 }
 
 model ExperienceDailyStat {
-  userId             String   @map("user_id")
-  dateKey            String   @map("date_key") @db.VarChar(10)
-  checkInCount       Int      @default(0) @map("check_in_count")
-  threadPublishCount Int      @default(0) @map("thread_publish_count")
-  postCreateCount    Int      @default(0) @map("post_create_count")
-  receivedLikeCount  Int      @default(0) @map("received_like_count")
-  experienceAwarded  Int      @default(0) @map("experience_awarded")
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
+  userId                   String   @map("user_id")
+  dateKey                  String   @map("date_key") @db.VarChar(10)
+  checkInCount             Int      @default(0) @map("check_in_count")
+  threadPublishCount       Int      @default(0) @map("thread_publish_count")
+  postCreateCount          Int      @default(0) @map("post_create_count")
+  receivedReplyCount       Int      @default(0) @map("received_reply_count")
+  receivedLikeCount        Int      @default(0) @map("received_like_count")
+  momentPublishCount       Int      @default(0) @map("moment_publish_count")
+  momentCommentCount       Int      @default(0) @map("moment_comment_count")
+  momentReplyReceivedCount Int      @default(0) @map("moment_reply_received_count")
+  tipSentCount             Int      @default(0) @map("tip_sent_count")
+  tipReceivedCount         Int      @default(0) @map("tip_received_count")
+  experienceAwarded        Int      @default(0) @map("experience_awarded")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

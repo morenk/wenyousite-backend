@@ -107,8 +107,10 @@ export class ThreadAggregateService {
           where: { id: threadId, ...notDeleted },
           select: {
             id: true,
+            ownerId: true,
             title: true,
             category: true,
+            visibility: true,
             published: true,
             version: true,
             defaultSubthreadId: true,
@@ -288,7 +290,12 @@ export class ThreadAggregateService {
         }
 
         if (publishing) {
-          await this.settleDraftPosts(tx, threadId);
+          await this.settleDraftPosts(
+            tx,
+            threadId,
+            current.ownerId,
+            dto.visibility ?? current.visibility,
+          );
         } else if (createdPublishedBody) {
           await this.outbox.enqueue(tx, {
             eventType: 'post.created',
@@ -302,6 +309,8 @@ export class ThreadAggregateService {
               authorUsername: createdPublishedBody.author.username,
               occurredAt: new Date().toISOString(),
               threadId,
+              threadOwnerId: current.ownerId,
+              threadVisibility: dto.visibility ?? current.visibility,
               subthreadId: defaultSubthread.id,
               subthreadTitle: nextSubthreadTitle,
               parentPostId: null,
@@ -426,7 +435,12 @@ export class ThreadAggregateService {
     }
   }
 
-  private async settleDraftPosts(tx: Prisma.TransactionClient, threadId: string) {
+  private async settleDraftPosts(
+    tx: Prisma.TransactionClient,
+    threadId: string,
+    threadOwnerId: string,
+    threadVisibility: 'PUBLIC' | 'PRIVATE',
+  ) {
     const posts = await tx.post.findMany({
       where: { threadId, ...notDeleted, subthread: { deletedAt: null } },
       select: {
@@ -467,6 +481,8 @@ export class ThreadAggregateService {
           authorUsername: post.author.username,
           occurredAt: new Date().toISOString(),
           threadId,
+          threadOwnerId,
+          threadVisibility,
           subthreadId: post.subthreadId,
           subthreadTitle: post.subthread.title,
           parentPostId: post.parentPostId ?? null,

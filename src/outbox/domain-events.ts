@@ -8,6 +8,7 @@ export const DOMAIN_EVENTS = {
   THREAD_UNLIKED: 'thread.unliked',
   USER_FOLLOWED: 'user.followed',
   USER_LEVEL_UP: 'user.level_up',
+  MOMENT_CREATED: 'moment.created',
   MOMENT_COMMENT_CREATED: 'moment.comment.created',
   DIRECT_MESSAGE_CREATED: 'direct-message.created',
   TIP_COMPLETED: 'tip.completed',
@@ -21,6 +22,8 @@ export interface PostCreatedEvent {
   authorUsername?: string;
   occurredAt?: string;
   threadId: string;
+  threadOwnerId?: string;
+  threadVisibility?: 'PUBLIC' | 'PRIVATE';
   subthreadId: string;
   subthreadTitle: string;
   parentPostId: string | null;
@@ -82,6 +85,12 @@ export interface LevelUpEvent {
   experience: number;
 }
 
+export interface MomentCreatedEvent {
+  momentId: string;
+  authorId: string;
+  occurredAt?: string;
+}
+
 export interface MomentCommentCreatedEvent {
   commentId: string;
   momentId: string;
@@ -90,6 +99,8 @@ export interface MomentCommentCreatedEvent {
   actorUsername: string;
   recipientId: string;
   isReply: boolean;
+  momentAuthorId?: string;
+  occurredAt?: string;
 }
 
 export interface DirectMessageCreatedEvent {
@@ -109,6 +120,7 @@ export interface TipCompletedEvent {
   grossAmount: string;
   recipientAmount: string;
   platformAmount: string;
+  occurredAt?: string;
   threadTipTotal?: string | null;
   momentId?: string | null;
   momentTitle?: string | null;
@@ -134,6 +146,7 @@ export interface DomainEventMap {
   [DOMAIN_EVENTS.THREAD_UNLIKED]: ThreadUnlikedEvent;
   [DOMAIN_EVENTS.USER_FOLLOWED]: UserFollowedEvent;
   [DOMAIN_EVENTS.USER_LEVEL_UP]: LevelUpEvent;
+  [DOMAIN_EVENTS.MOMENT_CREATED]: MomentCreatedEvent;
   [DOMAIN_EVENTS.MOMENT_COMMENT_CREATED]: MomentCommentCreatedEvent;
   [DOMAIN_EVENTS.DIRECT_MESSAGE_CREATED]: DirectMessageCreatedEvent;
   [DOMAIN_EVENTS.TIP_COMPLETED]: TipCompletedEvent;
@@ -155,6 +168,8 @@ export const DOMAIN_EVENT_SCHEMAS = {
     authorUsername: z.string().optional(),
     occurredAt: optionalTimestamp,
     threadId: id,
+    threadOwnerId: id.optional(),
+    threadVisibility: z.enum(['PUBLIC', 'PRIVATE']).optional(),
     subthreadId: id,
     subthreadTitle: z.string(),
     parentPostId: nullableId,
@@ -206,6 +221,11 @@ export const DOMAIN_EVENT_SCHEMAS = {
     level: z.number().int(),
     experience: z.number().int(),
   }),
+  [DOMAIN_EVENTS.MOMENT_CREATED]: z.object({
+    momentId: id,
+    authorId: id,
+    occurredAt: optionalTimestamp,
+  }),
   [DOMAIN_EVENTS.MOMENT_COMMENT_CREATED]: z.object({
     commentId: id,
     momentId: id,
@@ -214,6 +234,8 @@ export const DOMAIN_EVENT_SCHEMAS = {
     actorUsername: z.string(),
     recipientId: id,
     isReply: z.boolean(),
+    momentAuthorId: id.optional(),
+    occurredAt: optionalTimestamp,
   }),
   [DOMAIN_EVENTS.DIRECT_MESSAGE_CREATED]: z.object({
     messageId: id,
@@ -231,6 +253,7 @@ export const DOMAIN_EVENT_SCHEMAS = {
     grossAmount: z.string(),
     recipientAmount: z.string(),
     platformAmount: z.string(),
+    occurredAt: optionalTimestamp,
     threadTipTotal: z.string().nullable().optional(),
     momentId: nullableId.optional(),
     momentTitle: z.string().nullable().optional(),

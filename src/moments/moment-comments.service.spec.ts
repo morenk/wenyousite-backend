@@ -5,6 +5,8 @@ import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { hashIdempotencyPayload } from '../common/idempotency';
 
+const now = new Date('2026-08-08T12:00:00.000Z');
+
 const author = (id: string, username = id) => ({
   id,
   username,
@@ -314,7 +316,7 @@ describe('MomentCommentsService', () => {
     });
     tx.userBlock.findFirst.mockResolvedValue(null);
     prisma.momentComment.findUnique.mockResolvedValue(null);
-    tx.momentComment.create.mockResolvedValue({ id: 'comment-new' });
+    tx.momentComment.create.mockResolvedValue({ id: 'comment-new', createdAt: now });
     tx.momentComment.findUniqueOrThrow.mockResolvedValue(commentRow());
 
     const result = await service.create(
@@ -397,7 +399,7 @@ describe('MomentCommentsService', () => {
       momentImages: [],
       momentComment: null,
     });
-    tx.momentComment.create.mockResolvedValue({ id: 'comment-new' });
+    tx.momentComment.create.mockResolvedValue({ id: 'comment-new', createdAt: now });
 
     const result = await service.create(
       'moment-1',
@@ -436,7 +438,7 @@ describe('MomentCommentsService', () => {
         },
       }),
     );
-    tx.momentComment.create.mockResolvedValue({ id: 'comment-new' });
+    tx.momentComment.create.mockResolvedValue({ id: 'comment-new', createdAt: now });
 
     const result = await service.create(
       'moment-1',

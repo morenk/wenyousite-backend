@@ -79,7 +79,6 @@ export class PostsService {
       include: { thread: true },
     });
     if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
-
     // 校验主题帖访问权限（私密帖非参与人在此被拦截）
     await this.threadAccess.assertAccessible(subthread.threadId, userId);
 
@@ -199,6 +198,8 @@ export class PostsService {
               authorUsername: createdPost.author.username,
               occurredAt: new Date().toISOString(),
               threadId: subthread.threadId,
+              threadOwnerId: lockedSubthread.thread.ownerId,
+              threadVisibility: lockedSubthread.thread.visibility,
               subthreadId: subthread.id,
               subthreadTitle: lockedSubthread.title,
               parentPostId: dto.parentPostId ?? null,

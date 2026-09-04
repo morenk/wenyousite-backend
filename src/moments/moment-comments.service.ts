@@ -374,7 +374,7 @@ export class MomentCommentsService {
             mediaId,
             stickerAssetId,
           },
-          select: { id: true },
+          select: { id: true, createdAt: true },
         });
         if (mediaId) await this.mediaReferences.reconcileMediaIds(tx, [mediaId]);
         if (stickerAssetId) await this.stickers.recordUsage(viewer.id, stickerAssetId, tx);
@@ -383,23 +383,23 @@ export class MomentCommentsService {
           data: { commentCount: { increment: 1 } },
         });
         if (updated.count === 0) throw momentNotFound('动态不存在');
-        if (recipientId !== viewer.id) {
-          await this.outbox.enqueue(tx, {
-            eventType: 'moment.comment.created',
-            aggregateType: 'MomentComment',
-            aggregateId: comment.id,
-            eventKey: `moment-comment-created:${comment.id}`,
-            payload: {
-              commentId: comment.id,
-              momentId,
-              momentTitle: lockedMoment.title,
-              actorId: viewer.id,
-              actorUsername: viewer.username ?? '有人',
-              recipientId,
-              isReply: Boolean(replyTarget),
-            },
-          });
-        }
+        await this.outbox.enqueue(tx, {
+          eventType: 'moment.comment.created',
+          aggregateType: 'MomentComment',
+          aggregateId: comment.id,
+          eventKey: `moment-comment-created:${comment.id}`,
+          payload: {
+            commentId: comment.id,
+            momentId,
+            momentTitle: lockedMoment.title,
+            actorId: viewer.id,
+            actorUsername: viewer.username ?? '有人',
+            recipientId,
+            isReply: Boolean(replyTarget),
+            momentAuthorId: lockedMoment.authorId,
+            occurredAt: comment.createdAt.toISOString(),
+          },
+        });
         const row = await tx.momentComment.findUniqueOrThrow({
           where: { id: comment.id },
           select: commentSelect,

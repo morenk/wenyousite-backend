@@ -28,6 +28,59 @@ function buildService() {
 }
 
 describe('EconomyService', () => {
+  it('签到照常发放温油，但日活经验已领取时记录 0', async () => {
+    const { service, prisma, progression } = buildService();
+    const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([]),
+      user: {
+        findUnique: jest.fn().mockResolvedValue({ experience: 10, level: 1, deletedAt: null }),
+      },
+      wallet: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'wallet-1',
+          balance: 5n,
+          receivedTipTotal: 0n,
+          receivedTipCount: 0,
+        }),
+        update: jest.fn().mockResolvedValue({
+          balance: 7n,
+          receivedTipTotal: 0n,
+          receivedTipCount: 0,
+        }),
+      },
+      dailyCheckIn: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(undefined),
+      },
+      walletTransaction: {
+        create: jest.fn().mockResolvedValue({ id: 'wallet-transaction-1' }),
+      },
+    };
+    prisma.$transaction.mockImplementation(
+      async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx),
+    );
+    progression.grantInTransaction.mockResolvedValue({
+      granted: false,
+      delta: 0,
+      previousLevel: 1,
+      progression: {
+        level: 1,
+        experience: 10,
+        currentLevelExperience: 0,
+        nextLevelExperience: 50,
+      },
+    });
+
+    await expect(service.checkIn('user-1')).resolves.toMatchObject({
+      claimedNow: true,
+      experienceAwarded: 0,
+      balance: 7n,
+    });
+    expect(tx.dailyCheckIn.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ experienceAwarded: 0 }),
+    });
+  });
+
   it.each(['0', '1', '-2', '2.5', 'abc', '9223372036854775808'])(
     '拒绝非法打赏金额 %s',
     async (amount) => {

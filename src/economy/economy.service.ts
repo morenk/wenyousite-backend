@@ -106,6 +106,13 @@ export class EconomyService {
           dateKey,
         },
       });
+      const experience = await this.progression.grantInTransaction(tx, {
+        userId,
+        type: 'DAILY_CHECK_IN',
+        idempotencyKey: `experience:daily-check-in:${userId}:${dateKey}`,
+        sourceType: 'DailyCheckIn',
+        sourceId: transaction.id,
+      });
       await tx.dailyCheckIn.create({
         data: {
           userId,
@@ -113,15 +120,8 @@ export class EconomyService {
           walletTransactionId: transaction.id,
           dateKey,
           rewardAmount,
-          experienceAwarded: 2,
+          experienceAwarded: experience.delta,
         },
-      });
-      const experience = await this.progression.grantInTransaction(tx, {
-        userId,
-        type: 'DAILY_CHECK_IN',
-        idempotencyKey: `experience:daily-check-in:${userId}:${dateKey}`,
-        sourceType: 'DailyCheckIn',
-        sourceId: transaction.id,
       });
 
       return {
@@ -529,6 +529,7 @@ export class EconomyService {
                 grossAmount: amount.toString(),
                 recipientAmount: recipientAmount.toString(),
                 platformAmount: platformAmount.toString(),
+                occurredAt: transaction.createdAt.toISOString(),
                 threadTipTotal: updatedThread?.tipTotal.toString() ?? null,
                 momentTipTotal: updatedMoment?.tipTotal.toString() ?? null,
               },
