@@ -17,6 +17,7 @@ import { activeSanctionWhere } from '../access/account-status';
 import { mediaVariantUrls } from '../media/media-response.mapper';
 import { notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
+import { visibleUserWhere } from '../access/block-visibility.where';
 import { mediaPurposeAllowed } from '../media/media-policy';
 
 const profileCoverMediaSelect = {
@@ -171,7 +172,7 @@ export class UsersService {
       where: { id },
       select: {
         ...userSelectPrivate,
-        _count: { select: { following: true, followers: true } },
+        _count: { select: { following: { where: { following: visibleUserWhere(id) } }, followers: { where: { follower: visibleUserWhere(id) } } } },
       },
     });
     if (!user) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
@@ -196,10 +197,10 @@ export class UsersService {
     }
 
     const user = await this.prisma.user.findUnique({
-      where: { id },
+      where: { id, ...visibleUserWhere(viewerId) },
       select: {
         ...userSelectPublic(),
-        _count: { select: { following: true, followers: true } },
+        _count: { select: { following: { where: { following: visibleUserWhere(viewerId) } }, followers: { where: { follower: visibleUserWhere(viewerId) } } } },
       },
     });
     if (!user) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');

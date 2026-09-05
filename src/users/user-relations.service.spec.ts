@@ -14,7 +14,8 @@ describe('UserRelationsService', () => {
       deleteMany: jest.fn(),
       findMany: jest.fn(),
     },
-    userBlock: { findMany: jest.fn(), upsert: jest.fn(), deleteMany: jest.fn() },
+    userBlock: {
+      findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn(), upsert: jest.fn(), deleteMany: jest.fn() },
     directConversation: {
       findUnique: jest.fn(),
       updateMany: jest.fn(),
@@ -70,12 +71,12 @@ describe('UserRelationsService', () => {
     prisma.userFollow.findMany.mockResolvedValue([{ id: 'f1' }]);
     await service.userFollowing('target');
     expect(prisma.userFollow.findMany).toHaveBeenCalledWith({
-      where: { followerId: 'target' },
+      where: { followerId: 'target', following: {} },
       include: { following: { select: publicUserSummarySelect } },
     });
   });
 
-  it('拉黑时拒绝待处理私聊请求并删除首条消息', async () => {
+  it('拉黑保留待处理私聊请求与首条消息', async () => {
     prisma.directConversation.findUnique.mockResolvedValue({ id: 'c1', status: 'PENDING' });
     prisma.directConversation.updateMany.mockResolvedValue({ count: 1 });
     prisma.directMessage.deleteMany.mockResolvedValue({ count: 1 });
@@ -83,13 +84,8 @@ describe('UserRelationsService', () => {
     await expect(service.block('actor', 'target')).resolves.toEqual({ message: '已拉黑' });
 
     expect(prisma.userBlock.upsert).toHaveBeenCalled();
-    expect(prisma.directConversation.updateMany).toHaveBeenCalledWith({
-      where: { id: 'c1', status: 'PENDING' },
-      data: { status: 'DECLINED', lastMessageAt: null },
-    });
-    expect(prisma.directMessage.deleteMany).toHaveBeenCalledWith({
-      where: { conversationId: 'c1' },
-    });
+    expect(prisma.directConversation.updateMany).not.toHaveBeenCalled();
+    expect(prisma.directMessage.deleteMany).not.toHaveBeenCalled();
   });
 
   it('拉黑与接受请求并发时不覆盖已接受会话，也不删除历史消息', async () => {
@@ -98,10 +94,7 @@ describe('UserRelationsService', () => {
 
     await service.block('actor', 'target');
 
-    expect(prisma.directConversation.updateMany).toHaveBeenCalledWith({
-      where: { id: 'c1', status: 'PENDING' },
-      data: { status: 'DECLINED', lastMessageAt: null },
-    });
+    expect(prisma.directConversation.updateMany).not.toHaveBeenCalled();
     expect(prisma.directMessage.deleteMany).not.toHaveBeenCalled();
   });
 });

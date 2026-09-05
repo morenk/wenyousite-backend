@@ -1,3 +1,4 @@
+import { assertInteractionAllowed, lockInteractionUsers } from '../access/block-visibility.where';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { BusinessException } from '../common/exceptions/business.exception';
@@ -43,6 +44,7 @@ export class MomentAccessService {
     id: string,
     viewerId: string,
     additionalUserIds: string[] = [],
+    interaction = true,
   ) {
     const target = await tx.moment.findUnique({
       where: { id },
@@ -55,10 +57,11 @@ export class MomentAccessService {
         HttpStatus.NOT_FOUND,
       );
     }
-    await this.lockUsers(tx, [viewerId, target.authorId, ...additionalUserIds]);
+    if (interaction) await assertInteractionAllowed(tx, viewerId, [target.authorId, ...additionalUserIds]);
+    else await this.lockUsers(tx, [viewerId, target.authorId]);
     await this.assertActiveUser(tx, viewerId);
     await tx.$queryRaw`SELECT "id" FROM "moments" WHERE "id" = ${id} FOR UPDATE`;
-    return this.assertVisible(id, viewerId, tx);
+    return this.assertVisible(id, interaction ? viewerId : undefined, tx);
   }
 
   assertCanAddInteraction(moment: VisibleMoment) {
@@ -91,12 +94,6 @@ export class MomentAccessService {
   }
 
   async lockUsers(tx: Prisma.TransactionClient, userIds: string[]) {
-    const ids = [...new Set(userIds)].sort();
-    if (ids.length === 0) return;
-    await tx.$queryRaw(Prisma.sql`
-      SELECT "id" FROM "users"
-      WHERE "id" IN (${Prisma.join(ids)})
-      ORDER BY "id" FOR UPDATE
-    `);
+    await lockInteractionUsers(tx, userIds);
   }
 }

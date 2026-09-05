@@ -1,3 +1,4 @@
+import { visibleUserWhere, visibleThreadOwnerWhere } from '../access/block-visibility.where';
 import { Injectable } from '@nestjs/common';
 import { ContentRemovalSource, NotificationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -161,14 +162,37 @@ export class NotificationsService {
   constructor(private prisma: PrismaService) {}
 
   /** 历史列表保留删除目标，但只允许仍有权获知对应私密主题的用户读取。 */
-  private historyWhere(
+  private async historyWhere(
     userId: string,
     extra: Prisma.NotificationWhereInput = {},
-  ): Prisma.NotificationWhereInput {
+  ): Promise<Prisma.NotificationWhereInput> {
+    // 聚合点赞的历史文案包含多个姓名；整条隐藏，避免在分页后删项或改写历史。
+    const hiddenAggregates = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT n.id FROM notifications n
+      WHERE n.user_id = ${userId} AND n.type = 'like' AND EXISTS (
+        SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(n.payload->'likers') = 'array'
+          THEN n.payload->'likers' ELSE '[]'::jsonb END) liker
+        JOIN user_blocks b ON
+          (b.blocker_id = ${userId} AND b.blocked_id = liker->>'userId') OR
+          (b.blocked_id = ${userId} AND b.blocker_id = liker->>'userId')
+      )
+    `);
+    const user = visibleUserWhere(userId);
+    const owner = visibleThreadOwnerWhere(userId);
     return {
       userId,
       AND: [
         extra,
+        { id: { notIn: hiddenAggregates.map((row) => row.id) } },
+        { OR: [{ fromUserId: null }, { fromUser: user }] },
+        { OR: [{ threadId: null }, { thread: owner }] },
+        { OR: [{ postId: null }, { post: { author: user, thread: owner,
+          OR: [{ parentPostId: null }, { parentPost: { author: user } }],
+        } }] },
+        { OR: [{ momentId: null }, { moment: { author: user } }] },
+        { OR: [{ momentCommentId: null }, { momentComment: { author: user,
+          OR: [{ parentCommentId: null }, { parentComment: { author: user } }],
+        } }] },
         {
           OR: [
             { threadId: null, postId: null },
@@ -199,13 +223,13 @@ export class NotificationsService {
   }
 
   /** 只有当前仍可导航的目标（以及真正无目标的系统通知）可以计入未读或被标回未读。 */
-  private unreadEligibleWhere(
+  private async unreadEligibleWhere(
     userId: string,
     extra: Prisma.NotificationWhereInput = {},
-  ): Prisma.NotificationWhereInput {
+  ): Promise<Prisma.NotificationWhereInput> {
     return {
       AND: [
-        this.historyWhere(userId, extra),
+        await this.historyWhere(userId, extra),
         {
           OR: [
             {
@@ -264,7 +288,7 @@ export class NotificationsService {
   /** 获取用户通知列表；删除目标保留为不可跳转、已读的历史记录。 */
   async findAll(userId: string, cursor?: string, limit = 20, types?: string[]) {
     const take = Math.min(limit, 50);
-    const where = this.historyWhere(userId);
+    const where = await this.historyWhere(userId);
     if (types && types.length > 0) {
       const aliases = types.flatMap((type): NotificationType[] => {
         if (type === 'new_post') return ['new_post', 'new_floor', 'subthread_created'];
@@ -396,7 +420,7 @@ export class NotificationsService {
 
   async unreadCount(userId: string) {
     return this.prisma.notification.count({
-      where: this.unreadEligibleWhere(userId, { isRead: false }),
+      where: await this.unreadEligibleWhere(userId, { isRead: false }),
     });
   }
 
@@ -406,14 +430,14 @@ export class NotificationsService {
 
   async setReadStatus(id: string, userId: string, isRead: boolean) {
     return this.prisma.notification.updateMany({
-      where: isRead ? this.historyWhere(userId, { id }) : this.unreadEligibleWhere(userId, { id }),
+      where: isRead ? await this.historyWhere(userId, { id }) : await this.unreadEligibleWhere(userId, { id }),
       data: { isRead },
     });
   }
 
   async markAllAsRead(userId: string) {
     return this.prisma.notification.updateMany({
-      where: this.historyWhere(userId, { isRead: false }),
+      where: await this.historyWhere(userId, { isRead: false }),
       data: { isRead: true },
     });
   }

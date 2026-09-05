@@ -16,7 +16,7 @@ describe('UsersFollowController', () => {
 
     await expect(controller.userFollowing('u1')).resolves.toEqual([{ id: 'f1' }]);
     await expect(controller.userFollowers('u1')).resolves.toEqual([{ id: 'f2' }]);
-    expect(relations.userFollowing).toHaveBeenCalledWith('u1');
-    expect(relations.userFollowers).toHaveBeenCalledWith('u1');
+    expect(relations.userFollowing).toHaveBeenCalledWith('u1', undefined);
+    expect(relations.userFollowers).toHaveBeenCalledWith('u1', undefined);
   });
 });

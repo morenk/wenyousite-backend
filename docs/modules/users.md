@@ -105,12 +105,13 @@
 - 关注通过联合唯一键 + `createMany(skipDuplicates)` 幂等写入，仅在本次创建关系成功时写 Outbox
 - 关注自己返回 "不能关注自己" 消息，不执行数据库操作
 - 关注成功后由 `UserRelationEventsListener` 双向过滤拉黑并发送 follow 通知；队列失败由 Outbox 退避重试
-- 拉黑使用 upsert 保证幂等，拉黑自己返回提示消息
+- 拉黑使用 upsert 保证幂等，拉黑自己返回提示消息。拉黑、解除与互动写入共用按 ID 排序的用户行锁，提交后不能被并发互动绕过。
+- 双向拉黑时双方资料直达 404，内容和关系列表在分页前互相过滤；历史不物理删除，双方均解除后恢复。匿名公开访问和第三方查看不受影响；拉黑列表保留解除入口。
 - 用户搜索返回最多 10 条结果，按用户名字母序排列，排除已注销用户
 - 公开收藏 (`GET /users/:id/bookmarks`)：受 `showBookmarks` 控制，关闭时返回 404；未发布帖不显示；私密帖仅对其参与人可见；本人始终可见；Cursor 分页。响应复用首页完整主题帖卡片，但不暴露收藏记录或收藏夹 ID
 - 参与帖子 (`GET /users/:id/played-threads`)：只有被帖子管理者授予玩家身份（`playerMarked=true`）才算参与，仅回复过而生成的候选成员关系不计入。列表始终排除自己创建的帖（`ownerId = targetId`），按加入时间倒序并使用 Cursor 分页。本人可用 `visibility=PUBLIC|PRIVATE` 分类查看已获玩家身份的公开帖或私密帖；他人查看时只返回 PUBLIC 帖，并受 `showPlayerBadges` 控制。非本人请求 PRIVATE 分类固定返回空列表。响应复用首页完整主题帖卡片
 - 创建帖子 (`GET /users/:id/created-threads`)：无隐私开关，由帖本身 visibility 控制——本人可见全部已发布帖（含 PRIVATE），他人仅见 PUBLIC 帖；按创建时间倒序排列；Cursor 分页。响应复用首页完整主题帖卡片
-- 我的协作主题 (`GET /users/me/collaborated-threads`)：只读取当前用户 `COLLABORATOR` 成员关系，排除 OWNER、PARTICIPANT、草稿和已删除主题；PUBLIC/PRIVATE 均按成员资格可读。按 `updatedAt DESC, id DESC` 复合游标分页且不缓存，任命或撤销在下一次查询立即生效；双向拉黑不隐藏主题
+- 我的协作主题 (`GET /users/me/collaborated-threads`)：只读取当前用户 `COLLABORATOR` 成员关系，排除 OWNER、PARTICIPANT、草稿和已删除主题；PUBLIC/PRIVATE 均按成员资格可读。按 `updatedAt DESC, id DESC` 复合游标分页且不缓存，任命或撤销在下一次查询立即生效；双向拉黑隐藏楼主主题
 - 活动汇总 (`GET /users/:id/activity-summary`)：动态数过滤删除内容与当前查看者的双向拉黑关系；创建/参与主题数与对应列表采用相同的已发布、未删除、PUBLIC/PRIVATE 范围；参与数排除自建帖。`showPlayerBadges` 或 `showRecentReplies` 对他人关闭时，对应计数返回 `null` 且不执行受保护统计；本人始终可见。
 - 最近动态 (`GET /users/:id/recent-replies`)：受 `showRecentReplies` 控制，关闭时返回 404；他人只看到 PUBLIC 帖，本人可看到自己在已发布 PUBLIC/PRIVATE 帖中的记录。仅返回 `kind=FLOOR` 的楼层/楼中楼回复，排除默认正文 `BODY`；固定返回最近 10 条不分页。每条含 `preview`（Markdown 剥离后的纯文本截断，使用 `truncateMarkdown`）和 `parentPostId`（为 null 则为楼层回复，非 null 则为楼中楼）
 

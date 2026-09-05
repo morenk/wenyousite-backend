@@ -1,3 +1,4 @@
+import { visibleUserWhere } from '../access/block-visibility.where';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -12,6 +13,10 @@ import {
   mapDirectConversation,
   mapDirectMessage,
 } from './direct-message-mapper';
+
+function visibleConversationWhere(userId: string) {
+  return { firstUser: visibleUserWhere(userId), secondUser: visibleUserWhere(userId) };
+}
 
 @Injectable()
 export class DirectMessageQueryService {
@@ -34,6 +39,7 @@ export class DirectMessageQueryService {
     const conversations = await this.prisma.directConversation.findMany({
       where: {
         ...statusFilter,
+        ...visibleConversationWhere(userId),
         participants: { some: participantFilter },
       },
       orderBy: [{ lastMessageAt: 'desc' }, { id: 'desc' }],
@@ -45,13 +51,7 @@ export class DirectMessageQueryService {
 
     const hasMore = conversations.length > take;
     if (hasMore) conversations.pop();
-    const blockedIds = await this.loadBlockedOtherUserIds(userId, conversations);
-    const items = conversations.map((conversation) => {
-      const otherId = conversation.firstUserId === userId
-        ? conversation.secondUserId
-        : conversation.firstUserId;
-      return mapDirectConversation(conversation, userId, blockedIds.has(otherId));
-    });
+    const items = conversations.map((conversation) => mapDirectConversation(conversation, userId, false));
 
     return paginate(items, {
       cursor: items.at(-1)?.id ?? null,
@@ -61,16 +61,12 @@ export class DirectMessageQueryService {
 
   async findById(id: string, userId: string) {
     const conversation = await this.prisma.directConversation.findFirst({
-      where: { id, participants: { some: { userId } } },
+      where: { id, ...visibleConversationWhere(userId), participants: { some: { userId } } },
       include: directConversationInclude(userId),
     });
     if (!conversation) throw this.conversationNotFound();
 
-    const otherId = conversation.firstUserId === userId
-      ? conversation.secondUserId
-      : conversation.firstUserId;
-    const blocked = await this.hasBlock(userId, otherId);
-    return mapDirectConversation(conversation, userId, blocked);
+    return mapDirectConversation(conversation, userId, false);
   }
 
   async findByOtherUser(userId: string, otherUserId: string) {
@@ -82,33 +78,32 @@ export class DirectMessageQueryService {
       );
     }
     const target = await this.prisma.user.findUnique({
-      where: { id: otherUserId, deletedAt: null },
+      where: { id: otherUserId, deletedAt: null, ...visibleUserWhere(userId) },
       select: { id: true },
     });
     if (!target) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
 
     const pair = canonicalDirectUserPair(userId, otherUserId);
     const conversation = await this.prisma.directConversation.findUnique({
-      where: { firstUserId_secondUserId: pair },
+      where: { firstUserId_secondUserId: pair, ...visibleConversationWhere(userId) },
       include: directConversationInclude(userId),
     });
-    const blocked = await this.hasBlock(userId, otherUserId);
     if (!conversation) {
       return {
-        contactState: blocked ? 'UNAVAILABLE' : 'NEW',
-        canInitiate: !blocked,
+        contactState: 'NEW',
+        canInitiate: true,
         conversation: null,
       };
     }
 
-    const mapped = mapDirectConversation(conversation, userId, blocked);
-    const canInitiate = !blocked && (
+    const mapped = mapDirectConversation(conversation, userId, false);
+    const canInitiate = (
       conversation.status === 'ACCEPTED'
       || conversation.status === 'CANCELED'
       || (conversation.status === 'DECLINED' && conversation.recipientId === userId)
     );
     return {
-      contactState: blocked ? 'UNAVAILABLE' : conversation.status,
+      contactState: conversation.status,
       canInitiate,
       conversation: mapped,
     };
@@ -157,7 +152,7 @@ export class DirectMessageQueryService {
       : {};
     const ascending = Boolean(query.after);
     const messages = await this.prisma.directMessage.findMany({
-      where: { conversationId, ...boundary },
+      where: { conversationId, conversation: visibleConversationWhere(userId), ...boundary },
       orderBy: [
         { createdAt: ascending ? 'asc' : 'desc' },
         { id: ascending ? 'asc' : 'desc' },
@@ -183,11 +178,11 @@ export class DirectMessageQueryService {
         where: {
           recipientId: userId,
           readAt: null,
-          conversation: { status: 'ACCEPTED' },
+          conversation: { status: 'ACCEPTED', ...visibleConversationWhere(userId) },
         },
       }),
       this.prisma.directConversation.count({
-        where: { status: 'PENDING', recipientId: userId },
+        where: { status: 'PENDING', recipientId: userId, ...visibleConversationWhere(userId) },
       }),
     ]);
     return {
@@ -201,7 +196,7 @@ export class DirectMessageQueryService {
     const message = await this.prisma.directMessage.findFirst({
       where: {
         id: messageId,
-        conversation: { participants: { some: { userId } } },
+        conversation: { participants: { some: { userId } }, ...visibleConversationWhere(userId) },
       },
       select: directMessageSelect,
     });
@@ -211,7 +206,7 @@ export class DirectMessageQueryService {
 
   async assertParticipant(conversationId: string, userId: string) {
     const participant = await this.prisma.directConversationParticipant.findUnique({
-      where: { conversationId_userId: { conversationId, userId } },
+      where: { conversationId_userId: { conversationId, userId }, conversation: visibleConversationWhere(userId) },
       select: { id: true },
     });
     if (!participant) throw this.conversationNotFound();
@@ -221,41 +216,4 @@ export class DirectMessageQueryService {
     return notFound(ErrorCode.DIRECT_CONVERSATION_NOT_FOUND, '私聊会话不存在');
   }
 
-  private async hasBlock(userId: string, otherUserId: string) {
-    const block = await this.prisma.userBlock.findFirst({
-      where: {
-        OR: [
-          { blockerId: userId, blockedId: otherUserId },
-          { blockerId: otherUserId, blockedId: userId },
-        ],
-      },
-      select: { id: true },
-    });
-    return Boolean(block);
-  }
-
-  private async loadBlockedOtherUserIds(
-    userId: string,
-    conversations: Array<{ firstUserId: string; secondUserId: string }>,
-  ) {
-    const otherIds = conversations.map((conversation) =>
-      conversation.firstUserId === userId
-        ? conversation.secondUserId
-        : conversation.firstUserId,
-    );
-    if (otherIds.length === 0) return new Set<string>();
-
-    const blocks = await this.prisma.userBlock.findMany({
-      where: {
-        OR: [
-          { blockerId: userId, blockedId: { in: otherIds } },
-          { blockedId: userId, blockerId: { in: otherIds } },
-        ],
-      },
-      select: { blockerId: true, blockedId: true },
-    });
-    return new Set(blocks.map((block) =>
-      block.blockerId === userId ? block.blockedId : block.blockerId,
-    ));
-  }
 }

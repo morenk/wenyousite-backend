@@ -1,5 +1,6 @@
 /** Prisma 查询辅助：消除软删除过滤、子贴/楼层计数等重复模式 */
 
+import { visiblePostWhere, visibleUserWhere } from '../access/block-visibility.where';
 import type { PrismaClient } from '@prisma/client';
 import { publicUserSummarySelect } from './user-summary';
 
@@ -7,13 +8,13 @@ import { publicUserSummarySelect } from './user-summary';
 export const notDeleted = { deletedAt: null } as const;
 
 /** 子贴查询中内联的楼层计数（排除已删楼层；正文 kind=BODY 不占楼层号，不计入） */
-export const countNonDeletedPosts = () => ({
-  _count: { select: { posts: { where: { ...notDeleted, kind: 'FLOOR' as const } } } },
+export const countNonDeletedPosts = (viewerId?: string) => ({
+  _count: { select: { posts: { where: { ...visiblePostWhere(viewerId), kind: 'FLOOR' as const } } } },
 });
 
 /** 子贴查询中内联的楼中楼计数（排除已删回复） */
-export const countNonDeletedReplies = () => ({
-  _count: { select: { replies: { where: notDeleted } } },
+export const countNonDeletedReplies = (viewerId?: string) => ({
+  _count: { select: { replies: { where: visiblePostWhere(viewerId) } } },
 });
 
 /** 结果顺序不承载正文位置语义；客户端按 nodeId 映射到正文节点。 */
@@ -22,14 +23,14 @@ export const includeDiceRolls = () => ({
 });
 
 /** 主题帖 include: 非删子贴列表，按 sortOrder 升序，含楼层计数与正文（kind=BODY）回填 */
-export const includeSubthreads = (select?: Record<string, boolean>) => ({
+export const includeSubthreads = (viewerId?: string) => ({
   subthreads: {
     where: notDeleted,
     orderBy: { sortOrder: 'asc' as const },
     include: {
-      ...countNonDeletedPosts(),
+      ...countNonDeletedPosts(viewerId),
       posts: {
-        where: { kind: 'BODY' as const, ...notDeleted },
+        where: { kind: 'BODY' as const, ...visiblePostWhere(viewerId) },
         take: 1,
         orderBy: { createdAt: 'asc' as const },
         select: {
@@ -39,7 +40,6 @@ export const includeSubthreads = (select?: Record<string, boolean>) => ({
           diceRolls: { orderBy: { createdAt: 'asc' as const } },
         },
       },
-      ...(select ? { select } : {}),
     },
   },
 });
@@ -56,11 +56,11 @@ export function mapSubthreadBody<T extends { posts?: unknown[] | null }>(subthre
 export const authorSelect = publicUserSummarySelect;
 
 /** 计数用户和帖子总数（帖子只计楼层，正文不占楼层号） */
-export const countMembersAndPosts = () => ({
+export const countMembersAndPosts = (viewerId?: string) => ({
   _count: {
     select: {
-      members: true,
-      posts: { where: { kind: 'FLOOR' as const, ...notDeleted } },
+      members: { where: { user: visibleUserWhere(viewerId) } },
+      posts: { where: { kind: 'FLOOR' as const, ...visiblePostWhere(viewerId) } },
     },
   },
 });
@@ -70,12 +70,13 @@ export const countMembersAndPosts = () => ({
 export async function attachPlayerCounts(
   prisma: Pick<PrismaClient, 'threadMember'>,
   threads: { id: string; _count?: Record<string, number> }[],
+  viewerId?: string,
 ) {
   const ids = threads.map((t) => t.id);
   if (ids.length === 0) return;
   const rows = await prisma.threadMember.groupBy({
     by: ['threadId'],
-    where: { threadId: { in: ids }, playerMarked: true },
+    where: { threadId: { in: ids }, playerMarked: true, user: visibleUserWhere(viewerId) },
     _count: true,
   });
   const countMap = new Map(rows.map((r) => [r.threadId, r._count]));

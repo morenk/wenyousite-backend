@@ -1,3 +1,4 @@
+import { visibleUserWhere } from '../access/block-visibility.where';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -87,7 +88,7 @@ describe('DirectMessageQueryService', () => {
     service = new DirectMessageQueryService(prisma as unknown as PrismaService);
   });
 
-  it('请求箱按接收方过滤、执行游标分页并标记双向拉黑', async () => {
+  it('请求箱在数据库分页前过滤双向拉黑', async () => {
     prisma.directConversation.findMany.mockResolvedValue([
       conversation(),
       conversation({ id: 'conversation-extra' }),
@@ -105,6 +106,7 @@ describe('DirectMessageQueryService', () => {
     expect(prisma.directConversation.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: {
         status: 'PENDING',
+        firstUser: visibleUserWhere('user-1'), secondUser: visibleUserWhere('user-1'),
         recipientId: 'user-1',
         participants: { some: { userId: 'user-1', archivedAt: null } },
       },
@@ -115,7 +117,7 @@ describe('DirectMessageQueryService', () => {
     expect(result.pagination).toEqual({ cursor: 'conversation-1', hasMore: true });
     expect(result.items[0]).toEqual(expect.objectContaining({
       id: 'conversation-1',
-      isBlocked: true,
+      isBlocked: false,
       canSend: false,
     }));
   });
@@ -145,22 +147,14 @@ describe('DirectMessageQueryService', () => {
     expect(prisma.userBlock.findFirst).not.toHaveBeenCalled();
   });
 
-  it('按 ID 查询时根据双向拉黑关闭发送能力', async () => {
-    prisma.directConversation.findFirst.mockResolvedValue(conversation({ status: 'ACCEPTED' }));
-    prisma.userBlock.findFirst.mockResolvedValue({ id: 'block-1' });
-
-    await expect(service.findById('conversation-1', 'user-1')).resolves.toEqual(
-      expect.objectContaining({ isBlocked: true, canSend: false }),
-    );
-    expect(prisma.userBlock.findFirst).toHaveBeenCalledWith({
-      where: {
-        OR: [
-          { blockerId: 'user-1', blockedId: 'user-2' },
-          { blockerId: 'user-2', blockedId: 'user-1' },
-        ],
-      },
-      select: { id: true },
+  it('按 ID 查询时在关系条件中排除双向拉黑并返回 404', async () => {
+    prisma.directConversation.findFirst.mockResolvedValue(null);
+    await expect(service.findById('conversation-1', 'user-1')).rejects.toMatchObject({
+      errorCode: ErrorCode.DIRECT_CONVERSATION_NOT_FOUND,
     });
+    expect(prisma.directConversation.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'conversation-1', firstUser: visibleUserWhere('user-1'), secondUser: visibleUserWhere('user-1'), participants: { some: { userId: 'user-1' } } },
+    }));
   });
 
   it('拒绝查询与自己的私聊且不访问数据库', async () => {
@@ -178,7 +172,7 @@ describe('DirectMessageQueryService', () => {
     });
   });
 
-  it('无既有会话时区分可发起和被拉黑状态', async () => {
+  it('无既有会话时允许发起，拉黑目标返回 404', async () => {
     prisma.user.findUnique.mockResolvedValue({ id: 'user-2' });
     prisma.directConversation.findUnique.mockResolvedValue(null);
 
@@ -188,12 +182,8 @@ describe('DirectMessageQueryService', () => {
       conversation: null,
     });
 
-    prisma.userBlock.findFirst.mockResolvedValue({ id: 'block-1' });
-    await expect(service.findByOtherUser('user-1', 'user-2')).resolves.toEqual({
-      contactState: 'UNAVAILABLE',
-      canInitiate: false,
-      conversation: null,
-    });
+    prisma.user.findUnique.mockResolvedValue(null);
+    await expect(service.findByOtherUser('user-1', 'user-2')).rejects.toMatchObject({ errorCode: ErrorCode.USER_NOT_FOUND });
   });
 
   it('接收方可以重新发起已拒绝的既有会话', async () => {
@@ -257,6 +247,7 @@ describe('DirectMessageQueryService', () => {
     expect(prisma.directMessage.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: {
         conversationId: 'conversation-1',
+        conversation: { firstUser: visibleUserWhere('user-1'), secondUser: visibleUserWhere('user-1') },
         OR: [
           { createdAt: { lt: anchorTime } },
           { createdAt: anchorTime, id: { lt: 'message-anchor' } },

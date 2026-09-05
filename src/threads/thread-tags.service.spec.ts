@@ -5,18 +5,20 @@ import { ThreadTagsService } from './thread-tags.service';
 
 describe('ThreadTagsService', () => {
   const prisma = {
+    $transaction: jest.fn(),
     threadTopicTag: {
       findMany: jest.fn(),
       upsert: jest.fn(),
       deleteMany: jest.fn(),
     },
   };
-  const tags = { findOrCreate: jest.fn() };
-  const access = { assertAccessible: jest.fn(), assertCanManage: jest.fn() };
+  const tags = { findOrCreate: jest.fn(), invalidateCache: jest.fn() };
+  const access = { lockInteraction: jest.fn(), assertAccessible: jest.fn(), assertCanManage: jest.fn() };
   let service: ThreadTagsService;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    prisma.$transaction.mockImplementation(async (fn) => fn(prisma));
     access.assertAccessible.mockResolvedValue(undefined);
     access.assertCanManage.mockResolvedValue(undefined);
     service = new ThreadTagsService(
@@ -54,12 +56,19 @@ describe('ThreadTagsService', () => {
 
     await expect(service.add('thread-1', 'RPG', 'owner-1')).resolves.toBe(tag);
     expect(access.assertCanManage).toHaveBeenCalledWith('thread-1', 'owner-1');
-    expect(tags.findOrCreate).toHaveBeenCalledWith(['RPG']);
+    expect(tags.findOrCreate).toHaveBeenCalledWith(['RPG'], prisma);
     expect(prisma.threadTopicTag.upsert).toHaveBeenCalledWith({
       where: { threadId_tagId: { threadId: 'thread-1', tagId: 'tag-1' } },
       create: { threadId: 'thread-1', tagId: 'tag-1' },
       update: {},
     });
+  });
+
+  it('事务内拉黑检查失败不创建标签或关联', async () => {
+    access.lockInteraction.mockRejectedValueOnce(new Error('blocked'));
+    await expect(service.add('thread-1', 'RPG', 'collaborator')).rejects.toThrow('blocked');
+    expect(tags.findOrCreate).not.toHaveBeenCalled();
+    expect(prisma.threadTopicTag.upsert).not.toHaveBeenCalled();
   });
 
   it('校验管理权限后删除标签关联', async () => {

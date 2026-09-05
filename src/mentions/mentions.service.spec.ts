@@ -6,6 +6,7 @@ import { BlockFilterService } from '../access/block-filter.service';
 
 const mockPrisma = {
   $transaction: jest.fn(),
+  $queryRaw: jest.fn().mockResolvedValue([]),
   user: {
     findMany: jest.fn(),
   },
@@ -250,7 +251,8 @@ describe('MentionsService', () => {
       expect.objectContaining({ where: { postId: 'p1' } }),
     );
     expect(mockPrisma.$transaction).not.toHaveBeenCalled();
-    expect(transactionClient.threadMember.findMany).not.toHaveBeenCalled();
+    expect(transactionClient.threadMember.findMany).toHaveBeenCalledWith({ where: { threadId: 't1', playerMarked: true }, select: { userId: true } });
+    expect(transactionClient.$queryRaw).toHaveBeenCalled();
   });
 
   it('缺少 threadId 时不应清空提及快照', async () => {

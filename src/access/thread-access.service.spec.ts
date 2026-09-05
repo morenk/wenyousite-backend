@@ -3,6 +3,8 @@ import type { PrismaService } from '../prisma/prisma.service';
 import { ErrorCode } from '../common/exceptions/error-codes';
 
 const prisma = {
+  userBlock: { findFirst: jest.fn().mockResolvedValue(null) },
+  user: { findMany: jest.fn(async ({ where }: { where: { id: { in: string[] } } }) => where.id.in.map((id) => ({ id }))) },
   thread: { findUnique: jest.fn() },
   threadMember: { findUnique: jest.fn() },
 };

@@ -1096,21 +1096,12 @@ test(sCollaboration, '协作者三种策略均可发言，任命通知 Outbox �
   assert(count === 1, `任命 Outbox 重放后通知应仍为一条，实际 ${count}`);
 });
 
-test(sCollaboration, '任一方向拉黑均保持主题可读，但三种策略楼层/回复全部拒绝', async () => {
+test(sCollaboration, '任一方向拉黑均隐藏主题，并拒绝三种策略楼层/回复', async () => {
   const assertBlockedRelation = async (label: string) => {
     const list = await peerApi.get('/users/me/collaborated-threads?limit=20');
-    assert(
-      list.data.some((item: { id: string }) => item.id === threadId),
-      `${label}不应隐藏协作主题`,
-    );
-    const detail = await peerApi.get(`/threads/${threadId}`);
-    for (const id of [subthreadId, collaboratorOnlySubthreadId, playersOnlySubthreadId]) {
-      const item = detail.data.subthreads.find((candidate: { id: string }) => candidate.id === id);
-      assert(
-        item.postingCapability.denialReason === 'BLOCKED_RELATION',
-        `${label}应优先投影 BLOCKED_RELATION`,
-      );
-    }
+    assert(!list.data.some((item: { id: string }) => item.id === threadId), `${label}应隐藏协作主题`);
+    const detail = await peerApi.expectStatus(`/threads/${threadId}`, 'GET');
+    assert(detail.status === 404, `${label}详情应为 404`);
     await assertPostingMatrix(peerApi, label, {
       PARTICIPANTS: { status: 403 },
       COLLABORATORS: { status: 403 },

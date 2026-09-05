@@ -1,5 +1,6 @@
 import {
   Controller,
+  HttpCode,
   Get,
   Post,
   Patch,
@@ -129,6 +130,7 @@ export class ThreadsController {
   }
 
   @Post(':id/export')
+  @HttpCode(200)
   @Auth()
   @Throttle({ default: { limit: 2, ttl: 60000 } })
   @ApiBearerAuth()

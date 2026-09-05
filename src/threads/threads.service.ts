@@ -1,3 +1,4 @@
+import { MentionsService } from '../mentions/mentions.service';
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ContentRemovalSource, Prisma } from '@prisma/client';
@@ -54,6 +55,7 @@ export class ThreadsService {
     private reactions: ThreadReactionService,
     private invites: ThreadInviteService,
     private postingPolicy: PostingPolicyService,
+    private mentions: MentionsService,
   ) {}
   /** 创建主题帖草稿：事务内创建 Thread + Owner + 默认子贴 + 可选子贴正文，一次请求完成 */
   async create(dto: CreateThreadDto, userId: string) {
@@ -147,9 +149,9 @@ export class ThreadsService {
       include: {
         owner: { select: authorSelect },
         categoryDefinition: { select: threadCategoryInfoSelect },
-        ...includeSubthreads(),
+        ...includeSubthreads(userId),
         topicTags: { include: { tag: true } },
-        ...countMembersAndPosts(),
+        ...countMembersAndPosts(userId),
       },
     });
     if (thread) {
@@ -157,7 +159,7 @@ export class ThreadsService {
         ...thread,
         subthreads: mapSubthreadBody(thread.subthreads),
       });
-      await attachPlayerCounts(this.prisma, [response]);
+      await attachPlayerCounts(this.prisma, [response], userId);
       return this.postingPolicy.attachToThread(response, userId, {
         role: 'OWNER',
         playerMarked: true,
@@ -220,17 +222,20 @@ export class ThreadsService {
 
     const updated = await (
       published === true
-        ? this.publishThreadTransaction(id, version, data)
-        : this.prisma.thread.update({
+        ? this.publishThreadTransaction(id, version, data, userId)
+        : this.prisma.$transaction(async (tx) => {
+            await this.threadAccess.lockInteraction(tx, id, userId);
+            return tx.thread.update({
             where: { id, version, ...notDeleted },
             data: updateData,
             include: {
               owner: { select: authorSelect },
               categoryDefinition: { select: threadCategoryInfoSelect },
-              ...includeSubthreads(),
+              ...includeSubthreads(userId),
               topicTags: { include: { tag: true } },
-              ...countMembersAndPosts(),
+              ...countMembersAndPosts(userId),
             },
+          });
           })
     ).catch((err) => {
       if (err?.code === 'P2025')
@@ -246,7 +251,7 @@ export class ThreadsService {
       ...updated,
       subthreads: mapSubthreadBody(updated.subthreads),
     });
-    await attachPlayerCounts(this.prisma, [response]);
+    await attachPlayerCounts(this.prisma, [response], userId);
 
     // 缓存失效事件 + ZSET 维护
     if (published === true) {
@@ -329,8 +334,11 @@ export class ThreadsService {
     id: string,
     version: number,
     data: Pick<UpdateThreadDto, 'title' | 'category' | 'status' | 'visibility'>,
+    userId: string,
   ) {
     return this.prisma.$transaction(async (tx) => {
+      const content = await tx.post.findMany({ where: { threadId: id, deletedAt: null }, select: { content: true } });
+      await this.mentions.lockContentInteraction(tx, id, userId, content.map((post) => post.content).join('\n'));
       await tx.$queryRaw`SELECT id FROM threads WHERE id = ${id} FOR UPDATE`;
       const thread = await tx.thread.findUnique({
         where: { id, ...notDeleted },
@@ -409,9 +417,9 @@ export class ThreadsService {
         include: {
           owner: { select: authorSelect },
           categoryDefinition: { select: threadCategoryInfoSelect },
-          ...includeSubthreads(),
+          ...includeSubthreads(userId),
           topicTags: { include: { tag: true } },
-          ...countMembersAndPosts(),
+          ...countMembersAndPosts(userId),
         },
       });
 

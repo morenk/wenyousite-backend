@@ -14,6 +14,7 @@ function visibleMoment(deletedAt: Date | null = null) {
 
 function createContext() {
   const tx = {
+    userBlock: { findFirst: jest.fn().mockResolvedValue(null) },
     moment: {
       findUnique: jest.fn().mockResolvedValue({ authorId: 'author-1' }),
       findFirst: jest.fn().mockResolvedValue(visibleMoment()),
@@ -22,6 +23,7 @@ function createContext() {
     $queryRaw: jest.fn().mockResolvedValue([]),
   };
   const prisma = {
+    userBlock: { findFirst: jest.fn().mockResolvedValue(null) },
     moment: { findFirst: jest.fn() },
   };
   return {

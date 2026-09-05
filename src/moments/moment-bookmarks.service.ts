@@ -1,3 +1,4 @@
+import { visibleUserWhere } from '../access/block-visibility.where';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { DEFAULT_BOOKMARK_FOLDER_NAME } from '../bookmarks/bookmark-folder.constants';
@@ -64,7 +65,7 @@ export class MomentBookmarksService {
 
   async set(momentId: string, viewer: Viewer, active: boolean, folderId?: string) {
     return this.prisma.$transaction(async (tx) => {
-      const moment = await this.access.lockVisible(tx, momentId, viewer.id);
+      const moment = await this.access.lockVisible(tx, momentId, viewer.id, [], active);
       if (active) {
         const existing = await tx.momentBookmark.findUnique({
           where: { momentId_userId: { momentId, userId: viewer.id } },
@@ -153,7 +154,7 @@ export class MomentBookmarksService {
 
   async listPublic(ownerId: string, viewerId?: string, cursor?: string, limit = 20) {
     const owner = await this.prisma.user.findUnique({
-      where: { id: ownerId, deletedAt: null },
+      where: { id: ownerId, deletedAt: null, ...visibleUserWhere(viewerId) },
       select: { id: true, showBookmarks: true },
     });
     if (!owner) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');

@@ -1,3 +1,4 @@
+import { visibleThreadOwnerWhere, visibleUserWhere, assertInteractionAllowed } from '../access/block-visibility.where';
 import { Injectable } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { forbidden, notFound } from '../common/exceptions/business.exception';
@@ -31,7 +32,7 @@ export class ThreadInviteService {
 
   async preview(token: string, userId?: string) {
     const invite = await this.prisma.threadInvite.findUnique({
-      where: { token },
+      where: { token, thread: visibleThreadOwnerWhere(userId) },
       include: {
         thread: {
           select: {
@@ -57,7 +58,7 @@ export class ThreadInviteService {
     }
 
     const [memberCount, existingMember] = await Promise.all([
-      this.prisma.threadMember.count({ where: { threadId: invite.threadId } }),
+      this.prisma.threadMember.count({ where: { threadId: invite.threadId, user: visibleUserWhere(userId) } }),
       userId
         ? this.prisma.threadMember.findUnique({
             where: { threadId_userId: { threadId: invite.threadId, userId } },
@@ -88,7 +89,7 @@ export class ThreadInviteService {
     const invite = await this.prisma.threadInvite.findUnique({
       where: { token },
       include: {
-        thread: { select: { id: true, visibility: true, published: true, deletedAt: true } },
+        thread: { select: { id: true, ownerId: true, visibility: true, published: true, deletedAt: true } },
       },
     });
     if (!invite || invite.thread.deletedAt) {
@@ -98,7 +99,9 @@ export class ThreadInviteService {
       throw notFound(ErrorCode.INVITE_INVALID, '邀请链接无效或已失效');
     }
 
-    return this.prisma.threadMember.upsert({
+    return this.prisma.$transaction(async (tx) => {
+      await assertInteractionAllowed(tx, userId, [invite.thread.ownerId]);
+      return tx.threadMember.upsert({
       where: { threadId_userId: { threadId: invite.threadId, userId } },
       create: { threadId: invite.threadId, userId, role: 'PARTICIPANT' },
       update: {},
@@ -106,6 +109,7 @@ export class ThreadInviteService {
         thread: { select: { id: true, title: true } },
         user: { select: authorSelect },
       },
+      });
     });
   }
 

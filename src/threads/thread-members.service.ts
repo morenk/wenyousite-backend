@@ -1,3 +1,4 @@
+import { visibleUserWhere } from '../access/block-visibility.where';
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../access/thread-access.service';
@@ -23,7 +24,7 @@ export class ThreadMembersService {
     await this.threadAccess.assertAccessible(threadId, userId);
 
     return this.prisma.threadMember.findMany({
-      where: { threadId },
+      where: { threadId, user: visibleUserWhere(userId) },
       include: {
         user: { select: publicUserSummarySelect },
       },
@@ -33,7 +34,7 @@ export class ThreadMembersService {
 
   /** 自由加入（任何人）。未发布帖和私密帖禁止自由加入。 */
   async join(threadId: string, userId: string) {
-    await this.threadAccess.assertAccessible(threadId, userId);
+    await this.threadAccess.assertAccessible(threadId, userId, this.prisma, true);
     const thread = await this.prisma.thread.findUnique({
       where: { id: threadId, deletedAt: null },
     });
@@ -55,11 +56,14 @@ export class ThreadMembersService {
       throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
     }
 
-    return this.prisma.threadMember.create({
+    return this.prisma.$transaction(async (tx) => {
+      await this.threadAccess.lockInteraction(tx, threadId, userId);
+      return tx.threadMember.create({
       data: { threadId, userId, role: 'PARTICIPANT' },
       include: {
         user: { select: publicUserSummarySelect },
       },
+      });
     });
   }
 
@@ -82,6 +86,7 @@ export class ThreadMembersService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      await this.threadAccess.lockInteraction(tx, threadId, actorId, [targetUserId]);
       await tx.$queryRaw`SELECT "id" FROM "thread_members" WHERE "thread_id" = ${threadId} AND "user_id" = ${targetUserId} FOR UPDATE`;
       const member = await tx.threadMember.findUnique({
         where: { threadId_userId: { threadId, userId: targetUserId } },
@@ -145,7 +150,6 @@ export class ThreadMembersService {
 
   /** 主动退出：取消自己的玩家标记，从"我参与的"列表移除 */
   async exitMember(threadId: string, userId: string) {
-    await this.threadAccess.assertAccessible(threadId, userId);
     const member = await this.prisma.threadMember.findUnique({
       where: { threadId_userId: { threadId, userId } },
     });

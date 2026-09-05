@@ -1,3 +1,4 @@
+import { visibleThreadOwnerWhere } from '../access/block-visibility.where';
 import { Test, TestingModule } from '@nestjs/testing';
 import { SubscriptionsService } from './subscriptions.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -5,6 +6,7 @@ import { ThreadAccessService } from '../access/thread-access.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 
 const mockPrisma = {
+  $transaction: jest.fn(),
   thread: { findUnique: jest.fn() },
   threadMember: { findUnique: jest.fn() },
   subscription: {
@@ -16,7 +18,7 @@ const mockPrisma = {
   },
 };
 
-const mockThreadAccess = { assertAccessible: jest.fn().mockResolvedValue(undefined) };
+const mockThreadAccess = { lockInteraction: jest.fn().mockResolvedValue(undefined), assertAccessible: jest.fn().mockResolvedValue(undefined) };
 
 describe('SubscriptionsService', () => {
   let service: SubscriptionsService;
@@ -31,6 +33,7 @@ describe('SubscriptionsService', () => {
     }).compile();
     service = module.get<SubscriptionsService>(SubscriptionsService);
     jest.clearAllMocks();
+    mockPrisma.$transaction.mockImplementation((fn: (tx: typeof mockPrisma) => unknown) => fn(mockPrisma));
     mockThreadAccess.assertAccessible.mockResolvedValue(undefined);
     mockPrisma.thread.findUnique.mockResolvedValue({ id: 't1', published: true });
     mockPrisma.threadMember.findUnique.mockResolvedValue(null);
@@ -57,7 +60,7 @@ describe('SubscriptionsService', () => {
       name: '角色扮演',
       isActive: false,
     });
-    expect(mockThreadAccess.assertAccessible).toHaveBeenCalledWith('t1', 'u1');
+    expect(mockThreadAccess.assertAccessible).toHaveBeenCalledWith('t1', 'u1', mockPrisma, true);
     expect(mockPrisma.subscription.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ targetUserId: null }) }),
     );
@@ -135,6 +138,7 @@ describe('SubscriptionsService', () => {
         where: expect.objectContaining({
           userId: 'u1',
           thread: {
+            ...visibleThreadOwnerWhere('u1'),
             published: true,
             deletedAt: null,
             OR: [

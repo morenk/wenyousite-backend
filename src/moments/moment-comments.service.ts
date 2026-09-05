@@ -1,3 +1,4 @@
+import { visibleUserWhere } from '../access/block-visibility.where';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ContentRemovalSource, MediaPurpose, Prisma } from '@prisma/client';
 import { paginate } from '../common/dto/paginated-result';
@@ -32,7 +33,7 @@ function momentNotFound(message: string) {
   return notFound(ErrorCode.MOMENT_NOT_FOUND, message);
 }
 
-const commentSelect = {
+const commentSelect = (viewerId?: string) => ({
   id: true,
   momentId: true,
   authorId: true,
@@ -63,11 +64,11 @@ const commentSelect = {
     },
   },
   parentCommentId: true,
-  replyToComment: { select: { id: true, author: { select: publicUserSummarySelect } } },
+  replyToComment: { where: { author: visibleUserWhere(viewerId) }, select: { id: true, author: { select: publicUserSummarySelect } } },
   deletedAt: true,
   removalSource: true,
   createdAt: true,
-} satisfies Prisma.MomentCommentSelect;
+} satisfies Prisma.MomentCommentSelect);
 
 @Injectable()
 export class MomentCommentsService {
@@ -88,13 +89,12 @@ export class MomentCommentsService {
     authorId?: string,
   ) {
     const moment = await this.access.assertVisible(momentId, viewer?.id);
-    const excludedAuthors = await this.excludedAuthorIds(viewer?.id);
     if (cursor) await this.assertCursor(cursor, momentId, true);
     const take = Math.min(limit, MAX_PAGE_SIZE);
     const direction = order === ReplyOrder.NEWEST ? 'desc' : 'asc';
     const visibleReplyWhere = {
       deletedAt: null,
-      ...(excludedAuthors.length ? { authorId: { notIn: excludedAuthors } } : {}),
+      author: visibleUserWhere(viewer?.id),
       ...(authorId ? { authorId } : {}),
     } satisfies Prisma.MomentCommentWhereInput;
     const rows = await this.prisma.momentComment.findMany({
@@ -105,7 +105,7 @@ export class MomentCommentsService {
           deletedAt: { not: null },
           removalSource: ContentRemovalSource.ADMIN,
         },
-        ...(excludedAuthors.length ? { authorId: { notIn: excludedAuthors } } : {}),
+        author: visibleUserWhere(viewer?.id),
         AND: [
           {
             OR: [
@@ -114,7 +114,7 @@ export class MomentCommentsService {
                 replies: {
                   some: {
                     deletedAt: null,
-                    ...(excludedAuthors.length ? { authorId: { notIn: excludedAuthors } } : {}),
+                    author: visibleUserWhere(viewer?.id),
                   },
                 },
               },
@@ -134,13 +134,13 @@ export class MomentCommentsService {
       skip: cursor ? 1 : 0,
       take: take + 1,
       select: {
-        ...commentSelect,
+        ...commentSelect(viewer?.id),
         // 主评论的阅读方向不应改变同一回复串内部从早到晚的对话语义。
         replies: {
           where: visibleReplyWhere,
           orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
           take: 3,
-          select: commentSelect,
+          select: commentSelect(viewer?.id),
         },
         _count: {
           select: {
@@ -175,28 +175,27 @@ export class MomentCommentsService {
   ) {
     const moment = await this.access.assertVisible(momentId, viewer?.id);
     const root = await this.prisma.momentComment.findFirst({
-      where: { id: rootCommentId, momentId, parentCommentId: null },
+      where: { id: rootCommentId, momentId, parentCommentId: null, author: visibleUserWhere(viewer?.id) },
       select: { id: true, deletedAt: true, removalSource: true },
     });
     if (!root || (root.deletedAt && root.removalSource === ContentRemovalSource.ADMIN)) {
       throw momentNotFound('主评论不存在');
     }
     if (cursor) await this.assertCursor(cursor, momentId, false, rootCommentId);
-    const excludedAuthors = await this.excludedAuthorIds(viewer?.id);
     const take = Math.min(limit, MAX_PAGE_SIZE);
     const direction = order === ReplyOrder.NEWEST ? 'desc' : 'asc';
     const rows = await this.prisma.momentComment.findMany({
       where: {
         parentCommentId: rootCommentId,
         deletedAt: null,
-        ...(excludedAuthors.length ? { authorId: { notIn: excludedAuthors } } : {}),
+        author: visibleUserWhere(viewer?.id),
         ...(authorId ? { authorId } : {}),
       },
       orderBy: [{ createdAt: direction }, { id: direction }],
       cursor: cursor ? { id: cursor } : undefined,
       skip: cursor ? 1 : 0,
       take: take + 1,
-      select: commentSelect,
+      select: commentSelect(viewer?.id),
     });
     const hasMore = rows.length > take;
     const page = rows.slice(0, take);
@@ -211,22 +210,22 @@ export class MomentCommentsService {
 
   async listAuthors(momentId: string, viewer?: Viewer) {
     await this.access.assertVisible(momentId, viewer?.id);
-    const excludedAuthors = await this.excludedAuthorIds(viewer?.id);
     const rows = await this.prisma.momentComment.findMany({
       where: {
         momentId,
         deletedAt: null,
         OR: [
           { parentCommentId: null },
-          { parentComment: { deletedAt: null } },
+          { parentComment: { deletedAt: null, author: visibleUserWhere(viewer?.id) } },
           {
             parentComment: {
               deletedAt: { not: null },
               removalSource: { not: ContentRemovalSource.ADMIN },
+              author: visibleUserWhere(viewer?.id),
             },
           },
         ],
-        ...(excludedAuthors.length ? { authorId: { notIn: excludedAuthors } } : {}),
+        author: visibleUserWhere(viewer?.id),
       },
       distinct: ['authorId'],
       orderBy: { authorId: 'asc' },
@@ -243,10 +242,7 @@ export class MomentCommentsService {
 
   async findContext(momentId: string, commentId: string, viewer?: Viewer) {
     const moment = await this.access.assertVisible(momentId, viewer?.id);
-    const excludedAuthors = await this.excludedAuthorIds(viewer?.id);
-    const visibleAuthorWhere = excludedAuthors.length
-      ? { authorId: { notIn: excludedAuthors } }
-      : {};
+    const visibleAuthorWhere = { author: visibleUserWhere(viewer?.id) };
     const target = await this.prisma.momentComment.findFirst({
       where: {
         id: commentId,
@@ -254,7 +250,7 @@ export class MomentCommentsService {
         deletedAt: null,
         ...visibleAuthorWhere,
       },
-      select: commentSelect,
+      select: commentSelect(viewer?.id),
     });
     if (!target) throw momentNotFound('目标评论不存在或不可见');
 
@@ -267,7 +263,7 @@ export class MomentCommentsService {
             parentCommentId: null,
             ...visibleAuthorWhere,
           },
-          select: commentSelect,
+          select: commentSelect(viewer?.id),
         })
       : target;
     if (!root || (root.deletedAt && root.removalSource === ContentRemovalSource.ADMIN)) {
@@ -298,7 +294,7 @@ export class MomentCommentsService {
     if (mediaId && stickerAssetId) {
       throw badRequest('一条评论只能选择一张图片或一个表情');
     }
-    const moment = await this.access.assertVisible(momentId, viewer.id);
+    const moment = await this.access.assertVisible(momentId);
     const requestHash = hashIdempotencyPayload({
       momentId,
       content,
@@ -323,14 +319,14 @@ export class MomentCommentsService {
         const preliminaryReply = dto.replyToCommentId
           ? await tx.momentComment.findFirst({
               where: { id: dto.replyToCommentId, momentId, deletedAt: null },
-              select: { authorId: true },
+              select: { authorId: true, parentComment: { select: { authorId: true } } },
             })
           : null;
         const lockedMoment = await this.access.lockVisible(
           tx,
           momentId,
           viewer.id,
-          preliminaryReply ? [preliminaryReply.authorId] : [],
+          preliminaryReply ? [preliminaryReply.authorId, ...(preliminaryReply.parentComment ? [preliminaryReply.parentComment.authorId] : [])] : [],
         );
         this.access.assertCanAddInteraction(lockedMoment);
         const replyTarget = dto.replyToCommentId
@@ -402,7 +398,7 @@ export class MomentCommentsService {
         });
         const row = await tx.momentComment.findUniqueOrThrow({
           where: { id: comment.id },
-          select: commentSelect,
+          select: commentSelect(viewer?.id),
         });
         return mapMomentComment(row, viewer, lockedMoment.authorId);
       });
@@ -491,7 +487,7 @@ export class MomentCommentsService {
   private async findMapped(id: string, viewer: Viewer, momentAuthorId: string) {
     const row = await this.prisma.momentComment.findUnique({
       where: { id },
-      select: commentSelect,
+      select: commentSelect(viewer?.id),
     });
     if (!row) throw momentNotFound('评论不存在');
     return mapMomentComment(row, viewer, momentAuthorId);
@@ -514,17 +510,6 @@ export class MomentCommentsService {
         HttpStatus.BAD_REQUEST,
       );
     }
-  }
-
-  private async excludedAuthorIds(viewerId?: string) {
-    if (!viewerId) return [];
-    const rows = await this.prisma.userBlock.findMany({
-      where: { OR: [{ blockerId: viewerId }, { blockedId: viewerId }] },
-      select: { blockerId: true, blockedId: true },
-    });
-    return [
-      ...new Set(rows.map((row) => (row.blockerId === viewerId ? row.blockedId : row.blockerId))),
-    ];
   }
 
   private async assertUsersCanInteract(

@@ -203,7 +203,7 @@ describe('ThreadExportService 资源边界', () => {
     const stickers = { extract: jest.fn().mockReturnValue([]) };
     const service = new ThreadExportService(
       { $transaction: (callback: (value: typeof tx) => unknown) => callback(tx) } as never,
-      { assertCanManage: jest.fn().mockResolvedValue(undefined) } as never,
+      { assertAccessible: jest.fn().mockResolvedValue(undefined), assertCanManage: jest.fn().mockResolvedValue(undefined) } as never,
       storage as never, stickers as never, { get: () => 'https://wenyou.site' } as never,
     );
     return { service, tx, storage, stickers };

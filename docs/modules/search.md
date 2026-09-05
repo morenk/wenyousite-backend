@@ -15,11 +15,11 @@
 
 | 方法 | 路径 | 认证 | 说明 |
 |------|------|------|------|
-| `GET` | `/search/threads?q=&cursor=&limit=` | `@Public()` | 搜索公开主题帖标题，返回完整列表卡片并使用游标分页 |
-| `GET` | `/search/users?q=` | `@Public()` | 搜索未注销用户名，最多 20 条 |
-| `GET` | `/search/posts?q=&cursor=&limit=20` | `@Public()` | 搜索公开楼层与楼中楼正文，游标分页 |
+| `GET` | `/search/threads?q=&cursor=&limit=` | `@OptionalAuth()` | 搜索公开主题帖标题，返回完整列表卡片并使用游标分页 |
+| `GET` | `/search/users?q=` | `@OptionalAuth()` | 搜索未注销用户名，最多 20 条 |
+| `GET` | `/search/posts?q=&cursor=&limit=20` | `@OptionalAuth()` | 搜索公开楼层与楼中楼正文，游标分页 |
 | `GET` | `/threads/:threadId/search/posts?q=&cursor=&limit=20` | `@OptionalAuth()` | 搜索当前主题帖全部子贴中的楼层与楼中楼，游标分页 |
-| `GET` | `/search?q=` | `@Public()` | 旧客户端兼容聚合搜索；单字符不扫描楼层正文 |
+| `GET` | `/search?q=` | `@OptionalAuth()` | 旧客户端兼容聚合搜索；单字符不扫描楼层正文 |
 
 ## 核心业务规则
 
@@ -31,13 +31,16 @@
 - 主题帖搜索的 `coverImages` 只携带默认主贴正文中的第一张普通图片，无图时为空数组；`preview`、状态、标签、默认子贴和统计字段均复用首页主题帖卡片 mapper
 - 新客户端显式传 `limit=20` 分页；省略 `limit` 时最多返回 50 条，保持既有移动端一次性主题帖搜索行为
 - 楼层正文至少需要 2 个 Unicode 字符；限制由服务端执行，短词返回 400，避免低选择度正文扫描
-- 全站楼层只搜索 `kind=FLOOR`，同时过滤已删除子贴以及未发布、已删除或 PRIVATE 主题帖
+- 默认只搜索 `kind=FLOOR`；`includeBody=true` 纳入主贴和全部子贴 BODY。响应必含 `kind`，BODY 与楼中楼的 `floorNumber` 为 null。过滤已删除帖子、父楼层、子贴及未发布、已删除或 PRIVATE 主题帖
 - 楼层每页最多 20 条，按 trigram 相关度、创建时间、ID 依次降序；游标编码三者以保持稳定翻页
 - SQL 窗口函数按 `threadId` 分组，每个主题帖在整个结果集中最多保留 3 条匹配楼层，避免单一长帖霸屏
 - 帖内搜索先调用 `ThreadAccessService.assertAccessible()`：公开帖允许匿名，PRIVATE 帖仅成员可搜，未发布帖仅楼主可搜；无权访问统一返回 404
 - 帖内搜索覆盖主题帖的全部未删除子贴与楼中楼，不使用全站“每帖最多 3 条”限制，但仍保持每页最多 20 条和相同的不透明游标
 - 楼层结果返回 `parentPostId`；客户端可据此让主楼层直达详情页、楼中楼直达独立讨论页，无需先进入主题帖再探测父楼层
 - 兼容聚合端点空关键词返回 `{ users: [], threads: [], posts: [] }`；单字符仍返回用户和主题帖，但 `posts=[]`
+
+- 有身份请求在分页前过滤楼主、作者及父楼层作者的双向拉黑；详情和导出使用同一访问范围。
+- SQL 超时 2 秒后返回可重试 503；十万条真实查询形状的基准和 EXPLAIN 见 [交付记录](../backend-hardening-20260905.md)。
 
 ## 设计决策
 

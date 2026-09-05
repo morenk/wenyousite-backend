@@ -1,4 +1,5 @@
 import { ThreadRankingService } from './thread-ranking.service';
+import { MentionsService } from '../mentions/mentions.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ThreadsService } from './threads.service';
@@ -28,6 +29,7 @@ const mockCategories = {
 };
 
 const mockPrisma = {
+  userBlock: { findFirst: jest.fn().mockResolvedValue(null) },
   $transaction: jest.fn(),
   $executeRaw: jest.fn().mockResolvedValue(1),
   thread: {
@@ -81,7 +83,7 @@ const mockTags = {
   invalidateCache: jest.fn().mockResolvedValue(undefined),
 };
 const mockThreadAccess = {
-  assertAccessible: jest.fn(),
+  lockInteraction: jest.fn().mockResolvedValue(undefined), assertAccessible: jest.fn(),
   assertCanManage: jest.fn().mockResolvedValue({ role: 'OWNER' }),
   assertOwner: jest.fn().mockResolvedValue({ ownerId: 'u1' }),
 };
@@ -120,6 +122,7 @@ describe('ThreadsService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: MentionsService, useValue: { lockContentInteraction: jest.fn().mockResolvedValue(undefined) } },
         ThreadsService,
         ThreadQueryService,
         { provide: ThreadRankingService, useValue: { ensureReady: jest.fn().mockResolvedValue(undefined) } },
@@ -162,6 +165,7 @@ describe('ThreadsService', () => {
       fn({
         $queryRaw: jest.fn(),
         thread: mockPrisma.thread,
+        userBlock: mockPrisma.userBlock,
         threadMember: mockPrisma.threadMember,
         post: mockPrisma.post,
         diceRoll: mockPrisma.diceRoll,
@@ -309,7 +313,7 @@ describe('ThreadsService', () => {
         expect.objectContaining({
           where: expect.objectContaining({
             published: true,
-            owner: { is: { deletedAt: null } },
+            owner: { deletedAt: null },
           }),
         }),
       );
@@ -588,7 +592,7 @@ describe('ThreadsService', () => {
         expect(mockPrisma.thread.findMany).toHaveBeenCalledWith(
           expect.objectContaining({
             where: expect.objectContaining({
-              owner: { is: { deletedAt: null } },
+              owner: { deletedAt: null },
             }),
           }),
         );
@@ -703,7 +707,7 @@ describe('ThreadsService', () => {
       expect(result._count).toMatchObject({ players: 2, members: 5 }); // 候选池总数保留
       expect(mockPrisma.threadMember.groupBy).toHaveBeenCalledWith({
         by: ['threadId'],
-        where: { threadId: { in: ['t1'] }, playerMarked: true },
+        where: { threadId: { in: ['t1'] }, playerMarked: true, user: {} },
         _count: true,
       });
     });
@@ -1264,7 +1268,7 @@ describe('ThreadsService', () => {
         errorCode: ErrorCode.BAD_REQUEST,
       });
 
-      expect(mockThreadAccess.assertAccessible).toHaveBeenCalledWith('t1', 'owner');
+      expect(mockThreadAccess.assertAccessible).toHaveBeenCalledWith('t1', 'owner', mockPrisma, ...(_action === '点赞' ? [true] : [false, true]));
       expect(mockPrisma.$transaction).not.toHaveBeenCalled();
       expect(mockOutbox.enqueue).not.toHaveBeenCalled();
     });

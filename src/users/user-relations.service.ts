@@ -5,7 +5,7 @@ import { publicUserSummarySelect } from '../common/user-summary';
 import { OutboxService } from '../outbox/outbox.service';
 import { notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
-import { Prisma } from '@prisma/client';
+import { assertInteractionAllowed, lockInteractionUsers, visibleUserWhere } from '../access/block-visibility.where';
 
 /** 用户关系用例：关注、粉丝与双向拉黑关系写入和查询。 */
 @Injectable()
@@ -21,6 +21,7 @@ export class UserRelationsService {
 
     const eventId = randomUUID();
     const created = await this.prisma.$transaction(async (tx) => {
+      await assertInteractionAllowed(tx, actor.id, [targetId]);
       const result = await tx.userFollow.createMany({
         data: [{ followerId: actor.id, followingId: targetId }],
         skipDuplicates: true,
@@ -52,35 +53,34 @@ export class UserRelationsService {
     return { message: '已取消关注' };
   }
 
-  following(userId: string) {
+  following(userId: string, viewerId?: string) {
     return this.prisma.userFollow.findMany({
-      where: { followerId: userId },
+      where: { followerId: userId, following: visibleUserWhere(viewerId) },
       include: { following: { select: publicUserSummarySelect } },
     });
   }
 
-  followers(userId: string) {
+  followers(userId: string, viewerId?: string) {
     return this.prisma.userFollow.findMany({
-      where: { followingId: userId },
+      where: { followingId: userId, follower: visibleUserWhere(viewerId) },
       include: { follower: { select: publicUserSummarySelect } },
     });
   }
 
-  async userFollowing(userId: string) {
-    await this.assertUserExists(userId);
-    return this.following(userId);
+  async userFollowing(userId: string, viewerId?: string) {
+    await this.assertUserExists(userId, viewerId);
+    return this.following(userId, viewerId);
   }
 
-  async userFollowers(userId: string) {
-    await this.assertUserExists(userId);
-    return this.followers(userId);
+  async userFollowers(userId: string, viewerId?: string) {
+    await this.assertUserExists(userId, viewerId);
+    return this.followers(userId, viewerId);
   }
 
   async block(userId: string, targetId: string) {
     if (userId === targetId) return { message: '不能拉黑自己' };
-    const [firstUserId, secondUserId] = userId < targetId ? [userId, targetId] : [targetId, userId];
     await this.prisma.$transaction(async (tx) => {
-      await this.lockUsers(tx, [userId, targetId]);
+      await lockInteractionUsers(tx, [userId, targetId]);
       const target = await tx.user.findUnique({
         where: { id: targetId, deletedAt: null },
         select: { id: true },
@@ -91,26 +91,14 @@ export class UserRelationsService {
         create: { blockerId: userId, blockedId: targetId },
         update: {},
       });
-      const pending = await tx.directConversation.findUnique({
-        where: { firstUserId_secondUserId: { firstUserId, secondUserId } },
-        select: { id: true },
-      });
-      if (pending) {
-        const declined = await tx.directConversation.updateMany({
-          where: { id: pending.id, status: 'PENDING' },
-          data: { status: 'DECLINED', lastMessageAt: null },
-        });
-        if (declined.count === 1) {
-          await tx.directMessage.deleteMany({ where: { conversationId: pending.id } });
-        }
-      }
+
     });
     return { message: '已拉黑' };
   }
 
   async unblock(userId: string, targetId: string) {
     await this.prisma.$transaction(async (tx) => {
-      await this.lockUsers(tx, [userId, targetId]);
+      await lockInteractionUsers(tx, [userId, targetId]);
       await tx.userBlock.deleteMany({
         where: { blockerId: userId, blockedId: targetId },
       });
@@ -125,20 +113,12 @@ export class UserRelationsService {
     });
   }
 
-  private async assertUserExists(id: string): Promise<void> {
+  private async assertUserExists(id: string, viewerId?: string): Promise<void> {
     const user = await this.prisma.user.findUnique({
-      where: { id, deletedAt: null },
+      where: { id, deletedAt: null, ...visibleUserWhere(viewerId) },
       select: { id: true },
     });
     if (!user) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
   }
 
-  private async lockUsers(tx: Prisma.TransactionClient, userIds: string[]) {
-    const ids = [...new Set(userIds)].sort();
-    await tx.$queryRaw(Prisma.sql`
-      SELECT "id" FROM "users"
-      WHERE "id" IN (${Prisma.join(ids)})
-      ORDER BY "id" FOR UPDATE
-    `);
-  }
 }

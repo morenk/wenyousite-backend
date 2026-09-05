@@ -3,6 +3,7 @@ import { NotificationsService } from './notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const mockPrisma = {
+  $queryRaw: jest.fn().mockResolvedValue([]),
   notification: {
     findMany: jest.fn(),
     create: jest.fn(),
@@ -48,7 +49,7 @@ describe('NotificationsService', () => {
     expect(call.where.type.in).toEqual(
       expect.arrayContaining(['new_post', 'new_floor', 'subthread_created']),
     );
-    expect(call.where.AND[1].OR).toEqual(
+    expect(call.where.AND.at(-1).OR).toEqual(
       expect.arrayContaining([
         { threadId: null, postId: null },
         {

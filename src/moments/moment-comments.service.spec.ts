@@ -1,3 +1,4 @@
+import { visibleUserWhere } from '../access/block-visibility.where';
 import { HttpStatus } from '@nestjs/common';
 import { MomentCommentsService } from './moment-comments.service';
 import { ReplyOrder } from '../common/dto/reply-query.dto';
@@ -270,7 +271,7 @@ describe('MomentCommentsService', () => {
         where: expect.objectContaining({
           id: 'hidden-comment',
           deletedAt: null,
-          authorId: { notIn: ['blocked-author'] },
+          author: visibleUserWhere('viewer'),
         }),
       }),
     );

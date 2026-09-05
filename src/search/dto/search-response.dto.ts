@@ -48,10 +48,13 @@ class SearchSubthreadReferenceResponseDto {
 }
 
 export class SearchPostResponseDto {
+  @ApiProperty({ enum: ['BODY', 'FLOOR'], description: 'BODY 为正文，FLOOR 为主楼层或楼中楼' })
+  kind: 'BODY' | 'FLOOR';
+
   @ApiProperty({ description: '帖子 ID' })
   id: string;
 
-  @ApiProperty({ type: Number, nullable: true, description: '楼层号；楼中楼为 null' })
+  @ApiProperty({ type: Number, nullable: true, description: '楼层号；正文与楼中楼为 null' })
   floorNumber: number | null;
 
   @ApiProperty({ type: String, nullable: true, description: '父楼层 ID；主楼层为 null' })

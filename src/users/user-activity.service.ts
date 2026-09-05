@@ -1,3 +1,4 @@
+import { visibleUserWhere, visibleThreadOwnerWhere, visiblePostWhere } from '../access/block-visibility.where';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { BookmarksService } from '../bookmarks/bookmarks.service';
@@ -19,10 +20,10 @@ export class UserActivityService {
     private readonly mentions: MentionsService,
   ) {}
 
-  searchUsers(query: string | undefined) {
+  searchUsers(query: string | undefined, viewerId?: string) {
     if (!query) return [];
     return this.prisma.user.findMany({
-      where: { username: { contains: query, mode: 'insensitive' }, deletedAt: null },
+      where: { username: { contains: query, mode: 'insensitive' }, deletedAt: null, ...visibleUserWhere(viewerId) },
       select: { id: true, username: true, avatar: true, level: true },
       take: 10,
       orderBy: { username: 'asc' },
@@ -54,7 +55,7 @@ export class UserActivityService {
     visibility?: 'PUBLIC' | 'PRIVATE';
   }) {
     const target = await this.prisma.user.findUnique({
-      where: { id: input.targetId, deletedAt: null },
+      where: { id: input.targetId, deletedAt: null, ...visibleUserWhere(input.viewerId) },
       select: { id: true, showPlayerBadges: true },
     });
     if (!target) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
@@ -72,7 +73,7 @@ export class UserActivityService {
 
   async createdThreads(targetId: string, viewerId?: string, cursor?: string, limit?: number) {
     const target = await this.prisma.user.findUnique({
-      where: { id: targetId, deletedAt: null },
+      where: { id: targetId, deletedAt: null, ...visibleUserWhere(viewerId) },
       select: { id: true },
     });
     if (!target) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
@@ -85,21 +86,14 @@ export class UserActivityService {
 
   async activitySummary(targetId: string, viewerId?: string) {
     const target = await this.prisma.user.findUnique({
-      where: { id: targetId, deletedAt: null },
+      where: { id: targetId, deletedAt: null, ...visibleUserWhere(viewerId) },
       select: { id: true, showPlayerBadges: true, showRecentReplies: true },
     });
     if (!target) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
 
     const isSelf = targetId === viewerId;
-    const publicVisibility = isSelf ? {} : { visibility: 'PUBLIC' as const };
-    const visibleMomentAuthor = viewerId
-      ? {
-          author: {
-            userBlocks: { none: { blockedId: viewerId } },
-            blockedBy: { none: { blockerId: viewerId } },
-          },
-        }
-      : {};
+    const publicVisibility = { ...visibleThreadOwnerWhere(viewerId), ...(isSelf ? {} : { visibility: 'PUBLIC' as const }) };
+    const visibleMomentAuthor = { author: visibleUserWhere(viewerId) };
 
     const [momentCount, createdThreadCount, playedThreadCount, replyCount] = await Promise.all([
       this.prisma.moment.count({
@@ -132,8 +126,7 @@ export class UserActivityService {
             where: {
               authorId: targetId,
               kind: 'FLOOR',
-              deletedAt: null,
-              subthread: { deletedAt: null },
+              ...visiblePostWhere(viewerId),
               thread: {
                 published: true,
                 deletedAt: null,
@@ -149,7 +142,7 @@ export class UserActivityService {
 
   async recentReplies(targetId: string, viewerId?: string) {
     const target = await this.prisma.user.findUnique({
-      where: { id: targetId, deletedAt: null },
+      where: { id: targetId, deletedAt: null, ...visibleUserWhere(viewerId) },
       select: { id: true, showRecentReplies: true },
     });
     if (!target) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
@@ -162,11 +155,11 @@ export class UserActivityService {
       where: {
         authorId: targetId,
         kind: 'FLOOR',
-        deletedAt: null,
-        subthread: { deletedAt: null },
+        ...visiblePostWhere(viewerId),
         thread: {
           published: true,
           deletedAt: null,
+          ...visibleThreadOwnerWhere(viewerId),
           ...(isSelf ? {} : { visibility: 'PUBLIC' as const }),
         },
       },

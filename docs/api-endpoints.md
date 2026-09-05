@@ -340,11 +340,11 @@
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
 | GET | `/search/moments` | optional | 按标题和纯文本正文搜索公开动态 |
-| GET | `/search/threads` | public | 按标题搜索公开主题帖 |
-| GET | `/search/users` | public | 按用户名搜索未注销用户 |
-| GET | `/search/posts` | public | 按正文搜索公开楼层与楼中楼 |
-| GET | `/search` | public | 兼容聚合搜索（用户名 + 主题帖标题 + 楼层内容） |
-| GET | `/threads/{threadId}/search/posts` | optional | 按正文搜索单个主题帖内的楼层与楼中楼 |
+| GET | `/search/threads` | optional | 按标题搜索公开主题帖 |
+| GET | `/search/users` | optional | 按用户名搜索未注销用户 |
+| GET | `/search/posts` | optional | 搜索公开楼层与楼中楼；includeBody=true 同时搜索主贴和子贴正文 |
+| GET | `/search` | optional | 兼容聚合搜索（用户名 + 主题帖标题 + 楼层内容） |
+| GET | `/threads/{threadId}/search/posts` | optional | 搜索帖内楼层与楼中楼；includeBody=true 同时搜索主贴和子贴正文 |
 
 ## Media
 

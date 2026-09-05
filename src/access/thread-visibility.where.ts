@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import { visibleThreadOwnerWhere } from './block-visibility.where';
 
 /**
  * Database-level visibility filter for published thread collections.
@@ -18,6 +19,7 @@ export function publishedThreadVisibilityWhere(viewerId?: string): Prisma.Thread
   return {
     deletedAt: null,
     published: true,
+    ...visibleThreadOwnerWhere(viewerId),
     OR: [
       { visibility: 'PUBLIC' },
       {

@@ -56,8 +56,8 @@ export class UsersController {
     description: '匹配的用户列表（最多 10 条），含 id/username/avatar',
   })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
-  async search(@Query('q') q: string) {
-    return this.activity.searchUsers(q);
+  async search(@Query('q') q: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.activity.searchUsers(q, user.id);
   }
 
   @Get('mention-candidates')

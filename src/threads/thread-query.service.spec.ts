@@ -1,3 +1,4 @@
+import { visibleThreadOwnerWhere } from '../access/block-visibility.where';
 import { ThreadQueryService } from './thread-query.service';
 
 const cachedThread = {
@@ -17,6 +18,7 @@ const cachedThread = {
 
 describe('ThreadQueryService.findById 当前用户权限投影', () => {
   const prisma = {
+    thread: { findUnique: jest.fn() },
     userBookmark: { findUnique: jest.fn() },
     threadLike: { findUnique: jest.fn() },
     threadMember: { findUnique: jest.fn(), findMany: jest.fn(), groupBy: jest.fn() },
@@ -50,6 +52,7 @@ describe('ThreadQueryService.findById 当前用户权限投影', () => {
     jest.clearAllMocks();
     access.assertAccessible.mockResolvedValue(undefined);
     cache.get.mockResolvedValue(cachedThread);
+    prisma.thread.findUnique.mockResolvedValue(cachedThread);
     redis.hincrbyAtLeast.mockResolvedValue(13);
     prisma.userBookmark.findUnique.mockResolvedValue(null);
     prisma.threadLike.findUnique.mockResolvedValue(null);
@@ -146,7 +149,7 @@ describe('ThreadQueryService.findById 当前用户权限投影', () => {
           where: {
             userId: 'collaborator',
             role: 'COLLABORATOR',
-            thread: { published: true, deletedAt: null },
+            thread: { published: true, deletedAt: null, ...visibleThreadOwnerWhere('collaborator') },
           },
           orderBy: [{ thread: { updatedAt: 'desc' } }, { thread: { id: 'desc' } }],
           take: 21,

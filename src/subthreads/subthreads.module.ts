@@ -1,3 +1,4 @@
+import { MentionsModule } from '../mentions/mentions.module';
 import { Module } from '@nestjs/common';
 import { SubthreadsController } from './subthreads.controller';
 import { SubthreadsService } from './subthreads.service';
@@ -9,7 +10,7 @@ import { DiceModule } from '../dice/dice.module';
 
 /** 子贴模块：CRUD、排序与发帖权限 */
 @Module({
-  imports: [AccessPolicyModule, OutboxModule, StickersModule, MediaReferenceModule, DiceModule],
+  imports: [MentionsModule, AccessPolicyModule, OutboxModule, StickersModule, MediaReferenceModule, DiceModule],
   controllers: [SubthreadsController],
   providers: [SubthreadsService],
   exports: [SubthreadsService],

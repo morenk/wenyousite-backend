@@ -1,3 +1,4 @@
+import { visibleUserWhere } from '../access/block-visibility.where';
 import { Injectable } from '@nestjs/common';
 import { ContentRemovalSource } from '@prisma/client';
 import { ThreadAccessService } from '../access/thread-access.service';
@@ -16,16 +17,19 @@ export class NotificationEligibilityService {
   ) {}
 
   async filterRecipients(job: NotificationJob): Promise<string[]> {
-    const recipients = [...new Set(job.recipients)];
+    let recipients = [...new Set(job.recipients)];
     if (recipients.length === 0) return [];
+    recipients = await this.visibleRecipients(recipients, [job.fromUserId]);
+    if (!recipients.length) return [];
 
     if (job.postId) {
       const post = await this.prisma.post.findUnique({
         where: { id: job.postId },
         select: {
           threadId: true,
+          authorId: true,
           deletedAt: true,
-          parentPost: { select: { deletedAt: true } },
+          parentPost: { select: { deletedAt: true, authorId: true } },
           subthread: { select: { deletedAt: true } },
           thread: { select: { deletedAt: true } },
         },
@@ -40,7 +44,7 @@ export class NotificationEligibilityService {
       ) {
         return [];
       }
-      return this.threadAccess.filterAccessibleUserIds(post.threadId, recipients);
+      return this.threadAccess.filterAccessibleUserIds(post.threadId, await this.visibleRecipients(recipients, [post.authorId, post.parentPost?.authorId]));
     }
 
     if (job.momentCommentId) {
@@ -48,9 +52,10 @@ export class NotificationEligibilityService {
         where: { id: job.momentCommentId },
         select: {
           momentId: true,
+          authorId: true,
           deletedAt: true,
-          moment: { select: { deletedAt: true } },
-          parentComment: { select: { deletedAt: true, removalSource: true } },
+          moment: { select: { deletedAt: true, authorId: true } },
+          parentComment: { select: { deletedAt: true, removalSource: true, authorId: true } },
         },
       });
       if (
@@ -63,15 +68,15 @@ export class NotificationEligibilityService {
       ) {
         return [];
       }
-      return recipients;
+      return this.visibleRecipients(recipients, [comment.authorId, comment.moment.authorId, comment.parentComment?.authorId]);
     }
 
     if (job.momentId) {
       const moment = await this.prisma.moment.findUnique({
         where: { id: job.momentId },
-        select: { deletedAt: true },
+        select: { deletedAt: true, authorId: true },
       });
-      return moment && !moment.deletedAt ? recipients : [];
+      return moment && !moment.deletedAt ? this.visibleRecipients(recipients, [moment.authorId]) : [];
     }
 
     if (job.threadId) {
@@ -79,5 +84,13 @@ export class NotificationEligibilityService {
     }
 
     return recipients;
+  }
+  private async visibleRecipients(recipients: string[], authors: (string | undefined)[]) {
+    const ids = [...new Set(authors.filter((id): id is string => Boolean(id)))];
+    if (!ids.length) return recipients;
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: recipients }, AND: ids.map(visibleUserWhere) }, select: { id: true },
+    });
+    return users.map((user) => user.id);
   }
 }

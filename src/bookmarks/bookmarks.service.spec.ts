@@ -1,9 +1,12 @@
+import { visibleThreadOwnerWhere, visibleUserWhere } from '../access/block-visibility.where';
 import { Test, TestingModule } from '@nestjs/testing';
 import { BookmarksService } from './bookmarks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ErrorCode } from '../common/exceptions/error-codes';
 
 const mockPrisma = {
+  $queryRaw: jest.fn().mockResolvedValue([]),
+  userBlock: { findFirst: jest.fn().mockResolvedValue(null) },
   userBookmark: {
     findMany: jest.fn(),
     findUnique: jest.fn(),
@@ -105,6 +108,7 @@ describe('BookmarksService', () => {
         where: {
           userId: 'u1',
           thread: {
+            ...visibleThreadOwnerWhere('u1'),
             deletedAt: null,
             published: true,
             OR: [
@@ -156,7 +160,7 @@ describe('BookmarksService', () => {
     mockPrisma.user.findUnique.mockResolvedValueOnce(null);
     await expect(service.findByUserId('missing', 'viewer')).rejects.toThrow('用户不存在');
     expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
-      where: { id: 'missing', deletedAt: null },
+      where: { id: 'missing', deletedAt: null, ...visibleUserWhere('viewer') },
       select: { id: true, showBookmarks: true, deletedAt: true },
     });
 
@@ -204,6 +208,7 @@ describe('BookmarksService', () => {
         where: {
           userId: 'target',
           thread: {
+            ...visibleThreadOwnerWhere('viewer'),
             deletedAt: null,
             published: true,
             OR: [
@@ -231,6 +236,7 @@ describe('BookmarksService', () => {
         where: {
           userId: 'target',
           thread: {
+            ...visibleThreadOwnerWhere('target'),
             deletedAt: null,
             published: true,
             OR: [

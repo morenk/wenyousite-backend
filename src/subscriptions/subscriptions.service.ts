@@ -1,3 +1,4 @@
+import { visibleUserWhere } from '../access/block-visibility.where';
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { Prisma, SubscriptionType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -20,7 +21,7 @@ export class SubscriptionsService {
 
   /** 创建订阅 */
   async create(userId: string, threadId: string, type: SubscriptionType, targetUserId?: string) {
-    await this.threadAccess.assertAccessible(threadId, userId);
+    await this.threadAccess.assertAccessible(threadId, userId, this.prisma, true);
     const thread = await this.prisma.thread.findUnique({
       where: { id: threadId, deletedAt: null },
       select: { id: true, published: true },
@@ -66,7 +67,9 @@ export class SubscriptionsService {
     }
 
     try {
-      const subscription = await this.prisma.subscription.create({
+      const subscription = await this.prisma.$transaction(async (tx) => {
+        await this.threadAccess.lockInteraction(tx, threadId, userId, targetUserId ? [targetUserId] : []);
+        return tx.subscription.create({
         data: { userId, threadId, type, targetUserId: normalizedTargetUserId },
         include: {
           thread: {
@@ -78,6 +81,7 @@ export class SubscriptionsService {
             },
           },
         },
+      });
       });
       return { ...subscription, thread: withThreadCategoryInfo(subscription.thread) };
     } catch (error) {
@@ -103,6 +107,7 @@ export class SubscriptionsService {
       where: {
         userId,
         thread: publishedThreadVisibilityWhere(userId),
+        OR: [{ targetUserId: null }, { targetUser: visibleUserWhere(userId) }],
       },
       include: {
         thread: {

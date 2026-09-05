@@ -1,3 +1,4 @@
+import { visiblePostWhere } from '../access/block-visibility.where';
 import { countMembersAndPosts } from './prisma-helpers';
 
 describe('Prisma query helpers', () => {
@@ -5,8 +6,8 @@ describe('Prisma query helpers', () => {
     expect(countMembersAndPosts()).toEqual({
       _count: {
         select: {
-          members: true,
-          posts: { where: { kind: 'FLOOR', deletedAt: null } },
+          members: { where: { user: {} } },
+          posts: { where: { kind: 'FLOOR', ...visiblePostWhere() } },
         },
       },
     });

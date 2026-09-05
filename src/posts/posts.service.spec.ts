@@ -1,3 +1,4 @@
+import { visiblePostWhere } from '../access/block-visibility.where';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PostsService } from './posts.service';
@@ -32,7 +33,7 @@ const mockPrisma = {
     aggregate: jest.fn(),
     count: jest.fn(),
     create: jest.fn(),
-    findMany: jest.fn(),
+    findMany: jest.fn().mockResolvedValue([]),
     update: jest.fn(),
     updateMany: jest.fn(),
     findFirst: jest.fn(),
@@ -44,12 +45,12 @@ const mockPrisma = {
 const mockEventEmitter = { emit: jest.fn() };
 const mockThreadAccess = {
   assertAccessible: jest.fn(),
-  assertCanManage: jest.fn().mockResolvedValue({ role: 'OWNER' }),
+  lockInteraction: jest.fn().mockResolvedValue(undefined), assertCanManage: jest.fn().mockResolvedValue({ role: 'OWNER' }),
 };
 const mockMentions = {
   extractUsernames: jest.fn().mockReturnValue([]),
   parseAndCreate: jest.fn().mockResolvedValue([]),
-  syncMentionsInTransaction: jest.fn().mockResolvedValue([]),
+  lockContentInteraction: jest.fn().mockResolvedValue(undefined), syncMentionsInTransaction: jest.fn().mockResolvedValue([]),
 };
 const mockRedis = {
   hincrby: jest.fn().mockResolvedValue(1),
@@ -1157,7 +1158,7 @@ describe('PostsService', () => {
     expect(mockPrisma.post.findMany).toHaveBeenNthCalledWith(
       3,
       expect.objectContaining({
-        where: { id: { in: ['r1', 'r2'] } },
+        where: { id: { in: ['r1', 'r2'] }, ...visiblePostWhere() },
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       }),
     );

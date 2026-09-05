@@ -6,6 +6,8 @@ import { lockAndValidatePostCreate } from './post-create-guard';
 
 function buildContext() {
   const tx = {
+    thread: { findUnique: jest.fn().mockResolvedValue({ ownerId: 'owner-1' }) },
+    userBlock: { findFirst: jest.fn().mockResolvedValue(null) },
     $queryRaw: jest.fn().mockResolvedValue([]),
     subthread: {
       findUnique: jest.fn().mockResolvedValue({
@@ -22,7 +24,7 @@ function buildContext() {
         playerMarked: false,
       }),
     },
-    post: { findUnique: jest.fn() },
+    post: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
   };
   const threadAccess = { assertAccessible: jest.fn().mockResolvedValue(undefined) };
   const postingPolicy = { assertCanPost: jest.fn().mockResolvedValue(undefined) };

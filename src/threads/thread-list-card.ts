@@ -1,5 +1,6 @@
+import { visiblePostWhere } from '../access/block-visibility.where';
 import { Prisma } from '@prisma/client';
-import { authorSelect, countMembersAndPosts, notDeleted } from '../common/prisma-helpers';
+import { authorSelect, countMembersAndPosts } from '../common/prisma-helpers';
 import { truncateMarkdownToCompactPlainText } from '../common/markdown-truncate';
 import {
   extractMarkdownCoverImages,
@@ -11,7 +12,7 @@ import {
 } from '../taxonomy/thread-category-info';
 
 /** 首页、搜索、收藏和用户主页共用的主题帖卡片查询投影。 */
-export const threadListCardInclude = {
+export const threadListCardIncludeFor = (viewerId?: string) => ({
   owner: { select: authorSelect },
   categoryDefinition: { select: threadCategoryInfoSelect },
   defaultSubthread: {
@@ -20,7 +21,7 @@ export const threadListCardInclude = {
       title: true,
       lastPostAt: true,
       posts: {
-        where: { kind: 'BODY', ...notDeleted },
+        where: { kind: 'BODY', ...visiblePostWhere(viewerId) },
         take: 1,
         orderBy: { createdAt: 'asc' },
         select: { content: true },
@@ -28,8 +29,10 @@ export const threadListCardInclude = {
     },
   },
   topicTags: { include: { tag: true } },
-  ...countMembersAndPosts(),
-} satisfies Prisma.ThreadInclude;
+  ...countMembersAndPosts(viewerId),
+} satisfies Prisma.ThreadInclude);
+
+export const threadListCardInclude = threadListCardIncludeFor();
 
 export type ThreadListCardRow = Prisma.ThreadGetPayload<{
   include: typeof threadListCardInclude;

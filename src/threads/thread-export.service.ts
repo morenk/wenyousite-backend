@@ -1,3 +1,4 @@
+import { visiblePostWhere, visibleThreadOwnerWhere, unblockedUserSql } from '../access/block-visibility.where';
 import { Injectable, HttpException, HttpStatus, PayloadTooLargeException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
@@ -28,7 +29,7 @@ const EXPORT_POST_LIMIT = 10_000;
 const EXPORT_TEXT_BYTES = 16 * 1024 * 1024;
 const EXPORT_MEDIA_BYTES = 64 * 1024 * 1024;
 
-const exportThreadInclude = {
+const exportThreadInclude = (viewerId: string) => ({
   owner: { select: authorSelect },
   categoryDefinition: { select: threadCategoryInfoSelect },
   topicTags: { include: { tag: { select: { name: true } } } },
@@ -37,12 +38,12 @@ const exportThreadInclude = {
     orderBy: { sortOrder: 'asc' as const },
     include: {
       posts: {
-        where: { ...notDeleted, OR: [{ parentPostId: null }, { parentPost: notDeleted }] },
+        where: visiblePostWhere(viewerId),
         orderBy: [{ createdAt: 'asc' as const }, { id: 'asc' as const }],
         include: {
           author: { select: authorSelect },
           diceRolls: { orderBy: { createdAt: 'asc' as const } },
-          replyToPost: { select: { id: true, author: { select: authorSelect } } },
+          replyToPost: { where: visiblePostWhere(viewerId), select: { id: true, author: { select: authorSelect } } },
           mediaAttachments: {
             orderBy: { sortOrder: 'asc' as const },
             include: {
@@ -55,9 +56,9 @@ const exportThreadInclude = {
       },
     },
   },
-} satisfies Prisma.ThreadInclude;
+} satisfies Prisma.ThreadInclude);
 
-type ExportThread = Prisma.ThreadGetPayload<{ include: typeof exportThreadInclude }>;
+type ExportThread = Prisma.ThreadGetPayload<{ include: ReturnType<typeof exportThreadInclude> }>;
 type ExportPost = ExportThread['subthreads'][number]['posts'][number];
 
 export interface ThreadExportOptions {
@@ -396,11 +397,12 @@ export class ThreadExportService {
   ) {}
 
   async createArchive(threadId: string, userId: string, input: ThreadExportDto) {
+    await this.threadAccess.assertAccessible(threadId, userId);
     await this.threadAccess.assertCanManage(threadId, userId);
     if (this.exporting) throw new HttpException('已有档案正在导出，请稍后再试', HttpStatus.TOO_MANY_REQUESTS);
     this.exporting = true;
     try {
-      const result = await this.prepareArchive(threadId, input);
+      const result = await this.prepareArchive(threadId, input, userId);
       const release = () => { this.exporting = false; };
       result.stream.once('end', release).once('close', release).once('error', release);
       return result;
@@ -410,7 +412,7 @@ export class ThreadExportService {
     }
   }
 
-  private async prepareArchive(threadId: string, input: ThreadExportDto) {
+  private async prepareArchive(threadId: string, input: ThreadExportDto, userId: string) {
     const thread = await this.prisma.$transaction(async (tx) => {
       const [size] = await tx.$queryRaw<Array<{ posts: bigint; bytes: bigint }>>(Prisma.sql`
         SELECT count(*) AS posts, COALESCE(sum(octet_length(p.content)), 0)::bigint AS bytes
@@ -418,12 +420,14 @@ export class ThreadExportService {
         LEFT JOIN posts parent ON parent.id = p.parent_post_id
         WHERE p.thread_id = ${threadId} AND p.deleted_at IS NULL AND s.deleted_at IS NULL
           AND (p.parent_post_id IS NULL OR parent.deleted_at IS NULL)
+          ${unblockedUserSql(userId, Prisma.sql`p.author_id`)}
+          ${unblockedUserSql(userId, Prisma.sql`parent.author_id`)}
       `);
       if (size.posts > EXPORT_POST_LIMIT || size.bytes > EXPORT_TEXT_BYTES) {
         throw new PayloadTooLargeException('档案超过 10000 条内容或 16 MiB 正文上限');
       }
       return tx.thread.findUnique({
-        where: { id: threadId, published: true, deletedAt: null }, include: exportThreadInclude,
+        where: { id: threadId, published: true, deletedAt: null, ...visibleThreadOwnerWhere(userId) }, include: exportThreadInclude(userId),
       });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '仅可导出已发布主题帖');

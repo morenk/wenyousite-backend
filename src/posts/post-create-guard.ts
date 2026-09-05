@@ -24,7 +24,7 @@ export async function lockAndValidatePostCreate(
     throw new BusinessException(ErrorCode.BAD_REQUEST, '指定回复目标时必须同时指定父楼层');
   }
   await tx.$queryRaw`SELECT id FROM threads WHERE id = ${threadId} FOR UPDATE`;
-  await threadAccess.assertAccessible(threadId, userId, tx);
+  await threadAccess.assertAccessible(threadId, userId, tx, true);
   const subthread = await tx.subthread.findUnique({
     where: { id: subthreadId, deletedAt: null },
     select: {

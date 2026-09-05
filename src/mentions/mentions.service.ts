@@ -1,3 +1,4 @@
+import { lockInteractionUsers, assertInteractionAllowed } from '../access/block-visibility.where';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../access/thread-access.service';
@@ -29,6 +30,7 @@ interface MentionTokens {
 }
 
 type MentionClient = {
+  $queryRaw: Prisma.TransactionClient['$queryRaw'];
   postMention: Pick<
     Prisma.TransactionClient['postMention'],
     'findMany' | 'deleteMany' | 'createMany'
@@ -51,6 +53,21 @@ export class MentionsService {
     private threadAccess: ThreadAccessService,
     private blockFilter: BlockFilterService,
   ) {}
+
+  /** 在内容锁之前一次锁定全部互动对象；全体提及自动略过拉黑对象。 */
+  async lockContentInteraction(tx: Prisma.TransactionClient, threadId: string, userId: string, content: string, postIds: string[] = []) {
+    const tokens = this.extractMentionTokens(content);
+    const [direct, players, thread, posts] = await Promise.all([
+      this.findDirectUsers(tx, tokens),
+      tokens.allPlayers ? tx.threadMember.findMany({ where: { threadId, playerMarked: true }, select: { userId: true } }) : [],
+      tx.thread.findUnique({ where: { id: threadId }, select: { ownerId: true } }),
+      postIds.length ? tx.post.findMany({ where: { id: { in: postIds } }, select: { authorId: true } }) : [],
+    ]);
+    const targets = [...direct.map((user) => user.id), ...posts.map((post) => post.authorId), ...(thread ? [thread.ownerId] : [])];
+    await lockInteractionUsers(tx, [userId, ...targets, ...players.map((player) => player.userId)]);
+    await assertInteractionAllowed(tx, userId, targets);
+    await this.threadAccess.assertAccessible(threadId, userId, tx, true);
+  }
 
   /** 创建时同步并返回完整提及快照；Outbox 重试不得退化为空收件人。 */
   async parseAndCreate(
@@ -114,6 +131,11 @@ export class MentionsService {
       return [];
     }
 
+    const directUsers = await this.findDirectUsers(client, tokens);
+    const players = tokens.allPlayers ? await client.threadMember.findMany({
+      where: { threadId, playerMarked: true }, select: { userId: true },
+    }) : [];
+    await lockInteractionUsers(client, [excludeUserId, ...directUsers.map((user) => user.id), ...players.map((player) => player.userId)]);
     const blockSets = await this.blockFilter.loadBlockSets(excludeUserId, client);
 
     const existing = (await client.postMention.findMany({
@@ -121,7 +143,6 @@ export class MentionsService {
       include: { mentionedUser: { select: publicUserSummarySelect } },
     })) ?? [];
 
-    const directUsers = await this.findDirectUsers(client, tokens);
     const directCandidates = await this.filterDirectCandidates(
       client,
       directUsers,
@@ -145,7 +166,7 @@ export class MentionsService {
         : await this.findMarkedPlayers(client, threadId, blockSets);
 
       for (const user of groupUsers) {
-        if (user.id === excludeUserId) continue;
+        if (user.id === excludeUserId || blockSets.blockedByUser.has(user.id) || blockSets.blockedByAuthor.has(user.id)) continue;
         desired.set(`${user.id}:ALL_PLAYERS`, {
           userId: user.id,
           source: 'ALL_PLAYERS',

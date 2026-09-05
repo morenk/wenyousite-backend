@@ -51,7 +51,7 @@ export class UsersFollowController {
   @ApiOperation({ summary: '我的关注列表' })
   @ApiOkResponse({ type: UserFollowRecordResponseDto, isArray: true, description: '我的关注用户列表' })
   following(@CurrentUser() user: CurrentUserPayload) {
-    return this.relations.following(user.id);
+    return this.relations.following(user.id, user.id);
   }
 
   @Get('followers')
@@ -60,23 +60,23 @@ export class UsersFollowController {
   @ApiOperation({ summary: '我的粉丝列表' })
   @ApiOkResponse({ type: UserFollowRecordResponseDto, isArray: true, description: '我的粉丝列表' })
   followers(@CurrentUser() user: CurrentUserPayload) {
-    return this.relations.followers(user.id);
+    return this.relations.followers(user.id, user.id);
   }
 
   @Get(':id/following')
   @OptionalAuth()
   @ApiOperation({ summary: '指定用户的关注列表' })
   @ApiOkResponse({ type: UserFollowRecordResponseDto, isArray: true, description: '指定用户的关注列表' })
-  userFollowing(@Param('id') id: string) {
-    return this.relations.userFollowing(id);
+  userFollowing(@Param('id') id: string, @CurrentUser() user?: CurrentUserPayload) {
+    return this.relations.userFollowing(id, user?.id);
   }
 
   @Get(':id/followers')
   @OptionalAuth()
   @ApiOperation({ summary: '指定用户的粉丝列表' })
   @ApiOkResponse({ type: UserFollowRecordResponseDto, isArray: true, description: '指定用户的粉丝列表' })
-  userFollowers(@Param('id') id: string) {
-    return this.relations.userFollowers(id);
+  userFollowers(@Param('id') id: string, @CurrentUser() user?: CurrentUserPayload) {
+    return this.relations.userFollowers(id, user?.id);
   }
 
   @Post('me/block/:id')

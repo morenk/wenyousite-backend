@@ -174,7 +174,7 @@ describe('MomentBookmarksService', () => {
       service.set('moment-1', { id: 'viewer-1' }, true, 'folder-custom'),
     ).resolves.toEqual({ momentId: 'moment-1', count: 4, active: true });
 
-    expect(moments.lockVisible).toHaveBeenCalledWith(tx, 'moment-1', 'viewer-1');
+    expect(moments.lockVisible).toHaveBeenCalledWith(tx, 'moment-1', 'viewer-1', [], true);
     expect(tx.momentBookmark.createMany).toHaveBeenCalledWith({
       data: [{ momentId: 'moment-1', userId: 'viewer-1', folderId: 'folder-custom' }],
       skipDuplicates: true,

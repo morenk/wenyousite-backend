@@ -1,3 +1,4 @@
+import { visiblePostWhere } from '../access/block-visibility.where';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../access/thread-access.service';
 import { ReplyOrder } from '../common/dto/reply-query.dto';
@@ -53,7 +54,7 @@ describe('PostQueryService.findAllBySubthread', () => {
           kind: 'FLOOR',
           parentPostId: null,
           pinnedAt: null,
-          deletedAt: null,
+          ...visiblePostWhere(),
         },
         orderBy: { floorNumber: 'asc' },
         take: 21,
@@ -87,9 +88,7 @@ describe('PostQueryService.findAllBySubthread', () => {
       where: {
         threadId: 'thread-1',
         kind: 'FLOOR',
-        deletedAt: null,
-        subthread: { deletedAt: null },
-        OR: [{ parentPostId: null }, { parentPost: { deletedAt: null } }],
+        ...visiblePostWhere('viewer-user-id'),
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       select: {
@@ -266,7 +265,7 @@ describe('PostQueryService.findAllBySubthread', () => {
     expect(prisma.post.findMany).toHaveBeenNthCalledWith(
       3,
       expect.objectContaining({
-        where: { id: { in: ['reply-other-author'] } },
+        where: { id: { in: ['reply-other-author'] }, ...visiblePostWhere() },
       }),
     );
     expect(result.items[0]).toMatchObject({
@@ -345,7 +344,7 @@ describe('PostQueryService.findAllBySubthread', () => {
         subthreadId: 'subthread-1',
         kind: 'FLOOR',
         parentPostId: null,
-        deletedAt: null,
+        ...visiblePostWhere('viewer-user-id'),
       },
       distinct: ['authorId'],
       select: {
@@ -405,7 +404,7 @@ describe('PostQueryService.findAllBySubthread', () => {
     const result = await service.findReplyAuthors('floor-1', 'viewer-user-id');
 
     expect(prisma.post.findMany).toHaveBeenCalledWith({
-      where: { parentPostId: 'floor-1', deletedAt: null },
+      where: { parentPostId: 'floor-1', ...visiblePostWhere('viewer-user-id') },
       distinct: ['authorId'],
       select: {
         authorId: true,

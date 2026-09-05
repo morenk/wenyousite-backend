@@ -1,5 +1,5 @@
 import { Transform, Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class SearchKeywordQueryDto {
@@ -31,7 +31,7 @@ export class SearchThreadsQueryDto extends SearchKeywordQueryDto {
   limit: number = 50;
 }
 
-export class SearchPostsQueryDto extends SearchKeywordQueryDto {
+export class SearchContentQueryDto extends SearchKeywordQueryDto {
   @ApiPropertyOptional({ description: '上一页返回的不透明游标' })
   @IsOptional()
   @IsString()
@@ -50,4 +50,12 @@ export class SearchPostsQueryDto extends SearchKeywordQueryDto {
   @Min(1)
   @Max(20)
   limit: number = 20;
+}
+
+export class SearchPostsQueryDto extends SearchContentQueryDto {
+  @ApiPropertyOptional({ type: Boolean, default: false, description: '同时搜索主贴与子贴正文；省略时兼容旧客户端，仅返回楼层' })
+  @Transform(({ value }) => value === 'true' ? true : value === 'false' ? false : value)
+  @IsBoolean()
+  @IsOptional()
+  includeBody: boolean = false;
 }

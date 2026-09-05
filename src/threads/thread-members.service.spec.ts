@@ -22,7 +22,7 @@ const mockPrisma = {
 const mockOutbox = { enqueue: jest.fn().mockResolvedValue(undefined) };
 
 const mockThreadAccess = {
-  assertAccessible: jest.fn().mockResolvedValue(undefined),
+  lockInteraction: jest.fn().mockResolvedValue(undefined), assertAccessible: jest.fn().mockResolvedValue(undefined),
   assertCanManage: jest.fn().mockResolvedValue({ role: 'OWNER' }),
 };
 

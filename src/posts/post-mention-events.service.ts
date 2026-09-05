@@ -24,6 +24,10 @@ export class PostMentionEventsService {
     private readonly outbox: OutboxService,
   ) {}
 
+  lockContentInteraction(tx: Prisma.TransactionClient, threadId: string, userId: string, content: string, postIds: string[] = []) {
+    return this.mentions.lockContentInteraction(tx, threadId, userId, content, postIds);
+  }
+
   async syncEditedMentions(tx: Prisma.TransactionClient, input: EditedMentionInput) {
     const mentioned = await this.mentions.syncMentionsInTransaction(
       tx,

@@ -94,6 +94,8 @@ const mockCategories = {
 
 // 最小化的事务模拟函数
 const basicTx = (prisma: ReturnType<typeof createMockPrisma>) => ({
+  userBlock: prisma.userBlock,
+  user: prisma.user,
   $queryRaw: jest.fn(),
   threadMember: {
     findUnique: prisma.threadMember.findUnique,
@@ -105,6 +107,7 @@ const basicTx = (prisma: ReturnType<typeof createMockPrisma>) => ({
   },
   post: {
     findUnique: prisma.post.findUnique,
+    findMany: jest.fn().mockResolvedValue([]),
     aggregate: jest.fn(),
     create: jest.fn(),
     updateMany: jest.fn(),
@@ -488,8 +491,8 @@ describe('发帖全流程集成测试', () => {
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
       prisma.thread.findUnique
         .mockResolvedValueOnce({ visibility: 'PUBLIC', published: false, ownerId: 'u1' }) // assertAccessible
-        .mockResolvedValueOnce({
-          published: false,
+        .mockResolvedValue({
+          ownerId: 'u1', visibility: 'PUBLIC', published: false,
           title: '测试',
           category: 'RPG',
           defaultSubthread: { id: 's1', posts: [{ content: '正文' }] },
@@ -601,8 +604,8 @@ describe('发帖全流程集成测试', () => {
       prisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
       prisma.thread.findUnique
         .mockResolvedValueOnce({ visibility: 'PUBLIC', published: false, ownerId: 'u1' })
-        .mockResolvedValueOnce({
-          published: false,
+        .mockResolvedValue({
+          ownerId: 'u1', visibility: 'PUBLIC', published: false,
           title: '旧标题',
           category: 'DEDUCTION',
           defaultSubthread: { id: 's1', posts: [{ content: '正文' }] },
@@ -804,7 +807,8 @@ describe('发帖全流程集成测试', () => {
       prisma.$transaction.mockImplementation(async (fn: unknown) => {
         const tx = {
           $queryRaw: jest.fn(),
-          thread: { findUnique: jest.fn().mockResolvedValue({ defaultSubthreadId: 'a' }) },
+          userBlock: { findFirst: jest.fn().mockResolvedValue(null) },
+          thread: { findUnique: jest.fn().mockResolvedValue({ ownerId: 'u1', published: true, visibility: 'PUBLIC', defaultSubthreadId: 'a' }) },
           subthread: {
             findMany: prisma.subthread.findMany,
             update: jest.fn(),

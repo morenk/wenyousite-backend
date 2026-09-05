@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { visibleThreadOwnerWhere, visibleUserWhere, assertInteractionAllowed } from './block-visibility.where';
 import { PrismaService } from '../prisma/prisma.service';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { notFound, forbidden } from '../common/exceptions/business.exception';
@@ -14,12 +15,24 @@ export class ThreadAccessService {
     threadId: string,
     userId?: string,
     client: Prisma.TransactionClient | PrismaService = this.prisma,
+    interaction = false,
+    ignoreBlocks = false,
   ) {
     const thread = await client.thread.findUnique({
-      where: { id: threadId, deletedAt: null },
+      where: { id: threadId, deletedAt: null, ...(interaction || ignoreBlocks ? {} : visibleThreadOwnerWhere(userId)) },
       select: { visibility: true, published: true, ownerId: true },
     });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
+
+    if (interaction && userId && thread.ownerId !== userId) {
+      const blocked = await client.userBlock.findFirst({
+        where: { OR: [
+          { blockerId: userId, blockedId: thread.ownerId },
+          { blockerId: thread.ownerId, blockedId: userId },
+        ] }, select: { id: true },
+      });
+      if (blocked) throw forbidden('双方存在拉黑关系，无法互动');
+    }
 
     if (!thread.published) {
       if (!userId || thread.ownerId !== userId) {
@@ -35,6 +48,13 @@ export class ThreadAccessService {
       });
       if (!member) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
     }
+  }
+
+  async lockInteraction(tx: Prisma.TransactionClient, threadId: string, userId: string, targets: string[] = []) {
+    const thread = await tx.thread.findUnique({ where: { id: threadId, deletedAt: null }, select: { ownerId: true } });
+    if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
+    await assertInteractionAllowed(tx, userId, [thread.ownerId, ...targets]);
+    await this.assertAccessible(threadId, userId, tx, true);
   }
 
   /**
@@ -63,15 +83,20 @@ export class ThreadAccessService {
     });
     if (!thread) return [];
     if (!thread.published) return candidates.filter((userId) => userId === thread.ownerId);
-    if (thread.visibility === 'PUBLIC') return candidates;
+    const visibleUsers = await client.user.findMany({
+      where: { id: { in: candidates }, ...visibleUserWhere(thread.ownerId) }, select: { id: true },
+    });
+    const visibleIds = new Set(visibleUsers.map((user) => user.id));
+    const visibleCandidates = candidates.filter((id) => visibleIds.has(id));
+    if (thread.visibility === 'PUBLIC') return visibleCandidates;
 
     const memberIds = new Set(thread.members.map((member) => member.userId));
-    return candidates.filter((userId) => memberIds.has(userId));
+    return visibleCandidates.filter((userId) => memberIds.has(userId));
   }
 
   /** 校验管理权限：OWNER 或 COLLABORATOR，否则 403 */
   async assertCanManage(threadId: string, userId: string) {
-    await this.assertAccessible(threadId, userId);
+    await this.assertAccessible(threadId, userId, this.prisma, true);
     const member = await this.prisma.threadMember.findUnique({
       where: { threadId_userId: { threadId, userId } },
     });

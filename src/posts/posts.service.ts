@@ -80,7 +80,7 @@ export class PostsService {
     });
     if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
     // 校验主题帖访问权限（私密帖非参与人在此被拦截）
-    await this.threadAccess.assertAccessible(subthread.threadId, userId);
+    await this.threadAccess.assertAccessible(subthread.threadId, userId, this.prisma, true);
 
     if (dto.replyToPostId && !dto.parentPostId) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '指定回复目标时必须同时指定父楼层');
@@ -95,7 +95,6 @@ export class PostsService {
     }
     const stickerAssetIds = await this.stickerContent.assertContentAllowed(userId, content);
 
-    // 先查当前参与人状态（未加入时按未参与处理）
     const member = await this.prisma.threadMember.findUnique({
       where: { threadId_userId: { threadId: subthread.threadId, userId } },
     });
@@ -111,6 +110,7 @@ export class PostsService {
     let post;
     try {
       post = await this.prisma.$transaction(async (tx) => {
+        await this.mentionEvents.lockContentInteraction(tx, subthread.threadId, userId, content, [dto.parentPostId, dto.replyToPostId].filter((id): id is string => Boolean(id)));
         const {
           subthread: lockedSubthread,
           member: lockedMember,
@@ -131,7 +131,6 @@ export class PostsService {
         });
 
         let floorNumber: number | null = null;
-
         if (!dto.parentPostId) {
           await tx.$queryRaw`SELECT id FROM subthreads WHERE id = ${subthreadId} FOR UPDATE`;
           const maxFloor = await tx.post.aggregate({
@@ -316,8 +315,8 @@ export class PostsService {
     if (!existing) {
       const post = await this.prisma
         .$transaction(async (tx) => {
-          // All aggregate writers use the thread row as their serialization lock.
-          // Re-read after acquiring it because the optimistic pre-read above can race.
+          await this.mentionEvents.lockContentInteraction(tx, subthread.threadId, userId, normalizedContent);
+          // 与聚合编辑共用主题锁，锁后复核正文创建竞态。
           await tx.$queryRaw`SELECT id FROM threads WHERE id = ${subthread.threadId} FOR UPDATE`;
           const concurrentlyCreated = await tx.post.findFirst({
             where: { subthreadId, kind: 'BODY', ...notDeleted },
@@ -421,6 +420,7 @@ export class PostsService {
     const oldContent = existing.content;
     const updated = await this.prisma
       .$transaction(async (tx) => {
+        await this.mentionEvents.lockContentInteraction(tx, subthread.threadId, userId, normalizedContent, [existing.id]);
         const post = await tx.post.update({
           where: { id: existing.id, version, ...notDeleted },
           data: { content: normalizedContent, version: { increment: 1 } },
@@ -516,6 +516,7 @@ export class PostsService {
     );
     const updated = await this.prisma
       .$transaction(async (tx) => {
+        await this.mentionEvents.lockContentInteraction(tx, postLight.threadId, userId, content);
         const post = await tx.post.update({
           where: { id, version: dto.version, ...notDeleted },
           data: { content, version: { increment: 1 } },
@@ -599,7 +600,6 @@ export class PostsService {
     if (postLight.subthread.deletedAt || postLight.parentPost?.deletedAt) {
       throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
     }
-    await this.threadAccess.assertAccessible(postLight.threadId, userId);
     if (postLight.authorId !== userId) {
       await this.threadAccess.assertCanManage(postLight.threadId, userId);
     }

@@ -1,3 +1,4 @@
+import { visiblePostWhere, visibleThreadOwnerWhere } from '../access/block-visibility.where';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { BookmarksService } from '../bookmarks/bookmarks.service';
 import { MentionsService } from '../mentions/mentions.service';
@@ -153,6 +154,7 @@ describe('UserActivityService', () => {
     expect(prisma.thread.count).toHaveBeenCalledWith({
       where: {
         ownerId: 'target-1',
+        ...visibleThreadOwnerWhere('viewer-1'),
         published: true,
         deletedAt: null,
         visibility: 'PUBLIC',
@@ -207,7 +209,7 @@ describe('UserActivityService', () => {
     await service.activitySummary('target-1', 'target-1');
 
     expect(prisma.thread.count).toHaveBeenCalledWith({
-      where: { ownerId: 'target-1', published: true, deletedAt: null },
+      where: { ownerId: 'target-1', published: true, deletedAt: null, ...visibleThreadOwnerWhere('target-1') },
     });
     expect(prisma.threadMember.count).toHaveBeenCalledWith({
       where: expect.objectContaining({
@@ -259,9 +261,8 @@ describe('UserActivityService', () => {
         where: {
           authorId: 'target-1',
           kind: 'FLOOR',
-          deletedAt: null,
-          subthread: { deletedAt: null },
-          thread: { published: true, deletedAt: null, visibility: 'PUBLIC' },
+          ...visiblePostWhere('viewer-1'),
+          thread: { published: true, deletedAt: null, visibility: 'PUBLIC', ...visibleThreadOwnerWhere('viewer-1') },
         },
         orderBy: { createdAt: 'desc' },
         take: 10,
@@ -277,7 +278,7 @@ describe('UserActivityService', () => {
     expect(prisma.post.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          thread: { published: true, deletedAt: null },
+          thread: { published: true, deletedAt: null, ...visibleThreadOwnerWhere('target-1') },
         }),
       }),
     );

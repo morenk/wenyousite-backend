@@ -89,7 +89,7 @@ export class ThreadAggregateService {
         subthread: { defaultForThread: { is: { id: threadId } } },
         ...notDeleted,
       },
-      select: { content: true },
+      select: { id: true, content: true },
       orderBy: { createdAt: 'asc' },
     });
     const stickerAssetIds = await this.stickerContent.assertContentAllowed(
@@ -100,6 +100,7 @@ export class ThreadAggregateService {
 
     const result = await this.prisma
       .$transaction(async (tx) => {
+        await this.mentions.lockContentInteraction(tx, threadId, userId, content, previousBody ? [previousBody.id] : []);
         await tx.$queryRaw`SELECT id FROM threads WHERE id = ${threadId} FOR UPDATE`;
         const current = await tx.thread.findUnique({
           where: { id: threadId, ...notDeleted },
@@ -334,9 +335,9 @@ export class ThreadAggregateService {
           include: {
             owner: { select: authorSelect },
             categoryDefinition: { select: threadCategoryInfoSelect },
-            ...includeSubthreads(),
+            ...includeSubthreads(userId),
             topicTags: { include: { tag: true } },
-            ...countMembersAndPosts(),
+            ...countMembersAndPosts(userId),
           },
         });
 

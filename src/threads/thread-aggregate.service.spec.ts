@@ -66,7 +66,7 @@ describe('ThreadAggregateService', () => {
     zadd: jest.fn().mockResolvedValue(1),
     hset: jest.fn().mockResolvedValue(1),
   };
-  const mentions = { syncMentionsInTransaction: jest.fn().mockResolvedValue([]) };
+  const mentions = { lockContentInteraction: jest.fn().mockResolvedValue(undefined), syncMentionsInTransaction: jest.fn().mockResolvedValue([]) };
   const tx = {
     $queryRaw: jest.fn().mockResolvedValue([]),
     thread: {

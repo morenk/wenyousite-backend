@@ -1,3 +1,4 @@
+import { visibleUserWhere, visibleThreadOwnerWhere } from '../access/block-visibility.where';
 import { ThreadRankingService } from './thread-ranking.service';
 import { SMART_SCORE_ZSET } from './thread-smart-score';
 import { HttpStatus, Injectable } from '@nestjs/common';
@@ -22,23 +23,22 @@ import {
 } from '../common/prisma-helpers';
 import {
   mapThreadListCard,
-  threadListCardInclude,
+  threadListCardIncludeFor,
   type ThreadListCardRow,
 } from './thread-list-card';
 import { threadCategoryInfoSelect, withThreadCategoryInfo } from '../taxonomy/thread-category-info';
 
 const ZSET_BY_SMART = SMART_SCORE_ZSET;
-const DISCOVERABLE_THREAD_OWNER_WHERE = { is: { deletedAt: null } } as const;
-const threadDetailInclude = {
+const threadDetailInclude = (viewerId?: string) => ({
   owner: { select: authorSelect },
   categoryDefinition: { select: threadCategoryInfoSelect },
-  ...includeSubthreads(),
+  ...includeSubthreads(viewerId),
   topicTags: { include: { tag: true } },
-  ...countMembersAndPosts(),
-} satisfies Prisma.ThreadInclude;
+  ...countMembersAndPosts(viewerId),
+} satisfies Prisma.ThreadInclude);
 
 type PersistedThreadDetail = Prisma.ThreadGetPayload<{
-  include: typeof threadDetailInclude;
+  include: ReturnType<typeof threadDetailInclude>;
 }>;
 
 function toThreadDetail(thread: PersistedThreadDetail) {
@@ -119,7 +119,7 @@ export class ThreadQueryService {
     // 权限状态可能在缓存 TTL 内由 PUBLIC 变为 PRIVATE，必须先实时校验。
     await this.threadAccess.assertAccessible(id, userId);
     const cacheKey = this.cache.buildKey('thread', id);
-    let thread = await this.cache.get<ThreadDetail>(cacheKey);
+    let thread = userId ? null : await this.cache.get<ThreadDetail>(cacheKey);
     const cacheHasCurrentShape = Boolean(thread && 'categoryInfo' in thread);
 
     // 详情缓存只保存公开且已发布的聚合结果；私密帖和草稿始终实时查询。
@@ -130,16 +130,16 @@ export class ThreadQueryService {
       thread.deletedAt
     ) {
       const persistedThread = await this.prisma.thread.findUnique({
-        where: { id, ...notDeleted },
-        include: threadDetailInclude,
+        where: { id, ...notDeleted, ...visibleThreadOwnerWhere(userId) },
+        include: threadDetailInclude(userId),
       });
       if (!persistedThread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
 
       // 把子贴的 posts[0]（kind=BODY）映射回 bodyPost 响应字段
       thread = toThreadDetail(persistedThread);
-      await attachPlayerCounts(this.prisma, [thread]);
+      await attachPlayerCounts(this.prisma, [thread], userId);
 
-      if (thread.published && thread.visibility === 'PUBLIC') {
+      if (!userId && thread.published && thread.visibility === 'PUBLIC') {
         this.cache.set(cacheKey, thread, 30000).catch(() => {});
       }
     }
@@ -226,7 +226,7 @@ export class ThreadQueryService {
       'shape:category-info-compact-preview-v2',
       'policy:active-owner-v1',
     );
-    const cacheableFirstPage = !query.cursor && query.filter !== 'playing';
+    const cacheableFirstPage = !userId && !query.cursor && query.filter !== 'playing';
 
     // 公开首页尝试缓存命中；playing 是用户私有结果，严禁进入共享缓存。
     if (cacheableFirstPage) {
@@ -246,7 +246,7 @@ export class ThreadQueryService {
     const where: Prisma.ThreadWhereInput = {
       ...notDeleted,
       published: true,
-      owner: DISCOVERABLE_THREAD_OWNER_WHERE,
+      owner: { deletedAt: null, ...visibleUserWhere(userId) },
     };
 
     if (query.filter === 'playing') {
@@ -286,13 +286,13 @@ export class ThreadQueryService {
       take: take + 1,
       cursor: query.cursor ? { id: query.cursor } : undefined,
       skip: query.cursor ? 1 : 0,
-      include: threadListCardInclude,
+      include: threadListCardIncludeFor(userId),
     });
 
     const hasMore = threads.length > take;
     if (hasMore) threads.pop();
 
-    await attachPlayerCounts(this.prisma, threads);
+    await attachPlayerCounts(this.prisma, threads, userId);
 
     const items = threads.map(mapThreadListCard);
 
@@ -327,7 +327,7 @@ export class ThreadQueryService {
     const where: Prisma.ThreadWhereInput = {
       ...notDeleted,
       published: true,
-      owner: DISCOVERABLE_THREAD_OWNER_WHERE,
+      owner: { deletedAt: null, ...visibleUserWhere(userId) },
     };
     if (query.filter === 'playing') {
       if (!userId) return paginate([], { cursor: null, hasMore: false });
@@ -358,7 +358,7 @@ export class ThreadQueryService {
         return paginate([], { cursor: null, hasMore: false });
       }
       ids = batch;
-      threads = await this.fetchSmartThreads(ids, where);
+      threads = await this.fetchSmartThreads(ids, where, userId);
       if (threads.length > consumed + take || scanEnd >= zsetSize) break;
       // 过滤损耗大：扩大前缀继续扫描
       scanEnd = scanEnd * 2;
@@ -372,7 +372,7 @@ export class ThreadQueryService {
     const hasMore = threads.length > consumed + take;
     const nextCursor = hasMore ? String(consumed + sliced.length) : null;
 
-    await attachPlayerCounts(this.prisma, sliced);
+    await attachPlayerCounts(this.prisma, sliced, userId);
 
     const items = sliced.map(mapThreadListCard);
 
@@ -380,10 +380,10 @@ export class ThreadQueryService {
   }
 
   /** 按 id 列表查询已发布帖（含 owner/defaultSubthread/topicTags/_count），供智能排序过滤用 */
-  private async fetchSmartThreads(ids: string[], where: Prisma.ThreadWhereInput) {
+  private async fetchSmartThreads(ids: string[], where: Prisma.ThreadWhereInput, userId?: string) {
     return this.prisma.thread.findMany({
       where: { ...where, id: { in: ids } },
-      include: threadListCardInclude,
+      include: threadListCardIncludeFor(userId),
     });
   }
 
@@ -402,7 +402,7 @@ export class ThreadQueryService {
       return paginate([], { cursor: null, hasMore: false });
     }
 
-    const threadWhere: Prisma.ThreadWhereInput = { ...notDeleted, published: true };
+    const threadWhere: Prisma.ThreadWhereInput = { ...notDeleted, published: true, ...visibleThreadOwnerWhere(viewerId) };
     const where: Prisma.ThreadMemberWhereInput = {
       userId: targetId,
       playerMarked: true,
@@ -425,7 +425,7 @@ export class ThreadQueryService {
       skip: cursor ? 1 : 0,
       include: {
         thread: {
-          include: threadListCardInclude,
+          include: threadListCardIncludeFor(viewerId),
         },
       },
     });
@@ -434,7 +434,7 @@ export class ThreadQueryService {
     if (hasMore) members.pop();
 
     const playedThreads = members.map((m) => m.thread);
-    await attachPlayerCounts(this.prisma, playedThreads);
+    await attachPlayerCounts(this.prisma, playedThreads, viewerId);
     const items = playedThreads.map(mapThreadListCard);
 
     return paginate(items, {
@@ -448,6 +448,7 @@ export class ThreadQueryService {
     const take = Math.min(limit, 50);
     const where: Prisma.ThreadWhereInput = {
       ownerId: targetId,
+      ...visibleThreadOwnerWhere(viewerId),
       ...notDeleted,
       published: true,
     };
@@ -462,13 +463,13 @@ export class ThreadQueryService {
       take: take + 1,
       cursor: cursor ? { id: cursor } : undefined,
       skip: cursor ? 1 : 0,
-      include: threadListCardInclude,
+      include: threadListCardIncludeFor(viewerId),
     });
 
     const hasMore = threads.length > take;
     if (hasMore) threads.pop();
 
-    await attachPlayerCounts(this.prisma, threads);
+    await attachPlayerCounts(this.prisma, threads, viewerId);
     const items = threads.map(mapThreadListCard);
 
     return paginate(items, {
@@ -482,6 +483,7 @@ export class ThreadQueryService {
     const take = Math.min(limit, 50);
     const decoded = cursor ? decodeCollaboratedThreadsCursor(cursor) : undefined;
     const threadWhere: Prisma.ThreadWhereInput = {
+      ...visibleThreadOwnerWhere(userId),
       published: true,
       ...notDeleted,
       ...(decoded
@@ -501,13 +503,13 @@ export class ThreadQueryService {
       },
       orderBy: [{ thread: { updatedAt: 'desc' } }, { thread: { id: 'desc' } }],
       take: take + 1,
-      include: { thread: { include: threadListCardInclude } },
+      include: { thread: { include: threadListCardIncludeFor(userId) } },
     });
 
     const hasMore = members.length > take;
     if (hasMore) members.pop();
     const threads = members.map((member) => member.thread);
-    await attachPlayerCounts(this.prisma, threads);
+    await attachPlayerCounts(this.prisma, threads, userId);
     const items = threads.map(mapThreadListCard);
     const last = threads.at(-1);
     return paginate(items, {

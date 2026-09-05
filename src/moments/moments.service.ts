@@ -1,3 +1,4 @@
+import { visibleUserWhere } from '../access/block-visibility.where';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { MediaPurpose, Prisma } from '@prisma/client';
 import { paginate } from '../common/dto/paginated-result';
@@ -322,7 +323,7 @@ export class MomentsService {
 
   async setLike(id: string, viewer: Viewer, active: boolean) {
     return this.prisma.$transaction(async (tx) => {
-      const moment = await this.access.lockVisible(tx, id, viewer.id);
+      const moment = await this.access.lockVisible(tx, id, viewer.id, [], active);
       if (active) {
         const existing = await tx.momentLike.findUnique({
           where: { momentId_userId: { momentId: id, userId: viewer.id } },
@@ -362,7 +363,7 @@ export class MomentsService {
 
   async listUserMoments(userId: string, cursor: string | undefined, limit = 20, viewer?: Viewer) {
     const user = await this.prisma.user.findUnique({
-      where: { id: userId, deletedAt: null },
+      where: { id: userId, deletedAt: null, ...visibleUserWhere(viewer?.id) },
       select: { id: true },
     });
     if (!user) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');

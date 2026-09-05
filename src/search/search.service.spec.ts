@@ -1,3 +1,5 @@
+import { visiblePostWhere } from '../access/block-visibility.where';
+import { Prisma } from '@prisma/client';
 import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { SearchService } from './search.service';
@@ -11,6 +13,8 @@ const mockPrisma = {
   user: { findMany: jest.fn() },
   threadMember: { groupBy: jest.fn() },
   $queryRaw: jest.fn(),
+  $executeRaw: jest.fn(),
+  $transaction: jest.fn(),
 };
 
 const mockThreadAccess = {
@@ -80,6 +84,7 @@ describe('SearchService', () => {
     }).compile();
     service = module.get<SearchService>(SearchService);
     jest.clearAllMocks();
+    mockPrisma.$transaction.mockImplementation((callback: (tx: typeof mockPrisma) => unknown) => callback(mockPrisma));
     mockPrisma.user.findMany.mockResolvedValue([]);
     mockPrisma.thread.findMany.mockResolvedValue([]);
     mockPrisma.post.findMany.mockResolvedValue([]);
@@ -178,7 +183,7 @@ describe('SearchService', () => {
               title: true,
               lastPostAt: true,
               posts: {
-                where: { kind: 'BODY', deletedAt: null },
+                where: { kind: 'BODY', ...visiblePostWhere() },
                 take: 1,
                 orderBy: { createdAt: 'asc' },
                 select: { content: true },
@@ -312,7 +317,7 @@ describe('SearchService', () => {
     });
     expect(mockPrisma.post.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: { in: rankedRows.slice(0, 20).map((row) => row.id) } },
+        where: { id: { in: rankedRows.slice(0, 20).map((row) => row.id) }, ...visiblePostWhere(), kind: 'FLOOR', thread: { deletedAt: null, published: true, visibility: 'PUBLIC', OR: [{ published: true, visibility: 'PUBLIC' }] } },
       }),
     );
 
@@ -436,4 +441,26 @@ describe('SearchService', () => {
     expect(lastRawSql()).toContain('FROM "threads"');
     expect(lastRawSql()).not.toContain('FROM "posts"');
   });
+  it('正文搜索须显式开启，并返回 BODY kind 与空楼层号', async () => {
+    mockPrisma.$queryRaw.mockResolvedValue([{ id: 'body', relevance: 1, createdAt: new Date() }]);
+    mockPrisma.post.findMany.mockResolvedValue([{ ...postDetail('body'), kind: 'BODY', floorNumber: null }]);
+    const result = await service.searchPosts('正文', undefined, 20, 'viewer', true);
+    expect(result.items[0]).toMatchObject({ kind: 'BODY', floorNumber: null });
+    expect(lastRawSql()).not.toContain(`p."kind" = 'FLOOR'`);
+    expect(lastRawSql()).toContain('user_blocks');
+    expect(mockPrisma.post.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining(visiblePostWhere('viewer')),
+    }));
+  });
+
+  it('SQL 取消返回可重试 503，并保持事务内两秒超时', async () => {
+    mockPrisma.$queryRaw.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError('canceled', {
+      code: 'P2010', clientVersion: 'test', meta: { code: '57014' },
+    }));
+    await expect(service.searchPosts('超时')).rejects.toMatchObject({ status: 503 });
+    expect(mockPrisma.$executeRaw.mock.calls[0][0].join('')).toContain("SET LOCAL statement_timeout = '2s'");
+    mockPrisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(service.searchPosts('重试')).resolves.toMatchObject({ items: [] });
+  });
+
 });

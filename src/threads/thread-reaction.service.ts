@@ -17,7 +17,7 @@ export class ThreadReactionService {
   ) {}
 
   async like(id: string, userId: string, username: string) {
-    await this.access.assertAccessible(id, userId);
+    await this.access.assertAccessible(id, userId, this.prisma, true);
     const thread = await this.prisma.thread.findUnique({
       where: { id, ...notDeleted },
       select: { id: true, published: true, ownerId: true, title: true, likeCount: true },
@@ -26,6 +26,7 @@ export class ThreadReactionService {
     if (!thread.published) throw new BusinessException(ErrorCode.BAD_REQUEST, '草稿暂不支持点赞');
 
     const { updated } = await this.prisma.$transaction(async (tx) => {
+      await this.access.lockInteraction(tx, id, userId);
       const result = await tx.threadLike.createMany({
         data: [{ threadId: id, userId }],
         skipDuplicates: true,
@@ -58,7 +59,7 @@ export class ThreadReactionService {
   }
 
   async unlike(id: string, userId: string) {
-    await this.access.assertAccessible(id, userId);
+    await this.access.assertAccessible(id, userId, this.prisma, false, true);
     const thread = await this.prisma.thread.findUnique({
       where: { id, ...notDeleted },
       select: { id: true, published: true, likeCount: true },

@@ -16024,6 +16024,24 @@
               }
             }
           },
+          "503": {
+            "description": "搜索超时，请缩小关键词范围后重试",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
           "default": {
             "description": "未在此操作中单独列出的错误响应",
             "content": {
@@ -16047,9 +16065,14 @@
         "tags": [
           "Search"
         ],
-        "x-auth-mode": "public",
+        "x-auth-mode": "optional",
         "x-pagination": "cursor",
-        "security": []
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
       }
     },
     "/api/v1/search/users": {
@@ -16109,8 +16132,13 @@
         "tags": [
           "Search"
         ],
-        "x-auth-mode": "public",
-        "security": []
+        "x-auth-mode": "optional",
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
       }
     },
     "/api/v1/search/posts": {
@@ -16146,6 +16174,16 @@
               "maximum": 20,
               "default": 20,
               "type": "number"
+            }
+          },
+          {
+            "name": "includeBody",
+            "required": false,
+            "in": "query",
+            "description": "同时搜索主贴与子贴正文；省略时兼容旧客户端，仅返回楼层",
+            "schema": {
+              "default": false,
+              "type": "boolean"
             }
           }
         ],
@@ -16186,6 +16224,24 @@
               }
             }
           },
+          "503": {
+            "description": "搜索超时，请缩小关键词范围后重试",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
           "default": {
             "description": "未在此操作中单独列出的错误响应",
             "content": {
@@ -16205,13 +16261,18 @@
             }
           }
         },
-        "summary": "按正文搜索公开楼层与楼中楼",
+        "summary": "搜索公开楼层与楼中楼；includeBody=true 同时搜索主贴和子贴正文",
         "tags": [
           "Search"
         ],
-        "x-auth-mode": "public",
+        "x-auth-mode": "optional",
         "x-pagination": "cursor",
-        "security": []
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
       }
     },
     "/api/v1/search": {
@@ -16248,6 +16309,24 @@
               }
             }
           },
+          "503": {
+            "description": "搜索超时，请缩小关键词范围后重试",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
           "default": {
             "description": "未在此操作中单独列出的错误响应",
             "content": {
@@ -16271,8 +16350,13 @@
         "tags": [
           "Search"
         ],
-        "x-auth-mode": "public",
-        "security": []
+        "x-auth-mode": "optional",
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
       }
     },
     "/api/v1/threads/{threadId}/search/posts": {
@@ -16316,6 +16400,16 @@
               "maximum": 20,
               "default": 20,
               "type": "number"
+            }
+          },
+          {
+            "name": "includeBody",
+            "required": false,
+            "in": "query",
+            "description": "同时搜索主贴与子贴正文；省略时兼容旧客户端，仅返回楼层",
+            "schema": {
+              "default": false,
+              "type": "boolean"
             }
           }
         ],
@@ -16374,6 +16468,24 @@
               }
             }
           },
+          "503": {
+            "description": "搜索超时，请缩小关键词范围后重试",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
           "default": {
             "description": "未在此操作中单独列出的错误响应",
             "content": {
@@ -16393,7 +16505,7 @@
             }
           }
         },
-        "summary": "按正文搜索单个主题帖内的楼层与楼中楼",
+        "summary": "搜索帖内楼层与楼中楼；includeBody=true 同时搜索主贴和子贴正文",
         "tags": [
           "Search"
         ],
@@ -18511,7 +18623,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.17.0-dev.20260905.2",
+    "version": "5.18.0-dev.20260905.1",
     "contact": {}
   },
   "tags": [
@@ -26963,6 +27075,14 @@
       "SearchPostResponseDto": {
         "type": "object",
         "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "BODY",
+              "FLOOR"
+            ],
+            "description": "BODY 为正文，FLOOR 为主楼层或楼中楼"
+          },
           "id": {
             "type": "string",
             "description": "帖子 ID"
@@ -26970,7 +27090,7 @@
           "floorNumber": {
             "type": "number",
             "nullable": true,
-            "description": "楼层号；楼中楼为 null"
+            "description": "楼层号；正文与楼中楼为 null"
           },
           "parentPostId": {
             "type": "string",
@@ -27012,6 +27132,7 @@
           }
         },
         "required": [
+          "kind",
           "id",
           "floorNumber",
           "parentPostId",

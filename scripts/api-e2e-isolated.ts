@@ -175,7 +175,8 @@ async function main() {
     const apiBase = `http://127.0.0.1:${port}/api/v1`;
     await waitForHealth(`${apiBase}/health`, app);
 
-    execFileSync('pnpm', ['exec', 'tsx', 'scripts/api-e2e-test.ts'], {
+    const scripts = process.argv.includes('--block-search-only') ? ['block-search.e2e.ts'] : ['api-e2e-test.ts', 'block-search.e2e.ts'];
+    for (const script of scripts) execFileSync('pnpm', ['exec', 'tsx', `scripts/${script}`], {
       cwd: process.cwd(),
       env: {
         ...appEnv,

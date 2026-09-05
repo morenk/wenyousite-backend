@@ -1,3 +1,4 @@
+import { visibleUserWhere, assertInteractionAllowed } from '../access/block-visibility.where';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -6,7 +7,7 @@ import { BusinessException, notFound } from '../common/exceptions/business.excep
 import { PaginatedResult, paginate } from '../common/dto/paginated-result';
 import { publishedThreadVisibilityWhere } from '../access/thread-visibility.where';
 import { attachPlayerCounts } from '../common/prisma-helpers';
-import { mapThreadListCard, threadListCardInclude } from '../threads/thread-list-card';
+import { mapThreadListCard, threadListCardIncludeFor } from '../threads/thread-list-card';
 import { DEFAULT_BOOKMARK_FOLDER_NAME } from './bookmark-folder.constants';
 
 type BookmarkThread = ReturnType<typeof mapThreadListCard>;
@@ -38,7 +39,7 @@ export class BookmarksService {
       skip: cursor ? 1 : 0,
       include: {
         thread: {
-          include: threadListCardInclude,
+          include: threadListCardIncludeFor(userId),
         },
       },
     });
@@ -48,6 +49,7 @@ export class BookmarksService {
     await attachPlayerCounts(
       this.prisma,
       bookmarks.map((bookmark) => bookmark.thread),
+      userId,
     );
 
     return paginate(
@@ -121,7 +123,7 @@ export class BookmarksService {
     limit = 20,
   ): Promise<PaginatedResult<BookmarkThread>> {
     const targetUser = await this.prisma.user.findUnique({
-      where: { id: targetId, deletedAt: null },
+      where: { id: targetId, deletedAt: null, ...visibleUserWhere(viewerId) },
       select: { id: true, showBookmarks: true, deletedAt: true },
     });
     if (!targetUser) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
@@ -141,7 +143,7 @@ export class BookmarksService {
       skip: cursor ? 1 : 0,
       include: {
         thread: {
-          include: threadListCardInclude,
+          include: threadListCardIncludeFor(viewerId),
         },
       },
     });
@@ -151,6 +153,7 @@ export class BookmarksService {
     await attachPlayerCounts(
       this.prisma,
       bookmarks.map((bookmark) => bookmark.thread),
+      viewerId,
     );
 
     return paginate(
@@ -163,7 +166,7 @@ export class BookmarksService {
   async create(userId: string, threadId: string, folderId?: string) {
     const thread = await this.prisma.thread.findUnique({
       where: { id: threadId, deletedAt: null },
-      select: { id: true, visibility: true, published: true },
+      select: { id: true, ownerId: true, visibility: true, published: true },
     });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
     if (!thread.published) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
@@ -178,6 +181,7 @@ export class BookmarksService {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
+        await assertInteractionAllowed(tx, userId, [thread.ownerId]);
         const targetFolder = await this.resolveFolder(userId, folderId, tx);
         const existing = await tx.userBookmark.findUnique({
           where: { userId_threadId: { userId, threadId } },

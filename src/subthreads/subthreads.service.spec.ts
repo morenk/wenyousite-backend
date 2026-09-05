@@ -1,3 +1,4 @@
+import { MentionsService } from '../mentions/mentions.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SubthreadsService } from './subthreads.service';
@@ -37,6 +38,7 @@ const mockPrisma = {
 
 const mockThreadAccess = {
   assertAccessible: jest.fn(),
+  lockInteraction: jest.fn().mockResolvedValue(undefined),
   assertCanManage: jest.fn().mockResolvedValue({ role: 'OWNER' }),
 };
 const mockEventEmitter = { emit: jest.fn() };
@@ -74,6 +76,7 @@ describe('SubthreadsService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: MentionsService, useValue: { lockContentInteraction: jest.fn().mockResolvedValue(undefined) } },
         SubthreadsService,
         DiceService,
         { provide: PrismaService, useValue: mockPrisma },

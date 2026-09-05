@@ -1,3 +1,4 @@
+import { visiblePostWhere, unblockedUserSql } from '../access/block-visibility.where';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -13,23 +14,24 @@ import {
 } from '../common/prisma-helpers';
 import { ReplyOrder } from '../common/dto/reply-query.dto';
 
-const floorReplyInclude = {
+const floorReplyInclude = (viewerId?: string) => ({
   author: { select: authorSelect },
   ...includeDiceRolls(),
   replyToPost: {
+    where: visiblePostWhere(viewerId),
     select: { id: true, authorId: true, author: { select: authorSelect } },
   },
-} satisfies Prisma.PostInclude;
+} satisfies Prisma.PostInclude);
 
-const floorInclude = {
+const floorInclude = (viewerId?: string) => ({
   author: { select: authorSelect },
   ...includeDiceRolls(),
-  _count: { select: { replies: { where: notDeleted } } },
-} satisfies Prisma.PostInclude;
+  ...countNonDeletedReplies(viewerId),
+} satisfies Prisma.PostInclude);
 
 const MAX_PINNED_FLOORS = 10;
 
-type FloorReply = Prisma.PostGetPayload<{ include: typeof floorReplyInclude }>;
+type FloorReply = Prisma.PostGetPayload<{ include: ReturnType<typeof floorReplyInclude> }>;
 
 /** 帖子读模型：楼层、楼中楼和导航上下文查询。 */
 @Injectable()
@@ -51,7 +53,7 @@ export class PostQueryService {
 
   private async findDiscussionRoot(postId: string, userId?: string) {
     const post = await this.prisma.post.findUnique({
-      where: { id: postId, deletedAt: null },
+      where: { id: postId, ...visiblePostWhere(userId) },
       select: {
         id: true,
         threadId: true,
@@ -76,9 +78,7 @@ export class PostQueryService {
       where: {
         threadId,
         kind: 'FLOOR',
-        deletedAt: null,
-        subthread: { deletedAt: null },
-        OR: [{ parentPostId: null }, { parentPost: { deletedAt: null } }],
+        ...visiblePostWhere(userId),
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       select: {
@@ -121,7 +121,7 @@ export class PostQueryService {
       subthreadId,
       kind: 'FLOOR' as const,
       parentPostId: null,
-      ...notDeleted,
+      ...visiblePostWhere(userId),
       ...(authorId ? { authorId } : {}),
     };
     const pinnedPosts = cursor
@@ -130,7 +130,7 @@ export class PostQueryService {
           where: { ...floorWhere, pinnedAt: { not: null } },
           orderBy: [{ pinnedAt: 'desc' }, { id: 'desc' }],
           take: MAX_PINNED_FLOORS,
-          include: floorInclude,
+          include: floorInclude(userId),
         });
     const posts = await this.prisma.post.findMany({
       where: {
@@ -142,7 +142,7 @@ export class PostQueryService {
       cursor: cursor ? { id: cursor } : undefined,
       skip: cursor ? 1 : 0,
       include: {
-        ...floorInclude,
+        ...floorInclude(userId),
       },
     });
 
@@ -168,6 +168,7 @@ export class PostQueryService {
           FROM "posts" AS p
           WHERE p."parent_post_id" IN (${Prisma.join(floorIdsWithReplies)})
             AND p."deleted_at" IS NULL
+            ${unblockedUserSql(userId, Prisma.sql`p.author_id`)}
         ) AS ranked
         WHERE ranked."row_number" <= 5
       `);
@@ -175,9 +176,9 @@ export class PostQueryService {
       const replies =
         replyIds.length > 0
           ? await this.prisma.post.findMany({
-              where: { id: { in: replyIds.map((reply) => reply.id) } },
+              where: { id: { in: replyIds.map((reply) => reply.id) }, ...visiblePostWhere(userId) },
               orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-              include: floorReplyInclude,
+              include: floorReplyInclude(userId),
             })
           : [];
 
@@ -209,7 +210,7 @@ export class PostQueryService {
         subthreadId,
         kind: 'FLOOR',
         parentPostId: null,
-        ...notDeleted,
+        ...visiblePostWhere(userId),
       },
     });
   }
@@ -235,7 +236,7 @@ export class PostQueryService {
     const take = Math.min(limit, 50);
     const direction = order === ReplyOrder.NEWEST ? 'desc' : 'asc';
     const replies = await this.prisma.post.findMany({
-      where: { parentPostId: postId, ...notDeleted, ...(authorId ? { authorId } : {}) },
+      where: { parentPostId: postId, ...visiblePostWhere(userId), ...(authorId ? { authorId } : {}) },
       orderBy: [{ createdAt: direction }, { id: direction }],
       take: take + 1,
       cursor: cursor ? { id: cursor } : undefined,
@@ -243,7 +244,7 @@ export class PostQueryService {
       include: {
         author: { select: authorSelect },
         ...includeDiceRolls(),
-        replyToPost: { select: { id: true, authorId: true, author: { select: authorSelect } } },
+        replyToPost: { where: visiblePostWhere(userId), select: { id: true, authorId: true, author: { select: authorSelect } } },
       },
     });
     const hasMore = replies.length > take;
@@ -260,7 +261,7 @@ export class PostQueryService {
     return this.findEligibleContentAuthors({
       threadId: post.threadId,
       ownerId: post.thread.ownerId,
-      where: { parentPostId: postId, ...notDeleted },
+      where: { parentPostId: postId, ...visiblePostWhere(userId) },
     });
   }
 
@@ -328,7 +329,7 @@ export class PostQueryService {
   /** 获取单条帖子 + 导航上下文。已软删子贴返回 404 */
   async findById(id: string, userId?: string) {
     const postLight = await this.prisma.post.findUnique({
-      where: { id, ...notDeleted },
+      where: { id, ...visiblePostWhere(userId) },
       select: {
         id: true,
         threadId: true,
@@ -343,14 +344,14 @@ export class PostQueryService {
     await this.threadAccess.assertAccessible(postLight.threadId, userId);
 
     const post = await this.prisma.post.findUnique({
-      where: { id, ...notDeleted },
+      where: { id, ...visiblePostWhere(userId) },
       include: {
         author: { select: authorSelect },
         ...includeDiceRolls(),
         thread: { select: { id: true, title: true } },
         subthread: { select: { id: true, title: true } },
         parentPost: { select: { id: true, floorNumber: true } },
-        ...countNonDeletedReplies(),
+        ...countNonDeletedReplies(userId),
       },
     });
     if (!post) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');

@@ -1,4 +1,5 @@
-import { BadRequestException, HttpStatus, Injectable } from '@nestjs/common';
+import { visibleUserWhere, visibleThreadOwnerWhere, accessibleThreadWhere, visiblePostWhere, unblockedUserSql } from '../access/block-visibility.where';
+import { BadRequestException, HttpStatus, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { attachPlayerCounts, authorSelect } from '../common/prisma-helpers';
@@ -6,13 +7,14 @@ import { paginate } from '../common/dto/paginated-result';
 import { ThreadAccessService } from '../access/thread-access.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
-import { mapThreadListCard, threadListCardInclude } from '../threads/thread-list-card';
+import { mapThreadListCard, threadListCardIncludeFor } from '../threads/thread-list-card';
 
 const SEARCH_POST_LIMIT = 20;
 const SEARCH_POSTS_PER_THREAD = 3;
 const MIN_POST_SEARCH_LENGTH = 2;
 
 const postSearchSelect = {
+  kind: true,
   id: true,
   floorNumber: true,
   parentPostId: true,
@@ -129,29 +131,30 @@ export class SearchService {
   ) {}
 
   /** 兼容旧客户端的一次性聚合搜索；短词不会触发楼层正文扫描。 */
-  async search(q: string) {
+  async search(q: string, viewerId?: string) {
     const keyword = q?.trim() ?? '';
     if (!keyword) return { users: [], threads: [], posts: [] };
 
     const postsPromise =
       keywordLength(keyword) >= MIN_POST_SEARCH_LENGTH
-        ? this.searchPosts(keyword).then((page) => page.items)
+        ? this.searchPosts(keyword, undefined, SEARCH_POST_LIMIT, viewerId).then((page) => page.items)
         : Promise.resolve([]);
     const [users, threadPage, posts] = await Promise.all([
-      this.searchUsers(keyword),
-      this.searchThreads(keyword, undefined, 50),
+      this.searchUsers(keyword, viewerId),
+      this.searchThreads(keyword, undefined, 50, viewerId),
       postsPromise,
     ]);
     return { users, threads: threadPage.items, posts };
   }
 
-  async searchUsers(q: string) {
+  async searchUsers(q: string, viewerId?: string) {
     const keyword = q?.trim() ?? '';
     if (!keyword) return [];
     return this.prisma.user.findMany({
       where: {
         deletedAt: null,
         username: { contains: keyword, mode: 'insensitive' },
+        ...visibleUserWhere(viewerId),
       },
       select: { id: true, username: true, avatar: true, bio: true },
       take: 20,
@@ -159,7 +162,7 @@ export class SearchService {
     });
   }
 
-  async searchThreads(q: string, cursor?: string, limit = 50) {
+  async searchThreads(q: string, cursor?: string, limit = 50, viewerId?: string) {
     const keyword = q?.trim() ?? '';
     if (!keyword) return paginate([], { cursor: null, hasMore: false });
     const take = Math.max(1, Math.min(limit, 50));
@@ -179,7 +182,7 @@ export class SearchService {
           )`
         : Prisma.empty;
     const likePattern = `%${escapeLikePattern(keyword)}%`;
-    const rankedRows = await this.prisma.$queryRaw<RankedThreadRow[]>(Prisma.sql`
+    const rankedRows = await this.queryWithTimeout<RankedThreadRow[]>(Prisma.sql`
       WITH ranked AS (
         SELECT
           t.id,
@@ -189,6 +192,7 @@ export class SearchService {
         WHERE t."deleted_at" IS NULL
           AND t."published" = true
           AND t."visibility" = 'PUBLIC'
+          ${unblockedUserSql(viewerId, Prisma.sql`t.owner_id`)}
           AND t.title ILIKE ${likePattern} ESCAPE '\\'
       )
       SELECT ranked.id, ranked.relevance, ranked."createdAt"
@@ -209,11 +213,12 @@ export class SearchService {
               deletedAt: null,
               published: true,
               visibility: 'PUBLIC',
+              ...visibleThreadOwnerWhere(viewerId),
             },
-            include: threadListCardInclude,
+            include: threadListCardIncludeFor(viewerId),
           })
         : [];
-    await attachPlayerCounts(this.prisma, unorderedThreads);
+    await attachPlayerCounts(this.prisma, unorderedThreads, viewerId);
     const threadById = new Map(
       unorderedThreads.map((thread) => [thread.id, mapThreadListCard(thread)]),
     );
@@ -234,8 +239,8 @@ export class SearchService {
    * 搜索公开楼层与楼中楼。相关度优先，时间与 ID 作为稳定次序；
    * 数据库窗口函数限制每个主题帖最多出现三条，避免单帖霸屏。
    */
-  async searchPosts(q: string, cursor?: string, limit = SEARCH_POST_LIMIT) {
-    return this.searchPostPage(q, cursor, limit, { type: 'global' });
+  async searchPosts(q: string, cursor?: string, limit = SEARCH_POST_LIMIT, viewerId?: string, includeBody = false) {
+    return this.searchPostPage(q, cursor, limit, { type: 'global' }, viewerId, includeBody);
   }
 
   /** 搜索单个主题帖内的全部楼层；可见性由统一主题访问规则控制。 */
@@ -245,9 +250,10 @@ export class SearchService {
     cursor?: string,
     limit = SEARCH_POST_LIMIT,
     userId?: string,
+    includeBody = false,
   ) {
     await this.threadAccess.assertAccessible(threadId, userId);
-    return this.searchPostPage(q, cursor, limit, { type: 'thread', threadId });
+    return this.searchPostPage(q, cursor, limit, { type: 'thread', threadId }, userId, includeBody);
   }
 
   /** 全站与帖内查询共享短词校验、相关度排序、游标和展示字段。 */
@@ -256,6 +262,8 @@ export class SearchService {
     cursor: string | undefined,
     limit: number,
     scope: PostSearchScope,
+    viewerId?: string,
+    includeBody = false,
   ) {
     const keyword = q?.trim() ?? '';
     if (keywordLength(keyword) < MIN_POST_SEARCH_LENGTH) {
@@ -292,13 +300,17 @@ export class SearchService {
         ? Prisma.sql`
           AND t."published" = true
           AND t."visibility" = 'PUBLIC'`
-        : Prisma.sql`AND t."id" = ${scope.threadId}`;
+        : Prisma.sql`AND t.id = ${scope.threadId} AND (
+          (t.published = true AND (t.visibility = 'PUBLIC' OR EXISTS (
+            SELECT 1 FROM thread_members tm WHERE tm.thread_id = t.id AND tm.user_id = ${viewerId ?? ''}
+          ))) OR (t.published = false AND t.owner_id = ${viewerId ?? ''})
+        )`;
     const threadRankCondition =
       scope.type === 'global'
         ? Prisma.sql`AND ranked."threadRank" <= ${SEARCH_POSTS_PER_THREAD}`
         : Prisma.empty;
 
-    const rankedRows = await this.prisma.$queryRaw<RankedPostRow[]>(Prisma.sql`
+    const rankedRows = await this.queryWithTimeout<RankedPostRow[]>(Prisma.sql`
       WITH ranked AS (
         SELECT
           p."id" AS id,
@@ -311,7 +323,10 @@ export class SearchService {
         LEFT JOIN "posts" parent ON parent."id" = p."parent_post_id"
         WHERE p."deleted_at" IS NULL
           AND (p."parent_post_id" IS NULL OR parent."deleted_at" IS NULL)
-          AND p."kind" = 'FLOOR'
+          ${includeBody ? Prisma.empty : Prisma.sql`AND p."kind" = 'FLOOR'`}
+          ${unblockedUserSql(viewerId, Prisma.sql`t.owner_id`)}
+          ${unblockedUserSql(viewerId, Prisma.sql`p.author_id`)}
+          ${unblockedUserSql(viewerId, Prisma.sql`parent.author_id`)}
           AND p."content" ILIKE ${likePattern} ESCAPE '\\'
           AND t."deleted_at" IS NULL
           ${threadScopeCondition}
@@ -332,7 +347,12 @@ export class SearchService {
     const unorderedPosts =
       ids.length > 0
         ? await this.prisma.post.findMany({
-            where: { id: { in: ids } },
+            where: {
+              id: { in: ids }, ...visiblePostWhere(viewerId),
+              ...(includeBody ? {} : { kind: 'FLOOR' }),
+              thread: { ...accessibleThreadWhere(viewerId),
+                ...(scope.type === 'global' ? { published: true, visibility: 'PUBLIC' } : { id: scope.threadId }) },
+            },
             select: postSearchSelect,
           })
         : [];
@@ -348,4 +368,19 @@ export class SearchService {
       hasMore,
     });
   }
+  private async queryWithTimeout<T>(query: Prisma.Sql): Promise<T> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SET LOCAL statement_timeout = '2s'`;
+        return tx.$queryRaw<T>(query);
+      }, { timeout: 5_000, maxWait: 2_000 });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError &&
+        (error.code === 'P2028' || error.meta?.code === '57014')) {
+        throw new ServiceUnavailableException('搜索超时，请稍后重试');
+      }
+      throw error;
+    }
+  }
+
 }

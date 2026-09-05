@@ -1,6 +1,7 @@
 import { Controller, Get, Param, Query, Req } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiServiceUnavailableResponse,
   ApiNotFoundResponse,
   ApiOperation,
   ApiTags,
@@ -19,8 +20,9 @@ export class ThreadSearchController {
   constructor(private searchService: SearchService) {}
 
   @Get('posts')
+  @ApiServiceUnavailableResponse({ description: '搜索超时，请缩小关键词范围后重试' })
   @OptionalAuth()
-  @ApiOperation({ summary: '按正文搜索单个主题帖内的楼层与楼中楼' })
+  @ApiOperation({ summary: '搜索帖内楼层与楼中楼；includeBody=true 同时搜索主贴和子贴正文' })
   @ApiCursorPaginatedResponse(
     SearchPostResponseDto,
     '相关度游标分页；搜索全部子贴，不限制单帖结果数量',
@@ -39,6 +41,7 @@ export class ThreadSearchController {
       query.cursor,
       query.limit,
       user?.id,
+      query.includeBody,
     );
   }
 }

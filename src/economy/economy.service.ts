@@ -149,7 +149,7 @@ export class EconomyService {
       clientRequestId,
     );
     if ('replay' in prepared) return prepared.replay;
-    await this.threadAccess.assertAccessible(threadId, sender.id);
+    await this.threadAccess.assertAccessible(threadId, sender.id, this.prisma, true);
     const thread = await this.prisma.thread.findUnique({
       where: { id: threadId, deletedAt: null },
       select: { id: true, title: true, ownerId: true, published: true },
@@ -221,10 +221,6 @@ export class EconomyService {
       where: {
         id: momentId,
         deletedAt: null,
-        author: {
-          userBlocks: { none: { blockedId: sender.id } },
-          blockedBy: { none: { blockerId: sender.id } },
-        },
       },
       select: { id: true, authorId: true, title: true, author: { select: { deletedAt: true } } },
     });

@@ -1,3 +1,4 @@
+import { MentionsService } from '../mentions/mentions.service';
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PostingPolicy, Prisma } from '@prisma/client';
@@ -34,6 +35,7 @@ export class SubthreadsService {
     private outbox: OutboxService,
     private stickerContent: StickerContentService,
     private mediaReferences: MediaReferenceService,
+    private mentions: MentionsService,
   ) {}
 
   /** 获取主题帖下的子贴列表 */
@@ -43,7 +45,7 @@ export class SubthreadsService {
     return this.prisma.subthread.findMany({
       where: { threadId, ...notDeleted },
       orderBy: { sortOrder: 'asc' },
-      include: countNonDeletedPosts(),
+      include: countNonDeletedPosts(userId),
     });
   }
 
@@ -53,7 +55,7 @@ export class SubthreadsService {
       where: { id, ...notDeleted },
       include: {
         thread: { select: { id: true, title: true, ownerId: true, visibility: true } },
-        ...countNonDeletedPosts(),
+        ...countNonDeletedPosts(userId),
       },
     });
     if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
@@ -104,13 +106,14 @@ export class SubthreadsService {
         }
         return this.prisma.subthread.findUniqueOrThrow({
           where: { id: existing.id },
-          include: countNonDeletedPosts(),
+          include: countNonDeletedPosts(userId),
         });
       }
     }
 
     const result = await this.prisma
       .$transaction(async (tx) => {
+        await this.mentions.lockContentInteraction(tx, threadId, userId, content);
         // 锁主题帖行，防止并发创建子贴时 sortOrder 竞态
         await tx.$queryRaw`SELECT id FROM threads WHERE id = ${threadId} FOR UPDATE`;
 
@@ -172,7 +175,7 @@ export class SubthreadsService {
 
         const full = await tx.subthread.findUnique({
           where: { id: subthread.id },
-          include: countNonDeletedPosts(),
+          include: countNonDeletedPosts(userId),
         });
 
         // 默认子贴指针与子贴创建原子提交；并发创建时仅首个成功写入。
@@ -221,7 +224,7 @@ export class SubthreadsService {
             return this.prisma.subthread
               .findFirst({
                 where: { threadId, clientRequestId: dto.clientRequestId },
-                include: countNonDeletedPosts(),
+                include: countNonDeletedPosts(userId),
               })
               .then((existing) => {
                 if (existing?.createRequestHash === requestHash) {
@@ -278,6 +281,7 @@ export class SubthreadsService {
 
     try {
       await this.prisma.$transaction(async (tx) => {
+        await this.threadAccess.lockInteraction(tx, threadId, userId);
         // 与创建子贴共用主题帖行锁，完整集合校验和两轮更新不可被并发插入打断。
         await tx.$queryRaw`SELECT id FROM threads WHERE id = ${threadId} FOR UPDATE`;
         const thread = await tx.thread.findUnique({
@@ -373,11 +377,13 @@ export class SubthreadsService {
     const updateData: Prisma.SubthreadUpdateInput = { ...data, version: { increment: 1 } };
     if (sortOrder !== undefined) updateData.sortOrder = sortOrder;
 
-    const updated = await this.prisma.subthread
-      .update({
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await this.threadAccess.lockInteraction(tx, subthread.threadId, userId);
+      return tx.subthread.update({
         where: { id, version, ...notDeleted },
         data: updateData,
-        include: countNonDeletedPosts(),
+        include: countNonDeletedPosts(userId),
+      });
       })
       .catch((err) => {
         if (err?.code === 'P2025')
@@ -424,6 +430,7 @@ export class SubthreadsService {
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
+      await this.threadAccess.lockInteraction(tx, subthread.threadId, userId);
       await tx.$queryRaw`SELECT id FROM threads WHERE id = ${subthread.threadId} FOR UPDATE`;
       const current = await tx.subthread.findUnique({
         where: { id, ...notDeleted },
