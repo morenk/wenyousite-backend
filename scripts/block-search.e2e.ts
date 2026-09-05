@@ -200,6 +200,23 @@ async function run() {
   } finally { release(); }
   await blocking; await interaction;
   assert.equal(await db.userFollow.count({ where: { followerId: a, followingId: b } }), 0);
+  // 删除发生在消费之前：保留 Outbox 历史，但失效源内容必须正常结束而非永久重试。
+  await db.thread.update({ where: { id: thread(c) }, data: { deletedAt: new Date() } });
+  const staleEvent = await db.domainOutbox.create({ data: {
+    eventType: 'post.created', aggregateType: 'post', aggregateId: floor(c),
+    eventKey: `${prefix}:deleted-source`,
+    payload: { postId: floor(c), content: '已删除主题的延迟事件', userId: c,
+      threadId: thread(c), subthreadId: sub(c), subthreadTitle: '已删除子贴',
+      parentPostId: null, replyToPostId: null, authorRole: 'OWNER', authorPlayerMarked: true },
+  } });
+  const deliveryDeadline = Date.now() + 15_000;
+  for (;;) {
+    const row = await db.domainOutbox.findUniqueOrThrow({ where: { id: staleEvent.id } });
+    assert.equal(row.lastError, null, '已删除源内容不应导致 Outbox 重试');
+    if (row.processedAt) { assert.equal(row.attempts, 1); break; }
+    assert(Date.now() < deliveryDeadline, '延迟事件未完成投递');
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
   console.log(`Block/search matrix passed (${requests} HTTP requests), including cached previews, export and concurrent follow`);
 }
 void run().finally(() => db.$disconnect()).catch((error) => { console.error(error); process.exitCode = 1; });

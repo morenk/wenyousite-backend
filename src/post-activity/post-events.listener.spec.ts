@@ -17,7 +17,7 @@ function buildListener(overrides: Partial<Record<string, unknown>> = {}) {
   const prisma = {
     threadMember: { findMany: jest.fn().mockResolvedValue([]) },
     thread: { findUnique: jest.fn() },
-    post: { findUnique: jest.fn(), count: jest.fn().mockResolvedValue(1) },
+    post: { findFirst: jest.fn().mockResolvedValue({ id: 'post1' }), findUnique: jest.fn(), count: jest.fn().mockResolvedValue(1) },
   };
   const redis = {
     hincrby: jest.fn(() => redisCatchable()),
@@ -87,6 +87,21 @@ const collaboratorManager = (userId = 'collab1', username = '协作者') => ({
 });
 
 describe('PostEventsListener 订阅过滤', () => {
+  it('延迟投递时内容已删除或不可访问，结束事件且不重建提及、通知和缓存', async () => {
+    const { listener, prisma, mentionsService, notificationProducer, redis } = buildListener();
+    prisma.post.findFirst.mockResolvedValue(null);
+    await expect(listener.handlePostCreated(baseEvent)).resolves.toBeUndefined();
+    expect(mentionsService.parseAndCreate).not.toHaveBeenCalled();
+    expect(notificationProducer.notify).not.toHaveBeenCalled();
+    expect(redis.zadd).not.toHaveBeenCalled();
+  });
+
+  it('源内容查询故障仍向 Outbox 传播，允许重试', async () => {
+    const { listener, prisma } = buildListener();
+    prisma.post.findFirst.mockRejectedValue(new Error('database unavailable'));
+    await expect(listener.handlePostCreated(baseEvent)).rejects.toThrow('database unavailable');
+  });
+
   it('发帖者是楼主时只触发 THREAD 官方更新订阅', async () => {
     const { listener, notificationProducer, subscriptionsService, prisma } = buildListener();
     subscriptionsService.findSubscribers.mockResolvedValue([

@@ -6,6 +6,7 @@ import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { BlockFilterService } from '../access/block-filter.service';
+import { accessibleThreadWhere, visiblePostWhere } from '../access/block-visibility.where';
 import { buildPostPreview } from '../common/post-preview';
 import { PostMentionsUpdatedEvent } from '../mentions/mention-events';
 import { DOMAIN_EVENTS, PostCreatedEvent } from '../outbox/domain-events';
@@ -32,6 +33,17 @@ export class PostEventsListener {
   /** 监听 post.created 事件，处理：@提及、新帖通知、楼中楼回复通知 + Redis 计数器更新 */
   @OnEvent(DOMAIN_EVENTS.POST_CREATED, { suppressErrors: false })
   async handlePostCreated(event: PostCreatedEvent) {
+    // 延迟事件可能晚于删除、退出私密帖或拉黑；失效内容无需再生成提及和通知。
+    const source = await this.prisma.post.findFirst({
+      where: {
+        id: event.postId,
+        ...visiblePostWhere(event.userId),
+        thread: accessibleThreadWhere(event.userId),
+      },
+      select: { id: true },
+    });
+    if (!source) return;
+
     const failures: unknown[] = [];
     // Redis 投影从数据库权威值覆盖，Outbox 重试时不会重复累加。
     await this.refreshReplyProjection(event);
