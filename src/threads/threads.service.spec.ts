@@ -534,6 +534,21 @@ describe('ThreadsService', () => {
         expect(page.pagination.cursor).toBe('2');
       });
 
+      it('前缀恰好填满一页时继续探测下一条可见结果', async () => {
+        const visible = Array.from({ length: 21 }, (_, index) => `r${index + 1}`);
+        mockRedis.zcard.mockResolvedValue(101);
+        mockRedis.zrevrange
+          .mockResolvedValueOnce(visible.slice(0, 20))
+          .mockResolvedValueOnce(visible);
+        mockPrisma.thread.findMany
+          .mockResolvedValueOnce(visible.slice(0, 20).map(mkThread))
+          .mockResolvedValueOnce(visible.map(mkThread));
+        const page = await service.findAll({ sort: 'recommended', limit: 20 });
+        expect(page.items).toHaveLength(20);
+        expect(page.pagination).toEqual({ hasMore: true, cursor: '20' });
+        expect(mockRedis.zrevrange).toHaveBeenCalledTimes(2);
+      });
+
       it('ZSET 为空时返回空页', async () => {
         mockRedis.zcard.mockResolvedValue(0);
         mockRedis.zrevrange.mockResolvedValue([]);

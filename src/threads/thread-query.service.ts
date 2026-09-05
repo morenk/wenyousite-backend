@@ -355,7 +355,7 @@ export class ThreadQueryService {
       }
       ids = batch;
       threads = await this.fetchSmartThreads(ids, where);
-      if (threads.length >= consumed + take || scanEnd >= zsetSize) break;
+      if (threads.length > consumed + take || scanEnd >= zsetSize) break;
       // 过滤损耗大：扩大前缀继续扫描
       scanEnd = scanEnd * 2;
     }
