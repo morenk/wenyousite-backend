@@ -44,6 +44,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
       httpStatus = HttpStatus.BAD_REQUEST;
       code = ErrorCode.INVALID_CURSOR;
       message = '分页游标无效或不属于当前列表';
+    } else if (
+      exception instanceof Prisma.PrismaClientKnownRequestError &&
+      JSON.stringify(exception.meta ?? {}).includes('media_deletion_claimed')
+    ) {
+      httpStatus = HttpStatus.CONFLICT;
+      code = ErrorCode.BAD_REQUEST;
+      message = '图片已过期，请重新上传后重试';
     } else if (exception instanceof BusinessException) {
       httpStatus = exception.getStatus();
       code = exception.errorCode;

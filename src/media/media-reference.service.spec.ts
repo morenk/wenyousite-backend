@@ -71,6 +71,16 @@ describe('MediaReferenceService', () => {
     expect(tx.draftMedia.deleteMany).not.toHaveBeenCalled();
   });
 
+  it('已领取回收的正文图片拒绝绑定，即使处理状态仍为 COMPLETED', async () => {
+    const url = 'https://cdn.example.com/claimed.webp';
+    prisma.media.findMany.mockResolvedValue([{
+      id: 'claimed', url, status: 'COMPLETED', deletionClaimedAt: new Date(),
+    }]);
+    await expect(service.syncDraftContent(tx as never, 'd1', `![图](${url})`))
+      .rejects.toThrow(BadRequestException);
+    expect(tx.draftMedia.createMany).not.toHaveBeenCalled();
+  });
+
   it('解绑最后一个引用后为已完成媒体启动宽限期', async () => {
     tx.postMedia.findMany.mockResolvedValue([{ mediaId: 'm1' }]);
     prisma.media.findMany.mockResolvedValue([]);

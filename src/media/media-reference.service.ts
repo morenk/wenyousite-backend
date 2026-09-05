@@ -167,15 +167,25 @@ export class MediaReferenceService {
     return changed;
   }
 
-  /** 删除对象前的最终权威校验。 */
-  async filterUnreferenced(mediaIds: string[]) {
+  /** 领取后禁止新增引用；对象存储失败时保留领取标记，下一轮继续删除。 */
+  async claimUnreferenced(mediaIds: string[], eligibility: Prisma.MediaWhereInput) {
     if (mediaIds.length === 0) return [];
-    const referenced = await this.prisma.media.findMany({
-      where: { id: { in: mediaIds }, OR: this.referenceWhere() },
-      select: { id: true },
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`
+        SELECT id FROM media WHERE id IN (${Prisma.join([...new Set(mediaIds)].sort())})
+        ORDER BY id FOR UPDATE
+      `);
+      const candidates = await tx.media.findMany({
+        where: { AND: [eligibility, { id: { in: mediaIds } }, { NOT: { OR: this.referenceWhere() } }] },
+      });
+      if (candidates.length > 0) {
+        await tx.media.updateMany({
+          where: { id: { in: candidates.map((item) => item.id) }, deletionClaimedAt: null },
+          data: { deletionClaimedAt: new Date() },
+        });
+      }
+      return candidates;
     });
-    const referencedIds = new Set(referenced.map((item) => item.id));
-    return mediaIds.filter((id) => !referencedIds.has(id));
   }
 
   private async resolveCompletedMarkdownMedia(tx: DbClient, content: string) {
@@ -184,7 +194,7 @@ export class MediaReferenceService {
 
     const rows = await tx.media.findMany({
       where: { url: { in: urls } },
-      select: { id: true, url: true, status: true, purpose: true },
+      select: { id: true, url: true, status: true, purpose: true, deletionClaimedAt: true },
       orderBy: { createdAt: 'desc' },
     });
     const byUrl = new Map<string, (typeof rows)[number]>();
@@ -196,7 +206,7 @@ export class MediaReferenceService {
     for (const url of urls) {
       const media = byUrl.get(url);
       if (!media) continue;
-      if (media.status !== MediaStatus.COMPLETED) {
+      if (media.deletionClaimedAt || media.status !== MediaStatus.COMPLETED) {
         throw new BadRequestException(`正文图片尚未处理完成（mediaId: ${media.id}）`);
       }
       if (!mediaPurposeAllowed(media.purpose, MediaPurpose.RICH_CONTENT)) {

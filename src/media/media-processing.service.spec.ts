@@ -88,7 +88,7 @@ describe('MediaProcessingService', () => {
     expect(storage.remove).toHaveBeenCalledWith('staging/source.jpg');
     expect(prisma.media.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: 'media-1', status: 'PROCESSING' },
+        where: { id: 'media-1', status: 'PROCESSING', deletionClaimedAt: null },
         data: expect.objectContaining({
           contentType: 'image/webp',
           animated: false,
@@ -188,7 +188,7 @@ describe('MediaProcessingService', () => {
     await service.markFailed('media-1');
 
     expect(prisma.media.updateMany).toHaveBeenCalledWith({
-      where: { id: 'media-1', status: 'PROCESSING' },
+      where: { id: 'media-1', status: 'PROCESSING', deletionClaimedAt: null },
       data: { status: 'FAILED', processingStartedAt: null },
     });
     expect(storage.remove).toHaveBeenCalledWith('staging/source.jpg');

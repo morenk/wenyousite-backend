@@ -85,7 +85,7 @@ export class MediaProcessingService {
 
   async processImage(mediaId: string, options: ProcessOptions = {}) {
     const media = await this.prisma.media.findUnique({ where: { id: mediaId } });
-    if (!media || media.status !== 'PROCESSING') return;
+    if (!media || media.deletionClaimedAt || media.status !== 'PROCESSING') return;
 
     if (!media.stagingKey) {
       await this.processLegacyObject(mediaId, media.key);
@@ -154,7 +154,7 @@ export class MediaProcessingService {
 
     started = performance.now();
     const completed = await this.prisma.media.updateMany({
-      where: { id: mediaId, status: 'PROCESSING' },
+      where: { id: mediaId, status: 'PROCESSING', deletionClaimedAt: null },
       data: {
         contentType: isGif ? 'image/gif' : 'image/webp',
         size: masterInfo.size,
@@ -190,7 +190,7 @@ export class MediaProcessingService {
 
   async markFailed(mediaId: string) {
     const failed = await this.prisma.media.updateMany({
-      where: { id: mediaId, status: 'PROCESSING' },
+      where: { id: mediaId, status: 'PROCESSING', deletionClaimedAt: null },
       data: { status: 'FAILED', processingStartedAt: null },
     });
     if (failed.count === 0) return;
@@ -303,7 +303,7 @@ export class MediaProcessingService {
       ),
     );
     await this.prisma.media.updateMany({
-      where: { id: mediaId, status: 'PROCESSING' },
+      where: { id: mediaId, status: 'PROCESSING', deletionClaimedAt: null },
       data: {
         width: metadata.width!,
         height: metadata.height!,

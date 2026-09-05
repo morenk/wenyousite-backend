@@ -11,7 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { randomBytes } from 'crypto';
-import { MediaPurpose } from '@prisma/client';
+import { MediaPurpose, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { withMediaVariants } from './media-response.mapper';
@@ -125,7 +125,7 @@ export class MediaService {
 
   /** 为同一 UPLOADING 媒体重新签发 PUT 地址，不创建新记录也不重复占用上传配额。 */
   async reissueUploadUrl(mediaId: string, userId: string) {
-    const media = await this.prisma.media.findUnique({ where: { id: mediaId } });
+    const media = await this.prisma.media.findUnique({ where: { id: mediaId, deletionClaimedAt: null } });
     if (!media) throw new NotFoundException('媒体记录不存在');
     if (media.userId !== userId) throw new ForbiddenException('无权操作');
     if (media.status !== 'UPLOADING' || !media.contentType || !media.size) {
@@ -148,7 +148,7 @@ export class MediaService {
 
   /** 客户端上传完成确认：核对对象元数据，幂等转 UPLOADING → PROCESSING 并入队 */
   async confirmUpload(mediaId: string, userId: string) {
-    const media = await this.prisma.media.findUnique({ where: { id: mediaId } });
+    const media = await this.prisma.media.findUnique({ where: { id: mediaId, deletionClaimedAt: null } });
     if (!media) {
       throw new NotFoundException('媒体记录不存在');
     }
@@ -202,7 +202,7 @@ export class MediaService {
 
     if (metadataInvalid) {
       await this.prisma.media.updateMany({
-        where: { id: mediaId, status: 'UPLOADING' },
+        where: { id: mediaId, status: 'UPLOADING', deletionClaimedAt: null },
         data: { status: 'FAILED' },
       });
       if (media.stagingKey) {
@@ -215,7 +215,7 @@ export class MediaService {
     try {
       // 条件更新取得唯一入队权，避免两个确认请求各自创建任务。
       processing = await this.prisma.media.update({
-        where: { id: mediaId, status: 'UPLOADING' },
+        where: { id: mediaId, status: 'UPLOADING', deletionClaimedAt: null },
         data: {
           status: 'PROCESSING',
           processingStartedAt: new Date(),
@@ -225,7 +225,7 @@ export class MediaService {
       });
     } catch (error: unknown) {
       if (!hasErrorCode(error, 'P2025')) throw error;
-      const current = await this.prisma.media.findUnique({ where: { id: mediaId } });
+      const current = await this.prisma.media.findUnique({ where: { id: mediaId, deletionClaimedAt: null } });
       if (
         current?.userId === userId &&
         (current.status === 'PROCESSING' || current.status === 'COMPLETED')
@@ -309,32 +309,25 @@ export class MediaService {
     const completedCandidate = this.completedOrphanCleanupEnabled
       ? [{ status: 'COMPLETED' as const, orphanedAt: { lt: orphanCutoff } }]
       : [];
-    const stale = await this.prisma.media.findMany({
-      where: {
-        OR: [
-          { status: 'UPLOADING', createdAt: { lt: uploadingCutoff } },
-          { status: 'FAILED', createdAt: { lt: orphanCutoff } },
-          ...completedCandidate,
-        ],
-        stickerImports: { none: { status: 'PROCESSING' } },
-      },
-      select: {
-        id: true,
-        key: true,
-        stagingKey: true,
-        status: true,
-        purpose: true,
-        animated: true,
-      },
-    });
-
-    const unreferencedIds = new Set(
-      await this.mediaReferences.filterUnreferenced(stale.map((item) => item.id)),
-    );
-    const victims = stale.filter((item) => unreferencedIds.has(item.id));
+    const eligibility: Prisma.MediaWhereInput = {
+      OR: [
+        { deletionClaimedAt: { not: null } },
+        { status: 'UPLOADING', createdAt: { lt: uploadingCutoff } },
+        { status: 'FAILED', createdAt: { lt: orphanCutoff } },
+        ...completedCandidate,
+      ],
+      stickerImports: { none: { status: 'PROCESSING' } },
+    };
+    const stale = await this.prisma.media.findMany({ where: eligibility, select: { id: true } });
+    const victims = [];
+    for (let i = 0; i < stale.length; i += 500) {
+      victims.push(...await this.mediaReferences.claimUnreferenced(
+        stale.slice(i, i + 500).map((item) => item.id), eligibility,
+      ));
+    }
     if (victims.length === 0) return;
 
-    // 删除 S3 对象前已再次按数据库关系核验；原图删除失败的记录保留待下次重试。
+    // 领取事务已提交，数据库拒绝新增引用；任何对象删除失败都保留记录重试。
     const bucket = this.storage.bucket;
     const deletedIds = new Set<string>();
     for (let i = 0; i < victims.length; i += S3_BATCH_DELETE_LIMIT) {
@@ -361,12 +354,10 @@ export class MediaService {
       }
     }
 
-    // 只删除已成功移除原图且仍无引用的 DB 记录，防止清理期间新绑定产生竞态。
     if (deletedIds.size > 0) {
-      const stillUnreferenced = await this.mediaReferences.filterUnreferenced([...deletedIds]);
-      if (stillUnreferenced.length > 0) {
-        await this.prisma.media.deleteMany({ where: { id: { in: stillUnreferenced } } });
-      }
+      await this.prisma.media.deleteMany({
+        where: { id: { in: [...deletedIds] }, deletionClaimedAt: { not: null } },
+      });
     }
     this.logger.log(`孤儿图片清理完成: 扫描 ${stale.length} 条候选，清理 ${deletedIds.size} 条`);
   }
@@ -385,17 +376,20 @@ export class MediaService {
       },
     });
     if (!media) return false;
-    if (media.status === 'COMPLETED') return false;
-    if ((await this.mediaReferences.filterUnreferenced([media.id])).length === 0) return false;
+    if (media.status === 'COMPLETED' || media.status === 'PROCESSING') return false;
+    const claimed = await this.mediaReferences.claimUnreferenced([media.id], {
+      status: { in: ['UPLOADING', 'FAILED'] },
+    });
+    if (claimed.length === 0) return false;
 
-    const keys = [media.key, ...(media.stagingKey ? [media.stagingKey] : [])];
-    if (!media.key.toLowerCase().endsWith('.svg')) {
-      keys.push(...mediaVariantsFor(media.purpose, media.animated).map((variant) => derivativeKey(media.key, variant)));
+    const keys = [claimed[0].key, ...(claimed[0].stagingKey ? [claimed[0].stagingKey] : [])];
+    if (!claimed[0].key.toLowerCase().endsWith('.svg')) {
+      keys.push(...mediaVariantsFor(media.purpose, media.animated).map((variant) => derivativeKey(claimed[0].key, variant)));
     }
     const failedKeys = await this.storage.removeMany(keys);
     if (failedKeys.size > 0) return false;
 
-    await this.prisma.media.deleteMany({ where: { id: media.id } });
+    await this.prisma.media.deleteMany({ where: { id: media.id, deletionClaimedAt: { not: null } } });
     this.logger.log(`注销头像已回收 mediaId=${media.id}`);
     return true;
   }

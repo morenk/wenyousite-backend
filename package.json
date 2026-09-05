@@ -49,7 +49,8 @@
     "arch:check": "tsx scripts/check-architecture.ts",
     "openapi:check": "pnpm openapi:export /tmp/wenyousite-openapi-check.json && tsx scripts/check-openapi-contract.ts /tmp/wenyousite-openapi-check.json && tsx scripts/check-contract-artifact.ts /tmp/wenyousite-openapi-check.json && tsx scripts/check-contract-version.ts",
     "check": "pnpm lint && pnpm typecheck && pnpm arch:check && pnpm openapi:check && pnpm test && pnpm test:mobile-release && pnpm test:host-health-monitor && pnpm test:deploy-preflight && pnpm test:deploy-runtime && pnpm test:data-security && pnpm docs:check && pnpm build",
-    "check:full": "pnpm security:audit && pnpm check && pnpm test:e2e:auth-terminal && pnpm test:e2e:economy-terminal && pnpm test:e2e"
+    "check:full": "pnpm security:audit && pnpm check && pnpm test:e2e:auth-terminal && pnpm test:e2e:economy-terminal && pnpm test:e2e && pnpm test:e2e:media-reclamation",
+    "test:e2e:media-reclamation": "MEDIA_RECLAMATION_TEST_ENV=test tsx scripts/media-reclamation.integration.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.800.0",

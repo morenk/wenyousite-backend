@@ -881,6 +881,7 @@ model Media {
   processingStartedAt DateTime?    @map("processing_started_at")
   createdAt           DateTime     @default(now()) @map("created_at")
   orphanedAt          DateTime?    @map("orphaned_at")
+  deletionClaimedAt   DateTime?    @map("deletion_claimed_at")
 
   user                   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   avatarUser             User?           @relation("UserAvatar")
@@ -897,6 +898,7 @@ model Media {
   @@index([status, createdAt])
   @@index([status, processingStartedAt])
   @@index([status, orphanedAt])
+  @@index([deletionClaimedAt])
   @@map("media")
 }
 

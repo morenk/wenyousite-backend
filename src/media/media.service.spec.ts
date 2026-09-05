@@ -25,7 +25,7 @@ const mockRedis = {
 };
 const mockMediaReferences = {
   reconcileAllMarkers: jest.fn().mockResolvedValue(undefined),
-  filterUnreferenced: jest.fn(async (ids: string[]) => ids),
+  claimUnreferenced: jest.fn(),
 };
 const mockStorage = {
   bucket: 'test-bucket',
@@ -130,9 +130,13 @@ describe('MediaService', () => {
     mockProcessing.cleanupCompletedStagingObjects.mockReset().mockResolvedValue(0);
     mockProcessing.discardStagingObject.mockReset().mockResolvedValue(undefined);
     mockMediaReferences.reconcileAllMarkers.mockReset().mockResolvedValue(0);
-    mockMediaReferences.filterUnreferenced
+    mockMediaReferences.claimUnreferenced
       .mockReset()
-      .mockImplementation(async (ids: string[]) => ids);
+      .mockImplementation(async (ids: string[]) => {
+        const rows = await mockPrisma.media.findMany.mock.results.at(-1)?.value ?? [];
+        const single = await mockPrisma.media.findFirst.mock.results.at(-1)?.value;
+        return [...rows, ...(single ? [single] : [])].filter((row) => ids.includes(row.id));
+      });
     jest
       .spyOn(
         (service as unknown as { logger: { error: (...args: unknown[]) => void } }).logger,
@@ -322,7 +326,7 @@ describe('MediaService', () => {
       expect.objectContaining({ jobId: 'm1' }),
     );
     expect(mockPrisma.media.update).toHaveBeenCalledWith({
-      where: { id: 'm1', status: 'UPLOADING' },
+      where: { id: 'm1', status: 'UPLOADING', deletionClaimedAt: null },
       data: {
         status: 'PROCESSING',
         processingStartedAt: expect.any(Date),
@@ -349,7 +353,7 @@ describe('MediaService', () => {
 
     await expect(service.confirmUpload('m1', 'u1')).rejects.toThrow(BadRequestException);
     expect(mockPrisma.media.updateMany).toHaveBeenCalledWith({
-      where: { id: 'm1', status: 'UPLOADING' },
+      where: { id: 'm1', status: 'UPLOADING', deletionClaimedAt: null },
       data: { status: 'FAILED' },
     });
     expect(mockImageQueue.add).not.toHaveBeenCalled();
@@ -479,7 +483,7 @@ describe('MediaService', () => {
       'uploads/avatar_md.webp',
     ]);
     expect(mockPrisma.media.deleteMany).toHaveBeenCalledWith({
-      where: { id: 'm-avatar' },
+      where: { id: 'm-avatar', deletionClaimedAt: { not: null } },
     });
   });
 
@@ -505,7 +509,7 @@ describe('MediaService', () => {
       key: 'uploads/avatar.jpg',
       status: 'FAILED',
     });
-    mockMediaReferences.filterUnreferenced.mockResolvedValueOnce([]);
+    mockMediaReferences.claimUnreferenced.mockResolvedValueOnce([]);
 
     await expect(service.cleanupOrphanByUrl(url)).resolves.toBe(false);
 
@@ -549,7 +553,7 @@ describe('MediaService', () => {
         status: 'FAILED',
       },
     ]);
-    mockMediaReferences.filterUnreferenced.mockResolvedValueOnce([]);
+    mockMediaReferences.claimUnreferenced.mockResolvedValueOnce([]);
 
     await service.cleanupOrphanMedia();
 
@@ -566,7 +570,7 @@ describe('MediaService', () => {
     mockPrisma.media.findMany.mockResolvedValue([
       { id: 'm1', key: 'uploads/2099/01/01/u1/private.jpg', url, status: 'FAILED' },
     ]);
-    mockMediaReferences.filterUnreferenced.mockResolvedValueOnce([]);
+    mockMediaReferences.claimUnreferenced.mockResolvedValueOnce([]);
 
     await service.cleanupOrphanMedia();
 
@@ -583,7 +587,7 @@ describe('MediaService', () => {
     mockPrisma.media.findMany.mockResolvedValue([
       { id: 'm1', key: 'uploads/2099/01/01/u1/comment.webp', url, status: 'FAILED' },
     ]);
-    mockMediaReferences.filterUnreferenced.mockResolvedValueOnce([]);
+    mockMediaReferences.claimUnreferenced.mockResolvedValueOnce([]);
 
     await service.cleanupOrphanMedia();
 
@@ -700,7 +704,7 @@ describe('MediaService', () => {
     mockPrisma.media.findMany.mockResolvedValue([
       { id: 'm1', key: 'uploads/2099/01/01/u1/angle.jpg', url, status: 'FAILED' },
     ]);
-    mockMediaReferences.filterUnreferenced.mockResolvedValueOnce([]);
+    mockMediaReferences.claimUnreferenced.mockResolvedValueOnce([]);
 
     await service.cleanupOrphanMedia();
 
