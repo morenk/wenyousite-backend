@@ -49,7 +49,7 @@ export class ThreadQueryDto extends CursorPaginationDto {
 
   @ApiPropertyOptional({
     enum: ['RECRUITING', 'CLOSED', 'FINISHED'],
-    description: '主题帖状态筛选：招募中、已停招、已结束',
+    description: '主题帖状态筛选：招募中、已停招、已完结',
   })
   @IsOptional()
   @IsString()

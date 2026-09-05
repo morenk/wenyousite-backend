@@ -68,6 +68,15 @@ describe('CleanupTask', () => {
     expect(mockMobileDevices.cleanupInactiveSessions).toHaveBeenCalledTimes(1);
   });
 
+  it('未发布主题按创建超过七天清理，编辑时间不延长且不清理独立云草稿', async () => {
+    const now = new Date('2026-09-05T04:00:00.000Z');
+    jest.spyOn(Date, 'now').mockReturnValue(now.getTime());
+    await task.cleanup();
+    expect(mockPrisma.thread.deleteMany).toHaveBeenCalledWith({
+      where: { published: false, createdAt: { lt: new Date('2026-08-29T04:00:00.000Z') } },
+    });
+  });
+
   it('孤儿图片清理抛错不应影响其他清理任务', async () => {
     mockMediaService.cleanupOrphanMedia.mockRejectedValueOnce(new Error('cos down'));
     await expect(task.cleanup()).resolves.toBeUndefined();

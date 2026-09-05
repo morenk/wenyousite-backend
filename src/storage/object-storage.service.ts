@@ -42,13 +42,18 @@ export class ObjectStorageService {
     return this.client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
   }
 
-  async download(key: string, bucket = this.bucket) {
+  async download(key: string, bucket = this.bucket, maxBytes = Infinity) {
     const response = await this.client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
     const chunks: Uint8Array[] = [];
+    let bytes = 0;
     if (response.Body) {
-      for await (const chunk of response.Body as AsyncIterable<Uint8Array>) chunks.push(chunk);
+      for await (const chunk of response.Body as AsyncIterable<Uint8Array>) {
+        bytes += chunk.byteLength;
+        if (bytes > maxBytes) throw new RangeError('OBJECT_DOWNLOAD_LIMIT_EXCEEDED');
+        chunks.push(chunk);
+      }
     }
-    return Buffer.concat(chunks);
+    return Buffer.concat(chunks, bytes);
   }
 
   async upload(key: string, body: Buffer, options: ObjectUploadOptions = {}) {

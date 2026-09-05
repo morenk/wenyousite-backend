@@ -20,7 +20,7 @@
 
 | 枚举               | 值                                                         |
 | ------------------ | ---------------------------------------------------------- |
-| `ThreadStatus`     | RECRUITING（招募中）, CLOSED（已停招）, FINISHED（已结束） |
+| `ThreadStatus`     | RECRUITING（招募中）, CLOSED（已停招）, FINISHED（已完结） |
 | `ThreadVisibility` | PUBLIC, PRIVATE                                            |
 | `MemberRole`       | OWNER, COLLABORATOR, PARTICIPANT                           |
 
@@ -232,3 +232,9 @@ ThreadAccessService.assertAccessible(threadId, userId)
 - **短缓存边界**：公开列表首页缓存 5 秒、公开详情聚合结果缓存 30 秒；详情命中缓存仍先实时校验主题帖权限，防止 PUBLIC 切换 PRIVATE 时旧缓存越权。推荐排序同样读取首页缓存；列表缓存命中时必须重新构造 `PaginatedResult`，保证 Redis 反序列化后仍由统一拦截器输出 `data[] + meta`；`filter=playing` 是用户私有结果，禁止读写共享缓存
 - **访问权限统一入口**：`ThreadAccessService.assertAccessible()` 为所有主题帖读写的统一入口（含软删除 / 未发布 / 私密帖校验），`assertCanManage()` 统一 OWNER/COLLABORATOR 管理权限校验。所有服务层（ThreadsService / SubthreadsService / ThreadMembersService）和标签控制器均复用此服务，不再重复实现
 - **智能排序**：采用 Hacker News 热度算法变体 `score = (replies * 2 + likes * 3 + views * 0.3) / (age_hours + 2)^1.5`。每次发帖/点赞/浏览通过事件监听器实时更新 Redis ZSET 分数，每 10 分钟全量重算修正精度漂移。查询时从 ZSET 前缀扫描取 ID 列表，再经 SQL 过滤（分类/状态/标签/可见性）后按 ZSET 顺序归位，按「已消费可见帖数」切片输出（每帖只出现一次，避免筛选后相邻窗口重叠重复）
+
+### 档案导出容量
+
+每次最多导出 10,000 条可见正文、楼层与回复，原始正文不超过 16 MiB，实际打包图片不超过 64 MiB。超限返回 HTTP 413；图片超限时可关闭图片打包后重试。每个 API 进程同时处理一个导出，其余请求返回 429；完成、失败或客户端断开后释放名额。
+
+未发布主题在创建超过七天后由每日清理任务硬删除，编辑不延长期限；独立云草稿不适用此规则。`CLOSED` 显示“已停招”，`FINISHED` 显示“已完结”，均不自动改变子贴发言策略。

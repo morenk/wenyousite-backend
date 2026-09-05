@@ -188,3 +188,59 @@ describe('renderExportContent', () => {
     }
   });
 });
+
+describe('ThreadExportService 资源边界', () => {
+  const thread = {
+    id: 'thread-1', title: '档案', createdAt: new Date(), publishedAt: null,
+    owner: { username: '作者' }, categoryDefinition: null, topicTags: [], subthreads: [],
+  };
+  function setup() {
+    const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([{ posts: 0n, bytes: 0n }]),
+      thread: { findUnique: jest.fn().mockResolvedValue(thread) },
+    };
+    const storage = { bucket: 'archive', download: jest.fn() };
+    const stickers = { extract: jest.fn().mockReturnValue([]) };
+    const service = new ThreadExportService(
+      { $transaction: (callback: (value: typeof tx) => unknown) => callback(tx) } as never,
+      { assertCanManage: jest.fn().mockResolvedValue(undefined) } as never,
+      storage as never, stickers as never, { get: () => 'https://wenyou.site' } as never,
+    );
+    return { service, tx, storage, stickers };
+  }
+
+  it.each([
+    { posts: 10_001n, bytes: 1n },
+    { posts: 1n, bytes: BigInt(16 * 1024 * 1024 + 1) },
+  ])('读取正文前拒绝超限档案 %#', async (size) => {
+    const { service, tx, storage } = setup();
+    tx.$queryRaw.mockResolvedValue([size]);
+    await expect(service.createArchive('thread-1', 'owner', options)).rejects.toMatchObject({ status: 413 });
+    expect(tx.thread.findUnique).not.toHaveBeenCalled();
+    expect(storage.download).not.toHaveBeenCalled();
+    tx.$queryRaw.mockResolvedValue([{ posts: 0n, bytes: 0n }]);
+    const result = await service.createArchive('thread-1', 'owner', options);
+    result.stream.destroy();
+  });
+
+  it('导出期间拒绝并发，断开后释放名额', async () => {
+    const { service } = setup();
+    const first = await service.createArchive('thread-1', 'owner', options);
+    await expect(service.createArchive('thread-1', 'owner', options)).rejects.toMatchObject({ status: 429 });
+    await new Promise<void>((resolve) => { first.stream.once('close', resolve); first.stream.destroy(); });
+    const next = await service.createArchive('thread-1', 'owner', options);
+    next.stream.destroy();
+  });
+
+  it('实际图片字节超限返回 413，不能将超限当作缺图继续导出', async () => {
+    const { service, tx, storage, stickers } = setup();
+    const media = { url: 'https://media.example.invalid/image', key: 'image', contentType: 'image/webp', status: 'COMPLETED' };
+    tx.thread.findUnique.mockResolvedValue({ ...thread, subthreads: [{
+      posts: [{ content: '![图](image)', mediaAttachments: [{ media }] }],
+    }] });
+    stickers.extract.mockReturnValue([{ url: media.url, stickerAssetId: null }]);
+    storage.download.mockRejectedValue(new RangeError('OBJECT_DOWNLOAD_LIMIT_EXCEEDED'));
+    await expect(service.createArchive('thread-1', 'owner', options)).rejects.toMatchObject({ status: 413 });
+    expect(storage.download).toHaveBeenCalledWith('image', 'archive', 64 * 1024 * 1024);
+  });
+});

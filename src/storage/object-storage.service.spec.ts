@@ -69,6 +69,18 @@ describe('ObjectStorageService', () => {
     );
   });
 
+  it('下载按实际字节限制并关闭超限流，即使对象声称较小', async () => {
+    let closed = false;
+    async function* body() {
+      try { yield Buffer.from('12'); yield Buffer.from('34'); }
+      finally { closed = true; }
+    }
+    client.send.mockResolvedValue({ ContentLength: 1, Body: body() });
+    await expect(service.download('image', 'bucket', 3))
+      .rejects.toThrow('OBJECT_DOWNLOAD_LIMIT_EXCEEDED');
+    expect(closed).toBe(true);
+  });
+
   it('批量删除返回失败 key 供上层重试', async () => {
     client.send
       .mockResolvedValueOnce({})

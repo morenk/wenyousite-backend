@@ -4378,7 +4378,7 @@
             "name": "status",
             "required": false,
             "in": "query",
-            "description": "主题帖状态筛选：招募中、已停招、已结束",
+            "description": "主题帖状态筛选：招募中、已停招、已完结",
             "schema": {
               "type": "string",
               "enum": [
@@ -4993,6 +4993,45 @@
               },
               "X-API-Contract-Version": {
                 "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "413": {
+            "description": "超过 10000 条内容、16 MiB 正文或 64 MiB 图片上限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "429": {
+            "description": "已有导出进行中或请求过于频繁",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
               }
             }
           },
@@ -18472,7 +18511,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.16.0-dev.20260904.1",
+    "version": "5.17.0-dev.20260905.1",
     "contact": {}
   },
   "tags": [

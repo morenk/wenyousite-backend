@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus, PayloadTooLargeException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import archiver, { type Archiver } from 'archiver';
@@ -24,6 +24,10 @@ import { ThreadExportFormat, type ThreadExportDto } from './dto/thread-export.dt
 import { authorSelect, notDeleted } from '../common/prisma-helpers';
 import { threadCategoryInfoSelect } from '../taxonomy/thread-category-info';
 
+const EXPORT_POST_LIMIT = 10_000;
+const EXPORT_TEXT_BYTES = 16 * 1024 * 1024;
+const EXPORT_MEDIA_BYTES = 64 * 1024 * 1024;
+
 const exportThreadInclude = {
   owner: { select: authorSelect },
   categoryDefinition: { select: threadCategoryInfoSelect },
@@ -33,7 +37,7 @@ const exportThreadInclude = {
     orderBy: { sortOrder: 'asc' as const },
     include: {
       posts: {
-        where: notDeleted,
+        where: { ...notDeleted, OR: [{ parentPostId: null }, { parentPost: notDeleted }] },
         orderBy: [{ createdAt: 'asc' as const }, { id: 'asc' as const }],
         include: {
           author: { select: authorSelect },
@@ -345,17 +349,17 @@ function buildMarkdown(
           (left.floorNumber ?? Number.MAX_SAFE_INTEGER) -
           (right.floorNumber ?? Number.MAX_SAFE_INTEGER),
       );
+    const replies = new Map<string | null, ExportPost[]>();
+    for (const post of posts) {
+      if (post.kind !== 'FLOOR' || !post.parentPostId) continue;
+      const children = replies.get(post.parentPostId) ?? [];
+      children.push(post);
+      replies.set(post.parentPostId, children);
+    }
     for (const floor of floors) {
       const item = rendered.get(floor.id);
       if (!item) continue;
       lines.push(postHeading(thread.id, floor, options, webUrl), '', item.markdown, '');
-      const replies = new Map<string | null, ExportPost[]>();
-      for (const post of posts) {
-        if (post.kind !== 'FLOOR' || !post.parentPostId) continue;
-        const children = replies.get(post.parentPostId) ?? [];
-        children.push(post);
-        replies.set(post.parentPostId, children);
-      }
       const appendReplies = (parentId: string, headingLevel: number) => {
         const children = (replies.get(parentId) ?? []).sort(
           (left, right) =>
@@ -379,17 +383,10 @@ function buildMarkdown(
   return `${lines.join('\n').trim()}\n`;
 }
 
-function buildText(
-  thread: ExportThread,
-  rendered: ReadonlyMap<string, RenderedPost>,
-  options: ThreadExportOptions,
-  webUrl: string,
-): string {
-  return plainText(buildMarkdown(thread, rendered, options, webUrl));
-}
-
 @Injectable()
 export class ThreadExportService {
+  // ponytail: 单进程导出并发为 1；多 API 实例时再改为共享租约。
+  private exporting = false;
   constructor(
     private readonly prisma: PrismaService,
     private readonly threadAccess: ThreadAccessService,
@@ -400,10 +397,35 @@ export class ThreadExportService {
 
   async createArchive(threadId: string, userId: string, input: ThreadExportDto) {
     await this.threadAccess.assertCanManage(threadId, userId);
-    const thread = await this.prisma.thread.findUnique({
-      where: { id: threadId, published: true, deletedAt: null },
-      include: exportThreadInclude,
-    });
+    if (this.exporting) throw new HttpException('已有档案正在导出，请稍后再试', HttpStatus.TOO_MANY_REQUESTS);
+    this.exporting = true;
+    try {
+      const result = await this.prepareArchive(threadId, input);
+      const release = () => { this.exporting = false; };
+      result.stream.once('end', release).once('close', release).once('error', release);
+      return result;
+    } catch (error) {
+      this.exporting = false;
+      throw error;
+    }
+  }
+
+  private async prepareArchive(threadId: string, input: ThreadExportDto) {
+    const thread = await this.prisma.$transaction(async (tx) => {
+      const [size] = await tx.$queryRaw<Array<{ posts: bigint; bytes: bigint }>>(Prisma.sql`
+        SELECT count(*) AS posts, COALESCE(sum(octet_length(p.content)), 0)::bigint AS bytes
+        FROM posts p JOIN subthreads s ON s.id = p.subthread_id
+        LEFT JOIN posts parent ON parent.id = p.parent_post_id
+        WHERE p.thread_id = ${threadId} AND p.deleted_at IS NULL AND s.deleted_at IS NULL
+          AND (p.parent_post_id IS NULL OR parent.deleted_at IS NULL)
+      `);
+      if (size.posts > EXPORT_POST_LIMIT || size.bytes > EXPORT_TEXT_BYTES) {
+        throw new PayloadTooLargeException('档案超过 10000 条内容或 16 MiB 正文上限');
+      }
+      return tx.thread.findUnique({
+        where: { id: threadId, published: true, deletedAt: null }, include: exportThreadInclude,
+      });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '仅可导出已发布主题帖');
 
     const options = normalizeOptions(input);
@@ -427,7 +449,7 @@ export class ThreadExportService {
       }
     }
     const markdown = buildMarkdown(thread, rendered, options, webUrl);
-    const text = buildText(thread, rendered, options, webUrl);
+    const text = plainText(markdown);
     const filenameStem = getExportFilenameStem(thread.title);
     const stream = this.startArchive(
       markdown,
@@ -471,6 +493,7 @@ export class ThreadExportService {
     }
 
     let assetIndex = 0;
+    let mediaBytes = 0;
     for (const [reference, token] of tokens) {
       const record = mediaByUrl.get(token.url);
       if (!record || record.status !== 'COMPLETED') {
@@ -479,10 +502,17 @@ export class ThreadExportService {
       }
       let buffer: Buffer;
       try {
-        buffer = await this.storage.download(record.key);
-      } catch {
+        buffer = await this.storage.download(record.key, this.storage.bucket, EXPORT_MEDIA_BYTES - mediaBytes);
+      } catch (error) {
+        if (error instanceof RangeError && error.message === 'OBJECT_DOWNLOAD_LIMIT_EXCEEDED') {
+          throw new PayloadTooLargeException('档案图片超过 64 MiB 上限，可关闭图片打包后重试');
+        }
         warnings.add(`图片下载失败，已保留文字占位：${token.url}`);
         continue;
+      }
+      mediaBytes += buffer.length;
+      if (mediaBytes > EXPORT_MEDIA_BYTES) {
+        throw new PayloadTooLargeException('档案图片超过 64 MiB 上限，可关闭图片打包后重试');
       }
       assetIndex++;
       assets.set(reference, {
@@ -504,6 +534,7 @@ export class ThreadExportService {
     const archive = (archiver as unknown as (format: string) => Archiver)('zip');
     const stream = new PassThrough();
     archive.on('error', (error) => stream.destroy(error));
+    stream.once('close', () => archive.abort());
     archive.pipe(stream);
     void (async () => {
       if (format === ThreadExportFormat.MARKDOWN || format === ThreadExportFormat.BOTH)

@@ -22,6 +22,8 @@ import {
   ApiConflictResponse,
   ApiBadRequestResponse,
   ApiProduces,
+  ApiPayloadTooLargeResponse,
+  ApiTooManyRequestsResponse,
 } from '@nestjs/swagger';
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { Throttle } from '@nestjs/throttler';
@@ -138,6 +140,8 @@ export class ThreadsController {
     schema: { type: 'string', format: 'binary' },
   })
   @ApiBadRequestResponse({ description: '导出选项格式不正确' })
+  @ApiPayloadTooLargeResponse({ description: '超过 10000 条内容、16 MiB 正文或 64 MiB 图片上限' })
+  @ApiTooManyRequestsResponse({ description: '已有导出进行中或请求过于频繁' })
   @ApiUnauthorizedResponse({ description: '未登录' })
   @ApiForbiddenResponse({ description: '无主题帖管理权限' })
   @ApiNotFoundResponse({ description: '主题帖不存在、已删除或尚未发布' })
@@ -149,6 +153,7 @@ export class ThreadsController {
   ) {
     const user = req.user as { id: string };
     const { stream, filename } = await this.threadExportService.createArchive(id, user.id, dto);
+    reply.raw.once('close', () => stream.destroy());
     return reply
       .header('Content-Type', 'application/zip')
       .header('Content-Disposition', buildExportContentDisposition(filename))
