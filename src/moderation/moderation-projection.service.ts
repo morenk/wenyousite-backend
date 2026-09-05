@@ -2,11 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
-import { computeThreadEngagement, computeThreadSmartScore } from '../threads/thread-smart-score';
+import { SMART_SCORE_ZSET } from '../threads/thread-smart-score';
 
 const ZSET_BY_CREATED = 'threads:by:created';
 const ZSET_BY_ACTIVITY = 'threads:by:activity';
-const ZSET_BY_SMART = 'threads:by:smart';
+const ZSET_BY_SMART = SMART_SCORE_ZSET;
 
 export interface ContentModerationEffect {
   targetType: 'THREAD' | 'POST' | 'MOMENT' | 'MOMENT_COMMENT';
@@ -77,20 +77,9 @@ export class ModerationProjectionService {
     if (!thread?.published) return;
     const replies = thread._count.posts;
     const tips = Number(thread.tipTotal);
-    const ageHours = Math.max(0, Date.now() - thread.createdAt.getTime()) / 3_600_000;
-    const smart = computeThreadSmartScore(
-      computeThreadEngagement({
-        views: thread.viewCount,
-        replies,
-        likes: thread.likeCount,
-        tips,
-      }),
-      ageHours,
-    );
     await Promise.all([
       this.redis.zadd(ZSET_BY_CREATED, thread.createdAt.getTime(), threadId),
       this.redis.zadd(ZSET_BY_ACTIVITY, thread.updatedAt.getTime(), threadId),
-      this.redis.zadd(ZSET_BY_SMART, smart, threadId),
       this.redis.hset(`thread:${threadId}:stats`, 'views', thread.viewCount),
       this.redis.hset(`thread:${threadId}:stats`, 'replies', replies),
       this.redis.hset(`thread:${threadId}:stats`, 'likes', thread.likeCount),

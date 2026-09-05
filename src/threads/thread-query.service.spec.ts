@@ -43,6 +43,7 @@ describe('ThreadQueryService.findById 当前用户权限投影', () => {
     redis as never,
     cache as never,
     postingPolicy as never,
+    { ensureReady: jest.fn() } as never,
   );
 
   beforeEach(() => {

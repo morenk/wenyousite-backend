@@ -88,7 +88,7 @@
 - 排序规则：
   - `sort=newest`：置顶优先，其次按 createdAt DESC
   - `sort=active`：置顶优先，其次按 updatedAt DESC
-  - `sort=recommended`（默认）：基于热度公式（Hacker News 变体）从 Redis ZSET 前缀扫描 + 可见帖累进切片
+  - `sort=recommended`（默认）：基于玩家参与和有效创作字数从 Redis ZSET 前缀扫描 + 可见帖累进切片
 - Cursor 分页：limit 默认 20 最大 50；newest/active 用 ID cursor，recommended 用「已消费可见帖数」cursor（单调累进）
 - **recommended 分页防重复**：ZSET 存全部帖子（含各分类与状态），若按 ZSET 原始偏移做窗口分页，分类或状态筛选会使相邻窗口重叠、同一帖被多页返回。现改为：每次取 ZSET 足够长的前缀（不足时循环扩大），SQL 过滤（分类/状态/标签/可见性）后按 ZSET 序排列，从 `consumed` 处切片 take 个，保证每帖只出现一次；前端 ThreadList 另按 id 兜底去重
 
@@ -125,11 +125,11 @@
 - `POST /threads/:id/like` 点赞主题帖；`DELETE /threads/:id/like` 取消点赞
 - 点赞使用 `ThreadLike` 记录防重（`@@unique([threadId, userId])`），重复点赞幂等返回当前帖
 - `Thread.likeCount` 维护在 Thread 表上（反范式），通过事务内 create ThreadLike + increment likeCount 保持一致性
-- Redis `thread:{id}:stats` 的 `likes` 字段同步维护，供智能排序公式使用
+- Redis `thread:{id}:stats` 的 `likes` 字段同步维护，供统计展示使用
 - 点赞通知发送给楼主（不通知自己），包含拉黑过滤；通知聚合采用 X/Twitter 风格（同帖同类型未读通知聚合为一条，已读后新赞新建）
 - 草稿帖不支持点赞（`published=false` 时返回错误）
 - 点赞和取消点赞先执行统一访问校验，再读取发布状态、计数或互动记录：不可见主题与不存在一致返回 `THREAD_NOT_FOUND(404)`；有权访问本人草稿的楼主仍收到既有 400
-- 点赞/取消点赞发射 `thread.liked` / `thread.unliked` 事件，更新 Redis 智能排序分并失效缓存
+- 点赞/取消点赞发射 `thread.liked` / `thread.unliked` 事件，更新 Redis 点赞计数并失效缓存
 
 ## Thread 与 Subthread 的关系
 
@@ -231,7 +231,8 @@ ThreadAccessService.assertAccessible(threadId, userId)
 - **viewCount 分层更新**：详情请求只原子更新 Redis `thread:{id}:stats.views`，不再逐次写数据库；智能排序任务每 10 分钟用单条批量 SQL 将更大的 Redis 计数落盘。Redis 计数自增前以数据库值为下限，重启后不会倒退
 - **短缓存边界**：公开列表首页缓存 5 秒、公开详情聚合结果缓存 30 秒；详情命中缓存仍先实时校验主题帖权限，防止 PUBLIC 切换 PRIVATE 时旧缓存越权。推荐排序同样读取首页缓存；列表缓存命中时必须重新构造 `PaginatedResult`，保证 Redis 反序列化后仍由统一拦截器输出 `data[] + meta`；`filter=playing` 是用户私有结果，禁止读写共享缓存
 - **访问权限统一入口**：`ThreadAccessService.assertAccessible()` 为所有主题帖读写的统一入口（含软删除 / 未发布 / 私密帖校验），`assertCanManage()` 统一 OWNER/COLLABORATOR 管理权限校验。所有服务层（ThreadsService / SubthreadsService / ThreadMembersService）和标签控制器均复用此服务，不再重复实现
-- **智能排序**：采用 Hacker News 热度算法变体 `score = (replies * 2 + likes * 3 + views * 0.3) / (age_hours + 2)^1.5`。每次发帖/点赞/浏览通过事件监听器实时更新 Redis ZSET 分数，每 10 分钟全量重算修正精度漂移。查询时从 ZSET 前缀扫描取 ID 列表，再经 SQL 过滤（分类/状态/标签/可见性）后按 ZSET 顺序归位，按「已消费可见帖数」切片输出（每帖只出现一次，避免筛选后相邻窗口重叠重复）
+- **智能排序**：`4×ln(1+P) + 2×ln(1+A) + 2×ln(1+R) + ln(1+min(W,100000)/1000)`。P 为最近七天实际发表非空文字的非楼主已标记玩家数；A 为这些玩家按北京时间去重的参与人天；R 为楼主最近七天的楼层/回复次数，每日最多 5 次，正文不算回复；W 为累计可见正文与楼层的非空白 Unicode 字符数，排除图片、表情、链接地址及协议标记，并对同作者规范化后相同文本去重。已删除的内容、父楼层和子贴均排除。浏览、点赞、打赏和创建时长不加分；同分按发布时间、ID 倒序。
+- **推荐恢复**：每 10 分钟按主题和内容分页读取数据库，恢复全部展示计数并构建候选排序，完成后原子替换 Redis ZSET。排序丢失时合并并发重建请求，恢复失败返回 503；不会将失败包装为空列表。新发布内容最迟在下一次周期重建后进入推荐。推荐分页多探测一条可见结果后才决定 `hasMore`。
 
 ### 档案导出容量
 

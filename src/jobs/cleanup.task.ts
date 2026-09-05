@@ -1,18 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { RedisService } from '../redis/redis.service';
 import { MediaService } from '../media/media.service';
 import { StickersService } from '../stickers/stickers.service';
 import { MobileDeviceService } from '../mobile-push/mobile-device.service';
-import {
-  computeThreadEngagement,
-  computeThreadSmartScore,
-} from '../threads/thread-smart-score';
-
-/** ZSET 键名 */
-const ZSET_BY_SMART = 'threads:by:smart';
+import { ThreadRankingService } from '../threads/thread-ranking.service';
 
 /** 定时清理任务：清理过期验证/refresh token、废弃草稿帖、已读旧通知、孤儿图片 + 智能排序分全量重算 */
 @Injectable()
@@ -21,7 +13,7 @@ export class CleanupTask {
 
   constructor(
     private prisma: PrismaService,
-    private redis: RedisService,
+    private ranking: ThreadRankingService,
     private mediaService: MediaService,
     private stickersService: StickersService,
     private mobileDevices: MobileDeviceService,
@@ -107,58 +99,6 @@ export class CleanupTask {
   /** 每 10 分钟全量重算智能排序分：遍历已发布帖，按公式重算 ZSET 分数 */
   @Cron(CronExpression.EVERY_10_MINUTES)
   async recalcSmartScores() {
-    const threads = await this.prisma.thread.findMany({
-      where: { published: true, deletedAt: null },
-      select: { id: true, createdAt: true, viewCount: true, tipTotal: true },
-    });
-
-    if (threads.length === 0) return;
-
-    let updated = 0;
-    const viewUpdates: { id: string; viewCount: number }[] = [];
-    for (const thread of threads) {
-      try {
-        const stats = await this.redis.hgetall(`thread:${thread.id}:stats`);
-        const views = Math.max(parseInt(stats?.views ?? '0', 10), thread.viewCount);
-        const replies = parseInt(stats?.replies ?? '0', 10);
-        const likes = parseInt(stats?.likes ?? '0', 10);
-
-        const tipTotal = thread.tipTotal ?? 0n;
-        const tips = Number(stats?.tips ?? tipTotal.toString());
-        const ageHours = (Date.now() - thread.createdAt.getTime()) / 3600000;
-        const engagement = computeThreadEngagement({ replies, likes, views, tips });
-        const score = computeThreadSmartScore(engagement, ageHours);
-
-        await this.redis.zadd(ZSET_BY_SMART, score, thread.id);
-        await this.redis.hset(`thread:${thread.id}:stats`, 'tips', tipTotal.toString());
-        if (views > thread.viewCount) {
-          viewUpdates.push({ id: thread.id, viewCount: views });
-        }
-        updated++;
-      } catch (err) {
-        this.logger.warn(`重算智能排序分失败 threadId=${thread.id}`, err);
-      }
-    }
-    if (viewUpdates.length > 0) {
-      try {
-        const values = Prisma.join(
-          viewUpdates.map(
-            ({ id, viewCount }) => Prisma.sql`(${id}::text, ${viewCount}::integer)`,
-          ),
-        );
-        await this.prisma.$executeRaw(Prisma.sql`
-          UPDATE "threads" AS thread
-          SET "view_count" = incoming."view_count"
-          FROM (VALUES ${values}) AS incoming("id", "view_count")
-          WHERE thread."id" = incoming."id"
-            AND thread."view_count" < incoming."view_count"
-        `);
-      } catch (err) {
-        this.logger.warn('主题帖浏览量批量落盘失败', err);
-      }
-    }
-    if (updated > 0) {
-      this.logger.log(`智能排序分全量重算完成: ${updated} 个帖子`);
-    }
+    await this.ranking.rebuild();
   }
 }

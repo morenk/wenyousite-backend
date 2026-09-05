@@ -1,5 +1,6 @@
 import { Inject, Injectable, OnModuleDestroy } from '@nestjs/common';
 import Redis from 'ioredis';
+import { randomUUID } from 'node:crypto';
 
 /** Redis 底层服务：计数器(Hash)、有序集合(ZSET)、键操作 */
 @Injectable()
@@ -189,4 +190,24 @@ export class RedisService implements OnModuleDestroy {
   async get(key: string) {
     return this.redis.get(key);
   }
+  /** 候选 ZSET 构建成功后再切换；失败不会把半份推荐列表暴露给读者。 */
+  async replaceRanking(key: string, readyKey: string, ids: string[]) {
+    const staging = `${key}:building:${randomUUID()}`;
+    try {
+      for (let index = 0; index < ids.length; index += 500) {
+        const chunk = ids.slice(index, index + 500);
+        await this.zaddMultiWithExpiry(staging, 600,
+          ...chunk.flatMap((id, offset) => [ids.length - index - offset, id]));
+      }
+      const transaction = this.redis.multi();
+      if (ids.length) transaction.rename(staging, key).persist(key);
+      else transaction.del(key);
+      transaction.set(readyKey, String(ids.length), 'EX', 3600);
+      const result = await transaction.exec();
+      if (!result || result.some(([error]) => error)) throw new Error('Redis ranking switch failed');
+    } finally {
+      await this.redis.del(staging);
+    }
+  }
+
 }

@@ -24,7 +24,7 @@ import { ThreadQueryService } from './thread-query.service';
 import { OutboxService } from '../outbox/outbox.service';
 import { StickerContentService } from '../stickers/sticker-content.service';
 import { ThreadCreateIdempotencyService } from './thread-create-idempotency.service';
-import { initialThreadSmartScore } from './thread-smart-score';
+import { SMART_SCORE_ZSET } from './thread-smart-score';
 import { ThreadCategoriesService } from '../taxonomy/thread-categories.service';
 import { MediaReferenceService } from '../media/media-reference.service';
 import { ThreadReactionService } from './thread-reaction.service';
@@ -33,7 +33,7 @@ import { UpdateThreadDto } from './dto/update-thread.dto';
 import { threadCategoryInfoSelect, withThreadCategoryInfo } from '../taxonomy/thread-category-info';
 const ZSET_BY_CREATED = 'threads:by:created';
 const ZSET_BY_ACTIVITY = 'threads:by:activity';
-const ZSET_BY_SMART = 'threads:by:smart';
+const ZSET_BY_SMART = SMART_SCORE_ZSET;
 const MAX_THREAD_DRAFTS = 10;
 /** 主题帖服务：草稿创建、沙盒迭代、发布、CRUD */
 @Injectable()
@@ -253,7 +253,7 @@ export class ThreadsService {
       const now = Date.now();
       this.redis.zadd(ZSET_BY_CREATED, response.createdAt.getTime(), id).catch(() => {});
       this.redis.zadd(ZSET_BY_ACTIVITY, now, id).catch(() => {});
-      // 初始化计数器（含 createdAt 供智能排序计算年龄）
+      // 初始化展示计数器
       const postCount = response._count.posts;
       this.redis
         .hset(`thread:${id}:stats`, 'views', String(response.viewCount || 0))
@@ -266,12 +266,7 @@ export class ThreadsService {
       this.redis
         .hset(`thread:${id}:stats`, 'createdAt', String(response.createdAt.getTime()))
         .catch(() => {});
-      const initScore = initialThreadSmartScore(
-        postCount,
-        response.viewCount || 0,
-        Number(response.tipTotal ?? 0n),
-      );
-      this.redis.zadd(ZSET_BY_SMART, initScore, id).catch(() => {});
+
     }
     this.eventEmitter.emit('thread.updated', { threadId: id });
 

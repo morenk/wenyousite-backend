@@ -423,3 +423,15 @@ export function hasVisibleMarkdownContent(markdown: string): boolean {
   }
   return false;
 }
+
+/** 推荐字数只计算可见文字；图片、链接地址与站内协议不产生创作分。 */
+export function markdownContributionText(content: string): string {
+  const withoutProtocols = content.replace(/\[\[[a-z][a-z0-9_-]*:v\d+:[\s\S]*?\]\]/giu, '');
+  const text = markdownParser.parse(withoutProtocols, {}).flatMap((block) => {
+    if (block.type === 'fence' || block.type === 'code_block') return [block.content];
+    return [(block.children ?? []).flatMap((token) =>
+      token.type === 'text' || token.type === 'code_inline' ? [token.content] : []).join('')];
+  }).join(' ');
+  return text.replace(/(?:https?:\/\/|www\.)[^\s<>]+/giu, '')
+    .replace(DEFAULT_IGNORABLE_RE, '').normalize('NFKC').replace(/\s+/gu, ' ').trim();
+}

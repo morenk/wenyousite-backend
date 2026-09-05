@@ -3,7 +3,6 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { NotificationProducer } from '../notifications/notification.producer';
 import { RedisService } from '../redis/redis.service';
-import { updateThreadSmartScore } from '../threads/thread-smart-score';
 import { DOMAIN_EVENTS, TipCompletedEvent } from '../outbox/domain-events';
 
 @Injectable()
@@ -47,7 +46,6 @@ export class EconomyEventsListener {
 
     if (event.threadId && event.threadTipTotal !== null && event.threadTipTotal !== undefined) {
       await this.redis.hset(`thread:${event.threadId}:stats`, 'tips', event.threadTipTotal);
-      await updateThreadSmartScore(this.redis, event.threadId);
       this.events.emit('thread.updated', { threadId: event.threadId });
     }
     if (event.momentId && event.momentTipTotal !== null && event.momentTipTotal !== undefined) {

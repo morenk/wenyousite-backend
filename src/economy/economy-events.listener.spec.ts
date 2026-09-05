@@ -78,8 +78,8 @@ describe('EconomyEventsListener', () => {
       expect.objectContaining({ threadId: 'thread-1', eventKey: 'tip:transaction-1' }),
     );
     expect(redis.hset).toHaveBeenCalledWith('thread:thread-1:stats', 'tips', '12');
-    expect(redis.hgetall).toHaveBeenCalledWith('thread:thread-1:stats');
-    expect(redis.zadd).toHaveBeenCalledWith('threads:by:smart', expect.any(Number), 'thread-1');
+    expect(redis.hgetall).not.toHaveBeenCalled();
+    expect(redis.zadd).not.toHaveBeenCalled();
     expect(events.emit).toHaveBeenCalledWith('thread.updated', { threadId: 'thread-1' });
   });
 

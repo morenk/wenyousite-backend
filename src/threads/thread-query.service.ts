@@ -1,3 +1,5 @@
+import { ThreadRankingService } from './thread-ranking.service';
+import { SMART_SCORE_ZSET } from './thread-smart-score';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -25,7 +27,7 @@ import {
 } from './thread-list-card';
 import { threadCategoryInfoSelect, withThreadCategoryInfo } from '../taxonomy/thread-category-info';
 
-const ZSET_BY_SMART = 'threads:by:smart';
+const ZSET_BY_SMART = SMART_SCORE_ZSET;
 const DISCOVERABLE_THREAD_OWNER_WHERE = { is: { deletedAt: null } } as const;
 const threadDetailInclude = {
   owner: { select: authorSelect },
@@ -94,6 +96,7 @@ export class ThreadQueryService {
     private readonly redis: RedisService,
     private readonly cache: CacheService,
     private readonly postingPolicy: PostingPolicyService,
+    private readonly ranking: ThreadRankingService,
   ) {}
 
   /** 我的草稿列表（未发布帖） */
@@ -318,6 +321,7 @@ export class ThreadQueryService {
         HttpStatus.BAD_REQUEST,
       );
     }
+    await this.ranking.ensureReady();
     const zsetSize = await this.redis.zcard(ZSET_BY_SMART);
 
     const where: Prisma.ThreadWhereInput = {

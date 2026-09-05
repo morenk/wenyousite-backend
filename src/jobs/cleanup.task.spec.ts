@@ -2,7 +2,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CleanupTask } from './cleanup.task';
 import { PrismaService } from '../prisma/prisma.service';
-import { RedisService } from '../redis/redis.service';
+import { ThreadRankingService } from '../threads/thread-ranking.service';
 import { MediaService } from '../media/media.service';
 import { StickersService } from '../stickers/stickers.service';
 import { MobileDeviceService } from '../mobile-push/mobile-device.service';
@@ -20,11 +20,7 @@ const mockPrisma = {
   $executeRaw: jest.fn().mockResolvedValue(1),
 };
 
-const mockRedis = {
-  hgetall: jest.fn().mockResolvedValue({}),
-  hset: jest.fn().mockResolvedValue(1),
-  zadd: jest.fn().mockResolvedValue(1),
-};
+const mockRanking = { rebuild: jest.fn().mockResolvedValue(undefined) };
 
 const mockMediaService = {
   cleanupOrphanMedia: jest.fn().mockResolvedValue(undefined),
@@ -40,7 +36,7 @@ describe('CleanupTask', () => {
       providers: [
         CleanupTask,
         { provide: PrismaService, useValue: mockPrisma },
-        { provide: RedisService, useValue: mockRedis },
+        { provide: ThreadRankingService, useValue: mockRanking },
         { provide: MediaService, useValue: mockMediaService },
         { provide: StickersService, useValue: mockStickersService },
         { provide: MobileDeviceService, useValue: mockMobileDevices },
@@ -83,18 +79,8 @@ describe('CleanupTask', () => {
     expect(mockPrisma.emailVerification.deleteMany).toHaveBeenCalled();
   });
 
-  it('recalcSmartScores 应将 Redis 浏览量批量落盘', async () => {
-    mockPrisma.thread.findMany.mockResolvedValueOnce([
-      { id: 't1', createdAt: new Date(Date.now() - 3600000), viewCount: 5 },
-      { id: 't2', createdAt: new Date(Date.now() - 7200000), viewCount: 7 },
-    ]);
-    mockRedis.hgetall
-      .mockResolvedValueOnce({ views: '9', replies: '2', likes: '1' })
-      .mockResolvedValueOnce({ views: '7', replies: '0', likes: '0' });
-
+  it('定时维护调用数据库权威重建', async () => {
     await task.recalcSmartScores();
-
-    expect(mockRedis.zadd).toHaveBeenCalledTimes(2);
-    expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(mockRanking.rebuild).toHaveBeenCalledTimes(1);
   });
 });

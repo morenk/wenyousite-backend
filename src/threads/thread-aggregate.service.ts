@@ -24,14 +24,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { SaveThreadAggregateDto } from './dto/save-thread-aggregate.dto';
 import { StickerContentService } from '../stickers/sticker-content.service';
-import { computeThreadEngagement, computeThreadSmartScore } from './thread-smart-score';
 import { ThreadCategoriesService } from '../taxonomy/thread-categories.service';
 import { MediaReferenceService } from '../media/media-reference.service';
 import { threadCategoryInfoSelect, withThreadCategoryInfo } from '../taxonomy/thread-category-info';
 
 const ZSET_BY_CREATED = 'threads:by:created';
 const ZSET_BY_ACTIVITY = 'threads:by:activity';
-const ZSET_BY_SMART = 'threads:by:smart';
 
 interface UpdatedBodySideEffect {
   postId: string;
@@ -515,15 +513,7 @@ export class ThreadAggregateService {
     this.redis
       .hset(`thread:${thread.id}:stats`, 'createdAt', String(thread.createdAt.getTime()))
       .catch(() => {});
-    const engagement = computeThreadEngagement({
-      replies: postCount,
-      likes: 0,
-      views: thread.viewCount || 0,
-      tips: Number(tipTotal),
-    });
-    this.redis
-      .zadd(ZSET_BY_SMART, computeThreadSmartScore(engagement, 0), thread.id)
-      .catch(() => {});
+
   }
 
   private async syncEditedMentions(

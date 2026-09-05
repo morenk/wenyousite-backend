@@ -1,3 +1,4 @@
+import { ThreadRankingService } from '../threads/thread-ranking.service';
 /** 发帖全流程集成测试：主题帖 → 子贴 → 楼层 → 楼中楼 → 编辑/删除 */
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -259,6 +260,7 @@ describe('发帖全流程集成测试', () => {
         PostingPolicyService,
         PostQueryService,
         ThreadQueryService,
+        { provide: ThreadRankingService, useValue: { ensureReady: jest.fn().mockResolvedValue(undefined) } },
         ThreadCreateIdempotencyService,
         PostMentionEventsService,
         ThreadReactionService,

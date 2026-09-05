@@ -1,3 +1,4 @@
+import { ThreadRankingService } from './thread-ranking.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ThreadsService } from './threads.service';
@@ -121,6 +122,7 @@ describe('ThreadsService', () => {
       providers: [
         ThreadsService,
         ThreadQueryService,
+        { provide: ThreadRankingService, useValue: { ensureReady: jest.fn().mockResolvedValue(undefined) } },
         ThreadCreateIdempotencyService,
         ThreadReactionService,
         ThreadInviteService,

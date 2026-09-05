@@ -7,7 +7,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { BlockFilterService } from '../access/block-filter.service';
 import { buildPostPreview } from '../common/post-preview';
-import { updateThreadSmartScore } from '../threads/thread-smart-score';
 import { PostMentionsUpdatedEvent } from '../mentions/mention-events';
 import { DOMAIN_EVENTS, PostCreatedEvent } from '../outbox/domain-events';
 
@@ -38,7 +37,6 @@ export class PostEventsListener {
     await this.refreshReplyProjection(event);
     const now = Date.now();
     await this.redis.zadd(ZSET_BY_ACTIVITY, now, event.threadId);
-    await updateThreadSmartScore(this.redis, event.threadId);
 
     // 预加载拉黑关系、订阅者、管理者（多类通知共用，一次 DB 查询）
     const [subscribers, blockSets, managers] = await Promise.all([
@@ -318,7 +316,7 @@ export class PostEventsListener {
     );
   }
 
-  /** 主题帖点赞后更新计数 + 智能排序分 */
+  /** 主题帖点赞后更新计数 */
   @OnEvent(DOMAIN_EVENTS.THREAD_LIKED, { suppressErrors: false })
   async handleThreadLiked(event: { threadId: string }) {
     const thread = await this.prisma.thread.findUnique({
@@ -327,7 +325,6 @@ export class PostEventsListener {
     });
     if (!thread) return;
     await this.redis.hset(`thread:${event.threadId}:stats`, 'likes', String(thread.likeCount));
-    await updateThreadSmartScore(this.redis, event.threadId);
   }
 
   /** 主题帖取消点赞后更新计数 */
