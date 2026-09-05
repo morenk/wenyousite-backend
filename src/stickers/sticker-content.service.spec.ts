@@ -26,6 +26,18 @@ describe('StickerContentService', () => {
     ]);
   });
 
+  it('emoji 与代码组合不能遮掉真实新增图片，代码中的图片仍忽略', async () => {
+    const image = '![外链](https://external.example/a.png)';
+    const text = `🎲🎲🎲🎲 \`示例\` ${image}`;
+    expect(service.extract(text)).toEqual([
+      { url: 'https://external.example/a.png', title: null, stickerAssetId: null },
+    ]);
+    await expect(service.assertContentAllowed('u1', text)).rejects.toMatchObject({
+      errorCode: ErrorCode.INVALID_STICKER,
+    });
+    expect(service.extract(`🎲 \`${image}\`\n${image}`)).toHaveLength(1);
+  });
+
   it('允许编辑时原样保留历史外链，但拒绝新增或复制外链图片', async () => {
     const external = '![历史图](https://external.example/a.png)';
     await expect(service.assertContentAllowed('u1', `${external}\n正文`, external)).resolves.toEqual([]);

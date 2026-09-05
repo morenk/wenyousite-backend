@@ -2,6 +2,7 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
+import { maskMarkdownCode } from '../common/markdown-cover-images';
 import { STICKER_MARKER_PREFIX, STICKER_POST_LIMIT } from './sticker.constants';
 
 export interface MarkdownImageToken {
@@ -27,7 +28,7 @@ export class StickerContentService {
   }
 
   extract(content: string): MarkdownImageToken[] {
-    const visible = this.maskCode(content);
+    const visible = maskMarkdownCode(content);
     const tokens: MarkdownImageToken[] = [];
     for (const match of visible.matchAll(new RegExp(MARKDOWN_IMAGE_PATTERN.source, 'g'))) {
       if (this.isEscaped(visible, match.index ?? 0)) continue;
@@ -115,21 +116,6 @@ export class StickerContentService {
     const counts = new Map<string, number>();
     for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
     return counts;
-  }
-
-  private maskCode(content: string) {
-    const chars = [...content];
-    const mask = (start: number, end: number) => {
-      for (let i = start; i < end; i++) if (chars[i] !== '\n') chars[i] = ' ';
-    };
-    for (const match of content.matchAll(/^(?: {0,3})(`{3,}|~{3,})[^\n]*\n[\s\S]*?^(?: {0,3})\1\s*$/gm)) {
-      mask(match.index ?? 0, (match.index ?? 0) + match[0].length);
-    }
-    const fenced = chars.join('');
-    for (const match of fenced.matchAll(/(`+)(?!`)([^\n]*?)\1(?!`)/g)) {
-      mask(match.index ?? 0, (match.index ?? 0) + match[0].length);
-    }
-    return chars.join('');
   }
 
   private isEscaped(content: string, index: number) {

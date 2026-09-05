@@ -1,6 +1,6 @@
 const MARKDOWN_IMAGE_PATTERN = /!\[[^\]\n]*\]\(\s*([^\s)]+)(?:\s+["']([^"'\n]*)["'])?\s*\)/g;
 
-function maskMarkdownCode(content: string): string {
+export function maskMarkdownCode(content: string): string {
   // RegExp 的 index 使用 UTF-16 code unit；split('') 保持同一索引体系，避免正文前的
   // emoji/代理对让代码区遮罩发生偏移。
   const chars = content.split('');
