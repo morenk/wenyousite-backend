@@ -58,7 +58,7 @@ export class ExperienceEventsListener {
     );
   }
 
-  @OnEvent(DOMAIN_EVENTS.POST_CREATED)
+  @OnEvent(DOMAIN_EVENTS.POST_CREATED, { suppressErrors: false })
   async handlePostCreated(event: PostCreatedEvent) {
     if (event.isSubthreadBody) return;
     const at = occurredAt(event.occurredAt);
@@ -101,7 +101,7 @@ export class ExperienceEventsListener {
     await this.progression.grantMany(grants);
   }
 
-  @OnEvent(DOMAIN_EVENTS.THREAD_PUBLISHED)
+  @OnEvent(DOMAIN_EVENTS.THREAD_PUBLISHED, { suppressErrors: false })
   async handleThreadPublished(event: ThreadPublishedEvent) {
     const at = occurredAt(event.occurredAt);
     if (event.visibility === 'PRIVATE') {
@@ -121,7 +121,7 @@ export class ExperienceEventsListener {
     ]);
   }
 
-  @OnEvent(DOMAIN_EVENTS.MOMENT_CREATED)
+  @OnEvent(DOMAIN_EVENTS.MOMENT_CREATED, { suppressErrors: false })
   async handleMomentCreated(event: MomentCreatedEvent) {
     const at = occurredAt(event.occurredAt);
     await this.progression.grantMany([
@@ -137,7 +137,7 @@ export class ExperienceEventsListener {
     ]);
   }
 
-  @OnEvent(DOMAIN_EVENTS.THREAD_LIKED)
+  @OnEvent(DOMAIN_EVENTS.THREAD_LIKED, { suppressErrors: false })
   async handleThreadLiked(event: ThreadLikedEvent) {
     if (event.ownerId === event.userId) return;
     const at = occurredAt(event.occurredAt);
@@ -154,7 +154,7 @@ export class ExperienceEventsListener {
     ]);
   }
 
-  @OnEvent(DOMAIN_EVENTS.MOMENT_COMMENT_CREATED)
+  @OnEvent(DOMAIN_EVENTS.MOMENT_COMMENT_CREATED, { suppressErrors: false })
   async handleMomentCommentCreated(event: MomentCommentCreatedEvent) {
     if (event.momentAuthorId === event.actorId) return;
     const at = occurredAt(event.occurredAt);
@@ -185,7 +185,7 @@ export class ExperienceEventsListener {
     await this.progression.grantMany(grants);
   }
 
-  @OnEvent(DOMAIN_EVENTS.TIP_COMPLETED)
+  @OnEvent(DOMAIN_EVENTS.TIP_COMPLETED, { suppressErrors: false })
   async handleTipCompleted(event: TipCompletedEvent) {
     if (event.senderId === event.recipientId) return;
     const at = occurredAt(event.occurredAt);
@@ -211,7 +211,7 @@ export class ExperienceEventsListener {
     ]);
   }
 
-  @OnEvent(DOMAIN_EVENTS.USER_LEVEL_UP)
+  @OnEvent(DOMAIN_EVENTS.USER_LEVEL_UP, { suppressErrors: false })
   async handleLevelUp(event: LevelUpEvent) {
     await this.notifications.notify('level_up', [event.userId], `恭喜你升级到 Lv.${event.level}`, {
       eventKey: `level-up:${event.userId}:${event.level}:${event.experience}`,

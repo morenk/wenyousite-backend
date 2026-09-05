@@ -17,7 +17,7 @@ export class CacheInvalidationListener {
   /** 帖子发布/修改/删除时，清除帖子详情和列表缓存 */
   @OnEvent('thread.created')
   @OnEvent('thread.updated')
-  @OnEvent('thread.published')
+  @OnEvent('thread.published', { suppressErrors: false })
   @OnEvent('thread.deleted')
   async handleThreadChange(event: { threadId: string }) {
     const { threadId } = event;
@@ -28,7 +28,7 @@ export class CacheInvalidationListener {
 
   // ── 楼层变更（影响帖子活跃度和回复数） ──
 
-  @OnEvent('post.created')
+  @OnEvent('post.created', { suppressErrors: false })
   async handlePostCreated(event: { threadId: string; subthreadId: string; parentPostId?: string | null }) {
     const { threadId, subthreadId, parentPostId } = event;
     // 帖子详情缓存失效
@@ -66,8 +66,8 @@ export class CacheInvalidationListener {
 
   // ── 主题帖点赞变更（影响缓存） ──
 
-  @OnEvent('thread.liked')
-  @OnEvent('thread.unliked')
+  @OnEvent('thread.liked', { suppressErrors: false })
+  @OnEvent('thread.unliked', { suppressErrors: false })
   async handleThreadLikeChange(event: { threadId: string }) {
     await this.cache.del(this.cache.buildKey('thread', event.threadId));
     await this.cache.delByPattern(this.cache.buildKey('threads', 'list', '*'));

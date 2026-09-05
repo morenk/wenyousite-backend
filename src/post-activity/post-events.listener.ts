@@ -31,14 +31,14 @@ export class PostEventsListener {
   ) {}
 
   /** 监听 post.created 事件，处理：@提及、新帖通知、楼中楼回复通知 + Redis 计数器更新 */
-  @OnEvent(DOMAIN_EVENTS.POST_CREATED)
+  @OnEvent(DOMAIN_EVENTS.POST_CREATED, { suppressErrors: false })
   async handlePostCreated(event: PostCreatedEvent) {
     const failures: unknown[] = [];
     // Redis 投影从数据库权威值覆盖，Outbox 重试时不会重复累加。
-    await this.refreshReplyProjection(event).catch(() => {});
+    await this.refreshReplyProjection(event);
     const now = Date.now();
-    this.redis.zadd(ZSET_BY_ACTIVITY, now, event.threadId).catch(() => {});
-    updateThreadSmartScore(this.redis, event.threadId).catch(() => {});
+    await this.redis.zadd(ZSET_BY_ACTIVITY, now, event.threadId);
+    await updateThreadSmartScore(this.redis, event.threadId);
 
     // 预加载拉黑关系、订阅者、管理者（多类通知共用，一次 DB 查询）
     const [subscribers, blockSets, managers] = await Promise.all([
@@ -292,7 +292,7 @@ export class PostEventsListener {
   }
 
   /** 编辑事务已确定接收者；Outbox 重试通过稳定通知键保持幂等。 */
-  @OnEvent(DOMAIN_EVENTS.POST_MENTIONS_UPDATED)
+  @OnEvent(DOMAIN_EVENTS.POST_MENTIONS_UPDATED, { suppressErrors: false })
   async handlePostMentionsUpdated(event: PostMentionsUpdatedEvent) {
     const recipients = [...new Set(event.recipientIds)].filter(
       (recipientId) => recipientId !== event.userId,
@@ -319,7 +319,7 @@ export class PostEventsListener {
   }
 
   /** 主题帖点赞后更新计数 + 智能排序分 */
-  @OnEvent(DOMAIN_EVENTS.THREAD_LIKED)
+  @OnEvent(DOMAIN_EVENTS.THREAD_LIKED, { suppressErrors: false })
   async handleThreadLiked(event: { threadId: string }) {
     const thread = await this.prisma.thread.findUnique({
       where: { id: event.threadId },
@@ -327,11 +327,11 @@ export class PostEventsListener {
     });
     if (!thread) return;
     await this.redis.hset(`thread:${event.threadId}:stats`, 'likes', String(thread.likeCount));
-    updateThreadSmartScore(this.redis, event.threadId).catch(() => {});
+    await updateThreadSmartScore(this.redis, event.threadId);
   }
 
   /** 主题帖取消点赞后更新计数 */
-  @OnEvent(DOMAIN_EVENTS.THREAD_UNLIKED)
+  @OnEvent(DOMAIN_EVENTS.THREAD_UNLIKED, { suppressErrors: false })
   async handleThreadUnliked(event: { threadId: string }) {
     await this.handleThreadLiked(event);
   }

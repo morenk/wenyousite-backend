@@ -12,7 +12,7 @@ export class UserRelationEventsListener {
     private readonly blockFilter: BlockFilterService,
   ) {}
 
-  @OnEvent(DOMAIN_EVENTS.USER_FOLLOWED)
+  @OnEvent(DOMAIN_EVENTS.USER_FOLLOWED, { suppressErrors: false })
   async handleFollowed(event: UserFollowedEvent): Promise<void> {
     const blockSets = await this.blockFilter.loadBlockSets(event.actorId);
     const recipients = this.blockFilter.filterRecipients([event.targetId], blockSets);

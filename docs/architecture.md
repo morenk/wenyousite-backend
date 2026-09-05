@@ -51,7 +51,7 @@ OutboxDispatcher（FOR UPDATE SKIP LOCKED）
        processed_at = now()
 ```
 
-- 分发语义是至少一次；监听器必须幂等。
+- 分发语义是至少一次；可靠事件监听器显式设置 `suppressErrors: false`，并等待必要副作用完成；异常必须传回分发器，重试依靠业务幂等键去重。
 - `NotificationProducer` 会等待权威通知以稳定 `eventKey` 幂等落入 PostgreSQL；落库失败会让 Outbox 保持未确认并重试，不再依赖 Redis 中的通知中间队列。
 - 移动推送仅是通知落库后的尽力提示通道；入队失败不会回滚权威通知，客户端始终以通知 API 和未读数为准。
 - 点赞和回复计数不执行重复 `INCR`，而是读取数据库权威计数后覆盖 Redis。

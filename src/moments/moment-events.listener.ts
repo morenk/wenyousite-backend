@@ -7,7 +7,7 @@ import { DOMAIN_EVENTS, MomentCommentCreatedEvent } from '../outbox/domain-event
 export class MomentEventsListener {
   constructor(private readonly notifications: NotificationProducer) {}
 
-  @OnEvent(DOMAIN_EVENTS.MOMENT_COMMENT_CREATED)
+  @OnEvent(DOMAIN_EVENTS.MOMENT_COMMENT_CREATED, { suppressErrors: false })
   async commentCreated(event: MomentCommentCreatedEvent) {
     if (event.recipientId === event.actorId) return;
     await this.notifications.notify(

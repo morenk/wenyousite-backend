@@ -14,7 +14,7 @@ export class EconomyEventsListener {
     private readonly events: EventEmitter2,
   ) {}
 
-  @OnEvent(DOMAIN_EVENTS.TIP_COMPLETED)
+  @OnEvent(DOMAIN_EVENTS.TIP_COMPLETED, { suppressErrors: false })
   async handleTipCompleted(event: TipCompletedEvent) {
     const targetLabel =
       event.targetType === 'THREAD' && event.threadTitle

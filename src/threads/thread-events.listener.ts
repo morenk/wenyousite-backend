@@ -19,7 +19,7 @@ export class ThreadEventsListener {
     private readonly blockFilter: BlockFilterService,
   ) {}
 
-  @OnEvent(DOMAIN_EVENTS.THREAD_PUBLISHED)
+  @OnEvent(DOMAIN_EVENTS.THREAD_PUBLISHED, { suppressErrors: false })
   async handlePublished(event: ThreadPublishedEvent): Promise<void> {
     const visibility =
       event.visibility ??
@@ -55,7 +55,7 @@ export class ThreadEventsListener {
     );
   }
 
-  @OnEvent(DOMAIN_EVENTS.THREAD_LIKED)
+  @OnEvent(DOMAIN_EVENTS.THREAD_LIKED, { suppressErrors: false })
   async handleLiked(event: ThreadLikedEvent): Promise<void> {
     if (event.ownerId === event.userId) return;
 
@@ -82,7 +82,7 @@ export class ThreadEventsListener {
     );
   }
 
-  @OnEvent(DOMAIN_EVENTS.THREAD_COLLABORATOR_ROLE_CHANGED)
+  @OnEvent(DOMAIN_EVENTS.THREAD_COLLABORATOR_ROLE_CHANGED, { suppressErrors: false })
   async handleCollaboratorRoleChanged(event: ThreadCollaboratorRoleChangedEvent): Promise<void> {
     const added = event.newRole === 'COLLABORATOR';
     const action = added ? 'thread_collaborator_added' : 'thread_collaborator_removed';
