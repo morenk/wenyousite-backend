@@ -117,6 +117,48 @@ done
 grep -q '00/10' "$BACKEND_DIR/ops/wenyousite-redis-backup.timer" || { echo "Redis RPO 定时器未给 15 分钟目标留出余量" >&2; exit 1; }
 grep -q 'OnFailure=wenyousite-backup-alert@%n.service' "$BACKEND_DIR/ops/wenyousite-redis-backup.service" || { echo "备份失败未接 SMTP 告警" >&2; exit 1; }
 
+TEST_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/wenyousite-backup-health-test.XXXXXX")
+trap 'case "$TEST_ROOT" in "${TMPDIR:-/tmp}"/wenyousite-backup-health-test.*) find "$TEST_ROOT" -depth -delete ;; esac' EXIT
+mkdir -p "$TEST_ROOT/bin" "$TEST_ROOT/state"
+cat >"$TEST_ROOT/bin/docker" <<'SH'
+#!/usr/bin/env bash
+case "${1:-}" in
+  compose) echo "${*: -1}" ;;
+  inspect) echo true ;;
+  exec)
+    case " $* " in
+      *' psql '*) echo 'on|5min|on|0|t' ;;
+      *' pgbackrest '*)
+        if [ "${PGBACKREST_STATUS:-99}" = 0 ]; then
+          echo '[{"status":{"code":0,"message":"ok"}}]'
+        else
+          echo '[{"status":{"code":99,"message":"repo1: timeout\nretry exhausted"}}]'
+        fi
+        ;;
+      *' INFO persistence '*) printf 'aof_enabled:1\naof_last_write_status:ok\n' ;;
+      *) exit 1 ;;
+    esac
+    ;;
+  *) exit 1 ;;
+esac
+SH
+chmod 0755 "$TEST_ROOT/bin/docker"
+touch "$TEST_ROOT/state/security-activated"
+for kind in redis pgbackrest postgres-logical restic-maintenance restore-drill; do
+  printf 'completed_epoch=%s\n' "$(date +%s)" >"$TEST_ROOT/state/$kind.success"
+done
+
+if PATH="$TEST_ROOT/bin:$PATH" WENYOUSITE_BACKUP_STATE_DIR="$TEST_ROOT/state" \
+  "$SCRIPT_DIR/monitor-backup-health.sh" >"$TEST_ROOT/output" 2>"$TEST_ROOT/error"; then
+  echo "pgBackRest 异常状态未使健康检查失败" >&2
+  exit 1
+fi
+grep -Fqx 'backup_health_failure pgbackrest_status=99 pgbackrest_message="repo1: timeout\nretry exhausted"' \
+  "$TEST_ROOT/error" || { echo "pgBackRest 详细错误未安全写入单行日志" >&2; exit 1; }
+PGBACKREST_STATUS=0 PATH="$TEST_ROOT/bin:$PATH" WENYOUSITE_BACKUP_STATE_DIR="$TEST_ROOT/state" \
+  "$SCRIPT_DIR/monitor-backup-health.sh" >"$TEST_ROOT/output" 2>"$TEST_ROOT/error"
+[ ! -s "$TEST_ROOT/error" ] || { echo "pgBackRest 正常状态产生了错误日志" >&2; exit 1; }
+
 bash -n "$SCRIPT_DIR"/*.sh
 docker compose -f "$COMPOSE_FILE" config --quiet
 echo "Database and Redis durability tests passed"

@@ -44,10 +44,13 @@ else
   [ "$archive_timeout" = 5min ] || [ "$archive_timeout" = 300s ] || errors+=("postgres_archive_timeout=${archive_timeout:-unknown}")
   [ "$data_checksums" = on ] || errors+=("postgres_data_checksums=${data_checksums:-unknown}")
   [ "$archive_recovered" = t ] || errors+=("postgres_latest_archive=failed")
-  pgbackrest_status=$(docker exec --user postgres "$POSTGRES_CONTAINER" pgbackrest \
-    --config=/run/secrets/wenyousite/pgbackrest.conf --stanza=wenyousite info --output=json 2>/dev/null | \
-    jq -r '.[0].status.code // -1' 2>/dev/null || true)
-  [ "$pgbackrest_status" = 0 ] || errors+=("pgbackrest_status=${pgbackrest_status:-unknown}")
+  pgbackrest_info=$(docker exec --user postgres "$POSTGRES_CONTAINER" pgbackrest \
+    --config=/run/secrets/wenyousite/pgbackrest.conf --stanza=wenyousite info --output=json 2>/dev/null || true)
+  pgbackrest_status=$(jq -r '.[0].status.code // -1' <<<"$pgbackrest_info" 2>/dev/null || true)
+  if [ "$pgbackrest_status" != 0 ]; then
+    pgbackrest_message=$(jq -c '.[0].status.message // "unknown"' <<<"$pgbackrest_info" 2>/dev/null || true)
+    errors+=("pgbackrest_status=${pgbackrest_status:-unknown} pgbackrest_message=${pgbackrest_message:-unknown}")
+  fi
 fi
 
 REDIS_CONTAINER=$(docker compose -f "$COMPOSE_FILE" ps -q redis 2>/dev/null || true)
