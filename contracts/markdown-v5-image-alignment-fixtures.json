@@ -1,6 +1,6 @@
 {
   "contract": "wenyousite-markdown-image-alignment",
-  "version": 1,
+  "version": 2,
   "markdownContractVersion": 5,
   "defaultAlignment": "left",
   "rules": {
@@ -9,6 +9,24 @@
     "sticker": "inline-inherits-parent-alignment"
   },
   "cases": [
+    {
+      "id": "empty-before-center-image",
+      "markdown": "前文\n<br />\n[wenyousite-align-v1-center]: #\n![图片](https://cdn.example.com/center.webp)",
+      "supported": true,
+      "expectedAlignment": "center"
+    },
+    {
+      "id": "empty-around-right-image",
+      "markdown": "## 标题\n<br />\n[wenyousite-align-v1-right]: #\n![图片](https://cdn.example.com/right.webp)\n<br />\n后文",
+      "supported": true,
+      "expectedAlignment": "right"
+    },
+    {
+      "id": "empty-is-not-alignable",
+      "markdown": "[wenyousite-align-v1-center]: #\n<br />",
+      "supported": false,
+      "expectedAlignment": null
+    },
     {
       "id": "default-left-image",
       "markdown": "![默认图片](https://cdn.example.com/default.webp)",

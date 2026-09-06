@@ -6,7 +6,7 @@
 
 1. [`contracts/markdown-v4-fixtures.json`](../../contracts/markdown-v4-fixtures.json) 固定规范化、可见性、允许/拒绝结果、首个不支持类型和字面降级结果。
 2. [`contracts/markdown-v4-nodes-fixtures.json`](../../contracts/markdown-v4-nodes-fixtures.json) 固定扩展节点的解析、序列化和复制身份。
-3. [`contracts/markdown-editor-roundtrip-v6-fixtures.json`](../../contracts/markdown-editor-roundtrip-v6-fixtures.json) 固定 `structured` 与 `literal-text` 两类编辑器往返，并校验块语义、块对齐和行内语义。
+3. [`contracts/markdown-editor-roundtrip-v7-fixtures.json`](../../contracts/markdown-editor-roundtrip-v7-fixtures.json) 保留 30 条 `structured` / `literal-text` 往返，增加 48 条真实编辑操作，并校验块语义、块对齐和逐段行内样式。
 4. [`contracts/editor-clipboard-v2-fixtures.json`](../../contracts/editor-clipboard-v2-fixtures.json) 固定 Web/Flutter 的复制入口、站内结构片段、外部字面粘贴、对齐属性、原子节点身份与可见文本回退。
 
 主题坐标链接仍是普通 Markdown 链接；客户端可额外按 [`站内传送门 v1`](./internal-references.md) 统一其内联视觉和同页导航，不改变 Markdown v5 的存储规则。
@@ -54,6 +54,8 @@ Markdown v5 为普通图片增加独立图片块对齐能力：普通图片单�
 
 所有正文入口先统一 CRLF/CR 为 LF、规范化独占空段并清理空 URL 图片，然后执行同一 AST 白名单校验；校验必须早于骰子、图片、表情、提及和持久化处理。
 
+白名单解析时用独立分隔块临时替代协议空段，保持行号和块边界；不得用普通文字占位，否则紧邻的对齐定义会并入段落，误报无效对齐。占位不会进入存储或阅读输出，空段仍不允许携带对齐。图片对齐 fixture revision 2 固定该邻接边界。
+
 未转义的白名单外结构返回 HTTP 400、`UNSUPPORTED_MARKDOWN_FORMAT = 40009`，响应保持 `{ code, message, data: null }`，message 指出按源码顺序遇到的首个不支持类型。DTO 的 10,000 字限制不变。覆盖入口包括主题创建与聚合保存、楼层/回复创建与编辑、子贴正文 upsert 和云草稿创建/更新；失败不得产生数据库、Outbox、通知、活动、骰子或提及副作用。
 
 客户端对粘贴、手输、重开和草稿恢复中的不支持结构静默转成字面文本，不显示格式提示。阅读端也在交给 Markdown 渲染器前做相同防御降级。服务端不依赖客户端行为，直接 API 调用仍严格拒绝。
@@ -84,9 +86,20 @@ Markdown v5 为普通图片增加独立图片块对齐能力：普通图片单�
 
 现有 v3/v4 正文无需数据改写即可作为 v5 读取。历史清理命令 `pnpm markdown:v3:migrate` 仍默认只扫描并输出 dry-run 汇总；应用前必须运行 `scripts/backup.sh`，随后使用 `pnpm markdown:v3:migrate --apply --backup-confirmed`。迁移按源码行转义不支持节点、递增 Post/Draft 乐观锁版本、同步骰子与提及派生关系并清理正文缓存；不发通知、活动或业务事件。重复执行不再改变正文或版本，应用后全库不允许残留不支持节点。
 
+## 编辑操作契约 v7
+
+HTTP API 与存储协议仍分别为 `5.18.0-dev.20260905.1` 和 Markdown v5；fixture v7 是测试契约版本，不是新增正文格式。编辑器内部可继续使用 ProseMirror / Delta，持久化仍只有 Markdown，不引入第二套正文事实源。
+
+- `editCases` 覆盖粗体、斜体、删除线、链接的全部 15 种非空组合及独立行内代码，在首、中、尾三个位置插入，共 48 条。`operation.anchor` 是唯一可见文字锚点，`offset` 按 UTF-16 计数，`marks` 是输入时明确启用的样式。客户端必须执行真实编辑器输入事务，不能只拼接期望 Markdown。
+- 对每条断言完整 `visibleText`、每个文字区间的全部 marks、规范 `serialized`、重开语义和再次序列化幂等；删除新增文字后恢复原语义。中间位置另逐条消费 `inlineInsertTexts`，覆盖空格、Markdown 标点/反斜杠、中文标点、组合 Emoji 和反引号。
+- 相同可见样式的连续文字只构成一个逻辑格式区间；输入来源标记不是可见样式，不应造成 `**旧****新**`。来源仍决定各片段的字面转义，不得为了合并而丢失。规范嵌套由外到内为粗体、斜体、链接、删除线；行内代码单独处理。不得跨越换行、原子节点或真正的样式/链接目标变化合并。
+- 历史等价 Markdown 可以规范化，不得仅因定界符嵌套顺序不同就降级为源码；也不能仅凭“通过白名单”认定无损。新增样式或节点必须补充编辑、删除、重开以及组合边界语料，由对应客户端实际操作测试消费后再开放写入。
+
+Web 和后端消费 v7；已审查 Flutter 副本尚未消费，Windows 修复与发布要求见 [移动端接入指南](../mobile-client-guide.md#编辑器-v7-windows-迁移)。现有移动端 API 请求仍兼容，但这不表示其编辑序列化缺陷已经修复。
+
 ## 自动门禁
 
-- 四份 fixture 必须为合法 JSON、case id 唯一，并与存在同名副本的客户端逐字一致；round-trip v6 的 `blockSemantics`、`blockAlignments` 与 `inlineSemantics` 分别校验实际块、对齐和行内解析结果；clipboard v2 还必须覆盖 Web/Flutter 六个入口、v1 兼容读取、全部来源降级、对齐规则和六类原子节点。
+- 上述四层及图片对齐 fixture 必须为合法 JSON、case id 唯一，并与存在同名副本的客户端逐字一致；round-trip v7 的 `blockSemantics`、`blockAlignments` 与 `inlineSemantics` 分别校验实际块、对齐和行内解析结果，`editCases` 另校验实际编辑操作及逐段样式；clipboard v2 还必须覆盖 Web/Flutter 六个入口、v1 兼容读取、全部来源降级、对齐规则和六类原子节点。
 - 单元测试覆盖每一种允许格式和所有禁止类型，字面输出必须合法且幂等。
 - 迁移测试覆盖 dry-run 无写入、版本递增、提及派生关系裁剪和重复规划幂等。
 - OpenAPI、错误码文档、CHANGELOG 与生成客户端必须随错误码和契约版本同步。

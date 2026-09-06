@@ -123,9 +123,24 @@ OpenAPI 为兼容 Web 把该头标为 optional；省略或传未知值会创建 
 
 ## 媒体、Markdown、动态与温油
 
+### 编辑器 v7 Windows 迁移
+
+本次只读审查固定移动端 `9d6a7c4e29cc20c080ffa47ac18aa2736c3d518e`。后端空段校验修复已在 `8f646f0cc872e1f19a1dd3388fd98fcbd16f1696` 交付；本节和 v7 语料所在的后端提交是后续同步基线（用 `git log -1 -- contracts/markdown-editor-roundtrip-v7-fixtures.json` 解析完整 SHA）。API 仍为 `5.18.0-dev.20260905.1`，`/meta.markdownContractVersion` 仍为 5。旧客户端请求兼容，但该移动端 SHA 仍存在输入来源属性导致的行内序列化分片风险，不能视作端到端修复完成。
+
+Windows 待办：
+
+1. 从已提交后端同步 round-trip v7 与图片对齐 fixture revision 2，更新消费者和契约门禁；不改 HTTP SDK，不另创正文存储格式。v7 的字段和样式顺序以 [编辑操作契约](modules/markdown-content.md#编辑操作契约-v7) 为准。
+2. 在 `MarkdownDeltaCodec` 的公共行内编码路径修复逻辑区间合并。`LiteralTextQuillController.replaceText` 会为新输入加 `wenyou_literal_text`，旧文字没有该属性；不能按完整 Delta attributes 是否相等逐片包裹格式。仅在可见 marks 和链接目标相同的连续文字间合并，逐片完成必要字面转义后再包一次定界符；换行、embed、真实样式变化必须分界，未知属性继续拒绝，代码/首尾空白沿用各自规则。
+3. `_tryDecodeRichLine` 的重编码证明不能要求历史源码与规范序列化逐字相同。以文字、完整 marks、块属性、节点身份的语义等价证明安全，再规范写回；不能直接删除证明或把解析成功当作无损。
+4. 公共 encode 写出前增加无损检查：结果重新解码后，与原 Delta 在合并相邻等价片段、忽略已知输入来源元数据后语义一致。文字、空段、软换行、对齐、链接目标和原子节点身份不得忽略。解码内部已有编码证明，须保留不递归的内部路径，避免 encode → decode → encode 无限递归。失败走现有错误/诊断通道、保留草稿、不发提交，不记录正文、链接或隐藏身份。
+5. 逐条用真实 `LiteralTextQuillController` 输入消费 48 条 `editCases`：首/中/尾光标明确启用 fixture marks，检查文字、逐段样式、规范输出、重开幂等和删除恢复；另消费五类 `inlineInsertTexts`，覆盖引用内连续粗体、软换行、空段与对齐标题/图片相邻。验证不同来源但同样式能合并，不同链接/样式与原子节点不能误合并。
+6. 在 Windows 运行移动端仓库门禁、构建签名 APK，并以专用账号验证“Web 创建 → 移动插空段/改格式 → Web 重开”和反向旅程，清理可识别测试内容。通过后再推荐 build 94（不提高最低版本）；本次 VPS 不修改发布推荐、不执行 Flutter 门禁、不改写用户原帖。若 build 94 已被其他任务发布，使用下一个未发布构建号。
+
+### 媒体与正文接入要求
+
 - 上传遵循“预签名 PUT → `upload-done` → 查询状态”；仅在 `COMPLETED` 后使用衍生图，列表优先 `thumbnailUrl`，详情优先 `mediumUrl`，为空或失败时回退 `url`。不得猜测对象键。
 - 个人主页背景包含根级 Web 3:1 资产和可空 `mobile` 2:1 资产；移动端优先选择 `mobile`，历史数据为空时回退根级资产，整体为 null 时不预留背景舞台。双画幅设置与移除仍是 planned，客户端实现前也必须消费 `mobile-v1-golden-fixtures.json` 的 `profileCovers` 旅程。
-- 主题帖、楼层和回复使用 Markdown v5 工具栏能力白名单。客户端必须消费 [`markdown-v4-fixtures.json`](../contracts/markdown-v4-fixtures.json)、[`markdown-v4-nodes-fixtures.json`](../contracts/markdown-v4-nodes-fixtures.json)、[`markdown-editor-roundtrip-v6-fixtures.json`](../contracts/markdown-editor-roundtrip-v6-fixtures.json)、[`markdown-v5-image-alignment-fixtures.json`](../contracts/markdown-v5-image-alignment-fixtures.json) 与 [`editor-clipboard-v2-fixtures.json`](../contracts/editor-clipboard-v2-fixtures.json)，覆盖规范化、允许/拒绝、字面文本降级、扩展节点、普通软换行、块语义、块对齐、图片块对齐、行内边界语义和剪贴板 round-trip；第三方解析器支持的表格等语法不得自行扩大产品能力。v6 继续保留 Setext H2/分隔线和行内定界符边界规则；写回仍以字符引用保护相邻正文、不增加可见空格，并把下划线定界符规范为星号。
+- 主题帖、楼层和回复使用 Markdown v5 工具栏能力白名单。客户端必须消费 [`markdown-v4-fixtures.json`](../contracts/markdown-v4-fixtures.json)、[`markdown-v4-nodes-fixtures.json`](../contracts/markdown-v4-nodes-fixtures.json)、[`markdown-editor-roundtrip-v7-fixtures.json`](../contracts/markdown-editor-roundtrip-v7-fixtures.json)、[`markdown-v5-image-alignment-fixtures.json`](../contracts/markdown-v5-image-alignment-fixtures.json) 与 [`editor-clipboard-v2-fixtures.json`](../contracts/editor-clipboard-v2-fixtures.json)，覆盖规范化、允许/拒绝、字面文本降级、扩展节点、普通软换行、块语义、块对齐、图片块对齐、行内边界语义和剪贴板 round-trip；第三方解析器支持的表格等语法不得自行扩大产品能力。v6 继续保留 Setext H2/分隔线和行内定界符边界规则；写回仍以字符引用保护相邻正文、不增加可见空格，并把下划线定界符规范为星号。
 - Windows 移动端必须固定 Foundation `v6.7.0`，把 `align` 加入 Delta 行属性白名单，并让 Markdown→Delta Codec 为普通段落、H2/H3 和 v5 独立普通图片块解码、编码紧邻的 `center|right` 标记；左对齐删除标记。工具栏以单一“对齐”入口在更多面板切换左/中/右，阅读器按块应用一致排版；列表、引用、分隔线和协议空段不得继承属性，文字与普通图片混排不得独立对齐，提及、骰子和收藏表情随父段落。已审查提交 `6b6083bcdb9eecf799d2357d082ad10fc1a28e00` 同时接受服务端版本 3、4、5，`/meta.markdownContractVersion` 现已激活为 5。
 - Windows 同步 clipboard v2 后，阅读态系统任意选区继续只写可见纯文本；楼层/回复整篇菜单必须经现有 Markdown→Delta Codec、`WenyouEditorClipboardStore` 与原生 marker 通道写入结构，并同时写可见文本 fallback。Store 的匹配键可使用可见文本、随机 marker、登录会话和十分钟有效期，但不得用编码后的 Markdown 覆盖系统 fallback；普通格式定界符、对齐标记、传送门目标、用户 ID、骰子 ID 和媒体 URL 都不能进入由客户端生成的纯文本。站内 v2 片段保留合法块对齐，v1 片段按既有结构读取但没有对齐；外部 HTML/CSS/纯文本不推断对齐。传送门、用户提及、`@全体玩家` 和骰子表达式保留；骰子粘贴换新 ID 且不继承结果；阅读端图片/表情分别降级为 `[图片]` / `[表情]`。marker 过期、进程重启、跨应用、Web↔Android 和跨设备均静默退回纯文本。参数化测试必须逐条消费 clipboard v2 的 entry points、alignment rule、node rules、transport/fallback 规则和 golden cases；VPS 不修改 Flutter 源码或声称已运行移动端门禁。
 - 动态标题保持纯文本；动态正文、评论和私聊正文仍是字符串，不进入通用 Markdown 渲染链路，但应消费 [`internal-reference-v1-fixtures.json`](../contracts/internal-reference-v1-fixtures.json)，只识别 `[名称](合法站内坐标)` 与裸站内坐标。输入接受 `wenyou.site`、`www.wenyou.site` 和相对坐标并规范化为相对地址；`post + subthread` 以 `post` 为准，转义名称与裸地址边界以 fixture 为准。其他 Markdown/外链保持字面文本。传送门同页导航、目标不可见时交给既有详情错误态，不预取目标元数据。

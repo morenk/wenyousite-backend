@@ -1,0 +1,961 @@
+{
+  "contract": "wenyousite-markdown-editor-roundtrip",
+  "version": 7,
+  "markdownContractVersion": 4,
+  "description": "Web 与 Flutter 编辑器共用的结构化往返、块对齐、行内语义及真实插入操作语料；编辑操作必须保留完整文字与逐段样式。",
+  "inlineInsertTexts": [" 空 格 ", "*[_]~\\", "（注意！）", "👩🏽‍💻", "`代码`"],
+  "modes": {
+    "structured": "客户端应恢复为结构化编辑状态，并序列化为 serialized",
+    "literal-text": "客户端显示源码字符但不得恢复为结构节点，并序列化为安全转义后的 serialized"
+  },
+  "cases": [
+    {
+      "id": "paragraphs",
+      "capabilities": ["paragraph"],
+      "mode": "structured",
+      "markdown": "第一段\n\n第二段",
+      "serialized": "第一段\n\n第二段"
+    },
+    {
+      "id": "bold",
+      "capabilities": ["bold"],
+      "mode": "structured",
+      "markdown": "普通 **粗体** 普通",
+      "serialized": "普通 **粗体** 普通"
+    },
+    {
+      "id": "bold-soft-break",
+      "capabilities": ["bold", "soft-break"],
+      "mode": "structured",
+      "markdown": "**阿罗**\n下一行",
+      "serialized": "**阿罗**\n下一行"
+    },
+    {
+      "id": "italic",
+      "capabilities": ["italic"],
+      "mode": "structured",
+      "markdown": "普通 *斜体* 普通",
+      "serialized": "普通 *斜体* 普通"
+    },
+    {
+      "id": "strikethrough",
+      "capabilities": ["strikethrough"],
+      "mode": "structured",
+      "markdown": "保留 ~~删除线~~ 语义",
+      "serialized": "保留 ~~删除线~~ 语义"
+    },
+    {
+      "id": "nested-emphasis",
+      "capabilities": ["bold", "italic"],
+      "mode": "structured",
+      "markdown": "***粗斜体***",
+      "serialized": "***粗斜体***"
+    },
+    {
+      "id": "attention-boundary-bold-live-content",
+      "capabilities": ["bold"],
+      "mode": "structured",
+      "markdown": "选择你的DeerSeek模型：**【注意注意！并不是真的AI！DeerSeek就是我！】**DeerSeek v4 pro",
+      "serialized": "选择你的DeerSeek模型：**【注意注意！并不是真的AI！DeerSeek就是我！】**&#x44;eerSeek v4 pro",
+      "inlineSemantics": ["strong"]
+    },
+    {
+      "id": "attention-boundary-italic",
+      "capabilities": ["italic"],
+      "mode": "structured",
+      "markdown": "前*（斜体）*后",
+      "serialized": "&#x524D;*（斜体）*&#x540E;",
+      "inlineSemantics": ["emphasis"]
+    },
+    {
+      "id": "attention-boundary-nested-emphasis",
+      "capabilities": ["bold", "italic"],
+      "mode": "structured",
+      "markdown": "前***【粗斜体】***后",
+      "serialized": "&#x524D;***【粗斜体】***&#x540E;",
+      "inlineSemantics": ["emphasis", "strong"]
+    },
+    {
+      "id": "attention-boundary-strikethrough",
+      "capabilities": ["strikethrough"],
+      "mode": "structured",
+      "markdown": "前~~【删除】~~后",
+      "serialized": "&#x524D;~~【删除】~~&#x540E;",
+      "inlineSemantics": ["strikethrough"]
+    },
+    {
+      "id": "attention-boundary-underscore-italic",
+      "capabilities": ["italic"],
+      "mode": "structured",
+      "markdown": "前_（斜体）_后",
+      "serialized": "&#x524D;*（斜体）*&#x540E;",
+      "inlineSemantics": ["emphasis"]
+    },
+    {
+      "id": "attention-boundary-underscore-bold",
+      "capabilities": ["bold"],
+      "mode": "structured",
+      "markdown": "前__【粗体】__后",
+      "serialized": "&#x524D;**【粗体】**&#x540E;",
+      "inlineSemantics": ["strong"]
+    },
+    {
+      "id": "attention-boundary-underscore-nested",
+      "capabilities": ["bold", "italic"],
+      "mode": "structured",
+      "markdown": "前___【粗斜体】___后",
+      "serialized": "&#x524D;***【粗斜体】***&#x540E;",
+      "inlineSemantics": ["emphasis", "strong"]
+    },
+    {
+      "id": "inline-code",
+      "capabilities": ["inline-code"],
+      "mode": "structured",
+      "markdown": "运行 ``a`b`` 查看结果",
+      "serialized": "运行 ``a`b`` 查看结果"
+    },
+    {
+      "id": "safe-link",
+      "capabilities": ["link"],
+      "mode": "structured",
+      "markdown": "查看 [站内帮助](https://wenyou.site/help)",
+      "serialized": "查看 [站内帮助](https://wenyou.site/help)"
+    },
+    {
+      "id": "creatable-headings",
+      "capabilities": ["heading"],
+      "mode": "structured",
+      "markdown": "## 二级标题\n### 三级标题",
+      "serialized": "## 二级标题\n### 三级标题"
+    },
+    {
+      "id": "aligned-paragraphs",
+      "capabilities": ["alignment"],
+      "mode": "structured",
+      "markdown": "[wenyousite-align-v1-center]: #\n第一段\n\n[wenyousite-align-v1-right]: #\n第二段",
+      "serialized": "[wenyousite-align-v1-center]: #\n第一段\n\n[wenyousite-align-v1-right]: #\n第二段",
+      "blockSemantics": ["paragraph", "paragraph"],
+      "blockAlignments": ["center", "right"]
+    },
+    {
+      "id": "aligned-headings",
+      "capabilities": ["heading", "alignment"],
+      "mode": "structured",
+      "markdown": "[wenyousite-align-v1-center]: #\n## 二级标题\n\n[wenyousite-align-v1-right]: #\n### 三级标题",
+      "serialized": "[wenyousite-align-v1-center]: #\n## 二级标题\n\n[wenyousite-align-v1-right]: #\n### 三级标题",
+      "blockSemantics": ["heading-2", "heading-3"],
+      "blockAlignments": ["center", "right"]
+    },
+    {
+      "id": "setext-heading-2",
+      "capabilities": ["heading"],
+      "mode": "structured",
+      "markdown": "正文\n---",
+      "serialized": "## 正文",
+      "blockSemantics": ["heading-2"]
+    },
+    {
+      "id": "unsupported-heading-levels",
+      "capabilities": ["heading"],
+      "mode": "literal-text",
+      "markdown": "# 一级标题\n#### 四级标题\n##### 五级标题\n###### 六级标题",
+      "serialized": "\\# 一级标题\n\n\\#\\#\\#\\# 四级标题\n\n\\#\\#\\#\\#\\# 五级标题\n\n\\#\\#\\#\\#\\#\\# 六级标题"
+    },
+    {
+      "id": "blockquote",
+      "capabilities": ["quote"],
+      "mode": "structured",
+      "markdown": "> 引用内容",
+      "serialized": "> 引用内容"
+    },
+    {
+      "id": "bullet-list",
+      "capabilities": ["bullet-list"],
+      "mode": "structured",
+      "markdown": "- 第一项\n- 第二项",
+      "serialized": "- 第一项\n- 第二项"
+    },
+    {
+      "id": "ordered-list",
+      "capabilities": ["ordered-list"],
+      "mode": "structured",
+      "markdown": "1. 第一项\n1. 第二项",
+      "serialized": "1. 第一项\n1. 第二项"
+    },
+    {
+      "id": "nested-list",
+      "capabilities": ["bullet-list"],
+      "mode": "structured",
+      "markdown": "- 第一层\n  - 第二层",
+      "serialized": "- 第一层\n  - 第二层"
+    },
+    {
+      "id": "empty-paragraph",
+      "capabilities": ["paragraph"],
+      "mode": "structured",
+      "markdown": "第一段\n<br />\n第二段",
+      "serialized": "第一段\n<br />\n第二段"
+    },
+    {
+      "id": "horizontal-rule",
+      "capabilities": ["hr"],
+      "mode": "structured",
+      "markdown": "正文\n\n---\n\n正文",
+      "serialized": "正文\n\n---\n\n正文",
+      "blockSemantics": ["paragraph", "horizontal-rule", "paragraph"]
+    },
+    {
+      "id": "task-list-source",
+      "capabilities": ["task-list"],
+      "mode": "literal-text",
+      "markdown": "- [ ] 未完成\n- [x] 已完成",
+      "serialized": "\\- \\[ \\] 未完成\n\n\\- \\[x\\] 已完成"
+    },
+    {
+      "id": "fenced-code-source",
+      "capabilities": ["code-block"],
+      "mode": "literal-text",
+      "markdown": "```ts\nconst answer = 42;\n```",
+      "serialized": "\\`\\`\\`ts\n\nconst answer \\= 42\\;\n\n\\`\\`\\`"
+    },
+    {
+      "id": "table-source",
+      "capabilities": ["table"],
+      "mode": "literal-text",
+      "markdown": "| 名称 | 数值 |\n| --- | ---: |\n| 骰子 | 20 |",
+      "serialized": "\\| 名称 \\| 数值 \\|\n\n\\| \\-\\-\\- \\| \\-\\-\\-\\: \\|\n\n\\| 骰子 \\| 20 \\|"
+    },
+    {
+      "id": "hard-break-source",
+      "capabilities": ["hard-break"],
+      "mode": "literal-text",
+      "markdown": "第一行  \n第二行",
+      "serialized": "第一行  ⁠\n\n第二行"
+    }
+  ],
+  "editCases": [
+    {
+      "id": "inline-1-insert-0",
+      "markdown": "**甲乙**",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 0,
+        "text": "新",
+        "marks": {
+          "bold": true
+        }
+      },
+      "serialized": "**新甲乙**",
+      "visibleText": "新甲乙"
+    },
+    {
+      "id": "inline-1-insert-1",
+      "markdown": "**甲乙**",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 1,
+        "text": "新",
+        "marks": {
+          "bold": true
+        }
+      },
+      "serialized": "**甲新乙**",
+      "visibleText": "甲新乙"
+    },
+    {
+      "id": "inline-1-insert-2",
+      "markdown": "**甲乙**",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 2,
+        "text": "新",
+        "marks": {
+          "bold": true
+        }
+      },
+      "serialized": "**甲乙新**",
+      "visibleText": "甲乙新"
+    },
+    {
+      "id": "inline-2-insert-0",
+      "markdown": "*甲乙*",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 0,
+        "text": "新",
+        "marks": {
+          "italic": true
+        }
+      },
+      "serialized": "*新甲乙*",
+      "visibleText": "新甲乙"
+    },
+    {
+      "id": "inline-2-insert-1",
+      "markdown": "*甲乙*",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 1,
+        "text": "新",
+        "marks": {
+          "italic": true
+        }
+      },
+      "serialized": "*甲新乙*",
+      "visibleText": "甲新乙"
+    },
+    {
+      "id": "inline-2-insert-2",
+      "markdown": "*甲乙*",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 2,
+        "text": "新",
+        "marks": {
+          "italic": true
+        }
+      },
+      "serialized": "*甲乙新*",
+      "visibleText": "甲乙新"
+    },
+    {
+      "id": "inline-3-insert-0",
+      "markdown": "***甲乙***",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 0,
+        "text": "新",
+        "marks": {
+          "bold": true,
+          "italic": true
+        }
+      },
+      "serialized": "***新甲乙***",
+      "visibleText": "新甲乙"
+    },
+    {
+      "id": "inline-3-insert-1",
+      "markdown": "***甲乙***",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 1,
+        "text": "新",
+        "marks": {
+          "bold": true,
+          "italic": true
+        }
+      },
+      "serialized": "***甲新乙***",
+      "visibleText": "甲新乙"
+    },
+    {
+      "id": "inline-3-insert-2",
+      "markdown": "***甲乙***",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 2,
+        "text": "新",
+        "marks": {
+          "bold": true,
+          "italic": true
+        }
+      },
+      "serialized": "***甲乙新***",
+      "visibleText": "甲乙新"
+    },
+    {
+      "id": "inline-4-insert-0",
+      "markdown": "~~甲乙~~",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 0,
+        "text": "新",
+        "marks": {
+          "strike": true
+        }
+      },
+      "serialized": "~~新甲乙~~",
+      "visibleText": "新甲乙"
+    },
+    {
+      "id": "inline-4-insert-1",
+      "markdown": "~~甲乙~~",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 1,
+        "text": "新",
+        "marks": {
+          "strike": true
+        }
+      },
+      "serialized": "~~甲新乙~~",
+      "visibleText": "甲新乙"
+    },
+    {
+      "id": "inline-4-insert-2",
+      "markdown": "~~甲乙~~",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 2,
+        "text": "新",
+        "marks": {
+          "strike": true
+        }
+      },
+      "serialized": "~~甲乙新~~",
+      "visibleText": "甲乙新"
+    },
+    {
+      "id": "inline-5-insert-0",
+      "markdown": "**~~甲乙~~**",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 0,
+        "text": "新",
+        "marks": {
+          "bold": true,
+          "strike": true
+        }
+      },
+      "serialized": "**~~新甲乙~~**",
+      "visibleText": "新甲乙"
+    },
+    {
+      "id": "inline-5-insert-1",
+      "markdown": "**~~甲乙~~**",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 1,
+        "text": "新",
+        "marks": {
+          "bold": true,
+          "strike": true
+        }
+      },
+      "serialized": "**~~甲新乙~~**",
+      "visibleText": "甲新乙"
+    },
+    {
+      "id": "inline-5-insert-2",
+      "markdown": "**~~甲乙~~**",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 2,
+        "text": "新",
+        "marks": {
+          "bold": true,
+          "strike": true
+        }
+      },
+      "serialized": "**~~甲乙新~~**",
+      "visibleText": "甲乙新"
+    },
+    {
+      "id": "inline-6-insert-0",
+      "markdown": "*~~甲乙~~*",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 0,
+        "text": "新",
+        "marks": {
+          "italic": true,
+          "strike": true
+        }
+      },
+      "serialized": "*~~新甲乙~~*",
+      "visibleText": "新甲乙"
+    },
+    {
+      "id": "inline-6-insert-1",
+      "markdown": "*~~甲乙~~*",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 1,
+        "text": "新",
+        "marks": {
+          "italic": true,
+          "strike": true
+        }
+      },
+      "serialized": "*~~甲新乙~~*",
+      "visibleText": "甲新乙"
+    },
+    {
+      "id": "inline-6-insert-2",
+      "markdown": "*~~甲乙~~*",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 2,
+        "text": "新",
+        "marks": {
+          "italic": true,
+          "strike": true
+        }
+      },
+      "serialized": "*~~甲乙新~~*",
+      "visibleText": "甲乙新"
+    },
+    {
+      "id": "inline-7-insert-0",
+      "markdown": "***~~甲乙~~***",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 0,
+        "text": "新",
+        "marks": {
+          "bold": true,
+          "italic": true,
+          "strike": true
+        }
+      },
+      "serialized": "***~~新甲乙~~***",
+      "visibleText": "新甲乙"
+    },
+    {
+      "id": "inline-7-insert-1",
+      "markdown": "***~~甲乙~~***",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 1,
+        "text": "新",
+        "marks": {
+          "bold": true,
+          "italic": true,
+          "strike": true
+        }
+      },
+      "serialized": "***~~甲新乙~~***",
+      "visibleText": "甲新乙"
+    },
+    {
+      "id": "inline-7-insert-2",
+      "markdown": "***~~甲乙~~***",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 2,
+        "text": "新",
+        "marks": {
+          "bold": true,
+          "italic": true,
+          "strike": true
+        }
+      },
+      "serialized": "***~~甲乙新~~***",
+      "visibleText": "甲乙新"
+    },
+    {
+      "id": "inline-8-insert-0",
+      "markdown": "[甲乙](https://wenyou.site/help)",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 0,
+        "text": "新",
+        "marks": {
+          "link": "https://wenyou.site/help"
+        }
+      },
+      "serialized": "[新甲乙](https://wenyou.site/help)",
+      "visibleText": "新甲乙"
+    },
+    {
+      "id": "inline-8-insert-1",
+      "markdown": "[甲乙](https://wenyou.site/help)",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 1,
+        "text": "新",
+        "marks": {
+          "link": "https://wenyou.site/help"
+        }
+      },
+      "serialized": "[甲新乙](https://wenyou.site/help)",
+      "visibleText": "甲新乙"
+    },
+    {
+      "id": "inline-8-insert-2",
+      "markdown": "[甲乙](https://wenyou.site/help)",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 2,
+        "text": "新",
+        "marks": {
+          "link": "https://wenyou.site/help"
+        }
+      },
+      "serialized": "[甲乙新](https://wenyou.site/help)",
+      "visibleText": "甲乙新"
+    },
+    {
+      "id": "inline-9-insert-0",
+      "markdown": "**[甲乙](https://wenyou.site/help)**",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 0,
+        "text": "新",
+        "marks": {
+          "bold": true,
+          "link": "https://wenyou.site/help"
+        }
+      },
+      "serialized": "**[新甲乙](https://wenyou.site/help)**",
+      "visibleText": "新甲乙"
+    },
+    {
+      "id": "inline-9-insert-1",
+      "markdown": "**[甲乙](https://wenyou.site/help)**",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 1,
+        "text": "新",
+        "marks": {
+          "bold": true,
+          "link": "https://wenyou.site/help"
+        }
+      },
+      "serialized": "**[甲新乙](https://wenyou.site/help)**",
+      "visibleText": "甲新乙"
+    },
+    {
+      "id": "inline-9-insert-2",
+      "markdown": "**[甲乙](https://wenyou.site/help)**",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 2,
+        "text": "新",
+        "marks": {
+          "bold": true,
+          "link": "https://wenyou.site/help"
+        }
+      },
+      "serialized": "**[甲乙新](https://wenyou.site/help)**",
+      "visibleText": "甲乙新"
+    },
+    {
+      "id": "inline-10-insert-0",
+      "markdown": "*[甲乙](https://wenyou.site/help)*",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 0,
+        "text": "新",
+        "marks": {
+          "italic": true,
+          "link": "https://wenyou.site/help"
+        }
+      },
+      "serialized": "*[新甲乙](https://wenyou.site/help)*",
+      "visibleText": "新甲乙"
+    },
+    {
+      "id": "inline-10-insert-1",
+      "markdown": "*[甲乙](https://wenyou.site/help)*",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 1,
+        "text": "新",
+        "marks": {
+          "italic": true,
+          "link": "https://wenyou.site/help"
+        }
+      },
+      "serialized": "*[甲新乙](https://wenyou.site/help)*",
+      "visibleText": "甲新乙"
+    },
+    {
+      "id": "inline-10-insert-2",
+      "markdown": "*[甲乙](https://wenyou.site/help)*",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 2,
+        "text": "新",
+        "marks": {
+          "italic": true,
+          "link": "https://wenyou.site/help"
+        }
+      },
+      "serialized": "*[甲乙新](https://wenyou.site/help)*",
+      "visibleText": "甲乙新"
+    },
+    {
+      "id": "inline-11-insert-0",
+      "markdown": "***[甲乙](https://wenyou.site/help)***",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 0,
+        "text": "新",
+        "marks": {
+          "bold": true,
+          "italic": true,
+          "link": "https://wenyou.site/help"
+        }
+      },
+      "serialized": "***[新甲乙](https://wenyou.site/help)***",
+      "visibleText": "新甲乙"
+    },
+    {
+      "id": "inline-11-insert-1",
+      "markdown": "***[甲乙](https://wenyou.site/help)***",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 1,
+        "text": "新",
+        "marks": {
+          "bold": true,
+          "italic": true,
+          "link": "https://wenyou.site/help"
+        }
+      },
+      "serialized": "***[甲新乙](https://wenyou.site/help)***",
+      "visibleText": "甲新乙"
+    },
+    {
+      "id": "inline-11-insert-2",
+      "markdown": "***[甲乙](https://wenyou.site/help)***",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 2,
+        "text": "新",
+        "marks": {
+          "bold": true,
+          "italic": true,
+          "link": "https://wenyou.site/help"
+        }
+      },
+      "serialized": "***[甲乙新](https://wenyou.site/help)***",
+      "visibleText": "甲乙新"
+    },
+    {
+      "id": "inline-12-insert-0",
+      "markdown": "[~~甲乙~~](https://wenyou.site/help)",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 0,
+        "text": "新",
+        "marks": {
+          "strike": true,
+          "link": "https://wenyou.site/help"
+        }
+      },
+      "serialized": "[~~新甲乙~~](https://wenyou.site/help)",
+      "visibleText": "新甲乙"
+    },
+    {
+      "id": "inline-12-insert-1",
+      "markdown": "[~~甲乙~~](https://wenyou.site/help)",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 1,
+        "text": "新",
+        "marks": {
+          "strike": true,
+          "link": "https://wenyou.site/help"
+        }
+      },
+      "serialized": "[~~甲新乙~~](https://wenyou.site/help)",
+      "visibleText": "甲新乙"
+    },
+    {
+      "id": "inline-12-insert-2",
+      "markdown": "[~~甲乙~~](https://wenyou.site/help)",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 2,
+        "text": "新",
+        "marks": {
+          "strike": true,
+          "link": "https://wenyou.site/help"
+        }
+      },
+      "serialized": "[~~甲乙新~~](https://wenyou.site/help)",
+      "visibleText": "甲乙新"
+    },
+    {
+      "id": "inline-13-insert-0",
+      "markdown": "**[~~甲乙~~](https://wenyou.site/help)**",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 0,
+        "text": "新",
+        "marks": {
+          "bold": true,
+          "strike": true,
+          "link": "https://wenyou.site/help"
+        }
+      },
+      "serialized": "**[~~新甲乙~~](https://wenyou.site/help)**",
+      "visibleText": "新甲乙"
+    },
+    {
+      "id": "inline-13-insert-1",
+      "markdown": "**[~~甲乙~~](https://wenyou.site/help)**",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 1,
+        "text": "新",
+        "marks": {
+          "bold": true,
+          "strike": true,
+          "link": "https://wenyou.site/help"
+        }
+      },
+      "serialized": "**[~~甲新乙~~](https://wenyou.site/help)**",
+      "visibleText": "甲新乙"
+    },
+    {
+      "id": "inline-13-insert-2",
+      "markdown": "**[~~甲乙~~](https://wenyou.site/help)**",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 2,
+        "text": "新",
+        "marks": {
+          "bold": true,
+          "strike": true,
+          "link": "https://wenyou.site/help"
+        }
+      },
+      "serialized": "**[~~甲乙新~~](https://wenyou.site/help)**",
+      "visibleText": "甲乙新"
+    },
+    {
+      "id": "inline-14-insert-0",
+      "markdown": "*[~~甲乙~~](https://wenyou.site/help)*",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 0,
+        "text": "新",
+        "marks": {
+          "italic": true,
+          "strike": true,
+          "link": "https://wenyou.site/help"
+        }
+      },
+      "serialized": "*[~~新甲乙~~](https://wenyou.site/help)*",
+      "visibleText": "新甲乙"
+    },
+    {
+      "id": "inline-14-insert-1",
+      "markdown": "*[~~甲乙~~](https://wenyou.site/help)*",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 1,
+        "text": "新",
+        "marks": {
+          "italic": true,
+          "strike": true,
+          "link": "https://wenyou.site/help"
+        }
+      },
+      "serialized": "*[~~甲新乙~~](https://wenyou.site/help)*",
+      "visibleText": "甲新乙"
+    },
+    {
+      "id": "inline-14-insert-2",
+      "markdown": "*[~~甲乙~~](https://wenyou.site/help)*",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 2,
+        "text": "新",
+        "marks": {
+          "italic": true,
+          "strike": true,
+          "link": "https://wenyou.site/help"
+        }
+      },
+      "serialized": "*[~~甲乙新~~](https://wenyou.site/help)*",
+      "visibleText": "甲乙新"
+    },
+    {
+      "id": "inline-15-insert-0",
+      "markdown": "***[~~甲乙~~](https://wenyou.site/help)***",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 0,
+        "text": "新",
+        "marks": {
+          "bold": true,
+          "italic": true,
+          "strike": true,
+          "link": "https://wenyou.site/help"
+        }
+      },
+      "serialized": "***[~~新甲乙~~](https://wenyou.site/help)***",
+      "visibleText": "新甲乙"
+    },
+    {
+      "id": "inline-15-insert-1",
+      "markdown": "***[~~甲乙~~](https://wenyou.site/help)***",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 1,
+        "text": "新",
+        "marks": {
+          "bold": true,
+          "italic": true,
+          "strike": true,
+          "link": "https://wenyou.site/help"
+        }
+      },
+      "serialized": "***[~~甲新乙~~](https://wenyou.site/help)***",
+      "visibleText": "甲新乙"
+    },
+    {
+      "id": "inline-15-insert-2",
+      "markdown": "***[~~甲乙~~](https://wenyou.site/help)***",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 2,
+        "text": "新",
+        "marks": {
+          "bold": true,
+          "italic": true,
+          "strike": true,
+          "link": "https://wenyou.site/help"
+        }
+      },
+      "serialized": "***[~~甲乙新~~](https://wenyou.site/help)***",
+      "visibleText": "甲乙新"
+    },
+    {
+      "id": "code-insert-0",
+      "markdown": "`甲乙`",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 0,
+        "text": "新",
+        "marks": {
+          "code": true
+        }
+      },
+      "serialized": "`新甲乙`",
+      "visibleText": "新甲乙"
+    },
+    {
+      "id": "code-insert-1",
+      "markdown": "`甲乙`",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 1,
+        "text": "新",
+        "marks": {
+          "code": true
+        }
+      },
+      "serialized": "`甲新乙`",
+      "visibleText": "甲新乙"
+    },
+    {
+      "id": "code-insert-2",
+      "markdown": "`甲乙`",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 2,
+        "text": "新",
+        "marks": {
+          "code": true
+        }
+      },
+      "serialized": "`甲乙新`",
+      "visibleText": "甲乙新"
+    }
+  ]
+}

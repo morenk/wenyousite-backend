@@ -125,7 +125,7 @@ describe('Markdown v5 图片块对齐扩展', () => {
 
   it('图片对齐扩展 fixture 保持版本与 case id 合法', () => {
     expect(imageAlignmentFixtures.contract).toBe('wenyousite-markdown-image-alignment');
-    expect(imageAlignmentFixtures.version).toBe(1);
+    expect(imageAlignmentFixtures.version).toBe(2);
     expect(imageAlignmentFixtures.defaultAlignment).toBe('left');
     expect(new Set(imageAlignmentFixtures.cases.map((item) => item.id)).size)
       .toBe(imageAlignmentFixtures.cases.length);

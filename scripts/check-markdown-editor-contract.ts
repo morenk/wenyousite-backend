@@ -3,10 +3,11 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import MarkdownIt from 'markdown-it';
+import { prepareMarkdownContent } from '../src/common/markdown-content';
 
 type JsonObject = Record<string, unknown>;
 
-const fixturePath = 'contracts/markdown-editor-roundtrip-v6-fixtures.json';
+const fixturePath = 'contracts/markdown-editor-roundtrip-v7-fixtures.json';
 const fixtureSource = fs.readFileSync(fixturePath, 'utf8');
 const fixture = JSON.parse(fixtureSource) as JsonObject;
 const failures: string[] = [];
@@ -88,7 +89,7 @@ function parseBlockAlignments(markdown: string): string[] {
 
 if (
   fixture.contract !== 'wenyousite-markdown-editor-roundtrip' ||
-  fixture.version !== 6 ||
+  fixture.version !== 7 ||
   fixture.markdownContractVersion !== 4
 ) {
   failures.push('编辑器往返语料的契约标识或版本无效');
@@ -271,6 +272,76 @@ for (const requiredId of ['aligned-paragraphs', 'aligned-headings']) {
   }
 }
 
+const editCases = Array.isArray(fixture.editCases) ? fixture.editCases : [];
+if (
+  !Array.isArray(fixture.inlineInsertTexts) ||
+  fixture.inlineInsertTexts.length !== 5 ||
+  fixture.inlineInsertTexts.some((value) => typeof value !== 'string' || !value)
+) {
+  failures.push('inlineInsertTexts 必须保留五类特殊字符输入');
+}
+const editIds = new Set<string>();
+const stylePositions = new Set<string>();
+for (const item of editCases) {
+  if (!isObject(item) || typeof item.id !== 'string' || editIds.has(item.id)) {
+    failures.push('editCases 必须有唯一 id');
+    continue;
+  }
+  editIds.add(item.id);
+  const operation = item.operation;
+  if (
+    typeof item.markdown !== 'string' ||
+    typeof item.serialized !== 'string' ||
+    typeof item.visibleText !== 'string' ||
+    !isObject(operation) ||
+    typeof operation.anchor !== 'string' ||
+    !operation.anchor ||
+    typeof operation.text !== 'string' ||
+    !operation.text ||
+    typeof operation.offset !== 'number' ||
+    !Number.isInteger(operation.offset) ||
+    operation.offset < 0 ||
+    operation.offset > operation.anchor.length ||
+    !isObject(operation.marks)
+  ) {
+    failures.push(`${item.id}: 编辑操作字段不完整`);
+    continue;
+  }
+  const { anchor, offset, text, marks } = operation;
+  const keys = Object.keys(marks).sort();
+  if (
+    keys.length === 0 ||
+    keys.some((key) => !['bold', 'italic', 'strike', 'link', 'code'].includes(key)) ||
+    keys.some((key) => (key === 'link' ? typeof marks[key] !== 'string' : marks[key] !== true)) ||
+    (marks.code === true && keys.length !== 1)
+  ) {
+    failures.push(`${item.id}: 行内样式组合无效`);
+  }
+  stylePositions.add(`${keys.join(',')}:${offset}`);
+  if (item.visibleText !== anchor.slice(0, offset) + text + anchor.slice(offset)) {
+    failures.push(`${item.id}: 预期文字与插入操作不一致`);
+  }
+  try {
+    for (const source of [item.markdown, item.serialized]) {
+      if (prepareMarkdownContent(source) !== source) failures.push(`${item.id}: 不是规范正文`);
+    }
+  } catch {
+    failures.push(`${item.id}: 编辑结果未通过后端白名单`);
+  }
+}
+for (let mask = 1; mask < 16; mask++) {
+  const keys = ['bold', 'italic', 'strike', 'link']
+    .filter((_, index) => mask & (1 << index))
+    .sort();
+  for (const offset of [0, 1, 2]) {
+    if (!stylePositions.has(`${keys.join(',')}:${offset}`))
+      failures.push(`缺少 ${keys.join('+')} 位置 ${offset}`);
+  }
+}
+for (const offset of [0, 1, 2]) {
+  if (!stylePositions.has(`code:${offset}`)) failures.push(`缺少 code 位置 ${offset}`);
+}
+
 for (const client of ['wenyousite-frontend', 'wenyousite-mobile']) {
   const clientFixture = path.resolve(`../${client}`, fixturePath);
   if (fs.existsSync(clientFixture) && fs.readFileSync(clientFixture, 'utf8') !== fixtureSource) {
@@ -281,4 +352,6 @@ for (const client of ['wenyousite-frontend', 'wenyousite-mobile']) {
 if (failures.length > 0) {
   throw new Error(`Markdown editor contract checks failed:\n${failures.join('\n')}`);
 }
-console.log(`Markdown editor contract is valid (${cases.length} cases)`);
+console.log(
+  `Markdown editor contract is valid (${cases.length} round trips, ${editCases.length} edits)`,
+);
