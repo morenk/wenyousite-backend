@@ -157,4 +157,25 @@ describe('Markdown v5 图片块对齐扩展', () => {
     const source = '![图片](https://cdn.example.com/a.png)';
     expect(prepareMarkdownContent(source, v5)).toBe(source);
   });
+
+  it('协议空段与后续对齐块保持独立解析', () => {
+    const source = [
+      '前文',
+      '<br />',
+      '[wenyousite-align-v1-center]: #',
+      '## 居中标题',
+      '<br />',
+      '[wenyousite-align-v1-right]: #',
+      '![图片](https://cdn.example.com/a.png)',
+    ].join('\n');
+
+    expect(findUnsupportedMarkdownFormats(source, v5)).toEqual([]);
+    expect(prepareMarkdownContent(source, v5)).toBe(source);
+    expect(
+      findUnsupportedMarkdownFormats(
+        '[wenyousite-align-v1-center]: #\n<br />',
+        v5,
+      )[0]?.type,
+    ).toBe('invalid-alignment');
+  });
 });

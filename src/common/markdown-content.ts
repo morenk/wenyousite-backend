@@ -162,7 +162,7 @@ export function findUnsupportedMarkdownFormats(
   const normalized = normalizeMarkdownContent(markdown);
   const lines = normalized.split('\n');
   const parseSource = lines
-    .map((line) => (EMPTY_PARAGRAPH_RE.test(line) ? 'wenyousite-empty-paragraph' : line))
+    .map((line) => (EMPTY_PARAGRAPH_RE.test(line) ? '***' : line))
     .join('\n');
   const issues: UnsupportedMarkdownIssue[] = [];
   let listDepth = 0;
