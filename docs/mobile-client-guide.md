@@ -19,6 +19,8 @@
 
 服务端未配置移动发布策略时，Android/iOS 的三个字段都显式返回 `null`，不会阻断客户端。部署环境必须让 `buildSha` 等于实际后端 Git 提交。
 
+移动端公网门禁还会精确比较 `backendRevision` 与 `/meta.buildSha`。同步来源应为已部署且可从 `origin/dev` 追溯的提交；分支头可能包含尚未部署的文档提交，不能直接视为运行版本。应从选定提交完整同步契约、fixtures 和元数据并重新生成 SDK，不能只改版本号或 SHA 来绕过检查。
+
 服务端配置映射如下；配置任一构建号时必须同时提供该平台的 HTTPS 更新地址，且推荐构建号不能低于最低支持构建号：
 
 | 平台    | 最低构建号                           | 推荐构建号                         | 更新地址                    |
@@ -27,6 +29,12 @@
 | iOS     | `MOBILE_IOS_MIN_SUPPORTED_BUILD`     | `MOBILE_IOS_RECOMMENDED_BUILD`     | `MOBILE_IOS_UPDATE_URL`     |
 
 当前私有测试发布不要求移动端仓库位于 VPS。Android release APK 由开发机通过发布脚本上传到 `wenyou.site`，iOS 由 TestFlight 托管；构建、签名、三版本保留和故障处理见 [`mobile-release-operations.md`](./mobile-release-operations.md)。
+
+### 故障诊断与 Sentry
+
+客户端为 API 请求发送 UUID `X-Request-ID`；服务端接受安全格式的编号，并在成功与业务错误响应中返回同一编号及 `X-API-Contract-Version`。HTTP 日志的 `req.id`、异常日志的 `requestId` 可用于关联移动端记录；编号不是身份凭证或业务幂等键。对象存储直传不经过 API，其请求编号不能保证在后端日志中找到。
+
+移动端使用独立 Sentry 项目，DSN 由 Windows 构建通过 `--dart-define-from-file` 注入。后端 `SENTRY_DSN` 仅配置后端项目，`/meta` 不下发移动端 DSN，已安装且未内置 DSN 的 APK 仍只保留本机记录。仅传入 DSN 也不能证明真实收件，需在设备上核对事件编号、白名单字段和 API 请求编号。当前审查及 Windows 接入步骤见 [移动端诊断接入审查](./mobile-diagnostics-20260906.md)。
 
 ## 认证与安全存储
 
