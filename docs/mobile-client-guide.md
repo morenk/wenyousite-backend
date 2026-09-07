@@ -186,3 +186,9 @@ Content-Type: application/json
 ## 接入验收
 
 后端门禁负责 OpenAPI、错误码、完整移动覆盖清单、V1 协议旅程、动态分类、Markdown、站内传送门 fixtures 和 push schema/fixtures。Flutter 必须共同消费这些产物，并为标为 `implemented` 的 operationId 提供运行时代码和自动测试证据。
+
+## 普通回车规则的 Windows 接入
+
+本次只读审查固定为 `e952a23251640bfe537837c6197d7c632ca54197`。从本节所在的已提交后端同步 [回车语料](../contracts/markdown-editor-newline-v1-fixtures.json)，在 Windows 实现：普通正文及引用逐次回车增加一行，连续回车不自动退出引用或对齐；标题和列表保留常规操作。
+
+编解码和阅读须识别单层引用的独占 `> <br />` 为真正空白行，保留首尾及连续数量；引用内单独 `>` 只保留旧段落结构，不增加可编辑空行。禁止通过删除换行、插入不可见字符或放开其他 HTML 达成表面一致。旧编辑器会降级这种引用标记，候选必须先完成更新与双端保存重开验收；不能因 Markdown 版本仍为 v5 就假定旧实现已支持。

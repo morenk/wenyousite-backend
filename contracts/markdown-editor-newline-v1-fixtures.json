@@ -1,0 +1,96 @@
+{
+  "contract": "wenyousite-editor-newline",
+  "version": 1,
+  "markdownContractVersion": 5,
+  "rules": {
+    "enter": "普通正文与单层引用的一次回车增加一个可见换行；标题和列表保留原常规行为。",
+    "emptyLine": "真正空白行用独占 <br /> 表示；单层引用内用 > <br />，不得把分段用的空 > 当作可见空白行。",
+    "continuation": "连续换行不自动退出引用或普通正文对齐；首尾空白行也必须保存。",
+    "legacy": "已有 Markdown 段落边界和空引用分隔继续保持，不批量改写历史正文。"
+  },
+  "cases": [
+    {
+      "id": "plain-single",
+      "markdown": "甲\n乙",
+      "lines": [
+        "甲",
+        "乙"
+      ]
+    },
+    {
+      "id": "plain-empty",
+      "markdown": "甲\n<br />\n乙",
+      "lines": [
+        "甲",
+        "",
+        "乙"
+      ]
+    },
+    {
+      "id": "plain-two-empty",
+      "markdown": "甲\n<br />\n<br />\n乙",
+      "lines": [
+        "甲",
+        "",
+        "",
+        "乙"
+      ]
+    },
+    {
+      "id": "quote-single",
+      "markdown": "> 甲\n> 乙",
+      "lines": [
+        "甲",
+        "乙"
+      ]
+    },
+    {
+      "id": "quote-empty",
+      "markdown": "> 甲\n> <br />\n> 乙",
+      "lines": [
+        "甲",
+        "",
+        "乙"
+      ]
+    },
+    {
+      "id": "quote-two-empty",
+      "markdown": "> 甲\n> <br />\n> <br />\n> 乙",
+      "lines": [
+        "甲",
+        "",
+        "",
+        "乙"
+      ]
+    },
+    {
+      "id": "quote-leading",
+      "markdown": "> <br />\n> 甲",
+      "lines": [
+        "",
+        "甲"
+      ]
+    },
+    {
+      "id": "quote-trailing",
+      "markdown": "> 甲\n> <br />",
+      "lines": [
+        "甲",
+        ""
+      ]
+    },
+    {
+      "id": "quote-legacy-paragraphs",
+      "markdown": "> 甲\n>\n> 乙",
+      "lines": [
+        "甲",
+        "乙"
+      ]
+    }
+  ],
+  "rejected": [
+    "> 甲<br />乙",
+    "> <br onclick=\"alert(1)\" />",
+    "> <script>alert(1)</script>"
+  ]
+}

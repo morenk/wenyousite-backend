@@ -13,6 +13,7 @@ const HTTP_AUTOLINK_RE = /<https?:\/\/[^\s<>]+>/iu;
 const HTML_RE = /<[^>]*>/g;
 const THEMATIC_BREAK_RE = /^ {0,3}(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$/;
 const EMPTY_PARAGRAPH_RE = /^ {0,3}<br\s*\/?>[\t ]*$/iu;
+const QUOTED_EMPTY_PARAGRAPH_RE = /^ {0,3}>[\t ]?<br\s*\/?>[\t ]*$/iu;
 const TASK_LIST_RE = /^(?: {0,3}>[\t ]*)*[\t ]*(?:[-+*]|\d+[.)])[\t ]+\[[ xX]\](?:[\t ]|$)/u;
 const UNKNOWN_PROTOCOL_RE = /\[\[([a-z][a-z0-9_-]*):v(\d+):/giu;
 const ALIGNMENT_MARKER_RE = /^\[wenyousite-align-v1-(center|right)\]: #$/u;
@@ -86,6 +87,10 @@ export function normalizeMarkdownContent(markdown: string): string {
     }
     if (EMPTY_PARAGRAPH_RE.test(line)) {
       lines[index] = '<br />';
+      continue;
+    }
+    if (QUOTED_EMPTY_PARAGRAPH_RE.test(line)) {
+      lines[index] = '> <br />';
       continue;
     }
     lines[index] = line.replace(EMPTY_IMAGE_RE, '');
@@ -162,7 +167,13 @@ export function findUnsupportedMarkdownFormats(
   const normalized = normalizeMarkdownContent(markdown);
   const lines = normalized.split('\n');
   const parseSource = lines
-    .map((line) => (EMPTY_PARAGRAPH_RE.test(line) ? '***' : line))
+    .map((line) => {
+      if (EMPTY_PARAGRAPH_RE.test(line)) return '***';
+      // Only a standalone empty-row marker is accepted inside one quote.
+      // Inline HTML and attributes still pass through the ordinary rejection.
+      if (QUOTED_EMPTY_PARAGRAPH_RE.test(line)) return '> ***';
+      return line;
+    })
     .join('\n');
   const issues: UnsupportedMarkdownIssue[] = [];
   let listDepth = 0;
