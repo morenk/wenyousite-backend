@@ -7,10 +7,12 @@ Wants=network-online.target
 Type=simple
 User=root
 Group=root
-WorkingDirectory=/root/wenyousite/wenyousite-backend
-EnvironmentFile=/root/wenyousite/wenyousite-backend/.env
-EnvironmentFile=/root/wenyousite/wenyousite-backend/loadtest/backend.env
-ExecStart=/root/wenyousite/wenyousite-backend/scripts/wenyousite-loadtest-backend-start.sh
+WorkingDirectory=/var/lib/wenyousite/loadtest/current
+EnvironmentFile=/etc/wenyousite/loadtest-base.env
+EnvironmentFile=/etc/wenyousite/loadtest-backend.env
+Environment=WENYOU_BACKEND_DIR=/var/lib/wenyousite/loadtest/current
+Environment=WENYOU_NODE_BINARY=/usr/local/bin/node
+ExecStart=/usr/local/sbin/wenyousite-loadtest-backend-start
 Restart=on-failure
 RestartSec=2s
 TimeoutStopSec=30s

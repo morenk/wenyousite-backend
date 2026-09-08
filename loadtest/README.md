@@ -29,7 +29,7 @@ docker compose --env-file loadtest/target.env --profile loadtest ps
 
 隔离数据库监听 `127.0.0.1:55432`，隔离 Redis 监听 `127.0.0.1:56379`。不要对公网开放这两个端口；公网只暴露后续配置的压测 API 入口。
 
-隔离后端和图片 Worker 使用 `ops/wenyousite-loadtest-*.service`，其运行时覆盖配置放在被 Git 忽略的 `loadtest/backend.env`。该 unit 只监听后端的隔离端口，不会替换正式 systemd unit。
+隔离后端和图片 Worker 使用 `ops/wenyousite-loadtest-*.service`。已构建的运行时放在 root 管理、开发账号不可写的 `/var/lib/wenyousite/loadtest/current`，环境文件安装为 `/etc/wenyousite/loadtest-base.env` 和 `/etc/wenyousite/loadtest-backend.env`（`0600 root:root`）。systemd 不得直接执行 `/srv/wenyousite` 的开发工作区文件；该 unit 只监听后端的隔离端口，不会替换正式 systemd unit。
 
 在 VPS 的后端仓库中生成 40 个隔离账号及其 access token（输出文件不会进入 Git）：
 

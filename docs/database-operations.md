@@ -47,7 +47,7 @@ RainS3 若不提供对象版本控制或 Object Lock，仍可启用这套方案�
 ```bash
 apt-get update
 apt-get install restic
-cd /root/wenyousite/wenyousite-backend
+cd /srv/wenyousite/wenyousite-backend
 bash scripts/provision-data-security.sh
 ```
 
