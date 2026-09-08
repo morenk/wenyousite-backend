@@ -78,6 +78,7 @@ if [ ! -d "$release_dir" ]; then
   # cp -a preserves the owner of the /srv development checkout. Normalize the
   # complete immutable tree before enforcing the root-owned release invariant.
   chown -R root:"$RUNTIME_GROUP" "$staging_dir"
+  chmod -R go-w "$staging_dir"
   chmod 0750 "$staging_dir"
   validate_release_tree "$staging_dir"
   mv -- "$staging_dir" "$release_dir"
