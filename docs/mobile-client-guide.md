@@ -189,6 +189,18 @@ Content-Type: application/json
 
 ## 普通回车规则的 Windows 接入
 
-本次只读审查固定为 `e952a23251640bfe537837c6197d7c632ca54197`。从本节所在的已提交后端同步 [回车语料](../contracts/markdown-editor-newline-v1-fixtures.json)，在 Windows 实现：普通正文及引用逐次回车增加一行，连续回车不自动退出引用或对齐；标题和列表保留常规操作。
+本次只读审查固定为 `e952a23251640bfe537837c6197d7c632ca54197`。从本节所在的已提交后端同步 [回车语料](../contracts/markdown-editor-newline-v1-fixtures.json)，在 Windows 实现：普通正文手动 Enter 建立新排版段并恢复默认左对齐；单层引用逐次回车增加一行且不自动退出。标题和列表保留常规操作。
 
 编解码和阅读须识别单层引用的独占 `> <br />` 为真正空白行，保留首尾及连续数量；引用内单独 `>` 只保留旧段落结构，不增加可编辑空行。禁止通过删除换行、插入不可见字符或放开其他 HTML 达成表面一致。旧编辑器会降级这种引用标记，候选必须先完成更新与双端保存重开验收；不能因 Markdown 版本仍为 v5 就假定旧实现已支持。
+
+### revision 2 同步与 Windows 验收
+
+从本说明所属候选 PR 的完整提交 SHA 同步 `contracts/markdown-editor-newline-v1-fixtures.json`，要求 `version == 1`、`revision == 2`；不得从运行中的 VPS 或未提交源码推断规则。精确 Markdown 与显示兼容策略见 [正文对齐边界](modules/markdown-content.md#普通正文手动-enter-的对齐边界newline-v1-revision-2)。
+
+- 真实输入控制器消费全部 27 条 `editCases`：`operation.offset` 是 anchor 内 UTF-16 偏移，依次发送 `enterCount` 次 Enter；断言 `serialized`、`lines`、`lineAlignments`，续写后再保存重开。新段对齐重置不清除行内粗体、斜体等 marks。
+- 普通手动 Enter 必须保存段落边界，不能编码成继承整段对齐的单 LF；已有单 LF 和 Shift+Enter 保持旧段内语义。自动折行只改变布局，不能修改 Delta/Markdown。
+- 真正空段仍为 `<br />`；末尾空段继续输入后变成普通段落。不能把 Markdown 源码的分隔空行显示成额外空白行。
+- 安全 encode/decode 无损校验必须保留，语义比较必须继续校验换行、段落、对齐、marks、链接和节点身份。不得通过关闭检查或忽略对齐解决失败。
+- 手动验证居中和居右正文的 Enter、连续 Enter、续写、自动折行、只对齐新行、实际保存／重开及 Web↔Flutter 交叉编辑；引用、H2/H3、列表应保持既有行为。VPS 不修改、安装或构建移动端，空正文 H2/H3 的编码异常由原 Windows 任务独立处理。
+
+候选只交付 PR，不代表用户已验收；先合并兼容后端契约，再由 Web/Windows 各自完成消费端候选与手动验收。部署仍需负责人另外明确批准。
