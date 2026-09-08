@@ -119,6 +119,26 @@ describe('MediaProcessingService', () => {
     );
   });
 
+  it('AVIF 经实际解码后生成 WebP 母版和派生图', async () => {
+    const source = await sharp({
+      create: { width: 32, height: 24, channels: 3, background: '#336699' },
+    }).avif().toBuffer();
+    prisma.media.findUnique.mockResolvedValue(media({ contentType: 'image/avif', size: source.length }));
+    storage.download.mockResolvedValue(source);
+
+    await service.processImage('media-1');
+
+    expect(storage.upload).toHaveBeenCalledTimes(4);
+    const master = storage.upload.mock.calls.find(([key]) => key === 'media/master.webp')![1] as Buffer;
+    expect(await sharp(master).metadata()).toEqual(expect.objectContaining({
+      format: 'webp', width: 32, height: 24,
+    }));
+    expect(prisma.media.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: 'COMPLETED', contentType: 'image/webp' }),
+    }));
+    expect(storage.remove).toHaveBeenCalledWith('staging/source.jpg');
+  });
+
   it('GIF 应逐字节保留母版并只生成静态缩略图', async () => {
     const source = Buffer.from('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', 'base64');
     prisma.media.findUnique.mockResolvedValue(

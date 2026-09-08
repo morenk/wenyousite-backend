@@ -30,6 +30,10 @@
 - 正式存储只有标准化静态 WebP 主图或受限 GIF，不保留静态 EXIF 与原始编码；
 - `purpose` 决定最小派生集，避免所有图片都生成无人使用的尺寸。
 
+## 图片运行库安全基线
+
+图片 Worker 使用 `sharp >= 0.35.4`，实际加载的 libheif 必须达到 1.23.2，修复 [GHSA-rgj7-g3m4-5g8c](https://github.com/advisories/GHSA-rgj7-g3m4-5g8c)。锁文件同步原生平台包；门禁检查实际 libheif 版本，并用 AVIF 字节运行完整归一化流程。AVIF 仍是允许格式，不能通过关闭 AVIF 或跳过安全审计代替依赖更新。
+
 ## 1. 获取上传凭证
 
 `POST /media/upload-url` 需要登录，正文如下：
