@@ -149,3 +149,9 @@ bash scripts/deploy.sh
 - [部署脚本](scripts/deploy.sh)
 
 详细设计、枚举和模块行为放在对应代码与文档中；本文件只维护跨任务都必须遵守的约束。
+
+## 合并后的任务清理
+
+- 遵循[温油站治理仓库的共用清理规则](https://github.com/morenk/wenyousite-workspace/blob/main/AGENTS.md#合并后的任务清理)：用户授权合并后，完成变更、验收、文件和并发核验，即清理对应任务分支及临时 Worktree，无需重复确认；有待验收、遗漏变更或仍被使用的内容时保留并说明原因。
+- 本仓库只在授权的 VPS 工作区执行清理，集成分支为 `dev`；主工作目录仅在空闲且干净时切回并 fast-forward 同步 `origin/dev`。不得清理主工作目录、永久 Worktree 或其他任务，不自动归档 Codex 任务。
+- 此授权不包含其他任务的合并、创建或移动 Tag、发布 Release、晋级或部署，继续遵守本仓库原有门禁。
