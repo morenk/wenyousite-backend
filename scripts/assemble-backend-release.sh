@@ -75,7 +75,9 @@ if [ ! -d "$release_dir" ]; then
   install -d -o root -g "$RUNTIME_GROUP" -m 0750 "$staging_dir/bin"
   install -o root -g "$RUNTIME_GROUP" -m 0750 "$NODE_SOURCE" "$staging_dir/bin/node"
   printf '%s\n' "$build_sha" >"$staging_dir/BUILD_SHA"
-  chown root:"$RUNTIME_GROUP" "$staging_dir"
+  # cp -a preserves the owner of the /srv development checkout. Normalize the
+  # complete immutable tree before enforcing the root-owned release invariant.
+  chown -R root:"$RUNTIME_GROUP" "$staging_dir"
   chmod 0750 "$staging_dir"
   validate_release_tree "$staging_dir"
   mv -- "$staging_dir" "$release_dir"
