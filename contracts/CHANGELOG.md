@@ -1,5 +1,11 @@
 # API 合同变更
 
+## 2026-09-09 普通 Enter 重置正文对齐候选
+
+- newline v1 revision 2 修订 continuation：手动 Enter 建立独立默认左对齐段；自动折行和历史段内 LF 保持整段对齐。
+- 增加 27 条首/中/尾连续按键样例及左右对齐边界/旧 LF/自动折行语料；一次 Enter 不增加额外空白行，真实空白仍用 `<br />`。
+- 保持 Markdown v5、HTTP DTO/OpenAPI 和旧内容兼容，不执行迁移。消费者需同步 revision 2 并在 Windows/Web 手动验收；保留安全往返校验。
+
 ## 2026-09-08 普通回车与引用空白行候选
 
 - HTTP API 与 Markdown v5 版本不变；单层引用中独占的 `> <br />` 按已有空行节点处理，非独占 HTML、属性和脚本继续拒绝。原有正文及请求不需要迁移。

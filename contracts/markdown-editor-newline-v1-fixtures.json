@@ -5,8 +5,10 @@
   "rules": {
     "enter": "普通正文与单层引用的一次回车增加一个可见换行；标题和列表保留原常规行为。",
     "emptyLine": "真正空白行用独占 <br /> 表示；单层引用内用 > <br />，不得把分段用的空 > 当作可见空白行。",
-    "continuation": "连续换行不自动退出引用或普通正文对齐；首尾空白行也必须保存。",
-    "legacy": "已有 Markdown 段落边界和空引用分隔继续保持，不批量改写历史正文。"
+    "continuation": "普通正文手动 Enter 建立新排版段，新段恢复默认左对齐；连续 Enter 不退出单层引用；首尾空白行必须保存。行内 marks 不在本轮重置范围。",
+    "legacy": "保留已有段落边界、段内 LF 的整段对齐及空引用分隔；不推断历史 LF 的按键来源，不批量改写正文。相邻正文段落统一无额外段间距。",
+    "paragraphBoundary": "普通正文手动 Enter 用现有 Markdown 段落分隔表达；相邻正文段落间不额外增加可见空白行。真正空白行仅由独占 <br /> 表达。",
+    "automaticWrap": "宽度造成的自动折行不生成 LF、段落或空段，整段保持原对齐；已有段内 LF 和 Shift+Enter 仍属于同一段。"
   },
   "cases": [
     {
@@ -86,11 +88,622 @@
         "甲",
         "乙"
       ]
+    },
+    {
+      "id": "center-manual-boundary",
+      "markdown": "[wenyousite-align-v1-center]: #\n甲\n\n乙",
+      "lines": [
+        "甲",
+        "乙"
+      ],
+      "lineAlignments": [
+        "center",
+        "left"
+      ]
+    },
+    {
+      "id": "center-legacy-soft-lines",
+      "markdown": "[wenyousite-align-v1-center]: #\n甲\n乙",
+      "lines": [
+        "甲",
+        "乙"
+      ],
+      "lineAlignments": [
+        "center",
+        "center"
+      ]
+    },
+    {
+      "id": "center-automatic-wrap",
+      "markdown": "[wenyousite-align-v1-center]: #\n宽度造成的自动折行仍然属于同一个段落",
+      "lines": [
+        "宽度造成的自动折行仍然属于同一个段落"
+      ],
+      "lineAlignments": [
+        "center"
+      ]
+    },
+    {
+      "id": "right-manual-boundary",
+      "markdown": "[wenyousite-align-v1-right]: #\n甲\n\n乙",
+      "lines": [
+        "甲",
+        "乙"
+      ],
+      "lineAlignments": [
+        "right",
+        "left"
+      ]
+    },
+    {
+      "id": "right-legacy-soft-lines",
+      "markdown": "[wenyousite-align-v1-right]: #\n甲\n乙",
+      "lines": [
+        "甲",
+        "乙"
+      ],
+      "lineAlignments": [
+        "right",
+        "right"
+      ]
+    },
+    {
+      "id": "right-automatic-wrap",
+      "markdown": "[wenyousite-align-v1-right]: #\n宽度造成的自动折行仍然属于同一个段落",
+      "lines": [
+        "宽度造成的自动折行仍然属于同一个段落"
+      ],
+      "lineAlignments": [
+        "right"
+      ]
     }
   ],
   "rejected": [
     "> 甲<br />乙",
     "> <br onclick=\"alert(1)\" />",
     "> <script>alert(1)</script>"
+  ],
+  "revision": 2,
+  "editCases": [
+    {
+      "id": "left-offset-0-enter-1",
+      "markdown": "甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 0,
+        "enterCount": 1
+      },
+      "serialized": "<br />\n甲乙",
+      "lines": [
+        "",
+        "甲乙"
+      ],
+      "lineAlignments": [
+        "left",
+        "left"
+      ]
+    },
+    {
+      "id": "left-offset-0-enter-2",
+      "markdown": "甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 0,
+        "enterCount": 2
+      },
+      "serialized": "<br />\n<br />\n甲乙",
+      "lines": [
+        "",
+        "",
+        "甲乙"
+      ],
+      "lineAlignments": [
+        "left",
+        "left",
+        "left"
+      ]
+    },
+    {
+      "id": "left-offset-0-enter-3",
+      "markdown": "甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 0,
+        "enterCount": 3
+      },
+      "serialized": "<br />\n<br />\n<br />\n甲乙",
+      "lines": [
+        "",
+        "",
+        "",
+        "甲乙"
+      ],
+      "lineAlignments": [
+        "left",
+        "left",
+        "left",
+        "left"
+      ]
+    },
+    {
+      "id": "left-offset-1-enter-1",
+      "markdown": "甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 1,
+        "enterCount": 1
+      },
+      "serialized": "甲\n\n乙",
+      "lines": [
+        "甲",
+        "乙"
+      ],
+      "lineAlignments": [
+        "left",
+        "left"
+      ]
+    },
+    {
+      "id": "left-offset-1-enter-2",
+      "markdown": "甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 1,
+        "enterCount": 2
+      },
+      "serialized": "甲\n<br />\n乙",
+      "lines": [
+        "甲",
+        "",
+        "乙"
+      ],
+      "lineAlignments": [
+        "left",
+        "left",
+        "left"
+      ]
+    },
+    {
+      "id": "left-offset-1-enter-3",
+      "markdown": "甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 1,
+        "enterCount": 3
+      },
+      "serialized": "甲\n<br />\n<br />\n乙",
+      "lines": [
+        "甲",
+        "",
+        "",
+        "乙"
+      ],
+      "lineAlignments": [
+        "left",
+        "left",
+        "left",
+        "left"
+      ]
+    },
+    {
+      "id": "left-offset-2-enter-1",
+      "markdown": "甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 2,
+        "enterCount": 1
+      },
+      "serialized": "甲乙\n<br />",
+      "lines": [
+        "甲乙",
+        ""
+      ],
+      "lineAlignments": [
+        "left",
+        "left"
+      ]
+    },
+    {
+      "id": "left-offset-2-enter-2",
+      "markdown": "甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 2,
+        "enterCount": 2
+      },
+      "serialized": "甲乙\n<br />\n<br />",
+      "lines": [
+        "甲乙",
+        "",
+        ""
+      ],
+      "lineAlignments": [
+        "left",
+        "left",
+        "left"
+      ]
+    },
+    {
+      "id": "left-offset-2-enter-3",
+      "markdown": "甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 2,
+        "enterCount": 3
+      },
+      "serialized": "甲乙\n<br />\n<br />\n<br />",
+      "lines": [
+        "甲乙",
+        "",
+        "",
+        ""
+      ],
+      "lineAlignments": [
+        "left",
+        "left",
+        "left",
+        "left"
+      ]
+    },
+    {
+      "id": "center-offset-0-enter-1",
+      "markdown": "[wenyousite-align-v1-center]: #\n甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 0,
+        "enterCount": 1
+      },
+      "serialized": "<br />\n甲乙",
+      "lines": [
+        "",
+        "甲乙"
+      ],
+      "lineAlignments": [
+        "left",
+        "left"
+      ]
+    },
+    {
+      "id": "center-offset-0-enter-2",
+      "markdown": "[wenyousite-align-v1-center]: #\n甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 0,
+        "enterCount": 2
+      },
+      "serialized": "<br />\n<br />\n甲乙",
+      "lines": [
+        "",
+        "",
+        "甲乙"
+      ],
+      "lineAlignments": [
+        "left",
+        "left",
+        "left"
+      ]
+    },
+    {
+      "id": "center-offset-0-enter-3",
+      "markdown": "[wenyousite-align-v1-center]: #\n甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 0,
+        "enterCount": 3
+      },
+      "serialized": "<br />\n<br />\n<br />\n甲乙",
+      "lines": [
+        "",
+        "",
+        "",
+        "甲乙"
+      ],
+      "lineAlignments": [
+        "left",
+        "left",
+        "left",
+        "left"
+      ]
+    },
+    {
+      "id": "center-offset-1-enter-1",
+      "markdown": "[wenyousite-align-v1-center]: #\n甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 1,
+        "enterCount": 1
+      },
+      "serialized": "[wenyousite-align-v1-center]: #\n甲\n\n乙",
+      "lines": [
+        "甲",
+        "乙"
+      ],
+      "lineAlignments": [
+        "center",
+        "left"
+      ]
+    },
+    {
+      "id": "center-offset-1-enter-2",
+      "markdown": "[wenyousite-align-v1-center]: #\n甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 1,
+        "enterCount": 2
+      },
+      "serialized": "[wenyousite-align-v1-center]: #\n甲\n<br />\n乙",
+      "lines": [
+        "甲",
+        "",
+        "乙"
+      ],
+      "lineAlignments": [
+        "center",
+        "left",
+        "left"
+      ]
+    },
+    {
+      "id": "center-offset-1-enter-3",
+      "markdown": "[wenyousite-align-v1-center]: #\n甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 1,
+        "enterCount": 3
+      },
+      "serialized": "[wenyousite-align-v1-center]: #\n甲\n<br />\n<br />\n乙",
+      "lines": [
+        "甲",
+        "",
+        "",
+        "乙"
+      ],
+      "lineAlignments": [
+        "center",
+        "left",
+        "left",
+        "left"
+      ]
+    },
+    {
+      "id": "center-offset-2-enter-1",
+      "markdown": "[wenyousite-align-v1-center]: #\n甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 2,
+        "enterCount": 1
+      },
+      "serialized": "[wenyousite-align-v1-center]: #\n甲乙\n<br />",
+      "lines": [
+        "甲乙",
+        ""
+      ],
+      "lineAlignments": [
+        "center",
+        "left"
+      ]
+    },
+    {
+      "id": "center-offset-2-enter-2",
+      "markdown": "[wenyousite-align-v1-center]: #\n甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 2,
+        "enterCount": 2
+      },
+      "serialized": "[wenyousite-align-v1-center]: #\n甲乙\n<br />\n<br />",
+      "lines": [
+        "甲乙",
+        "",
+        ""
+      ],
+      "lineAlignments": [
+        "center",
+        "left",
+        "left"
+      ]
+    },
+    {
+      "id": "center-offset-2-enter-3",
+      "markdown": "[wenyousite-align-v1-center]: #\n甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 2,
+        "enterCount": 3
+      },
+      "serialized": "[wenyousite-align-v1-center]: #\n甲乙\n<br />\n<br />\n<br />",
+      "lines": [
+        "甲乙",
+        "",
+        "",
+        ""
+      ],
+      "lineAlignments": [
+        "center",
+        "left",
+        "left",
+        "left"
+      ]
+    },
+    {
+      "id": "right-offset-0-enter-1",
+      "markdown": "[wenyousite-align-v1-right]: #\n甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 0,
+        "enterCount": 1
+      },
+      "serialized": "<br />\n甲乙",
+      "lines": [
+        "",
+        "甲乙"
+      ],
+      "lineAlignments": [
+        "left",
+        "left"
+      ]
+    },
+    {
+      "id": "right-offset-0-enter-2",
+      "markdown": "[wenyousite-align-v1-right]: #\n甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 0,
+        "enterCount": 2
+      },
+      "serialized": "<br />\n<br />\n甲乙",
+      "lines": [
+        "",
+        "",
+        "甲乙"
+      ],
+      "lineAlignments": [
+        "left",
+        "left",
+        "left"
+      ]
+    },
+    {
+      "id": "right-offset-0-enter-3",
+      "markdown": "[wenyousite-align-v1-right]: #\n甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 0,
+        "enterCount": 3
+      },
+      "serialized": "<br />\n<br />\n<br />\n甲乙",
+      "lines": [
+        "",
+        "",
+        "",
+        "甲乙"
+      ],
+      "lineAlignments": [
+        "left",
+        "left",
+        "left",
+        "left"
+      ]
+    },
+    {
+      "id": "right-offset-1-enter-1",
+      "markdown": "[wenyousite-align-v1-right]: #\n甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 1,
+        "enterCount": 1
+      },
+      "serialized": "[wenyousite-align-v1-right]: #\n甲\n\n乙",
+      "lines": [
+        "甲",
+        "乙"
+      ],
+      "lineAlignments": [
+        "right",
+        "left"
+      ]
+    },
+    {
+      "id": "right-offset-1-enter-2",
+      "markdown": "[wenyousite-align-v1-right]: #\n甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 1,
+        "enterCount": 2
+      },
+      "serialized": "[wenyousite-align-v1-right]: #\n甲\n<br />\n乙",
+      "lines": [
+        "甲",
+        "",
+        "乙"
+      ],
+      "lineAlignments": [
+        "right",
+        "left",
+        "left"
+      ]
+    },
+    {
+      "id": "right-offset-1-enter-3",
+      "markdown": "[wenyousite-align-v1-right]: #\n甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 1,
+        "enterCount": 3
+      },
+      "serialized": "[wenyousite-align-v1-right]: #\n甲\n<br />\n<br />\n乙",
+      "lines": [
+        "甲",
+        "",
+        "",
+        "乙"
+      ],
+      "lineAlignments": [
+        "right",
+        "left",
+        "left",
+        "left"
+      ]
+    },
+    {
+      "id": "right-offset-2-enter-1",
+      "markdown": "[wenyousite-align-v1-right]: #\n甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 2,
+        "enterCount": 1
+      },
+      "serialized": "[wenyousite-align-v1-right]: #\n甲乙\n<br />",
+      "lines": [
+        "甲乙",
+        ""
+      ],
+      "lineAlignments": [
+        "right",
+        "left"
+      ]
+    },
+    {
+      "id": "right-offset-2-enter-2",
+      "markdown": "[wenyousite-align-v1-right]: #\n甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 2,
+        "enterCount": 2
+      },
+      "serialized": "[wenyousite-align-v1-right]: #\n甲乙\n<br />\n<br />",
+      "lines": [
+        "甲乙",
+        "",
+        ""
+      ],
+      "lineAlignments": [
+        "right",
+        "left",
+        "left"
+      ]
+    },
+    {
+      "id": "right-offset-2-enter-3",
+      "markdown": "[wenyousite-align-v1-right]: #\n甲乙",
+      "operation": {
+        "anchor": "甲乙",
+        "offset": 2,
+        "enterCount": 3
+      },
+      "serialized": "[wenyousite-align-v1-right]: #\n甲乙\n<br />\n<br />\n<br />",
+      "lines": [
+        "甲乙",
+        "",
+        "",
+        ""
+      ],
+      "lineAlignments": [
+        "right",
+        "left",
+        "left",
+        "left"
+      ]
+    }
   ]
 }

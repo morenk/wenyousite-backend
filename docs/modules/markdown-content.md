@@ -108,4 +108,19 @@ Web 和后端消费 v7；已审查 Flutter 副本尚未消费，Windows 修复�
 
 普通正文和单层引用的一次 Enter 只增加一个可见换行，连续输入保留对应空白行；标题和列表仍采用原编辑器常规操作。行内粗体、斜体等不另设分段规则。共同输入见 [回车语料](../../contracts/markdown-editor-newline-v1-fixtures.json)。
 
-普通换行继续保存 LF；真正空白行用独占 `<br />`，单层引用中用独占 `> <br />`。引用的空 `>` 仍是段落结构分隔，与真正空白行不同。后端只认可无属性、独占的单层引用标记，任意行内 HTML 仍返回不支持格式；无需数据迁移，不改变 HTTP DTO。此项跨端候选需在更新后的 Web 与 Android 亲自验收，旧 Android 可能字面化新的引用空行标记。
+历史段内换行、Shift+Enter 和单层引用换行继续保存 LF；新输入普通正文 Enter 的排版边界见下节。真正空白行用独占 `<br />`，单层引用中用独占 `> <br />`。引用的空 `>` 仍是段落结构分隔，与真正空白行不同。后端只认可无属性、独占的单层引用标记，任意行内 HTML 仍返回不支持格式；无需数据迁移，不改变 HTTP DTO。此项跨端候选需在更新后的 Web 与 Android 亲自验收，旧 Android 可能字面化新的引用空行标记。
+
+### 普通正文手动 Enter 的对齐边界（newline v1 revision 2）
+
+新输入的普通正文 Enter 建立独立段落，新段默认左对齐；引用、标题、列表及 Shift+Enter 保持原行为，行内 marks 不重置。正文相邻段落取消额外段间距，一次 Enter 只新增一个可见换行。宽度导致的自动折行不创建任何存储分隔，整段仍保持对齐。
+
+```markdown
+[wenyousite-align-v1-center]: #
+甲
+
+乙
+```
+
+以上规范字符串为 `[wenyousite-align-v1-center]: #\n甲\n\n乙`，恰好两行：甲居中、乙默认左对齐。右对齐只替换 `center` 为 `right`。连续两次 Enter 写为 `[wenyousite-align-v1-center]: #\n甲\n<br />\n乙`，恰好三行，第二行为空。末尾 Enter 的空新段暂存为 `甲\n<br />`，继续输入后自然写回段落边界。
+
+已有 `[wenyousite-align-v1-center]: #\n甲\n乙` 仍是一段两行且均居中，不能把旧 LF 猜成新的手动边界。历史 `甲\n\n乙` 仍是两个段落，但统一采用无额外空白的正文段距；这是格式未扩展情况下的明确显示变化。没有新增 HTML、不可见字符、存储字段或数据迁移；Markdown 仍为 v5、HTTP DTO/OpenAPI 不变。契约文件保持 v1 路径，`revision: 2` 区分编辑行为；27 条 `editCases` 约束真实按键、逐行对齐及保存重开。Foundation 当前不定义 Enter/段距规则，无需变更其包版本。
