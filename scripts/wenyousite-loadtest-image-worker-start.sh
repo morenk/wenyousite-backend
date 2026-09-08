@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BACKEND_DIR=${WENYOU_BACKEND_DIR:-/root/wenyousite/wenyousite-backend}
-NODE_BINARY=${WENYOU_NODE_BINARY:-/root/.local/share/fnm/node-versions/v24.18.0/installation/bin/node}
+BACKEND_DIR=${WENYOU_BACKEND_DIR:-/var/lib/wenyousite/loadtest/current}
+NODE_BINARY=${WENYOU_NODE_BINARY:-/usr/local/bin/node}
 
 if [ ! -d "$BACKEND_DIR" ]; then
   echo "后端目录不存在: $BACKEND_DIR" >&2
