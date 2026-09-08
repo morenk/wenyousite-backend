@@ -3,7 +3,7 @@
 ## 1. 项目与事实源
 
 - 本仓库提供温油站 NestJS API；主要技术为 TypeScript、NestJS、Prisma、PostgreSQL、Redis、BullMQ、Jest。
-- 本文件继承工作区根 `AGENTS.md` 的变更隔离、自动提交推送和部署不变量；这里只补充后端专属约束。
+- 本文件继承工作区根 `AGENTS.md` 的环境边界、任务分支、评审和部署门禁；这里只补充后端专属约束。
 - 公网运行拓扑以工作区 [README](../README.md) 为唯一事实源；命令以 `package.json`，数据模型以 `prisma/schema.prisma`，接口以生成的 OpenAPI 为准。
 - 修改前先读受影响模块、测试及 [架构文档](docs/architecture.md)。已有设计细节放在 `docs/`，不要复制进本文件。
 - Web 与 Flutter 都消费该 API；可观察契约变化必须同时考虑两个客户端。
@@ -90,18 +90,19 @@ pnpm docs:check
 
 ## 4. 公网开发环境交付
 
-`wenyou.site` 当前是**单一公网开发环境**，没有真实用户。后端由宿主机 `wenyousite-backend.service` 托管 production build 并监听 `3000`，仅代表稳定运行方式，不等同于正式生产发布，不需要维护窗口或发布审批。
+`wenyou.site` 当前是**单一公网开发环境**。后端由宿主机 `wenyousite-backend.service` 托管 production build 并监听 `3000`。环境性质不降低部署门禁：每次切换都必须由用户明确批准，并从已合并提交执行。
 
 代码任务的默认完成链路：
 
 1. 实现并运行相关测试。
 2. 运行 `pnpm check`；高风险任务补充 `pnpm check:full` 或等价验证。
 3. 显式暂存本任务差异，复核 staged diff 与敏感信息，创建 `feat|fix|refactor|test|docs|chore(scope): 中文说明` 原子提交。
-4. fetch 并确认可安全更新 `origin/dev` 后默认推送；用户明确要求不提交或不推送时除外。
-5. 只从工作区干净且与 `origin/dev` 完全一致的提交部署；有 migration 时由部署脚本先备份再执行 `prisma migrate deploy`。
-6. 检查本机/公网健康、受影响接口或旅程和最近日志，并汇报提交 SHA、部署版本与验证结果。
+4. fetch 并确认任务分支基于最新 `origin/dev`，推送 `codex/YYYYMMDD-<目标>`；不得直接更新 `dev`。
+5. 跨端、契约、迁移、权限或基础设施变化必须创建 PR；其他变化也由用户明确决定是否合并。
+6. 用户合并并批准部署后，管理身份只从工作区干净且与 `origin/dev` 完全一致的提交部署；有 migration 时由部署脚本先备份再执行 `prisma migrate deploy`。
+7. 检查本机/公网健康、受影响接口或旅程和最近日志，并汇报提交 SHA、部署版本与验证结果。
 
-纯文档任务不构建、不迁移、不重启，但完成文档检查后仍按同样的原子提交和推送规则交付。实际相关门禁失败时不得提交半成品；外部环境或无关既有失败只能在提供定向等价验证并明确记录后例外处理。
+纯文档任务不构建、不迁移、不重启，但完成文档检查后仍提交并推送任务分支。实际相关门禁失败时不得把分支交付为可合并；外部环境或无关既有失败只能在提供定向等价验证并明确记录后例外处理。
 
 ### 后端切换规则
 
@@ -110,13 +111,13 @@ pnpm docs:check
 - 依赖或 Prisma 生成器变化时先执行 `pnpm install`/`pnpm prisma:generate` 等对应步骤，以 `package.json` 为准。
 - 数据库与 Redis 由后端仓库唯一的 Compose 管理；不要在工作区创建第二套基础设施。
 - 数据平面的密钥事实源位于 `/etc/wenyousite`，仓库只提交无密钥模板；常规部署必须通过静态与运行安全门禁并存在已验证的异地备份激活标记。
-- 部署脚本会拒绝错误分支、脏工作区、未跟踪文件、缺失 upstream、未推送提交和门禁期间发生的源码变化；不得使用环境变量或手工重启绕过。
+- 部署脚本会拒绝错误分支、脏工作区、未跟踪文件、缺失 upstream、未推送提交和门禁期间发生的源码变化；不得使用环境变量或手工重启绕过。`wenyou-dev` 不得执行部署或重启服务。
 - 运行时 `BUILD_SHA` 来自部署写入的 revision 文件，不得在服务重启时重新读取可变工作区 HEAD。
 
 检查完成后的后端切换：
 
 ```bash
-cd /root/wenyousite/wenyousite-backend
+cd /srv/wenyousite/wenyousite-backend
 bash scripts/deploy.sh --backend-only
 ```
 
