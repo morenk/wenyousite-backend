@@ -71,3 +71,8 @@ Web 与 Flutter 不直接下载线上 `/api/docs-json`。发布分支同步固�
 2026-09-08 补齐单层引用中独占 `<br />` 的安全空行语义，HTTP DTO 与 Markdown v5 版本不变；非独占或带属性 HTML 继续拒绝。输入及阅读预期固定于 [回车语料](../contracts/markdown-editor-newline-v1-fixtures.json)。已有请求保持兼容；新引用空行的编辑需更新后的 Web 与 Android，双端结果仍待负责人验收。
 
 普通正文对齐回车的输入规则修订为 newline v1 revision 2：Enter 新段恢复左对齐，自动折行保留整段对齐；继续使用现有 Markdown v5 段落边界和空段标记，HTTP DTO/OpenAPI 无变化。详见 [精确排版示例](modules/markdown-content.md#普通正文手动-enter-的对齐边界newline-v1-revision-2) 与 [Windows 同步说明](mobile-client-guide.md#revision-2-同步与-windows-验收)。
+
+
+## 列表树与空项 v1 候选
+
+新增 [`markdown-editor-list-v1-fixtures.json`](../contracts/markdown-editor-list-v1-fixtures.json)，固定真实列表树、空项、续行、块与起始编号；详见[正文协议](modules/markdown-content.md#列表树与空项候选-v1)。HTTP/OpenAPI 与 Markdown v5 不变，不批量改写旧文。Windows 必须从本任务固定 Git 提交同步，核对读取、删除、输入、Enter、类型切换、缩进／减少缩进、保存重开及真实阅读树；仅核对项数不足以验收。当前待两端候选和负责人验收。

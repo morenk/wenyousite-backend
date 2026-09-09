@@ -397,3 +397,9 @@
 ## 2.1.0-dev.20260806
 
 - 向后兼容新增一对一私聊。
+
+
+## 列表树与空项 v1（候选）
+
+- 新增独立列表类型／空项组合及历史缩进、Setext、空祖先、项内续文、起始编号机器语料；以真实 CommonMark 树约束跨端。
+- 保持 Markdown v5、HTTP/OpenAPI、普通正文与引用 newline v1 revision 2，不改历史数据；Web／Windows 完整实现与手动验收仍待完成。

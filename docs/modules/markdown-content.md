@@ -124,3 +124,14 @@ Web 和后端消费 v7；已审查 Flutter 副本尚未消费，Windows 修复�
 以上规范字符串为 `[wenyousite-align-v1-center]: #\n甲\n\n乙`，恰好两行：甲居中、乙默认左对齐。右对齐只替换 `center` 为 `right`。连续两次 Enter 写为 `[wenyousite-align-v1-center]: #\n甲\n<br />\n乙`，恰好三行，第二行为空。末尾 Enter 的空新段暂存为 `甲\n<br />`，继续输入后自然写回段落边界。
 
 已有 `[wenyousite-align-v1-center]: #\n甲\n乙` 仍是一段两行且均居中，不能把旧 LF 猜成新的手动边界。历史 `甲\n\n乙` 仍是两个段落，但统一采用无额外空白的正文段距；这是格式未扩展情况下的明确显示变化。没有新增 HTML、不可见字符、存储字段或数据迁移；Markdown 仍为 v5、HTTP DTO/OpenAPI 不变。契约文件保持 v1 路径，`revision: 2` 区分编辑行为；27 条 `editCases` 约束真实按键、逐行对齐及保存重开。Foundation 当前不定义 Enter/段距规则，无需变更其包版本。
+
+
+## 列表树与空项候选 v1
+
+[机器夹具](../../contracts/markdown-editor-list-v1-fixtures.json) 的 `items` 是独立定义的前序列表树：`type`、从零开始的 `depth`、父项下标 `parent`、所属列表 `start`、本项 `text`、`empty` 与直属 `blocks`。空父项不包含子项文字；没有正文仍有一个可编辑空段。`editableLines` 不计语法分隔。canonical 是共同阅读语义的标准 Markdown 示例，允许等价标记与松紧规范化，但禁止丢文字、错层、丢空项、改变起始编号或块关系。
+
+旧 `1. 甲\n  1. 乙\n    1. 丙` 在 markdown-it / Milkdown 的 CommonMark 解析中只有两个根级项，第二项是 `乙\n1. 丙`；不推断历史作者意图。新建三层有序链为 `1. 甲\n   1. 乙\n      1. 丙`。缩进跟随父项内容起点，不能固定每两空格一级；三层上限按实际树判断。
+
+`- 甲\n  -` 是项内 Setext H2；`- 甲\n\n  -` 才是空子项。空父项的 `-\n  -` 是父子项，而 `-\n\n  -` 是两个根项。空祖先、非空子项、空孙项 canonical 为 `- - 乙\n\n    -`；三层全空链为 `-\n  -\n    -`，不得合成分隔线 `- - -`。语法空行不产生编辑空段。
+
+普通正文／引用 newline v1 revision 2、列表 Enter 常规拆项和空项退出行为保持不变。仅空格/Tab 的编辑文本不能与零长度节点混为一谈；标准 Markdown 无法无损表示的复杂结构必须保留原内容并阻止损坏写出。四层、任务列表、代码、列表内 HTML 仍按原白名单处理。没有 HTTP DTO、OpenAPI、Foundation、存储字段或数据迁移变化。此候选尚未完成 Windows 与负责人验收，不代表 Mobile PR #15 已解决嵌套语义。

@@ -204,3 +204,8 @@ Content-Type: application/json
 - 手动验证居中和居右正文的 Enter、连续 Enter、续写、自动折行、只对齐新行、实际保存／重开及 Web↔Flutter 交叉编辑；引用、H2/H3、列表应保持既有行为。VPS 不修改、安装或构建移动端，空正文 H2/H3 的编码异常由原 Windows 任务独立处理。
 
 候选只交付 PR，不代表用户已验收；先合并兼容后端契约，再由 Web/Windows 各自完成消费端候选与手动验收。部署仍需负责人另外明确批准。
+
+
+## 列表树与空项 v1 候选
+
+新增 [`markdown-editor-list-v1-fixtures.json`](../contracts/markdown-editor-list-v1-fixtures.json)，固定真实列表树、空项、续行、块与起始编号；详见[正文协议](modules/markdown-content.md#列表树与空项候选-v1)。HTTP/OpenAPI 与 Markdown v5 不变，不批量改写旧文。Windows 必须从本任务固定 Git 提交同步，核对读取、删除、输入、Enter、类型切换、缩进／减少缩进、保存重开及真实阅读树；仅核对项数不足以验收。当前待两端候选和负责人验收。
