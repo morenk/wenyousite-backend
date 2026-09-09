@@ -102,6 +102,15 @@ for (const file of collect(sourceRoot)) {
   const name = relative(file);
   const source = ts.createSourceFile(name, content, ts.ScriptTarget.Latest, true);
 
+  if (
+    !file.endsWith('.spec.ts') &&
+    name !== 'src/common/image-inspection.ts' &&
+    /from\s+['"]sharp['"]/.test(content) &&
+    /\.metadata\s*\(/.test(content)
+  ) {
+    failures.push(`${name}: sharp 元数据只能由 common/image-inspection.ts 读取，业务层必须使用单帧尺寸语义`);
+  }
+
   if (file.endsWith('.controller.ts')) checkControllerAuth(source, name);
   if (file.endsWith('.module.ts')) collectModuleProviders(source, name);
 
