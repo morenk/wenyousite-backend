@@ -403,3 +403,5 @@
 
 - 新增独立列表类型／空项组合及历史缩进、Setext、空祖先、项内续文、起始编号机器语料；以真实 CommonMark 树约束跨端。
 - 保持 Markdown v5、HTTP/OpenAPI、普通正文与引用 newline v1 revision 2，不改历史数据；Web／Windows 完整实现与手动验收仍待完成。
+
+列表 fixture revision 2 只追加 mention/inline marks、字面列表标记和两条独立删除／输入操作，不改变 revision 1 的既有预期。

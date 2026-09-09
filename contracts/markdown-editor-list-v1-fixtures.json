@@ -1,7 +1,7 @@
 {
   "contract": "wenyousite-editor-list",
   "version": 1,
-  "revision": 1,
+  "revision": 2,
   "markdownContractVersion": 5,
   "maxDepth": 3,
   "indexBase": 0,
@@ -6219,6 +6219,102 @@
       "editableLines": [
         "甲 乙 丙 -"
       ]
+    },
+    {
+      "id": "mention-marks-empty-child",
+      "markdown": "- **[@张三](/users/user-zhang)**\n\n  -",
+      "canonical": "- **[@张三](/users/user-zhang)**\n\n  -",
+      "items": [
+        {
+          "type": "bullet",
+          "depth": 0,
+          "parent": null,
+          "start": null,
+          "text": "@张三",
+          "empty": false,
+          "blocks": [
+            {
+              "type": "paragraph",
+              "lines": [
+                "@张三"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "bullet",
+          "depth": 1,
+          "parent": 0,
+          "start": null,
+          "text": "",
+          "empty": true,
+          "blocks": [
+            {
+              "type": "paragraph",
+              "lines": [
+                ""
+              ]
+            }
+          ]
+        }
+      ],
+      "editableLines": [
+        "@张三",
+        ""
+      ],
+      "inline": [
+        {
+          "item": 0,
+          "text": "@张三",
+          "marks": [
+            "strong"
+          ],
+          "href": "/users/user-zhang"
+        }
+      ]
+    },
+    {
+      "id": "literal-list-marker",
+      "markdown": "- \\- **甲**\n\n  -",
+      "canonical": "- \\- **甲**\n\n  -",
+      "items": [
+        {
+          "type": "bullet",
+          "depth": 0,
+          "parent": null,
+          "start": null,
+          "text": "- 甲",
+          "empty": false,
+          "blocks": [
+            {
+              "type": "paragraph",
+              "lines": [
+                "- 甲"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "bullet",
+          "depth": 1,
+          "parent": 0,
+          "start": null,
+          "text": "",
+          "empty": true,
+          "blocks": [
+            {
+              "type": "paragraph",
+              "lines": [
+                ""
+              ]
+            }
+          ]
+        }
+      ],
+      "editableLines": [
+        "- 甲",
+        ""
+      ]
     }
   ],
   "rejected": [
@@ -6241,6 +6337,32 @@
       "id": "task-list",
       "markdown": "- [ ] 甲",
       "issue": "task-list"
+    }
+  ],
+  "editCases": [
+    {
+      "id": "delete-third-ordered",
+      "markdown": "1. 甲\n   1. 乙\n      1. 丙",
+      "operation": {
+        "type": "deleteText",
+        "item": 2,
+        "offset": 0,
+        "length": 1
+      },
+      "canonical": "1. 甲\n   1. 乙\n\n      1.",
+      "expectedCase": "chain-ooo-tte"
+    },
+    {
+      "id": "type-into-empty-parent",
+      "markdown": "- - 乙\n\n    -",
+      "operation": {
+        "type": "insertText",
+        "item": 0,
+        "offset": 0,
+        "text": "甲"
+      },
+      "canonical": "- 甲\n  - 乙\n\n    -",
+      "expectedCase": "chain-uuu-tte"
     }
   ]
 }

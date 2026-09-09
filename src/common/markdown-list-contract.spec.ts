@@ -7,6 +7,7 @@ type Block = { type: string; lines: string[] };
 type Item = { type: string; depth: number; parent: number | null; start: number | null; text: string; empty: boolean; blocks: Block[] };
 const fixture = JSON.parse(readFileSync(resolve(__dirname, '../../contracts/markdown-editor-list-v1-fixtures.json'), 'utf8')) as {
   cases: Array<{ id: string; markdown: string; canonical: string; items: Item[]; editableLines: string[] }>;
+  editCases: Array<{ id: string; markdown: string; canonical: string; expectedCase: string }>;
   rejected: Array<{ id: string; markdown: string; issue: string }>;
 };
 
@@ -52,6 +53,18 @@ describe('列表树与空项 v1 契约', () => {
       expect(actual).toEqual(items);
       expect(actual.flatMap((i) => i.blocks.flatMap((b) => b.lines))).toEqual(editableLines);
     }
+  });
+  it.each(fixture.editCases)('$id 操作结果引用独立树预期', ({ canonical, expectedCase }) => {
+    const expected = fixture.cases.find((item) => item.id === expectedCase);
+    expect(expected).toBeDefined();
+    expect(readItems(canonical)).toEqual(expected!.items);
+    expect(findUnsupportedMarkdownFormats(canonical)).toEqual([]);
+  });
+  it('列表内 mention 的身份与粗体不被当作列表标记', () => {
+    const source = fixture.cases.find((item) => item.id === 'mention-marks-empty-child')!.canonical;
+    const inline = new MarkdownIt().parse(source, {}).find((token) => token.type === 'inline')!.children!;
+    expect(inline.find((token) => token.type === 'link_open')?.attrGet('href')).toBe('/users/user-zhang');
+    expect(inline.some((token) => token.type === 'strong_open')).toBe(true);
   });
   it.each(fixture.rejected)('$id 不扩大结构白名单', ({ markdown, issue }) => {
     expect(findUnsupportedMarkdownFormats(markdown).map((i) => i.type)).toContain(issue);
