@@ -1,5 +1,7 @@
 import { visiblePostWhere } from '../access/block-visibility.where';
 import { Prisma } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import { ThreadCoverMediaResponseDto } from './dto/thread-list-response.dto';
 import { authorSelect, countMembersAndPosts } from '../common/prisma-helpers';
 import { truncateMarkdownToCompactPlainText } from '../common/markdown-truncate';
 import {
@@ -74,5 +76,38 @@ export function mapThreadListCard(thread: ThreadListCardRow) {
     _count: thread._count,
     preview,
     coverImages,
+    coverMedia: coverImages[0]
+      ? { url: coverImages[0], animated: null, posterUrl: null } as ThreadCoverMediaResponseDto
+      : null,
   });
+}
+
+/** 只解析已经通过帖子可见性过滤的卡片；按精确 URL 一次查询，不在列表读取对象存储。 */
+export async function resolveThreadListCards(prisma: PrismaService, threads: ThreadListCardRow[]) {
+  const cards = threads.map(mapThreadListCard);
+  const urls = [...new Set(cards.flatMap((card) => card.coverImages))];
+  if (urls.length === 0) return cards;
+  const media = await prisma.media.findMany({
+    where: { url: { in: urls }, status: 'COMPLETED', deletionClaimedAt: null },
+    select: { url: true, contentType: true, animated: true, posterUrl: true },
+  });
+  const byUrl = new Map<string, typeof media>();
+  for (const item of media) byUrl.set(item.url, [...(byUrl.get(item.url) ?? []), item]);
+  for (const card of cards) {
+    const cover = card.coverMedia;
+    if (!cover) continue;
+    const matches = byUrl.get(cover.url);
+    // 历史重复 URL 不能任意挑一条记录来宣布其静态/动画属性。
+    if (matches?.length !== 1) continue;
+    const item = matches[0];
+    if (item.posterUrl) {
+      cover.animated = item.animated;
+      cover.posterUrl = item.posterUrl;
+    } else if (!item.animated && ['image/jpeg', 'image/webp'].includes(item.contentType ?? '')) {
+      // JPEG 本身静态；本站现有 WebP 母版经静态归一化，动画 WebP 输入仍被拒绝。
+      cover.animated = false;
+      cover.posterUrl = item.url;
+    }
+  }
+  return cards;
 }

@@ -60,7 +60,7 @@ export class MediaProcessingService {
     if (!media || media.deletionClaimedAt || media.status !== 'PROCESSING') return;
 
     if (!media.stagingKey) {
-      await this.processLegacyObject(mediaId, media.key);
+      await this.processLegacyObject(mediaId, media.key, media.purpose);
       return;
     }
 
@@ -124,6 +124,9 @@ export class MediaProcessingService {
         width: masterInfo.width,
         height: masterInfo.height,
         animated: isGif,
+        posterUrl: outputs.some((output) => output.name === 'poster')
+          ? this.storage.publicUrl(derivativeKey(media.key, 'poster'))
+          : null,
         status: 'COMPLETED',
         processingStartedAt: null,
         orphanedAt: new Date(),
@@ -198,7 +201,10 @@ export class MediaProcessingService {
 
   private async createVariant(master: Buffer, key: string, variant: MediaVariantName) {
     const pipeline = sharp(master, { limitInputPixels: MAX_STATIC_INPUT_PIXELS });
-    if (variant === 'thumbnail') {
+    if (variant === 'poster') {
+      // 首帧保留原比例，避免方形 thumbnail 在列表 16:9 封面中再次裁切。
+      pipeline.resize(800, 800, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 82 });
+    } else if (variant === 'thumbnail') {
       pipeline.resize(300, 300, { fit: 'cover', withoutEnlargement: true }).webp({ quality: 80 });
     } else if (variant === 'feed') {
       pipeline.resize(480, null, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 82 });
@@ -229,12 +235,14 @@ export class MediaProcessingService {
   }
 
   /** 迁移前已在原 key 上传的极少量任务保持旧行为，避免覆盖扩展名与历史 URL。 */
-  private async processLegacyObject(mediaId: string, key: string) {
+  private async processLegacyObject(mediaId: string, key: string, purpose: MediaPurpose) {
     const source = await this.storage.download(key);
     const inspection = await inspectMediaImage(source);
     const animated = inspection.isGif;
     const outputs = await mapConcurrent(
-      mediaVariantsFor(MediaPurpose.LEGACY, animated),
+      mediaVariantsFor(MediaPurpose.LEGACY, animated).filter((variant) =>
+        variant !== 'poster' || purpose === MediaPurpose.RICH_CONTENT || purpose === MediaPurpose.LEGACY,
+      ),
       2,
       (variant) => this.createVariant(source, key, variant),
     );
@@ -252,6 +260,9 @@ export class MediaProcessingService {
         width: inspection.frameWidth,
         height: inspection.frameHeight,
         animated,
+        posterUrl: outputs.some((output) => output.name === 'poster')
+          ? this.storage.publicUrl(derivativeKey(key, 'poster'))
+          : null,
         status: 'COMPLETED',
         processingStartedAt: null,
         orphanedAt: new Date(),

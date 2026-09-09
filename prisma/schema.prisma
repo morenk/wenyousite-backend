@@ -871,6 +871,7 @@ model Media {
   url                 String
   key                 String       @unique
   stagingKey          String?      @unique @map("staging_key")
+  posterUrl           String?      @map("poster_url")
   purpose             MediaPurpose @default(LEGACY)
   contentType         String?      @map("content_type")
   size                Int?
@@ -895,6 +896,7 @@ model Media {
   postAttachments        PostMedia[]
   draftAttachments       DraftMedia[]
 
+  @@index([url])
   @@index([status, createdAt])
   @@index([status, processingStartedAt])
   @@index([status, orphanedAt])

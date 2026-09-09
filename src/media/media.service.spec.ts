@@ -481,6 +481,7 @@ describe('MediaService', () => {
       'uploads/avatar_thumb.webp',
       'uploads/avatar_feed.webp',
       'uploads/avatar_md.webp',
+      'uploads/avatar_poster.webp',
     ]);
     expect(mockPrisma.media.deleteMany).toHaveBeenCalledWith({
       where: { id: 'm-avatar', deletionClaimedAt: { not: null } },
@@ -670,6 +671,26 @@ describe('MediaService', () => {
     await service.cleanupOrphanMedia();
 
     expect(mockPrisma.media.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('cleanupOrphanMedia poster 删除失败保留记录，失败前产物也可重试回收', async () => {
+    const key = 'media/2099/01/01/u1/photo.gif';
+    mockPrisma.media.findMany.mockResolvedValue([{
+      id: 'm-poster', key, url: 'https://test.cos.com/test-bucket/' + key,
+      status: 'FAILED', purpose: 'RICH_CONTENT', animated: false,
+    }]);
+    mockS3.send.mockImplementation(async (command: { Key: string }) => {
+      if (command.Key.endsWith('_poster.webp')) throw new Error('delete poster failed');
+      return {};
+    });
+    await service.cleanupOrphanMedia();
+    expect(mockS3.send.mock.calls.some(([command]) => command.Key.endsWith('_poster.webp'))).toBe(true);
+    expect(mockPrisma.media.deleteMany).not.toHaveBeenCalled();
+    mockS3.send.mockResolvedValue({});
+    await service.cleanupOrphanMedia();
+    expect(mockPrisma.media.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ['m-poster'] }, deletionClaimedAt: { not: null } },
+    });
   });
 
   it('cleanupOrphanMedia 临时对象删除失败时保留 DB 记录以便补偿', async () => {

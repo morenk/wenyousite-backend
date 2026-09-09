@@ -1,5 +1,12 @@
 # API 合同变更
 
+## 5.19.0-dev.20260909.1
+
+- 帖子列表兼容新增可空 coverMedia（url、animated、posterUrl）；首页、搜索、收藏、个人主页共用同一读模型，保留 coverImages。
+- 新上传正文媒体生成保持原比例、最长边 800 的静态首帧 poster；完整上传后随 COMPLETED 登记。历史 GIF 无登记返回 unknown，不猜测动画或派生地址。
+- 未知/外部封面及缺 poster 的动图不自动请求原图；旧服务缺字段时消费者同样保守降级。JPEG 和当前静态归一化的 WebP 历史母版可作为静态封面。
+- 数据库增加可空 poster_url 与 url 索引，不回填、不转码、不更改 Markdown v5。兼容后端先于消费者发布；参见 docs/deprecation-register.md。
+
 ## 2026-09-09 普通 Enter 重置正文对齐候选
 
 - newline v1 revision 2 修订 continuation：手动 Enter 建立独立默认左对齐段；自动折行和历史段内 LF 保持整段对齐。

@@ -25,6 +25,17 @@ class ThreadListCountResponseDto {
   posts!: number;
 }
 
+export class ThreadCoverMediaResponseDto {
+  @ApiProperty({ description: '第一张普通正文图片的原始播放地址，与 coverImages[0] 一致；未知媒体不得自动请求' })
+  url!: string;
+
+  @ApiProperty({ type: Boolean, nullable: true, description: '可信的动画属性；无法确认、未完成或历史 GIF 返回 null' })
+  animated!: boolean | null;
+
+  @ApiProperty({ type: String, nullable: true, description: '可用于列表静止状态的第一帧静态地址；未知时返回 null，客户端显示占位，禁止回退加载原图' })
+  posterUrl!: string | null;
+}
+
 export class ThreadListItemResponseDto {
   @ApiProperty()
   id!: string;
@@ -87,6 +98,9 @@ export class ThreadListItemResponseDto {
     description: '默认主贴正文中的第一张普通图片 URL；无图时返回空数组',
   })
   coverImages!: string[];
+
+  @ApiProperty({ type: ThreadCoverMediaResponseDto, nullable: true, description: '第一张普通正文图片的封面读模型；无图时返回 null。旧服务可能省略，消费者须兼容缺字段' })
+  coverMedia!: ThreadCoverMediaResponseDto | null;
 }
 
 /** 保留首页专用 schema 名称；字段统一继承主题帖列表卡片契约。 */

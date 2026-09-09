@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "name": "no-cover",
+      "coverImages": [],
+      "coverMedia": null
+    },
+    {
+      "name": "registered-gif",
+      "coverImages": [
+        "https://media.example.test/a.gif"
+      ],
+      "coverMedia": {
+        "url": "https://media.example.test/a.gif",
+        "animated": true,
+        "posterUrl": "https://media.example.test/a_poster.webp"
+      }
+    },
+    {
+      "name": "registered-static",
+      "coverImages": [
+        "https://media.example.test/b.webp"
+      ],
+      "coverMedia": {
+        "url": "https://media.example.test/b.webp",
+        "animated": false,
+        "posterUrl": "https://media.example.test/b_poster.webp"
+      }
+    },
+    {
+      "name": "legacy-static",
+      "coverImages": [
+        "https://media.example.test/c.webp"
+      ],
+      "coverMedia": {
+        "url": "https://media.example.test/c.webp",
+        "animated": false,
+        "posterUrl": "https://media.example.test/c.webp"
+      }
+    },
+    {
+      "name": "legacy-gif-unknown",
+      "coverImages": [
+        "https://media.example.test/d.gif"
+      ],
+      "coverMedia": {
+        "url": "https://media.example.test/d.gif",
+        "animated": null,
+        "posterUrl": null
+      }
+    },
+    {
+      "name": "external-unknown",
+      "coverImages": [
+        "https://external.example.test/e.jpg"
+      ],
+      "coverMedia": {
+        "url": "https://external.example.test/e.jpg",
+        "animated": null,
+        "posterUrl": null
+      }
+    },
+    {
+      "name": "old-service",
+      "coverImages": [
+        "https://media.example.test/a.gif"
+      ]
+    },
+    {
+      "name": "registered-animation-webp",
+      "coverImages": [
+        "https://media.example.test/animation.webp"
+      ],
+      "coverMedia": {
+        "url": "https://media.example.test/animation.webp",
+        "animated": true,
+        "posterUrl": "https://media.example.test/animation_poster.webp"
+      }
+    }
+  ]
+}

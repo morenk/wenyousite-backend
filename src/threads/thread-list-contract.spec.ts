@@ -48,6 +48,7 @@ describe('列表卡片 OpenAPI 契约', () => {
       'category',
       'categoryInfo',
       'coverImages',
+      'coverMedia',
       'createdAt',
       'defaultSubthread',
       'deletedAt',

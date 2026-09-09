@@ -18623,7 +18623,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.18.0-dev.20260905.1",
+    "version": "5.19.0-dev.20260909.1",
     "contact": {}
   },
   "tags": [
@@ -19557,6 +19557,30 @@
           "posts"
         ]
       },
+      "ThreadCoverMediaResponseDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "第一张普通正文图片的原始播放地址，与 coverImages[0] 一致；未知媒体不得自动请求"
+          },
+          "animated": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "可信的动画属性；无法确认、未完成或历史 GIF 返回 null"
+          },
+          "posterUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "可用于列表静止状态的第一帧静态地址；未知时返回 null，客户端显示占位，禁止回退加载原图"
+          }
+        },
+        "required": [
+          "url",
+          "animated",
+          "posterUrl"
+        ]
+      },
       "ThreadListItemResponseDto": {
         "type": "object",
         "properties": {
@@ -19653,6 +19677,16 @@
             "items": {
               "type": "string"
             }
+          },
+          "coverMedia": {
+            "nullable": true,
+            "description": "第一张普通正文图片的封面读模型；无图时返回 null。旧服务可能省略，消费者须兼容缺字段",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ThreadCoverMediaResponseDto"
+              }
+            ]
           }
         },
         "required": [
@@ -19673,7 +19707,8 @@
           "topicTags",
           "_count",
           "preview",
-          "coverImages"
+          "coverImages",
+          "coverMedia"
         ]
       },
       "UpdateUserDto": {
@@ -19946,6 +19981,16 @@
             "items": {
               "type": "string"
             }
+          },
+          "coverMedia": {
+            "nullable": true,
+            "description": "第一张普通正文图片的封面读模型；无图时返回 null。旧服务可能省略，消费者须兼容缺字段",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ThreadCoverMediaResponseDto"
+              }
+            ]
           }
         },
         "required": [
@@ -19966,7 +20011,8 @@
           "topicTags",
           "_count",
           "preview",
-          "coverImages"
+          "coverImages",
+          "coverMedia"
         ]
       },
       "MomentMediaResponseDto": {
@@ -21041,6 +21087,16 @@
               "type": "string"
             }
           },
+          "coverMedia": {
+            "nullable": true,
+            "description": "第一张普通正文图片的封面读模型；无图时返回 null。旧服务可能省略，消费者须兼容缺字段",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ThreadCoverMediaResponseDto"
+              }
+            ]
+          },
           "bookmarkId": {
             "type": "string",
             "description": "收藏记录 ID"
@@ -21069,6 +21125,7 @@
           "_count",
           "preview",
           "coverImages",
+          "coverMedia",
           "bookmarkId",
           "bookmarkFolderId"
         ]
@@ -21404,6 +21461,16 @@
             "items": {
               "type": "string"
             }
+          },
+          "coverMedia": {
+            "nullable": true,
+            "description": "第一张普通正文图片的封面读模型；无图时返回 null。旧服务可能省略，消费者须兼容缺字段",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ThreadCoverMediaResponseDto"
+              }
+            ]
           }
         },
         "required": [
@@ -21424,7 +21491,8 @@
           "topicTags",
           "_count",
           "preview",
-          "coverImages"
+          "coverImages",
+          "coverMedia"
         ]
       },
       "CreateThreadDto": {
@@ -26966,6 +27034,16 @@
               "type": "string"
             }
           },
+          "coverMedia": {
+            "nullable": true,
+            "description": "第一张普通正文图片的封面读模型；无图时返回 null。旧服务可能省略，消费者须兼容缺字段",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ThreadCoverMediaResponseDto"
+              }
+            ]
+          },
           "relevance": {
             "type": "number",
             "description": "仅说明本次查询的标题相关度；客户端不得作为稳定业务字段依赖"
@@ -26989,7 +27067,8 @@
           "topicTags",
           "_count",
           "preview",
-          "coverImages"
+          "coverImages",
+          "coverMedia"
         ]
       },
       "SearchUserResponseDto": {
