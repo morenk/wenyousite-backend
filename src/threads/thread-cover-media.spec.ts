@@ -33,31 +33,31 @@ describe('主题帖封面媒体读模型', () => {
       row(image(url) + image('https://example.test/ignored'), 'a'), row(image(url), 'b'),
     ]);
     expect(cards.map((card) => card.coverMedia)).toEqual([
-      { url, animated: true, posterUrl }, { url, animated: true, posterUrl },
+      { url, animated: true, posterUrl, previewVariants: null }, { url, animated: true, posterUrl, previewVariants: null },
     ]);
     expect(findMany).toHaveBeenCalledTimes(1);
     expect(findMany).toHaveBeenCalledWith({
       where: { url: { in: [url] }, status: 'COMPLETED', deletionClaimedAt: null },
-      select: { url: true, contentType: true, animated: true, posterUrl: true },
+      select: { url: true, contentType: true, animated: true, posterUrl: true, previewVariants: true },
     });
   });
 
   it.each([false, true])('历史 GIF animated=%s 没有登记 poster 必须未知', async (animated) => {
     findMany.mockResolvedValue([{ url, animated, contentType: 'image/gif', posterUrl: null }]);
     expect((await resolveThreadListCards(prisma, [row(image(url))]))[0].coverMedia)
-      .toEqual({ url, animated: null, posterUrl: null });
+      .toEqual({ url, animated: null, posterUrl: null, previewVariants: null });
   });
 
   it.each(['image/jpeg', 'image/webp'])('可信历史静态 %s 可沿用母版', async (contentType) => {
     findMany.mockResolvedValue([{ url, animated: false, contentType, posterUrl: null }]);
     expect((await resolveThreadListCards(prisma, [row(image(url))]))[0].coverMedia)
-      .toEqual({ url, animated: false, posterUrl: url });
+      .toEqual({ url, animated: false, posterUrl: url, previewVariants: null });
   });
 
   it.each(['image/png', null, 'image/svg+xml'])('不能证明静态的历史 %s 保持未知', async (contentType) => {
     findMany.mockResolvedValue([{ url, animated: false, contentType, posterUrl: null }]);
     expect((await resolveThreadListCards(prisma, [row(image(url))]))[0].coverMedia)
-      .toEqual({ url, animated: null, posterUrl: null });
+      .toEqual({ url, animated: null, posterUrl: null, previewVariants: null });
   });
 
   it('重复地址、外链及不同 query 地址不任意匹配或猜衍生图', async () => {
@@ -68,7 +68,7 @@ describe('主题帖封面媒体读模型', () => {
     const urls = [url, url + '?v=2', 'https://external.example.test/a.jpg'];
     const cards = await resolveThreadListCards(prisma, urls.map((value) => row(image(value))));
     expect(cards.map((card) => card.coverMedia)).toEqual(
-      urls.map((value) => ({ url: value, animated: null, posterUrl: null })),
+      urls.map((value) => ({ url: value, animated: null, posterUrl: null, previewVariants: null })),
     );
   });
 
@@ -87,4 +87,19 @@ describe('主题帖封面媒体读模型', () => {
       }
     }
   });
+  it('只发布可信动画已登记的有效预览，原 URL 不变且按实际面积排序', async () => {
+    const posterUrl = 'https://media.test/poster.webp';
+    const variants = [
+      { url: 'https://media.test/large.webp', width: 800, height: 450, bytes: 200 },
+      { url: 'https://media.test/small.webp', width: 480, height: 270, bytes: 100 },
+    ];
+    findMany.mockResolvedValue([{ url, animated: true, posterUrl, previewVariants: variants }]);
+    expect((await resolveThreadListCards(prisma, [row(image(url))]))[0].coverMedia)
+      .toEqual({ url, animated: true, posterUrl, previewVariants: [...variants].reverse() });
+    findMany.mockResolvedValue([{ url, animated: true, posterUrl, previewVariants: [{ ...variants[0], bytes: -1 }] }]);
+    expect((await resolveThreadListCards(prisma, [row(image(url))]))[0].coverMedia!.previewVariants).toBeNull();
+    findMany.mockResolvedValue([{ url, animated: true, posterUrl: null, previewVariants: variants }]);
+    expect((await resolveThreadListCards(prisma, [row(image(url))]))[0].coverMedia!.previewVariants).toBeNull();
+  });
+
 });

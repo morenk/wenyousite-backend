@@ -10,7 +10,7 @@ describe('MediaProcessingRecoveryService', () => {
       updateMany: jest.fn(),
     },
   };
-  const media = {
+  const media = { cleanupPreviewAttempts: jest.fn().mockResolvedValue(0),
     enqueueProcessing: jest.fn(),
     markFailed: jest.fn(),
   };
@@ -45,6 +45,12 @@ describe('MediaProcessingRecoveryService', () => {
       where: { id: 'media-1', status: 'PROCESSING' },
       data: { processingStartedAt: expect.any(Date) },
     });
+  });
+
+  it('附加清理失败不能跳过必需任务恢复', async () => {
+    media.cleanupPreviewAttempts.mockRejectedValueOnce(new Error('cleanup database unavailable'));
+    await expect(service.reconcile()).resolves.toBeUndefined();
+    expect(media.enqueueProcessing).toHaveBeenCalledWith('media-1');
   });
 
   it.each(['waiting', 'active', 'delayed', 'prioritized'])(

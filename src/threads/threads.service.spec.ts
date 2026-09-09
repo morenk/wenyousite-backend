@@ -346,7 +346,7 @@ describe('ThreadsService', () => {
         'tagId:all',
         'filter:all',
         'limit:20',
-        'shape:cover-media-v3',
+        'shape:cover-media-v4',
         'policy:active-owner-v1',
       );
     });
@@ -374,7 +374,7 @@ describe('ThreadsService', () => {
         `tagId:${tagId}`,
         'filter:all',
         'limit:20',
-        'shape:cover-media-v3',
+        'shape:cover-media-v4',
         'policy:active-owner-v1',
       );
     });

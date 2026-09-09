@@ -1,4 +1,5 @@
 import { visiblePostWhere } from '../access/block-visibility.where';
+import { readPreviewDescriptors } from '../media/media-animation-preview-policy';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadCoverMediaResponseDto } from './dto/thread-list-response.dto';
@@ -77,7 +78,7 @@ export function mapThreadListCard(thread: ThreadListCardRow) {
     preview,
     coverImages,
     coverMedia: coverImages[0]
-      ? { url: coverImages[0], animated: null, posterUrl: null } as ThreadCoverMediaResponseDto
+      ? { url: coverImages[0], animated: null, posterUrl: null, previewVariants: null } as ThreadCoverMediaResponseDto
       : null,
   });
 }
@@ -89,7 +90,7 @@ export async function resolveThreadListCards(prisma: PrismaService, threads: Thr
   if (urls.length === 0) return cards;
   const media = await prisma.media.findMany({
     where: { url: { in: urls }, status: 'COMPLETED', deletionClaimedAt: null },
-    select: { url: true, contentType: true, animated: true, posterUrl: true },
+    select: { url: true, contentType: true, animated: true, posterUrl: true, previewVariants: true },
   });
   const byUrl = new Map<string, typeof media>();
   for (const item of media) byUrl.set(item.url, [...(byUrl.get(item.url) ?? []), item]);
@@ -103,6 +104,7 @@ export async function resolveThreadListCards(prisma: PrismaService, threads: Thr
     if (item.posterUrl) {
       cover.animated = item.animated;
       cover.posterUrl = item.posterUrl;
+      cover.previewVariants = item.animated ? readPreviewDescriptors(item.previewVariants) : null;
     } else if (!item.animated && ['image/jpeg', 'image/webp'].includes(item.contentType ?? '')) {
       // JPEG 本身静态；本站现有 WebP 母版经静态归一化，动画 WebP 输入仍被拒绝。
       cover.animated = false;

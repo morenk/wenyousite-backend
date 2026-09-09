@@ -15,6 +15,7 @@ describe('单帧图像元数据边界', () => {
       frameCount: 2,
       totalFramePixels: 2400,
       durationMs: 300,
+      frameDelaysMs: [100, 200],
       loop: 2,
     });
   });

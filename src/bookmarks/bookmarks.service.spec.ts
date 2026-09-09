@@ -76,7 +76,7 @@ describe('BookmarksService', () => {
   });
 
   it('findAll 返回值附带 bookmarkId（供取消收藏）', async () => {
-    mockPrisma.media.findMany.mockResolvedValueOnce([{ url: 'https://cdn.example.com/bookmark-cover.jpg', contentType: 'image/gif', animated: true, posterUrl: 'https://cdn.example.com/first-frame.webp' }]);
+    mockPrisma.media.findMany.mockResolvedValueOnce([{ url: 'https://cdn.example.com/bookmark-cover.jpg', contentType: 'image/gif', animated: true, posterUrl: 'https://cdn.example.com/first-frame.webp', previewVariants: null }]);
     const bookmark = {
       id: 'bm1',
       userId: 'u1',
@@ -100,7 +100,7 @@ describe('BookmarksService', () => {
         bookmarkFolderId: 'folder-1',
         preview: '收藏正文',
         coverImages: ['https://cdn.example.com/bookmark-cover.jpg'],
-        coverMedia: { url: 'https://cdn.example.com/bookmark-cover.jpg', animated: true, posterUrl: 'https://cdn.example.com/first-frame.webp' },
+        coverMedia: { url: 'https://cdn.example.com/bookmark-cover.jpg', animated: true, posterUrl: 'https://cdn.example.com/first-frame.webp', previewVariants: null },
         defaultSubthread: { id: 'sub-t1', title: '主贴', lastPostAt: null },
         topicTags: [{ tag: { id: 'tag-1', name: '推理' } }],
         _count: { members: 1, posts: 2, players: 3 },

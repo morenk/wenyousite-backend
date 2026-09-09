@@ -1,11 +1,13 @@
+jest.mock('./media-animation-preview', () => ({ generateAnimationPreviews: jest.fn().mockResolvedValue([]) }));
 import { MediaPurpose } from '@prisma/client';
 import sharp from 'sharp';
 import { apng, gif } from '../common/image-inspection.fixtures';
 import { PrismaService } from '../prisma/prisma.service';
 import { ObjectStorageService } from '../storage/object-storage.service';
+import { generateAnimationPreviews } from './media-animation-preview';
 import { MediaProcessingService } from './media-processing.service';
 
-const prisma = { media: { findUnique: jest.fn(), updateMany: jest.fn() } };
+const prisma = { mediaPreviewAttempt: { create: jest.fn().mockResolvedValue({}) }, media: { findUnique: jest.fn(), updateMany: jest.fn() } };
 const storage = { publicUrl: jest.fn((key: string) => 'https://cdn.example.test/' + key), download: jest.fn(), upload: jest.fn(), remove: jest.fn() };
 
 describe.each(['staging', 'LEGACY'] as const)('GIF %s 处理', (path) => {
@@ -13,6 +15,7 @@ describe.each(['staging', 'LEGACY'] as const)('GIF %s 处理', (path) => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.mocked(generateAnimationPreviews).mockResolvedValue([]);
     prisma.media.findUnique.mockResolvedValue({
       id: 'gif-1',
       key: 'media/master.gif',
@@ -135,6 +138,19 @@ describe.each(['staging', 'LEGACY'] as const)('GIF %s 处理', (path) => {
     expect(prisma.media.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ status: 'COMPLETED', posterUrl: 'https://cdn.example.test/media/master_poster.webp' }),
     }));
+  });
+
+  it('附加预览上传失败时原 GIF 与 poster 仍完成且保留补偿账目', async () => {
+    storage.download.mockResolvedValue(await gif(80, 100, 2));
+    jest.mocked(generateAnimationPreviews).mockResolvedValue([{ edge: 480, width: 80, height: 100, body: Buffer.alloc(10) }]);
+    storage.upload.mockImplementation(async (key: string) => {
+      if (key.includes('_preview_v1_')) throw new Error('optional failure');
+    });
+    await expect(service.processImage('gif-1')).resolves.toBeUndefined();
+    expect(prisma.media.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: 'COMPLETED', posterUrl: 'https://cdn.example.test/media/master_poster.webp' }),
+    }));
+    expect(prisma.mediaPreviewAttempt.create).toHaveBeenCalledTimes(1);
   });
 
   it('非正文用途不生成或登记 poster，即使进入无 staging 的兼容路径', async () => {

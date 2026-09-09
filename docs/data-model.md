@@ -622,3 +622,9 @@
 ### system_notification_campaigns / site_operational_settings
 
 `system_notification_campaigns` 保存通知正文、目标、JSON 受众、排期、投递状态、预估和实际人数；`dispatch_cursor`、`dispatch_attempts` 与 `last_attempt_at` 组成可恢复的分批投递检查点，通知记录通过 `campaignId` 关联并以事件键幂等。`site_operational_settings` 使用固定 `default` 主键保存注册暂停、内容写入暂停和维护公告窗口。
+
+### 列表封面媒体派生元数据
+
+Media 的可空 posterUrl 只登记成功上传的独立静态首帧；previewVariants 为可空 JSONB，保存最多两档已发布的 {url,width,height,bytes}。迁移不回填旧记录，不改变 url 原件关联。
+
+media_preview_attempts 保存每次独立 UUID 尝试的精确对象 keys，通过 PENDING / PUBLISHED / CLEANING 状态、expiresAt 与 CAS 隔离发布和回收。(status,nextCleanupAt) 索引支持限量到期扫描；mediaId 索引与级联外键支持媒体最终回收。清理成功仍保留墓碑及 cleanupPasses，逐步退避复查补偿迟到 PUT；这些记录随基础媒体回收删除，并非零存储开销。详见[列表动画预览](media-animation-previews.md)。

@@ -223,7 +223,7 @@ export class ThreadQueryService {
       `tagId:${query.tagId ?? 'all'}`,
       `filter:${query.filter ?? 'all'}`,
       `limit:${Math.min(query.limit ?? 20, 50)}`,
-      'shape:cover-media-v3',
+      'shape:cover-media-v4',
       'policy:active-owner-v1',
     );
     const cacheableFirstPage = !userId && !query.cursor && query.filter !== 'playing';

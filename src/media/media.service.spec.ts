@@ -53,6 +53,7 @@ const mockProcessing = {
       data: { status: 'FAILED', processingStartedAt: null },
     }),
   ),
+  cleanupPreviewAttempts: jest.fn().mockResolvedValue(0),
   cleanupCompletedStagingObjects: jest.fn().mockResolvedValue(0),
   discardStagingObject: jest.fn().mockResolvedValue(undefined),
 };
@@ -89,6 +90,7 @@ const makeMedia = (overrides = {}) => ({
 });
 
 const mockPrisma = {
+  mediaPreviewAttempt: { findMany: jest.fn().mockResolvedValue([]) },
   media: {
     create: jest.fn(),
     update: jest.fn(),
@@ -691,6 +693,19 @@ describe('MediaService', () => {
     expect(mockPrisma.media.deleteMany).toHaveBeenCalledWith({
       where: { id: { in: ['m-poster'] }, deletionClaimedAt: { not: null } },
     });
+  });
+
+  it('预览尝试中的任何对象删除失败都保留媒体及账目；重试包含所有独立 key', async () => {
+    const key = 'media/master.gif', preview = 'media/master_preview_v1_old_480.webp';
+    mockPrisma.media.findMany.mockResolvedValue([{ id: 'm-preview', key, status: 'FAILED', purpose: 'RICH_CONTENT', animated: true }]);
+    mockPrisma.mediaPreviewAttempt.findMany.mockResolvedValueOnce([{ mediaId: 'm-preview', keys: [preview] }]);
+    mockS3.send.mockImplementation(async (command: { Key: string }) => {
+      if (command.Key === preview) throw new Error('preview delete failure');
+      return {};
+    });
+    await service.cleanupOrphanMedia();
+    expect(mockPrisma.media.deleteMany).not.toHaveBeenCalled();
+    expect(mockS3.send.mock.calls.some(([command]) => command.Key === preview)).toBe(true);
   });
 
   it('cleanupOrphanMedia 临时对象删除失败时保留 DB 记录以便补偿', async () => {
