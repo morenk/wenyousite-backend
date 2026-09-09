@@ -99,7 +99,7 @@ UPLOADING ──(元数据不合法)──────────────�
 
 ## 历史 GIF 尺寸只读审计
 
-`pnpm media:gif-metadata:audit --help` 说明只读入口。按现有配置事实源提供运行环境后，可执行 `pnpm media:gif-metadata:audit --limit 100`，使用摘要的 `nextAfter` 继续 `--after <mediaId>`。工具只查询 `COMPLETED`、`image/gif`、`deletionClaimedAt: null` 的记录；Media 无 `deletedAt` 字段，已删除记录不会被查询。逐对象内存下载有 10MB 硬上限，缺对象、坏图和超限只记录固定跳过原因。
+`pnpm media:gif-metadata:audit --help` 说明只读入口。工具只读取并显式校验 `DATABASE_URL` 和 `COS_ENDPOINT` / `COS_BUCKET` / `COS_ACCESS_KEY_ID` / `COS_SECRET_ACCESS_KEY`（`COS_REGION` 可选），不依赖应用环境配置的装饰器隐式类型转换；可先用 `--check-config` 校验并构造客户端，此模式不连接数据库或对象存储。按现有配置事实源提供运行环境后，可执行 `pnpm media:gif-metadata:audit --limit 100`，使用摘要的 `nextAfter` 继续 `--after <mediaId>`。工具只查询 `COMPLETED`、`image/gif`、`deletionClaimedAt: null` 的记录；Media 无 `deletedAt` 字段，已删除记录不会被查询。逐对象内存下载有 10MB 硬上限，缺对象、坏图和超限只记录固定跳过原因。
 
 标准输出为 JSONL，候选只包含 mediaId 与旧/新 width、height、animated，不含对象键、URL 或用户信息。媒体 GIF 的 animated 沿用现有格式标记语义（包括单帧 GIF），表情的 animated 则表示是否多帧，两者不能互相套用。将计划保存为受控审查文件；本入口不提供 `--apply`，不修改数据库或对象，也不能把历史 animated 默认值问题全部归因于某次上传改动。
 
