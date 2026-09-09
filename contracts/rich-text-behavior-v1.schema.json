@@ -191,6 +191,9 @@
       "additionalProperties": {
         "type": "string"
       }
+    },
+    "revision": {
+      "const": 2
     }
   },
   "required": [
@@ -206,7 +209,8 @@
     "compatibilityCases",
     "rejected",
     "deferredDecisions",
-    "acceptance"
+    "acceptance",
+    "revision"
   ],
   "additionalProperties": false,
   "$defs": {

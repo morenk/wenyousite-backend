@@ -453,7 +453,7 @@
       ],
       "profile": "candidate-v5",
       "initial": {
-        "canonical": "> 甲\n> <br />\n> 乙\n\n<br />\n尾",
+        "canonical": "> 甲\n> <br />\n> 乙\n<br />\n尾",
         "summary": {
           "blocks": [
             {
@@ -514,7 +514,7 @@
             "type": "reopen"
           },
           "expected": {
-            "canonical": "> 甲\n> <br />\n> 乙\n\n<br />\n尾",
+            "canonical": "> 甲\n> <br />\n> 乙\n<br />\n尾",
             "summary": {
               "blocks": [
                 {
@@ -576,7 +576,7 @@
             "outcome": "success"
           },
           "expected": {
-            "canonical": "> 甲\n> <br />\n> 乙\n\n<br />\n尾",
+            "canonical": "> 甲\n> <br />\n> 乙\n<br />\n尾",
             "summary": {
               "blocks": [
                 {
@@ -630,8 +630,8 @@
               ]
             },
             "save": {
-              "requestMarkdown": "> 甲\n> <br />\n> 乙\n\n<br />\n尾",
-              "persistedMarkdown": "> 甲\n> <br />\n> 乙\n\n<br />\n尾",
+              "requestMarkdown": "> 甲\n> <br />\n> 乙\n<br />\n尾",
+              "persistedMarkdown": "> 甲\n> <br />\n> 乙\n<br />\n尾",
               "dirty": false
             }
           }
@@ -2610,6 +2610,465 @@
           }
         }
       ]
+    },
+    {
+      "id": "rtb-quote-boundary-backspace",
+      "family": "boundaries",
+      "source": "synthetic-rule-example",
+      "rules": [
+        "newline-v1-r2",
+        "RTM-06",
+        "mobile-2fb2242-quote-paragraph-boundaries"
+      ],
+      "profile": "candidate-v5",
+      "initial": {
+        "canonical": "> 甲\n>\n> 乙",
+        "summary": {
+          "blocks": [
+            {
+              "type": "blockquote",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "甲",
+                      "marks": {}
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "乙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "selection": {
+          "anchor": {
+            "path": [
+              0,
+              1
+            ],
+            "offset": 0
+          },
+          "focus": {
+            "path": [
+              0,
+              1
+            ],
+            "offset": 0
+          }
+        }
+      },
+      "steps": [
+        {
+          "id": "merge",
+          "operation": {
+            "type": "backspace",
+            "unit": "grapheme",
+            "historyBoundary": true
+          },
+          "expected": {
+            "canonical": "> 甲乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "blockquote",
+                  "children": [
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "甲乙",
+                          "marks": {}
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0,
+                  0
+                ],
+                "offset": 1
+              },
+              "focus": {
+                "path": [
+                  0,
+                  0
+                ],
+                "offset": 1
+              }
+            }
+          }
+        },
+        {
+          "id": "undo",
+          "operation": {
+            "type": "undo"
+          },
+          "expected": {
+            "canonical": "> 甲\n>\n> 乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "blockquote",
+                  "children": [
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "甲",
+                          "marks": {}
+                        }
+                      ]
+                    },
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "乙",
+                          "marks": {}
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0,
+                  1
+                ],
+                "offset": 0
+              },
+              "focus": {
+                "path": [
+                  0,
+                  1
+                ],
+                "offset": 0
+              }
+            }
+          }
+        },
+        {
+          "id": "redo",
+          "operation": {
+            "type": "redo"
+          },
+          "expected": {
+            "canonical": "> 甲乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "blockquote",
+                  "children": [
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "甲乙",
+                          "marks": {}
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0,
+                  0
+                ],
+                "offset": 1
+              },
+              "focus": {
+                "path": [
+                  0,
+                  0
+                ],
+                "offset": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "rtb-quote-enter-undo",
+      "family": "history",
+      "source": "synthetic-rule-example",
+      "rules": [
+        "newline-v1-r2",
+        "RTM-07",
+        "mobile-2fb2242-quote-paragraph-boundaries"
+      ],
+      "profile": "candidate-v5",
+      "initial": {
+        "canonical": "> 甲乙\n>\n> 丙丁",
+        "summary": {
+          "blocks": [
+            {
+              "type": "blockquote",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "甲乙",
+                      "marks": {}
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "丙丁",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "selection": {
+          "anchor": {
+            "path": [
+              0,
+              0
+            ],
+            "offset": 1
+          },
+          "focus": {
+            "path": [
+              0,
+              0
+            ],
+            "offset": 1
+          }
+        }
+      },
+      "steps": [
+        {
+          "id": "enter",
+          "operation": {
+            "type": "enter",
+            "historyBoundary": true
+          },
+          "expected": {
+            "canonical": "> 甲\n> 乙\n>\n> 丙丁",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "blockquote",
+                  "children": [
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "甲",
+                          "marks": {}
+                        },
+                        {
+                          "type": "softBreak"
+                        },
+                        {
+                          "type": "text",
+                          "text": "乙",
+                          "marks": {}
+                        }
+                      ]
+                    },
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "丙丁",
+                          "marks": {}
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0,
+                  0
+                ],
+                "offset": 2
+              },
+              "focus": {
+                "path": [
+                  0,
+                  0
+                ],
+                "offset": 2
+              }
+            }
+          }
+        },
+        {
+          "id": "undo",
+          "operation": {
+            "type": "undo"
+          },
+          "expected": {
+            "canonical": "> 甲乙\n>\n> 丙丁",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "blockquote",
+                  "children": [
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "甲乙",
+                          "marks": {}
+                        }
+                      ]
+                    },
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "丙丁",
+                          "marks": {}
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0,
+                  0
+                ],
+                "offset": 1
+              },
+              "focus": {
+                "path": [
+                  0,
+                  0
+                ],
+                "offset": 1
+              }
+            }
+          }
+        },
+        {
+          "id": "redo",
+          "operation": {
+            "type": "redo"
+          },
+          "expected": {
+            "canonical": "> 甲\n> 乙\n>\n> 丙丁",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "blockquote",
+                  "children": [
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "甲",
+                          "marks": {}
+                        },
+                        {
+                          "type": "softBreak"
+                        },
+                        {
+                          "type": "text",
+                          "text": "乙",
+                          "marks": {}
+                        }
+                      ]
+                    },
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "丙丁",
+                          "marks": {}
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0,
+                  0
+                ],
+                "offset": 2
+              },
+              "focus": {
+                "path": [
+                  0,
+                  0
+                ],
+                "offset": 2
+              }
+            }
+          }
+        }
+      ]
     }
   ],
   "compatibilityCases": [
@@ -2894,7 +3353,6 @@
     }
   ],
   "deferredDecisions": [
-    "RTM-06-cross-quote-paragraph-backspace: await committed list/empty-block investigation and owner rule",
     "RTM-08-quote-to-heading-combinations: only existing accepted commands; no new empty-block semantics",
     "RTM-11-multiblock-paste-in-aligned-paragraph: obtain independent expected selection/fragment boundaries before extending"
   ],
@@ -2904,5 +3362,6 @@
     "RT-03": "owner-accepted",
     "RT-04": "separate-owner-acceptance-pending",
     "RT-10": "fault-injection-candidate-not-user-data-loss-proof"
-  }
+  },
+  "revision": 2
 }
