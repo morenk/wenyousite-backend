@@ -89,19 +89,92 @@ test('篡改摘要、伪 passed、缺结果、重复、未知用例和过期 fix
   const client = clean(); client.platform = 'web';
   assert.ok(compareResults(fixture, client, fixtureSha256).some((item) => item.includes('selection:missing-observation')));
 });
-test('客户端完整阶段对照检查 save/close 原值保护，错误路径不得被摘要正确掩盖', () => {
-  // 此处仅测试结果比较器；不是消费者执行证据，结果不导出或标注真机验收。
+// 仅为比较器的输入构造反例，不输出为客户端执行证据。
+function syntheticClientResults(platform = 'flutter') {
   const result = backendResults(fixture, fixtureSha256, 'a'.repeat(40));
-  result.platform = 'web'; result.environment = 'unit-editor'; result.observations = [];
+  result.platform = platform; result.environment = 'unit-editor'; result.observations = [];
   for (const point of checkpoints(fixture)) {
     for (const stage of [point.stepId === 'initial' ? 'decoded' : 'edited', 'serialized', 'reader', ...(point.expected.selection ? ['selection'] : []), ...(point.expected.save ? ['save'] : [])]) {
-      result.observations.push({ caseId: point.caseId, stepId: point.stepId, stage, status: 'passed', actual: structuredClone(point.expected) });
+      const noReaderInput = stage === 'reader' && point.expected.canonical === null;
+      const mobileOnlyClose = platform === 'web' && point.caseId === 'rtb-close-encode-error' && ['close-failed', 'close-recovered'].includes(point.stepId);
+      result.observations.push(noReaderInput || mobileOnlyClose
+        ? { caseId: point.caseId, stepId: point.stepId, stage, status: 'not-run', reason: 'not-applicable' }
+        : { caseId: point.caseId, stepId: point.stepId, stage, status: 'passed', actual: structuredClone(point.expected) });
     }
   }
+  return result;
+}
+test('客户端完整阶段对照检查 save/close 原值保护，错误路径不得被摘要正确掩盖', () => {
+  const result = syntheticClientResults();
+  assert.equal(validateResult(result), true);
   assert.deepEqual(compareResults(fixture, result, fixtureSha256), []);
   for (const observation of result.observations) if (observation.actual?.save && !observation.actual.save.target) observation.actual.save.target = 'server';
   assert.deepEqual(compareResults(fixture, result, fixtureSha256), []);
   const close = result.observations.find((item) => item.caseId === 'rtb-close-encode-error' && item.stepId === 'close-failed' && item.stage === 'save')!;
   close.actual!.navigation = 'close';
   assert.ok(compareResults(fixture, result, fixtureSha256)[0].endsWith('/navigation'));
+});
+test('编码失败没有当前阅读输入：显式 N/A 可接受，缺失、旧快照或伪 passed 不可接受', () => {
+  const result = syntheticClientResults();
+  const index = result.observations.findIndex((item) => item.caseId === 'rtb-save-encode-error' && item.stage === 'reader' && item.status === 'not-run');
+  assert.ok(index >= 0);
+  assert.deepEqual(compareResults(fixture, result, fixtureSha256), []);
+  const missing = structuredClone(result); missing.observations.splice(index, 1);
+  assert.ok(compareResults(fixture, missing, fixtureSha256).some((item) => item.endsWith('/reader:missing-observation')));
+  const stale = structuredClone(result); stale.observations[index].actual = structuredClone(fixture.cases.find((item) => item.id === 'rtb-save-encode-error')!.initial);
+  assert.ok(compareResults(fixture, stale, fixtureSha256).some((item) => item.endsWith(':invalid-not-applicable')));
+  stale.observations[index].status = 'passed'; delete stale.observations[index].reason;
+  assert.ok(compareResults(fixture, stale, fixtureSha256).some((item) => item.endsWith(':invalid-not-applicable')));
+});
+test('编码失败仍必须执行编辑/选区/序列化失败/保存保护；有 Markdown 的阅读不得标 N/A', () => {
+  for (const stage of ['edited', 'selection', 'serialized', 'save']) {
+    const result = syntheticClientResults();
+    const item = result.observations.find((item) => item.caseId === 'rtb-save-encode-error' && item.stage === stage && item.actual?.canonical === null)!;
+    assert.ok(item, stage);
+    item.status = 'not-run'; item.reason = 'not-applicable'; delete item.actual;
+    assert.ok(compareResults(fixture, result, fixtureSha256).some((error) => error.endsWith(`/${stage}:not-run`)), stage);
+  }
+  for (const platform of ['web', 'flutter']) for (const recovered of [false, true]) {
+    const result = syntheticClientResults(platform);
+    const item = result.observations.find((item) => item.stage === 'reader' && item.status === 'passed'
+      && (!recovered || (item.caseId === 'rtb-save-encode-error' && item.stepId !== 'initial' && item.stepId !== 'insert')))!;
+    assert.ok(item);
+    item.status = 'not-run'; item.reason = 'not-applicable'; delete item.actual;
+    assert.ok(compareResults(fixture, result, fixtureSha256).some((error) => error.endsWith('/reader:not-run')));
+  }
+});
+test('Web 只有两个本机快照关闭检查点不适用；初始化、输入、云保存及 Flutter 关闭不得豁免', () => {
+  const web = syntheticClientResults('web');
+  assert.equal(validateResult(web), true);
+  assert.deepEqual(compareResults(fixture, web, fixtureSha256), []);
+  assert.equal(web.observations.filter((item) => item.caseId === 'rtb-close-encode-error' && item.status === 'not-run').length, 10);
+  const fake = structuredClone(web);
+  const fakeClose = fake.observations.find((item) => item.caseId === 'rtb-close-encode-error' && item.stepId === 'close-recovered' && item.stage === 'save')!;
+  fakeClose.status = 'passed'; delete fakeClose.reason;
+  fakeClose.actual = structuredClone(fixture.cases.find((item) => item.id === 'rtb-close-encode-error')!.steps.at(-1)!.expected);
+  assert.ok(compareResults(fixture, fake, fixtureSha256).some((error) => error.endsWith('/save:invalid-not-applicable')));
+  const missing = structuredClone(web);
+  missing.observations = missing.observations.filter((item) => !(item.caseId === 'rtb-close-encode-error' && item.stepId === 'close-recovered' && item.stage === 'save'));
+  assert.ok(compareResults(fixture, missing, fixtureSha256).some((error) => error.endsWith('/save:missing-observation')));
+  for (const stepId of ['initial', 'insert']) {
+    const result = structuredClone(web);
+    const item = result.observations.find((item) => item.caseId === 'rtb-close-encode-error' && item.stepId === stepId)!;
+    item.status = 'not-run'; item.reason = 'not-applicable'; delete item.actual;
+    assert.ok(compareResults(fixture, result, fixtureSha256).some((error) => error.endsWith(':not-run')));
+  }
+  const cloud = structuredClone(web);
+  const save = cloud.observations.find((item) => item.caseId === 'rtb-save-network-error' && item.stage === 'save')!;
+  save.status = 'not-run'; save.reason = 'not-applicable'; delete save.actual;
+  assert.ok(compareResults(fixture, cloud, fixtureSha256).some((error) => error.endsWith('/save:not-run')));
+  web.platform = 'flutter';
+  assert.ok(compareResults(fixture, web, fixtureSha256).some((error) => error.endsWith('close-recovered/save:not-run')));
+});
+test('N/A 必须有确切原因且无 actual；未执行、阻塞或不支持不能冒充不适用', () => {
+  for (const platform of ['backend', 'web', 'flutter']) {
+    for (const reason of ['not-executed', 'blocked', 'unsupported-operation', undefined]) {
+      const result = platform === 'backend' ? backendResults(fixture, fixtureSha256, 'a'.repeat(40)) : syntheticClientResults(platform);
+      result.observations.find((item) => item.status === 'not-run')!.reason = reason;
+      assert.ok(compareResults(fixture, result, fixtureSha256).some((error) => error.endsWith(':invalid-not-applicable')));
+    }
+  }
 });

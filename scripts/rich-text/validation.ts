@@ -18,8 +18,8 @@ export function loadContract(root = process.cwd()) {
 }
 export function checkpoints(fixture: Fixture) {
   return fixture.cases.flatMap((item) => [
-    { caseId: item.id, stepId: 'initial', expected: item.initial },
-    ...item.steps.map((step) => ({ caseId: item.id, stepId: step.id, expected: step.expected })),
+    { caseId: item.id, stepId: 'initial', operation: undefined, expected: item.initial },
+    ...item.steps.map((step) => ({ caseId: item.id, stepId: step.id, operation: step.operation, expected: step.expected })),
   ]);
 }
 export function validateContract(fixture: Fixture): string[] {
@@ -83,23 +83,34 @@ function firstDifference(a: unknown, b: unknown, path = ''): string | null {
   }
   return path || '/';
 }
+function isNotApplicable(point: ReturnType<typeof checkpoints>[number], platform: string, stage: string): boolean {
+  // Web 关闭是丢弃确认，不执行移动端本机快照；只豁免该用例的 close 操作，保留初始化/输入实测。
+  if (platform === 'web' && point.caseId === 'rtb-close-encode-error'
+    && point.operation?.type === 'close' && point.expected.save?.target === 'local-snapshot'
+    && ['edited', 'serialized', 'reader', 'selection', 'save'].includes(stage)) return true;
+  // 编码失败必须观测 serialized=null 和保存保护；此时没有当前正文供阅读或后端校验。
+  return point.expected.canonical === null && (stage === 'backend'
+    || (['web', 'flutter'].includes(platform) && stage === 'reader'));
+}
 export function compareResults(fixture: Fixture, results: Results, fixtureSha256: string): string[] {
   if (results.fixtureSha256 !== fixtureSha256) return ['fixture-hash-mismatch'];
   const points = checkpoints(fixture);
-  const byId = new Map(points.map((point) => [`${point.caseId}/${point.stepId}`, point.expected]));
+  const byId = new Map(points.map((point) => [`${point.caseId}/${point.stepId}`, point]));
   const seen = new Set<string>();
   const failures: string[] = [];
   for (const obs of results.observations) {
     const pointId = `${obs.caseId}/${obs.stepId}`;
-    const expected = byId.get(pointId);
-    if (!expected) { failures.push('unknown-case-or-step'); continue; }
+    const point = byId.get(pointId);
+    if (!point) { failures.push('unknown-case-or-step'); continue; }
+    const { expected } = point;
     const key = `${pointId}/${obs.stage}`;
     if (seen.has(key)) { failures.push(`${key}:duplicate-observation`); continue; }
     seen.add(key);
-    if (obs.status === 'not-run') {
-      if (!(results.platform === 'backend' && expected.canonical === null && obs.stage === 'backend' && obs.reason === 'not-applicable')) failures.push(`${key}:not-run`);
+    if (isNotApplicable(point, results.platform, obs.stage)) {
+      if (obs.status !== 'not-run' || obs.reason !== 'not-applicable' || obs.actual !== undefined) failures.push(`${key}:invalid-not-applicable`);
       continue;
     }
+    if (obs.status === 'not-run') { failures.push(`${key}:not-run`); continue; }
     if (!obs.actual || obs.status !== 'passed') { failures.push(`${key}:failed-or-missing-actual`); continue; }
     const fields: Array<keyof Snapshot> = obs.stage === 'selection' ? ['selection'] : obs.stage === 'save' ? ['save', 'navigation']
       : obs.stage === 'serialized' ? ['canonical'] : obs.stage === 'backend' ? ['canonical', 'summary'] : ['summary'];

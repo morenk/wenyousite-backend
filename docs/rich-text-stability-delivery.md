@@ -15,7 +15,9 @@ pnpm contract:rich-text --compare /tmp/rich-text-flutter-results.json
 
 `--backend` 仅对已提交合成 fixture 执行实际 prepareMarkdownContent、骰子解析和独立 Markdown AST 摘要。源码 SHA 来自当前 HEAD；生成可交接结果前必须确认源码已提交且工作区干净。结果有明示 offline 身份；不连接数据库或执行实际保存请求。编码失败检查点显示 not-run/not-applicable，不伪造客户端结果。
 
-`--compare` 先校验 schema 与 fixture SHA-256，再逐阶段比较。Web/Flutter 必须提供 initial 的 decoded、每个 step 的 edited、每个检查点的 serialized/reader，以及有选区或保存预期时的 selection/save；编辑器重开后的默认光标无预期时不比较。缺失、重复、未知用例、失败和未执行项目都会使比较失败；结果上的 passed 不能覆盖实际差异。默认诊断只有 caseId/stepId/stage/字段路径，无正文与身份值。
+`--compare` 先校验 schema 与 fixture SHA-256，再逐阶段比较。Web/Flutter 必须提供 initial 的 decoded、每个 step 的 edited、每个检查点的 serialized/reader，以及有选区或保存预期时的 selection/save；编辑器重开后的默认光标无预期时不比较。缺失、重复、未知用例、失败和适用阶段未执行都会使比较失败；结果上的 passed 不能覆盖实际差异。默认诊断只有 caseId/stepId/stage/字段路径，无正文与身份值。
+
+不适用必须逐项明确记录，不能省略：canonical=null 的阅读/后端校验没有当前正文输入；Web 的两个移动端本机快照 close 检查点不存在对应操作。完整边界见 [结果阶段适用性](modules/rich-text-behavior.md#结果与分阶段诊断)。编码失败的编辑结构、选区、序列化失败与保存保护仍必测；正常阅读及 Flutter 关闭不会因该例外免测。CLI 将实测通过数与 N/A 项分开输出。
 
 ## 门禁证据与限制
 

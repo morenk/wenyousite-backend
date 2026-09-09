@@ -17,7 +17,10 @@ try {
     if (!validateResult(result)) throw new Error('consumer-result-schema-invalid');
     const differences = compareResults(fixture, result, fixtureSha256);
     if (differences.length) throw new Error(differences[0]);
-    console.log(JSON.stringify({ status: 'passed', platform: result.platform, environment: result.environment, fixtureSha256, observations: result.observations.length }));
+    console.log(JSON.stringify({ status: 'passed', platform: result.platform, environment: result.environment, fixtureSha256,
+      observations: result.observations.length, passedObservations: result.observations.filter((item) => item.status === 'passed').length,
+      notApplicable: result.observations.filter((item) => item.status === 'not-run').map(({ caseId, stepId, stage }) => ({ caseId, stepId, stage })),
+    }));
   } else if (!mode || mode === '--check') {
     console.log(`Rich-text behavior contract valid (${fixture.cases.length} sequences, ${fixture.compatibilityCases.length} capabilities, ${fixture.rejected.length} rejections)`);
   } else throw new Error('usage: --check | --backend | --compare result.json');

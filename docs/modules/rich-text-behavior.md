@@ -29,6 +29,13 @@ compatibilityCases 中 read=full 表示可完整表达语义；safe-fallback 只
 
 结果绑定 fixtureSha256、sourceRevision、platform 和 environment。每项 observation 固定 caseId、stepId（初始状态用 initial）、stage（decoded/edited/serialized/backend/reader/selection/save）与 status。passed/failed 应附 actual；not-run 附原因，不得以 backend 的离线校验冒充编辑器按键、真 API 或负责人设备验收。
 
+不适用仍须显式提交 observation，使用 `status: "not-run"`、`reason: "not-applicable"` 且不带 actual；不能省略、标 passed 或填入旧快照/编辑器结构冒充阅读结果。仅允许以下边界：
+
+- fixture 预期 `canonical: null` 时，reader（Web/Flutter）与 backend 阶段没有当前 Markdown 输入，因此不适用。客户端 edited、selection、serialized 与 save 仍须实测通过；serialized 的 actual.canonical 必须为 null，证明本次编码失败。恢复后 canonical 非空时，reader 恢复必测。
+- Web 的 `rtb-close-encode-error` 中，仅两个 `close` 操作检查点（close-failed/close-recovered）的 edited、serialized、reader、selection、save 不适用：Web 现有关闭是丢弃确认，并无该用例要求的移动端 local-snapshot 路径。initial/insert 仍必测，不能把整个序列跳过；其他云保存失败以及 Flutter 本机关闭仍必测。此边界不证明 Web 丢弃确认已验收，也不要求 Web 实现本机快照。
+
+其他适用阶段的 not-run（包括 not-executed、blocked、unsupported-operation）均失败。N/A 不计作实测通过；CLI 输出分别列出 passedObservations 和 notApplicable 检查点。
+
 比较器只报告第一处差异的 case/step/stage/字段路径，默认不回显正文、链接、身份、Cookie 或请求体。样例均为合成内容；跨端交接仅使用版本控制的 fixture 和按结果 schema 生成的本地测试产物，不上传真实正文。未知输入不允许自动写入 fixture。
 
 ## 接入与发布边界
