@@ -155,3 +155,9 @@ bash scripts/deploy.sh
 - 遵循[温油站治理仓库的共用清理规则](https://github.com/morenk/wenyousite-workspace/blob/main/AGENTS.md#合并后的任务清理)：用户授权合并后，完成变更、验收、文件和并发核验，即清理对应任务分支及临时 Worktree，无需重复确认；有待验收、遗漏变更或仍被使用的内容时保留并说明原因。
 - 本仓库只在授权的 VPS 工作区执行清理，集成分支为 `dev`；主工作目录仅在空闲且干净时切回并 fast-forward 同步 `origin/dev`。不得清理主工作目录、永久 Worktree 或其他任务，不自动归档 Codex 任务。
 - 此授权不包含其他任务的合并、创建或移动 Tag、发布 Release、晋级或部署，继续遵守本仓库原有门禁。
+
+## 子任务默认审批方式
+
+- 遵循[温油站治理仓库的统一审批规则](https://github.com/morenk/wenyousite-workspace/blob/main/AGENTS.md#子任务默认审批方式)：本仓库及其发出的协作子任务默认使用“帮我批准”（Auto-review），传递已有授权，普通开发操作不再逐条要求负责人确认。
+- 分派时核验目标任务实际生效的审批策略与 `approvals_reviewer=auto_review`；不能仅凭输入框标签、父任务设置或提示词判断。工具无法配置或核验时明确报告，不把文档修改当成运行配置已生效。
+- 自动审查拒绝处理、合并、发布、部署及负责人验收边界遵循治理规则与本仓库约定；本节不自动扩大任务范围。
