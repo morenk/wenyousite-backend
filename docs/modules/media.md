@@ -95,3 +95,12 @@ UPLOADING ──(元数据不合法)──────────────�
 回收事务锁定 Media 行后重新核验当前状态和全部引用，设置内部 `deletionClaimedAt` 再提交。所有指向 Media 的外键写入均通过数据库触发器获取同一行锁，并拒绝已经领取回收的记录；领取后的状态不能恢复成可上传或可绑定。HTTP 响应不包含领取标记。
 
 对象存储删除在领取提交后执行；原图、临时图或任何衍生图删除失败都会保留记录和领取标记，下轮继续删除。完成态回收开关保持默认关闭，启用仍以前置引用审计通过为条件。
+
+
+## 历史 GIF 尺寸只读审计
+
+`pnpm media:gif-metadata:audit --help` 说明只读入口。按现有配置事实源提供运行环境后，可执行 `pnpm media:gif-metadata:audit --limit 100`，使用摘要的 `nextAfter` 继续 `--after <mediaId>`。工具只查询 `COMPLETED`、`image/gif`、`deletionClaimedAt: null` 的记录；Media 无 `deletedAt` 字段，已删除记录不会被查询。逐对象内存下载有 10MB 硬上限，缺对象、坏图和超限只记录固定跳过原因。
+
+标准输出为 JSONL，候选只包含 mediaId 与旧/新 width、height、animated，不含对象键、URL 或用户信息。媒体 GIF 的 animated 沿用现有格式标记语义（包括单帧 GIF），表情的 animated 则表示是否多帧，两者不能互相套用。将计划保存为受控审查文件；本入口不提供 `--apply`，不修改数据库或对象，也不能把历史 animated 默认值问题全部归因于某次上传改动。
+
+历史写入修复仍需独立明确授权。执行前重读对象及当前记录，按计划旧值与 `status=COMPLETED`、`deletionClaimedAt=null` 做乐观条件更新；条件不符则跳过并重新审查，禁止盲写。保留原计划用于回滚；回滚同样只允许在记录仍匹配计划新值时恢复旧值。这个计划是审核材料，不是已执行的迁移或线上修复。

@@ -31,6 +31,8 @@ Prisma / Redis / BullMQ / Object Storage
 7. `admin` 只承载管理端认证、Controller 和站务编排；处罚、内容处置、案件与审计属于顶层 `moderation` 能力，`reports` 等业务模块不得反向依赖 `admin` 的治理实现。
 8. S3 兼容协议、客户端构造、预签名和公开 URL 统一由 `storage/ObjectStorageService` 适配；媒体、表情等模块只声明各自的对象键与内容策略。
 
+图片元数据只能由 `common/image-inspection.ts` 读取；该技术层固定首帧读取，向领域层提供 `frameWidth`、`frameHeight`、`frameCount`、`totalFramePixels` 和时长，不暴露 sharp 在全帧模式下表示垂直堆叠尺寸的 `height`。输入及转码输出共用此入口；APNG 的动画声明按 PNG chunk 边界和校验检查；当前明确不支持 APNG，即使只声明一帧也拒绝，防止把独立默认图当成动画内容。未来解码库支持 APNG 时仍须独立评审政策和回归，不随库能力变化自动接受。`media-image-inspection.ts` 保留媒体自身的格式、MIME 与 GIF 预算，表情模块保留独立的静态/动画像素、帧数、时长及转码政策，不共用产品预算。真实编码的多帧、边界、输出尺寸和损坏文件回归验证这项约束。
+
 这些规则由 `pnpm arch:check` 自动检查。当前还限制单个 service 不超过 650 行；达到阈值前应优先按职责拆分。
 
 ## 可靠事件链路

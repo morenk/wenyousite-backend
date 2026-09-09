@@ -4,6 +4,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { MediaPurpose, Prisma, StickerAsset } from '@prisma/client';
 import { Queue } from 'bullmq';
 import sharp from 'sharp';
+import { inspectImage } from '../common/image-inspection';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   momentViewerVisibility,
@@ -473,15 +474,11 @@ export class StickersService {
   }
 
   private async normalize(input: Buffer) {
-    const metadata = await sharp(input, { animated: true }).metadata();
-    const width = metadata.width ?? 0;
-    const pageHeight = metadata.pageHeight ?? metadata.height ?? 0;
-    const frameCount = metadata.pages ?? 1;
+    const inspection = await inspectImage(input);
+    const { frameCount, durationMs, totalFramePixels } = inspection;
     const animated = frameCount > 1;
-    const durationMs = (metadata.delay ?? []).reduce((sum, delay) => sum + delay, 0);
-    const decodedPixels = width * pageHeight * frameCount;
     const pixelLimit = animated ? 120_000_000 : 40_000_000;
-    if (!width || !pageHeight || decodedPixels > pixelLimit) throw this.invalid('图片像素尺寸过大');
+    if (totalFramePixels > pixelLimit) throw this.invalid('图片像素尺寸过大');
     if (frameCount > STICKER_MAX_FRAMES) throw this.invalid('动图不能超过 120 帧');
     if (durationMs > STICKER_MAX_ANIMATION_MS) throw this.invalid('动图不能超过 15 秒');
 
@@ -493,13 +490,13 @@ export class StickersService {
         fit: 'inside',
         withoutEnlargement: true,
       })
-      .webp({ quality: animated ? 80 : 82, effort: 5, loop: metadata.loop ?? 0 })
+      .webp({ quality: animated ? 80 : 82, effort: 5, loop: inspection.loop ?? 0 })
       .toBuffer();
     const maxOutput = animated ? STICKER_MAX_ANIMATED_BYTES : STICKER_MAX_STATIC_BYTES;
     if (main.length > maxOutput) {
       throw this.invalid(animated ? '处理后的动图超过 4MB' : '处理后的图片超过 2MB');
     }
-    const outputMetadata = await sharp(main, { animated }).metadata();
+    const outputInspection = await inspectImage(main);
     const thumbnail = await sharp(main, { page: 0 })
       .resize(128, 128, { fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 76, effort: 5 })
@@ -507,8 +504,8 @@ export class StickersService {
     return {
       main,
       thumbnail,
-      width: outputMetadata.width ?? width,
-      height: outputMetadata.pageHeight ?? outputMetadata.height ?? pageHeight,
+      width: outputInspection.frameWidth,
+      height: outputInspection.frameHeight,
       animated,
       frameCount,
       durationMs,

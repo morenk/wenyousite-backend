@@ -85,6 +85,10 @@ describe('MediaProcessingService', () => {
     expect(metadata.format).toBe('webp');
     expect(Math.max(metadata.width!, metadata.height!)).toBe(2560);
     expect(metadata.orientation).toBeUndefined();
+    expect(metadata).toEqual(expect.objectContaining({ width: 853, height: 2560 }));
+    expect(prisma.media.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ width: 853, height: 2560 }),
+    }));
     expect(storage.remove).toHaveBeenCalledWith('staging/source.jpg');
     expect(prisma.media.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({

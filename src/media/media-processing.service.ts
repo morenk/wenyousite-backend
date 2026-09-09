@@ -1,16 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { MediaPurpose } from '@prisma/client';
 import { performance } from 'node:perf_hooks';
-import sharp, { Metadata } from 'sharp';
+import sharp from 'sharp';
+import { inspectImage } from '../common/image-inspection';
+import { inspectMediaImage, MAX_STATIC_INPUT_PIXELS } from './media-image-inspection';
 import { PrismaService } from '../prisma/prisma.service';
 import { ObjectStorageService } from '../storage/object-storage.service';
 import { derivativeKey, mediaVariantsFor, MediaVariantName } from './media-policy';
 
-const MAX_STATIC_INPUT_PIXELS = 64_000_000;
-const MAX_GIF_EDGE = 2560;
-const MAX_GIF_FRAMES = 300;
-const MAX_GIF_DURATION_MS = 60_000;
-const MAX_GIF_TOTAL_PIXELS = 100_000_000;
 const MASTER_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 const DERIVATIVE_CACHE_CONTROL = MASTER_CACHE_CONTROL;
 
@@ -29,31 +26,6 @@ type VariantOutput = {
 
 function elapsed(start: number) {
   return Math.round(performance.now() - start);
-}
-
-function detectedContentType(format?: string): string | null {
-  switch (format) {
-    case 'jpeg':
-      return 'image/jpeg';
-    case 'png':
-      return 'image/png';
-    case 'gif':
-      return 'image/gif';
-    case 'webp':
-      return 'image/webp';
-    case 'heif':
-    case 'avif':
-      return 'image/avif';
-    default:
-      return null;
-  }
-}
-
-function assertDimensions(metadata: Metadata) {
-  if (!metadata.width || !metadata.height) throw new Error('IMAGE_DIMENSIONS_MISSING');
-  if (metadata.width * metadata.height > MAX_STATIC_INPUT_PIXELS) {
-    throw new Error('IMAGE_PIXEL_LIMIT_EXCEEDED');
-  }
 }
 
 async function mapConcurrent<T, R>(
@@ -106,26 +78,17 @@ export class MediaProcessingService {
     timings.downloadMs = elapsed(started);
 
     started = performance.now();
-    const metadata = await sharp(source, {
-      animated: true,
-      limitInputPixels: MAX_STATIC_INPUT_PIXELS,
-    }).metadata();
-    assertDimensions(metadata);
-    const detectedType = detectedContentType(metadata.format);
-    if (!detectedType || detectedType !== media.contentType) throw new Error('IMAGE_TYPE_MISMATCH');
-    const pages = metadata.pages ?? 1;
-    const isGif = detectedType === 'image/gif';
-    if (!isGif && pages > 1) throw new Error('ANIMATED_IMAGE_UNSUPPORTED');
-    if (isGif) this.assertGif(metadata, pages);
+    const inspection = await inspectMediaImage(source, media.contentType);
+    const { isGif } = inspection;
     timings.inspectMs = elapsed(started);
 
     started = performance.now();
     const master = isGif ? source : await this.normalizeStatic(source);
     const masterInfo = isGif
-      ? { width: metadata.width!, height: metadata.height!, size: source.length }
-      : await sharp(master, { limitInputPixels: MAX_STATIC_INPUT_PIXELS }).metadata().then((value) => ({
-          width: value.width!,
-          height: value.height!,
+      ? { width: inspection.frameWidth, height: inspection.frameHeight, size: source.length }
+      : await inspectImage(master, { limitInputPixels: MAX_STATIC_INPUT_PIXELS }).then((value) => ({
+          width: value.frameWidth,
+          height: value.frameHeight,
           size: master.length,
         }));
     timings.normalizeMs = elapsed(started);
@@ -249,18 +212,6 @@ export class MediaProcessingService {
     } satisfies VariantOutput;
   }
 
-  private assertGif(metadata: Metadata, pages: number) {
-    const width = metadata.width!;
-    const height = metadata.height!;
-    const duration = (metadata.delay ?? []).reduce((sum, delay) => sum + delay, 0);
-    if (Math.max(width, height) > MAX_GIF_EDGE) throw new Error('GIF_EDGE_LIMIT_EXCEEDED');
-    if (pages > MAX_GIF_FRAMES) throw new Error('GIF_FRAME_LIMIT_EXCEEDED');
-    if (duration > MAX_GIF_DURATION_MS) throw new Error('GIF_DURATION_LIMIT_EXCEEDED');
-    if (width * height * pages > MAX_GIF_TOTAL_PIXELS) {
-      throw new Error('GIF_TOTAL_PIXEL_LIMIT_EXCEEDED');
-    }
-  }
-
   private async removeStagingObject(mediaId: string, stagingKey: string) {
     try {
       await this.storage.remove(stagingKey);
@@ -280,15 +231,8 @@ export class MediaProcessingService {
   /** 迁移前已在原 key 上传的极少量任务保持旧行为，避免覆盖扩展名与历史 URL。 */
   private async processLegacyObject(mediaId: string, key: string) {
     const source = await this.storage.download(key);
-    const metadata = await sharp(source, {
-      animated: true,
-      limitInputPixels: MAX_STATIC_INPUT_PIXELS,
-    }).metadata();
-    assertDimensions(metadata);
-    const animated = metadata.format === 'gif';
-    const pages = metadata.pages ?? 1;
-    if (animated) this.assertGif(metadata, pages);
-    else if (pages > 1) throw new Error('ANIMATED_IMAGE_UNSUPPORTED');
+    const inspection = await inspectMediaImage(source);
+    const animated = inspection.isGif;
     const outputs = await mapConcurrent(
       mediaVariantsFor(MediaPurpose.LEGACY, animated),
       2,
@@ -305,8 +249,8 @@ export class MediaProcessingService {
     await this.prisma.media.updateMany({
       where: { id: mediaId, status: 'PROCESSING', deletionClaimedAt: null },
       data: {
-        width: metadata.width!,
-        height: metadata.height!,
+        width: inspection.frameWidth,
+        height: inspection.frameHeight,
         animated,
         status: 'COMPLETED',
         processingStartedAt: null,
