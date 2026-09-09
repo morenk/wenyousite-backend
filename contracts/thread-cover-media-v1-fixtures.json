@@ -77,6 +77,62 @@
         "animated": true,
         "posterUrl": "https://media.example.test/animation_poster.webp"
       }
+    },
+    {
+      "name": "preview-two-sizes",
+      "coverImages": [
+        "https://media.example.test/a.gif"
+      ],
+      "coverMedia": {
+        "url": "https://media.example.test/a.gif",
+        "animated": true,
+        "posterUrl": "https://media.example.test/a_poster.webp",
+        "previewVariants": [
+          {
+            "url": "https://media.example.test/a_preview_v1_attempt_480.webp",
+            "width": 480,
+            "height": 270,
+            "bytes": 9820
+          },
+          {
+            "url": "https://media.example.test/a_preview_v1_attempt_800.webp",
+            "width": 800,
+            "height": 450,
+            "bytes": 14408
+          }
+        ]
+      }
+    },
+    {
+      "name": "preview-single-size",
+      "coverImages": [
+        "https://media.example.test/a.gif"
+      ],
+      "coverMedia": {
+        "url": "https://media.example.test/a.gif",
+        "animated": true,
+        "posterUrl": "https://media.example.test/a_poster.webp",
+        "previewVariants": [
+          {
+            "url": "https://media.example.test/a_preview_v1_attempt_480.webp",
+            "width": 160,
+            "height": 100,
+            "bytes": 12860
+          }
+        ]
+      }
+    },
+    {
+      "name": "preview-null-original-fallback",
+      "coverImages": [
+        "https://media.example.test/a.gif"
+      ],
+      "coverMedia": {
+        "url": "https://media.example.test/a.gif",
+        "animated": true,
+        "posterUrl": "https://media.example.test/a_poster.webp",
+        "previewVariants": null
+      }
     }
   ]
 }

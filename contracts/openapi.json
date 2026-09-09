@@ -18623,7 +18623,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.19.0-dev.20260909.1",
+    "version": "5.20.0-dev.20260909.1",
     "contact": {}
   },
   "tags": [
@@ -19557,6 +19557,38 @@
           "posts"
         ]
       },
+      "ThreadCoverPreviewVariantResponseDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "已发布的不可变列表动画 WebP 地址；不用于替换正文原图 URL"
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 800,
+            "description": "单帧实际像素宽度"
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 800,
+            "description": "单帧实际像素高度"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "完整动画预览文件字节数"
+          }
+        },
+        "required": [
+          "url",
+          "width",
+          "height",
+          "bytes"
+        ]
+      },
       "ThreadCoverMediaResponseDto": {
         "type": "object",
         "properties": {
@@ -19573,6 +19605,15 @@
             "type": "string",
             "nullable": true,
             "description": "可用于列表静止状态的第一帧静态地址；未知时返回 null，客户端显示占位，禁止回退加载原图"
+          },
+          "previewVariants": {
+            "nullable": true,
+            "maxItems": 2,
+            "description": "可选列表动画变体，按单帧像素面积升序；缺失或 null 时，只有已确认 animated=true 且有独立静态 poster 的媒体可受控回退原 url",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ThreadCoverPreviewVariantResponseDto"
+            }
           }
         },
         "required": [

@@ -1,5 +1,11 @@
 # API 合同变更
 
+## 5.20.0-dev.20260909.1
+
+- coverMedia 可选新增 previewVariants（nullable，最多两项 url/width/height/bytes），原 url、posterUrl 与 coverImages 不变。
+- 列表按实际绘制尺寸及 DPR 选择最小够用档；旧响应缺字段/无有效档时，仅可信动画且有独立静态 poster 才允许在中心单张规则下回退原图。
+- 预览保留完整时间线与循环，不开放动画 WebP 输入。新档位的资源地址在发布后保持稳定，禁止通过随机查询参数破坏缓存；CDN配置不在本次范围。
+
 ## 5.19.0-dev.20260909.1
 
 - 帖子列表兼容新增可空 coverMedia（url、animated、posterUrl）；首页、搜索、收藏、个人主页共用同一读模型，保留 coverImages。

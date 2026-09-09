@@ -93,6 +93,17 @@ describe('列表卡片 OpenAPI 契约', () => {
     );
   });
 
+  it('列表预览字段保持 optional+nullable，最多两档且有真实像素与字节数', () => {
+    const cover = contract.components.schemas.ThreadCoverMediaResponseDto;
+    expect(cover.required).not.toContain('previewVariants');
+    expect(cover.properties?.previewVariants).toMatchObject({ type: 'array', nullable: true, maxItems: 2 });
+    const variant = contract.components.schemas.ThreadCoverPreviewVariantResponseDto;
+    expect(variant.required).toEqual(['url', 'width', 'height', 'bytes']);
+    for (const field of ['width', 'height', 'bytes']) {
+      expect(variant.properties?.[field]).toMatchObject({ type: 'integer', minimum: 1 });
+    }
+  });
+
   it('所有动态列表继续复用同一基础卡片字段', () => {
     const base = contract.components.schemas.MomentCardResponseDto;
     const search = contract.components.schemas.MomentSearchResponseDto;
