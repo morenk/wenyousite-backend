@@ -1,5 +1,11 @@
 # API 合同变更
 
+## 2026-09-10 富文本编辑行为测试契约 v1
+
+- 新增独立多步操作、结构预期、合成失败与版本能力样例和结果 schema；复用现有 newline/v7/clipboard 语料。
+- 仅用于测试与离线诊断；HTTP/OpenAPI、Markdown v5、Foundation 与持久化字段均不变。
+- 已验收 Enter、空 H2/H3、引用标记不重开；未明确组合行为保留决策项，消费者结果和负责人验收分别记录。
+
 ## 2026-09-09 普通 Enter 重置正文对齐候选
 
 - newline v1 revision 2 修订 continuation：手动 Enter 建立独立默认左对齐段；自动折行和历史段内 LF 保持整段对齐。
