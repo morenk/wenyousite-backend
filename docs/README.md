@@ -64,3 +64,5 @@
 - **想知道什么情况会收到通知？** → [通知投递规则](./notification-delivery.md)
 
 - [富文本编辑行为测试契约](modules/rich-text-behavior.md)
+- [富文本测试与兼容交付记录](rich-text-stability-delivery.md)
+- [富文本兼容保留登记](deprecation-register.md)

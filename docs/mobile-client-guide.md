@@ -204,3 +204,7 @@ Content-Type: application/json
 - 手动验证居中和居右正文的 Enter、连续 Enter、续写、自动折行、只对齐新行、实际保存／重开及 Web↔Flutter 交叉编辑；引用、H2/H3、列表应保持既有行为。VPS 不修改、安装或构建移动端，空正文 H2/H3 的编码异常由原 Windows 任务独立处理。
 
 候选只交付 PR，不代表用户已验收；先合并兼容后端契约，再由 Web/Windows 各自完成消费端候选与手动验收。部署仍需负责人另外明确批准。
+
+## 富文本多步测试与结果交接
+
+从已提交 Backend 候选 SHA 同步 [编辑行为 fixture/schema 与结果格式](modules/rich-text-behavior.md)，保留原 newline 27 条及 v7 48 条消费。新机器格式只用于合成测试和离线诊断，不进入 HTTP 或正文存储。未知内容需要完整读取与无损证明后才能开放编辑；Markdown 版本号不能代替引用空行和失败保护能力证据。结果比较及发布停止边界见 [交付记录](rich-text-stability-delivery.md)。
