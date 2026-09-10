@@ -11,7 +11,7 @@ export const MEDIA_PURPOSES = [
   MediaPurpose.LEGACY,
 ] as const;
 
-export type MediaVariantName = 'thumbnail' | 'feed' | 'medium';
+export type MediaVariantName = 'thumbnail' | 'feed' | 'medium' | 'poster';
 
 const PURPOSE_VARIANTS: Record<MediaPurpose, readonly MediaVariantName[]> = {
   [MediaPurpose.AVATAR]: [],
@@ -19,9 +19,9 @@ const PURPOSE_VARIANTS: Record<MediaPurpose, readonly MediaVariantName[]> = {
   [MediaPurpose.DIRECT_MESSAGE]: ['thumbnail', 'medium'],
   [MediaPurpose.MOMENT]: ['thumbnail', 'feed', 'medium'],
   [MediaPurpose.MOMENT_COMMENT]: ['thumbnail', 'medium'],
-  [MediaPurpose.RICH_CONTENT]: ['thumbnail', 'feed', 'medium'],
+  [MediaPurpose.RICH_CONTENT]: ['thumbnail', 'feed', 'medium', 'poster'],
   [MediaPurpose.STICKER_SOURCE]: [],
-  [MediaPurpose.LEGACY]: ['thumbnail', 'feed', 'medium'],
+  [MediaPurpose.LEGACY]: ['thumbnail', 'feed', 'medium', 'poster'],
 };
 
 export function mediaVariantsFor(
@@ -32,7 +32,7 @@ export function mediaVariantsFor(
     ? (purpose as MediaPurpose)
     : MediaPurpose.LEGACY;
   const variants = PURPOSE_VARIANTS[normalized];
-  return animated && variants.includes('thumbnail') ? ['thumbnail'] : animated ? [] : variants;
+  return animated ? variants.filter((variant) => variant === 'thumbnail' || variant === 'poster') : variants;
 }
 
 export function mediaPurposeAllowed(
@@ -43,6 +43,6 @@ export function mediaPurposeAllowed(
 }
 
 export function derivativeKey(key: string, variant: MediaVariantName): string {
-  const suffix = variant === 'thumbnail' ? '_thumb.webp' : variant === 'feed' ? '_feed.webp' : '_md.webp';
+  const suffix = variant === 'thumbnail' ? '_thumb.webp' : variant === 'feed' ? '_feed.webp' : variant === 'poster' ? '_poster.webp' : '_md.webp';
   return key.replace(/(\.[^.]+)$/, `${suffix}`);
 }

@@ -6,6 +6,8 @@ type MediaVariantSource = {
   purpose?: string | null;
   animated?: boolean;
   deletionClaimedAt?: Date | null;
+  posterUrl?: string | null;
+  previewVariants?: unknown;
 };
 
 function derivativeUrl(url: string, suffix: '_thumb.webp' | '_feed.webp' | '_md.webp'): string | null {
@@ -29,5 +31,7 @@ export function mediaVariantUrls(media: MediaVariantSource) {
 export function withMediaVariants<T extends MediaVariantSource>(media: T) {
   const result = { ...media, ...mediaVariantUrls(media) };
   delete result.deletionClaimedAt;
+  delete result.posterUrl;
+  delete result.previewVariants;
   return result;
 }

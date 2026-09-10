@@ -1,3 +1,4 @@
+jest.mock('./media-animation-preview', () => ({ generateAnimationPreviews: jest.fn().mockResolvedValue([]) }));
 import { MediaPurpose } from '@prisma/client';
 import sharp from 'sharp';
 import { PrismaService } from '../prisma/prisma.service';
@@ -13,6 +14,7 @@ const prisma = {
 };
 
 const storage = {
+  publicUrl: jest.fn((key: string) => "https://objects.example/" + key),
   download: jest.fn(),
   upload: jest.fn(),
   remove: jest.fn(),

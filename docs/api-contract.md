@@ -71,3 +71,34 @@ Web 与 Flutter 不直接下载线上 `/api/docs-json`。发布分支同步固�
 2026-09-08 补齐单层引用中独占 `<br />` 的安全空行语义，HTTP DTO 与 Markdown v5 版本不变；非独占或带属性 HTML 继续拒绝。输入及阅读预期固定于 [回车语料](../contracts/markdown-editor-newline-v1-fixtures.json)。已有请求保持兼容；新引用空行的编辑需更新后的 Web 与 Android，双端结果仍待负责人验收。
 
 普通正文对齐回车的输入规则修订为 newline v1 revision 2：Enter 新段恢复左对齐，自动折行保留整段对齐；继续使用现有 Markdown v5 段落边界和空段标记，HTTP DTO/OpenAPI 无变化。详见 [精确排版示例](modules/markdown-content.md#普通正文手动-enter-的对齐边界newline-v1-revision-2) 与 [Windows 同步说明](mobile-client-guide.md#revision-2-同步与-windows-验收)。
+
+
+## 帖子列表封面播放读模型
+
+HTTP 契约 `5.19.0-dev.20260909.1` 在所有主题帖列表卡片增加 `coverMedia`，保留 `coverImages`（最多一张）兼容旧客户端。首页（含推荐/最新等排序）、搜索主题帖、本人/公开收藏、用户创建/参与和本人协作主题帖均使用相同读模型。仅取可见默认主贴正文的第一张普通图片，跳过代码与站内表情；不改变既有权限过滤、排序和分页。
+
+| 字段 | 含义 |
+| --- | --- |
+| `coverMedia: null` | 没有普通封面图片 |
+| `coverMedia.url` | 与 `coverImages[0]` 相同的原始播放 URL，不意味着应立即加载 |
+| `coverMedia.animated: boolean \| null` | 可信动画属性；无法确定时为 `null` |
+| `coverMedia.posterUrl: string \| null` | 静止状态专用首帧静态图，无法确定时为 `null` |
+
+新处理的 `RICH_CONTENT` / `LEGACY` 媒体增加 `_poster.webp`：固定第一帧、最长边 800、保持原比例且不放大小图；客户端按卡片布局裁切。不复用方形 thumbnail，通用媒体接口仍只暴露原有 thumbnail/feed/medium。Worker 在全部对象上传成功后与 `COMPLETED` 一起登记 `Media.posterUrl`；失败、重复领取和删除中记录不能提前宣布可播放，回收原媒体时同时删除 poster。
+
+列表按精确原始 URL 去重并批量查询媒体，不逐条请求数据库或对象存储，不推断外链、签名参数或相似路径。无完成登记的历史 GIF 即使 `animated=false` 也返回 `animated=null, posterUrl=null`；历史 JPEG 或现有静态归一化 WebP 且 `animated=false` 可返回母版静态 URL。PNG 等无法证明为静态的旧记录保持未知。重复 URL、处理中、删除中或找不到的媒体同样保持未知。
+
+消费者不得根据文件后缀判断动画，不得把未知 `posterUrl` 回退成原 GIF。缺字段的旧响应、未知或外部图片应展示占位并保留进入详情的操作，不在列表请求原图。已登记动画只有在停稳后选中时加载播放 URL，未选中只加载 poster。契约示例见 [共享语料](../contracts/thread-cover-media-v1-fixtures.json)。
+
+新增 nullable 列与索引，无生产数据回填；匿名首页缓存使用新 shape 版本并拒绝缺少字段的旧缓存。兼容后端先上线，消费者随后；代码回滚保留新增列及已有对象，禁止通过删列回退。历史缺 poster GIF 的补生成另行评审。
+
+
+### 可选列表动画预览（5.20）
+
+`coverMedia.previewVariants` 为 optional + nullable，最多两项，每项仅含 `url`、单帧 `width` / `height` 及完整文件 `bytes`（均为正整数），按单帧像素面积升序。目标档位长边 480 / 800，不放大原图，同实际尺寸去重；只发布比原 GIF 更小且保留逐帧时长、循环与画面语义的有效动画 WebP。该字段不改变正文原图 `url` 或静态 `posterUrl`，不表示支持动画 WebP 上传。
+
+客户端根据封面绘制宽高乘设备像素比，选择宽高均够用的最小档；没有够用档则取最大有效档。只允许中心选中的一张加载动画。旧服务省略字段或没有有效档返回 `null`，只有 `animated=true` 且独立 `posterUrl` 已确认的媒体可受控回退原图；未知/外部媒体仍只显示占位。预览加载失败同样先回静态首帧，避免无限重试或把所有候选原图预取。
+
+预览是可选优化：基础原件与必需首帧先成功，再在共享截止时间内生成/上传变体；预算同时考虑队列等待及客户端处理窗口。超预算或优化失败不让基础上传失败。资源采用策略版本和独立尝试 key，发布后 URL 固定，沿用该媒体当前公开缓存语义，不改对象存储权限、域名或 CDN；原图与旧对象不删除。
+
+失败补偿通过独立尝试账本记录精确对象 key；发布与媒体完成在同一事务内确认，清理先取得状态领取权，不能删除已发布或新尝试的资源。删除失败及可能迟到的对象仍保留重试证据，基础媒体最终回收包含所有尝试资源。契约兼容语料同时覆盖无该字段的前一阶段服务、null、单档和双档。

@@ -871,6 +871,8 @@ model Media {
   url                 String
   key                 String       @unique
   stagingKey          String?      @unique @map("staging_key")
+  posterUrl           String?      @map("poster_url")
+  previewVariants     Json?        @map("preview_variants")
   purpose             MediaPurpose @default(LEGACY)
   contentType         String?      @map("content_type")
   size                Int?
@@ -886,6 +888,7 @@ model Media {
   user                   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   avatarUser             User?           @relation("UserAvatar")
   directMessage          DirectMessage?
+  previewAttempts        MediaPreviewAttempt[]
   stickerImports         StickerImport[]
   momentImages           MomentImage[]
   momentCovers           Moment[]        @relation("MomentCover")
@@ -895,11 +898,34 @@ model Media {
   postAttachments        PostMedia[]
   draftAttachments       DraftMedia[]
 
+  @@index([url])
   @@index([status, createdAt])
   @@index([status, processingStartedAt])
   @@index([status, orphanedAt])
   @@index([deletionClaimedAt])
   @@map("media")
+}
+
+enum MediaPreviewAttemptStatus {
+  PENDING
+  PUBLISHED
+  CLEANING
+}
+
+model MediaPreviewAttempt {
+  id             String                    @id
+  mediaId        String                    @map("media_id")
+  keys           String[]
+  status         MediaPreviewAttemptStatus @default(PENDING)
+  expiresAt      DateTime                  @map("expires_at")
+  nextCleanupAt  DateTime                  @map("next_cleanup_at")
+  cleanupPasses  Int                       @default(0) @map("cleanup_passes")
+  createdAt      DateTime                  @default(now()) @map("created_at")
+  media          Media                     @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextCleanupAt])
+  @@index([mediaId])
+  @@map("media_preview_attempts")
 }
 
 model StickerAsset {

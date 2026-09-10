@@ -7,7 +7,7 @@ import { BusinessException, notFound } from '../common/exceptions/business.excep
 import { PaginatedResult, paginate } from '../common/dto/paginated-result';
 import { publishedThreadVisibilityWhere } from '../access/thread-visibility.where';
 import { attachPlayerCounts } from '../common/prisma-helpers';
-import { mapThreadListCard, threadListCardIncludeFor } from '../threads/thread-list-card';
+import { mapThreadListCard, resolveThreadListCards, threadListCardIncludeFor } from '../threads/thread-list-card';
 import { DEFAULT_BOOKMARK_FOLDER_NAME } from './bookmark-folder.constants';
 
 type BookmarkThread = ReturnType<typeof mapThreadListCard>;
@@ -52,9 +52,10 @@ export class BookmarksService {
       userId,
     );
 
+    const cards = await resolveThreadListCards(this.prisma, bookmarks.map((b) => b.thread));
     return paginate(
-      bookmarks.map((b) => ({
-        ...mapThreadListCard(b.thread),
+      bookmarks.map((b, index) => ({
+        ...cards[index],
         bookmarkId: b.id,
         bookmarkFolderId: b.folderId,
       })),
@@ -157,7 +158,7 @@ export class BookmarksService {
     );
 
     return paginate(
-      bookmarks.map((b) => mapThreadListCard(b.thread)),
+      await resolveThreadListCards(this.prisma, bookmarks.map((b) => b.thread)),
       { cursor: bookmarks.at(-1)?.id ?? null, hasMore },
     );
   }
