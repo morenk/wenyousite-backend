@@ -109,11 +109,14 @@ function protectedSource(lines: string[]): { protectedLines: Set<number>; masked
         for (const child of token.children ?? []) {
           if (child.type !== 'code_inline') continue;
           const offset: number = child.meta.sourceStart;
-          const closing = [...source.slice(offset + child.markup.length).matchAll(/`+/gu)].find(
-            (run) => run[0].length === child.markup.length,
-          );
+          let closing: RegExpMatchArray | undefined;
+          for (const run of source.slice(offset + child.markup.length).matchAll(/`+/gu)) {
+            if (run[0].length !== child.markup.length) continue;
+            closing = run;
+            break;
+          }
           if (!closing) continue;
-          const closingEnd = offset + child.markup.length + closing.index + closing[0].length;
+          const closingEnd = offset + child.markup.length + closing.index! + closing[0].length;
           for (let cursor = offset; cursor < closingEnd; cursor++) {
             if (chars[cursor] !== '\n') chars[cursor] = ' ';
           }

@@ -106,6 +106,37 @@ const semantics = (blocks: Block[]) =>
   blocks.map(({ type, alignment, lines }) => ({ type, alignment, lines }));
 
 describe('真实解析器消费共享块边界 v1', () => {
+  it('大量独立代码片段不反复枚举无关的后缀闭合符', () => {
+    const count = 100;
+    const source = Array<string>(count).fill('`a`').join(' ');
+    const matchAll = String.prototype.matchAll;
+    let visitedRuns = 0;
+    const spy = jest.spyOn(String.prototype, 'matchAll').mockImplementation(function (
+      this: string,
+      pattern: RegExp,
+    ) {
+      const matches = matchAll.call(this, pattern);
+      if (pattern.source !== '`+') return matches;
+      return (function* () {
+        for (const match of matches) {
+          visitedRuns++;
+          yield match;
+        }
+      })();
+    });
+    try {
+      const analysis = analyzeMarkdownBlockBoundaries(source);
+      expect(
+        analysis.tokens
+          .find((token) => token.type === 'inline')
+          ?.children?.filter((token) => token.type === 'code_inline'),
+      ).toHaveLength(count);
+      // 原始解析与安全空段解析各检查一次，每个片段只访问自己的闭合符。
+      expect(visitedRuns).toBeLessThanOrEqual(count * 2);
+    } finally {
+      spy.mockRestore();
+    }
+  });
   it.each(fixture.cases)('$id', (item) => {
     expect(findUnsupportedMarkdownFormats(item.markdown)[0] ?? null).toEqual(item.error);
     if (!item.supported) {
