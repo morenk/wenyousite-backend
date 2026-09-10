@@ -1,5 +1,12 @@
 # API 合同变更
 
+## 5.20.1-dev.20260911.1
+
+- 修复收藏夹数量与空列表矛盾：`GET /bookmarks/folders` 的 `bookmarkCount` 按当前用户可见的已发布、未删除主题计数；私密主题仍须是成员，并应用双向拉黑规则。
+- `GET /moments/bookmark-folders` 的 `momentBookmarkCount` 与旧目录的同名动态兼容计数均排除已删除和双向拉黑不可见的动态，保留既有已注销作者历史内容可读规则。
+- 数量为该夹可见收藏总数，不受分页影响；状态或权限变化后重新读取即可更新，不删除收藏记录。字段、请求和目录拆分兼容行为不变，无数据库迁移。
+- Web / Windows Flutter / Foundation 同步本版本已提交 OpenAPI 及消费者回归；客户端不得用当前页长度伪造总数。候选尚待负责人按原账号场景复验，后端测试不代表移动端验收通过。
+
 ## 5.20.0-dev.20260909.1
 
 - coverMedia 可选新增 previewVariants（nullable，最多两项 url/width/height/bytes），原 url、posterUrl 与 coverImages 不变。
