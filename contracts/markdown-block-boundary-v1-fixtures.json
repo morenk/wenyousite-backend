@@ -7110,6 +7110,58 @@
       "visibleText": "甲 乙 和 丙 丁\n正文",
       "error": null,
       "serialized": "`甲\n乙` 和 `丙\n丁`\n\n[wenyousite-align-v1-center]: #\n正文"
+    },
+    {
+      "id": "list-lazy-multiline-code-marker",
+      "markdown": "- `甲\n[wenyousite-align-v1-center]: #\n乙`",
+      "supported": true,
+      "blocks": [
+        {
+          "type": "bullet-list",
+          "alignment": "left",
+          "startLine": 0,
+          "endLine": 2,
+          "markerLine": null,
+          "lines": [
+            "甲 [wenyousite-align-v1-center]: # 乙"
+          ]
+        }
+      ],
+      "lines": [
+        "甲 [wenyousite-align-v1-center]: # 乙"
+      ],
+      "lineAlignments": [
+        "left"
+      ],
+      "visibleText": "甲 [wenyousite-align-v1-center]: # 乙",
+      "error": null,
+      "serialized": "- `甲\n[wenyousite-align-v1-center]: #\n乙`"
+    },
+    {
+      "id": "quote-lazy-multiline-code-marker",
+      "markdown": "> `甲\n[wenyousite-align-v1-center]: #\n乙`",
+      "supported": true,
+      "blocks": [
+        {
+          "type": "blockquote",
+          "alignment": "left",
+          "startLine": 0,
+          "endLine": 2,
+          "markerLine": null,
+          "lines": [
+            "甲 [wenyousite-align-v1-center]: # 乙"
+          ]
+        }
+      ],
+      "lines": [
+        "甲 [wenyousite-align-v1-center]: # 乙"
+      ],
+      "lineAlignments": [
+        "left"
+      ],
+      "visibleText": "甲 [wenyousite-align-v1-center]: # 乙",
+      "error": null,
+      "serialized": "> `甲\n[wenyousite-align-v1-center]: #\n乙`"
     }
   ],
   "editCases": [
