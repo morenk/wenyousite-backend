@@ -5,15 +5,36 @@ export const ALIGNMENT_MARKER_RE = /^\[wenyousite-align-v1-(center|right)\]: #$/
 const EMPTY_ROW_RE = /^ {0,3}<br\s*\/?>[\t ]*$/iu;
 const QUOTED_EMPTY_ROW_RE = /^ {0,3}>[\t ]?<br\s*\/?>[\t ]*$/iu;
 const parserOptions = { html: true, linkify: true, typographer: false };
+const rawParser = new MarkdownIt(parserOptions);
 const ordinaryParser = new MarkdownIt(parserOptions);
 const boundaryParser = new MarkdownIt(parserOptions);
+
+// 只记录真实 inline 规则消费的代码起点。URL/title 中的反引号不会生成 code_inline。
+for (const parser of [rawParser, ordinaryParser]) {
+  const tokenizeInline = parser.inline.tokenize;
+  parser.inline.tokenize = function (state) {
+    const push = state.push;
+    state.push = function (type, tag, nesting) {
+      const token = push.call(this, type, tag, nesting);
+      if (type === 'code_inline') token.meta = { sourceStart: this.pos };
+      return token;
+    };
+    try {
+      tokenizeInline.call(this, state);
+    } finally {
+      state.push = push;
+    }
+  };
+}
 
 for (const parser of [ordinaryParser, boundaryParser]) {
   parser.block.ruler.before(
     'html_block',
     'empty_row',
     (state, line, _end, silent) => {
-      const rawLine = (state.env as BoundaryEnvironment).lines[line];
+      const env = state.env as BoundaryEnvironment;
+      if (env.protectedLines?.has(line)) return false;
+      const rawLine = env.lines[line];
       if (
         !(state.level === 0 && EMPTY_ROW_RE.test(rawLine)) &&
         !(state.level === 1 && QUOTED_EMPTY_ROW_RE.test(rawLine))
@@ -65,43 +86,57 @@ boundaryParser.block.ruler.before(
 function protectedSource(lines: string[]): { protectedLines: Set<number>; maskedLines: string[] } {
   const protectedLines = new Set<number>();
   const maskedLines = [...lines];
-  for (const token of ordinaryParser.parse(lines.join('\n'), { lines })) {
-    if (!token.map) continue;
-    const [start, end] = token.map;
-    if (['fence', 'code_block', 'html_block'].includes(token.type)) {
-      for (let line = start; line < end; line++) {
-        protectedLines.add(line);
-        maskedLines[line] = '';
-      }
-    } else if (
-      token.type === 'inline' &&
-      token.children?.some((child) => child.type === 'code_inline')
-    ) {
-      const source = lines.slice(start, end).join('\n');
-      const chars = source.split('');
-      const runs = [...source.matchAll(/`+/gu)];
-      for (let index = 0; index < runs.length; index++) {
-        const opening = runs[index];
-        const offset = opening.index;
-        if ((source.slice(0, offset).match(/\\+$/u)?.[0].length ?? 0) % 2) continue;
-        const closingIndex = runs.findIndex(
-          (run, candidate) => candidate > index && run[0].length === opening[0].length,
-        );
-        if (closingIndex < 0) continue;
-        const closing = runs[closingIndex];
-        for (let cursor = offset; cursor < closing.index + closing[0].length; cursor++) {
-          if (chars[cursor] !== '\n') chars[cursor] = ' ';
-        }
-        index = closingIndex;
-      }
-      const masked = chars.join('').split('\n');
-      for (let line = start; line < end; line++) {
-        maskedLines[line] = masked[line - start];
-        if (ALIGNMENT_MARKER_RE.test(lines[line]) && !ALIGNMENT_MARKER_RE.test(maskedLines[line]))
+  const collect = (tokens: Token[]) => {
+    for (const token of tokens) {
+      if (!token.map) continue;
+      const [start, end] = token.map;
+      if (['fence', 'code_block', 'html_block'].includes(token.type)) {
+        if (
+          token.type === 'html_block' &&
+          (EMPTY_ROW_RE.test(lines[start]) || QUOTED_EMPTY_ROW_RE.test(lines[start]))
+        )
+          continue;
+        for (let line = start; line < end; line++) {
           protectedLines.add(line);
+          maskedLines[line] = '';
+        }
+      } else if (
+        token.type === 'inline' &&
+        token.children?.some((child) => child.type === 'code_inline')
+      ) {
+        const source = token.content;
+        const chars = source.split('');
+        for (const child of token.children ?? []) {
+          if (child.type !== 'code_inline') continue;
+          const offset: number = child.meta.sourceStart;
+          const closing = [...source.slice(offset + child.markup.length).matchAll(/`+/gu)].find(
+            (run) => run[0].length === child.markup.length,
+          );
+          if (!closing) continue;
+          const closingEnd = offset + child.markup.length + closing.index + closing[0].length;
+          for (let cursor = offset; cursor < closingEnd; cursor++) {
+            if (chars[cursor] !== '\n') chars[cursor] = ' ';
+          }
+        }
+        const masked = chars.join('').split('\n');
+        const inlineLines = source.split('\n');
+        for (let line = start; line < end; line++) {
+          const relative = line - start;
+          if (inlineLines[relative] === undefined) continue;
+          const column = lines[line].indexOf(inlineLines[relative]);
+          if (column < 0) continue;
+          maskedLines[line] =
+            lines[line].slice(0, column) +
+            masked[relative] +
+            lines[line].slice(column + inlineLines[relative].length);
+          if (maskedLines[line] !== lines[line]) protectedLines.add(line);
+        }
       }
     }
-  }
+  };
+  // 先保护原始代码，再隔离安全空段，识别空段后真正的 HTML/代码块。
+  collect(rawParser.parse(lines.join('\n'), { lines }));
+  collect(ordinaryParser.parse(lines.join('\n'), { lines, protectedLines }));
   return { protectedLines, maskedLines };
 }
 
@@ -109,10 +144,29 @@ function protectedSource(lines: string[]): { protectedLines: Set<number>; masked
 export function analyzeMarkdownBlockBoundaries(source: string, markdownContractVersion = 5) {
   const lines = source.replace(/\r\n?/gu, '\n').split('\n');
   const { protectedLines, maskedLines } = protectedSource(lines);
-  const tokens = boundaryParser.parse(lines.join('\n'), {
+  const parsed = boundaryParser.parse(lines.join('\n'), {
     lines,
     protectedLines,
   } satisfies BoundaryEnvironment);
+  const tokens: Token[] = [];
+  let previousEnd: number | undefined;
+  for (const token of parsed) {
+    if (token.level === 0 && token.map) {
+      // 一个空源码行仅分隔块；额外空行是已有客户端恢复的可见空段。
+      if (
+        previousEnd !== undefined &&
+        lines.slice(previousEnd, token.map[0]).every((value) => !value.trim())
+      ) {
+        for (let line = previousEnd + 1; line < token.map[0]; line++) {
+          const empty = ordinaryParser.parse('<br />', { lines: ['<br />'] })[0];
+          empty.map = [line, line + 1];
+          tokens.push(empty);
+        }
+      }
+      previousEnd = token.map[1];
+    }
+    tokens.push(token);
+  }
   const boundaries: MarkdownAlignmentBoundary[] = [];
   const markerLines = new Set<number>();
   const invalidMarkerLines: number[] = [];

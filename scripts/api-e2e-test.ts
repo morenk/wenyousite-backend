@@ -10,6 +10,7 @@
  */
 
 import pc from 'picocolors';
+import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { faker } from '@faker-js/faker';
 import { PrismaClient } from '@prisma/client';
@@ -1904,6 +1905,43 @@ test(s13, 'POST /threads 最小草稿载荷可创建', async () => {
   const { status } = await api.expectStatus('/threads', 'POST', {});
   assert([200, 201].includes(status), `期望成功, 实际 ${status}`);
 });
+
+// 真实认证、HTTP、数据库写入消费共享边界语料；只运行于本脚本已校验的隔离数据库。
+const boundarySuite = suite('Markdown 块边界保存与拒绝');
+const boundaryFixture = JSON.parse(readFileSync('contracts/markdown-block-boundary-v1-fixtures.json', 'utf8')) as {
+  cases: Array<{ id: string; markdown: string }>;
+};
+for (const id of ['center-paragraph-after-paragraph', 'center-heading-2-after-paragraph',
+  'center-heading-3-after-paragraph', 'center-paragraph-after-bullet-list',
+  'center-paragraph-after-blockquote', 'center-paragraph-crlf']) {
+  test(boundarySuite, id, async () => {
+    const input = boundaryFixture.cases.find((item) => item.id === id)!;
+    const canonical = input.markdown.replace(/\r\n?/g, '\n');
+    const created = await api.post('/drafts', {content: input.markdown}, apiResponse(draftSchema));
+    let version = created.data.version;
+    try {
+      assert(created.data.content === canonical, '创建应只规范换行，不插入解析分隔');
+      const updatedContent = canonical.replace('align-v1-center', 'align-v1-right');
+      const updated = await api.patch(`/drafts/${created.data.id}`, {content: updatedContent, version}, apiResponse(draftSchema));
+      version = updated.data.version;
+      const reopened = await api.get(`/drafts/${created.data.id}`, apiResponse(draftSchema));
+      assert(reopened.data.content === updatedContent, '重开应保持正文和对齐元数据');
+      const beforeCount = await e2ePrisma.draft.count({where: {userId: currentUserId}});
+      for (const [method, route, payload] of [
+        ['POST', '/drafts', {content: '[wenyousite-align-v1-center]: #\n<br />'}],
+        ['PATCH', `/drafts/${created.data.id}`, {content: '[wenyousite-align-v1-center]: #\n<br />', version}],
+      ] as const) {
+        const rejected = await api.expectStatus(route, method, payload);
+        assert(rejected.status === 400 && (rejected.json as {code: number}).code === 40009, '非法目标必须返回400/40009');
+      }
+      const stored = await e2ePrisma.draft.findUniqueOrThrow({where: {id: created.data.id}});
+      assert(stored.content === updatedContent && stored.version === version, '拒绝写入不得改变正文或版本');
+      assert(await e2ePrisma.draft.count({where: {userId: currentUserId}}) === beforeCount, '拒绝创建不得增加草稿');
+    } finally {
+      await api.del(`/drafts/${created.data.id}?version=${version}`);
+    }
+  });
+}
 
 // ═══════════════════════════════════════════════════════════════
 // 14. 清理

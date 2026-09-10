@@ -207,6 +207,8 @@ Content-Type: application/json
 
 ### 块边界 v1 Windows 迁移
 
-从本候选 PR 的已提交完整 SHA 同步 [块边界语料](../contracts/markdown-block-boundary-v1-fixtures.json)，固定 `version=1`、`revision=1`、`markdownContractVersion=5`。先规范 CRLF，再统一分析列 0 marker、目标类型/范围、对齐与原始位置，在 Codec 和阅读通用解析/无效降级前应用；列 0 marker 结束列表/引用 lazy continuation，显式嵌套、HTML、围栏/缩进代码及跨行行内代码中的同形源码不得消费。
+从本候选 PR 的已提交完整 SHA 同步 [块边界语料](../contracts/markdown-block-boundary-v1-fixtures.json)，固定 `version=1`、`revision=2`、`markdownContractVersion=5`。先规范 CRLF，再统一分析列 0 marker、目标类型/范围、对齐与原始位置，在 Codec 和阅读通用解析/无效降级前应用；列 0 marker 结束列表/引用 lazy continuation，显式嵌套、HTML、围栏/缩进代码及跨行行内代码中的同形源码不得消费。
 
 逐条执行真实 Markdown AST、Delta 编解码、编辑和 clipboard 测试，校验可见行/空白、逐块对齐、稳定保存重开；原文空格/WJ 等布局字符不得被全局清理。后端测试与源码位置仍为本仓证据，不能代替 Windows Flutter 门禁或 Web/Android 负责人验收。保持 v5/HTTP 字段，不迁移已有内容；旧客户端兼容继续保留。
+
+块边界 revision 2：代码保护范围来自真实行内解析器生成的 code_inline，URL/title 里的反引号不会开启保护区。三个 LF 的额外历史空白恢复为空段；空格布局 sourceLines 保留 WJ，visibleText/lines 不包含隐藏 WJ。clipboard 使用 plainTextByPlatform 分别固定 Web/Mobile 已有投影，不修改 v2。

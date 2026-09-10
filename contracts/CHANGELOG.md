@@ -3,7 +3,7 @@
 ## 块边界 v1 组合回归候选
 
 - 精确顶层 v1 center/right marker 自身建立块边界，无需前置空行；统一目标范围、保护区和原始位置，摘要与创作字数不泄漏合法隐藏元数据。
-- 新增 `markdown-block-boundary-v1-fixtures.json`，覆盖真实解析组合、编辑、复制与原始空格布局；客户端从已提交 SHA 同步，Windows/Web 真实验收另行提供。
+- 新增 `markdown-block-boundary-v1-fixtures.json`（revision 2），覆盖真实解析组合、URL/title 反引号、代码/HTML保护、编辑、复制与原始空格布局；保留历史额外空白行，区分 WJ 源码和可见投影，并固定各端已有 clipboard 投影。客户端从已提交 SHA 同步，Windows/Web 真实验收另行提供。
 - 保持 Markdown v5、HTTP DTO/OpenAPI、URL/格式白名单与历史兼容；不迁移、不 trim/collapse 正文。
 
 ## 5.20.0-dev.20260909.1

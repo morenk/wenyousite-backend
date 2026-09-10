@@ -9,7 +9,7 @@ const source = readFileSync(fixturePath, 'utf8');
 const fixture = JSON.parse(source);
 assert.equal(fixture.contract, 'wenyousite-markdown-block-boundary');
 assert.equal(fixture.version, 1);
-assert.equal(fixture.revision, 1);
+assert.equal(fixture.revision, 2);
 assert.equal(fixture.markdownContractVersion, 5);
 for (const group of ['cases', 'editCases', 'clipboardCases', 'whitespaceCases']) {
   const ids = new Set<string>();

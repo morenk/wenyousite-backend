@@ -1,17 +1,17 @@
 {
   "contract": "wenyousite-markdown-block-boundary",
   "version": 1,
-  "revision": 1,
+  "revision": 2,
   "markdownContractVersion": 5,
   "rules": {
     "positions": "零基原始源码行号，endLine 含尾行；CRLF 与 LF 等价。",
     "boundary": "受保护区外列0精确v1 center/right marker建立顶层块边界，终止P及list/quote lazy continuation；不要求前置空行。",
     "target": "marker后紧邻一个P/H2/H3/v5独立普通图片；连续有目标marker合法，无目标重复marker拒绝。",
     "protected": "围栏/缩进代码、跨行行内代码、转义、HTML及显式嵌套marker不生效；不扩大格式或URL白名单。",
-    "render": "blocks只计顶层结构；lines为可见内容行，图片为[图片]，hr不产生文本行，协议空段产生空行，Markdown结构空行不增加可见空白。",
-    "serialized": "客户端规范保存结果；服务端仅规范CRLF与既有空段规则，不将serialized重写回存量。拒绝用例serialized/blocks/lines为null，客户端仍需按既有字面降级契约处理。",
-    "clipboard": "整篇内部复制保留blocks对齐，text/plain为plainText且不含隐藏marker；外部纯文本粘贴保持默认左对齐。",
-    "whitespace": "whitespaceCases 的 lines 保留源码空格、WJ、NBSP与全角空格；无全局trim/collapse，不推断竖排；真正行末两个ASCII空格仍遵守既有硬换行拒绝规则。"
+    "render": "blocks只计顶层结构；lines为可见行，图片为[图片]，hr不产生文本行，协议空段产生空行；两个LF仅分隔块，三个LF的额外历史空行恢复一个可见空段。",
+    "serialized": "serialized 是合法参考表示；消费者实际输出须 accepted、重开与 blocks/可见行/对齐语义一致，第二次保存逐字稳定，不要求跨端无意义块分隔相同。拒绝样例为null，继续消费既有字面降级契约。",
+    "clipboard": "内部复制保留块对齐；plainText为可见行投影，实际text/plain按plainTextByPlatform精确断言（Web段间双LF、Mobile单LF），不改变clipboard v2投影。",
+    "whitespace": "whitespaceCases.sourceLines/markdown/serialized严格保留ASCII空格、WJ、NBSP、全角空格；lines/visibleText移除隐藏WJ但保留空格，不推断竖排。真正行末两ASCII空格仍按既有硬换行拒绝。"
   },
   "cases": [
     {
@@ -668,6 +668,16 @@
           ]
         },
         {
+          "type": "empty-paragraph",
+          "alignment": "left",
+          "startLine": 2,
+          "endLine": 2,
+          "markerLine": null,
+          "lines": [
+            ""
+          ]
+        },
+        {
           "type": "paragraph",
           "alignment": "center",
           "startLine": 4,
@@ -680,15 +690,17 @@
       ],
       "lines": [
         "前文",
+        "",
         "目标正文"
       ],
       "lineAlignments": [
         "left",
+        "left",
         "center"
       ],
-      "visibleText": "前文\n目标正文",
+      "visibleText": "前文\n\n目标正文",
       "error": null,
-      "serialized": "前文\n\n[wenyousite-align-v1-center]: #\n目标正文"
+      "serialized": "前文\n<br />\n[wenyousite-align-v1-center]: #\n目标正文"
     },
     {
       "id": "center-paragraph-consecutive-aligned-blocks",
@@ -1394,6 +1406,16 @@
           ]
         },
         {
+          "type": "empty-paragraph",
+          "alignment": "left",
+          "startLine": 2,
+          "endLine": 2,
+          "markerLine": null,
+          "lines": [
+            ""
+          ]
+        },
+        {
           "type": "heading-2",
           "alignment": "center",
           "startLine": 4,
@@ -1406,15 +1428,17 @@
       ],
       "lines": [
         "前文",
+        "",
         "目标标题"
       ],
       "lineAlignments": [
         "left",
+        "left",
         "center"
       ],
-      "visibleText": "前文\n目标标题",
+      "visibleText": "前文\n\n目标标题",
       "error": null,
-      "serialized": "前文\n\n[wenyousite-align-v1-center]: #\n## 目标标题"
+      "serialized": "前文\n<br />\n[wenyousite-align-v1-center]: #\n## 目标标题"
     },
     {
       "id": "center-heading-2-consecutive-aligned-blocks",
@@ -2120,6 +2144,16 @@
           ]
         },
         {
+          "type": "empty-paragraph",
+          "alignment": "left",
+          "startLine": 2,
+          "endLine": 2,
+          "markerLine": null,
+          "lines": [
+            ""
+          ]
+        },
+        {
           "type": "heading-3",
           "alignment": "center",
           "startLine": 4,
@@ -2132,15 +2166,17 @@
       ],
       "lines": [
         "前文",
+        "",
         "目标小标题"
       ],
       "lineAlignments": [
         "left",
+        "left",
         "center"
       ],
-      "visibleText": "前文\n目标小标题",
+      "visibleText": "前文\n\n目标小标题",
       "error": null,
-      "serialized": "前文\n\n[wenyousite-align-v1-center]: #\n### 目标小标题"
+      "serialized": "前文\n<br />\n[wenyousite-align-v1-center]: #\n### 目标小标题"
     },
     {
       "id": "center-heading-3-consecutive-aligned-blocks",
@@ -2846,6 +2882,16 @@
           ]
         },
         {
+          "type": "empty-paragraph",
+          "alignment": "left",
+          "startLine": 2,
+          "endLine": 2,
+          "markerLine": null,
+          "lines": [
+            ""
+          ]
+        },
+        {
           "type": "image",
           "alignment": "center",
           "startLine": 4,
@@ -2858,15 +2904,17 @@
       ],
       "lines": [
         "前文",
+        "",
         "[图片]"
       ],
       "lineAlignments": [
         "left",
+        "left",
         "center"
       ],
-      "visibleText": "前文\n[图片]",
+      "visibleText": "前文\n\n[图片]",
       "error": null,
-      "serialized": "前文\n\n[wenyousite-align-v1-center]: #\n![图片](https://cdn.example.com/boundary.png)"
+      "serialized": "前文\n<br />\n[wenyousite-align-v1-center]: #\n![图片](https://cdn.example.com/boundary.png)"
     },
     {
       "id": "center-image-consecutive-aligned-blocks",
@@ -3572,6 +3620,16 @@
           ]
         },
         {
+          "type": "empty-paragraph",
+          "alignment": "left",
+          "startLine": 2,
+          "endLine": 2,
+          "markerLine": null,
+          "lines": [
+            ""
+          ]
+        },
+        {
           "type": "paragraph",
           "alignment": "right",
           "startLine": 4,
@@ -3584,15 +3642,17 @@
       ],
       "lines": [
         "前文",
+        "",
         "目标正文"
       ],
       "lineAlignments": [
         "left",
+        "left",
         "right"
       ],
-      "visibleText": "前文\n目标正文",
+      "visibleText": "前文\n\n目标正文",
       "error": null,
-      "serialized": "前文\n\n[wenyousite-align-v1-right]: #\n目标正文"
+      "serialized": "前文\n<br />\n[wenyousite-align-v1-right]: #\n目标正文"
     },
     {
       "id": "right-paragraph-consecutive-aligned-blocks",
@@ -4298,6 +4358,16 @@
           ]
         },
         {
+          "type": "empty-paragraph",
+          "alignment": "left",
+          "startLine": 2,
+          "endLine": 2,
+          "markerLine": null,
+          "lines": [
+            ""
+          ]
+        },
+        {
           "type": "heading-2",
           "alignment": "right",
           "startLine": 4,
@@ -4310,15 +4380,17 @@
       ],
       "lines": [
         "前文",
+        "",
         "目标标题"
       ],
       "lineAlignments": [
         "left",
+        "left",
         "right"
       ],
-      "visibleText": "前文\n目标标题",
+      "visibleText": "前文\n\n目标标题",
       "error": null,
-      "serialized": "前文\n\n[wenyousite-align-v1-right]: #\n## 目标标题"
+      "serialized": "前文\n<br />\n[wenyousite-align-v1-right]: #\n## 目标标题"
     },
     {
       "id": "right-heading-2-consecutive-aligned-blocks",
@@ -5024,6 +5096,16 @@
           ]
         },
         {
+          "type": "empty-paragraph",
+          "alignment": "left",
+          "startLine": 2,
+          "endLine": 2,
+          "markerLine": null,
+          "lines": [
+            ""
+          ]
+        },
+        {
           "type": "heading-3",
           "alignment": "right",
           "startLine": 4,
@@ -5036,15 +5118,17 @@
       ],
       "lines": [
         "前文",
+        "",
         "目标小标题"
       ],
       "lineAlignments": [
         "left",
+        "left",
         "right"
       ],
-      "visibleText": "前文\n目标小标题",
+      "visibleText": "前文\n\n目标小标题",
       "error": null,
-      "serialized": "前文\n\n[wenyousite-align-v1-right]: #\n### 目标小标题"
+      "serialized": "前文\n<br />\n[wenyousite-align-v1-right]: #\n### 目标小标题"
     },
     {
       "id": "right-heading-3-consecutive-aligned-blocks",
@@ -5750,6 +5834,16 @@
           ]
         },
         {
+          "type": "empty-paragraph",
+          "alignment": "left",
+          "startLine": 2,
+          "endLine": 2,
+          "markerLine": null,
+          "lines": [
+            ""
+          ]
+        },
+        {
           "type": "image",
           "alignment": "right",
           "startLine": 4,
@@ -5762,15 +5856,17 @@
       ],
       "lines": [
         "前文",
+        "",
         "[图片]"
       ],
       "lineAlignments": [
         "left",
+        "left",
         "right"
       ],
-      "visibleText": "前文\n[图片]",
+      "visibleText": "前文\n\n[图片]",
       "error": null,
-      "serialized": "前文\n\n[wenyousite-align-v1-right]: #\n![图片](https://cdn.example.com/boundary.png)"
+      "serialized": "前文\n<br />\n[wenyousite-align-v1-right]: #\n![图片](https://cdn.example.com/boundary.png)"
     },
     {
       "id": "right-image-consecutive-aligned-blocks",
@@ -6529,6 +6625,351 @@
         "endLine": 3
       },
       "serialized": null
+    },
+    {
+      "id": "backtick-link-url-later-code",
+      "markdown": "前 [链接](https://example.com/`)\n[wenyousite-align-v1-center]: #\n正文 `code`",
+      "supported": true,
+      "blocks": [
+        {
+          "type": "paragraph",
+          "alignment": "left",
+          "startLine": 0,
+          "endLine": 0,
+          "markerLine": null,
+          "lines": [
+            "前 链接"
+          ]
+        },
+        {
+          "type": "paragraph",
+          "alignment": "center",
+          "startLine": 2,
+          "endLine": 2,
+          "markerLine": 1,
+          "lines": [
+            "正文 code"
+          ]
+        }
+      ],
+      "lines": [
+        "前 链接",
+        "正文 code"
+      ],
+      "lineAlignments": [
+        "left",
+        "center"
+      ],
+      "visibleText": "前 链接\n正文 code",
+      "error": null,
+      "serialized": "前 [链接](https://example.com/`)\n\n[wenyousite-align-v1-center]: #\n正文 `code`"
+    },
+    {
+      "id": "backtick-link-url-multiline-code",
+      "markdown": "前 [链接](https://example.com/`)\n[wenyousite-align-v1-center]: #\n正文 `code\n更多`",
+      "supported": true,
+      "blocks": [
+        {
+          "type": "paragraph",
+          "alignment": "left",
+          "startLine": 0,
+          "endLine": 0,
+          "markerLine": null,
+          "lines": [
+            "前 链接"
+          ]
+        },
+        {
+          "type": "paragraph",
+          "alignment": "center",
+          "startLine": 2,
+          "endLine": 3,
+          "markerLine": 1,
+          "lines": [
+            "正文 code 更多"
+          ]
+        }
+      ],
+      "lines": [
+        "前 链接",
+        "正文 code 更多"
+      ],
+      "lineAlignments": [
+        "left",
+        "center"
+      ],
+      "visibleText": "前 链接\n正文 code 更多",
+      "error": null,
+      "serialized": "前 [链接](https://example.com/`)\n\n[wenyousite-align-v1-center]: #\n正文 `code\n更多`"
+    },
+    {
+      "id": "backtick-image-url-later-code",
+      "markdown": "![图片](https://example.com/`)\n[wenyousite-align-v1-center]: #\n正文 `code`",
+      "supported": true,
+      "blocks": [
+        {
+          "type": "image",
+          "alignment": "left",
+          "startLine": 0,
+          "endLine": 0,
+          "markerLine": null,
+          "lines": [
+            "[图片]"
+          ]
+        },
+        {
+          "type": "paragraph",
+          "alignment": "center",
+          "startLine": 2,
+          "endLine": 2,
+          "markerLine": 1,
+          "lines": [
+            "正文 code"
+          ]
+        }
+      ],
+      "lines": [
+        "[图片]",
+        "正文 code"
+      ],
+      "lineAlignments": [
+        "left",
+        "center"
+      ],
+      "visibleText": "[图片]\n正文 code",
+      "error": null,
+      "serialized": "![图片](https://example.com/`)\n\n[wenyousite-align-v1-center]: #\n正文 `code`"
+    },
+    {
+      "id": "backtick-image-url-multiline-code",
+      "markdown": "![图片](https://example.com/`)\n[wenyousite-align-v1-center]: #\n正文 `code\n更多`",
+      "supported": true,
+      "blocks": [
+        {
+          "type": "image",
+          "alignment": "left",
+          "startLine": 0,
+          "endLine": 0,
+          "markerLine": null,
+          "lines": [
+            "[图片]"
+          ]
+        },
+        {
+          "type": "paragraph",
+          "alignment": "center",
+          "startLine": 2,
+          "endLine": 3,
+          "markerLine": 1,
+          "lines": [
+            "正文 code 更多"
+          ]
+        }
+      ],
+      "lines": [
+        "[图片]",
+        "正文 code 更多"
+      ],
+      "lineAlignments": [
+        "left",
+        "center"
+      ],
+      "visibleText": "[图片]\n正文 code 更多",
+      "error": null,
+      "serialized": "![图片](https://example.com/`)\n\n[wenyousite-align-v1-center]: #\n正文 `code\n更多`"
+    },
+    {
+      "id": "backtick-link-title-later-code",
+      "markdown": "前 [链接](https://example.com \"`标题\")\n[wenyousite-align-v1-center]: #\n正文 `code`",
+      "supported": true,
+      "blocks": [
+        {
+          "type": "paragraph",
+          "alignment": "left",
+          "startLine": 0,
+          "endLine": 0,
+          "markerLine": null,
+          "lines": [
+            "前 链接"
+          ]
+        },
+        {
+          "type": "paragraph",
+          "alignment": "center",
+          "startLine": 2,
+          "endLine": 2,
+          "markerLine": 1,
+          "lines": [
+            "正文 code"
+          ]
+        }
+      ],
+      "lines": [
+        "前 链接",
+        "正文 code"
+      ],
+      "lineAlignments": [
+        "left",
+        "center"
+      ],
+      "visibleText": "前 链接\n正文 code",
+      "error": null,
+      "serialized": "前 [链接](https://example.com \"`标题\")\n\n[wenyousite-align-v1-center]: #\n正文 `code`"
+    },
+    {
+      "id": "backtick-link-title-multiline-code",
+      "markdown": "前 [链接](https://example.com \"`标题\")\n[wenyousite-align-v1-center]: #\n正文 `code\n更多`",
+      "supported": true,
+      "blocks": [
+        {
+          "type": "paragraph",
+          "alignment": "left",
+          "startLine": 0,
+          "endLine": 0,
+          "markerLine": null,
+          "lines": [
+            "前 链接"
+          ]
+        },
+        {
+          "type": "paragraph",
+          "alignment": "center",
+          "startLine": 2,
+          "endLine": 3,
+          "markerLine": 1,
+          "lines": [
+            "正文 code 更多"
+          ]
+        }
+      ],
+      "lines": [
+        "前 链接",
+        "正文 code 更多"
+      ],
+      "lineAlignments": [
+        "left",
+        "center"
+      ],
+      "visibleText": "前 链接\n正文 code 更多",
+      "error": null,
+      "serialized": "前 [链接](https://example.com \"`标题\")\n\n[wenyousite-align-v1-center]: #\n正文 `code\n更多`"
+    },
+    {
+      "id": "backtick-image-title-later-code",
+      "markdown": "![图片](https://example.com/a.png \"`标题\")\n[wenyousite-align-v1-center]: #\n正文 `code`",
+      "supported": true,
+      "blocks": [
+        {
+          "type": "image",
+          "alignment": "left",
+          "startLine": 0,
+          "endLine": 0,
+          "markerLine": null,
+          "lines": [
+            "[图片]"
+          ]
+        },
+        {
+          "type": "paragraph",
+          "alignment": "center",
+          "startLine": 2,
+          "endLine": 2,
+          "markerLine": 1,
+          "lines": [
+            "正文 code"
+          ]
+        }
+      ],
+      "lines": [
+        "[图片]",
+        "正文 code"
+      ],
+      "lineAlignments": [
+        "left",
+        "center"
+      ],
+      "visibleText": "[图片]\n正文 code",
+      "error": null,
+      "serialized": "![图片](https://example.com/a.png \"`标题\")\n\n[wenyousite-align-v1-center]: #\n正文 `code`"
+    },
+    {
+      "id": "backtick-image-title-multiline-code",
+      "markdown": "![图片](https://example.com/a.png \"`标题\")\n[wenyousite-align-v1-center]: #\n正文 `code\n更多`",
+      "supported": true,
+      "blocks": [
+        {
+          "type": "image",
+          "alignment": "left",
+          "startLine": 0,
+          "endLine": 0,
+          "markerLine": null,
+          "lines": [
+            "[图片]"
+          ]
+        },
+        {
+          "type": "paragraph",
+          "alignment": "center",
+          "startLine": 2,
+          "endLine": 3,
+          "markerLine": 1,
+          "lines": [
+            "正文 code 更多"
+          ]
+        }
+      ],
+      "lines": [
+        "[图片]",
+        "正文 code 更多"
+      ],
+      "lineAlignments": [
+        "left",
+        "center"
+      ],
+      "visibleText": "[图片]\n正文 code 更多",
+      "error": null,
+      "serialized": "![图片](https://example.com/a.png \"`标题\")\n\n[wenyousite-align-v1-center]: #\n正文 `code\n更多`"
+    },
+    {
+      "id": "multiline-code-protects-empty-row-and-marker",
+      "markdown": "`before\n<br />\n[wenyousite-align-v1-center]: #\ntitle`",
+      "supported": true,
+      "blocks": [
+        {
+          "type": "paragraph",
+          "alignment": "left",
+          "startLine": 0,
+          "endLine": 3,
+          "markerLine": null,
+          "lines": [
+            "before <br /> [wenyousite-align-v1-center]: # title"
+          ]
+        }
+      ],
+      "lines": [
+        "before <br /> [wenyousite-align-v1-center]: # title"
+      ],
+      "lineAlignments": [
+        "left"
+      ],
+      "visibleText": "before <br /> [wenyousite-align-v1-center]: # title",
+      "error": null,
+      "serialized": "`before\n<br />\n[wenyousite-align-v1-center]: #\ntitle`"
+    },
+    {
+      "id": "html-after-empty-row-still-protected",
+      "markdown": "<br />\n<div>\n[wenyousite-align-v1-center]: #\n## title\n</div>",
+      "supported": false,
+      "blocks": null,
+      "lines": null,
+      "lineAlignments": null,
+      "visibleText": null,
+      "error": {
+        "type": "raw-html",
+        "startLine": 1,
+        "endLine": 4
+      },
+      "serialized": null
     }
   ],
   "editCases": [
@@ -6632,7 +7073,11 @@
           ]
         }
       ],
-      "serialized": "前文\n\n[wenyousite-align-v1-center]: #\n正文"
+      "serialized": "前文\n\n[wenyousite-align-v1-center]: #\n正文",
+      "plainTextByPlatform": {
+        "web": "前文\n\n正文",
+        "mobile": "前文\n正文"
+      }
     },
     {
       "id": "right-document",
@@ -6654,7 +7099,11 @@
           ]
         }
       ],
-      "serialized": "前文\n\n[wenyousite-align-v1-right]: #\n正文"
+      "serialized": "前文\n\n[wenyousite-align-v1-right]: #\n正文",
+      "plainTextByPlatform": {
+        "web": "前文\n\n正文",
+        "mobile": "前文\n正文"
+      }
     }
   ],
   "whitespaceCases": [
@@ -6664,9 +7113,15 @@
       "serialized": "甲                       乙\n⁠                                                             丙  ⁠\n⁠  丁 戊　己",
       "lines": [
         "甲                       乙",
+        "                                                             丙  ",
+        "  丁 戊　己"
+      ],
+      "sourceLines": [
+        "甲                       乙",
         "⁠                                                             丙  ⁠",
         "⁠  丁 戊　己"
-      ]
+      ],
+      "visibleText": "甲                       乙\n                                                             丙  \n  丁 戊　己"
     }
   ]
 }

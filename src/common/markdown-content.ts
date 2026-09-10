@@ -231,8 +231,8 @@ export function findUnsupportedMarkdownFormats(
   }
 
   for (let line = 0; line < lines.length; line++) {
-    if (analysis.protectedLines.has(line)) continue;
-    if (TASK_LIST_RE.test(lines[line])) {
+    if (!analysis.maskedLines[line].trim()) continue;
+    if (TASK_LIST_RE.test(analysis.maskedLines[line])) {
       issues.push({ type: 'task-list', startLine: line, endLine: line });
     }
     if (analysis.markerLines.has(line)) continue;

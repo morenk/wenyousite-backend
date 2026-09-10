@@ -127,8 +127,10 @@ Web 和后端消费 v7；已审查 Flutter 副本尚未消费，Windows 修复�
 
 ## 块边界组合契约 v1
 
-[共享组合语料](../../contracts/markdown-block-boundary-v1-fixtures.json) 是正文 v5 的补充测试事实源，不新增格式或 HTTP 字段。`cases` 固定 `markdown`、`supported`、`blocks`、`lines`、`lineAlignments`、`visibleText`、`error`、`serialized`；块位置 `startLine/endLine/markerLine` 与错误位置都采用原始零基行号，`endLine` 含尾行。拒绝样例的块和序列化预期为 null，仍按既有字面降级规则处理。
+[共享组合语料](../../contracts/markdown-block-boundary-v1-fixtures.json) 是正文 v5 的补充测试事实源，不新增格式或 HTTP 字段。`cases` 固定 `markdown`、`supported`、`blocks`、`lines`、`lineAlignments`、`visibleText`、`error`、合法参考 `serialized`；消费者实际输出须语义一致且二次保存逐字稳定，不要求跨端无意义分隔相同。块位置 `startLine/endLine/markerLine` 与错误位置都采用原始零基行号，`endLine` 含尾行。拒绝样例的块和序列化预期为 null，仍按既有字面降级规则处理。
 
-连续的“marker + 合法目标”块各自生效；没有目标的重复 marker 拒绝。P 的历史段内 LF 保持整个目标范围，Markdown 结构空行不产生可见空白，独占 `<br />` 产生可见空行。`editCases` 必须由客户端真实输入事务消费，`clipboardCases` 约束内部结构与无隐藏元数据的纯文本回退。后端测试真实解析输入与预期保存结果，不声称执行了客户端编辑器。
+连续的“marker + 合法目标”块各自生效；没有目标的重复 marker 拒绝。P 的历史段内 LF 保持整个目标范围，两个 LF 的块分隔不产生可见空白，三个 LF 的额外历史空行与独占 `<br />` 都产生可见空行。`editCases` 必须由客户端真实输入事务消费，`clipboardCases` 约束内部结构与无隐藏元数据的纯文本回退。后端测试真实解析输入与预期保存结果，不声称执行了客户端编辑器。
 
 `whitespaceCases` 固定空格手排布局原文（连续 ASCII 空格、WJ、NBSP、全角空格）；服务端不 trim/collapse，不推断竖排或改写字符。真正行末两个 ASCII 空格仍按既有显式硬换行拒绝，紧凑摘要仍可折叠空白。客户端从本契约所在的完整已提交 SHA 同步同名 JSON，再执行真实阅读、编辑、复制、保存重开测试。`pnpm docs:check` 校验语料与存在的同名客户端副本。
+
+块边界 revision 2：代码保护范围来自真实行内解析器生成的 code_inline，URL/title 里的反引号不会开启保护区。三个 LF 的额外历史空白恢复为空段；空格布局 sourceLines 保留 WJ，visibleText/lines 不包含隐藏 WJ。clipboard 使用 plainTextByPlatform 分别固定 Web/Mobile 已有投影，不修改 v2。
