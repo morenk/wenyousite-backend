@@ -6,7 +6,7 @@
 
 PostgreSQL 使用 pgBackRest 将连续 WAL 和周 full/日 differential 加密写入私有 S3 仓库，并保留每日 custom-format 逻辑出口；Redis 使用 AOF `everysec` 与每 10 分钟校验 RDB 的 restic 加密副本。异地历史保留 35 天，五分钟巡检同时验证备份时间戳、WAL、data checksums、pgBackRest 和 AOF，失败通过限频 SMTP 告警。恢复只写新卷，离线运行 `pg_amcheck`/RDB 校验后才能显式切换；完整规则见 [数据库安全、备份与恢复](database-operations.md)。
 
-当前开发部署助手 `scripts/deploy.sh` 只接受目标分支上工作区干净、已推送且与远端完全一致的提交，按“安全审计与门禁 → 再验证提交 → 物理/逻辑/Redis 异地备份 → 固定镜像与运行安全验证 → 组装不可变 release → owner migration → 非 root Worker/API → 公网烟雾”执行。启动器从当前不可变 release 的 `BUILD_SHA` 读取版本，服务重启不会把可变工作区 HEAD 误报为已部署版本。
+当前开发部署助手 `scripts/deploy.sh` 只接受目标分支上工作区干净、已推送且与远端完全一致的提交，先从当前已合并 Schema 显式生成 Prisma Client，再按“安全审计与门禁 → 再验证提交 → 物理/逻辑/Redis 异地备份 → 固定镜像与运行安全验证 → 组装不可变 release → owner migration → 非 root Worker/API → 公网烟雾”执行。启动器从当前不可变 release 的 `BUILD_SHA` 读取版本，服务重启不会把可变工作区 HEAD 误报为已部署版本。Schema 更新后不能依赖既有 node_modules 或安装钩子的生成状态；生成失败立即终止，不能进入备份、迁移或停止 API/Worker 阶段。生成只更新本地客户端产物，不执行数据库迁移。
 
 ## 总体形态
 
@@ -70,7 +70,7 @@ OutboxDispatcher（FOR UPDATE SKIP LOCKED）
 
 当前契约版本由源码 `API_CONTRACT_VERSION`、`/meta` 和响应头共同暴露，历史变化只记录在 [契约变更记录](../contracts/CHANGELOG.md)。破坏性接口变更必须递增版本并同步受版本控制的 OpenAPI 与客户端生成类型。`BusinessErrorCode` 由后端 `ErrorCode` 自动写入 OpenAPI，客户端不得复制无校验的错误码表。
 
-`pnpm openapi:check` 校验：
+`pnpm openapi:check` 每次在独立的私有临时目录导出，并在成功或失败后清理，避免跨用户或并发复用固定文件。导出异常及时退出，不让 Nest 后台句柄阻塞发布门禁。检查内容保持：
 
 - 每个操作都有唯一 `operationId`；
 - 每个 2xx JSON 响应引用以 `operationId + 状态码` 命名的具名 envelope schema；

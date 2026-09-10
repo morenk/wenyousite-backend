@@ -80,8 +80,8 @@ set -a
 source "$COMPOSE_ENV"
 set +a
 
-echo "2. 执行质量与生产依赖安全门禁..."
-(cd "$BACKEND_DIR" && pnpm security:audit && pnpm check)
+echo "2. 生成当前 Schema 客户端并执行质量与生产依赖安全门禁..."
+(cd "$BACKEND_DIR" && pnpm prisma:generate && pnpm security:audit && pnpm check)
 if [ "$DEPLOY_FRONTEND" = true ]; then (cd "$FRONTEND_DIR" && pnpm check); fi
 
 echo "3. 在有状态操作前重新验证提交..."
