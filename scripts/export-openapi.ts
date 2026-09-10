@@ -22,6 +22,5 @@ async function main() {
 
 void main().catch((error: unknown) => {
   const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
-  process.stderr.write(`${message}\n`);
-  process.exitCode = 1;
+  process.stderr.write(`${message}\n`, () => process.exit(1));
 });
