@@ -1,5 +1,11 @@
 # API 合同变更
 
+## 块边界 v1 组合回归候选
+
+- 精确顶层 v1 center/right marker 自身建立块边界，无需前置空行；统一目标范围、保护区和原始位置，摘要与创作字数不泄漏合法隐藏元数据。
+- 新增 `markdown-block-boundary-v1-fixtures.json`，覆盖真实解析组合、编辑、复制与原始空格布局；客户端从已提交 SHA 同步，Windows/Web 真实验收另行提供。
+- 保持 Markdown v5、HTTP DTO/OpenAPI、URL/格式白名单与历史兼容；不迁移、不 trim/collapse 正文。
+
 ## 5.20.0-dev.20260909.1
 
 - coverMedia 可选新增 previewVariants（nullable，最多两项 url/width/height/bytes），原 url、posterUrl 与 coverImages 不变。
