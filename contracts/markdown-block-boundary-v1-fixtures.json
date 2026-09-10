@@ -6970,6 +6970,146 @@
         "endLine": 4
       },
       "serialized": null
+    },
+    {
+      "id": "aligned-multiline-code-after-text",
+      "markdown": "前文\n[wenyousite-align-v1-center]: #\n`甲\n乙`",
+      "supported": true,
+      "blocks": [
+        {
+          "type": "paragraph",
+          "alignment": "left",
+          "startLine": 0,
+          "endLine": 0,
+          "markerLine": null,
+          "lines": [
+            "前文"
+          ]
+        },
+        {
+          "type": "paragraph",
+          "alignment": "center",
+          "startLine": 2,
+          "endLine": 3,
+          "markerLine": 1,
+          "lines": [
+            "甲 乙"
+          ]
+        }
+      ],
+      "lines": [
+        "前文",
+        "甲 乙"
+      ],
+      "lineAlignments": [
+        "left",
+        "center"
+      ],
+      "visibleText": "前文\n甲 乙",
+      "error": null,
+      "serialized": "前文\n\n[wenyousite-align-v1-center]: #\n`甲\n乙`"
+    },
+    {
+      "id": "marker-after-multiline-code",
+      "markdown": "`甲\n乙`\n[wenyousite-align-v1-center]: #\n正文",
+      "supported": true,
+      "blocks": [
+        {
+          "type": "paragraph",
+          "alignment": "left",
+          "startLine": 0,
+          "endLine": 1,
+          "markerLine": null,
+          "lines": [
+            "甲 乙"
+          ]
+        },
+        {
+          "type": "paragraph",
+          "alignment": "center",
+          "startLine": 3,
+          "endLine": 3,
+          "markerLine": 2,
+          "lines": [
+            "正文"
+          ]
+        }
+      ],
+      "lines": [
+        "甲 乙",
+        "正文"
+      ],
+      "lineAlignments": [
+        "left",
+        "center"
+      ],
+      "visibleText": "甲 乙\n正文",
+      "error": null,
+      "serialized": "`甲\n乙`\n\n[wenyousite-align-v1-center]: #\n正文"
+    },
+    {
+      "id": "aligned-multiline-code-at-start",
+      "markdown": "[wenyousite-align-v1-center]: #\n`甲\n乙`",
+      "supported": true,
+      "blocks": [
+        {
+          "type": "paragraph",
+          "alignment": "center",
+          "startLine": 1,
+          "endLine": 2,
+          "markerLine": 0,
+          "lines": [
+            "甲 乙"
+          ]
+        }
+      ],
+      "lines": [
+        "甲 乙"
+      ],
+      "lineAlignments": [
+        "center"
+      ],
+      "visibleText": "甲 乙",
+      "error": null,
+      "serialized": "[wenyousite-align-v1-center]: #\n`甲\n乙`"
+    },
+    {
+      "id": "marker-after-two-multiline-codes",
+      "markdown": "`甲\n乙` 和 `丙\n丁`\n[wenyousite-align-v1-center]: #\n正文",
+      "supported": true,
+      "blocks": [
+        {
+          "type": "paragraph",
+          "alignment": "left",
+          "startLine": 0,
+          "endLine": 2,
+          "markerLine": null,
+          "lines": [
+            "甲 乙 和 丙 丁"
+          ]
+        },
+        {
+          "type": "paragraph",
+          "alignment": "center",
+          "startLine": 4,
+          "endLine": 4,
+          "markerLine": 3,
+          "lines": [
+            "正文"
+          ]
+        }
+      ],
+      "lines": [
+        "甲 乙 和 丙 丁",
+        "正文"
+      ],
+      "lineAlignments": [
+        "left",
+        "center"
+      ],
+      "visibleText": "甲 乙 和 丙 丁\n正文",
+      "error": null,
+      "serialized": "`甲\n乙` 和 `丙\n丁`\n\n[wenyousite-align-v1-center]: #\n正文"
     }
   ],
   "editCases": [

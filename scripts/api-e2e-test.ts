@@ -1915,30 +1915,34 @@ for (const id of ['center-paragraph-after-paragraph', 'center-heading-2-after-pa
   'center-heading-3-after-paragraph', 'center-paragraph-after-bullet-list',
   'center-paragraph-after-blockquote', 'center-paragraph-crlf']) {
   test(boundarySuite, id, async () => {
+    // 场景使用独立测试来源，避免之前套件消耗同一个真实限流桶。
+    const boundaryClient = new Client(`198.22.1.${boundaryFixture.cases.findIndex((item) => item.id === id) + 1}`);
+    boundaryClient.token = api.token;
+    boundaryClient.cookies = new Map(api.cookies);
     const input = boundaryFixture.cases.find((item) => item.id === id)!;
     const canonical = input.markdown.replace(/\r\n?/g, '\n');
-    const created = await api.post('/drafts', {content: input.markdown}, apiResponse(draftSchema));
+    const created = await boundaryClient.post('/drafts', {content: input.markdown}, apiResponse(draftSchema));
     let version = created.data.version;
     try {
       assert(created.data.content === canonical, '创建应只规范换行，不插入解析分隔');
       const updatedContent = canonical.replace('align-v1-center', 'align-v1-right');
-      const updated = await api.patch(`/drafts/${created.data.id}`, {content: updatedContent, version}, apiResponse(draftSchema));
+      const updated = await boundaryClient.patch(`/drafts/${created.data.id}`, {content: updatedContent, version}, apiResponse(draftSchema));
       version = updated.data.version;
-      const reopened = await api.get(`/drafts/${created.data.id}`, apiResponse(draftSchema));
+      const reopened = await boundaryClient.get(`/drafts/${created.data.id}`, apiResponse(draftSchema));
       assert(reopened.data.content === updatedContent, '重开应保持正文和对齐元数据');
       const beforeCount = await e2ePrisma.draft.count({where: {userId: currentUserId}});
       for (const [method, route, payload] of [
         ['POST', '/drafts', {content: '[wenyousite-align-v1-center]: #\n<br />'}],
         ['PATCH', `/drafts/${created.data.id}`, {content: '[wenyousite-align-v1-center]: #\n<br />', version}],
       ] as const) {
-        const rejected = await api.expectStatus(route, method, payload);
+        const rejected = await boundaryClient.expectStatus(route, method, payload);
         assert(rejected.status === 400 && (rejected.json as {code: number}).code === 40009, '非法目标必须返回400/40009');
       }
       const stored = await e2ePrisma.draft.findUniqueOrThrow({where: {id: created.data.id}});
       assert(stored.content === updatedContent && stored.version === version, '拒绝写入不得改变正文或版本');
       assert(await e2ePrisma.draft.count({where: {userId: currentUserId}}) === beforeCount, '拒绝创建不得增加草稿');
     } finally {
-      await api.del(`/drafts/${created.data.id}?version=${version}`);
+      await boundaryClient.del(`/drafts/${created.data.id}?version=${version}`);
     }
   });
 }
