@@ -1,4 +1,5 @@
 import { DiceService } from '../dice/dice.service';
+import { forbidden } from '../common/exceptions/business.exception';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ThreadAggregateService } from './thread-aggregate.service';
 
@@ -14,6 +15,7 @@ function makeCurrent(overrides: Record<string, unknown> = {}) {
       id: 's1',
       title: '主帖',
       version: 2,
+      postingPolicy: 'PARTICIPANTS',
       posts: [],
     },
     ...overrides,
@@ -134,6 +136,7 @@ describe('ThreadAggregateService', () => {
     prisma.threadMember.groupBy.mockResolvedValue([{ threadId: 't1', _count: 1 }]);
     tx.thread.findUnique.mockResolvedValue(makeCurrent());
     tx.thread.update.mockResolvedValue(makeUpdated());
+    tx.subthread.update.mockResolvedValue({});
     tx.post.create.mockResolvedValue({ id: 'p1', author: { username: 'owner' } });
     tx.post.findMany.mockResolvedValue([
       {
@@ -319,4 +322,78 @@ describe('ThreadAggregateService', () => {
     ).rejects.toBeInstanceOf(BusinessException);
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
+  const policyRequest = {
+    version: 3,
+    defaultSubthreadVersion: 2,
+    content: '正文',
+    tagNames: [],
+  };
+
+  it.each(['OWNER', 'COLLABORATOR'])('%s 可统一保存主贴权限，标题与权限只增加一次版本', async (role) => {
+    access.assertCanManage.mockResolvedValue({ role, playerMarked: false });
+    await service.save('t1', {
+      ...policyRequest,
+      title: '权限与标题',
+      defaultSubthreadPostingPolicy: 'PLAYERS',
+    }, 'u1');
+    expect(tx.subthread.update).toHaveBeenCalledTimes(1);
+    expect(tx.subthread.update).toHaveBeenCalledWith({
+      where: { id: 's1', version: 2, deletedAt: null },
+      data: { title: '权限与标题', postingPolicy: 'PLAYERS', version: { increment: 1 } },
+    });
+    expect(eventEmitter.emit).toHaveBeenCalledWith('subthread.updated', { threadId: 't1', subthreadId: 's1' });
+    expect(postingPolicy.attachToThread).toHaveBeenCalled();
+  });
+
+  it.each(['PARTICIPANTS', 'COLLABORATORS', 'PLAYERS'] as const)('保存 %s 不更新其他子贴', async (policy) => {
+    const current = makeCurrent();
+    current.defaultSubthread.postingPolicy = policy === 'PLAYERS' ? 'COLLABORATORS' : 'PLAYERS';
+    tx.thread.findUnique.mockResolvedValue(current);
+    await service.save('t1', { ...policyRequest, defaultSubthreadPostingPolicy: policy }, 'u1');
+    expect(tx.subthread.update).toHaveBeenCalledTimes(1);
+    expect(tx.subthread.update).toHaveBeenCalledWith({
+      where: { id: 's1', version: 2, deletedAt: null },
+      data: { postingPolicy: policy, version: { increment: 1 } },
+    });
+  });
+
+  it('旧客户端省略权限字段时保留限制策略', async () => {
+    const current = makeCurrent();
+    current.defaultSubthread.postingPolicy = 'COLLABORATORS';
+    tx.thread.findUnique.mockResolvedValue(current);
+    await service.save('t1', { ...policyRequest, title: '新标题' }, 'u1');
+    expect(tx.subthread.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: { title: '新标题', version: { increment: 1 } },
+    }));
+  });
+
+  it('相同权限不改变默认子贴版本', async () => {
+    await service.save('t1', { ...policyRequest, defaultSubthreadPostingPolicy: 'PARTICIPANTS' }, 'u1');
+    expect(tx.subthread.update).not.toHaveBeenCalled();
+    expect(eventEmitter.emit).not.toHaveBeenCalledWith('subthread.updated', expect.anything());
+  });
+
+  it('无管理权限不能借权限字段写入', async () => {
+    access.assertCanManage.mockRejectedValueOnce(forbidden('无管理权限'));
+    await expect(service.save('t1', { ...policyRequest, defaultSubthreadPostingPolicy: 'PLAYERS' }, 'u2'))
+      .rejects.toBeInstanceOf(BusinessException);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('默认子贴版本过期时不写入且不广播成功事件', async () => {
+    await expect(service.save('t1', { ...policyRequest, defaultSubthreadVersion: 1, defaultSubthreadPostingPolicy: 'PLAYERS' }, 'u1'))
+      .rejects.toMatchObject({ errorCode: 40002 });
+    expect(tx.subthread.update).not.toHaveBeenCalled();
+    expect(tx.thread.update).not.toHaveBeenCalled();
+    expect(eventEmitter.emit).not.toHaveBeenCalled();
+  });
+
+  it('并发子贴更新的 CAS 失败映射为冲突且不继续写入', async () => {
+    tx.subthread.update.mockRejectedValueOnce({ code: 'P2025' });
+    await expect(service.save('t1', { ...policyRequest, defaultSubthreadPostingPolicy: 'PLAYERS' }, 'u1'))
+      .rejects.toMatchObject({ errorCode: 40002 });
+    expect(tx.thread.update).not.toHaveBeenCalled();
+    expect(eventEmitter.emit).not.toHaveBeenCalled();
+  });
+
 });

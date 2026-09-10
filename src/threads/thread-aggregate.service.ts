@@ -118,6 +118,7 @@ export class ThreadAggregateService {
                 id: true,
                 title: true,
                 version: true,
+                postingPolicy: true,
                 posts: {
                   where: { kind: 'BODY', ...notDeleted },
                   orderBy: { createdAt: 'asc' },
@@ -171,10 +172,19 @@ export class ThreadAggregateService {
 
         const defaultSubthread = current.defaultSubthread;
         const nextSubthreadTitle = title ?? defaultSubthread.title;
-        if (nextSubthreadTitle !== defaultSubthread.title) {
+        const subthreadTitleChanged = nextSubthreadTitle !== defaultSubthread.title;
+        const subthreadPolicyChanged =
+          dto.defaultSubthreadPostingPolicy !== undefined &&
+          dto.defaultSubthreadPostingPolicy !== defaultSubthread.postingPolicy;
+        const subthreadChanged = subthreadTitleChanged || subthreadPolicyChanged;
+        if (subthreadChanged) {
           await tx.subthread.update({
             where: { id: defaultSubthread.id, version: dto.defaultSubthreadVersion, ...notDeleted },
-            data: { title: nextSubthreadTitle, version: { increment: 1 } },
+            data: {
+              ...(subthreadTitleChanged ? { title: nextSubthreadTitle } : {}),
+              ...(subthreadPolicyChanged ? { postingPolicy: dto.defaultSubthreadPostingPolicy } : {}),
+              version: { increment: 1 },
+            },
           });
         }
 
@@ -361,7 +371,7 @@ export class ThreadAggregateService {
           updated,
           publishing,
           defaultSubthreadId: defaultSubthread.id,
-          subthreadTitleChanged: nextSubthreadTitle !== defaultSubthread.title,
+          subthreadChanged,
           updatedBody,
         };
       })
@@ -378,7 +388,7 @@ export class ThreadAggregateService {
     await attachPlayerCounts(this.prisma, [updated]);
     if (result.publishing) this.initializePublishedThreadCache(updated);
     this.eventEmitter.emit('thread.updated', { threadId });
-    if (result.subthreadTitleChanged) {
+    if (result.subthreadChanged) {
       this.eventEmitter.emit('subthread.updated', {
         threadId,
         subthreadId: result.defaultSubthreadId,

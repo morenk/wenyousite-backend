@@ -1,5 +1,11 @@
 # API 合同变更
 
+## 5.21.0-dev.20260911.1
+
+- `PATCH /threads/{id}/aggregate` 兼容新增可选 `defaultSubthreadPostingPolicy`，复用 `PARTICIPANTS` / `COLLABORATORS` / `PLAYERS`，省略时保留现值。
+- 楼主与协作者可统一保存主贴权限、元数据、正文及标签；权限与默认子贴标题合并一次版本更新，事务失败或版本冲突全部回滚。其他子贴权限及创建默认值不变，无数据库迁移。
+- Web / Mobile 在已发布主贴现有设置表单接入，读取 `defaultSubthreadId` 对应子贴的真实策略和版本；成功后消费返回的子贴策略及 `postingCapability`。后端兼容版本先发布，消费者随后。
+
 ## 5.20.0-dev.20260909.1
 
 - coverMedia 可选新增 previewVariants（nullable，最多两项 url/width/height/bytes），原 url、posterUrl 与 coverImages 不变。
