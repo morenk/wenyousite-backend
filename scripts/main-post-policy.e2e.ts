@@ -10,8 +10,8 @@ assert(/^wenyousite_e2e_[a-z0-9_]+$/.test(new URL(process.env.DATABASE_URL!).pat
 const db = new PrismaClient();
 const prefix = randomUUID();
 const key = (name: string) => `c${createHash('sha256').update(prefix + name).digest('hex').slice(0, 24)}`;
-const [owner, collaborator, player, participant] = ['owner', 'collaborator', 'player', 'participant'].map(key);
-const users = [owner, collaborator, player, participant];
+const [owner, collaborator, player, participant, outsider] = ['owner', 'collaborator', 'player', 'participant', 'outsider'].map(key);
+const users = [owner, collaborator, player, participant, outsider];
 const threadId = key('thread');
 const defaultId = key('default');
 const otherId = key('other');
@@ -64,7 +64,7 @@ async function run() {
   } });
   await db.thread.create({ data: {
     id: threadId, title: '主贴权限回归', ownerId: owner, published: true, publishedAt: new Date(),
-    members: { create: users.map((userId) => ({
+    members: { create: users.filter((userId) => userId !== outsider).map((userId) => ({
       userId, role: userId === owner ? 'OWNER' : userId === collaborator ? 'COLLABORATOR' : 'PARTICIPANT',
       playerMarked: userId === player,
     })) },
@@ -79,7 +79,7 @@ async function run() {
     { id: parentId, kind: 'FLOOR', floorNumber: 1, content: '父楼层', threadId, subthreadId: defaultId, authorId: owner },
   ] });
   const path = `/threads/${threadId}/aggregate`;
-  for (const user of [undefined, player, participant]) {
+  for (const user of [undefined, player, participant, outsider]) {
     await request(user, path, 'PATCH', await payload({ defaultSubthreadPostingPolicy: 'PLAYERS' }), user ? 403 : 401);
   }
   for (const value of [null, 'PUBLIC', 1]) {
@@ -97,6 +97,8 @@ async function run() {
     assert.equal(defaultSub.version, currentDefault.version + 1, '标题和权限只递增一次版本');
     assert.equal(defaultSub.postingCapability.canPost, true);
     assert.deepEqual(await db.subthread.findUniqueOrThrow({ where: { id: otherId } }), otherBefore);
+    assert.equal(await db.threadMember.count({ where: { threadId, userId: outsider } }), 0,
+      '登录非成员在开放策略首次发言前不能被隐式加入');
     for (const user of [undefined, ...users]) {
       const allowed = !!user && (user === owner || user === collaborator || policy === 'PARTICIPANTS' || (policy === 'PLAYERS' && user === player));
       const detail = await request(user, `/threads/${threadId}`);
@@ -109,6 +111,9 @@ async function run() {
       }
     }
   }
+  const joined = await db.threadMember.findUniqueOrThrow({ where: { threadId_userId: { threadId, userId: outsider } } });
+  assert.equal(joined.role, 'PARTICIPANT', '公开帖开放发言后自动进入候选池');
+  assert.equal(joined.playerMarked, false);
   await request(owner, path, 'PATCH', await payload({ defaultSubthreadPostingPolicy: 'COLLABORATORS' }));
   const oldClientBefore = await db.subthread.findUniqueOrThrow({ where: { id: defaultId } });
   await request(owner, path, 'PATCH', await payload({ title: '旧客户端标题' }));
