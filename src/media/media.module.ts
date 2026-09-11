@@ -1,3 +1,6 @@
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { MediaDisplayInterceptor } from './media-display.interceptor';
+import { MediaDisplayProjectionService } from './media-display-projection.service';
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { MediaController } from './media.controller';
@@ -12,6 +15,8 @@ import { MediaProcessingService } from './media-processing.service';
   imports: [BullModule.registerQueue({ name: 'image' }), MediaReferenceModule, ObjectStorageModule],
   controllers: [MediaController],
   providers: [
+    MediaDisplayProjectionService,
+    { provide: APP_INTERCEPTOR, useClass: MediaDisplayInterceptor },
     MediaService,
     MediaProcessingService,
     UserMediaCleanupListener,

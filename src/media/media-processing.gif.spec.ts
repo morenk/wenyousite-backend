@@ -1,3 +1,4 @@
+jest.mock('./media-display-publisher', () => ({ ensureAnimationDisplay: jest.fn().mockResolvedValue({ url: 'https://display.test/full.webp' }), processHistoricalDisplay: jest.fn() }));
 jest.mock('./media-animation-preview', () => ({ generateAnimationPreviews: jest.fn().mockResolvedValue([]) }));
 import { MediaPurpose } from '@prisma/client';
 import sharp from 'sharp';
@@ -5,6 +6,7 @@ import { apng, gif } from '../common/image-inspection.fixtures';
 import { PrismaService } from '../prisma/prisma.service';
 import { ObjectStorageService } from '../storage/object-storage.service';
 import { generateAnimationPreviews } from './media-animation-preview';
+import { ensureAnimationDisplay } from './media-display-publisher';
 import { MediaProcessingService } from './media-processing.service';
 
 const prisma = { mediaPreviewAttempt: { create: jest.fn().mockResolvedValue({}) }, media: { findUnique: jest.fn(), updateMany: jest.fn() } };
@@ -31,6 +33,15 @@ describe.each(['staging', 'LEGACY'] as const)('GIF %s 处理', (path) => {
       prisma as unknown as PrismaService,
       storage as unknown as ObjectStorageService,
     );
+  });
+
+  it('必需完整转码失败不能进入COMPLETED或删除来源临时文件', async () => {
+    storage.download.mockResolvedValue(await gif(32, 32, 2, 100));
+    jest.mocked(ensureAnimationDisplay).mockRejectedValueOnce(new Error('display-failed'));
+    await expect(service.processImage('gif-1')).rejects.toThrow('display-failed');
+    expect(prisma.media.updateMany).not.toHaveBeenCalled();
+    expect(storage.upload).not.toHaveBeenCalled();
+    expect(storage.remove).not.toHaveBeenCalled();
   });
 
   it.each([

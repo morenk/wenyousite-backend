@@ -1,9 +1,9 @@
 
-import sharp from 'sharp';
+import { encodePreviewDisplayFrames } from './media-animation-display-encoder';
 import { inspectMediaImage } from './media-image-inspection';
 import { inspectImage } from '../common/image-inspection';
 import {
-  EncodedPreview, PREVIEW_EDGES, PREVIEW_MAX_INPUT_BYTES, PREVIEW_MAX_PIXELS, PREVIEW_QUALITY,
+  EncodedPreview, PREVIEW_EDGES, PREVIEW_MAX_INPUT_BYTES, PREVIEW_MAX_PIXELS,
 } from './media-animation-preview-policy';
 
 /** 仅在可杀死的编码子进程运行；调用者不得在 HTTP 进程执行全帧解码。 */
@@ -12,8 +12,6 @@ export async function encodeAnimationPreviews(source: Buffer): Promise<EncodedPr
   const input = await inspectMediaImage(source);
   if (!input.isGif || input.frameCount < 2 || input.totalFramePixels > PREVIEW_MAX_PIXELS ||
     input.frameDelaysMs.length !== input.frameCount) return [];
-  sharp.concurrency(1);
-  sharp.cache(false);
   const outputs: EncodedPreview[] = [];
   let previousSize = '';
   for (const edge of PREVIEW_EDGES) {
@@ -21,11 +19,7 @@ export async function encodeAnimationPreviews(source: Buffer): Promise<EncodedPr
     const size = Math.round(input.frameWidth * scale) + 'x' + Math.round(input.frameHeight * scale);
     if (size === previousSize) continue;
     previousSize = size;
-    const body = await sharp(source, { animated: true, limitInputPixels: PREVIEW_MAX_PIXELS })
-      .resize(edge, edge, { fit: 'inside', withoutEnlargement: true })
-      .webp({ quality: PREVIEW_QUALITY, alphaQuality: 100, effort: 4,
-        loop: input.loop, delay: input.frameDelaysMs })
-      .toBuffer();
+    const { body } = await encodePreviewDisplayFrames(source, edge);
     if (body.length >= source.length) continue;
     const output = await inspectImage(body, { limitInputPixels: PREVIEW_MAX_PIXELS });
     // 保守拒绝时间线或循环变化；不能以更小体积掩盖抽帧、截短或静态化。

@@ -1,3 +1,4 @@
+import { ensureAnimationDisplay, processHistoricalDisplay } from './media-display-publisher';
 import { Injectable, Logger } from '@nestjs/common';
 import { Media, MediaPurpose } from '@prisma/client';
 import { performance } from 'node:perf_hooks';
@@ -15,7 +16,7 @@ const MASTER_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 const DERIVATIVE_CACHE_CONTROL = MASTER_CACHE_CONTROL;
 
 type StageTimings = Record<
-  'downloadMs' | 'inspectMs' | 'normalizeMs' | 'variantsMs' | 'uploadMs' | 'previewMs' | 'databaseMs' | 'cleanupMs',
+  'downloadMs' | 'inspectMs' | 'normalizeMs' | 'displayMs' | 'variantsMs' | 'uploadMs' | 'previewMs' | 'databaseMs' | 'cleanupMs',
   number
 >;
 
@@ -72,6 +73,7 @@ export class MediaProcessingService {
       downloadMs: 0,
       inspectMs: 0,
       normalizeMs: 0,
+      displayMs: 0,
       variantsMs: 0,
       uploadMs: 0,
       previewMs: 0,
@@ -97,6 +99,10 @@ export class MediaProcessingService {
           size: master.length,
         }));
     timings.normalizeMs = elapsed(started);
+
+    started = performance.now();
+    const display = isGif ? await ensureAnimationDisplay(this.prisma, this.storage, media, source) : null;
+    timings.displayMs = elapsed(started);
 
     const variants = mediaVariantsFor(media.purpose, isGif);
     started = performance.now();
@@ -154,11 +160,16 @@ export class MediaProcessingService {
         `animated=${isGif}`,
         `sourceBytes=${source.length}`,
         `masterBytes=${master.length}`,
+        `displayBytes=${display?.bytes ?? 0}`,
         `variants=${outputs.length}`,
         `queueWaitMs=${Math.max(0, Math.round(options.queueWaitMs ?? 0))}`,
         ...Object.entries(timings).map(([name, value]) => `${name}=${value}`),
       ].join(' '),
     );
+  }
+
+  processDisplay(mediaId: string) {
+    return processHistoricalDisplay(this.prisma, this.storage, mediaId);
   }
 
   cleanupPreviewAttempts(limit?: number) {
@@ -251,6 +262,9 @@ export class MediaProcessingService {
     const source = await this.storage.download(key);
     const inspection = await inspectMediaImage(source);
     const animated = inspection.isGif;
+    const displayStarted = performance.now();
+    const display = animated ? await ensureAnimationDisplay(this.prisma, this.storage, media, source) : null;
+    const displayMs = elapsed(displayStarted);
     const outputs = await mapConcurrent(
       mediaVariantsFor(MediaPurpose.LEGACY, animated).filter((variant) =>
         variant !== 'poster' || purpose === MediaPurpose.RICH_CONTENT || purpose === MediaPurpose.LEGACY,
@@ -280,6 +294,6 @@ export class MediaProcessingService {
         processingStartedAt: null,
         orphanedAt: new Date(),
     }, previews);
-    this.logger.log(`media_processing_legacy_complete mediaId=${mediaId}`);
+    this.logger.log(`media_processing_legacy_complete mediaId=${mediaId} displayMs=${displayMs} displayBytes=${display?.bytes ?? 0}`);
   }
 }

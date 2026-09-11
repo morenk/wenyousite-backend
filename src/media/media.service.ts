@@ -1,3 +1,4 @@
+import { mediaDisplayCleanupProtection } from './media-display-reclamation';
 import {
   Injectable,
   BadRequestException,
@@ -321,6 +322,7 @@ export class MediaService {
         ...completedCandidate,
       ],
       stickerImports: { none: { status: 'PROCESSING' } },
+      ...mediaDisplayCleanupProtection(now),
     };
     const stale = await this.prisma.media.findMany({ where: eligibility, select: { id: true } });
     const victims = [];
@@ -388,7 +390,7 @@ export class MediaService {
     if (!media) return false;
     if (media.status === 'COMPLETED' || media.status === 'PROCESSING') return false;
     const claimed = await this.mediaReferences.claimUnreferenced([media.id], {
-      status: { in: ['UPLOADING', 'FAILED'] },
+      status: { in: ['UPLOADING', 'FAILED'] }, ...mediaDisplayCleanupProtection(),
     });
     if (claimed.length === 0) return false;
 

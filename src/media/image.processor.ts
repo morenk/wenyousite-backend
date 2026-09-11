@@ -15,13 +15,17 @@ export class ImageProcessor extends WorkerHost {
 
   async process(job: Job<ImageProcessJob>): Promise<void> {
     try {
+      if (job.name === 'display-backfill') {
+        await this.mediaProcessing.processDisplay(job.data.mediaId);
+        return;
+      }
       await this.mediaProcessing.processImage(job.data.mediaId, {
         queueWaitMs: Date.now() - job.timestamp,
       });
     } catch (e) {
       this.logger.error(`Image processing failed for mediaId=${job.data.mediaId}`, e);
       // 末次重试仍失败则标记为 FAILED，让前端能展示错误状态
-      if (job.attemptsMade + 1 >= (job.opts.attempts ?? 1)) {
+      if (job.name !== 'display-backfill' && job.attemptsMade + 1 >= (job.opts.attempts ?? 1)) {
         await this.mediaProcessing.markFailed(job.data.mediaId);
       }
       throw e;

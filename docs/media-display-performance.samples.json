@@ -1,0 +1,166 @@
+{
+  "encoderSha256": "ef8068b1764e130e009b90e018dd5fdc004cd6106f5579c69518675521b55ea1",
+  "note": "Synthetic palette checkerboards with duplicate frame groups. RSS includes pnpm/tsx wrapper and worker; not production traffic or client playback performance. Concurrent repository checks may affect wall time.",
+  "cases": [
+    {
+      "case": "small",
+      "width": 240,
+      "height": 160,
+      "frames": 12,
+      "synthetic": true,
+      "generate": {
+        "exitCode": 0,
+        "wallMs": 1681,
+        "peakProcessTreeRssBytes": 303075328,
+        "results": [
+          {
+            "mode": "generate",
+            "width": 240,
+            "height": 160,
+            "frames": 12,
+            "sourceBytes": 7797
+          }
+        ]
+      },
+      "encode": {
+        "exitCode": 0,
+        "wallMs": 1879,
+        "peakProcessTreeRssBytes": 367095808,
+        "results": [
+          {
+            "mode": "encode",
+            "width": 240,
+            "height": 160,
+            "frameCount": 12,
+            "durationMs": 1200,
+            "loopCount": 0,
+            "sourceBytes": 7797,
+            "displayBytes": 8294,
+            "elapsedMs": 478,
+            "success": true
+          }
+        ]
+      }
+    },
+    {
+      "case": "medium",
+      "width": 800,
+      "height": 600,
+      "frames": 24,
+      "synthetic": true,
+      "generate": {
+        "exitCode": 0,
+        "wallMs": 2347,
+        "peakProcessTreeRssBytes": 341225472,
+        "results": [
+          {
+            "mode": "generate",
+            "width": 800,
+            "height": 600,
+            "frames": 24,
+            "sourceBytes": 175465
+          }
+        ]
+      },
+      "encode": {
+        "exitCode": 0,
+        "wallMs": 2978,
+        "peakProcessTreeRssBytes": 380968960,
+        "results": [
+          {
+            "mode": "encode",
+            "width": 800,
+            "height": 600,
+            "frameCount": 24,
+            "durationMs": 2400,
+            "loopCount": 0,
+            "sourceBytes": 175465,
+            "displayBytes": 171092,
+            "elapsedMs": 1702,
+            "success": true
+          }
+        ]
+      }
+    },
+    {
+      "case": "frames-limit",
+      "width": 512,
+      "height": 512,
+      "frames": 300,
+      "synthetic": true,
+      "generate": {
+        "exitCode": 0,
+        "wallMs": 6837,
+        "peakProcessTreeRssBytes": 531050496,
+        "results": [
+          {
+            "mode": "generate",
+            "width": 512,
+            "height": 512,
+            "frames": 300,
+            "sourceBytes": 1222981
+          }
+        ]
+      },
+      "encode": {
+        "exitCode": 0,
+        "wallMs": 24591,
+        "peakProcessTreeRssBytes": 390762496,
+        "results": [
+          {
+            "mode": "encode",
+            "width": 512,
+            "height": 512,
+            "frameCount": 300,
+            "durationMs": 30000,
+            "loopCount": 0,
+            "sourceBytes": 1222981,
+            "displayBytes": 1168976,
+            "elapsedMs": 23133,
+            "success": true
+          }
+        ]
+      }
+    },
+    {
+      "case": "pixels-limit",
+      "width": 1000,
+      "height": 1000,
+      "frames": 100,
+      "synthetic": true,
+      "generate": {
+        "exitCode": 0,
+        "wallMs": 8710,
+        "peakProcessTreeRssBytes": 603717632,
+        "results": [
+          {
+            "mode": "generate",
+            "width": 1000,
+            "height": 1000,
+            "frames": 100,
+            "sourceBytes": 1565429
+          }
+        ]
+      },
+      "encode": {
+        "exitCode": 0,
+        "wallMs": 16548,
+        "peakProcessTreeRssBytes": 409182208,
+        "results": [
+          {
+            "mode": "encode",
+            "width": 1000,
+            "height": 1000,
+            "frameCount": 100,
+            "durationMs": 10000,
+            "loopCount": 0,
+            "sourceBytes": 1565429,
+            "displayBytes": 1496624,
+            "elapsedMs": 15013,
+            "success": true
+          }
+        ]
+      }
+    }
+  ]
+}

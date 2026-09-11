@@ -18,7 +18,7 @@ describe('完整展示契约', () => {
     { url: 'javascript:alert(1)' }, { contentType: 'image/gif' }, { width: 0 },
     { bytes: Number.MAX_SAFE_INTEGER + 1 }, { loopCount: -1 }, { durationMs: 0.5 },
     { url: 'https://secret@cdn.example.test/x.webp' },
-    { animated: false }, { frameCount: 0 },
+    { animated: false }, { frameCount: 0 }, { frameCount: 1 },
   ])('拒绝未校验元数据 %j', (change) => {
     expect(readMediaDisplay({ ...display, ...change })).toBeNull();
   });

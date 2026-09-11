@@ -14,6 +14,7 @@ export function readMediaDisplay(value: unknown): MediaDisplayResponseDto | null
   const nonnegative = ['durationMs', 'loopCount'] as const;
   if (!positive.every((key) => Number.isSafeInteger(item[key]) && Number(item[key]) > 0) ||
     !nonnegative.every((key) => Number.isSafeInteger(item[key]) && Number(item[key]) >= 0)) return null;
+  if (item.animated && Number(item.frameCount) < 2) return null;
   if (!item.animated && (item.frameCount !== 1 || item.durationMs !== 0 || item.loopCount !== 1)) return null;
   return {
     url: item.url, contentType: 'image/webp', animated: item.animated,

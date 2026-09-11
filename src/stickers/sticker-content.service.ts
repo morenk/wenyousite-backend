@@ -28,24 +28,7 @@ export class StickerContentService {
   }
 
   extract(content: string): MarkdownImageToken[] {
-    const visible = maskMarkdownCode(content);
-    const tokens: MarkdownImageToken[] = [];
-    for (const match of visible.matchAll(new RegExp(MARKDOWN_IMAGE_PATTERN.source, 'g'))) {
-      if (this.isEscaped(visible, match.index ?? 0)) continue;
-      const url = match[1].replace(/^<|>$/g, '');
-      const title = match[2] ?? null;
-      const stickerAssetId = title?.startsWith(STICKER_MARKER_PREFIX)
-        ? title.slice(STICKER_MARKER_PREFIX.length)
-        : null;
-      if (title?.includes('wenyousite-sticker:') && !stickerAssetId) {
-        throw this.invalid('表情标记不合法');
-      }
-      if (stickerAssetId && !CUID_PATTERN.test(stickerAssetId)) {
-        throw this.invalid('表情标记不合法');
-      }
-      tokens.push({ url, title, stickerAssetId });
-    }
-    return tokens;
+    return extractStickerTokens(content);
   }
 
   async assertContentAllowed(userId: string, content: string, previousContent = '') {
@@ -118,14 +101,37 @@ export class StickerContentService {
     return counts;
   }
 
-  private isEscaped(content: string, index: number) {
-    let slashes = 0;
-    for (let i = index - 1; i >= 0 && content[i] === '\\'; i--) slashes++;
-    return slashes % 2 === 1;
-  }
 
   private invalid(message: string) {
     return new BusinessException(ErrorCode.INVALID_STICKER, message, HttpStatus.BAD_REQUEST);
   }
 }
+
+
+function isEscapedImage(content: string, index: number) {
+    let slashes = 0;
+    for (let i = index - 1; i >= 0 && content[i] === '\\'; i--) slashes++;
+    return slashes % 2 === 1;
+  }
+
+export function extractStickerTokens(content: string): MarkdownImageToken[] {
+    const visible = maskMarkdownCode(content);
+    const tokens: MarkdownImageToken[] = [];
+    for (const match of visible.matchAll(new RegExp(MARKDOWN_IMAGE_PATTERN.source, 'g'))) {
+      if (isEscapedImage(visible, match.index ?? 0)) continue;
+      const url = match[1].replace(/^<|>$/g, '');
+      const title = match[2] ?? null;
+      const stickerAssetId = title?.startsWith(STICKER_MARKER_PREFIX)
+        ? title.slice(STICKER_MARKER_PREFIX.length)
+        : null;
+      if (title?.includes('wenyousite-sticker:') && !stickerAssetId) {
+        throw new BusinessException(ErrorCode.INVALID_STICKER, '表情标记不合法', HttpStatus.BAD_REQUEST);
+      }
+      if (stickerAssetId && !CUID_PATTERN.test(stickerAssetId)) {
+        throw new BusinessException(ErrorCode.INVALID_STICKER, '表情标记不合法', HttpStatus.BAD_REQUEST);
+      }
+      tokens.push({ url, title, stickerAssetId });
+    }
+    return tokens;
+  }
 
