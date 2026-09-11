@@ -1,5 +1,6 @@
 /** Markdown 安全截断：保证不在标记内部截断，尽量在句子或段落边界处 */
 import removeMd from 'remove-markdown';
+import { stripMarkdownAlignmentMetadata } from './markdown-block-boundaries';
 import { formatInternalReferencePreview } from './internal-reference';
 import { decodeEntities } from './utils/decode-html-entities';
 
@@ -25,10 +26,7 @@ function markdownToPlainText(md: string): string {
   if (!md) return '';
 
   // Markdown v4 对齐引用定义是块元数据，不得泄漏到通知、搜索摘要或列表卡片。
-  const withoutAlignmentMarkers = md.replace(
-    /^\[wenyousite-align-v1-(?:center|right)\]: #[\t ]*(?:\n|$)/gmu,
-    '',
-  );
+  const withoutAlignmentMarkers = stripMarkdownAlignmentMetadata(md);
   // Milkdown 空段落协议标记只在摘要中作为段落分隔，不把标签本身泄漏到通知/列表文案。
   const withoutEmptyParagraphMarkers = withoutAlignmentMarkers.replace(
     /^ {0,3}<br\s*\/?>[\t ]*$/gimu,
