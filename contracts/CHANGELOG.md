@@ -1,5 +1,31 @@
 # API 合同变更
 
+## 5.20.1-dev.20260911.1
+
+- 修复收藏夹数量与空列表矛盾：`GET /bookmarks/folders` 的 `bookmarkCount` 按当前用户可见的已发布、未删除主题计数；私密主题仍须是成员，并应用双向拉黑规则。
+- `GET /moments/bookmark-folders` 的 `momentBookmarkCount` 与旧目录的同名动态兼容计数均排除已删除和双向拉黑不可见的动态，保留既有已注销作者历史内容可读规则。
+- 数量为该夹可见收藏总数，不受分页影响；状态或权限变化后重新读取即可更新，不删除收藏记录。字段、请求和目录拆分兼容行为不变，无数据库迁移。
+- Web / Windows Flutter / Foundation 同步本版本已提交 OpenAPI 及消费者回归；客户端不得用当前页长度伪造总数。候选尚待负责人按原账号场景复验，后端测试不代表移动端验收通过。
+
+## 块边界 v1 组合回归候选
+
+- 精确顶层 v1 center/right marker 自身建立块边界，无需前置空行；统一目标范围、保护区和原始位置，摘要与创作字数不泄漏合法隐藏元数据。
+- 新增 `markdown-block-boundary-v1-fixtures.json`（revision 2），覆盖真实解析组合、URL/title 反引号、代码/HTML保护、编辑、复制与原始空格布局；保留历史额外空白行，区分 WJ 源码和可见投影，并固定各端已有 clipboard 投影。客户端从已提交 SHA 同步，Windows/Web 真实验收另行提供。
+- 保持 Markdown v5、HTTP DTO/OpenAPI、URL/格式白名单与历史兼容；不迁移、不 trim/collapse 正文。
+
+## 5.20.0-dev.20260909.1
+
+- coverMedia 可选新增 previewVariants（nullable，最多两项 url/width/height/bytes），原 url、posterUrl 与 coverImages 不变。
+- 列表按实际绘制尺寸及 DPR 选择最小够用档；旧响应缺字段/无有效档时，仅可信动画且有独立静态 poster 才允许在中心单张规则下回退原图。
+- 预览保留完整时间线与循环，不开放动画 WebP 输入。新档位的资源地址在发布后保持稳定，禁止通过随机查询参数破坏缓存；CDN配置不在本次范围。
+
+## 5.19.0-dev.20260909.1
+
+- 帖子列表兼容新增可空 coverMedia（url、animated、posterUrl）；首页、搜索、收藏、个人主页共用同一读模型，保留 coverImages。
+- 新上传正文媒体生成保持原比例、最长边 800 的静态首帧 poster；完整上传后随 COMPLETED 登记。历史 GIF 无登记返回 unknown，不猜测动画或派生地址。
+- 未知/外部封面及缺 poster 的动图不自动请求原图；旧服务缺字段时消费者同样保守降级。JPEG 和当前静态归一化的 WebP 历史母版可作为静态封面。
+- 数据库增加可空 poster_url 与 url 索引，不回填、不转码、不更改 Markdown v5。兼容后端先于消费者发布；参见 docs/deprecation-register.md。
+
 ## 2026-09-10 富文本编辑行为测试契约 v1
 
 - fixture revision 2 去除引用结束后顶层空段前无必要的源码分隔空行，独立结构预期不变；并映射已提交移动端的引用跨段退格、Enter 撤销/重做回归。

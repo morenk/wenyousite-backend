@@ -28,11 +28,43 @@ validate_release_tree() {
   done < <(find "$tree" -xdev -type l -print0)
 }
 
+validate_app_readability() (
+  local tree=$1
+  cd "$tree"
+  # Test the final path as the service identity, without inheriting root secrets
+  # or starting Nest, database connections, queues, or HTTP listeners.
+  if ! runuser -u "$APP_USER" -- env -i PATH=/usr/bin:/bin NODE_ENV=test \
+    "$tree/bin/node" - "$tree" "$build_sha" <<'NODE'
+const fs = require('node:fs');
+const { createRequire } = require('node:module');
+const [tree, sha] = process.argv.slice(2);
+try {
+  if (process.getuid() === 0) throw new Error('root identity');
+  if (fs.readFileSync(`${tree}/BUILD_SHA`, 'utf8').trim() !== sha) throw new Error('revision');
+  for (const entry of ['main.js', 'image-worker.js']) fs.readFileSync(`${tree}/dist/${entry}`);
+  const load = createRequire(`${tree}/package.json`);
+  load.resolve('pino-pretty');
+  load.resolve('pino-roll');
+  load('./dist/app.module.js');
+  load('./dist/media/image-worker.module.js');
+} catch {
+  console.error('服务身份无法读取 release 入口、revision 或加载 API/Worker 模块');
+  process.exit(1);
+}
+NODE
+  then
+    echo "release 服务身份检查失败，保留当前版本" >&2
+    return 1
+  fi
+)
+
 [ "$#" -eq 2 ] && [ "$1" = --sha ] || { echo "用法: $0 --sha FULL_GIT_SHA" >&2; exit 2; }
 build_sha=$2
 [[ "$build_sha" =~ ^[0-9a-f]{40}$ ]] || { echo "release SHA 必须是完整小写 Git SHA" >&2; exit 1; }
 [ "$(id -u)" -eq 0 ] || { echo "release 组装必须以 root 运行" >&2; exit 1; }
 id "$APP_USER" >/dev/null 2>&1 || { echo "缺少非 root 运行用户 $APP_USER" >&2; exit 1; }
+[ "$(id -u "$APP_USER")" -ne 0 ] || { echo "运行用户不得为 root" >&2; exit 1; }
+command -v runuser >/dev/null || { echo "缺少 runuser，无法验证服务身份" >&2; exit 1; }
 getent group "$RUNTIME_GROUP" >/dev/null || { echo "缺少共享只读运行组 $RUNTIME_GROUP" >&2; exit 1; }
 [ -x "$NODE_SOURCE" ] || { echo "Node 运行时不可执行: $NODE_SOURCE" >&2; exit 1; }
 for path in dist/main.js dist/image-worker.js docker docker-compose.yml node_modules package.json pnpm-lock.yaml pnpm-workspace.yaml prisma scripts; do
@@ -63,11 +95,6 @@ if [ ! -d "$release_dir" ]; then
     SCARF_ANALYTICS=false DO_NOT_TRACK=1 \
     pnpm --dir "$staging_dir" install --prod --offline --frozen-lockfile
   [ -d "$staging_dir/node_modules/prisma" ] || { echo "release 缺少 Prisma migration CLI" >&2; exit 1; }
-  (cd "$staging_dir" && NODE_ENV=test "$NODE_SOURCE" -e \
-    "require.resolve('pino-pretty'); require.resolve('pino-roll'); require('./dist/app.module.js'); require('./dist/media/image-worker.module.js')") || {
-    echo "release 生产依赖不能完整加载后端与图片 Worker 模块" >&2
-    exit 1
-  }
   if find "$staging_dir" -maxdepth 2 -type f \( -name .env -o -name '*.pem' -o -name '*.key' \) | grep -q .; then
     echo "release 包含禁止的凭据文件" >&2
     exit 1
@@ -81,6 +108,13 @@ if [ ! -d "$release_dir" ]; then
   chmod -R go-w "$staging_dir"
   chmod 0750 "$staging_dir"
   validate_release_tree "$staging_dir"
+  # cp -a also preserves 0700/0600 build inputs. Only copied application assets
+  # need group read/traverse repair; dependencies are installed with umask 022.
+  for path in dist docker prisma scripts; do
+    find "$staging_dir/$path" -type d -exec chmod g+rx {} +
+    find "$staging_dir/$path" -type f -exec chmod g+r {} +
+  done
+  chmod g+r "$staging_dir"/{docker-compose.yml,package.json,pnpm-lock.yaml,pnpm-workspace.yaml}
   mv -- "$staging_dir" "$release_dir"
   find "$staging_root" -depth -delete
   staging_dir=""
@@ -93,6 +127,8 @@ else
   }
   validate_release_tree "$release_dir"
 fi
+
+validate_app_readability "$release_dir"
 
 next_link="$RUNTIME_ROOT/.current.$build_sha"
 ln -s "releases/$build_sha" "$next_link"

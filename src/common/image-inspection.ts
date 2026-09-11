@@ -8,6 +8,7 @@ export interface ImageInspection {
   frameCount: number;
   totalFramePixels: number;
   durationMs: number;
+  frameDelaysMs: number[];
   loop: number | undefined;
 }
 
@@ -78,6 +79,7 @@ export async function inspectImage(
     frameCount,
     totalFramePixels,
     durationMs,
+    frameDelaysMs: delays,
     loop: metadata.loop,
   };
 }

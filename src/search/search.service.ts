@@ -7,7 +7,7 @@ import { paginate } from '../common/dto/paginated-result';
 import { ThreadAccessService } from '../access/thread-access.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
-import { mapThreadListCard, threadListCardIncludeFor } from '../threads/thread-list-card';
+import { resolveThreadListCards, threadListCardIncludeFor } from '../threads/thread-list-card';
 
 const SEARCH_POST_LIMIT = 20;
 const SEARCH_POSTS_PER_THREAD = 3;
@@ -220,7 +220,7 @@ export class SearchService {
         : [];
     await attachPlayerCounts(this.prisma, unorderedThreads, viewerId);
     const threadById = new Map(
-      unorderedThreads.map((thread) => [thread.id, mapThreadListCard(thread)]),
+      (await resolveThreadListCards(this.prisma, unorderedThreads)).map((thread) => [thread.id, thread]),
     );
     const relevanceById = new Map(pageRows.map((row) => [row.id, row.relevance]));
     const threads = ids.flatMap((id) => {

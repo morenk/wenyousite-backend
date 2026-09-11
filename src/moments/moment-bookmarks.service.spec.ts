@@ -4,6 +4,7 @@ import { MomentBookmarksService } from './moment-bookmarks.service';
 import { MomentAccessService } from './moment-access.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
+import { momentViewerVisibility } from '../access/moment-visibility.where';
 
 const now = new Date('2026-08-18T12:00:00.000Z');
 
@@ -132,9 +133,22 @@ describe('MomentBookmarksService', () => {
     expect(prisma.momentBookmarkFolder.findMany).toHaveBeenCalledWith({
       where: { userId: 'viewer-1' },
       orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
-      include: { _count: { select: { bookmarks: true } } },
+      include: {
+        _count: { select: { bookmarks: { where: { userId: 'viewer-1', moment: { deletedAt: null, ...momentViewerVisibility('viewer-1') } } } } },
+      },
     });
     expect(prisma.bookmarkFolder.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('动态计数查询失败会报错，重试读取最新计数', async () => {
+    const { prisma, moments } = createMocks();
+    const service = createService(prisma, moments);
+    prisma.momentBookmarkFolder.findMany.mockRejectedValueOnce(new Error('read failed'));
+    await expect(service.listFolders('viewer-1')).rejects.toThrow('read failed');
+    prisma.momentBookmarkFolder.findMany.mockResolvedValueOnce([
+      { id: 'folder', name: '默认收藏夹', isDefault: true, _count: { bookmarks: 0 } },
+    ]);
+    await expect(service.listFolders('viewer-1')).resolves.toMatchObject([{ momentBookmarkCount: 0 }]);
   });
 
   it('动态夹可创建与主题帖夹同名的独立目录', async () => {

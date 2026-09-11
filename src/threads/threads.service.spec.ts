@@ -29,6 +29,7 @@ const mockCategories = {
 };
 
 const mockPrisma = {
+  media: { findMany: jest.fn().mockResolvedValue([]) },
   userBlock: { findFirst: jest.fn().mockResolvedValue(null) },
   $transaction: jest.fn(),
   $executeRaw: jest.fn().mockResolvedValue(1),
@@ -345,7 +346,7 @@ describe('ThreadsService', () => {
         'tagId:all',
         'filter:all',
         'limit:20',
-        'shape:category-info-compact-preview-v2',
+        'shape:cover-media-v4',
         'policy:active-owner-v1',
       );
     });
@@ -373,12 +374,13 @@ describe('ThreadsService', () => {
         `tagId:${tagId}`,
         'filter:all',
         'limit:20',
-        'shape:category-info-compact-preview-v2',
+        'shape:cover-media-v4',
         'policy:active-owner-v1',
       );
     });
 
     it('首页列表从默认主贴正文提取封面并移除正文查询结果', async () => {
+    mockPrisma.media.findMany.mockResolvedValueOnce([{ url: 'https://cdn.example.com/one.jpg', contentType: 'image/gif', animated: true, posterUrl: 'https://cdn.example.com/first-frame.webp' }]);
       mockPrisma.thread.findMany.mockResolvedValue([
         {
           id: 't-cover',
@@ -406,6 +408,7 @@ describe('ThreadsService', () => {
       expect(page.items[0]).toMatchObject({
         preview: '正文',
         coverImages: ['https://cdn.example.com/one.jpg'],
+        coverMedia: { url: 'https://cdn.example.com/one.jpg', animated: true, posterUrl: 'https://cdn.example.com/first-frame.webp' },
         defaultSubthread: { id: 's-cover', title: '主贴' },
       });
       expect(page.items[0].defaultSubthread).not.toHaveProperty('posts');
@@ -624,7 +627,7 @@ describe('ThreadsService', () => {
 
       it('recommended 公开首页命中短缓存时不访问 ZSET 和数据库', async () => {
         const cached = {
-          items: [mkThread('cached')],
+          items: [{ ...mkThread('cached'), coverMedia: null }],
           pagination: { cursor: null, hasMore: false },
         };
         mockCache.get.mockResolvedValueOnce(cached);
@@ -636,6 +639,17 @@ describe('ThreadsService', () => {
         expect(page.pagination).toEqual(cached.pagination);
         expect(mockRedis.zcard).not.toHaveBeenCalled();
         expect(mockPrisma.thread.findMany).not.toHaveBeenCalled();
+      });
+
+      it('旧缓存缺少 coverMedia 时必须重查，不能让新消费者恢复原 GIF 加载', async () => {
+        mockCache.get.mockResolvedValueOnce({
+          items: [mkThread('old-cached')],
+          pagination: { cursor: null, hasMore: false },
+        });
+        mockRedis.zcard.mockResolvedValue(0);
+        const page = await service.findAll({ sort: 'recommended' });
+        expect(page.items).toEqual([]);
+        expect(mockRedis.zcard).toHaveBeenCalled();
       });
 
       it('playing 筛选排除自己创建的帖', async () => {

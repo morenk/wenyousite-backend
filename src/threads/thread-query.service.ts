@@ -22,7 +22,7 @@ import {
   mapSubthreadBody,
 } from '../common/prisma-helpers';
 import {
-  mapThreadListCard,
+  resolveThreadListCards,
   threadListCardIncludeFor,
   type ThreadListCardRow,
 } from './thread-list-card';
@@ -223,7 +223,7 @@ export class ThreadQueryService {
       `tagId:${query.tagId ?? 'all'}`,
       `filter:${query.filter ?? 'all'}`,
       `limit:${Math.min(query.limit ?? 20, 50)}`,
-      'shape:category-info-compact-preview-v2',
+      'shape:cover-media-v4',
       'policy:active-owner-v1',
     );
     const cacheableFirstPage = !userId && !query.cursor && query.filter !== 'playing';
@@ -231,7 +231,9 @@ export class ThreadQueryService {
     // 公开首页尝试缓存命中；playing 是用户私有结果，严禁进入共享缓存。
     if (cacheableFirstPage) {
       const cached = await this.cache.get<PaginatedResult<HomeThreadListItemResponseDto>>(cacheKey);
-      if (cached) return paginate(cached.items, cached.pagination);
+      if (cached && cached.items.every((item) => Object.hasOwn(item, 'coverMedia'))) {
+        return paginate(cached.items, cached.pagination);
+      }
     }
 
     // recommended 排序：ZSET 偏移分页
@@ -294,7 +296,7 @@ export class ThreadQueryService {
 
     await attachPlayerCounts(this.prisma, threads, userId);
 
-    const items = threads.map(mapThreadListCard);
+    const items = await resolveThreadListCards(this.prisma, threads);
 
     const result = paginate(items, {
       cursor: items.length > 0 ? items[items.length - 1].id : null,
@@ -374,7 +376,7 @@ export class ThreadQueryService {
 
     await attachPlayerCounts(this.prisma, sliced, userId);
 
-    const items = sliced.map(mapThreadListCard);
+    const items = await resolveThreadListCards(this.prisma, sliced);
 
     return paginate(items, { cursor: nextCursor, hasMore });
   }
@@ -435,7 +437,7 @@ export class ThreadQueryService {
 
     const playedThreads = members.map((m) => m.thread);
     await attachPlayerCounts(this.prisma, playedThreads, viewerId);
-    const items = playedThreads.map(mapThreadListCard);
+    const items = await resolveThreadListCards(this.prisma, playedThreads);
 
     return paginate(items, {
       cursor: members.length > 0 ? members[members.length - 1].id : null,
@@ -470,7 +472,7 @@ export class ThreadQueryService {
     if (hasMore) threads.pop();
 
     await attachPlayerCounts(this.prisma, threads, viewerId);
-    const items = threads.map(mapThreadListCard);
+    const items = await resolveThreadListCards(this.prisma, threads);
 
     return paginate(items, {
       cursor: items.length > 0 ? items[items.length - 1].id : null,
@@ -510,7 +512,7 @@ export class ThreadQueryService {
     if (hasMore) members.pop();
     const threads = members.map((member) => member.thread);
     await attachPlayerCounts(this.prisma, threads, userId);
-    const items = threads.map(mapThreadListCard);
+    const items = await resolveThreadListCards(this.prisma, threads);
     const last = threads.at(-1);
     return paginate(items, {
       cursor: last ? encodeCollaboratedThreadsCursor(last) : null,

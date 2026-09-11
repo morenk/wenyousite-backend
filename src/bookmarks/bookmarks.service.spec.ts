@@ -3,8 +3,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BookmarksService } from './bookmarks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ErrorCode } from '../common/exceptions/error-codes';
+import { publishedThreadVisibilityWhere } from '../access/thread-visibility.where';
+import { momentViewerVisibility } from '../access/moment-visibility.where';
 
 const mockPrisma = {
+  media: { findMany: jest.fn().mockResolvedValue([]) },
   $queryRaw: jest.fn().mockResolvedValue([]),
   userBlock: { findFirst: jest.fn().mockResolvedValue(null) },
   userBookmark: {
@@ -75,6 +78,7 @@ describe('BookmarksService', () => {
   });
 
   it('findAll 返回值附带 bookmarkId（供取消收藏）', async () => {
+    mockPrisma.media.findMany.mockResolvedValueOnce([{ url: 'https://cdn.example.com/bookmark-cover.jpg', contentType: 'image/gif', animated: true, posterUrl: 'https://cdn.example.com/first-frame.webp', previewVariants: null }]);
     const bookmark = {
       id: 'bm1',
       userId: 'u1',
@@ -98,6 +102,7 @@ describe('BookmarksService', () => {
         bookmarkFolderId: 'folder-1',
         preview: '收藏正文',
         coverImages: ['https://cdn.example.com/bookmark-cover.jpg'],
+        coverMedia: { url: 'https://cdn.example.com/bookmark-cover.jpg', animated: true, posterUrl: 'https://cdn.example.com/first-frame.webp', previewVariants: null },
         defaultSubthread: { id: 'sub-t1', title: '主贴', lastPostAt: null },
         topicTags: [{ tag: { id: 'tag-1', name: '推理' } }],
         _count: { members: 1, posts: 2, players: 3 },
@@ -410,10 +415,42 @@ describe('BookmarksService', () => {
     ]);
     expect(result[0]).not.toHaveProperty('userId');
     expect(result[0]).not.toHaveProperty('updatedAt');
+    expect(mockPrisma.bookmarkFolder.findMany).toHaveBeenCalledWith({
+      where: { userId: 'u1' },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+      include: {
+        _count: { select: { bookmarks: { where: { userId: 'u1', thread: publishedThreadVisibilityWhere('u1') } } } },
+      },
+    });
     expect(mockPrisma.momentBookmarkFolder.findMany).toHaveBeenCalledWith({
       where: { userId: 'u1', name: { in: ['默认收藏夹'] } },
-      select: { name: true, _count: { select: { bookmarks: true } } },
+      select: {
+        name: true,
+        _count: { select: { bookmarks: { where: { userId: 'u1', moment: { deletedAt: null, ...momentViewerVisibility('u1') } } } } },
+      },
     });
+  });
+
+  it('计数查询失败时不回退到未过滤数量；重试重新读取', async () => {
+    mockPrisma.bookmarkFolder.findMany.mockRejectedValueOnce(new Error('read failed'));
+    await expect(service.findFolders('u1')).rejects.toThrow('read failed');
+    expect(mockPrisma.momentBookmarkFolder.findMany).not.toHaveBeenCalled();
+
+    mockPrisma.bookmarkFolder.findMany.mockResolvedValueOnce([
+      { id: 'folder', name: '默认收藏夹', isDefault: true, _count: { bookmarks: 0 } },
+    ]);
+    mockPrisma.momentBookmarkFolder.findMany.mockResolvedValueOnce([]);
+    await expect(service.findFolders('u1')).resolves.toMatchObject([
+      { bookmarkCount: 0, momentBookmarkCount: 0 },
+    ]);
+  });
+
+  it('拒绝读取其他用户的收藏夹', async () => {
+    mockPrisma.bookmarkFolder.findFirst.mockResolvedValueOnce(null);
+    await expect(service.findAll('u1', undefined, 20, 'foreign-folder')).rejects.toMatchObject({
+      errorCode: ErrorCode.NOT_FOUND,
+    });
+    expect(mockPrisma.userBookmark.findMany).not.toHaveBeenCalled();
   });
 
   it('按收藏夹筛选时校验归属并只查询该分类', async () => {
