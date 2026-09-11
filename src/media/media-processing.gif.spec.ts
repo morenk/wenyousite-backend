@@ -164,6 +164,44 @@ describe.each(['staging', 'LEGACY'] as const)('GIF %s 处理', (path) => {
     }));
   });
 
+  it.each([MediaPurpose.MOMENT, MediaPurpose.MOMENT_COMMENT])(
+    '%s 的双帧原件完整保留，列表派生只发布静态首帧',
+    async (purpose) => {
+      const current = await prisma.media.findUnique();
+      prisma.media.findUnique.mockResolvedValue({ ...current, purpose });
+      const source = await sharp(
+        Buffer.concat([Buffer.alloc(32 * 32 * 3, 0), Buffer.alloc(32 * 32 * 3, 255)]),
+        { raw: { width: 32, height: 64, channels: 3, pageHeight: 32 } },
+      ).gif({ delay: [100, 200], loop: 0 }).toBuffer();
+      storage.download.mockResolvedValue(source);
+
+      await service.processImage('gif-1');
+
+      const uploads = storage.upload.mock.calls;
+      expect(uploads.map(([key]) => key)).toEqual(path === 'staging'
+        ? ['media/master.gif', 'media/master_thumb.webp']
+        : ['media/master_thumb.webp']);
+      const thumbnail = uploads.find(([key]) => key === 'media/master_thumb.webp')![1] as Buffer;
+      const frame = await sharp(thumbnail).raw().toBuffer();
+      expect((await sharp(thumbnail).metadata()).pages ?? 1).toBe(1);
+      expect(Math.max(...frame)).toBeLessThan(5);
+      const original = path === 'staging'
+        ? uploads.find(([key]) => key === 'media/master.gif')![1] as Buffer
+        : source;
+      expect(original).toEqual(source);
+      if (path !== 'staging') expect(storage.remove).not.toHaveBeenCalled();
+      expect(await sharp(original, { animated: true }).metadata()).toEqual(
+        expect.objectContaining({ pages: 2, delay: [100, 200], loop: 0 }),
+      );
+      expect(generateAnimationPreviews).not.toHaveBeenCalled();
+      expect(prisma.media.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({
+          animated: true, width: 32, height: 32, status: 'COMPLETED', posterUrl: null,
+        }),
+      }));
+    },
+  );
+
   it('APNG 应按非 GIF 多帧政策拒绝，不能静默静态化', async () => {
     prisma.media.findUnique.mockResolvedValue({
       id: 'gif-1',
