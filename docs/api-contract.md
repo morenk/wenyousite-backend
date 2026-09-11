@@ -103,6 +103,8 @@ HTTP 契约 `5.19.0-dev.20260909.1` 在所有主题帖列表卡片增加 `coverM
 
 失败补偿通过独立尝试账本记录精确对象 key；发布与媒体完成在同一事务内确认，清理先取得状态领取权，不能删除已发布或新尝试的资源。删除失败及可能迟到的对象仍保留重试证据，基础媒体最终回收包含所有尝试资源。契约兼容语料同时覆盖无该字段的前一阶段服务、null、单档和双档。
 
+块边界 v1 将无前置空行的精确对齐标记作为顶层边界，组合预期见 [共享语料](../contracts/markdown-block-boundary-v1-fixtures.json)。HTTP DTO、错误码、OpenAPI 和 Markdown v5 均保持不变，无数据库迁移；错误行映射原始源码，不把解析分隔写入正文。
+
 ## 收藏夹可见数量
 
 契约 `5.20.1-dev.20260911.1` 修正收藏夹计数：`GET /bookmarks/folders` 的 `bookmarkCount` 表示当前用户在该夹可见的主题帖收藏总数，使用与 `GET /bookmarks?folderId=...` 相同的已发布、未删除、私密成员及双向拉黑规则。`GET /moments/bookmark-folders` 的 `momentBookmarkCount` 使用与动态收藏列表相同的未删除及双向拉黑规则；已注销作者历史动态仍按既有规则可读。旧主题目录的 `momentBookmarkCount` 继续按本人同名动态夹计算，但也只计可见条目，无同名夹为 0。
