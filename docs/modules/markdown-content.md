@@ -39,7 +39,7 @@
 ### 居右三级标题
 ```
 
-- 标记只能精确写为 `center` 或 `right`，必须顶层、独占一行并紧邻一个普通段落或 H2/H3；左对齐通过删除标记恢复。
+- 标记只能精确写为 `center` 或 `right`，必须列 0、独占一行并紧邻一个普通段落或 H2/H3；左对齐通过删除标记恢复。标记自身建立顶层块边界，不要求前置空行；紧跟普通列表/引用的无缩进标记会结束 lazy continuation，显式缩进或带 `>` 的标记不生效。
 - v4 基础规则下，列表、引用、普通图片、分隔线和协议空段不能携带对齐；v5 仅为独立普通图片块增加例外。含文字与普通图片混排的段落仍不能单独移动图片；提及、骰子和收藏表情是内联原子节点，随合法父段落对齐。
 - 孤立标记、标记间空行、重复标记、`left` 标记、未知值或未知版本都按白名单外结构拒绝；需要显示同形源码时必须转义。
 - v3 正文不含上述标记，是 v5 的严格子集；v4 正文仍可读取和写入。后端已接受并保存 v5，`/meta.markdownContractVersion` 现声明 `5`；Web 与已升级移动端据此开放图片块对齐写入，旧正文无需迁移。
@@ -54,7 +54,7 @@ Markdown v5 为普通图片增加独立图片块对齐能力：普通图片单�
 
 所有正文入口先统一 CRLF/CR 为 LF、规范化独占空段并清理空 URL 图片，然后执行同一 AST 白名单校验；校验必须早于骰子、图片、表情、提及和持久化处理。
 
-白名单解析时用独立分隔块临时替代协议空段，保持行号和块边界；不得用普通文字占位，否则紧邻的对齐定义会并入段落，误报无效对齐。占位不会进入存储或阅读输出，空段仍不允许携带对齐。图片对齐 fixture revision 2 固定该邻接边界。
+白名单、摘要与创作字数共用 `analyzeMarkdownBlockBoundaries` 的源码边界分析。在通用解析和无效降级之前，精确对齐标记与安全空段使用独立块规则；仅影响解析，不插入存储分隔或改变原始行号。真实解析器先识别围栏/缩进代码、跨行行内代码与 HTML 保护区，不能在这些区域提前拆块。空段仍不允许携带对齐；非法 marker 不获得对齐，合法 marker 不进入可见文字与创作字数。
 
 未转义的白名单外结构返回 HTTP 400、`UNSUPPORTED_MARKDOWN_FORMAT = 40009`，响应保持 `{ code, message, data: null }`，message 指出按源码顺序遇到的首个不支持类型。DTO 的 10,000 字限制不变。覆盖入口包括主题创建与聚合保存、楼层/回复创建与编辑、子贴正文 upsert 和云草稿创建/更新；失败不得产生数据库、Outbox、通知、活动、骰子或提及副作用。
 
@@ -124,3 +124,13 @@ Web 和后端消费 v7；已审查 Flutter 副本尚未消费，Windows 修复�
 以上规范字符串为 `[wenyousite-align-v1-center]: #\n甲\n\n乙`，恰好两行：甲居中、乙默认左对齐。右对齐只替换 `center` 为 `right`。连续两次 Enter 写为 `[wenyousite-align-v1-center]: #\n甲\n<br />\n乙`，恰好三行，第二行为空。末尾 Enter 的空新段暂存为 `甲\n<br />`，继续输入后自然写回段落边界。
 
 已有 `[wenyousite-align-v1-center]: #\n甲\n乙` 仍是一段两行且均居中，不能把旧 LF 猜成新的手动边界。历史 `甲\n\n乙` 仍是两个段落，但统一采用无额外空白的正文段距；这是格式未扩展情况下的明确显示变化。没有新增 HTML、不可见字符、存储字段或数据迁移；Markdown 仍为 v5、HTTP DTO/OpenAPI 不变。契约文件保持 v1 路径，`revision: 2` 区分编辑行为；27 条 `editCases` 约束真实按键、逐行对齐及保存重开。Foundation 当前不定义 Enter/段距规则，无需变更其包版本。
+
+## 块边界组合契约 v1
+
+[共享组合语料](../../contracts/markdown-block-boundary-v1-fixtures.json) 是正文 v5 的补充测试事实源，不新增格式或 HTTP 字段。`cases` 固定 `markdown`、`supported`、`blocks`、`lines`、`lineAlignments`、`visibleText`、`error`、合法参考 `serialized`；消费者实际输出须语义一致且二次保存逐字稳定，不要求跨端无意义分隔相同。块位置 `startLine/endLine/markerLine` 与错误位置都采用原始零基行号，`endLine` 含尾行。拒绝样例的块和序列化预期为 null，仍按既有字面降级规则处理。
+
+连续的“marker + 合法目标”块各自生效；没有目标的重复 marker 拒绝。P 的历史段内 LF 保持整个目标范围，两个 LF 的块分隔不产生可见空白，三个 LF 的额外历史空行与独占 `<br />` 都产生可见空行。`editCases` 必须由客户端真实输入事务消费，`clipboardCases` 约束内部结构与无隐藏元数据的纯文本回退。后端测试真实解析输入与预期保存结果，不声称执行了客户端编辑器。
+
+`whitespaceCases` 固定空格手排布局原文（连续 ASCII 空格、WJ、NBSP、全角空格）；服务端不 trim/collapse，不推断竖排或改写字符。真正行末两个 ASCII 空格仍按既有显式硬换行拒绝，紧凑摘要仍可折叠空白。客户端从本契约所在的完整已提交 SHA 同步同名 JSON，再执行真实阅读、编辑、复制、保存重开测试。`pnpm docs:check` 校验语料与存在的同名客户端副本。
+
+块边界 revision 2：代码保护范围来自真实行内解析器生成的 code_inline，URL/title 里的反引号不会开启保护区。三个 LF 的额外历史空白恢复为空段；空格布局 sourceLines 保留 WJ，visibleText/lines 不包含隐藏 WJ。clipboard 使用 plainTextByPlatform 分别固定 Web/Mobile 已有投影，不修改 v2。
