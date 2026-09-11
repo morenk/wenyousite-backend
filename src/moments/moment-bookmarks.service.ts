@@ -27,7 +27,13 @@ export class MomentBookmarksService {
     const folders = await this.prisma.momentBookmarkFolder.findMany({
       where: { userId },
       orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
-      include: { _count: { select: { bookmarks: true } } },
+      include: {
+        _count: {
+          select: {
+            bookmarks: { where: { userId, moment: { deletedAt: null, ...momentViewerVisibility(userId) } } },
+          },
+        },
+      },
     });
     return folders.map((folder) => ({
       id: folder.id,

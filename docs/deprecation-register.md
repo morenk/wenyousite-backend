@@ -11,4 +11,6 @@
 
 - 5.20 保留 previewVariants 缺字段/null 的旧服务兼容，可信动画可在选中时回退原 GIF；不删除 coverImages、原 url 或历史对象。该兼容退出仍须独立四项证据评审。
 
+- 5.20.1 修复主题/动态夹及同名动态兼容计数为当前可见总数；保留旧 `momentBookmarkCount` 字段和旧目录 ID 映射，不清理历史收藏。Web / Mobile / Foundation 需同步计数说明和状态变化回归，字段清理仍须独立评审。
+
 - 动态帖列表静止策略复用现有 `MomentMediaResponseDto`，无新增或删除字段。GIF 原件 `url` 保留给详情播放和保存；缺少静态缩略图的历史动态在列表保持占位，不回填、不猜地址。动态表情 `mediumUrl=url` 兼容字段继续保留，静止预览使用 `thumbnailUrl`。本条不改变主题帖的预览兼容政策。

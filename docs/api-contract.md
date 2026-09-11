@@ -104,3 +104,13 @@ HTTP 契约 `5.19.0-dev.20260909.1` 在所有主题帖列表卡片增加 `coverM
 失败补偿通过独立尝试账本记录精确对象 key；发布与媒体完成在同一事务内确认，清理先取得状态领取权，不能删除已发布或新尝试的资源。删除失败及可能迟到的对象仍保留重试证据，基础媒体最终回收包含所有尝试资源。契约兼容语料同时覆盖无该字段的前一阶段服务、null、单档和双档。
 
 块边界 v1 将无前置空行的精确对齐标记作为顶层边界，组合预期见 [共享语料](../contracts/markdown-block-boundary-v1-fixtures.json)。HTTP DTO、错误码、OpenAPI 和 Markdown v5 均保持不变，无数据库迁移；错误行映射原始源码，不把解析分隔写入正文。
+
+## 收藏夹可见数量
+
+契约 `5.20.1-dev.20260911.1` 修正收藏夹计数：`GET /bookmarks/folders` 的 `bookmarkCount` 表示当前用户在该夹可见的主题帖收藏总数，使用与 `GET /bookmarks?folderId=...` 相同的已发布、未删除、私密成员及双向拉黑规则。`GET /moments/bookmark-folders` 的 `momentBookmarkCount` 使用与动态收藏列表相同的未删除及双向拉黑规则；已注销作者历史动态仍按既有规则可读。旧主题目录的 `momentBookmarkCount` 继续按本人同名动态夹计算，但也只计可见条目，无同名夹为 0。
+
+计数不受 `limit`、游标或当前页长度影响。收藏、取消、移动或内容/权限变化后，客户端应重新获取相应目录与列表；独立请求之间若发生状态变化，可能短暂反映不同时间点。数量变为 0 不代表删除了历史收藏；恢复可见性后重新读取会重新计入。默认夹排序、目录归属校验、公开收藏隐私和旧目录 ID 映射保持不变。
+
+Web 与 Flutter 应同步本版本固定 OpenAPI，验证“数量 0 + 空列表”、跨页总数、状态变化后刷新，以及主题/动态目录独立性；不得用第一页条数替代服务器总数。Foundation 同步接口说明；Flutter 生成与设备验收只在 Windows 执行。
+
+后端回归入口为 `pnpm test:integration:bookmark-count`：只接受 loopback 测试 PostgreSQL，`DATABASE_URL` 提供临时库创建/迁移权限，`BOOKMARK_COUNT_TEST_APP_URL` 指向同一实例的 `wenyousite_app` 测试角色。脚本新建随机名称数据库、应用迁移，以应用角色调用真实 Service 并在结束时删除该临时库；不得传入公网运行环境凭据。

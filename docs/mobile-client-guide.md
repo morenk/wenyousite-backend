@@ -205,6 +205,10 @@ Content-Type: application/json
 
 候选只交付 PR，不代表用户已验收；先合并兼容后端契约，再由 Web/Windows 各自完成消费端候选与手动验收。部署仍需负责人另外明确批准。
 
+### 收藏夹计数刷新
+
+契约 `5.20.1-dev.20260911.1` 的 `bookmarkCount` / `momentBookmarkCount` 是该夹当前可见收藏总数，详见 [计数规则](api-contract.md#收藏夹可见数量)。使用服务端数量，不用分页条数推算总数；收藏、取消、移动及内容或权限变化后刷新目录与列表。回归应覆盖隐藏后 0 条与空列表、恢复后重新计入、跨页总数及主题/动态独立目录。同步固定 OpenAPI 后再运行本端生成与测试；原反馈仍须负责人用原账号复验。
+
 ### 块边界 v1 Windows 迁移
 
 从本候选 PR 的已提交完整 SHA 同步 [块边界语料](../contracts/markdown-block-boundary-v1-fixtures.json)，固定 `version=1`、`revision=2`、`markdownContractVersion=5`。先规范 CRLF，再统一分析列 0 marker、目标类型/范围、对齐与原始位置，在 Codec 和阅读通用解析/无效降级前应用；列 0 marker 结束列表/引用 lazy continuation，显式嵌套、HTML、围栏/缩进代码及跨行行内代码中的同形源码不得消费。
