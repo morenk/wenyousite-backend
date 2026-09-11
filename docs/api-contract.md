@@ -114,3 +114,9 @@ HTTP 契约 `5.19.0-dev.20260909.1` 在所有主题帖列表卡片增加 `coverM
 Web 与 Flutter 应同步本版本固定 OpenAPI，验证“数量 0 + 空列表”、跨页总数、状态变化后刷新，以及主题/动态目录独立性；不得用第一页条数替代服务器总数。Foundation 同步接口说明；Flutter 生成与设备验收只在 Windows 执行。
 
 后端回归入口为 `pnpm test:integration:bookmark-count`：只接受 loopback 测试 PostgreSQL，`DATABASE_URL` 提供临时库创建/迁移权限，`BOOKMARK_COUNT_TEST_APP_URL` 指向同一实例的 `wenyousite_app` 测试角色。脚本新建随机名称数据库、应用迁移，以应用角色调用真实 Service 并在结束时删除该临时库；不得传入公网运行环境凭据。
+
+## 列表树与空项 v1 候选
+
+新增 [`markdown-editor-list-v1-fixtures.json`](../contracts/markdown-editor-list-v1-fixtures.json)，固定真实列表树、空项、续行、块与起始编号；详见[正文协议](modules/markdown-content.md#列表树与空项候选-v1)。HTTP/OpenAPI 与 Markdown v5 不变，不批量改写旧文。Windows 必须从本任务固定 Git 提交同步，核对读取、删除、输入、Enter、类型切换、缩进／减少缩进、保存重开及真实阅读树；仅核对项数不足以验收。当前待两端候选和负责人验收。
+
+列表 fixture revision 3 仅扩展文档级空块与编辑组合测试，HTTP/OpenAPI 无变化；参见 [Windows 同步说明](mobile-client-guide.md#文档级空块组合列表-revision-3)。

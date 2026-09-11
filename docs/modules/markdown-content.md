@@ -134,3 +134,18 @@ Web 和后端消费 v7；已审查 Flutter 副本尚未消费，Windows 修复�
 `whitespaceCases` 固定空格手排布局原文（连续 ASCII 空格、WJ、NBSP、全角空格）；服务端不 trim/collapse，不推断竖排或改写字符。真正行末两个 ASCII 空格仍按既有显式硬换行拒绝，紧凑摘要仍可折叠空白。客户端从本契约所在的完整已提交 SHA 同步同名 JSON，再执行真实阅读、编辑、复制、保存重开测试。`pnpm docs:check` 校验语料与存在的同名客户端副本。
 
 块边界 revision 2：代码保护范围来自真实行内解析器生成的 code_inline，URL/title 里的反引号不会开启保护区。三个 LF 的额外历史空白恢复为空段；空格布局 sourceLines 保留 WJ，visibleText/lines 不包含隐藏 WJ。clipboard 使用 plainTextByPlatform 分别固定 Web/Mobile 已有投影，不修改 v2。
+
+
+## 列表树与空项候选 v1
+
+[机器夹具](../../contracts/markdown-editor-list-v1-fixtures.json) 的 `items` 是独立定义的前序列表树：`type`、从零开始的 `depth`、父项下标 `parent`、所属列表 `start`、本项 `text`、`empty` 与直属 `blocks`。空父项不包含子项文字；没有正文仍有一个可编辑空段。`editableLines` 不计语法分隔。canonical 是共同阅读语义的标准 Markdown 示例，允许等价标记与松紧规范化，但禁止丢文字、错层、丢空项、改变起始编号或块关系。
+
+旧 `1. 甲\n  1. 乙\n    1. 丙` 在 markdown-it / Milkdown 的 CommonMark 解析中只有两个根级项，第二项是 `乙\n1. 丙`；不推断历史作者意图。新建三层有序链为 `1. 甲\n   1. 乙\n      1. 丙`。缩进跟随父项内容起点，不能固定每两空格一级；三层上限按实际树判断。
+
+`- 甲\n  -` 是项内 Setext H2；`- 甲\n\n  -` 才是空子项。空父项的 `-\n  -` 是父子项，而 `-\n\n  -` 是两个根项。空祖先、非空子项、空孙项 canonical 为 `- - 乙\n\n    -`；三层全空链为 `-\n  -\n    -`，不得合成分隔线 `- - -`。语法空行不产生编辑空段。
+
+普通正文／引用 newline v1 revision 2、列表 Enter 常规拆项和空项退出行为保持不变。仅空格/Tab 的编辑文本不能与零长度节点混为一谈；标准 Markdown 无法无损表示的复杂结构必须保留原内容并阻止损坏写出。四层、任务列表、代码、列表内 HTML 仍按原白名单处理。没有 HTTP DTO、OpenAPI、Foundation、存储字段或数据迁移变化。此候选尚未完成 Windows 与负责人验收，不代表 Mobile PR #15 已解决嵌套语义。
+
+复杂多块、非 1 起点与不能无损承载时的原文保护要求见 [Windows 兼容边界](../mobile-client-guide.md#多块历史编号与安全兼容边界)。
+
+列表 revision 3 的 `documentCases` 将列表与现有正文/引用空段组合为完整文档树，见 [同步与操作规则](../mobile-client-guide.md#文档级空块组合列表-revision-3)。原列表树预期与回车规则均不变。

@@ -423,3 +423,13 @@
 ## 2.1.0-dev.20260806
 
 - 向后兼容新增一对一私聊。
+
+
+## 列表树与空项 v1（候选）
+
+- 新增独立列表类型／空项组合及历史缩进、Setext、空祖先、项内续文、起始编号机器语料；以真实 CommonMark 树约束跨端。
+- 保持 Markdown v5、HTTP/OpenAPI、普通正文与引用 newline v1 revision 2，不改历史数据；Web／Windows 完整实现与手动验收仍待完成。
+
+列表 fixture revision 2 只追加 mention/inline marks、字面列表标记和两条独立删除／输入操作，不改变 revision 1 的既有预期。
+
+列表 fixture revision 3 追加 68 条 `documentCases`：两组有序/无序列表、末项空状态、一至三个明确空段、列表尾部空段、空标题/引用及填字后删空操作。使用独立文档树定义预期，既有 revision 2 样例不变，不改变 newline v1 revision 2、Markdown v5 或 clipboard v2 规则。
