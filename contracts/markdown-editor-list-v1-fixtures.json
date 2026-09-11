@@ -1,7 +1,7 @@
 {
   "contract": "wenyousite-editor-list",
   "version": 1,
-  "revision": 2,
+  "revision": 3,
   "markdownContractVersion": 5,
   "maxDepth": 3,
   "indexBase": 0,
@@ -14,7 +14,8 @@
     "whitespace": "空格/Tab 作为结构缩进或空项尾部不构成文字。编辑器中实际纯空白文本必须保留字符，不得冒充空节点；不能无损表达则安全停止同步。",
     "newline": "普通正文/引用 newline v1 revision 2 与原列表 Enter 操作不变。",
     "unsupported": "四层列表、任务项、代码、列表内 HTML 空行仍遵循已有拒绝/字面安全兼容；复杂多块列表如不能往返应保持原内容并阻止损坏写出。",
-    "start": "start 是所属有序列表起始编号，无序为 null；同一列表各项共享 start，不把每个源码标号当成独立 start。新建默认 1，历史非 1 起点必须保留。"
+    "start": "start 是所属有序列表起始编号，无序为 null；同一列表各项共享 start，不把每个源码标号当成独立 start。新建默认 1，历史非 1 起点必须保留。",
+    "documentCases": "documentCases 是既有列表与 newline v1 revision 2 的组合，不新增语义。tree 按文档顺序定义块及 children；paragraph/heading 的 text 允许空串，bullet-list/ordered-list 保留 list-item 父子及 start。operations 按顺序将 path 指向的文字块内容替换为 text；每步预期为对独立 tree 执行该替换，其他节点、编号、空段与结构不变。path 为逐层 children 的零基下标，首个下标属于根 tree。语法分隔不产生段落；仅明确协议空段计入实际空白行。"
   },
   "cases": [
     {
@@ -6363,6 +6364,6115 @@
       },
       "canonical": "- 甲\n  - 乙\n\n    -",
       "expectedCase": "chain-uuu-tte"
+    }
+  ],
+  "documentCases": [
+    {
+      "id": "groups-uu-tt-gap1",
+      "markdown": "- 甲\n- 甲末\n\n<br />\n\n- 乙\n- 乙末",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙末"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-uu-tt-gap2",
+      "markdown": "- 甲\n- 甲末\n\n<br />\n<br />\n\n- 乙\n- 乙末",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙末"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-uu-tt-gap3",
+      "markdown": "- 甲\n- 甲末\n\n<br />\n<br />\n<br />\n\n- 乙\n- 乙末",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙末"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-uu-te-gap1",
+      "markdown": "- 甲\n- 甲末\n\n<br />\n\n- 乙\n-",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-uu-te-gap2",
+      "markdown": "- 甲\n- 甲末\n\n<br />\n<br />\n\n- 乙\n-",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-uu-te-gap3",
+      "markdown": "- 甲\n- 甲末\n\n<br />\n<br />\n<br />\n\n- 乙\n-",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-uu-et-gap1",
+      "markdown": "- 甲\n-\n\n<br />\n\n- 乙\n- 乙末",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙末"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-uu-et-gap2",
+      "markdown": "- 甲\n-\n\n<br />\n<br />\n\n- 乙\n- 乙末",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙末"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-uu-et-gap3",
+      "markdown": "- 甲\n-\n\n<br />\n<br />\n<br />\n\n- 乙\n- 乙末",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙末"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-uu-ee-gap1",
+      "markdown": "- 甲\n-\n\n<br />\n\n- 乙\n-",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-uu-ee-gap2",
+      "markdown": "- 甲\n-\n\n<br />\n<br />\n\n- 乙\n-",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-uu-ee-gap3",
+      "markdown": "- 甲\n-\n\n<br />\n<br />\n<br />\n\n- 乙\n-",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-uo-tt-gap1",
+      "markdown": "- 甲\n- 甲末\n\n<br />\n\n1. 乙\n2. 乙末",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙末"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-uo-tt-gap2",
+      "markdown": "- 甲\n- 甲末\n\n<br />\n<br />\n\n1. 乙\n2. 乙末",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙末"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-uo-tt-gap3",
+      "markdown": "- 甲\n- 甲末\n\n<br />\n<br />\n<br />\n\n1. 乙\n2. 乙末",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙末"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-uo-te-gap1",
+      "markdown": "- 甲\n- 甲末\n\n<br />\n\n1. 乙\n2.",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-uo-te-gap2",
+      "markdown": "- 甲\n- 甲末\n\n<br />\n<br />\n\n1. 乙\n2.",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-uo-te-gap3",
+      "markdown": "- 甲\n- 甲末\n\n<br />\n<br />\n<br />\n\n1. 乙\n2.",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-uo-et-gap1",
+      "markdown": "- 甲\n-\n\n<br />\n\n1. 乙\n2. 乙末",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙末"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-uo-et-gap2",
+      "markdown": "- 甲\n-\n\n<br />\n<br />\n\n1. 乙\n2. 乙末",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙末"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-uo-et-gap3",
+      "markdown": "- 甲\n-\n\n<br />\n<br />\n<br />\n\n1. 乙\n2. 乙末",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙末"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-uo-ee-gap1",
+      "markdown": "- 甲\n-\n\n<br />\n\n1. 乙\n2.",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-uo-ee-gap2",
+      "markdown": "- 甲\n-\n\n<br />\n<br />\n\n1. 乙\n2.",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-uo-ee-gap3",
+      "markdown": "- 甲\n-\n\n<br />\n<br />\n<br />\n\n1. 乙\n2.",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-ou-tt-gap1",
+      "markdown": "1. 甲\n2. 甲末\n\n<br />\n\n- 乙\n- 乙末",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙末"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-ou-tt-gap2",
+      "markdown": "1. 甲\n2. 甲末\n\n<br />\n<br />\n\n- 乙\n- 乙末",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙末"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-ou-tt-gap3",
+      "markdown": "1. 甲\n2. 甲末\n\n<br />\n<br />\n<br />\n\n- 乙\n- 乙末",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙末"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-ou-te-gap1",
+      "markdown": "1. 甲\n2. 甲末\n\n<br />\n\n- 乙\n-",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-ou-te-gap2",
+      "markdown": "1. 甲\n2. 甲末\n\n<br />\n<br />\n\n- 乙\n-",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-ou-te-gap3",
+      "markdown": "1. 甲\n2. 甲末\n\n<br />\n<br />\n<br />\n\n- 乙\n-",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-ou-et-gap1",
+      "markdown": "1. 甲\n2.\n\n<br />\n\n- 乙\n- 乙末",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙末"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-ou-et-gap2",
+      "markdown": "1. 甲\n2.\n\n<br />\n<br />\n\n- 乙\n- 乙末",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙末"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-ou-et-gap3",
+      "markdown": "1. 甲\n2.\n\n<br />\n<br />\n<br />\n\n- 乙\n- 乙末",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙末"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-ou-ee-gap1",
+      "markdown": "1. 甲\n2.\n\n<br />\n\n- 乙\n-",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-ou-ee-gap2",
+      "markdown": "1. 甲\n2.\n\n<br />\n<br />\n\n- 乙\n-",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-ou-ee-gap3",
+      "markdown": "1. 甲\n2.\n\n<br />\n<br />\n<br />\n\n- 乙\n-",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-oo-tt-gap1",
+      "markdown": "1. 甲\n2. 甲末\n\n<br />\n\n1. 乙\n2. 乙末",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙末"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-oo-tt-gap2",
+      "markdown": "1. 甲\n2. 甲末\n\n<br />\n<br />\n\n1. 乙\n2. 乙末",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙末"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-oo-tt-gap3",
+      "markdown": "1. 甲\n2. 甲末\n\n<br />\n<br />\n<br />\n\n1. 乙\n2. 乙末",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙末"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-oo-te-gap1",
+      "markdown": "1. 甲\n2. 甲末\n\n<br />\n\n1. 乙\n2.",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-oo-te-gap2",
+      "markdown": "1. 甲\n2. 甲末\n\n<br />\n<br />\n\n1. 乙\n2.",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-oo-te-gap3",
+      "markdown": "1. 甲\n2. 甲末\n\n<br />\n<br />\n<br />\n\n1. 乙\n2.",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-oo-et-gap1",
+      "markdown": "1. 甲\n2.\n\n<br />\n\n1. 乙\n2. 乙末",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙末"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-oo-et-gap2",
+      "markdown": "1. 甲\n2.\n\n<br />\n<br />\n\n1. 乙\n2. 乙末",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙末"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-oo-et-gap3",
+      "markdown": "1. 甲\n2.\n\n<br />\n<br />\n<br />\n\n1. 乙\n2. 乙末",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙末"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-oo-ee-gap1",
+      "markdown": "1. 甲\n2.\n\n<br />\n\n1. 乙\n2.",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            2,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-oo-ee-gap2",
+      "markdown": "1. 甲\n2.\n\n<br />\n<br />\n\n1. 乙\n2.",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            3,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "groups-oo-ee-gap3",
+      "markdown": "1. 甲\n2.\n\n<br />\n<br />\n<br />\n\n1. 乙\n2.",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "乙"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": "填字"
+        },
+        {
+          "path": [
+            0,
+            1,
+            0
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": "间隔字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": "末项字"
+        },
+        {
+          "path": [
+            4,
+            1,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "trailing-u-t-1",
+      "markdown": "- 甲\n- 末\n\n<br />",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            1
+          ],
+          "text": "尾段字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "trailing-u-t-2",
+      "markdown": "- 甲\n- 末\n\n<br />\n<br />",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            2
+          ],
+          "text": "尾段字"
+        },
+        {
+          "path": [
+            2
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "trailing-u-t-3",
+      "markdown": "- 甲\n- 末\n\n<br />\n<br />\n<br />",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            3
+          ],
+          "text": "尾段字"
+        },
+        {
+          "path": [
+            3
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "trailing-u-e-1",
+      "markdown": "- 甲\n-\n\n<br />",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            1
+          ],
+          "text": "尾段字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "trailing-u-e-2",
+      "markdown": "- 甲\n-\n\n<br />\n<br />",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            2
+          ],
+          "text": "尾段字"
+        },
+        {
+          "path": [
+            2
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "trailing-u-e-3",
+      "markdown": "- 甲\n-\n\n<br />\n<br />\n<br />",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            3
+          ],
+          "text": "尾段字"
+        },
+        {
+          "path": [
+            3
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "trailing-o-t-1",
+      "markdown": "1. 甲\n2. 末\n\n<br />",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            1
+          ],
+          "text": "尾段字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "trailing-o-t-2",
+      "markdown": "1. 甲\n2. 末\n\n<br />\n<br />",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            2
+          ],
+          "text": "尾段字"
+        },
+        {
+          "path": [
+            2
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "trailing-o-t-3",
+      "markdown": "1. 甲\n2. 末\n\n<br />\n<br />\n<br />",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "末"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            3
+          ],
+          "text": "尾段字"
+        },
+        {
+          "path": [
+            3
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "trailing-o-e-1",
+      "markdown": "1. 甲\n2.\n\n<br />",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            1
+          ],
+          "text": "尾段字"
+        },
+        {
+          "path": [
+            1
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "trailing-o-e-2",
+      "markdown": "1. 甲\n2.\n\n<br />\n<br />",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            2
+          ],
+          "text": "尾段字"
+        },
+        {
+          "path": [
+            2
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "trailing-o-e-3",
+      "markdown": "1. 甲\n2.\n\n<br />\n<br />\n<br />",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": "甲"
+                }
+              ]
+            },
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        },
+        {
+          "type": "paragraph",
+          "text": ""
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            3
+          ],
+          "text": "尾段字"
+        },
+        {
+          "path": [
+            3
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "empty-heading-2",
+      "markdown": "##",
+      "tree": [
+        {
+          "type": "heading-2",
+          "text": ""
+        }
+      ],
+      "visible": false,
+      "operations": [
+        {
+          "path": [
+            0
+          ],
+          "text": "标题字"
+        },
+        {
+          "path": [
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "empty-heading-3",
+      "markdown": "###",
+      "tree": [
+        {
+          "type": "heading-3",
+          "text": ""
+        }
+      ],
+      "visible": false,
+      "operations": [
+        {
+          "path": [
+            0
+          ],
+          "text": "标题字"
+        },
+        {
+          "path": [
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "only-empty-bullet",
+      "markdown": "-",
+      "tree": [
+        {
+          "type": "bullet-list",
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": false,
+      "operations": [
+        {
+          "path": [
+            0,
+            0,
+            0
+          ],
+          "text": "列表字"
+        },
+        {
+          "path": [
+            0,
+            0,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "only-empty-ordered",
+      "markdown": "1.",
+      "tree": [
+        {
+          "type": "ordered-list",
+          "start": 1,
+          "children": [
+            {
+              "type": "list-item",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "text": ""
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "visible": false,
+      "operations": [
+        {
+          "path": [
+            0,
+            0,
+            0
+          ],
+          "text": "列表字"
+        },
+        {
+          "path": [
+            0,
+            0,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "only-empty-quote",
+      "markdown": ">",
+      "tree": [
+        {
+          "type": "blockquote",
+          "children": [
+            {
+              "type": "paragraph",
+              "text": ""
+            }
+          ]
+        }
+      ],
+      "visible": false,
+      "operations": [
+        {
+          "path": [
+            0,
+            0
+          ],
+          "text": "引用字"
+        },
+        {
+          "path": [
+            0,
+            0
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "quote-empty-lines-1",
+      "markdown": "> 甲\n> <br />\n> 乙",
+      "tree": [
+        {
+          "type": "blockquote",
+          "children": [
+            {
+              "type": "paragraph",
+              "text": "甲"
+            },
+            {
+              "type": "paragraph",
+              "text": ""
+            },
+            {
+              "type": "paragraph",
+              "text": "乙"
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1
+          ],
+          "text": "引用字"
+        },
+        {
+          "path": [
+            0,
+            1
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "quote-empty-lines-2",
+      "markdown": "> 甲\n> <br />\n> <br />\n> 乙",
+      "tree": [
+        {
+          "type": "blockquote",
+          "children": [
+            {
+              "type": "paragraph",
+              "text": "甲"
+            },
+            {
+              "type": "paragraph",
+              "text": ""
+            },
+            {
+              "type": "paragraph",
+              "text": ""
+            },
+            {
+              "type": "paragraph",
+              "text": "乙"
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1
+          ],
+          "text": "引用字"
+        },
+        {
+          "path": [
+            0,
+            1
+          ],
+          "text": ""
+        }
+      ]
+    },
+    {
+      "id": "quote-empty-lines-3",
+      "markdown": "> 甲\n> <br />\n> <br />\n> <br />\n> 乙",
+      "tree": [
+        {
+          "type": "blockquote",
+          "children": [
+            {
+              "type": "paragraph",
+              "text": "甲"
+            },
+            {
+              "type": "paragraph",
+              "text": ""
+            },
+            {
+              "type": "paragraph",
+              "text": ""
+            },
+            {
+              "type": "paragraph",
+              "text": ""
+            },
+            {
+              "type": "paragraph",
+              "text": "乙"
+            }
+          ]
+        }
+      ],
+      "visible": true,
+      "operations": [
+        {
+          "path": [
+            0,
+            1
+          ],
+          "text": "引用字"
+        },
+        {
+          "path": [
+            0,
+            1
+          ],
+          "text": ""
+        }
+      ]
     }
   ]
 }

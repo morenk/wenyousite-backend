@@ -118,3 +118,5 @@ Web 与 Flutter 应同步本版本固定 OpenAPI，验证“数量 0 + 空列表
 ## 列表树与空项 v1 候选
 
 新增 [`markdown-editor-list-v1-fixtures.json`](../contracts/markdown-editor-list-v1-fixtures.json)，固定真实列表树、空项、续行、块与起始编号；详见[正文协议](modules/markdown-content.md#列表树与空项候选-v1)。HTTP/OpenAPI 与 Markdown v5 不变，不批量改写旧文。Windows 必须从本任务固定 Git 提交同步，核对读取、删除、输入、Enter、类型切换、缩进／减少缩进、保存重开及真实阅读树；仅核对项数不足以验收。当前待两端候选和负责人验收。
+
+列表 fixture revision 3 仅扩展文档级空块与编辑组合测试，HTTP/OpenAPI 无变化；参见 [Windows 同步说明](mobile-client-guide.md#文档级空块组合列表-revision-3)。

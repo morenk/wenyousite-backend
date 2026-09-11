@@ -147,3 +147,5 @@ Web 和后端消费 v7；已审查 Flutter 副本尚未消费，Windows 修复�
 普通正文／引用 newline v1 revision 2、列表 Enter 常规拆项和空项退出行为保持不变。仅空格/Tab 的编辑文本不能与零长度节点混为一谈；标准 Markdown 无法无损表示的复杂结构必须保留原内容并阻止损坏写出。四层、任务列表、代码、列表内 HTML 仍按原白名单处理。没有 HTTP DTO、OpenAPI、Foundation、存储字段或数据迁移变化。此候选尚未完成 Windows 与负责人验收，不代表 Mobile PR #15 已解决嵌套语义。
 
 复杂多块、非 1 起点与不能无损承载时的原文保护要求见 [Windows 兼容边界](../mobile-client-guide.md#多块历史编号与安全兼容边界)。
+
+列表 revision 3 的 `documentCases` 将列表与现有正文/引用空段组合为完整文档树，见 [同步与操作规则](../mobile-client-guide.md#文档级空块组合列表-revision-3)。原列表树预期与回车规则均不变。
