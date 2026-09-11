@@ -216,3 +216,7 @@ Content-Type: application/json
 逐条执行真实 Markdown AST、Delta 编解码、编辑和 clipboard 测试，校验可见行/空白、逐块对齐、稳定保存重开；原文空格/WJ 等布局字符不得被全局清理。后端测试与源码位置仍为本仓证据，不能代替 Windows Flutter 门禁或 Web/Android 负责人验收。保持 v5/HTTP 字段，不迁移已有内容；旧客户端兼容继续保留。
 
 块边界 revision 2：代码保护范围来自真实行内解析器生成的 code_inline，URL/title 里的反引号不会开启保护区。三个 LF 的额外历史空白恢复为空段；空格布局 sourceLines 保留 WJ，visibleText/lines 不包含隐藏 WJ。clipboard 使用 plainTextByPlatform 分别固定 Web/Mobile 已有投影，不修改 v2。
+
+## 富文本多步测试与结果交接
+
+从已提交 Backend 候选 SHA 同步 [编辑行为 fixture/schema 与结果格式](modules/rich-text-behavior.md)，保留原 newline 27 条及 v7 48 条消费。新机器格式只用于合成测试和离线诊断，不进入 HTTP 或正文存储。未知内容需要完整读取与无损证明后才能开放编辑；Markdown 版本号不能代替引用空行和失败保护能力证据。结果比较及发布停止边界见 [交付记录](rich-text-stability-delivery.md)。

@@ -114,3 +114,7 @@ HTTP 契约 `5.19.0-dev.20260909.1` 在所有主题帖列表卡片增加 `coverM
 Web 与 Flutter 应同步本版本固定 OpenAPI，验证“数量 0 + 空列表”、跨页总数、状态变化后刷新，以及主题/动态目录独立性；不得用第一页条数替代服务器总数。Foundation 同步接口说明；Flutter 生成与设备验收只在 Windows 执行。
 
 后端回归入口为 `pnpm test:integration:bookmark-count`：只接受 loopback 测试 PostgreSQL，`DATABASE_URL` 提供临时库创建/迁移权限，`BOOKMARK_COUNT_TEST_APP_URL` 指向同一实例的 `wenyousite_app` 测试角色。脚本新建随机名称数据库、应用迁移，以应用角色调用真实 Service 并在结束时删除该临时库；不得传入公网运行环境凭据。
+
+## 富文本测试契约与 HTTP 边界
+
+[富文本多步行为与结果契约](modules/rich-text-behavior.md)复用现有 Markdown 正文，仅增加合成用例、独立结构预期及离线校验。HTTP DTO/OpenAPI、持久化字段和运行 `/meta` 均不变。后端对未知协议、原始 HTML 和非法业务节点继续通过现有校验拒绝；客户端不能将安全阅读降级的结果静默覆盖原文。

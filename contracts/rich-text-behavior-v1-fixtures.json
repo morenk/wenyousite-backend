@@ -1,0 +1,3367 @@
+{
+  "$schema": "./rich-text-behavior-v1.schema.json",
+  "contract": "wenyousite-rich-text-behavior",
+  "version": 1,
+  "markdownContractVersion": 5,
+  "scope": "synthetic-test-and-diagnostic-only",
+  "positionEncoding": "utf16-text-softbreak-and-atom-width-1",
+  "references": [
+    {
+      "file": "markdown-editor-newline-v1-fixtures.json",
+      "version": 1,
+      "revision": 2,
+      "consume": "all-15-cases-and-27-editCases"
+    },
+    {
+      "file": "markdown-editor-roundtrip-v7-fixtures.json",
+      "version": 7,
+      "consume": "all-30-cases-and-48-editCases-and-inlineInsertTexts"
+    },
+    {
+      "file": "markdown-v4-nodes-fixtures.json",
+      "version": 1,
+      "consume": "all-cases-and-identityRules"
+    },
+    {
+      "file": "editor-clipboard-v2-fixtures.json",
+      "version": 2,
+      "consume": "all-entryPoints-pasteRules-nodeRules-goldenCases"
+    }
+  ],
+  "profiles": {
+    "legacy-v3": {
+      "markdownVersions": [
+        3
+      ],
+      "features": [
+        "base"
+      ],
+      "evidence": "declared-minimum-not-a-specific-client-build"
+    },
+    "legacy-v4": {
+      "markdownVersions": [
+        3,
+        4
+      ],
+      "features": [
+        "base",
+        "block-alignment"
+      ],
+      "evidence": "declared-minimum-not-a-specific-client-build"
+    },
+    "legacy-v5": {
+      "markdownVersions": [
+        3,
+        4,
+        5
+      ],
+      "features": [
+        "base",
+        "block-alignment",
+        "image-alignment"
+      ],
+      "evidence": "version-alone-does-not-prove-newline-r2-or-lossless-guard"
+    },
+    "candidate-v5": {
+      "markdownVersions": [
+        3,
+        4,
+        5
+      ],
+      "features": [
+        "base",
+        "block-alignment",
+        "image-alignment",
+        "quote-empty-row",
+        "newline-r2",
+        "lossless-save-guard"
+      ],
+      "evidence": "requires-consumer-test-results-before-release"
+    }
+  },
+  "cases": [
+    {
+      "id": "rtb-soft-manual-boundary",
+      "family": "boundaries",
+      "source": "synthetic-rule-example",
+      "rules": [
+        "newline-v1-r2",
+        "RTM-03"
+      ],
+      "profile": "candidate-v5",
+      "initial": {
+        "canonical": "[wenyousite-align-v1-center]: #\n甲\n乙",
+        "summary": {
+          "blocks": [
+            {
+              "type": "paragraph",
+              "alignment": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "甲",
+                  "marks": {}
+                },
+                {
+                  "type": "softBreak"
+                },
+                {
+                  "type": "text",
+                  "text": "乙",
+                  "marks": {}
+                }
+              ]
+            }
+          ]
+        },
+        "selection": {
+          "anchor": {
+            "path": [
+              0
+            ],
+            "offset": 3
+          },
+          "focus": {
+            "path": [
+              0
+            ],
+            "offset": 3
+          }
+        }
+      },
+      "steps": [
+        {
+          "id": "enter",
+          "operation": {
+            "type": "enter"
+          },
+          "expected": {
+            "canonical": "[wenyousite-align-v1-center]: #\n甲\n乙\n<br />",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "甲",
+                      "marks": {}
+                    },
+                    {
+                      "type": "softBreak"
+                    },
+                    {
+                      "type": "text",
+                      "text": "乙",
+                      "marks": {}
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": []
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  1
+                ],
+                "offset": 0
+              },
+              "focus": {
+                "path": [
+                  1
+                ],
+                "offset": 0
+              }
+            }
+          }
+        },
+        {
+          "id": "continue",
+          "operation": {
+            "type": "insertText",
+            "text": "丙"
+          },
+          "expected": {
+            "canonical": "[wenyousite-align-v1-center]: #\n甲\n乙\n\n丙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "甲",
+                      "marks": {}
+                    },
+                    {
+                      "type": "softBreak"
+                    },
+                    {
+                      "type": "text",
+                      "text": "乙",
+                      "marks": {}
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "丙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  1
+                ],
+                "offset": 1
+              },
+              "focus": {
+                "path": [
+                  1
+                ],
+                "offset": 1
+              }
+            }
+          }
+        },
+        {
+          "id": "reopen",
+          "operation": {
+            "type": "reopen"
+          },
+          "expected": {
+            "canonical": "[wenyousite-align-v1-center]: #\n甲\n乙\n\n丙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "甲",
+                      "marks": {}
+                    },
+                    {
+                      "type": "softBreak"
+                    },
+                    {
+                      "type": "text",
+                      "text": "乙",
+                      "marks": {}
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "丙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "rtb-quote-paragraph-membership",
+      "family": "boundaries",
+      "source": "synthetic-rule-example",
+      "rules": [
+        "newline-v1-r2",
+        "RTM-04"
+      ],
+      "profile": "candidate-v5",
+      "initial": {
+        "canonical": "> 甲\n>\n> 乙",
+        "summary": {
+          "blocks": [
+            {
+              "type": "blockquote",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "甲",
+                      "marks": {}
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "乙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "selection": {
+          "anchor": {
+            "path": [
+              0,
+              1
+            ],
+            "offset": 0
+          },
+          "focus": {
+            "path": [
+              0,
+              1
+            ],
+            "offset": 0
+          }
+        }
+      },
+      "steps": [
+        {
+          "id": "insert",
+          "operation": {
+            "type": "insertText",
+            "text": "新"
+          },
+          "expected": {
+            "canonical": "> 甲\n>\n> 新乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "blockquote",
+                  "children": [
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "甲",
+                          "marks": {}
+                        }
+                      ]
+                    },
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "新乙",
+                          "marks": {}
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0,
+                  1
+                ],
+                "offset": 1
+              },
+              "focus": {
+                "path": [
+                  0,
+                  1
+                ],
+                "offset": 1
+              }
+            }
+          }
+        },
+        {
+          "id": "reopen",
+          "operation": {
+            "type": "reopen"
+          },
+          "expected": {
+            "canonical": "> 甲\n>\n> 新乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "blockquote",
+                  "children": [
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "甲",
+                          "marks": {}
+                        }
+                      ]
+                    },
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "新乙",
+                          "marks": {}
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "rtb-explicit-empty-ownership",
+      "family": "boundaries",
+      "source": "synthetic-rule-example",
+      "rules": [
+        "newline-v1-r2",
+        "RTM-05"
+      ],
+      "profile": "candidate-v5",
+      "initial": {
+        "canonical": "> 甲\n> <br />\n> 乙\n<br />\n尾",
+        "summary": {
+          "blocks": [
+            {
+              "type": "blockquote",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "甲",
+                      "marks": {}
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": []
+                },
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "乙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "alignment": "left",
+              "children": []
+            },
+            {
+              "type": "paragraph",
+              "alignment": "left",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "尾",
+                  "marks": {}
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "id": "reopen",
+          "operation": {
+            "type": "reopen"
+          },
+          "expected": {
+            "canonical": "> 甲\n> <br />\n> 乙\n<br />\n尾",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "blockquote",
+                  "children": [
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "甲",
+                          "marks": {}
+                        }
+                      ]
+                    },
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": []
+                    },
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "乙",
+                          "marks": {}
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": []
+                },
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "尾",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "save",
+          "operation": {
+            "type": "save",
+            "outcome": "success"
+          },
+          "expected": {
+            "canonical": "> 甲\n> <br />\n> 乙\n<br />\n尾",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "blockquote",
+                  "children": [
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "甲",
+                          "marks": {}
+                        }
+                      ]
+                    },
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": []
+                    },
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "乙",
+                          "marks": {}
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": []
+                },
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "尾",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            },
+            "save": {
+              "requestMarkdown": "> 甲\n> <br />\n> 乙\n<br />\n尾",
+              "persistedMarkdown": "> 甲\n> <br />\n> 乙\n<br />\n尾",
+              "dirty": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "rtb-repeated-anchor-selection",
+      "family": "selection",
+      "source": "synthetic-rule-example",
+      "rules": [
+        "roundtrip-v7",
+        "RTM-10"
+      ],
+      "profile": "candidate-v5",
+      "initial": {
+        "canonical": "甲\n\n甲乙",
+        "summary": {
+          "blocks": [
+            {
+              "type": "paragraph",
+              "alignment": "left",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "甲",
+                  "marks": {}
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "alignment": "left",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "甲乙",
+                  "marks": {}
+                }
+              ]
+            }
+          ]
+        },
+        "selection": {
+          "anchor": {
+            "path": [
+              1
+            ],
+            "offset": 1
+          },
+          "focus": {
+            "path": [
+              1
+            ],
+            "offset": 1
+          }
+        }
+      },
+      "steps": [
+        {
+          "id": "insert",
+          "operation": {
+            "type": "insertText",
+            "text": "新"
+          },
+          "expected": {
+            "canonical": "甲\n\n甲新乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "甲",
+                      "marks": {}
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "甲新乙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  1
+                ],
+                "offset": 2
+              },
+              "focus": {
+                "path": [
+                  1
+                ],
+                "offset": 2
+              }
+            }
+          }
+        },
+        {
+          "id": "reopen",
+          "operation": {
+            "type": "reopen"
+          },
+          "expected": {
+            "canonical": "甲\n\n甲新乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "甲",
+                      "marks": {}
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "甲新乙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "rtb-utf16-grapheme",
+      "family": "selection",
+      "source": "synthetic-rule-example",
+      "rules": [
+        "roundtrip-v7",
+        "RTM-10"
+      ],
+      "profile": "candidate-v5",
+      "initial": {
+        "canonical": "甲👩‍💻乙",
+        "summary": {
+          "blocks": [
+            {
+              "type": "paragraph",
+              "alignment": "left",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "甲👩‍💻乙",
+                  "marks": {}
+                }
+              ]
+            }
+          ]
+        },
+        "selection": {
+          "anchor": {
+            "path": [
+              0
+            ],
+            "offset": 6
+          },
+          "focus": {
+            "path": [
+              0
+            ],
+            "offset": 6
+          }
+        }
+      },
+      "steps": [
+        {
+          "id": "insert",
+          "operation": {
+            "type": "insertText",
+            "text": "新"
+          },
+          "expected": {
+            "canonical": "甲👩‍💻新乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "甲👩‍💻新乙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 7
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 7
+              }
+            }
+          }
+        },
+        {
+          "id": "delete-inserted",
+          "operation": {
+            "type": "backspace",
+            "unit": "grapheme"
+          },
+          "expected": {
+            "canonical": "甲👩‍💻乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "甲👩‍💻乙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 6
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 6
+              }
+            }
+          }
+        },
+        {
+          "id": "delete-emoji",
+          "operation": {
+            "type": "backspace",
+            "unit": "grapheme"
+          },
+          "expected": {
+            "canonical": "甲乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "甲乙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 1
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "rtb-literal-markers-whitespace",
+      "family": "literal",
+      "source": "synthetic-rule-example",
+      "rules": [
+        "markdown-v4",
+        "roundtrip-v7",
+        "RTM-09"
+      ],
+      "profile": "candidate-v5",
+      "initial": {
+        "canonical": "\\> 引用源码 `> <br />`\n\n 甲 ",
+        "summary": {
+          "blocks": [
+            {
+              "type": "paragraph",
+              "alignment": "left",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "> 引用源码 ",
+                  "marks": {}
+                },
+                {
+                  "type": "text",
+                  "text": "> <br />",
+                  "marks": {
+                    "code": true
+                  }
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "alignment": "left",
+              "children": [
+                {
+                  "type": "text",
+                  "text": " 甲 ",
+                  "marks": {}
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "id": "reopen",
+          "operation": {
+            "type": "reopen"
+          },
+          "expected": {
+            "canonical": "\\> 引用源码 `> <br />`\n\n 甲 ",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "> 引用源码 ",
+                      "marks": {}
+                    },
+                    {
+                      "type": "text",
+                      "text": "> <br />",
+                      "marks": {
+                        "code": true
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": " 甲 ",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "save",
+          "operation": {
+            "type": "save",
+            "outcome": "success"
+          },
+          "expected": {
+            "canonical": "\\> 引用源码 `> <br />`\n\n 甲 ",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "> 引用源码 ",
+                      "marks": {}
+                    },
+                    {
+                      "type": "text",
+                      "text": "> <br />",
+                      "marks": {
+                        "code": true
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": " 甲 ",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            },
+            "save": {
+              "requestMarkdown": "\\> 引用源码 `> <br />`\n\n 甲 ",
+              "persistedMarkdown": "\\> 引用源码 `> <br />`\n\n 甲 ",
+              "dirty": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "rtb-style-undo-redo",
+      "family": "history",
+      "source": "synthetic-rule-example",
+      "rules": [
+        "roundtrip-v7",
+        "RTM-07"
+      ],
+      "profile": "candidate-v5",
+      "initial": {
+        "canonical": "**甲乙**",
+        "summary": {
+          "blocks": [
+            {
+              "type": "paragraph",
+              "alignment": "left",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "甲乙",
+                  "marks": {
+                    "bold": true
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "selection": {
+          "anchor": {
+            "path": [
+              0
+            ],
+            "offset": 1
+          },
+          "focus": {
+            "path": [
+              0
+            ],
+            "offset": 1
+          }
+        }
+      },
+      "steps": [
+        {
+          "id": "insert",
+          "operation": {
+            "type": "insertText",
+            "text": "新",
+            "historyBoundary": true
+          },
+          "expected": {
+            "canonical": "**甲新乙**",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "甲新乙",
+                      "marks": {
+                        "bold": true
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 2
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 2
+              }
+            }
+          }
+        },
+        {
+          "id": "undo",
+          "operation": {
+            "type": "undo"
+          },
+          "expected": {
+            "canonical": "**甲乙**",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "甲乙",
+                      "marks": {
+                        "bold": true
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 1
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 1
+              }
+            }
+          }
+        },
+        {
+          "id": "redo",
+          "operation": {
+            "type": "redo"
+          },
+          "expected": {
+            "canonical": "**甲新乙**",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "甲新乙",
+                      "marks": {
+                        "bold": true
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 2
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 2
+              }
+            }
+          }
+        },
+        {
+          "id": "reopen",
+          "operation": {
+            "type": "reopen"
+          },
+          "expected": {
+            "canonical": "**甲新乙**",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "甲新乙",
+                      "marks": {
+                        "bold": true
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "rtb-dice-copy-undo",
+      "family": "atoms",
+      "source": "synthetic-rule-example",
+      "rules": [
+        "markdown-v4-nodes",
+        "clipboard-v2"
+      ],
+      "profile": "candidate-v5",
+      "initial": {
+        "canonical": "[[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20]]",
+        "summary": {
+          "blocks": [
+            {
+              "type": "paragraph",
+              "alignment": "left",
+              "children": [
+                {
+                  "type": "dice",
+                  "nodeId": "550e8400-e29b-41d4-a716-446655440000",
+                  "notation": "1d20"
+                }
+              ]
+            }
+          ]
+        },
+        "selection": {
+          "anchor": {
+            "path": [
+              0
+            ],
+            "offset": 0
+          },
+          "focus": {
+            "path": [
+              0
+            ],
+            "offset": 1
+          }
+        }
+      },
+      "steps": [
+        {
+          "id": "copy",
+          "operation": {
+            "type": "copy",
+            "entryPoint": "editor"
+          },
+          "expected": {
+            "canonical": "[[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20]]",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "dice",
+                      "nodeId": "550e8400-e29b-41d4-a716-446655440000",
+                      "notation": "1d20"
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 0
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 1
+              }
+            }
+          }
+        },
+        {
+          "id": "paste",
+          "operation": {
+            "type": "paste",
+            "source": "site-fragment-v2",
+            "regeneratedIds": [
+              "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+            ],
+            "historyBoundary": true
+          },
+          "expected": {
+            "canonical": "[[dice:v1:7c9e6679-7425-40de-944b-e07fc1f90ae7:1d20]]",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "dice",
+                      "nodeId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                      "notation": "1d20"
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 1
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 1
+              }
+            }
+          }
+        },
+        {
+          "id": "undo",
+          "operation": {
+            "type": "undo"
+          },
+          "expected": {
+            "canonical": "[[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20]]",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "dice",
+                      "nodeId": "550e8400-e29b-41d4-a716-446655440000",
+                      "notation": "1d20"
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 0
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 1
+              }
+            }
+          }
+        },
+        {
+          "id": "redo",
+          "operation": {
+            "type": "redo"
+          },
+          "expected": {
+            "canonical": "[[dice:v1:7c9e6679-7425-40de-944b-e07fc1f90ae7:1d20]]",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "dice",
+                      "nodeId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                      "notation": "1d20"
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 1
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "rtb-mention-sticker-save",
+      "family": "atoms",
+      "source": "synthetic-rule-example",
+      "rules": [
+        "markdown-v4-nodes",
+        "clipboard-v2"
+      ],
+      "profile": "candidate-v5",
+      "initial": {
+        "canonical": "[@甲](/users/user-a) ![表情](https://cdn.example.com/stickers/a.webp \"wenyousite-sticker:v1:cm1234567890123456789012\")",
+        "summary": {
+          "blocks": [
+            {
+              "type": "paragraph",
+              "alignment": "left",
+              "children": [
+                {
+                  "type": "mention",
+                  "userId": "user-a",
+                  "label": "@甲"
+                },
+                {
+                  "type": "text",
+                  "text": " ",
+                  "marks": {}
+                },
+                {
+                  "type": "sticker",
+                  "assetId": "cm1234567890123456789012",
+                  "url": "https://cdn.example.com/stickers/a.webp",
+                  "alt": "表情"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "id": "save",
+          "operation": {
+            "type": "save",
+            "outcome": "success"
+          },
+          "expected": {
+            "canonical": "[@甲](/users/user-a) ![表情](https://cdn.example.com/stickers/a.webp \"wenyousite-sticker:v1:cm1234567890123456789012\")",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "mention",
+                      "userId": "user-a",
+                      "label": "@甲"
+                    },
+                    {
+                      "type": "text",
+                      "text": " ",
+                      "marks": {}
+                    },
+                    {
+                      "type": "sticker",
+                      "assetId": "cm1234567890123456789012",
+                      "url": "https://cdn.example.com/stickers/a.webp",
+                      "alt": "表情"
+                    }
+                  ]
+                }
+              ]
+            },
+            "save": {
+              "requestMarkdown": "[@甲](/users/user-a) ![表情](https://cdn.example.com/stickers/a.webp \"wenyousite-sticker:v1:cm1234567890123456789012\")",
+              "persistedMarkdown": "[@甲](/users/user-a) ![表情](https://cdn.example.com/stickers/a.webp \"wenyousite-sticker:v1:cm1234567890123456789012\")",
+              "dirty": false
+            }
+          }
+        },
+        {
+          "id": "reopen",
+          "operation": {
+            "type": "reopen"
+          },
+          "expected": {
+            "canonical": "[@甲](/users/user-a) ![表情](https://cdn.example.com/stickers/a.webp \"wenyousite-sticker:v1:cm1234567890123456789012\")",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "mention",
+                      "userId": "user-a",
+                      "label": "@甲"
+                    },
+                    {
+                      "type": "text",
+                      "text": " ",
+                      "marks": {}
+                    },
+                    {
+                      "type": "sticker",
+                      "assetId": "cm1234567890123456789012",
+                      "url": "https://cdn.example.com/stickers/a.webp",
+                      "alt": "表情"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "rtb-save-encode-error",
+      "family": "failure",
+      "source": "synthetic-rule-example",
+      "rules": [
+        "save-protection",
+        "RTM-13"
+      ],
+      "profile": "candidate-v5",
+      "initial": {
+        "canonical": "正文甲",
+        "summary": {
+          "blocks": [
+            {
+              "type": "paragraph",
+              "alignment": "left",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "正文甲",
+                  "marks": {}
+                }
+              ]
+            }
+          ]
+        },
+        "selection": {
+          "anchor": {
+            "path": [
+              0
+            ],
+            "offset": 3
+          },
+          "focus": {
+            "path": [
+              0
+            ],
+            "offset": 3
+          }
+        }
+      },
+      "steps": [
+        {
+          "id": "insert",
+          "operation": {
+            "type": "insertText",
+            "text": "乙"
+          },
+          "expected": {
+            "canonical": "正文甲乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "正文甲乙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              }
+            }
+          }
+        },
+        {
+          "id": "fail-save",
+          "operation": {
+            "type": "save",
+            "outcome": "encode-error"
+          },
+          "expected": {
+            "canonical": null,
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "正文甲乙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              }
+            },
+            "save": {
+              "requestMarkdown": null,
+              "persistedMarkdown": "正文甲",
+              "dirty": true
+            }
+          }
+        },
+        {
+          "id": "recover",
+          "operation": {
+            "type": "recover",
+            "resolution": "retry"
+          },
+          "expected": {
+            "canonical": "正文甲乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "正文甲乙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              }
+            },
+            "save": {
+              "requestMarkdown": "正文甲乙",
+              "persistedMarkdown": "正文甲乙",
+              "dirty": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "rtb-save-network-error",
+      "family": "failure",
+      "source": "synthetic-rule-example",
+      "rules": [
+        "save-protection",
+        "RTM-13"
+      ],
+      "profile": "candidate-v5",
+      "initial": {
+        "canonical": "正文甲",
+        "summary": {
+          "blocks": [
+            {
+              "type": "paragraph",
+              "alignment": "left",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "正文甲",
+                  "marks": {}
+                }
+              ]
+            }
+          ]
+        },
+        "selection": {
+          "anchor": {
+            "path": [
+              0
+            ],
+            "offset": 3
+          },
+          "focus": {
+            "path": [
+              0
+            ],
+            "offset": 3
+          }
+        }
+      },
+      "steps": [
+        {
+          "id": "insert",
+          "operation": {
+            "type": "insertText",
+            "text": "乙"
+          },
+          "expected": {
+            "canonical": "正文甲乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "正文甲乙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              }
+            }
+          }
+        },
+        {
+          "id": "fail-save",
+          "operation": {
+            "type": "save",
+            "outcome": "network-error"
+          },
+          "expected": {
+            "canonical": "正文甲乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "正文甲乙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              }
+            },
+            "save": {
+              "requestMarkdown": "正文甲乙",
+              "persistedMarkdown": "正文甲",
+              "dirty": true
+            }
+          }
+        },
+        {
+          "id": "recover",
+          "operation": {
+            "type": "recover",
+            "resolution": "retry"
+          },
+          "expected": {
+            "canonical": "正文甲乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "正文甲乙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              }
+            },
+            "save": {
+              "requestMarkdown": "正文甲乙",
+              "persistedMarkdown": "正文甲乙",
+              "dirty": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "rtb-save-conflict",
+      "family": "failure",
+      "source": "synthetic-rule-example",
+      "rules": [
+        "save-protection",
+        "RTM-13"
+      ],
+      "profile": "candidate-v5",
+      "initial": {
+        "canonical": "正文甲",
+        "summary": {
+          "blocks": [
+            {
+              "type": "paragraph",
+              "alignment": "left",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "正文甲",
+                  "marks": {}
+                }
+              ]
+            }
+          ]
+        },
+        "selection": {
+          "anchor": {
+            "path": [
+              0
+            ],
+            "offset": 3
+          },
+          "focus": {
+            "path": [
+              0
+            ],
+            "offset": 3
+          }
+        }
+      },
+      "steps": [
+        {
+          "id": "insert",
+          "operation": {
+            "type": "insertText",
+            "text": "乙"
+          },
+          "expected": {
+            "canonical": "正文甲乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "正文甲乙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              }
+            }
+          }
+        },
+        {
+          "id": "fail-save",
+          "operation": {
+            "type": "save",
+            "outcome": "conflict"
+          },
+          "expected": {
+            "canonical": "正文甲乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "正文甲乙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              }
+            },
+            "save": {
+              "requestMarkdown": "正文甲乙",
+              "persistedMarkdown": "正文甲",
+              "dirty": true
+            }
+          }
+        },
+        {
+          "id": "recover",
+          "operation": {
+            "type": "recover",
+            "resolution": "explicit-retry-after-reload"
+          },
+          "expected": {
+            "canonical": "正文甲乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "正文甲乙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              }
+            },
+            "save": {
+              "requestMarkdown": "正文甲乙",
+              "persistedMarkdown": "正文甲乙",
+              "dirty": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "rtb-save-unsupported",
+      "family": "failure",
+      "source": "synthetic-rule-example",
+      "rules": [
+        "save-protection",
+        "RTM-13"
+      ],
+      "profile": "candidate-v5",
+      "initial": {
+        "canonical": "正文甲",
+        "summary": {
+          "blocks": [
+            {
+              "type": "paragraph",
+              "alignment": "left",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "正文甲",
+                  "marks": {}
+                }
+              ]
+            }
+          ]
+        },
+        "selection": {
+          "anchor": {
+            "path": [
+              0
+            ],
+            "offset": 3
+          },
+          "focus": {
+            "path": [
+              0
+            ],
+            "offset": 3
+          }
+        }
+      },
+      "steps": [
+        {
+          "id": "insert",
+          "operation": {
+            "type": "insertText",
+            "text": "乙"
+          },
+          "expected": {
+            "canonical": "正文甲乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "正文甲乙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              }
+            }
+          }
+        },
+        {
+          "id": "fail-save",
+          "operation": {
+            "type": "save",
+            "outcome": "unsupported"
+          },
+          "expected": {
+            "canonical": "正文甲乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "正文甲乙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              }
+            },
+            "save": {
+              "requestMarkdown": "正文甲乙",
+              "persistedMarkdown": "正文甲",
+              "dirty": true
+            }
+          }
+        },
+        {
+          "id": "recover",
+          "operation": {
+            "type": "recover",
+            "resolution": "retry"
+          },
+          "expected": {
+            "canonical": "正文甲乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "正文甲乙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              }
+            },
+            "save": {
+              "requestMarkdown": "正文甲乙",
+              "persistedMarkdown": "正文甲乙",
+              "dirty": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "rtb-external-paste-undo",
+      "family": "clipboard",
+      "source": "synthetic-rule-example",
+      "rules": [
+        "clipboard-v2",
+        "RTM-07"
+      ],
+      "profile": "candidate-v5",
+      "initial": {
+        "canonical": "甲",
+        "summary": {
+          "blocks": [
+            {
+              "type": "paragraph",
+              "alignment": "left",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "甲",
+                  "marks": {}
+                }
+              ]
+            }
+          ]
+        },
+        "selection": {
+          "anchor": {
+            "path": [
+              0
+            ],
+            "offset": 1
+          },
+          "focus": {
+            "path": [
+              0
+            ],
+            "offset": 1
+          }
+        }
+      },
+      "steps": [
+        {
+          "id": "paste",
+          "operation": {
+            "type": "paste",
+            "source": "external-text-or-html",
+            "plainText": ">乙",
+            "historyBoundary": true
+          },
+          "expected": {
+            "canonical": "甲\\>乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "甲>乙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 3
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 3
+              }
+            }
+          }
+        },
+        {
+          "id": "undo",
+          "operation": {
+            "type": "undo"
+          },
+          "expected": {
+            "canonical": "甲",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "甲",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 1
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 1
+              }
+            }
+          }
+        },
+        {
+          "id": "redo",
+          "operation": {
+            "type": "redo"
+          },
+          "expected": {
+            "canonical": "甲\\>乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "甲>乙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 3
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 3
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "rtb-close-encode-error",
+      "family": "failure",
+      "source": "synthetic-rule-example",
+      "rules": [
+        "save-protection",
+        "RTM-13"
+      ],
+      "profile": "candidate-v5",
+      "initial": {
+        "canonical": "正文甲",
+        "summary": {
+          "blocks": [
+            {
+              "type": "paragraph",
+              "alignment": "left",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "正文甲",
+                  "marks": {}
+                }
+              ]
+            }
+          ]
+        },
+        "selection": {
+          "anchor": {
+            "path": [
+              0
+            ],
+            "offset": 3
+          },
+          "focus": {
+            "path": [
+              0
+            ],
+            "offset": 3
+          }
+        }
+      },
+      "steps": [
+        {
+          "id": "insert",
+          "operation": {
+            "type": "insertText",
+            "text": "乙"
+          },
+          "expected": {
+            "canonical": "正文甲乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "正文甲乙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              }
+            }
+          }
+        },
+        {
+          "id": "close-failed",
+          "operation": {
+            "type": "close",
+            "outcome": "encode-error"
+          },
+          "expected": {
+            "canonical": null,
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "正文甲乙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              }
+            },
+            "navigation": "stay",
+            "save": {
+              "target": "local-snapshot",
+              "requestMarkdown": null,
+              "persistedMarkdown": "正文甲",
+              "dirty": true
+            }
+          }
+        },
+        {
+          "id": "close-recovered",
+          "operation": {
+            "type": "close",
+            "outcome": "success"
+          },
+          "expected": {
+            "canonical": "正文甲乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "正文甲乙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              },
+              "focus": {
+                "path": [
+                  0
+                ],
+                "offset": 4
+              }
+            },
+            "navigation": "close",
+            "save": {
+              "target": "local-snapshot",
+              "requestMarkdown": null,
+              "persistedMarkdown": "正文甲乙",
+              "dirty": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "rtb-quote-boundary-backspace",
+      "family": "boundaries",
+      "source": "synthetic-rule-example",
+      "rules": [
+        "newline-v1-r2",
+        "RTM-06",
+        "mobile-2fb2242-quote-paragraph-boundaries"
+      ],
+      "profile": "candidate-v5",
+      "initial": {
+        "canonical": "> 甲\n>\n> 乙",
+        "summary": {
+          "blocks": [
+            {
+              "type": "blockquote",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "甲",
+                      "marks": {}
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "乙",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "selection": {
+          "anchor": {
+            "path": [
+              0,
+              1
+            ],
+            "offset": 0
+          },
+          "focus": {
+            "path": [
+              0,
+              1
+            ],
+            "offset": 0
+          }
+        }
+      },
+      "steps": [
+        {
+          "id": "merge",
+          "operation": {
+            "type": "backspace",
+            "unit": "grapheme",
+            "historyBoundary": true
+          },
+          "expected": {
+            "canonical": "> 甲乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "blockquote",
+                  "children": [
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "甲乙",
+                          "marks": {}
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0,
+                  0
+                ],
+                "offset": 1
+              },
+              "focus": {
+                "path": [
+                  0,
+                  0
+                ],
+                "offset": 1
+              }
+            }
+          }
+        },
+        {
+          "id": "undo",
+          "operation": {
+            "type": "undo"
+          },
+          "expected": {
+            "canonical": "> 甲\n>\n> 乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "blockquote",
+                  "children": [
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "甲",
+                          "marks": {}
+                        }
+                      ]
+                    },
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "乙",
+                          "marks": {}
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0,
+                  1
+                ],
+                "offset": 0
+              },
+              "focus": {
+                "path": [
+                  0,
+                  1
+                ],
+                "offset": 0
+              }
+            }
+          }
+        },
+        {
+          "id": "redo",
+          "operation": {
+            "type": "redo"
+          },
+          "expected": {
+            "canonical": "> 甲乙",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "blockquote",
+                  "children": [
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "甲乙",
+                          "marks": {}
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0,
+                  0
+                ],
+                "offset": 1
+              },
+              "focus": {
+                "path": [
+                  0,
+                  0
+                ],
+                "offset": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "rtb-quote-enter-undo",
+      "family": "history",
+      "source": "synthetic-rule-example",
+      "rules": [
+        "newline-v1-r2",
+        "RTM-07",
+        "mobile-2fb2242-quote-paragraph-boundaries"
+      ],
+      "profile": "candidate-v5",
+      "initial": {
+        "canonical": "> 甲乙\n>\n> 丙丁",
+        "summary": {
+          "blocks": [
+            {
+              "type": "blockquote",
+              "children": [
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "甲乙",
+                      "marks": {}
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "alignment": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "丙丁",
+                      "marks": {}
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "selection": {
+          "anchor": {
+            "path": [
+              0,
+              0
+            ],
+            "offset": 1
+          },
+          "focus": {
+            "path": [
+              0,
+              0
+            ],
+            "offset": 1
+          }
+        }
+      },
+      "steps": [
+        {
+          "id": "enter",
+          "operation": {
+            "type": "enter",
+            "historyBoundary": true
+          },
+          "expected": {
+            "canonical": "> 甲\n> 乙\n>\n> 丙丁",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "blockquote",
+                  "children": [
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "甲",
+                          "marks": {}
+                        },
+                        {
+                          "type": "softBreak"
+                        },
+                        {
+                          "type": "text",
+                          "text": "乙",
+                          "marks": {}
+                        }
+                      ]
+                    },
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "丙丁",
+                          "marks": {}
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0,
+                  0
+                ],
+                "offset": 2
+              },
+              "focus": {
+                "path": [
+                  0,
+                  0
+                ],
+                "offset": 2
+              }
+            }
+          }
+        },
+        {
+          "id": "undo",
+          "operation": {
+            "type": "undo"
+          },
+          "expected": {
+            "canonical": "> 甲乙\n>\n> 丙丁",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "blockquote",
+                  "children": [
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "甲乙",
+                          "marks": {}
+                        }
+                      ]
+                    },
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "丙丁",
+                          "marks": {}
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0,
+                  0
+                ],
+                "offset": 1
+              },
+              "focus": {
+                "path": [
+                  0,
+                  0
+                ],
+                "offset": 1
+              }
+            }
+          }
+        },
+        {
+          "id": "redo",
+          "operation": {
+            "type": "redo"
+          },
+          "expected": {
+            "canonical": "> 甲\n> 乙\n>\n> 丙丁",
+            "summary": {
+              "blocks": [
+                {
+                  "type": "blockquote",
+                  "children": [
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "甲",
+                          "marks": {}
+                        },
+                        {
+                          "type": "softBreak"
+                        },
+                        {
+                          "type": "text",
+                          "text": "乙",
+                          "marks": {}
+                        }
+                      ]
+                    },
+                    {
+                      "type": "paragraph",
+                      "alignment": "left",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "丙丁",
+                          "marks": {}
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "selection": {
+              "anchor": {
+                "path": [
+                  0,
+                  0
+                ],
+                "offset": 2
+              },
+              "focus": {
+                "path": [
+                  0,
+                  0
+                ],
+                "offset": 2
+              }
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "compatibilityCases": [
+    {
+      "id": "base-legacy-v3",
+      "profile": "legacy-v3",
+      "markdown": "甲\n乙",
+      "lossless": true,
+      "expected": {
+        "read": "full",
+        "create": true,
+        "edit": true,
+        "reason": "supported"
+      }
+    },
+    {
+      "id": "base-legacy-v4",
+      "profile": "legacy-v4",
+      "markdown": "甲\n乙",
+      "lossless": true,
+      "expected": {
+        "read": "full",
+        "create": true,
+        "edit": true,
+        "reason": "supported"
+      }
+    },
+    {
+      "id": "base-legacy-v5",
+      "profile": "legacy-v5",
+      "markdown": "甲\n乙",
+      "lossless": true,
+      "expected": {
+        "read": "full",
+        "create": true,
+        "edit": true,
+        "reason": "supported"
+      }
+    },
+    {
+      "id": "base-candidate-v5",
+      "profile": "candidate-v5",
+      "markdown": "甲\n乙",
+      "lossless": true,
+      "expected": {
+        "read": "full",
+        "create": true,
+        "edit": true,
+        "reason": "supported"
+      }
+    },
+    {
+      "id": "aligned-legacy-v3",
+      "profile": "legacy-v3",
+      "markdown": "[wenyousite-align-v1-center]: #\n甲",
+      "lossless": true,
+      "expected": {
+        "read": "safe-fallback",
+        "create": false,
+        "edit": false,
+        "reason": "missing-feature"
+      }
+    },
+    {
+      "id": "aligned-legacy-v4",
+      "profile": "legacy-v4",
+      "markdown": "[wenyousite-align-v1-center]: #\n甲",
+      "lossless": true,
+      "expected": {
+        "read": "full",
+        "create": true,
+        "edit": true,
+        "reason": "supported"
+      }
+    },
+    {
+      "id": "aligned-legacy-v5",
+      "profile": "legacy-v5",
+      "markdown": "[wenyousite-align-v1-center]: #\n甲",
+      "lossless": true,
+      "expected": {
+        "read": "full",
+        "create": true,
+        "edit": true,
+        "reason": "supported"
+      }
+    },
+    {
+      "id": "aligned-candidate-v5",
+      "profile": "candidate-v5",
+      "markdown": "[wenyousite-align-v1-center]: #\n甲",
+      "lossless": true,
+      "expected": {
+        "read": "full",
+        "create": true,
+        "edit": true,
+        "reason": "supported"
+      }
+    },
+    {
+      "id": "image-legacy-v3",
+      "profile": "legacy-v3",
+      "markdown": "[wenyousite-align-v1-right]: #\n![图](https://cdn.example.com/a.png)",
+      "lossless": true,
+      "expected": {
+        "read": "safe-fallback",
+        "create": false,
+        "edit": false,
+        "reason": "missing-feature"
+      }
+    },
+    {
+      "id": "image-legacy-v4",
+      "profile": "legacy-v4",
+      "markdown": "[wenyousite-align-v1-right]: #\n![图](https://cdn.example.com/a.png)",
+      "lossless": true,
+      "expected": {
+        "read": "safe-fallback",
+        "create": false,
+        "edit": false,
+        "reason": "missing-feature"
+      }
+    },
+    {
+      "id": "image-legacy-v5",
+      "profile": "legacy-v5",
+      "markdown": "[wenyousite-align-v1-right]: #\n![图](https://cdn.example.com/a.png)",
+      "lossless": true,
+      "expected": {
+        "read": "full",
+        "create": true,
+        "edit": true,
+        "reason": "supported"
+      }
+    },
+    {
+      "id": "image-candidate-v5",
+      "profile": "candidate-v5",
+      "markdown": "[wenyousite-align-v1-right]: #\n![图](https://cdn.example.com/a.png)",
+      "lossless": true,
+      "expected": {
+        "read": "full",
+        "create": true,
+        "edit": true,
+        "reason": "supported"
+      }
+    },
+    {
+      "id": "quote-empty-legacy-v3",
+      "profile": "legacy-v3",
+      "markdown": "> 甲\n> <br />\n> 乙",
+      "lossless": true,
+      "expected": {
+        "read": "safe-fallback",
+        "create": false,
+        "edit": false,
+        "reason": "missing-feature"
+      }
+    },
+    {
+      "id": "quote-empty-legacy-v4",
+      "profile": "legacy-v4",
+      "markdown": "> 甲\n> <br />\n> 乙",
+      "lossless": true,
+      "expected": {
+        "read": "safe-fallback",
+        "create": false,
+        "edit": false,
+        "reason": "missing-feature"
+      }
+    },
+    {
+      "id": "quote-empty-legacy-v5",
+      "profile": "legacy-v5",
+      "markdown": "> 甲\n> <br />\n> 乙",
+      "lossless": true,
+      "expected": {
+        "read": "safe-fallback",
+        "create": false,
+        "edit": false,
+        "reason": "missing-feature"
+      }
+    },
+    {
+      "id": "quote-empty-candidate-v5",
+      "profile": "candidate-v5",
+      "markdown": "> 甲\n> <br />\n> 乙",
+      "lossless": true,
+      "expected": {
+        "read": "full",
+        "create": true,
+        "edit": true,
+        "reason": "supported"
+      }
+    },
+    {
+      "id": "unknown",
+      "profile": "candidate-v5",
+      "markdown": "甲 [[widget:v9:future]]",
+      "lossless": true,
+      "expected": {
+        "read": "safe-fallback",
+        "create": false,
+        "edit": false,
+        "reason": "unsupported-markdown"
+      }
+    },
+    {
+      "id": "html",
+      "profile": "candidate-v5",
+      "markdown": "甲 <span>乙</span>",
+      "lossless": true,
+      "expected": {
+        "read": "safe-fallback",
+        "create": false,
+        "edit": false,
+        "reason": "unsupported-markdown"
+      }
+    },
+    {
+      "id": "unknown-alignment",
+      "profile": "candidate-v5",
+      "markdown": "[wenyousite-align-v9-center]: #\n甲",
+      "lossless": true,
+      "expected": {
+        "read": "safe-fallback",
+        "create": false,
+        "edit": false,
+        "reason": "unsupported-markdown"
+      }
+    },
+    {
+      "id": "lossy-known",
+      "profile": "candidate-v5",
+      "markdown": "甲",
+      "lossless": false,
+      "expected": {
+        "read": "full",
+        "create": false,
+        "edit": false,
+        "reason": "lossy-roundtrip"
+      }
+    },
+    {
+      "id": "unknown-profile",
+      "profile": "future-v6",
+      "markdown": "甲",
+      "lossless": true,
+      "expected": {
+        "read": "safe-fallback",
+        "create": false,
+        "edit": false,
+        "reason": "unknown-profile"
+      }
+    }
+  ],
+  "rejected": [
+    {
+      "id": "inline-html",
+      "markdown": "甲<br />乙",
+      "errorCode": 40009
+    },
+    {
+      "id": "quote-html-attributes",
+      "markdown": "> <br class=\"x\" />",
+      "errorCode": 40009
+    },
+    {
+      "id": "unknown-node",
+      "markdown": "[[widget:v9:future]]",
+      "errorCode": 40009
+    },
+    {
+      "id": "duplicate-dice",
+      "markdown": "[[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20]] [[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20]]",
+      "errorCode": 40003
+    },
+    {
+      "id": "malformed-dice",
+      "markdown": "[[dice:v1:not-a-uuid:1d20]]",
+      "errorCode": 40003
+    }
+  ],
+  "deferredDecisions": [
+    "RTM-08-quote-to-heading-combinations: only existing accepted commands; no new empty-block semantics",
+    "RTM-11-multiblock-paste-in-aligned-paragraph: obtain independent expected selection/fragment boundaries before extending"
+  ],
+  "acceptance": {
+    "RT-01": "owner-accepted-2026-09-09",
+    "RT-02": "owner-accepted-2026-09-09",
+    "RT-03": "owner-accepted",
+    "RT-04": "separate-owner-acceptance-pending",
+    "RT-10": "fault-injection-candidate-not-user-data-loss-proof"
+  },
+  "revision": 2
+}
