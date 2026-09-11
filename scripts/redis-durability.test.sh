@@ -96,7 +96,16 @@ grep -q 'validate_release_tree' "$SCRIPT_DIR/assemble-backend-release.sh" || { e
 grep -Fq 'chown -R root:"$RUNTIME_GROUP" "$staging_dir"' "$SCRIPT_DIR/assemble-backend-release.sh" || { echo "不可变 release 未递归归一化为 root 所有" >&2; exit 1; }
 grep -Fq 'chmod -R go-w "$staging_dir"' "$SCRIPT_DIR/assemble-backend-release.sh" || { echo "不可变 release 未递归移除 group/world 写权限" >&2; exit 1; }
 grep -q 'docker-compose.yml.*node_modules' "$SCRIPT_DIR/assemble-backend-release.sh" || { echo "不可变 release 未包含数据平面清单" >&2; exit 1; }
-grep -q "dist/app.module.js.*dist/media/image-worker.module.js" "$SCRIPT_DIR/assemble-backend-release.sh" || { echo "不可变 release 缺少生产依赖加载校验" >&2; exit 1; }
+for module in dist/app.module.js dist/media/image-worker.module.js; do
+  grep -Fq "load('./$module');" "$SCRIPT_DIR/assemble-backend-release.sh" || { echo "不可变 release 缺少生产依赖加载校验" >&2; exit 1; }
+done
+grep -Fq 'runuser -u "$APP_USER" -- env -i PATH=/usr/bin:/bin NODE_ENV=test' "$SCRIPT_DIR/assemble-backend-release.sh" || { echo "release 未以隔离环境和服务身份验证" >&2; exit 1; }
+readability_line=$(grep -n '^validate_app_readability "$release_dir"$' "$SCRIPT_DIR/assemble-backend-release.sh" | cut -d: -f1)
+switch_line=$(grep -n '^next_link=' "$SCRIPT_DIR/assemble-backend-release.sh" | cut -d: -f1)
+[[ -n "$readability_line" && -n "$switch_line" ]] && (( readability_line < switch_line )) || {
+  echo "服务读取检查必须在 release 切换前执行" >&2; exit 1
+}
+bash -n "$SCRIPT_DIR/assemble-backend-release.sh"
 node -e 'const p=require(process.argv[1]); for (const name of ["zod", "pino-pretty"]) if (!p.dependencies?.[name] || p.devDependencies?.[name]) process.exit(1)' "$BACKEND_DIR/package.json" || { echo "运行时代码依赖未全部声明为生产依赖" >&2; exit 1; }
 
 drill_line=$(grep -n 'bash "$SCRIPT_DIR/restore-drill.sh"' "$SCRIPT_DIR/activate-data-security.sh" | cut -d: -f1)
