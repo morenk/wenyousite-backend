@@ -46,6 +46,14 @@ describe('协作管理 OpenAPI 契约', () => {
     );
   });
 
+  it('聚合保存主贴权限为可选字段并复用三个策略', () => {
+    const aggregate = contract.components.schemas.SaveThreadAggregateDto;
+    expect(aggregate.required).not.toContain('defaultSubthreadPostingPolicy');
+    expect(aggregate.properties?.defaultSubthreadPostingPolicy?.enum).toEqual([
+      'PARTICIPANTS', 'COLLABORATORS', 'PLAYERS',
+    ]);
+  });
+
   it('子贴发言能力为必填对象，拒绝原因必填可空', () => {
     const subthread = contract.components.schemas.ThreadSubthreadResponseDto;
     const capability = contract.components.schemas.PostingCapabilityResponseDto;

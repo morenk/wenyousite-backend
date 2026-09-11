@@ -185,7 +185,7 @@ export class ThreadsController {
   @Auth()
   @ApiBearerAuth()
   @ApiOperation({
-    summary: '原子保存主题帖元数据、默认子贴标题/正文和标签，可同时发布草稿',
+    summary: '原子保存主题帖元数据、默认子贴标题/发言权限/正文和标签，可同时发布草稿',
   })
   @ApiOkResponse({
     type: ThreadDetailResponseDto,

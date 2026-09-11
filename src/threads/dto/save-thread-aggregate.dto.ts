@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
+import { PostingPolicy } from '@prisma/client';
 import {
   ArrayMaxSize,
   ArrayUnique,
@@ -13,6 +14,7 @@ import {
   Min,
   MinLength,
   Matches,
+  ValidateIf,
 } from 'class-validator';
 import {
   CATEGORY_SLUG_MAX_LENGTH,
@@ -69,6 +71,15 @@ export class SaveThreadAggregateDto {
   @IsInt()
   @Min(1)
   defaultSubthreadVersion!: number;
+
+  @ApiPropertyOptional({
+    enum: PostingPolicy,
+    description: '主贴发言权限；省略保留原值。仅影响默认子贴楼层与回复，不修改其他子贴',
+  })
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsString()
+  @IsIn(['PARTICIPANTS', 'COLLABORATORS', 'PLAYERS'])
+  defaultSubthreadPostingPolicy?: PostingPolicy;
 
   @ApiPropertyOptional({ minimum: 1, description: '已有默认正文的乐观锁版本' })
   @IsOptional()

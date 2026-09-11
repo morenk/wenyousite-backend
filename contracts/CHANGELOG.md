@@ -1,5 +1,16 @@
 # API 合同变更
 
+## 5.21.0-dev.20260912.1
+
+- 主贴发言权限候选合入最新开发基线，保留收藏夹可见总数契约、富文本块边界与行为语料。`defaultSubthreadPostingPolicy` 的可选字段、枚举、省略兼容与原子保存语义不变；无数据库迁移。
+- 因合并后的 OpenAPI 同时包含新的收藏夹计数说明，使用新的候选版本；旧主贴权限客户端无需改变请求或响应处理。
+
+## 5.21.0-dev.20260911.1
+
+- `PATCH /threads/{id}/aggregate` 兼容新增可选 `defaultSubthreadPostingPolicy`，复用 `PARTICIPANTS` / `COLLABORATORS` / `PLAYERS`，省略时保留现值。
+- 楼主与协作者可统一保存主贴权限、元数据、正文及标签；权限与默认子贴标题合并一次版本更新，事务失败或版本冲突全部回滚。其他子贴权限及创建默认值不变，无数据库迁移。
+- Web / Mobile 在已发布主贴现有设置表单接入，读取 `defaultSubthreadId` 对应子贴的真实策略和版本；成功后消费返回的子贴策略及 `postingCapability`。后端兼容版本先发布，消费者随后。
+
 ## 5.20.1-dev.20260911.1
 
 - 修复收藏夹数量与空列表矛盾：`GET /bookmarks/folders` 的 `bookmarkCount` 按当前用户可见的已发布、未删除主题计数；私密主题仍须是成员，并应用双向拉黑规则。

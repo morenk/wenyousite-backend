@@ -118,3 +118,11 @@ Web 与 Flutter 应同步本版本固定 OpenAPI，验证“数量 0 + 空列表
 ## 富文本测试契约与 HTTP 边界
 
 [富文本多步行为与结果契约](modules/rich-text-behavior.md)复用现有 Markdown 正文，仅增加合成用例、独立结构预期及离线校验。HTTP DTO/OpenAPI、持久化字段和运行 `/meta` 均不变。后端对未知协议、原始 HTML 和非法业务节点继续通过现有校验拒绝；客户端不能将安全阅读降级的结果静默覆盖原文。
+
+## 主贴发言权限的聚合保存
+
+`PATCH /threads/{id}/aggregate` 接受可选 `defaultSubthreadPostingPolicy`，枚举复用子贴发言策略。`PARTICIPANTS` 允许有权访问的登录用户，`COLLABORATORS` 允许楼主和协作者，`PLAYERS` 另允许已标记玩家；可见性、拉黑等限制继续生效。
+
+楼主和协作者通过已有管理授权保存；协作者仍不能提交 `visibility` / `published`。权限与元数据、正文和标签处于同一事务，沿用 `version`、`defaultSubthreadVersion`、`bodyVersion`；标题与权限同时改变时默认子贴版本只递增一次。省略权限字段保留现值，其他子贴不更新。
+
+客户端从详情 `defaultSubthreadId` 对应子贴读取 `postingPolicy` 和 `version`，纳入各端现有设置页统一保存；不将缺失值当作开放权限覆盖。成功后用最新详情刷新策略、版本及 `postingCapability`；409 或校验失败保留本地输入。仅新增发布后的设置入口，创建流程与默认开放策略不变。
