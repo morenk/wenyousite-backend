@@ -16,6 +16,7 @@ export interface ObjectUploadOptions {
   contentType?: string;
   cacheControl?: string;
   contentLength?: number;
+  abortSignal?: AbortSignal;
 }
 
 /** S3 兼容对象存储的唯一基础设施适配器。 */
@@ -66,11 +67,14 @@ export class ObjectStorageService {
         CacheControl: options.cacheControl,
         ContentLength: options.contentLength,
       }),
+      ...(options.abortSignal ? [{ abortSignal: options.abortSignal }] : []),
     );
   }
 
-  async remove(key: string, bucket = this.bucket) {
-    await this.client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+  async remove(key: string, bucket = this.bucket, abortSignal?: AbortSignal) {
+    const command = new DeleteObjectCommand({ Bucket: bucket, Key: key });
+    if (abortSignal) await this.client.send(command, { abortSignal });
+    else await this.client.send(command);
   }
 
   /** 有限并发删除对象，返回失败 key，便于调用方保留事实记录并重试。 */

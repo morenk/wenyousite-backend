@@ -6,8 +6,9 @@ import { ErrorCode } from '../common/exceptions/error-codes';
 import { BusinessException, notFound } from '../common/exceptions/business.exception';
 import { PaginatedResult, paginate } from '../common/dto/paginated-result';
 import { publishedThreadVisibilityWhere } from '../access/thread-visibility.where';
+import { momentViewerVisibility } from '../access/moment-visibility.where';
 import { attachPlayerCounts } from '../common/prisma-helpers';
-import { mapThreadListCard, threadListCardIncludeFor } from '../threads/thread-list-card';
+import { mapThreadListCard, resolveThreadListCards, threadListCardIncludeFor } from '../threads/thread-list-card';
 import { DEFAULT_BOOKMARK_FOLDER_NAME } from './bookmark-folder.constants';
 
 type BookmarkThread = ReturnType<typeof mapThreadListCard>;
@@ -52,9 +53,10 @@ export class BookmarksService {
       userId,
     );
 
+    const cards = await resolveThreadListCards(this.prisma, bookmarks.map((b) => b.thread));
     return paginate(
-      bookmarks.map((b) => ({
-        ...mapThreadListCard(b.thread),
+      bookmarks.map((b, index) => ({
+        ...cards[index],
         bookmarkId: b.id,
         bookmarkFolderId: b.folderId,
       })),
@@ -71,11 +73,22 @@ export class BookmarksService {
     const folders = await this.prisma.bookmarkFolder.findMany({
       where: { userId },
       orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
-      include: { _count: { select: { bookmarks: true } } },
+      include: {
+        _count: {
+          select: { bookmarks: { where: { userId, thread: publishedThreadVisibilityWhere(userId) } } },
+        },
+      },
     });
     const momentFolders = await this.prisma.momentBookmarkFolder.findMany({
       where: { userId, name: { in: folders.map((folder) => folder.name) } },
-      select: { name: true, _count: { select: { bookmarks: true } } },
+      select: {
+        name: true,
+        _count: {
+          select: {
+            bookmarks: { where: { userId, moment: { deletedAt: null, ...momentViewerVisibility(userId) } } },
+          },
+        },
+      },
     });
     const momentCounts = new Map(
       momentFolders.map((folder) => [folder.name, folder._count.bookmarks]),
@@ -157,7 +170,7 @@ export class BookmarksService {
     );
 
     return paginate(
-      bookmarks.map((b) => mapThreadListCard(b.thread)),
+      await resolveThreadListCards(this.prisma, bookmarks.map((b) => b.thread)),
       { cursor: bookmarks.at(-1)?.id ?? null, hasMore },
     );
   }

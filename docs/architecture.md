@@ -91,3 +91,7 @@ TypeScript 开启 `noImplicitAny` 等严格增量选项。Fastify 的 Passport `
 所有环境变量读取集中在 `src/config/configuration.ts`，业务代码通过 `ConfigService` 或该配置工厂获得值。入口、日志、Cookie、Swagger 和 Sentry 不应各自解释环境变量，避免默认值漂移。
 
 Sentry 在应用模块加载前由 `src/instrument.ts` 初始化；没有 `SENTRY_DSN` 时保持关闭，有 DSN 时携带部署 release/build 信息。发送前会移除请求 URL、查询、正文、认证头、Cookie、用户对象、额外上下文和 breadcrumbs，仅保留请求 ID、方法、路由模板及可控机器标签。HTTP 日志同样只记录路由模板和结构化错误字段：5xx 带脱敏堆栈，401/403/429 为 warn，其余 4xx 为 info。
+
+## 列表动画预览隔离
+
+可选 GIF 预览复用独立图片 Worker / BullMQ，通过可杀死的 Node 子进程运行现有 Sharp/libvips，不在 HTTP 进程解码全帧。单 Worker 同时只执行一个预览子进程；槽等待、两档编码、补偿建账、对象上传和可选发布事务共用截止时间。基础 GIF 与静态 poster 成功后才进入附加优化；优化失败回退基础完成。资源上限、CAS 发布、独立尝试 key、迟到上传补偿及测量证据见[列表动画预览](media-animation-previews.md)。

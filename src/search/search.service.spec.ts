@@ -8,6 +8,7 @@ import { ThreadAccessService } from '../access/thread-access.service';
 import { ErrorCode } from '../common/exceptions/error-codes';
 
 const mockPrisma = {
+  media: { findMany: jest.fn().mockResolvedValue([]) },
   thread: { findMany: jest.fn() },
   post: { findMany: jest.fn() },
   user: { findMany: jest.fn() },
@@ -123,6 +124,7 @@ describe('SearchService', () => {
   });
 
   it('主题帖分类按相关度分页并返回首页完整卡片', async () => {
+    mockPrisma.media.findMany.mockResolvedValueOnce([{ url: 'https://cdn.example.com/cover.jpg', contentType: 'image/gif', animated: true, posterUrl: 'https://cdn.example.com/first-frame.webp', previewVariants: null }]);
     mockPrisma.$queryRaw.mockResolvedValue([
       {
         id: 't1',
@@ -156,6 +158,7 @@ describe('SearchService', () => {
 
     expect(threads[0]._count).toEqual({ members: 5, posts: 3, players: 2 });
     expect(threads[0].coverImages).toEqual(['https://cdn.example.com/cover.jpg']);
+    expect(threads[0].coverMedia).toEqual({ url: 'https://cdn.example.com/cover.jpg', animated: true, posterUrl: 'https://cdn.example.com/first-frame.webp', previewVariants: null });
     expect(threads[0]).toMatchObject({
       preview: '',
       status: 'RECRUITING',

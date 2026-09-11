@@ -48,6 +48,11 @@ export class MediaProcessingRecoveryService implements OnModuleInit {
       });
 
       for (const item of stale) await this.reconcileOne(item);
+      try {
+        await this.media.cleanupPreviewAttempts();
+      } catch {
+        this.logger.warn('Optional media preview cleanup failed');
+      }
     } finally {
       this.running = false;
     }

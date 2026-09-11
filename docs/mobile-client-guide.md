@@ -205,7 +205,27 @@ Content-Type: application/json
 
 候选只交付 PR，不代表用户已验收；先合并兼容后端契约，再由 Web/Windows 各自完成消费端候选与手动验收。部署仍需负责人另外明确批准。
 
+### 收藏夹计数刷新
+
+契约 `5.20.1-dev.20260911.1` 的 `bookmarkCount` / `momentBookmarkCount` 是该夹当前可见收藏总数，详见 [计数规则](api-contract.md#收藏夹可见数量)。使用服务端数量，不用分页条数推算总数；收藏、取消、移动及内容或权限变化后刷新目录与列表。回归应覆盖隐藏后 0 条与空列表、恢复后重新计入、跨页总数及主题/动态独立目录。同步固定 OpenAPI 后再运行本端生成与测试；原反馈仍须负责人用原账号复验。
+
+### 块边界 v1 Windows 迁移
+
+从本候选 PR 的已提交完整 SHA 同步 [块边界语料](../contracts/markdown-block-boundary-v1-fixtures.json)，固定 `version=1`、`revision=2`、`markdownContractVersion=5`。先规范 CRLF，再统一分析列 0 marker、目标类型/范围、对齐与原始位置，在 Codec 和阅读通用解析/无效降级前应用；列 0 marker 结束列表/引用 lazy continuation，显式嵌套、HTML、围栏/缩进代码及跨行行内代码中的同形源码不得消费。
+
+逐条执行真实 Markdown AST、Delta 编解码、编辑和 clipboard 测试，校验可见行/空白、逐块对齐、稳定保存重开；原文空格/WJ 等布局字符不得被全局清理。后端测试与源码位置仍为本仓证据，不能代替 Windows Flutter 门禁或 Web/Android 负责人验收。保持 v5/HTTP 字段，不迁移已有内容；旧客户端兼容继续保留。
+
+块边界 revision 2：代码保护范围来自真实行内解析器生成的 code_inline，URL/title 里的反引号不会开启保护区。三个 LF 的额外历史空白恢复为空段；空格布局 sourceLines 保留 WJ，visibleText/lines 不包含隐藏 WJ。clipboard 使用 plainTextByPlatform 分别固定 Web/Mobile 已有投影，不修改 v2。
+
 
 ## 列表树与空项 v1 候选
 
 新增 [`markdown-editor-list-v1-fixtures.json`](../contracts/markdown-editor-list-v1-fixtures.json)，固定真实列表树、空项、续行、块与起始编号；详见[正文协议](modules/markdown-content.md#列表树与空项候选-v1)。HTTP/OpenAPI 与 Markdown v5 不变，不批量改写旧文。Windows 必须从本任务固定 Git 提交同步，核对读取、删除、输入、Enter、类型切换、缩进／减少缩进、保存重开及真实阅读树；仅核对项数不足以验收。当前待两端候选和负责人验收。
+
+### 多块、历史编号与安全兼容边界
+
+- `loose-item-blocks` 的 `- 甲\n\n  乙` 是一个项、两个直属 paragraph；可编辑行是甲和乙，源码分隔空行不是第三个空段。消费端须保留块数、顺序和所属项，不能扁平化成一个段落或两个同级项。`setext-is-heading` 同样保留直属 H2，不改成空子项。
+- `wide-ordered-marker` 的根列表从 100 开始，子列表从 1 开始；内容缩进按各自标记宽度计算。`start` 属于列表，同一列表的后续源码标号只影响写法、不定义独立编号；规范化可连续编号，但必须保持原列表起点。不能承载历史非 1 起点的编辑器必须进入安全兼容，不能重置为 1 后保存。
+- 共享样例覆盖的合法多块和编号要求无损支持。对尚不能承载的复杂项（包括多块与嵌套容器组合），在覆盖原文前验证完整树、直属块、文字、marks 和原子身份。验证失败时保留输入原文及未同步编辑内容，显示可解释错误并阻止发布/保存损坏输出；不能用最后一次成功同步的旧正文冒充本次编辑结果。只读或字面兼容不得自动覆盖原存储正文，恢复写入须通过完整往返校验。
+
+固定同步输入仍为 `aa1bcbd4d087f03a17817e9eca8bcd1f92bb53da` 的列表 v1 revision 2；以上是既有 rules 的明确解释，不修改 fixture 或另建协议。Windows 需同时核对独立阅读树和真实编辑操作，原 171 项本地基线不能用总通过数替代逐例语义对齐。

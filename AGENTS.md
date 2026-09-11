@@ -4,7 +4,7 @@
 
 - 本仓库提供温油站 NestJS API；主要技术为 TypeScript、NestJS、Prisma、PostgreSQL、Redis、BullMQ、Jest。
 - 本文件继承工作区根 `AGENTS.md` 的环境边界、任务分支、评审和部署门禁；这里只补充后端专属约束。
-- 公网运行拓扑以工作区 [README](../README.md) 为唯一事实源；命令以 `package.json`，数据模型以 `prisma/schema.prisma`，接口以生成的 OpenAPI 为准。
+- 公网运行拓扑以工作区 [README](https://github.com/morenk/wenyousite-workspace/blob/main/README.md) 为唯一事实源；命令以 `package.json`，数据模型以 `prisma/schema.prisma`，接口以生成的 OpenAPI 为准。
 - 修改前先读受影响模块、测试及 [架构文档](docs/architecture.md)。已有设计细节放在 `docs/`，不要复制进本文件。
 - Web 与 Flutter 都消费该 API；可观察契约变化必须同时考虑两个客户端。
 
@@ -139,7 +139,7 @@ bash scripts/deploy.sh
 
 ## 5. 参考文档
 
-- [工作区运行拓扑](../README.md)
+- [工作区运行拓扑](https://github.com/morenk/wenyousite-workspace/blob/main/README.md)
 - [后端架构](docs/architecture.md)
 - [API 契约规范](docs/api-contract.md)
 - [前端接入指南](docs/frontend-guide.md)

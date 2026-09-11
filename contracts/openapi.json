@@ -18623,7 +18623,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.18.0-dev.20260905.1",
+    "version": "5.20.1-dev.20260911.1",
     "contact": {}
   },
   "tags": [
@@ -19557,6 +19557,71 @@
           "posts"
         ]
       },
+      "ThreadCoverPreviewVariantResponseDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "已发布的不可变列表动画 WebP 地址；不用于替换正文原图 URL"
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 800,
+            "description": "单帧实际像素宽度"
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 800,
+            "description": "单帧实际像素高度"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "完整动画预览文件字节数"
+          }
+        },
+        "required": [
+          "url",
+          "width",
+          "height",
+          "bytes"
+        ]
+      },
+      "ThreadCoverMediaResponseDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "第一张普通正文图片的原始播放地址，与 coverImages[0] 一致；未知媒体不得自动请求"
+          },
+          "animated": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "可信的动画属性；无法确认、未完成或历史 GIF 返回 null"
+          },
+          "posterUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "可用于列表静止状态的第一帧静态地址；未知时返回 null，客户端显示占位，禁止回退加载原图"
+          },
+          "previewVariants": {
+            "nullable": true,
+            "maxItems": 2,
+            "description": "可选列表动画变体，按单帧像素面积升序；缺失或 null 时，只有已确认 animated=true 且有独立静态 poster 的媒体可受控回退原 url",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ThreadCoverPreviewVariantResponseDto"
+            }
+          }
+        },
+        "required": [
+          "url",
+          "animated",
+          "posterUrl"
+        ]
+      },
       "ThreadListItemResponseDto": {
         "type": "object",
         "properties": {
@@ -19653,6 +19718,16 @@
             "items": {
               "type": "string"
             }
+          },
+          "coverMedia": {
+            "nullable": true,
+            "description": "第一张普通正文图片的封面读模型；无图时返回 null。旧服务可能省略，消费者须兼容缺字段",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ThreadCoverMediaResponseDto"
+              }
+            ]
           }
         },
         "required": [
@@ -19673,7 +19748,8 @@
           "topicTags",
           "_count",
           "preview",
-          "coverImages"
+          "coverImages",
+          "coverMedia"
         ]
       },
       "UpdateUserDto": {
@@ -19946,6 +20022,16 @@
             "items": {
               "type": "string"
             }
+          },
+          "coverMedia": {
+            "nullable": true,
+            "description": "第一张普通正文图片的封面读模型；无图时返回 null。旧服务可能省略，消费者须兼容缺字段",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ThreadCoverMediaResponseDto"
+              }
+            ]
           }
         },
         "required": [
@@ -19966,7 +20052,8 @@
           "topicTags",
           "_count",
           "preview",
-          "coverImages"
+          "coverImages",
+          "coverMedia"
         ]
       },
       "MomentMediaResponseDto": {
@@ -21041,6 +21128,16 @@
               "type": "string"
             }
           },
+          "coverMedia": {
+            "nullable": true,
+            "description": "第一张普通正文图片的封面读模型；无图时返回 null。旧服务可能省略，消费者须兼容缺字段",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ThreadCoverMediaResponseDto"
+              }
+            ]
+          },
           "bookmarkId": {
             "type": "string",
             "description": "收藏记录 ID"
@@ -21069,6 +21166,7 @@
           "_count",
           "preview",
           "coverImages",
+          "coverMedia",
           "bookmarkId",
           "bookmarkFolderId"
         ]
@@ -21087,13 +21185,14 @@
           },
           "bookmarkCount": {
             "type": "number",
-            "minimum": 0
+            "minimum": 0,
+            "description": "当前用户在该收藏夹中可见的主题帖收藏总数，与列表使用相同可见性规则，不受分页影响"
           },
           "momentBookmarkCount": {
             "type": "number",
             "minimum": 0,
             "deprecated": true,
-            "description": "旧客户端兼容字段：同名动态收藏夹中的收藏数量"
+            "description": "旧客户端兼容字段：当前用户在同名动态收藏夹中可见的动态收藏总数，与动态列表使用相同可见性规则，不受分页影响"
           },
           "createdAt": {
             "type": "string",
@@ -21404,6 +21503,16 @@
             "items": {
               "type": "string"
             }
+          },
+          "coverMedia": {
+            "nullable": true,
+            "description": "第一张普通正文图片的封面读模型；无图时返回 null。旧服务可能省略，消费者须兼容缺字段",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ThreadCoverMediaResponseDto"
+              }
+            ]
           }
         },
         "required": [
@@ -21424,7 +21533,8 @@
           "topicTags",
           "_count",
           "preview",
-          "coverImages"
+          "coverImages",
+          "coverMedia"
         ]
       },
       "CreateThreadDto": {
@@ -22882,7 +22992,8 @@
           },
           "momentBookmarkCount": {
             "type": "number",
-            "minimum": 0
+            "minimum": 0,
+            "description": "当前用户在该收藏夹中可见的动态收藏总数，与列表使用相同可见性规则，不受分页影响"
           },
           "createdAt": {
             "type": "string",
@@ -26966,6 +27077,16 @@
               "type": "string"
             }
           },
+          "coverMedia": {
+            "nullable": true,
+            "description": "第一张普通正文图片的封面读模型；无图时返回 null。旧服务可能省略，消费者须兼容缺字段",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ThreadCoverMediaResponseDto"
+              }
+            ]
+          },
           "relevance": {
             "type": "number",
             "description": "仅说明本次查询的标题相关度；客户端不得作为稳定业务字段依赖"
@@ -26989,7 +27110,8 @@
           "topicTags",
           "_count",
           "preview",
-          "coverImages"
+          "coverImages",
+          "coverMedia"
         ]
       },
       "SearchUserResponseDto": {

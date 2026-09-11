@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { MediaPurpose } from '@prisma/client';
+import { Media, MediaPurpose } from '@prisma/client';
 import { performance } from 'node:perf_hooks';
 import sharp from 'sharp';
 import { inspectImage } from '../common/image-inspection';
@@ -8,11 +8,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ObjectStorageService } from '../storage/object-storage.service';
 import { derivativeKey, mediaVariantsFor, MediaVariantName } from './media-policy';
 
+import { stageOptionalPreviews, completeMediaWithPreviews } from './media-animation-preview-publisher';
+import { cleanupMediaPreviewAttempts } from './media-preview-cleanup';
+
 const MASTER_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 const DERIVATIVE_CACHE_CONTROL = MASTER_CACHE_CONTROL;
 
 type StageTimings = Record<
-  'downloadMs' | 'inspectMs' | 'normalizeMs' | 'variantsMs' | 'uploadMs' | 'databaseMs' | 'cleanupMs',
+  'downloadMs' | 'inspectMs' | 'normalizeMs' | 'variantsMs' | 'uploadMs' | 'previewMs' | 'databaseMs' | 'cleanupMs',
   number
 >;
 
@@ -56,11 +59,12 @@ export class MediaProcessingService {
   ) {}
 
   async processImage(mediaId: string, options: ProcessOptions = {}) {
+    const jobStartedAt = Date.now() - Math.max(0, options.queueWaitMs ?? 0);
     const media = await this.prisma.media.findUnique({ where: { id: mediaId } });
     if (!media || media.deletionClaimedAt || media.status !== 'PROCESSING') return;
 
     if (!media.stagingKey) {
-      await this.processLegacyObject(mediaId, media.key);
+      await this.processLegacyObject(media, jobStartedAt);
       return;
     }
 
@@ -70,6 +74,7 @@ export class MediaProcessingService {
       normalizeMs: 0,
       variantsMs: 0,
       uploadMs: 0,
+      previewMs: 0,
       databaseMs: 0,
       cleanupMs: 0,
     };
@@ -116,19 +121,24 @@ export class MediaProcessingService {
     timings.uploadMs = elapsed(started);
 
     started = performance.now();
-    const completed = await this.prisma.media.updateMany({
-      where: { id: mediaId, status: 'PROCESSING', deletionClaimedAt: null },
-      data: {
+    const previews = isGif
+      ? await stageOptionalPreviews(this.prisma, this.storage, media, source, jobStartedAt)
+      : { attemptId: null, variants: null };
+    timings.previewMs = elapsed(started);
+    started = performance.now();
+    const completed = await completeMediaWithPreviews(this.prisma, mediaId, {
         contentType: isGif ? 'image/gif' : 'image/webp',
         size: masterInfo.size,
         width: masterInfo.width,
         height: masterInfo.height,
         animated: isGif,
+        posterUrl: outputs.some((output) => output.name === 'poster')
+          ? this.storage.publicUrl(derivativeKey(media.key, 'poster'))
+          : null,
         status: 'COMPLETED',
         processingStartedAt: null,
         orphanedAt: new Date(),
-      },
-    });
+    }, previews);
     timings.databaseMs = elapsed(started);
     if (completed.count !== 1) return;
 
@@ -149,6 +159,10 @@ export class MediaProcessingService {
         ...Object.entries(timings).map(([name, value]) => `${name}=${value}`),
       ].join(' '),
     );
+  }
+
+  cleanupPreviewAttempts(limit?: number) {
+    return cleanupMediaPreviewAttempts(this.prisma, this.storage, limit);
   }
 
   async markFailed(mediaId: string) {
@@ -198,7 +212,10 @@ export class MediaProcessingService {
 
   private async createVariant(master: Buffer, key: string, variant: MediaVariantName) {
     const pipeline = sharp(master, { limitInputPixels: MAX_STATIC_INPUT_PIXELS });
-    if (variant === 'thumbnail') {
+    if (variant === 'poster') {
+      // 首帧保留原比例，避免方形 thumbnail 在列表 16:9 封面中再次裁切。
+      pipeline.resize(800, 800, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 82 });
+    } else if (variant === 'thumbnail') {
       pipeline.resize(300, 300, { fit: 'cover', withoutEnlargement: true }).webp({ quality: 80 });
     } else if (variant === 'feed') {
       pipeline.resize(480, null, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 82 });
@@ -229,12 +246,15 @@ export class MediaProcessingService {
   }
 
   /** 迁移前已在原 key 上传的极少量任务保持旧行为，避免覆盖扩展名与历史 URL。 */
-  private async processLegacyObject(mediaId: string, key: string) {
+  private async processLegacyObject(media: Media, jobStartedAt: number) {
+    const { id: mediaId, key, purpose } = media;
     const source = await this.storage.download(key);
     const inspection = await inspectMediaImage(source);
     const animated = inspection.isGif;
     const outputs = await mapConcurrent(
-      mediaVariantsFor(MediaPurpose.LEGACY, animated),
+      mediaVariantsFor(MediaPurpose.LEGACY, animated).filter((variant) =>
+        variant !== 'poster' || purpose === MediaPurpose.RICH_CONTENT || purpose === MediaPurpose.LEGACY,
+      ),
       2,
       (variant) => this.createVariant(source, key, variant),
     );
@@ -246,17 +266,20 @@ export class MediaProcessingService {
         }),
       ),
     );
-    await this.prisma.media.updateMany({
-      where: { id: mediaId, status: 'PROCESSING', deletionClaimedAt: null },
-      data: {
+    const previews = animated
+      ? await stageOptionalPreviews(this.prisma, this.storage, media, source, jobStartedAt)
+      : { attemptId: null, variants: null };
+    await completeMediaWithPreviews(this.prisma, mediaId, {
         width: inspection.frameWidth,
         height: inspection.frameHeight,
         animated,
+        posterUrl: outputs.some((output) => output.name === 'poster')
+          ? this.storage.publicUrl(derivativeKey(key, 'poster'))
+          : null,
         status: 'COMPLETED',
         processingStartedAt: null,
         orphanedAt: new Date(),
-      },
-    });
+    }, previews);
     this.logger.log(`media_processing_legacy_complete mediaId=${mediaId}`);
   }
 }

@@ -276,6 +276,10 @@ export class MediaService {
     });
   }
 
+  cleanupPreviewAttempts(limit?: number) {
+    return this.processing.cleanupPreviewAttempts(limit);
+  }
+
   cleanupCompletedStagingObjects(limit?: number) {
     return this.processing.cleanupCompletedStagingObjects(limit);
   }
@@ -328,6 +332,9 @@ export class MediaService {
     if (victims.length === 0) return;
 
     // 领取事务已提交，数据库拒绝新增引用；任何对象删除失败都保留记录重试。
+    const attempts = await this.prisma.mediaPreviewAttempt.findMany({
+      where: { mediaId: { in: victims.map((media) => media.id) } }, select: { mediaId: true, keys: true },
+    });
     const bucket = this.storage.bucket;
     const deletedIds = new Set<string>();
     for (let i = 0; i < victims.length; i += S3_BATCH_DELETE_LIMIT) {
@@ -335,6 +342,9 @@ export class MediaService {
       const keys: { key: string; mediaId: string }[] = [];
       for (const m of chunk) {
         keys.push({ key: m.key, mediaId: m.id });
+        for (const attempt of attempts.filter((attempt) => attempt.mediaId === m.id)) {
+          keys.push(...attempt.keys.map((key) => ({ key, mediaId: m.id })));
+        }
         if (m.stagingKey) keys.push({ key: m.stagingKey, mediaId: m.id });
         if (!m.key.toLowerCase().endsWith('.svg')) {
           for (const variant of mediaVariantsFor(m.purpose, m.animated)) {
@@ -386,6 +396,10 @@ export class MediaService {
     if (!claimed[0].key.toLowerCase().endsWith('.svg')) {
       keys.push(...mediaVariantsFor(media.purpose, media.animated).map((variant) => derivativeKey(claimed[0].key, variant)));
     }
+    const attempts = await this.prisma.mediaPreviewAttempt.findMany({
+      where: { mediaId: media.id }, select: { keys: true },
+    });
+    keys.push(...attempts.flatMap((attempt) => attempt.keys));
     const failedKeys = await this.storage.removeMany(keys);
     if (failedKeys.size > 0) return false;
 
