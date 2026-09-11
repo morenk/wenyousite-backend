@@ -54,7 +54,8 @@
     "check:full": "pnpm security:audit && pnpm check && pnpm test:e2e:auth-terminal && pnpm test:e2e:economy-terminal && pnpm test:e2e && pnpm test:e2e:media-reclamation && pnpm test:e2e:ranking",
     "test:e2e:media-reclamation": "MEDIA_RECLAMATION_TEST_ENV=test tsx scripts/media-reclamation.integration.ts",
     "test:e2e:ranking": "THREAD_RANKING_TEST_ENV=test tsx scripts/thread-ranking.integration.ts",
-    "test:search:benchmark": "SEARCH_BENCHMARK_ENV=test tsx scripts/search-benchmark.ts"
+    "test:search:benchmark": "SEARCH_BENCHMARK_ENV=test tsx scripts/search-benchmark.ts",
+    "test:deploy-release:integration": "bash scripts/assemble-backend-release.integration.test.sh"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.800.0",
