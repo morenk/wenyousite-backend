@@ -1,4 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { MediaDisplayResponseDto } from '../../media/dto/media-display.dto';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export const DIRECT_CONVERSATION_STATUSES = [
   'PENDING',
@@ -10,6 +11,9 @@ export const DIRECT_CONVERSATION_STATUSES = [
 export const DIRECT_REQUEST_DIRECTIONS = ['NONE', 'INCOMING', 'OUTGOING'] as const;
 
 export class DirectMessageUserResponseDto {
+  @ApiPropertyOptional({ type: MediaDisplayResponseDto, nullable: true, description: '头像完整 WebP 展示资源；avatar 保留来源身份' })
+  avatarDisplay?: MediaDisplayResponseDto | null;
+
   @ApiProperty()
   id!: string;
 
@@ -24,6 +28,9 @@ export class DirectMessageUserResponseDto {
 }
 
 export class DirectMessageMediaResponseDto {
+  @ApiPropertyOptional({ type: MediaDisplayResponseDto, nullable: true, description: '完整 WebP 展示资源；缺少或为空时为兼容历史媒体' })
+  display?: MediaDisplayResponseDto | null;
+
   @ApiProperty()
   id!: string;
 

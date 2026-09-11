@@ -1,3 +1,4 @@
+import { MediaDisplayResponseDto } from '../../media/dto/media-display.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ArrayMaxSize, IsArray, IsInt, IsString, IsUUID, Min } from 'class-validator';
 import { IsCuid } from '../../common/decorators/is-cuid.decorator';
@@ -86,6 +87,9 @@ export class ReorderStickersDto {
 }
 
 export class StickerAssetResponseDto {
+  @ApiPropertyOptional({ type: MediaDisplayResponseDto, nullable: true, description: '完整 WebP 展示资源；缺少或为空时为兼容历史媒体' })
+  display?: MediaDisplayResponseDto | null;
+
   @ApiProperty()
   id!: string;
 

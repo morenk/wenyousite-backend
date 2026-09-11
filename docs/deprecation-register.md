@@ -30,3 +30,7 @@
 [能力与停止/回退验证](rich-text-stability-delivery.md)只提供离线证据和执行方案，不授权部署、停止线上写入口、回退进程或发布 APK；这些动作继续由负责人明确批准。
 
 - 5.21 主贴聚合保存新增可选 `defaultSubthreadPostingPolicy`；Web / Mobile 旧客户端省略字段保留原策略。保留现有子贴权限更新端点、三个枚举与创建默认值，本次不弃用或清理协议。后端先行、消费者随后；将来收紧字段或删除旧端点仍需独立四项证据评审。
+
+## 完整动画展示资源兼容演进
+
+新增统一 `display` / `avatarDisplay` 与正文 `mediaDisplays`；来源身份和旧字段保留，历史补处理及删除原件尚未执行。详细字段、跨场景选择和发布边界见[完整动画 WebP 展示契约](media-display.md)。

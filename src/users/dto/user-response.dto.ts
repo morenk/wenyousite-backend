@@ -1,3 +1,4 @@
+import { MarkdownMediaDisplayResponseDto, MediaDisplayResponseDto } from '../../media/dto/media-display.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PostAuthorResponseDto } from '../../posts/dto/post-response.dto';
 
@@ -10,6 +11,9 @@ class UserSocialCountResponseDto {
 }
 
 export class ProfileCoverVariantResponseDto {
+  @ApiPropertyOptional({ type: MediaDisplayResponseDto, nullable: true, description: '完整 WebP 展示资源；缺少或为空时为兼容历史媒体' })
+  display?: MediaDisplayResponseDto | null;
+
   @ApiProperty({ description: '背景图原图地址' })
   url!: string;
 
@@ -33,6 +37,9 @@ export class ProfileCoverResponseDto extends ProfileCoverVariantResponseDto {
 }
 
 export class PrivateUserResponseDto {
+  @ApiPropertyOptional({ type: MediaDisplayResponseDto, nullable: true, description: '头像完整 WebP 展示资源；avatar 保留来源身份' })
+  avatarDisplay?: MediaDisplayResponseDto | null;
+
   @ApiProperty()
   id!: string;
 
@@ -98,6 +105,9 @@ export class CurrentUserResponseDto extends PrivateUserResponseDto {
 
 /** 注销用户只保留 id/username/isDeactivated，因此其余公开资料字段均为可选。 */
 export class PublicUserResponseDto {
+  @ApiPropertyOptional({ type: MediaDisplayResponseDto, nullable: true, description: '头像完整 WebP 展示资源；avatar 保留来源身份' })
+  avatarDisplay?: MediaDisplayResponseDto | null;
+
   @ApiProperty()
   id!: string;
 
@@ -208,6 +218,9 @@ class RecentReplyDiceResponseDto {
 }
 
 export class RecentReplyResponseDto {
+  @ApiPropertyOptional({ type: [MarkdownMediaDisplayResponseDto], description: '仅此次已授权正文中的精确来源映射；编辑保存继续使用 sourceUrl' })
+  mediaDisplays?: MarkdownMediaDisplayResponseDto[];
+
   @ApiProperty()
   id!: string;
 

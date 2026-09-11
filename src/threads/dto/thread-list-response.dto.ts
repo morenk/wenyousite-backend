@@ -1,3 +1,4 @@
+import { MediaDisplayResponseDto } from '../../media/dto/media-display.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PostAuthorResponseDto } from '../../posts/dto/post-response.dto';
 import { ThreadCategoryInfoDto } from '../../taxonomy/dto/thread-category-info.dto';
@@ -40,6 +41,9 @@ export class ThreadCoverPreviewVariantResponseDto {
 }
 
 export class ThreadCoverMediaResponseDto {
+  @ApiPropertyOptional({ type: MediaDisplayResponseDto, nullable: true, description: '完整 WebP 展示资源；缺少或为空时为兼容历史媒体' })
+  display?: MediaDisplayResponseDto | null;
+
   @ApiProperty({ description: '第一张普通正文图片的原始播放地址，与 coverImages[0] 一致；未知媒体不得自动请求' })
   url!: string;
 

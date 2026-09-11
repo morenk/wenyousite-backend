@@ -1,8 +1,12 @@
+import { MarkdownMediaDisplayResponseDto } from '../../media/dto/media-display.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { DiceRollResponseDto, PostAuthorResponseDto } from '../../posts/dto/post-response.dto';
 import { ThreadCategoryInfoDto } from '../../taxonomy/dto/thread-category-info.dto';
 
 class ThreadBodyPostResponseDto {
+  @ApiPropertyOptional({ type: [MarkdownMediaDisplayResponseDto], description: '仅此次已授权正文中的精确来源映射；编辑保存继续使用 sourceUrl' })
+  mediaDisplays?: MarkdownMediaDisplayResponseDto[];
+
   @ApiProperty()
   id!: string;
 

@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "contractVersion": "5.22.0-dev.20260912.1",
+  "cases": [
+    {
+      "id": "full-animation",
+      "sourceUrl": "https://cdn.example.test/media/a.gif",
+      "display": {
+        "url": "https://cdn.example.test/media/a_display_v1.webp",
+        "contentType": "image/webp",
+        "width": 800,
+        "height": 450,
+        "bytes": 1310720,
+        "animated": true,
+        "frameCount": 40,
+        "durationMs": 2000,
+        "loopCount": 0
+      },
+      "expectedDisplayUrl": "https://cdn.example.test/media/a_display_v1.webp",
+      "expectedPersistedUrl": "https://cdn.example.test/media/a.gif"
+    },
+    {
+      "id": "static",
+      "display": {
+        "url": "https://cdn.example.test/media/a_display_v1.webp",
+        "contentType": "image/webp",
+        "width": 800,
+        "height": 450,
+        "bytes": 1310720,
+        "animated": false,
+        "frameCount": 1,
+        "durationMs": 0,
+        "loopCount": 1
+      }
+    },
+    {
+      "id": "legacy-pending",
+      "sourceUrl": "https://cdn.example.test/media/legacy.gif",
+      "display": null
+    },
+    {
+      "id": "markdown-identities",
+      "content": "![a](https://cdn.example.test/media/a.gif)",
+      "mediaDisplays": [
+        {
+          "sourceUrl": "https://cdn.example.test/media/a.gif",
+          "display": {
+            "url": "https://cdn.example.test/media/a_display_v1.webp",
+            "contentType": "image/webp",
+            "width": 800,
+            "height": 450,
+            "bytes": 1310720,
+            "animated": true,
+            "frameCount": 40,
+            "durationMs": 2000,
+            "loopCount": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "finite-loop",
+      "display": {
+        "url": "https://cdn.example.test/media/a_display_v1.webp",
+        "contentType": "image/webp",
+        "width": 800,
+        "height": 450,
+        "bytes": 1310720,
+        "animated": true,
+        "frameCount": 40,
+        "durationMs": 2000,
+        "loopCount": 3
+      }
+    }
+  ]
+}
