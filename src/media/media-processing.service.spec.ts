@@ -1,3 +1,4 @@
+jest.mock('./media-display-publisher', () => ({ ensureAnimationDisplay: jest.fn().mockResolvedValue({ url: 'https://display.test/full.webp' }), processHistoricalDisplay: jest.fn() }));
 jest.mock('./media-animation-preview', () => ({ generateAnimationPreviews: jest.fn().mockResolvedValue([]) }));
 import { MediaPurpose } from '@prisma/client';
 import sharp from 'sharp';

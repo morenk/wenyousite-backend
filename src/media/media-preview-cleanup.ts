@@ -1,3 +1,4 @@
+import { animationDisplayKey } from './media-animation-display-policy';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { ObjectStorageService } from '../storage/object-storage.service';
@@ -20,6 +21,7 @@ export async function cleanupMediaPreviewAttempts(
   let cleaned = 0;
   for (const row of rows) {
     const allowed = new Set(PREVIEW_EDGES.map((edge) => animationPreviewKey(row.media.key, row.id, edge)));
+    allowed.add(animationDisplayKey(row.media.key, row.id));
     if (!row.keys.length || row.keys.some((key) => !allowed.has(key))) continue;
     const leaseUntil = new Date(Date.now() + RETRY_MS);
     const claimed = await prisma.mediaPreviewAttempt.updateMany({

@@ -1,4 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { MediaDisplayResponseDto } from '../../media/dto/media-display.dto';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ThreadCategoryInfoDto } from '../../taxonomy/dto/thread-category-info.dto';
 
 export class InviteLinkResponseDto {
@@ -16,6 +17,9 @@ export class InviteLinkResponseDto {
 }
 
 class InviteOwnerResponseDto {
+  @ApiPropertyOptional({ type: MediaDisplayResponseDto, nullable: true, description: '头像完整 WebP 展示资源；avatar 保留来源身份' })
+  avatarDisplay?: MediaDisplayResponseDto | null;
+
   @ApiProperty({ description: '楼主用户 ID' })
   id: string;
 

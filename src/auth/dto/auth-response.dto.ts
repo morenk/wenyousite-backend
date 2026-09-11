@@ -1,7 +1,11 @@
+import { MediaDisplayResponseDto } from '../../media/dto/media-display.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /** 用户公开信息（不含密码等敏感字段） */
 export class UserProfile {
+  @ApiPropertyOptional({ type: MediaDisplayResponseDto, nullable: true, description: '头像完整 WebP 展示资源；avatar 保留来源身份' })
+  avatarDisplay?: MediaDisplayResponseDto | null;
+
   @ApiProperty({ example: 'clxabc123def456', description: '用户 ID' })
   id: string;
 

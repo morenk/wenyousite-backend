@@ -1,6 +1,7 @@
+import { MediaDisplayResponseDto } from './media-display.dto';
 /** 媒体响应 DTO：供 Web/Flutter 生成上传链路的强类型客户端 */
 
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { MediaPurpose } from '@prisma/client';
 import { MEDIA_PURPOSES } from '../media-policy';
 
@@ -23,6 +24,9 @@ export class UploadUrlResponseDto {
 
 /** 媒体记录响应 */
 export class MediaResponseDto {
+  @ApiPropertyOptional({ type: MediaDisplayResponseDto, nullable: true, description: '完整 WebP 展示资源；缺少或为空时为兼容历史媒体' })
+  display?: MediaDisplayResponseDto | null;
+
   @ApiProperty()
   id!: string;
 

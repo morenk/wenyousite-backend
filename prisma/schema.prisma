@@ -873,6 +873,11 @@ model Media {
   stagingKey          String?      @unique @map("staging_key")
   posterUrl           String?      @map("poster_url")
   previewVariants     Json?        @map("preview_variants")
+  displayAsset        Json?        @map("display_asset")
+  displayStatus       String?      @map("display_status")
+  displayAttempts     Int          @default(0) @map("display_attempts")
+  displayStartedAt    DateTime?    @map("display_started_at")
+  displayFailureCode  String?      @map("display_failure_code")
   purpose             MediaPurpose @default(LEGACY)
   contentType         String?      @map("content_type")
   size                Int?
@@ -929,6 +934,7 @@ model MediaPreviewAttempt {
 }
 
 model StickerAsset {
+  displayAsset Json? @map("display_asset")
   id           String   @id @default(cuid())
   url          String   @unique
   key          String   @unique

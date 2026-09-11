@@ -1,3 +1,4 @@
+import { MarkdownMediaDisplayResponseDto, MediaDisplayResponseDto } from '../../media/dto/media-display.dto';
 /** 帖子响应 DTO：统一楼层、楼中楼和编辑器读写链路的跨端类型 */
 
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -42,6 +43,9 @@ export class DiceRollResponseDto {
 
 /** 帖子作者摘要 */
 export class PostAuthorResponseDto {
+  @ApiPropertyOptional({ type: MediaDisplayResponseDto, nullable: true, description: '头像完整 WebP 展示资源；avatar 保留来源身份' })
+  avatarDisplay?: MediaDisplayResponseDto | null;
+
   @ApiProperty()
   id!: string;
 
@@ -84,6 +88,9 @@ export class LatestThreadPostResponseDto {
 
 /** 帖子公共字段 */
 export class PostBaseResponseDto {
+  @ApiPropertyOptional({ type: [MarkdownMediaDisplayResponseDto], description: '仅此次已授权正文中的精确来源映射；编辑保存继续使用 sourceUrl' })
+  mediaDisplays?: MarkdownMediaDisplayResponseDto[];
+
   @ApiProperty()
   id!: string;
 

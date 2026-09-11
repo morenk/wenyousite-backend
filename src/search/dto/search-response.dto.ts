@@ -1,7 +1,11 @@
+import { MediaDisplayResponseDto, MarkdownMediaDisplayResponseDto } from '../../media/dto/media-display.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { HomeThreadListItemResponseDto } from '../../threads/dto/thread-list-response.dto';
 
 export class SearchUserResponseDto {
+  @ApiPropertyOptional({ type: MediaDisplayResponseDto, nullable: true, description: '头像完整 WebP 展示资源；avatar 保留来源身份' })
+  avatarDisplay?: MediaDisplayResponseDto | null;
+
   @ApiProperty({ description: '用户 ID' })
   id: string;
 
@@ -48,6 +52,9 @@ class SearchSubthreadReferenceResponseDto {
 }
 
 export class SearchPostResponseDto {
+  @ApiPropertyOptional({ type: [MarkdownMediaDisplayResponseDto], description: '已授权正文的精确来源映射' })
+  mediaDisplays?: MarkdownMediaDisplayResponseDto[];
+
   @ApiProperty({ enum: ['BODY', 'FLOOR'], description: 'BODY 为正文，FLOOR 为主楼层或楼中楼' })
   kind: 'BODY' | 'FLOOR';
 

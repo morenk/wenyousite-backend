@@ -1,9 +1,13 @@
+import { MarkdownMediaDisplayResponseDto } from '../../media/dto/media-display.dto';
 /** 草稿响应 DTO：供 Web/Flutter 生成草稿池强类型客户端 */
 
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /** 草稿记录响应 */
 export class DraftResponseDto {
+  @ApiPropertyOptional({ type: [MarkdownMediaDisplayResponseDto], description: '仅此次已授权正文中的精确来源映射；编辑保存继续使用 sourceUrl' })
+  mediaDisplays?: MarkdownMediaDisplayResponseDto[];
+
   @ApiProperty()
   id!: string;
 

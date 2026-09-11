@@ -6,7 +6,7 @@ import {
   EncodedPreview, PREVIEW_EDGES, PREVIEW_MAX_INPUT_BYTES, PREVIEW_MAX_RSS_BYTES,
 } from './media-animation-preview-policy';
 
-let previousJob = Promise.resolve();
+import { withMediaEncodingSlot } from './media-encoding-slot';
 
 function parseOutput(output: Buffer, sourceBytes: number): EncodedPreview[] {
   if (output.length < 4) return [];
@@ -63,21 +63,6 @@ async function runChild(source: Buffer, deadline: number): Promise<EncodedPrevie
 /** 一个图片 Worker 同时只运行一个预览编码子进程，等待与两档编码共用截止时间。 */
 export async function generateAnimationPreviews(source: Buffer, deadline: number): Promise<EncodedPreview[]> {
   if (source.length > PREVIEW_MAX_INPUT_BYTES || deadline <= Date.now()) return [];
-  const before = previousJob;
-  let release!: () => void;
-  const gate = new Promise<void>((resolve) => { release = resolve; });
-  previousJob = before.then(() => gate);
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    const acquired = await Promise.race([
-      before.then(() => true),
-      new Promise<false>((resolve) => { timer = setTimeout(() => resolve(false), Math.max(0, deadline - Date.now())); }),
-    ]);
-    if (!acquired) return [];
-    if (timer) clearTimeout(timer);
-    return await runChild(source, deadline);
-  } finally {
-    if (timer) clearTimeout(timer);
-    release();
-  }
+  try { return await withMediaEncodingSlot(deadline, () => runChild(source, deadline)); }
+  catch { return []; }
 }

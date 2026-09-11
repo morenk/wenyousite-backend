@@ -31,6 +31,7 @@ export function mediaVariantUrls(media: MediaVariantSource) {
 export function withMediaVariants<T extends MediaVariantSource>(media: T) {
   const result = { ...media, ...mediaVariantUrls(media) };
   delete result.deletionClaimedAt;
+  for (const key of ['displayAsset', 'displayStatus', 'displayAttempts', 'displayStartedAt', 'displayFailureCode']) delete (result as Record<string, unknown>)[key];
   delete result.posterUrl;
   delete result.previewVariants;
   return result;

@@ -18623,7 +18623,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.21.0-dev.20260912.1",
+    "version": "5.22.0-dev.20260912.2",
     "contact": {}
   },
   "tags": [
@@ -18849,9 +18849,75 @@
           "password"
         ]
       },
+      "MediaDisplayResponseDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "可信完整展示资源；不得据来源 URL 猜测或改写扩展名"
+          },
+          "contentType": {
+            "type": "string",
+            "enum": [
+              "image/webp"
+            ]
+          },
+          "width": {
+            "type": "number",
+            "minimum": 1
+          },
+          "height": {
+            "type": "number",
+            "minimum": 1
+          },
+          "bytes": {
+            "type": "number",
+            "minimum": 1
+          },
+          "animated": {
+            "type": "boolean"
+          },
+          "frameCount": {
+            "type": "number",
+            "minimum": 1,
+            "description": "静态图为 1；动画必须保留全部帧"
+          },
+          "durationMs": {
+            "type": "number",
+            "minimum": 0,
+            "description": "完整单轮时长；静态图为 0"
+          },
+          "loopCount": {
+            "type": "number",
+            "minimum": 0,
+            "description": "0 无限循环，1 播放一次；静态图固定 1"
+          }
+        },
+        "required": [
+          "url",
+          "contentType",
+          "width",
+          "height",
+          "bytes",
+          "animated",
+          "frameCount",
+          "durationMs",
+          "loopCount"
+        ]
+      },
       "UserProfile": {
         "type": "object",
         "properties": {
+          "avatarDisplay": {
+            "nullable": true,
+            "description": "头像完整 WebP 展示资源；avatar 保留来源身份",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaDisplayResponseDto"
+              }
+            ]
+          },
           "id": {
             "type": "string",
             "example": "clxabc123def456",
@@ -19164,6 +19230,16 @@
       "PostAuthorResponseDto": {
         "type": "object",
         "properties": {
+          "avatarDisplay": {
+            "nullable": true,
+            "description": "头像完整 WebP 展示资源；avatar 保留来源身份",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaDisplayResponseDto"
+              }
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -19190,6 +19266,16 @@
       "MentionCandidateDto": {
         "type": "object",
         "properties": {
+          "avatarDisplay": {
+            "nullable": true,
+            "description": "头像完整 WebP 展示资源；avatar 保留来源身份",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaDisplayResponseDto"
+              }
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -19237,6 +19323,16 @@
       "ProfileCoverVariantResponseDto": {
         "type": "object",
         "properties": {
+          "display": {
+            "nullable": true,
+            "description": "完整 WebP 展示资源；缺少或为空时为兼容历史媒体",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaDisplayResponseDto"
+              }
+            ]
+          },
           "url": {
             "type": "string",
             "description": "背景图原图地址"
@@ -19265,6 +19361,16 @@
       "ProfileCoverResponseDto": {
         "type": "object",
         "properties": {
+          "display": {
+            "nullable": true,
+            "description": "完整 WebP 展示资源；缺少或为空时为兼容历史媒体",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaDisplayResponseDto"
+              }
+            ]
+          },
           "url": {
             "type": "string",
             "description": "背景图原图地址"
@@ -19321,6 +19427,16 @@
       "CurrentUserResponseDto": {
         "type": "object",
         "properties": {
+          "avatarDisplay": {
+            "nullable": true,
+            "description": "头像完整 WebP 展示资源；avatar 保留来源身份",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaDisplayResponseDto"
+              }
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -19592,6 +19708,16 @@
       "ThreadCoverMediaResponseDto": {
         "type": "object",
         "properties": {
+          "display": {
+            "nullable": true,
+            "description": "完整 WebP 展示资源；缺少或为空时为兼容历史媒体",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaDisplayResponseDto"
+              }
+            ]
+          },
           "url": {
             "type": "string",
             "description": "第一张普通正文图片的原始播放地址，与 coverImages[0] 一致；未知媒体不得自动请求"
@@ -19789,6 +19915,16 @@
       "PrivateUserResponseDto": {
         "type": "object",
         "properties": {
+          "avatarDisplay": {
+            "nullable": true,
+            "description": "头像完整 WebP 展示资源；avatar 保留来源身份",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaDisplayResponseDto"
+              }
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -20059,6 +20195,16 @@
       "MomentMediaResponseDto": {
         "type": "object",
         "properties": {
+          "display": {
+            "nullable": true,
+            "description": "完整 WebP 展示资源；缺少或为空时为兼容历史媒体",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaDisplayResponseDto"
+              }
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -20243,6 +20389,29 @@
           "replyCount"
         ]
       },
+      "MarkdownMediaDisplayResponseDto": {
+        "type": "object",
+        "properties": {
+          "sourceUrl": {
+            "type": "string",
+            "description": "正文精确来源 URL；编辑、引用和收藏继续持久化此身份"
+          },
+          "display": {
+            "nullable": true,
+            "description": "历史未补处理或无法确认时为空",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaDisplayResponseDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "sourceUrl",
+          "display"
+        ]
+      },
       "RecentReplyThreadResponseDto": {
         "type": "object",
         "properties": {
@@ -20288,6 +20457,13 @@
       "RecentReplyResponseDto": {
         "type": "object",
         "properties": {
+          "mediaDisplays": {
+            "description": "仅此次已授权正文中的精确来源映射；编辑保存继续使用 sourceUrl",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarkdownMediaDisplayResponseDto"
+            }
+          },
           "id": {
             "type": "string"
           },
@@ -20345,6 +20521,16 @@
       "PublicUserResponseDto": {
         "type": "object",
         "properties": {
+          "avatarDisplay": {
+            "nullable": true,
+            "description": "头像完整 WebP 展示资源；avatar 保留来源身份",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaDisplayResponseDto"
+              }
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -20770,6 +20956,16 @@
       "NotificationFromUserResponseDto": {
         "type": "object",
         "properties": {
+          "avatarDisplay": {
+            "nullable": true,
+            "description": "头像完整 WebP 展示资源；avatar 保留来源身份",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaDisplayResponseDto"
+              }
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -21690,6 +21886,13 @@
       "ThreadBodyPostResponseDto": {
         "type": "object",
         "properties": {
+          "mediaDisplays": {
+            "description": "仅此次已授权正文中的精确来源映射；编辑保存继续使用 sourceUrl",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarkdownMediaDisplayResponseDto"
+            }
+          },
           "id": {
             "type": "string"
           },
@@ -22255,6 +22458,16 @@
       "InviteOwnerResponseDto": {
         "type": "object",
         "properties": {
+          "avatarDisplay": {
+            "nullable": true,
+            "description": "头像完整 WebP 展示资源；avatar 保留来源身份",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaDisplayResponseDto"
+              }
+            ]
+          },
           "id": {
             "type": "string",
             "description": "楼主用户 ID"
@@ -22547,6 +22760,16 @@
       "StickerAssetResponseDto": {
         "type": "object",
         "properties": {
+          "display": {
+            "nullable": true,
+            "description": "完整 WebP 展示资源；缺少或为空时为兼容历史媒体",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaDisplayResponseDto"
+              }
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -23310,6 +23533,16 @@
       "MomentStickerResponseDto": {
         "type": "object",
         "properties": {
+          "display": {
+            "nullable": true,
+            "description": "完整 WebP 展示资源；缺少或为空时为兼容历史媒体",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaDisplayResponseDto"
+              }
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -23875,6 +24108,13 @@
       "ReplyResponseDto": {
         "type": "object",
         "properties": {
+          "mediaDisplays": {
+            "description": "仅此次已授权正文中的精确来源映射；编辑保存继续使用 sourceUrl",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarkdownMediaDisplayResponseDto"
+            }
+          },
           "id": {
             "type": "string"
           },
@@ -23983,6 +24223,13 @@
       "FloorResponseDto": {
         "type": "object",
         "properties": {
+          "mediaDisplays": {
+            "description": "仅此次已授权正文中的精确来源映射；编辑保存继续使用 sourceUrl",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarkdownMediaDisplayResponseDto"
+            }
+          },
           "id": {
             "type": "string"
           },
@@ -24092,6 +24339,16 @@
       "DiscussionAuthorResponseDto": {
         "type": "object",
         "properties": {
+          "avatarDisplay": {
+            "nullable": true,
+            "description": "头像完整 WebP 展示资源；avatar 保留来源身份",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaDisplayResponseDto"
+              }
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -24152,6 +24409,13 @@
       "PostResponseDto": {
         "type": "object",
         "properties": {
+          "mediaDisplays": {
+            "description": "仅此次已授权正文中的精确来源映射；编辑保存继续使用 sourceUrl",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarkdownMediaDisplayResponseDto"
+            }
+          },
           "id": {
             "type": "string"
           },
@@ -24325,6 +24589,13 @@
       "PostDetailResponseDto": {
         "type": "object",
         "properties": {
+          "mediaDisplays": {
+            "description": "仅此次已授权正文中的精确来源映射；编辑保存继续使用 sourceUrl",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarkdownMediaDisplayResponseDto"
+            }
+          },
           "id": {
             "type": "string"
           },
@@ -24466,6 +24737,13 @@
       "DraftResponseDto": {
         "type": "object",
         "properties": {
+          "mediaDisplays": {
+            "description": "仅此次已授权正文中的精确来源映射；编辑保存继续使用 sourceUrl",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarkdownMediaDisplayResponseDto"
+            }
+          },
           "id": {
             "type": "string"
           },
@@ -27126,6 +27404,16 @@
       "SearchUserResponseDto": {
         "type": "object",
         "properties": {
+          "avatarDisplay": {
+            "nullable": true,
+            "description": "头像完整 WebP 展示资源；avatar 保留来源身份",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaDisplayResponseDto"
+              }
+            ]
+          },
           "id": {
             "type": "string",
             "description": "用户 ID"
@@ -27206,6 +27494,13 @@
       "SearchPostResponseDto": {
         "type": "object",
         "properties": {
+          "mediaDisplays": {
+            "description": "已授权正文的精确来源映射",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarkdownMediaDisplayResponseDto"
+            }
+          },
           "kind": {
             "type": "string",
             "enum": [
@@ -27395,6 +27690,16 @@
       "MediaResponseDto": {
         "type": "object",
         "properties": {
+          "display": {
+            "nullable": true,
+            "description": "完整 WebP 展示资源；缺少或为空时为兼容历史媒体",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaDisplayResponseDto"
+              }
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -27510,6 +27815,16 @@
       "DirectMessageUserResponseDto": {
         "type": "object",
         "properties": {
+          "avatarDisplay": {
+            "nullable": true,
+            "description": "头像完整 WebP 展示资源；avatar 保留来源身份",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaDisplayResponseDto"
+              }
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -27740,6 +28055,16 @@
       "DirectMessageMediaResponseDto": {
         "type": "object",
         "properties": {
+          "display": {
+            "nullable": true,
+            "description": "完整 WebP 展示资源；缺少或为空时为兼容历史媒体",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaDisplayResponseDto"
+              }
+            ]
+          },
           "id": {
             "type": "string"
           },
@@ -27784,6 +28109,16 @@
       "DirectMessageStickerResponseDto": {
         "type": "object",
         "properties": {
+          "display": {
+            "nullable": true,
+            "description": "完整 WebP 展示资源；缺少或为空时为兼容历史媒体",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaDisplayResponseDto"
+              }
+            ]
+          },
           "id": {
             "type": "string"
           },

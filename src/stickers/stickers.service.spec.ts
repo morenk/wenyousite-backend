@@ -79,6 +79,7 @@ describe('StickersService', () => {
       deleteMany: jest.fn(),
     },
     stickerAsset: {
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       findUnique: jest.fn(),
       findUniqueOrThrow: jest.fn(),
       findFirst: jest.fn(),
@@ -548,9 +549,11 @@ describe('StickersService', () => {
         animated: boolean;
         frameCount: number;
         durationMs: number;
+        loopCount: number;
       }>;
     };
     jest.spyOn(internals, 'normalize').mockResolvedValue({
+      loopCount: 1,
       main: Buffer.from('normalized'),
       thumbnail: Buffer.from('thumbnail'),
       width: 128,

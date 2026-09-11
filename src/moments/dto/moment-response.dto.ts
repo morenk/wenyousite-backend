@@ -1,9 +1,13 @@
+import { MediaDisplayResponseDto } from '../../media/dto/media-display.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PostAuthorResponseDto } from '../../posts/dto/post-response.dto';
 
 const COVER_THEMES = ['ROSE', 'LILAC', 'MINT', 'AMBER'] as const;
 
 export class MomentMediaResponseDto {
+  @ApiPropertyOptional({ type: MediaDisplayResponseDto, nullable: true, description: '完整 WebP 展示资源；缺少或为空时为兼容历史媒体' })
+  display?: MediaDisplayResponseDto | null;
+
   @ApiProperty()
   id!: string;
 
@@ -128,6 +132,9 @@ export class MomentReplyTargetResponseDto {
 }
 
 export class MomentStickerResponseDto {
+  @ApiPropertyOptional({ type: MediaDisplayResponseDto, nullable: true, description: '完整 WebP 展示资源；缺少或为空时为兼容历史媒体' })
+  display?: MediaDisplayResponseDto | null;
+
   @ApiProperty()
   id!: string;
 

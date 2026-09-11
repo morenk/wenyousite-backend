@@ -1,3 +1,4 @@
+import { mediaVariantUrls } from '../media/media-response.mapper';
 import { visiblePostWhere } from '../access/block-visibility.where';
 import { readPreviewDescriptors } from '../media/media-animation-preview-policy';
 import { Prisma } from '@prisma/client';
@@ -90,7 +91,7 @@ export async function resolveThreadListCards(prisma: PrismaService, threads: Thr
   if (urls.length === 0) return cards;
   const media = await prisma.media.findMany({
     where: { url: { in: urls }, status: 'COMPLETED', deletionClaimedAt: null },
-    select: { url: true, contentType: true, animated: true, posterUrl: true, previewVariants: true },
+    select: { url: true, contentType: true, animated: true, posterUrl: true, previewVariants: true, purpose: true },
   });
   const byUrl = new Map<string, typeof media>();
   for (const item of media) byUrl.set(item.url, [...(byUrl.get(item.url) ?? []), item]);
@@ -108,7 +109,9 @@ export async function resolveThreadListCards(prisma: PrismaService, threads: Thr
     } else if (!item.animated && ['image/jpeg', 'image/webp'].includes(item.contentType ?? '')) {
       // JPEG 本身静态；本站现有 WebP 母版经静态归一化，动画 WebP 输入仍被拒绝。
       cover.animated = false;
-      cover.posterUrl = item.url;
+      cover.posterUrl = item.purpose
+        ? mediaVariantUrls({ ...item, status: 'COMPLETED' }).feedUrl ?? item.url
+        : item.url;
     }
   }
   return cards;

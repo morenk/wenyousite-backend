@@ -1,3 +1,4 @@
+import { generateAnimationDisplay } from '../media/media-animation-display';
 import { createHash } from 'crypto';
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -320,12 +321,25 @@ export class StickersService {
             animated: normalized.animated,
             frameCount: normalized.frameCount,
             durationMs: normalized.durationMs,
+            displayAsset: {
+              url: this.storage.publicUrl(key), contentType: 'image/webp', bytes: normalized.main.length,
+              width: normalized.width, height: normalized.height, animated: normalized.animated,
+              frameCount: normalized.frameCount, durationMs: normalized.durationMs, loopCount: normalized.loopCount,
+            },
           },
         });
       } catch (error: unknown) {
         if ((error as { code?: string })?.code !== 'P2002') throw error;
         asset = await this.prisma.stickerAsset.findUniqueOrThrow({ where: { contentHash: hash } });
       }
+    }
+    if (!asset.displayAsset) {
+      await this.prisma.stickerAsset.updateMany({ where: { id: asset.id, displayAsset: { equals: Prisma.DbNull } },
+        data: { displayAsset: {
+          url: asset.url, contentType: 'image/webp', bytes: normalized.main.length,
+          width: normalized.width, height: normalized.height, animated: normalized.animated,
+          frameCount: normalized.frameCount, durationMs: normalized.durationMs, loopCount: normalized.loopCount,
+        } } });
     }
     await this.completeImport(item.id, item.userId, asset);
   }
@@ -482,15 +496,11 @@ export class StickersService {
     if (frameCount > STICKER_MAX_FRAMES) throw this.invalid('动图不能超过 120 帧');
     if (durationMs > STICKER_MAX_ANIMATION_MS) throw this.invalid('动图不能超过 15 秒');
 
-    const main = await sharp(input, { animated, limitInputPixels: pixelLimit })
+    const encoded = animated ? await generateAnimationDisplay(input, 'sticker') : null;
+    const main = encoded?.body ?? await sharp(input, { limitInputPixels: pixelLimit })
       .rotate()
-      .resize({
-        width: STICKER_MAX_EDGE,
-        height: STICKER_MAX_EDGE,
-        fit: 'inside',
-        withoutEnlargement: true,
-      })
-      .webp({ quality: animated ? 80 : 82, effort: 5, loop: inspection.loop ?? 0 })
+      .resize({ width: STICKER_MAX_EDGE, height: STICKER_MAX_EDGE, fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 82, effort: 5 })
       .toBuffer();
     const maxOutput = animated ? STICKER_MAX_ANIMATED_BYTES : STICKER_MAX_STATIC_BYTES;
     if (main.length > maxOutput) {
@@ -508,7 +518,8 @@ export class StickersService {
       height: outputInspection.frameHeight,
       animated,
       frameCount,
-      durationMs,
+      durationMs: animated ? durationMs : 0,
+      loopCount: animated ? encoded!.loopCount : 1,
     };
   }
 

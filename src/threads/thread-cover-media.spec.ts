@@ -38,7 +38,7 @@ describe('主题帖封面媒体读模型', () => {
     expect(findMany).toHaveBeenCalledTimes(1);
     expect(findMany).toHaveBeenCalledWith({
       where: { url: { in: [url] }, status: 'COMPLETED', deletionClaimedAt: null },
-      select: { url: true, contentType: true, animated: true, posterUrl: true, previewVariants: true },
+      select: { url: true, contentType: true, animated: true, posterUrl: true, previewVariants: true, purpose: true },
     });
   });
 
@@ -52,6 +52,13 @@ describe('主题帖封面媒体读模型', () => {
     findMany.mockResolvedValue([{ url, animated: false, contentType, posterUrl: null }]);
     expect((await resolveThreadListCards(prisma, [row(image(url))]))[0].coverMedia)
       .toEqual({ url, animated: false, posterUrl: url, previewVariants: null });
+  });
+
+  it('已知静态用途优先使用生产者合法feed变体，避免列表首帧退到大主图', async () => {
+    const source = 'https://media.example.test/a.webp';
+    findMany.mockResolvedValue([{ url: source, animated: false, contentType: 'image/webp', posterUrl: null, purpose: 'RICH_CONTENT' }]);
+    expect((await resolveThreadListCards(prisma, [row(image(source))]))[0].coverMedia?.posterUrl)
+      .toBe('https://media.example.test/a_feed.webp');
   });
 
   it.each(['image/png', null, 'image/svg+xml'])('不能证明静态的历史 %s 保持未知', async (contentType) => {

@@ -126,3 +126,7 @@ Web 与 Flutter 应同步本版本固定 OpenAPI，验证“数量 0 + 空列表
 楼主和协作者通过已有管理授权保存；协作者仍不能提交 `visibility` / `published`。权限与元数据、正文和标签处于同一事务，沿用 `version`、`defaultSubthreadVersion`、`bodyVersion`；标题与权限同时改变时默认子贴版本只递增一次。省略权限字段保留现值，其他子贴不更新。
 
 客户端从详情 `defaultSubthreadId` 对应子贴读取 `postingPolicy` 和 `version`，纳入各端现有设置页统一保存；不将缺失值当作开放权限覆盖。成功后用最新详情刷新策略、版本及 `postingCapability`；409 或校验失败保留本地输入。仅新增发布后的设置入口，创建流程与默认开放策略不变。
+
+## 完整动画展示资源兼容演进
+
+新增统一 `display` / `avatarDisplay` 与正文 `mediaDisplays`；来源身份和旧字段保留，历史补处理及删除原件尚未执行。详细字段、跨场景选择和发布边界见[完整动画 WebP 展示契约](media-display.md)。

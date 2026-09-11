@@ -628,3 +628,7 @@
 Media 的可空 posterUrl 只登记成功上传的独立静态首帧；previewVariants 为可空 JSONB，保存最多两档已发布的 {url,width,height,bytes}。迁移不回填旧记录，不改变 url 原件关联。
 
 media_preview_attempts 保存每次独立 UUID 尝试的精确对象 keys，通过 PENDING / PUBLISHED / CLEANING 状态、expiresAt 与 CAS 隔离发布和回收。(status,nextCleanupAt) 索引支持限量到期扫描；mediaId 索引与级联外键支持媒体最终回收。清理成功仍保留墓碑及 cleanupPasses，逐步退避复查补偿迟到 PUT；这些记录随基础媒体回收删除，并非零存储开销。详见[列表动画预览](media-animation-previews.md)。
+
+## 完整动画展示资产
+
+Media 新增可空 display_asset 与独立 display_status / display_started_at / display_failure_code，以及累计 display_attempts；历史补处理不修改原 MediaStatus 或 URL。StickerAsset 新增可空 display_asset。产物尝试复用 MediaPreviewAttempt 精确对象账本和发布 CAS；迁移及回滚边界见[完整展示契约](media-display.md)。
