@@ -35,13 +35,13 @@ export class BookmarkFolderResponseDto {
   @ApiProperty()
   isDefault!: boolean;
 
-  @ApiProperty({ minimum: 0 })
+  @ApiProperty({ minimum: 0, description: '当前用户在该收藏夹中可见的主题帖收藏总数，与列表使用相同可见性规则，不受分页影响' })
   bookmarkCount!: number;
 
   @ApiProperty({
     minimum: 0,
     deprecated: true,
-    description: '旧客户端兼容字段：同名动态收藏夹中的收藏数量',
+    description: '旧客户端兼容字段：当前用户在同名动态收藏夹中可见的动态收藏总数，与动态列表使用相同可见性规则，不受分页影响',
   })
   momentBookmarkCount!: number;
 

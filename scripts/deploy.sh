@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Build output must remain readable when the management shell uses umask 077.
+umask 022
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 BACKEND_DIR=$(cd -- "$SCRIPT_DIR/.." && pwd)
@@ -26,7 +28,7 @@ if [ "$#" -eq 1 ]; then
 fi
 [ "$(id -u)" -eq 0 ] || { echo "公网部署必须以 root 运行" >&2; exit 1; }
 
-for command_name in curl docker flock git install jq node pnpm restic systemctl; do
+for command_name in curl docker flock git install jq node pnpm restic runuser systemctl; do
   command -v "$command_name" >/dev/null 2>&1 || { echo "缺少部署命令: $command_name" >&2; exit 1; }
 done
 if [ "$DEPLOY_FRONTEND" = true ] && [ ! -d "$FRONTEND_DIR" ]; then

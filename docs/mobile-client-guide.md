@@ -205,6 +205,22 @@ Content-Type: application/json
 
 候选只交付 PR，不代表用户已验收；先合并兼容后端契约，再由 Web/Windows 各自完成消费端候选与手动验收。部署仍需负责人另外明确批准。
 
+### 收藏夹计数刷新
+
+契约 `5.20.1-dev.20260911.1` 的 `bookmarkCount` / `momentBookmarkCount` 是该夹当前可见收藏总数，详见 [计数规则](api-contract.md#收藏夹可见数量)。使用服务端数量，不用分页条数推算总数；收藏、取消、移动及内容或权限变化后刷新目录与列表。回归应覆盖隐藏后 0 条与空列表、恢复后重新计入、跨页总数及主题/动态独立目录。同步固定 OpenAPI 后再运行本端生成与测试；原反馈仍须负责人用原账号复验。
+
+### 块边界 v1 Windows 迁移
+
+从本候选 PR 的已提交完整 SHA 同步 [块边界语料](../contracts/markdown-block-boundary-v1-fixtures.json)，固定 `version=1`、`revision=2`、`markdownContractVersion=5`。先规范 CRLF，再统一分析列 0 marker、目标类型/范围、对齐与原始位置，在 Codec 和阅读通用解析/无效降级前应用；列 0 marker 结束列表/引用 lazy continuation，显式嵌套、HTML、围栏/缩进代码及跨行行内代码中的同形源码不得消费。
+
+逐条执行真实 Markdown AST、Delta 编解码、编辑和 clipboard 测试，校验可见行/空白、逐块对齐、稳定保存重开；原文空格/WJ 等布局字符不得被全局清理。后端测试与源码位置仍为本仓证据，不能代替 Windows Flutter 门禁或 Web/Android 负责人验收。保持 v5/HTTP 字段，不迁移已有内容；旧客户端兼容继续保留。
+
+块边界 revision 2：代码保护范围来自真实行内解析器生成的 code_inline，URL/title 里的反引号不会开启保护区。三个 LF 的额外历史空白恢复为空段；空格布局 sourceLines 保留 WJ，visibleText/lines 不包含隐藏 WJ。clipboard 使用 plainTextByPlatform 分别固定 Web/Mobile 已有投影，不修改 v2。
+
+## 富文本多步测试与结果交接
+
+从已提交 Backend 候选 SHA 同步 [编辑行为 fixture/schema 与结果格式](modules/rich-text-behavior.md)，保留原 newline 27 条及 v7 48 条消费。新机器格式只用于合成测试和离线诊断，不进入 HTTP 或正文存储。未知内容需要完整读取与无损证明后才能开放编辑；Markdown 版本号不能代替引用空行和失败保护能力证据。结果比较及发布停止边界见 [交付记录](rich-text-stability-delivery.md)。
+
 ## 主贴发言权限接入
 
 消费已提交的主贴发言权限 OpenAPI（版本以 [契约变更记录](../contracts/CHANGELOG.md) 为准）；聚合保存字段及并发语义见 [API 契约](api-contract.md#主贴发言权限的聚合保存)。从默认子贴回填真实权限，楼主与协作者在发布后现有设置页统一保存。沿用相邻招募状态、可见范围的布局与控件，不新增独立卡片、专用弹窗或保存按钮；说明为“仅影响主贴下的发言，子贴权限单独设置。”

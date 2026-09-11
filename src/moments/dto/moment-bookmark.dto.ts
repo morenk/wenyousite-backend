@@ -44,7 +44,7 @@ export class MomentBookmarkFolderResponseDto {
   @ApiProperty()
   isDefault!: boolean;
 
-  @ApiProperty({ minimum: 0 })
+  @ApiProperty({ minimum: 0, description: '当前用户在该收藏夹中可见的动态收藏总数，与列表使用相同可见性规则，不受分页影响' })
   momentBookmarkCount!: number;
 
   @ApiProperty({ type: String, format: 'date-time' })

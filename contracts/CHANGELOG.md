@@ -1,10 +1,28 @@
 # API 合同变更
 
+## 5.21.0-dev.20260912.1
+
+- 主贴发言权限候选合入最新开发基线，保留收藏夹可见总数契约、富文本块边界与行为语料。`defaultSubthreadPostingPolicy` 的可选字段、枚举、省略兼容与原子保存语义不变；无数据库迁移。
+- 因合并后的 OpenAPI 同时包含新的收藏夹计数说明，使用新的候选版本；旧主贴权限客户端无需改变请求或响应处理。
+
 ## 5.21.0-dev.20260911.1
 
 - `PATCH /threads/{id}/aggregate` 兼容新增可选 `defaultSubthreadPostingPolicy`，复用 `PARTICIPANTS` / `COLLABORATORS` / `PLAYERS`，省略时保留现值。
 - 楼主与协作者可统一保存主贴权限、元数据、正文及标签；权限与默认子贴标题合并一次版本更新，事务失败或版本冲突全部回滚。其他子贴权限及创建默认值不变，无数据库迁移。
 - Web / Mobile 在已发布主贴现有设置表单接入，读取 `defaultSubthreadId` 对应子贴的真实策略和版本；成功后消费返回的子贴策略及 `postingCapability`。后端兼容版本先发布，消费者随后。
+
+## 5.20.1-dev.20260911.1
+
+- 修复收藏夹数量与空列表矛盾：`GET /bookmarks/folders` 的 `bookmarkCount` 按当前用户可见的已发布、未删除主题计数；私密主题仍须是成员，并应用双向拉黑规则。
+- `GET /moments/bookmark-folders` 的 `momentBookmarkCount` 与旧目录的同名动态兼容计数均排除已删除和双向拉黑不可见的动态，保留既有已注销作者历史内容可读规则。
+- 数量为该夹可见收藏总数，不受分页影响；状态或权限变化后重新读取即可更新，不删除收藏记录。字段、请求和目录拆分兼容行为不变，无数据库迁移。
+- Web / Windows Flutter / Foundation 同步本版本已提交 OpenAPI 及消费者回归；客户端不得用当前页长度伪造总数。候选尚待负责人按原账号场景复验，后端测试不代表移动端验收通过。
+
+## 块边界 v1 组合回归候选
+
+- 精确顶层 v1 center/right marker 自身建立块边界，无需前置空行；统一目标范围、保护区和原始位置，摘要与创作字数不泄漏合法隐藏元数据。
+- 新增 `markdown-block-boundary-v1-fixtures.json`（revision 2），覆盖真实解析组合、URL/title 反引号、代码/HTML保护、编辑、复制与原始空格布局；保留历史额外空白行，区分 WJ 源码和可见投影，并固定各端已有 clipboard 投影。客户端从已提交 SHA 同步，Windows/Web 真实验收另行提供。
+- 保持 Markdown v5、HTTP DTO/OpenAPI、URL/格式白名单与历史兼容；不迁移、不 trim/collapse 正文。
 
 ## 5.20.0-dev.20260909.1
 
@@ -18,6 +36,14 @@
 - 新上传正文媒体生成保持原比例、最长边 800 的静态首帧 poster；完整上传后随 COMPLETED 登记。历史 GIF 无登记返回 unknown，不猜测动画或派生地址。
 - 未知/外部封面及缺 poster 的动图不自动请求原图；旧服务缺字段时消费者同样保守降级。JPEG 和当前静态归一化的 WebP 历史母版可作为静态封面。
 - 数据库增加可空 poster_url 与 url 索引，不回填、不转码、不更改 Markdown v5。兼容后端先于消费者发布；参见 docs/deprecation-register.md。
+
+## 2026-09-10 富文本编辑行为测试契约 v1
+
+- fixture revision 2 去除引用结束后顶层空段前无必要的源码分隔空行，独立结构预期不变；并映射已提交移动端的引用跨段退格、Enter 撤销/重做回归。
+
+- 新增独立多步操作、结构预期、合成失败与版本能力样例和结果 schema；复用现有 newline/v7/clipboard 语料。
+- 仅用于测试与离线诊断；HTTP/OpenAPI、Markdown v5、Foundation 与持久化字段均不变。
+- 已验收 Enter、空 H2/H3、引用标记不重开；未明确组合行为保留决策项，消费者结果和负责人验收分别记录。
 
 ## 2026-09-09 普通 Enter 重置正文对齐候选
 

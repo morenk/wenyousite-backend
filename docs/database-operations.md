@@ -99,6 +99,16 @@ bash scripts/activate-data-security.sh --apply --initialize-restic
 
 若 restic 仓库已经初始化，省略 `--initialize-restic`。激活顺序固定为：质量门禁 → 旧实例逻辑/RDB 异地备份 → Redis AOF 完成 → PostgreSQL 角色收敛 → 安全 Compose → pgBackRest stanza/full 备份 → 离线启用 data checksums → 新 checksums 基线 full 备份 → 运行验证 → 首次两小时 RTO 恢复演练 → 写入激活标记 → 标准不可变部署。任一步失败都会停止扩大变更；不会删除旧卷。
 
+## 发布产物权限门禁
+
+标准部署在构建前固定 `umask 022`。装配脚本会为复制的构建产物和应用文件补齐运行组读取、目录遍历权限，保留 root 所有权并禁止 group/world 写入；不改变源码 checkout 或 `/etc/wenyousite` 密钥权限。
+
+新建及复用的 release 均在切换 `current` 前，以实际 `wenyousite-backend` 身份读取两个入口和 `BUILD_SHA`、加载 API/Worker 模块。检查使用空环境加 `NODE_ENV=test`，不启动应用或连接数据服务；失败保留当前指针和候选 release，不自动修改已有不可变 release 的权限。
+
+2026-09-11 发布事故：治理为保护部署日志，在调用标准部署时设置了 `umask 077`，该设置同时影响构建，产生 root 所有的 `0700/0600` 产物。原装配脚本用 `cp -a` 保留权限，并仅以 root 加载模块，导致切换到 `5b766305e21d2a39bd53bb0c3aacc05fad81152f` 后 API/Worker 无法读取入口。治理通过标准装配脚本重新选择旧 release `0ee2c0de1d9c570e495e778be6661b074b7a4bef` 后恢复服务，公网健康正常，原楼层正文 hash 保持不变。本修复独立于 Markdown 功能，不涉及契约、依赖或数据库迁移。日志应在局部子 shell 中以 `umask 077` 创建为 `0600`，不让日志权限设置影响部署构建。
+
+权限回归需管理身份运行 `pnpm test:deploy-release:integration`：仅使用 `/tmp` 临时产物和真实服务用户，覆盖调用者 `umask 077`、root 所有的 `0700/0600` 构建输入，以及复用产物不可读或模块加载失败时不切换。该测试不操作 systemd、数据库或活动 release。
+
 ## 常规运行与告警
 
 systemd 定时器如下，时间均为 UTC：

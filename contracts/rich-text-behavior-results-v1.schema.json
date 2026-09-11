@@ -1,0 +1,98 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://wenyou.site/contracts/rich-text-behavior-results-v1.schema.json",
+  "type": "object",
+  "properties": {
+    "contract": {
+      "const": "wenyousite-rich-text-behavior-results"
+    },
+    "version": {
+      "const": 1
+    },
+    "fixtureSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sourceRevision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "platform": {
+      "enum": [
+        "backend",
+        "web",
+        "flutter"
+      ]
+    },
+    "environment": {
+      "enum": [
+        "offline",
+        "unit-editor",
+        "browser-fixture",
+        "real-api",
+        "device-owner"
+      ]
+    },
+    "observations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "caseId": {
+            "type": "string"
+          },
+          "stepId": {
+            "type": "string"
+          },
+          "stage": {
+            "enum": [
+              "decoded",
+              "edited",
+              "serialized",
+              "backend",
+              "reader",
+              "selection",
+              "save"
+            ]
+          },
+          "status": {
+            "enum": [
+              "passed",
+              "failed",
+              "not-run"
+            ]
+          },
+          "actual": {
+            "$ref": "rich-text-behavior-v1.schema.json#/$defs/state"
+          },
+          "reason": {
+            "enum": [
+              "not-applicable",
+              "not-executed",
+              "mismatch",
+              "blocked",
+              "unsupported-operation"
+            ]
+          }
+        },
+        "required": [
+          "caseId",
+          "stepId",
+          "stage",
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "contract",
+    "version",
+    "fixtureSha256",
+    "sourceRevision",
+    "platform",
+    "environment",
+    "observations"
+  ],
+  "additionalProperties": false
+}

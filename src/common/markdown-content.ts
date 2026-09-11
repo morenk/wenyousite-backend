@@ -1,7 +1,7 @@
 /** Markdown v5 内容规则：规范化、工具栏能力白名单与字面文本降级。 */
 
 import { HttpStatus } from '@nestjs/common';
-import MarkdownIt from 'markdown-it';
+import { ALIGNMENT_MARKER_RE, analyzeMarkdownBlockBoundaries } from './markdown-block-boundaries';
 import { BusinessException } from './exceptions/business.exception';
 import { ErrorCode } from './exceptions/error-codes';
 
@@ -16,9 +16,7 @@ const EMPTY_PARAGRAPH_RE = /^ {0,3}<br\s*\/?>[\t ]*$/iu;
 const QUOTED_EMPTY_PARAGRAPH_RE = /^ {0,3}>[\t ]?<br\s*\/?>[\t ]*$/iu;
 const TASK_LIST_RE = /^(?: {0,3}>[\t ]*)*[\t ]*(?:[-+*]|\d+[.)])[\t ]+\[[ xX]\](?:[\t ]|$)/u;
 const UNKNOWN_PROTOCOL_RE = /\[\[([a-z][a-z0-9_-]*):v(\d+):/giu;
-const ALIGNMENT_MARKER_RE = /^\[wenyousite-align-v1-(center|right)\]: #$/u;
 const ALIGNMENT_PROTOCOL_RE = /\[wenyousite-align-v(\d+)-([a-z][a-z-]*)\]:/giu;
-const STICKER_TITLE_PREFIX = 'wenyousite-sticker:v1:';
 const WORD_JOINER = '\u2060';
 const MAX_LIST_DEPTH = 3;
 
@@ -58,12 +56,6 @@ export interface UnsupportedMarkdownIssue {
   startLine: number;
   endLine: number;
 }
-
-const markdownParser = new MarkdownIt({
-  html: true,
-  linkify: true,
-  typographer: false,
-});
 
 /** 将跨端 Markdown 转为 v4 标准存储形式；不 trim、不做 Unicode 归一化。 */
 export function normalizeMarkdownContent(markdown: string): string {
@@ -133,28 +125,6 @@ function isEscaped(value: string, index: number): boolean {
   return slashes % 2 === 1;
 }
 
-function maskInlineCode(line: string): string {
-  const chars = [...line];
-  let index = 0;
-  while (index < line.length) {
-    if (line[index] !== '`' || isEscaped(line, index)) {
-      index++;
-      continue;
-    }
-    let length = 1;
-    while (line[index + length] === '`') length++;
-    const delimiter = '`'.repeat(length);
-    const closing = line.indexOf(delimiter, index + length);
-    if (closing < 0) {
-      index += length;
-      continue;
-    }
-    for (let cursor = index; cursor < closing + length; cursor++) chars[cursor] = ' ';
-    index = closing + length;
-  }
-  return chars.join('');
-}
-
 /** 返回按源码位置排序的全部不支持结构；空段落协议行会在解析前被安全占位。 */
 export function findUnsupportedMarkdownFormats(
   markdown: string,
@@ -162,22 +132,16 @@ export function findUnsupportedMarkdownFormats(
 ): UnsupportedMarkdownIssue[] {
   const markdownContractVersion =
     options.markdownContractVersion ?? ACTIVE_MARKDOWN_CONTRACT_VERSION;
-  const imageAlignmentEnabled =
-    markdownContractVersion >= IMAGE_ALIGNMENT_MARKDOWN_CONTRACT_VERSION;
   const normalized = normalizeMarkdownContent(markdown);
   const lines = normalized.split('\n');
-  const parseSource = lines
-    .map((line) => {
-      if (EMPTY_PARAGRAPH_RE.test(line)) return '***';
-      // Only a standalone empty-row marker is accepted inside one quote.
-      // Inline HTML and attributes still pass through the ordinary rejection.
-      if (QUOTED_EMPTY_PARAGRAPH_RE.test(line)) return '> ***';
-      return line;
-    })
-    .join('\n');
-  const issues: UnsupportedMarkdownIssue[] = [];
+  const analysis = analyzeMarkdownBlockBoundaries(normalized, markdownContractVersion);
+  const { tokens } = analysis;
+  const issues: UnsupportedMarkdownIssue[] = analysis.invalidMarkerLines.map((line) => ({
+    type: 'invalid-alignment',
+    startLine: line,
+    endLine: line,
+  }));
   let listDepth = 0;
-  const tokens = markdownParser.parse(parseSource, {});
 
   for (const token of tokens) {
     switch (token.type) {
@@ -228,6 +192,7 @@ export function findUnsupportedMarkdownFormats(
         }
         break;
       }
+      case 'alignment_marker':
       case 'paragraph_open':
       case 'paragraph_close':
       case 'text':
@@ -265,58 +230,13 @@ export function findUnsupportedMarkdownFormats(
     }
   }
 
-  const topLevelBlocks = new Map(
-    tokens
-      .filter(
-        (token) =>
-          token.level === 0 &&
-          token.map &&
-          (token.type === 'paragraph_open' || token.type === 'heading_open'),
-      )
-      .map((token) => [token.map![0], token]),
-  );
-
   for (let line = 0; line < lines.length; line++) {
-    if (TASK_LIST_RE.test(lines[line])) {
+    if (!analysis.maskedLines[line].trim()) continue;
+    if (TASK_LIST_RE.test(analysis.maskedLines[line])) {
       issues.push({ type: 'task-list', startLine: line, endLine: line });
     }
-    const masked = maskInlineCode(lines[line]);
-    const alignmentMarker = lines[line].match(ALIGNMENT_MARKER_RE);
-    if (alignmentMarker) {
-      const target = topLevelBlocks.get(line + 1);
-      const inline = target
-        ? tokens.find(
-            (token) =>
-              token.type === 'inline' &&
-              token.map?.[0] === target.map?.[0] &&
-              token.map?.[1] === target.map?.[1],
-          )
-        : undefined;
-      const inlineChildren = inline?.children ?? [];
-      const hasRegularImage = inlineChildren.some(
-        (child) =>
-          child.type === 'image' && !child.attrGet('title')?.startsWith(STICKER_TITLE_PREFIX),
-      );
-      const hasStandaloneRegularImage =
-        imageAlignmentEnabled &&
-        inlineChildren.length === 1 &&
-        inlineChildren[0]?.type === 'image' &&
-        !inlineChildren[0].attrGet('title')?.startsWith(STICKER_TITLE_PREFIX);
-      const hasInlineContent = Boolean(inline?.content.trim());
-      const eligibleHeading =
-        target?.type === 'heading_open' &&
-        (target.tag === 'h2' || target.tag === 'h3') &&
-        hasInlineContent &&
-        !hasRegularImage;
-      const eligibleParagraph =
-        target?.type === 'paragraph_open' &&
-        !EMPTY_PARAGRAPH_RE.test(lines[line + 1] ?? '') &&
-        ((hasInlineContent && !hasRegularImage) || hasStandaloneRegularImage);
-      if (!eligibleHeading && !eligibleParagraph) {
-        issues.push({ type: 'invalid-alignment', startLine: line, endLine: line });
-      }
-      continue;
-    }
+    if (analysis.markerLines.has(line)) continue;
+    const masked = analysis.maskedLines[line];
     for (const match of masked.matchAll(ALIGNMENT_PROTOCOL_RE)) {
       if (isEscaped(lines[line], match.index ?? 0)) continue;
       issues.push({
@@ -389,12 +309,17 @@ export function literalizeUnsupportedMarkdown(
     for (let line = item.startLine; line <= item.endLine; line++) affected.add(line);
   }
   const output: string[] = [];
+  const alignedTargetLines = new Set(
+    analyzeMarkdownBlockBoundaries(normalized, options.markdownContractVersion).boundaries.map(
+      (boundary) => boundary.startLine,
+    ),
+  );
   for (let line = 0; line < lines.length; line++) {
     if (!affected.has(line)) {
       output.push(lines[line]);
       continue;
     }
-    if (output.length > 0 && output.at(-1) !== '') output.push('');
+    if (output.length > 0 && output.at(-1) !== '' && !alignedTargetLines.has(line)) output.push('');
     output.push(escapeLiteralLine(lines[line]));
     if (line < lines.length - 1) output.push('');
   }
@@ -438,11 +363,22 @@ export function hasVisibleMarkdownContent(markdown: string): boolean {
 /** 推荐字数只计算可见文字；图片、链接地址与站内协议不产生创作分。 */
 export function markdownContributionText(content: string): string {
   const withoutProtocols = content.replace(/\[\[[a-z][a-z0-9_-]*:v\d+:[\s\S]*?\]\]/giu, '');
-  const text = markdownParser.parse(withoutProtocols, {}).flatMap((block) => {
-    if (block.type === 'fence' || block.type === 'code_block') return [block.content];
-    return [(block.children ?? []).flatMap((token) =>
-      token.type === 'text' || token.type === 'code_inline' ? [token.content] : []).join('')];
-  }).join(' ');
-  return text.replace(/(?:https?:\/\/|www\.)[^\s<>]+/giu, '')
-    .replace(DEFAULT_IGNORABLE_RE, '').normalize('NFKC').replace(/\s+/gu, ' ').trim();
+  const text = analyzeMarkdownBlockBoundaries(normalizeMarkdownContent(withoutProtocols))
+    .tokens.flatMap((block) => {
+      if (block.type === 'fence' || block.type === 'code_block') return [block.content];
+      return [
+        (block.children ?? [])
+          .flatMap((token) =>
+            token.type === 'text' || token.type === 'code_inline' ? [token.content] : [],
+          )
+          .join(''),
+      ];
+    })
+    .join(' ');
+  return text
+    .replace(/(?:https?:\/\/|www\.)[^\s<>]+/giu, '')
+    .replace(DEFAULT_IGNORABLE_RE, '')
+    .normalize('NFKC')
+    .replace(/\s+/gu, ' ')
+    .trim();
 }
