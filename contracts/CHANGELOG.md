@@ -1,5 +1,9 @@
 # API 合同变更
 
+## 5.22.0-dev.20260912.2
+
+- 补齐提及、通知、邀请、用户搜索头像摘要的 `avatarDisplay` 及搜索正文 `mediaDisplays`，字段语义与完整 WebP 展示协议一致。
+
 ## 5.22.0-dev.20260912.1
 
 - 所有动画展示场景兼容新增完整 WebP `display`；头像使用 `avatarDisplay`，已授权正文返回 `mediaDisplays` 精确来源映射。保留原 URL、Markdown 和列表播放策略。

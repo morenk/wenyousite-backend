@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "file": "duplicate-frames.gif",
+    "bytes": 144,
+    "sha256": "e3447ff6eea37cb5dd42db0b2c147dec2c810aaf0db8ac50a0b2938a4f65a87d"
+  },
+  "display": {
+    "file": "duplicate-frames.webp",
+    "width": 24,
+    "height": 16,
+    "frameCount": 3,
+    "durationMs": 1500,
+    "loopCount": 2,
+    "bytes": 316,
+    "sha256": "4be3e3ca66868c69d3352c2b72c6eaf1c4a8e8c05d8d3198eebcdebe9eef2fd6"
+  },
+  "expected": {
+    "colors": [
+      "red",
+      "red",
+      "blue"
+    ],
+    "frameDelaysMs": [
+      300,
+      600,
+      600
+    ],
+    "loopCount": 2,
+    "finalColor": "blue"
+  }
+}
