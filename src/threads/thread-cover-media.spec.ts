@@ -19,6 +19,45 @@ const url = 'https://media.example.test/a.gif';
 describe('主题帖封面媒体读模型', () => {
   beforeEach(() => findMany.mockReset().mockResolvedValue([]));
 
+  it.each(['left', 'center', 'right'])('%s 对齐首图只作为封面，摘要仅保留后续正文', (alignment) => {
+    const marker = alignment === 'left' ? '' : `[wenyousite-align-v1-${alignment}]: #\n`;
+    const card = mapThreadListCard(row(`${marker}${image(url)}\n\n后续**正文**`));
+
+    expect(card.coverImages).toEqual([url]);
+    expect(card.coverMedia).toEqual({ url, animated: null, posterUrl: null, previewVariants: null });
+    expect(card.preview).toBe('后续正文');
+  });
+
+  it.each(['center', 'right'])('%s 对齐纯图片正文的摘要为空', (alignment) => {
+    const card = mapThreadListCard(row(`[wenyousite-align-v1-${alignment}]: #\n${image(url)}`));
+    expect(card.coverImages).toEqual([url]);
+    expect(card.preview).toBe('');
+  });
+
+  it('连续对齐图片和正文共用原始块边界，仅保留首图封面与可见正文', () => {
+    const content = `[wenyousite-align-v1-center]: #\n${image(url)}\n\n`
+      + `[wenyousite-align-v1-right]: #\n${image('https://media.example.test/b.jpg')}\n\n`
+      + '[wenyousite-align-v1-center]: #\n后续正文';
+    const card = mapThreadListCard(row(content));
+    expect(card.coverImages).toEqual([url]);
+    expect(card.preview).toBe('后续正文');
+  });
+
+  it.each([
+    ['围栏代码', '```md\n[wenyousite-align-v1-center]: #\n示例\n```', '[wenyousite-align-v1-center]: # 示例'],
+    ['行内代码', '`[wenyousite-align-v1-center]: #`', '[wenyousite-align-v1-center]: #'],
+    ['跨行代码', '`示例\n[wenyousite-align-v1-center]: #\n正文`', '`示例 [wenyousite-align-v1-center]: # 正文`'],
+    ['转义源码', '\\[wenyousite-align-v1-center]: #\n示例', '[wenyousite-align-v1-center]: # 示例'],
+    ['孤立标记', '[wenyousite-align-v1-center]: #', '[wenyousite-align-v1-center]: #'],
+    ['空行隔开的标记', '[wenyousite-align-v1-center]: #\n\n示例', '[wenyousite-align-v1-center]: # 示例'],
+    ['非法左对齐', '[wenyousite-align-v1-left]: #\n示例', '[wenyousite-align-v1-left]: # 示例'],
+    ['图文混排非法对齐', `[wenyousite-align-v1-center]: #\n示例 ${image(url)}`, '[wenyousite-align-v1-center]: # 示例'],
+  ])('有封面时仍保留%s 的标记可见身份', (_name, source, expected) => {
+    const card = mapThreadListCard(row(`${image(url)}\n\n${source}`));
+    expect(card.coverImages).toEqual([url]);
+    expect(card.preview).toBe(expected);
+  });
+
   it('无普通图和表情、代码图片都不发媒体查询', async () => {
     const content = '正文\n![](https://example.test/sticker "wenyousite-sticker:v1")\n`![](https://example.test/code)`';
     const cards = await resolveThreadListCards(prisma, [row(content)]);
