@@ -1,6 +1,7 @@
 /** Markdown 安全截断：保证不在标记内部截断，尽量在句子或段落边界处 */
 import removeMd from 'remove-markdown';
 import { stripMarkdownAlignmentMetadata } from './markdown-block-boundaries';
+import { stripVisibleMarkdownImages } from './markdown-cover-images';
 import { formatInternalReferencePreview } from './internal-reference';
 import { decodeEntities } from './utils/decode-html-entities';
 
@@ -22,13 +23,17 @@ function restorePlaceholders(s: string): string {
   });
 }
 
-function markdownToPlainText(md: string): string {
+function markdownToPlainText(md: string, omitImages = false): string {
   if (!md) return '';
 
   // Markdown v4 对齐引用定义是块元数据，不得泄漏到通知、搜索摘要或列表卡片。
   const withoutAlignmentMarkers = stripMarkdownAlignmentMetadata(md);
+  // 必须先在原文上判定对齐；提前移除图片会制造孤立标记或让非法图文混排变成合法段落。
+  const previewContent = omitImages
+    ? stripVisibleMarkdownImages(withoutAlignmentMarkers)
+    : withoutAlignmentMarkers;
   // Milkdown 空段落协议标记只在摘要中作为段落分隔，不把标签本身泄漏到通知/列表文案。
-  const withoutEmptyParagraphMarkers = withoutAlignmentMarkers.replace(
+  const withoutEmptyParagraphMarkers = previewContent.replace(
     /^ {0,3}<br\s*\/?>[\t ]*$/gimu,
     '\n',
   );
@@ -45,6 +50,8 @@ function markdownToPlainText(md: string): string {
   // - 真实 Markdown（**加粗**、# 标题、> 引用等）仍照常清理
   const protectedContent = withInternalReferenceLabels
     .replace(/\\([!-/:-@[-`{-~])/g, (_, c) => ESCAPE_MAP.get(c) ?? c)
+    // 合法元数据已移除；剩余同形源码不能再被 remove-markdown 当作引用定义吞掉。
+    .replace(/\[wenyousite-align-[^\]\n]*\]:/g, (marker) => ESCAPE_MAP.get('[')! + marker.slice(1))
     .replace(/</g, LT_PLACEHOLDER);
   return (
     restorePlaceholders(removeMd(protectedContent))
@@ -86,7 +93,12 @@ export function truncateMarkdown(md: string, maxLen = 100, minLen = 50): string 
 /**
  * 生成列表卡片使用的紧凑纯文本：实体按 Markdown 阅读语义解码一次，全部空白折叠为单个空格。
  */
-export function truncateMarkdownToCompactPlainText(md: string, maxLen = 100, minLen = 50): string {
-  const compact = decodeEntities(markdownToPlainText(md)).replace(/\s+/gu, ' ').trim();
+export function truncateMarkdownToCompactPlainText(
+  md: string,
+  maxLen = 100,
+  minLen = 50,
+  options: { omitImages?: boolean } = {},
+): string {
+  const compact = decodeEntities(markdownToPlainText(md, options.omitImages)).replace(/\s+/gu, ' ').trim();
   return truncatePlainText(compact, maxLen, minLen);
 }

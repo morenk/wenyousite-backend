@@ -3,6 +3,18 @@
 import { truncateMarkdown, truncateMarkdownToCompactPlainText } from './markdown-truncate';
 
 describe('truncateMarkdown', () => {
+  it.each([
+    '[wenyousite-align-v1-center]: #',
+    '`[wenyousite-align-v1-right]: #`',
+    '\\[wenyousite-align-v1-center]: #',
+    '[wenyousite-align-v1-left]: #',
+    '[wenyousite-align-v99-unknown]: #',
+  ])('保留摘要末尾的字面对齐源码：%s', (source) => {
+    const expected = source.replace(/^\\|`/g, '');
+    expect(truncateMarkdown(source)).toBe(expected);
+    expect(truncateMarkdownToCompactPlainText(source)).toBe(expected);
+  });
+
   it('短 Markdown 也应清理语法', () => {
     expect(truncateMarkdown('**加粗正文**')).toBe('加粗正文');
   });

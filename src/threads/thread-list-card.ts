@@ -6,10 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ThreadCoverMediaResponseDto } from './dto/thread-list-response.dto';
 import { authorSelect, countMembersAndPosts } from '../common/prisma-helpers';
 import { truncateMarkdownToCompactPlainText } from '../common/markdown-truncate';
-import {
-  extractMarkdownCoverImages,
-  stripVisibleMarkdownImages,
-} from '../common/markdown-cover-images';
+import { extractMarkdownCoverImages } from '../common/markdown-cover-images';
 import {
   threadCategoryInfoSelect,
   withThreadCategoryInfo,
@@ -48,7 +45,7 @@ export function mapThreadListCard(thread: ThreadListCardRow) {
   const coverImages = extractMarkdownCoverImages(bodyContent);
   const preview = bodyContent
     ? truncateMarkdownToCompactPlainText(
-        coverImages.length > 0 ? stripVisibleMarkdownImages(bodyContent) : bodyContent,
+        bodyContent, 100, 50, { omitImages: coverImages.length > 0 },
       )
     : '';
   const defaultSubthread = thread.defaultSubthread
