@@ -1,3 +1,8 @@
+import {
+  assertCustomFolder,
+  normalizeFolderName,
+  rethrowFolderWriteError,
+} from '../bookmarks/bookmark-folder-management';
 import { visibleUserWhere } from '../access/block-visibility.where';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -66,6 +71,67 @@ export class MomentBookmarksService {
         throw new BusinessException(ErrorCode.CONFLICT, '已存在同名动态收藏夹', 409);
       }
       throw error;
+    }
+  }
+
+  async renameFolder(userId: string, id: string, rawName: string) {
+    const name = normalizeFolderName(rawName);
+    try {
+      return await this.prisma.$transaction(
+        async (tx) => {
+          const owned = await tx.momentBookmarkFolder.findFirst({ where: { id, userId } });
+          assertCustomFolder(owned);
+          await this.ensureDefaultFolder(tx, userId);
+          const folder = await tx.momentBookmarkFolder.update({
+            where: { id, userId },
+            data: { name },
+            include: {
+              _count: {
+                select: {
+                  bookmarks: {
+                    where: {
+                      userId,
+                      moment: { deletedAt: null, ...momentViewerVisibility(userId) },
+                    },
+                  },
+                },
+              },
+            },
+          });
+          return {
+            id: folder.id,
+            name: folder.name,
+            isDefault: folder.isDefault,
+            createdAt: folder.createdAt,
+            momentBookmarkCount: folder._count.bookmarks,
+          };
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (error: unknown) {
+      rethrowFolderWriteError(error);
+    }
+  }
+
+  async deleteFolder(userId: string, id: string) {
+    try {
+      return await this.prisma.$transaction(
+        async (tx) => {
+          const folder = await tx.momentBookmarkFolder.findFirst({ where: { id, userId } });
+          assertCustomFolder(folder);
+          const destination = await this.ensureDefaultFolder(tx, userId);
+          // 连同当前不可见的收藏一起迁移；不改变收藏记录、时间或内容收藏总数。
+          await tx.momentBookmark.updateMany({
+            where: { folderId: id, userId },
+            data: { folderId: destination.id },
+          });
+          await tx.momentBookmarkFolder.delete({ where: { id, userId } });
+          return { deletedFolderId: id, destinationFolderId: destination.id };
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (error: unknown) {
+      rethrowFolderWriteError(error);
     }
   }
 

@@ -1,5 +1,9 @@
+import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
+import { DeleteBookmarkFolderResponseDto } from './dto/delete-bookmark-folder-response.dto';
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req } from '@nestjs/common';
 import {
+  ApiBadRequestResponse,
+  ApiForbiddenResponse,
   ApiTags,
   ApiOperation,
   ApiBearerAuth,
@@ -20,6 +24,7 @@ import { ApiCursorPaginatedResponse } from '../common/swagger/api-cursor-paginat
 import {
   BookmarkFolderResponseDto,
   BookmarkQueryDto,
+  RenameBookmarkFolderDto,
   CreateBookmarkFolderDto,
   MoveBookmarkDto,
 } from './dto/bookmark-folder.dto';
@@ -60,6 +65,35 @@ export class BookmarksController {
   createFolder(@Req() req: FastifyRequest, @Body() dto: CreateBookmarkFolderDto) {
     const user = req['user'] as { id: string };
     return this.bookmarksService.createFolder(user.id, dto.name);
+  }
+
+  @Patch('folders/:id')
+  @Auth()
+  @ApiOperation({ summary: '重命名自定义主题帖收藏夹' })
+  @ApiOkResponse({ type: BookmarkFolderResponseDto })
+  @ApiBadRequestResponse({ description: '名称 trim 后须为 1–24 个字符' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
+  @ApiForbiddenResponse({ description: '账号无写入权限' })
+  @ApiNotFoundResponse({ description: '收藏夹不存在或不属于当前用户' })
+  @ApiConflictResponse({ description: '默认夹不可修改、名称重复或并发冲突；刷新后重试' })
+  renameFolder(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() dto: RenameBookmarkFolderDto,
+  ) {
+    return this.bookmarksService.renameFolder(user.id, id, dto.name);
+  }
+
+  @Delete('folders/:id')
+  @Auth()
+  @ApiOperation({ summary: '删除自定义主题帖收藏夹并将全部收藏移入默认夹' })
+  @ApiOkResponse({ type: DeleteBookmarkFolderResponseDto })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
+  @ApiForbiddenResponse({ description: '账号无写入权限' })
+  @ApiNotFoundResponse({ description: '收藏夹不存在或不属于当前用户' })
+  @ApiConflictResponse({ description: '默认夹不可删除或并发冲突；事务回滚，刷新后重试' })
+  deleteFolder(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
+    return this.bookmarksService.deleteFolder(user.id, id);
   }
 
   @Post()

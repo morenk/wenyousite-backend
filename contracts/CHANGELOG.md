@@ -1,5 +1,12 @@
 # API 合同变更
 
+## 5.23.0-dev.20260913.1
+
+- 兼容新增主题帖与动态自定义收藏夹 PATCH/DELETE 管理接口，operationId 为 `bookmarksRenameFolder`、`bookmarksDeleteFolder`、`momentsRenameBookmarkFolder`、`momentsDeleteBookmarkFolder`。PATCH 返回对应现有收藏夹 DTO；DELETE 返回 `DeleteBookmarkFolderResponseDto`。
+- 名称 trim 后为 1–24 个字符，同类型目录内唯一；默认夹禁止修改/删除（409），不存在或越权统一 404。删除在单事务补建默认夹、迁移该类型全部收藏并删除目录；包含不可见记录，不取消收藏或改变收藏时间/总数，并发或外键冲突回滚并返回可重试 409。
+- 无 Prisma migration、无弃用清理；保留旧目录映射与 `momentBookmarkCount` 兼容字段。新动态管理接口仅接受动态目录的真实 ID。
+- Web 与 Windows Flutter 从本版本精确 Git 提交同步 OpenAPI，再分别实现目录管理和缓存刷新；后端先行兼容发布。Foundation 已审查：沿用现有菜单、表单、确认反馈与语义 Token，HTTP 业务契约由后端维护，无需修改 Foundation。
+
 ## 5.22.0-dev.20260912.2
 
 - 补齐提及、通知、邀请、用户搜索头像摘要的 `avatarDisplay` 及搜索正文 `mediaDisplays`，字段语义与完整 WebP 展示协议一致。

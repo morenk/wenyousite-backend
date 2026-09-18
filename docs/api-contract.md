@@ -132,3 +132,16 @@ Web 与 Flutter 应同步本版本固定 OpenAPI，验证“数量 0 + 空列表
 ## 完整动画展示资源兼容演进
 
 新增统一 `display` / `avatarDisplay` 与正文 `mediaDisplays`；来源身份和旧字段保留，历史补处理及删除原件尚未执行。详细字段、跨场景选择和发布边界见[完整动画 WebP 展示契约](media-display.md)。
+
+## 自定义收藏夹重命名与删除
+
+契约 `5.23.0-dev.20260913.1` 兼容新增以下 `@Auth()` 写接口（路径均带 `/api/v1` 前缀）：
+
+| 路径 | PATCH operationId / 响应 data | DELETE operationId / 响应 data |
+| --- | --- | --- |
+| `/bookmarks/folders/{id}` | `bookmarksRenameFolder` / `BookmarkFolderResponseDto` | `bookmarksDeleteFolder` / `DeleteBookmarkFolderResponseDto` |
+| `/moments/bookmark-folders/{id}` | `momentsRenameBookmarkFolder` / `MomentBookmarkFolderResponseDto` | `momentsDeleteBookmarkFolder` / `DeleteBookmarkFolderResponseDto` |
+
+PATCH 请求 `{ name: string }`，trim 后必须为 1–24 个字符，否则 400；两类目录分别唯一，可跨类型同名。成功 200，返回对应现有目录 DTO 和可见计数。DELETE 成功 200，`data` 明确包含 `deletedFolderId`、`destinationFolderId`，不是空响应；在单一事务内确保默认夹存在并迁移所有收藏，包含当前不可见项，不取消收藏、不修改收藏时间或内容收藏总数。
+
+默认夹保护、重名返回 409；不存在或非本人目录统一 404；并发/外键冲突整体回滚，返回可重试 409。未登录返回 401；写权限由认证层控制。新动态管理接口只使用真实动态目录 ID，旧收藏调用的主题目录兼容映射保留。无 migration、无弃用或清理，Foundation 审查理由及消费端刷新规则见[收藏模块](modules/bookmarks.md#自定义收藏夹管理)。Web 与 Windows Flutter 必须消费本版本已提交 OpenAPI，VPS 后端验证不代表移动端门禁通过。

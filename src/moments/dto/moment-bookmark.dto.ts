@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, Length } from 'class-validator';
 import { IsCuid } from '../../common/decorators/is-cuid.decorator';
@@ -62,4 +63,17 @@ export class MomentBookmarkPlacementResponseDto {
 
   @ApiProperty()
   folderId!: string;
+}
+
+export class RenameMomentBookmarkFolderDto {
+  @ApiProperty({
+    description: 'trim 后为 1–24 个字符；仅可重命名自定义收藏夹',
+    example: '稍后阅读',
+    minLength: 1,
+    maxLength: 24,
+  })
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @Length(1, 24)
+  name!: string;
 }

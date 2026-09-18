@@ -35,6 +35,8 @@
 
 新增统一 `display` / `avatarDisplay` 与正文 `mediaDisplays`；来源身份和旧字段保留，历史补处理及删除原件尚未执行。详细字段、跨场景选择和发布边界见[完整动画 WebP 展示契约](media-display.md)。
 
+- 5.23 自定义收藏夹重命名/删除是向后兼容的纯新增接口，无弃用清理；保留旧目录 ID 映射、`momentBookmarkCount` 兼容字段和所有快捷收藏协议。Foundation 只做影响审查，无视觉契约改动；Web/Windows Flutter 同步固定 OpenAPI 并覆盖管理操作。目录删除是用户请求的业务操作，不属于兼容协议清理。
+
 ## 行内组合兼容补充
 
 新增 markdown-inline-combinations v1 测试契约，保留 roundtrip v7 的原始 ID、48 条编辑操作和既有 Markdown v3/v4/v5。历史粗体紧邻斜体代码的歧义定界符只由消费者有限恢复，不批量改写数据库；转义星号与代码字面内容必须保留。Backend 摘要、Web 与 Mobile 分别提交消费证据；不清理任何旧协议、字段或兼容读取。Foundation 无代码互斥字段，不新增 Token 或 Tag 依赖；HTTP/OpenAPI 形状不变。

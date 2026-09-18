@@ -230,3 +230,11 @@ Content-Type: application/json
 ### 行内代码叠加样式契约
 
 Windows 消费 [行内组合 v1](modules/markdown-content.md#行内组合-v1) 的 fixture/schema，保留旧 v7 测试。行内代码与粗体、斜体、删除线、安全链接允许组合，选区正向/反向及样式应用顺序不得改变结果；底部工具栏和系统 action 均须采用相同策略。代码中的实体、星号、空格与反引号保持字面内容。使用已提交后端 SHA 固定输入，不更新 HTTP SDK 或 Foundation Tag；通过组合矩阵、真实编辑、阅读、保存重开和安全保存回归后交付。
+
+### 自定义收藏夹管理
+
+同步 `5.23.0-dev.20260913.1` 的精确后端 Git 契约提交并重新生成客户端类型。主题帖使用 `PATCH/DELETE /bookmarks/folders/{id}`；动态使用 `PATCH/DELETE /moments/bookmark-folders/{id}`，ID 必须来自各自目录。PATCH 传 `{ name }`（trim 后 1–24 字），消费对应收藏夹 DTO；DELETE 消费 `DeleteBookmarkFolderResponseDto` 的 `deletedFolderId` 与 `destinationFolderId`，收藏仍保留。
+
+默认夹不显示重命名/删除入口，服务器同时强制 409；删除前说明收藏将移入默认夹。成功后刷新同类型目录、列表和选择器，删除当前目录时切换到返回的默认夹，清除失效选择；重命名后刷新名称。400 展示名称校验，409 展示冲突并刷新后允许重试，404 刷新目录恢复选择。测试两类型、默认夹保护、重名/越权、空夹与非空夹删除、失败后保留原状态；不要按名称合并目录或取消收藏。本次保留旧客户端协议，无弃用清理；Foundation 沿用既有控件与反馈契约，无需发布新版本。详见[后端契约](api-contract.md#自定义收藏夹重命名与删除)。
+
+Flutter 代码、类型生成和设备回归仅在 Windows 执行；本后端 PR 不声称移动端检查已通过。
