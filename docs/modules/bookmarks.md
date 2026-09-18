@@ -20,9 +20,13 @@
 | GET    | `/bookmarks?cursor=&limit=&folderId=` | AuthRead | 我的收藏列表；folderId 可选，不传返回全部 |
 | GET    | `/bookmarks/folders`                  | AuthRead | 我的收藏夹分类与每夹收藏数量              |
 | POST   | `/bookmarks/folders`                  | Auth     | 新建主题帖收藏夹分类                      |
-| POST   | `/bookmarks`                          | AuthRead | 收藏主题帖；folderId 可选，不传进入默认夹 |
-| PATCH  | `/bookmarks/:id`                      | AuthRead | 把一条收藏移动到自己的其他收藏夹          |
-| DELETE | `/bookmarks/:id`                      | AuthRead | 取消收藏（按收藏记录 ID）                 |
+| PATCH  | `/bookmarks/folders/:id`              | Auth     | 重命名自定义主题帖收藏夹                  |
+| DELETE | `/bookmarks/folders/:id`              | Auth     | 删除自定义主题帖夹，全部收藏移入默认夹    |
+| PATCH  | `/moments/bookmark-folders/:id`       | Auth     | 重命名自定义动态收藏夹                    |
+| DELETE | `/moments/bookmark-folders/:id`       | Auth     | 删除自定义动态夹，全部收藏移入默认夹      |
+| POST   | `/bookmarks`                          | Auth     | 收藏主题帖；folderId 可选，不传进入默认夹 |
+| PATCH  | `/bookmarks/:id`                      | Auth     | 把一条收藏移动到自己的其他收藏夹          |
+| DELETE | `/bookmarks/:id`                      | Auth     | 取消收藏（按收藏记录 ID）                 |
 | GET    | `/moments/bookmarks?folderId=`        | AuthRead | 我的动态收藏；可按收藏夹筛选              |
 | GET    | `/moments/bookmark-folders`           | AuthRead | 我的动态收藏夹分类与每夹收藏数量          |
 | POST   | `/moments/bookmark-folders`           | Auth     | 新建动态收藏夹分类                        |
@@ -55,3 +59,15 @@
 - **兼容默认分类**：`POST /bookmarks` 的 `folderId` 是可选字段，未升级客户端无需迁移即可继续收藏
 - **兼容动态快捷收藏**：动态收藏请求体可省略；首次收藏进入默认夹，重复无参数请求保留已有分类
 - **兼容旧共享目录客户端**：迁移保留既有目录 ID；旧客户端把主题帖夹 ID 传给动态收藏接口时，服务端只把它映射到同名动态夹，必要时懒复制目录。该兼容层不会让动态收藏引用主题帖夹；新客户端不得依赖此映射
+
+## 自定义收藏夹管理
+
+`PATCH` 请求为 `{ name: string }`，先 trim 再校验 1–24 个字符；成功返回对应列表使用的收藏夹 DTO（可见计数规则不变）。同目录内重名返回 409，跨主题帖/动态允许同名；改回原名允许成功。默认夹不可重命名或删除，返回 409。不存在和不属于当前用户均返回 404，不泄露目录归属。动态管理严格使用动态目录真实 ID，不套用旧主题目录映射。
+
+`DELETE` 返回成功 envelope 的 `data: { deletedFolderId, destinationFolderId }`。单一 Serializable 事务内先校验归属和默认夹保护，再确保对应默认夹存在，将该夹所有收藏记录（包括草稿、软删除、失去权限等当前不可见项）迁移后删除夹。收藏记录 ID、创建时间和动态收藏总数保持不变；公开接口仍不暴露归类。空夹也返回目标默认夹 ID。唯一约束、并发写入、外键冲突会使事务整体回滚并返回 409，客户端刷新后可重试；后续重复删除已不存在目录返回 404。
+
+新路由声明在通用 `/:id` 路由之前，使用 `@Auth()`。本次为纯新增兼容接口，无数据库迁移，无弃用清理；旧目录 ID 映射和主题目录 `momentBookmarkCount` 兼容字段保留。旧客户端仍可能按原映射懒创建同名动态夹，新管理客户端不得依赖该行为。
+
+Foundation 影响审查：其 README 明确 HTTP API 与错误码由 Backend 维护；本次沿用现有菜单、输入、确认弹窗和反馈模式，不新增 Token、品牌资产或跨端视觉语义，Foundation 仓库无需修改。消费者必须按内容类型隔离目录 ID 和缓存；删除当前目录后使用 `destinationFolderId` 切到默认夹，刷新目录、列表及收藏选择器，清除已删除夹的选中状态。重命名后刷新目录和选择器，不改变收藏归属。
+
+验证入口：`pnpm test bookmark-folder-management` 覆盖真实 HTTP/认证/DTO/Service/响应层与 OpenAPI；`pnpm test:integration:bookmark-management` 在随机临时数据库验证真实迁移、回滚和并发，使用与[计数集成测试](../api-contract.md#收藏夹可见数量)相同的 loopback 数据库约束，环境标记为 `BOOKMARK_MANAGEMENT_TEST_ENV=test`，应用角色连接通过 `BOOKMARK_MANAGEMENT_TEST_APP_URL` 提供。

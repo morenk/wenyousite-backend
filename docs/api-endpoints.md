@@ -81,6 +81,8 @@
 | POST | `/bookmarks` | authenticated | 收藏主题帖 |
 | GET | `/bookmarks/folders` | authenticated | 获取我的主题帖收藏夹分类 |
 | POST | `/bookmarks/folders` | authenticated | 新建主题帖收藏夹分类 |
+| PATCH | `/bookmarks/folders/{id}` | authenticated | 重命名自定义主题帖收藏夹 |
+| DELETE | `/bookmarks/folders/{id}` | authenticated | 删除自定义主题帖收藏夹并将全部收藏移入默认夹 |
 | PATCH | `/bookmarks/{id}` | authenticated | 移动收藏到其他收藏夹 |
 | DELETE | `/bookmarks/{id}` | authenticated | 取消收藏 |
 
@@ -146,6 +148,8 @@
 | GET | `/moments/bookmarks` | authenticated | 当前用户收藏的动态 |
 | GET | `/moments/bookmark-folders` | authenticated | 获取我的动态收藏夹分类 |
 | POST | `/moments/bookmark-folders` | authenticated | 新建动态收藏夹分类 |
+| PATCH | `/moments/bookmark-folders/{id}` | authenticated | 重命名自定义动态收藏夹 |
+| DELETE | `/moments/bookmark-folders/{id}` | authenticated | 删除自定义动态收藏夹并将全部收藏移入默认夹 |
 | GET | `/moments/{id}` | optional | 获取动态详情 |
 | PATCH | `/moments/{id}` | authenticated | 编辑自己的动态，使用 version 乐观锁 |
 | DELETE | `/moments/{id}` | authenticated | 软删除动态 |

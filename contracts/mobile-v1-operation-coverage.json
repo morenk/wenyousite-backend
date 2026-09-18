@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "5.22.0-dev.20260912.2",
+  "contractVersion": "5.23.0-dev.20260913.1",
   "counts": {
-    "total": 216,
+    "total": 220,
     "v1": 103,
-    "deferred": 62,
+    "deferred": 66,
     "notApplicable": 50,
     "infrastructure": 1
   },
@@ -427,6 +427,22 @@
       "status": "deferred"
     },
     {
+      "operationId": "bookmarksRenameFolder",
+      "method": "PATCH",
+      "path": "/api/v1/bookmarks/folders/{id}",
+      "module": "social",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "bookmarksDeleteFolder",
+      "method": "DELETE",
+      "path": "/api/v1/bookmarks/folders/{id}",
+      "module": "social",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
       "operationId": "bookmarksMove",
       "method": "PATCH",
       "path": "/api/v1/bookmarks/{id}",
@@ -750,6 +766,22 @@
       "operationId": "momentsCreateBookmarkFolder",
       "method": "POST",
       "path": "/api/v1/moments/bookmark-folders",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsRenameBookmarkFolder",
+      "method": "PATCH",
+      "path": "/api/v1/moments/bookmark-folders/{id}",
+      "module": "moments",
+      "disposition": "deferred",
+      "status": "deferred"
+    },
+    {
+      "operationId": "momentsDeleteBookmarkFolder",
+      "method": "DELETE",
+      "path": "/api/v1/moments/bookmark-folders/{id}",
       "module": "moments",
       "disposition": "deferred",
       "status": "deferred"

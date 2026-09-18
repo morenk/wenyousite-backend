@@ -34,3 +34,5 @@
 ## 完整动画展示资源兼容演进
 
 新增统一 `display` / `avatarDisplay` 与正文 `mediaDisplays`；来源身份和旧字段保留，历史补处理及删除原件尚未执行。详细字段、跨场景选择和发布边界见[完整动画 WebP 展示契约](media-display.md)。
+
+- 5.23 自定义收藏夹重命名/删除是向后兼容的纯新增接口，无弃用清理；保留旧目录 ID 映射、`momentBookmarkCount` 兼容字段和所有快捷收藏协议。Foundation 只做影响审查，无视觉契约改动；Web/Windows Flutter 同步固定 OpenAPI 并覆盖管理操作。目录删除是用户请求的业务操作，不属于兼容协议清理。

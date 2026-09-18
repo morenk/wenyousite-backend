@@ -37,6 +37,7 @@
     "test:e2e:economy-terminal": "ECONOMY_TERMINAL_E2E_ENV=test ts-node --transpile-only scripts/economy-terminal-e2e.ts",
     "test:e2e:client": "tsx scripts/api-e2e-test.ts",
     "test:e2e": "API_E2E_ISOLATED_ENV=test tsx scripts/api-e2e-isolated.ts",
+    "test:integration:bookmark-management": "BOOKMARK_MANAGEMENT_TEST_ENV=test tsx scripts/bookmark-folder-management.integration.ts",
     "test:integration:bookmark-count": "BOOKMARK_COUNT_TEST_ENV=test tsx scripts/bookmark-visible-count.integration.ts",
     "test:mobile-release": "bash scripts/mobile-release.test.sh",
     "test:host-health-monitor": "bash scripts/host-health-monitor.test.sh",

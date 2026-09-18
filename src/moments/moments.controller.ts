@@ -1,3 +1,4 @@
+import { DeleteBookmarkFolderResponseDto } from '../bookmarks/dto/delete-bookmark-folder-response.dto';
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -9,6 +10,7 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiUnauthorizedResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import { Auth, AuthRead, OptionalAuth } from '../auth/decorators/auth.decorator';
@@ -29,6 +31,7 @@ import {
 } from './dto/moment-response.dto';
 import { CreateMomentCommentDto, CreateMomentDto, UpdateMomentDto } from './dto/moment-write.dto';
 import {
+  RenameMomentBookmarkFolderDto,
   CreateMomentBookmarkFolderDto,
   CreateMomentBookmarkDto,
   MomentBookmarkFolderResponseDto,
@@ -88,6 +91,35 @@ export class MomentsController {
     @Body() dto: CreateMomentBookmarkFolderDto,
   ) {
     return this.bookmarksService.createFolder(user.id, dto.name);
+  }
+
+  @Patch('bookmark-folders/:id')
+  @Auth()
+  @ApiOperation({ summary: '重命名自定义动态收藏夹' })
+  @ApiOkResponse({ type: MomentBookmarkFolderResponseDto })
+  @ApiBadRequestResponse({ description: '名称 trim 后须为 1–24 个字符' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
+  @ApiForbiddenResponse({ description: '账号无写入权限' })
+  @ApiNotFoundResponse({ description: '收藏夹不存在或不属于当前用户' })
+  @ApiConflictResponse({ description: '默认夹不可修改、名称重复或并发冲突；刷新后重试' })
+  renameBookmarkFolder(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() dto: RenameMomentBookmarkFolderDto,
+  ) {
+    return this.bookmarksService.renameFolder(user.id, id, dto.name);
+  }
+
+  @Delete('bookmark-folders/:id')
+  @Auth()
+  @ApiOperation({ summary: '删除自定义动态收藏夹并将全部收藏移入默认夹' })
+  @ApiOkResponse({ type: DeleteBookmarkFolderResponseDto })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
+  @ApiForbiddenResponse({ description: '账号无写入权限' })
+  @ApiNotFoundResponse({ description: '收藏夹不存在或不属于当前用户' })
+  @ApiConflictResponse({ description: '默认夹不可删除或并发冲突；事务回滚，刷新后重试' })
+  deleteBookmarkFolder(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
+    return this.bookmarksService.deleteFolder(user.id, id);
   }
 
   @Post()

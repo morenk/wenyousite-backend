@@ -1,3 +1,8 @@
+import {
+  assertCustomFolder,
+  normalizeFolderName,
+  rethrowFolderWriteError,
+} from './bookmark-folder-management';
 import { visibleUserWhere, assertInteractionAllowed } from '../access/block-visibility.where';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -125,6 +130,78 @@ export class BookmarksService {
         throw new BusinessException(ErrorCode.CONFLICT, '已存在同名收藏夹', 409);
       }
       throw error;
+    }
+  }
+
+  async renameFolder(userId: string, id: string, rawName: string) {
+    const name = normalizeFolderName(rawName);
+    try {
+      return await this.prisma.$transaction(
+        async (tx) => {
+          const owned = await tx.bookmarkFolder.findFirst({ where: { id, userId } });
+          assertCustomFolder(owned);
+          await this.ensureDefaultFolder(tx, userId);
+          const folder = await tx.bookmarkFolder.update({
+            where: { id, userId },
+            data: { name },
+            include: {
+              _count: {
+                select: {
+                  bookmarks: { where: { userId, thread: publishedThreadVisibilityWhere(userId) } },
+                },
+              },
+            },
+          });
+          const momentFolder = await tx.momentBookmarkFolder.findUnique({
+            where: { userId_name: { userId, name } },
+            select: {
+              _count: {
+                select: {
+                  bookmarks: {
+                    where: {
+                      userId,
+                      moment: { deletedAt: null, ...momentViewerVisibility(userId) },
+                    },
+                  },
+                },
+              },
+            },
+          });
+          return {
+            id: folder.id,
+            name: folder.name,
+            isDefault: folder.isDefault,
+            createdAt: folder.createdAt,
+            bookmarkCount: folder._count.bookmarks,
+            momentBookmarkCount: momentFolder?._count.bookmarks ?? 0,
+          };
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (error: unknown) {
+      rethrowFolderWriteError(error);
+    }
+  }
+
+  async deleteFolder(userId: string, id: string) {
+    try {
+      return await this.prisma.$transaction(
+        async (tx) => {
+          const folder = await tx.bookmarkFolder.findFirst({ where: { id, userId } });
+          assertCustomFolder(folder);
+          const destination = await this.ensureDefaultFolder(tx, userId);
+          // 连同当前不可见的收藏一起迁移；不改变收藏记录、时间或内容收藏总数。
+          await tx.userBookmark.updateMany({
+            where: { folderId: id, userId },
+            data: { folderId: destination.id },
+          });
+          await tx.bookmarkFolder.delete({ where: { id, userId } });
+          return { deletedFolderId: id, destinationFolderId: destination.id };
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (error: unknown) {
+      rethrowFolderWriteError(error);
     }
   }
 
