@@ -1,0 +1,347 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "温油站行内格式组合 v1",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "const": "./markdown-inline-combinations-v1.schema.json"
+    },
+    "contract": {
+      "const": "wenyousite-markdown-inline-combinations"
+    },
+    "version": {
+      "const": 1
+    },
+    "revision": {
+      "const": 2
+    },
+    "markdownContractVersion": {
+      "const": 5
+    },
+    "description": {
+      "const": "跨端行内格式组合语义黄金契约；预期文字和 marks 独立声明，客户端序列化结果不能反向生成预期。"
+    },
+    "markOrder": {
+      "const": [
+        "bold",
+        "italic",
+        "link",
+        "strike",
+        "code"
+      ]
+    },
+    "positionEncoding": {
+      "const": "utf16"
+    },
+    "markSets": {
+      "type": "array",
+      "minItems": 32,
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "marks": {
+            "$ref": "#/$defs/marks"
+          }
+        },
+        "required": [
+          "id",
+          "marks"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "adjacencyMatrix": {
+      "const": {
+        "leftText": "甲",
+        "rightText": "乙",
+        "separators": [
+          "",
+          " ",
+          "  "
+        ],
+        "separatorMarks": {},
+        "expectedPairCount": 1024,
+        "expectedCaseCount": 9216,
+        "distinctLinkTargets": {
+          "left": "https://example.com/inline-a",
+          "right": "https://example.com/inline-b",
+          "onlyWhenBothLinked": true,
+          "expectedPairCount": 256,
+          "expectedCaseCount": 2304
+        },
+        "contexts": [
+          {
+            "prefix": "",
+            "suffix": ""
+          },
+          {
+            "prefix": "a",
+            "suffix": "b"
+          },
+          {
+            "prefix": "前",
+            "suffix": "后"
+          }
+        ]
+      }
+    },
+    "textMatrix": {
+      "const": {
+        "texts": [
+          "甲乙",
+          "culti",
+          "（注意！）",
+          "👩🏽‍💻",
+          "a*b",
+          "a_b",
+          "a~~b",
+          "a`b",
+          "  a  ",
+          "&amp; &#x2A;",
+          "   ",
+          "a``b"
+        ],
+        "expectedCaseCount": 384,
+        "whitespacePolicy": {
+          "withCode": "preserve-all-text-and-marks",
+          "withoutCode": "move-leading-and-trailing-whitespace-to-unmarked-segments",
+          "whitespaceDefinition": "Unicode White_Space",
+          "allWhitespaceWithoutCode": "single-unmarked-segment"
+        }
+      }
+    },
+    "rules": {
+      "const": {
+        "code": "代码内部字面字符不解析为格式、转义、实体或链接；允许外层叠加其余四种 marks。",
+        "adjacency": "每个有序 markSets 对、separator 与 context 组合展开；prefix/suffix 为无样式文字，空文本不产生区间；不同链接目标额外展开。",
+        "serialization": "首选已有 bold→italic→link→strike→code 顺序；边界消歧允许等价定界符调整；不得插入可见空格、隐藏字符或 HTML，保存重开逐段语义一致。",
+        "normalization": "只合并相邻且全部 marks 含链接目标相同的区间；不得穿过普通空白区间或不同样式。",
+        "literal": "不得全局删除星号、下划线或反引号；仅移除生成的格式语法，用户字面字符必须保留。",
+        "history": "legacy-ambiguous 用例单独验证客户端有限历史恢复；转义定界符和代码内部内容不得触发恢复。",
+        "textMatrix": "每个 markSets 与 texts 组合按 whitespacePolicy 独立构造预期区间：code 存在时完整文字和全部 marks 保留；非 code 格式沿用 v7 首尾空白外置规则，纯空白没有可见格式。不得由消费者自行 trim 预期或删除字符。"
+      }
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 15,
+      "items": {
+        "$ref": "#/$defs/case"
+      }
+    },
+    "acceptance": {
+      "const": [
+        "真实编辑器消费全部矩阵和操作；不能只拼接预期 Markdown。",
+        "分别断言编辑状态、序列化后标准或协议阅读、保存重开和再次保存的完整文本与逐段 marks。",
+        "代码内原始实体不解码；普通文字的 Markdown 实体单遍解码。",
+        "复制/粘贴、撤销/重做和删除后重开保持对应区间语义。",
+        "历史恢复不得扩大到转义语法和代码内部；正常写入不得依赖历史恢复器。"
+      ]
+    }
+  },
+  "required": [
+    "$schema",
+    "contract",
+    "version",
+    "revision",
+    "markdownContractVersion",
+    "description",
+    "markOrder",
+    "positionEncoding",
+    "markSets",
+    "adjacencyMatrix",
+    "textMatrix",
+    "rules",
+    "cases",
+    "acceptance"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "marks": {
+      "type": "object",
+      "properties": {
+        "bold": {
+          "const": true
+        },
+        "italic": {
+          "const": true
+        },
+        "link": {
+          "type": "string",
+          "pattern": "^https://"
+        },
+        "strike": {
+          "const": true
+        },
+        "code": {
+          "const": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "segment": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "marks": {
+          "$ref": "#/$defs/marks"
+        }
+      },
+      "required": [
+        "text",
+        "marks"
+      ],
+      "additionalProperties": false
+    },
+    "case": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "canonical",
+            "legacy-ambiguous",
+            "operation",
+            "semantic"
+          ]
+        },
+        "segments": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/segment"
+          }
+        },
+        "readingSegments": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/segment"
+          }
+        },
+        "expectedSegments": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/segment"
+          }
+        },
+        "markdown": {
+          "type": "string"
+        },
+        "canonical": {
+          "type": "string"
+        },
+        "selection": {
+          "type": "object",
+          "properties": {
+            "anchor": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "focus": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "anchor",
+            "focus"
+          ],
+          "additionalProperties": false
+        },
+        "operation": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "setMark"
+            },
+            "mark": {
+              "enum": [
+                "bold",
+                "italic",
+                "link",
+                "strike",
+                "code"
+              ]
+            },
+            "value": {
+              "type": [
+                "boolean",
+                "string"
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "mark",
+            "value"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "segments"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "canonical"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "canonical"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "legacy-ambiguous"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "markdown",
+              "readingSegments"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "operation"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "selection",
+              "operation",
+              "expectedSegments"
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

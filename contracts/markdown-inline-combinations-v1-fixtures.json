@@ -1,0 +1,648 @@
+{
+  "$schema": "./markdown-inline-combinations-v1.schema.json",
+  "contract": "wenyousite-markdown-inline-combinations",
+  "version": 1,
+  "revision": 2,
+  "markdownContractVersion": 5,
+  "description": "跨端行内格式组合语义黄金契约；预期文字和 marks 独立声明，客户端序列化结果不能反向生成预期。",
+  "markOrder": [
+    "bold",
+    "italic",
+    "link",
+    "strike",
+    "code"
+  ],
+  "positionEncoding": "utf16",
+  "markSets": [
+    {
+      "id": "m00",
+      "marks": {}
+    },
+    {
+      "id": "m01",
+      "marks": {
+        "bold": true
+      }
+    },
+    {
+      "id": "m02",
+      "marks": {
+        "italic": true
+      }
+    },
+    {
+      "id": "m03",
+      "marks": {
+        "bold": true,
+        "italic": true
+      }
+    },
+    {
+      "id": "m04",
+      "marks": {
+        "link": "https://example.com/inline-a"
+      }
+    },
+    {
+      "id": "m05",
+      "marks": {
+        "bold": true,
+        "link": "https://example.com/inline-a"
+      }
+    },
+    {
+      "id": "m06",
+      "marks": {
+        "italic": true,
+        "link": "https://example.com/inline-a"
+      }
+    },
+    {
+      "id": "m07",
+      "marks": {
+        "bold": true,
+        "italic": true,
+        "link": "https://example.com/inline-a"
+      }
+    },
+    {
+      "id": "m08",
+      "marks": {
+        "strike": true
+      }
+    },
+    {
+      "id": "m09",
+      "marks": {
+        "bold": true,
+        "strike": true
+      }
+    },
+    {
+      "id": "m10",
+      "marks": {
+        "italic": true,
+        "strike": true
+      }
+    },
+    {
+      "id": "m11",
+      "marks": {
+        "bold": true,
+        "italic": true,
+        "strike": true
+      }
+    },
+    {
+      "id": "m12",
+      "marks": {
+        "link": "https://example.com/inline-a",
+        "strike": true
+      }
+    },
+    {
+      "id": "m13",
+      "marks": {
+        "bold": true,
+        "link": "https://example.com/inline-a",
+        "strike": true
+      }
+    },
+    {
+      "id": "m14",
+      "marks": {
+        "italic": true,
+        "link": "https://example.com/inline-a",
+        "strike": true
+      }
+    },
+    {
+      "id": "m15",
+      "marks": {
+        "bold": true,
+        "italic": true,
+        "link": "https://example.com/inline-a",
+        "strike": true
+      }
+    },
+    {
+      "id": "m16",
+      "marks": {
+        "code": true
+      }
+    },
+    {
+      "id": "m17",
+      "marks": {
+        "bold": true,
+        "code": true
+      }
+    },
+    {
+      "id": "m18",
+      "marks": {
+        "italic": true,
+        "code": true
+      }
+    },
+    {
+      "id": "m19",
+      "marks": {
+        "bold": true,
+        "italic": true,
+        "code": true
+      }
+    },
+    {
+      "id": "m20",
+      "marks": {
+        "link": "https://example.com/inline-a",
+        "code": true
+      }
+    },
+    {
+      "id": "m21",
+      "marks": {
+        "bold": true,
+        "link": "https://example.com/inline-a",
+        "code": true
+      }
+    },
+    {
+      "id": "m22",
+      "marks": {
+        "italic": true,
+        "link": "https://example.com/inline-a",
+        "code": true
+      }
+    },
+    {
+      "id": "m23",
+      "marks": {
+        "bold": true,
+        "italic": true,
+        "link": "https://example.com/inline-a",
+        "code": true
+      }
+    },
+    {
+      "id": "m24",
+      "marks": {
+        "strike": true,
+        "code": true
+      }
+    },
+    {
+      "id": "m25",
+      "marks": {
+        "bold": true,
+        "strike": true,
+        "code": true
+      }
+    },
+    {
+      "id": "m26",
+      "marks": {
+        "italic": true,
+        "strike": true,
+        "code": true
+      }
+    },
+    {
+      "id": "m27",
+      "marks": {
+        "bold": true,
+        "italic": true,
+        "strike": true,
+        "code": true
+      }
+    },
+    {
+      "id": "m28",
+      "marks": {
+        "link": "https://example.com/inline-a",
+        "strike": true,
+        "code": true
+      }
+    },
+    {
+      "id": "m29",
+      "marks": {
+        "bold": true,
+        "link": "https://example.com/inline-a",
+        "strike": true,
+        "code": true
+      }
+    },
+    {
+      "id": "m30",
+      "marks": {
+        "italic": true,
+        "link": "https://example.com/inline-a",
+        "strike": true,
+        "code": true
+      }
+    },
+    {
+      "id": "m31",
+      "marks": {
+        "bold": true,
+        "italic": true,
+        "link": "https://example.com/inline-a",
+        "strike": true,
+        "code": true
+      }
+    }
+  ],
+  "adjacencyMatrix": {
+    "leftText": "甲",
+    "rightText": "乙",
+    "separators": [
+      "",
+      " ",
+      "  "
+    ],
+    "separatorMarks": {},
+    "expectedPairCount": 1024,
+    "expectedCaseCount": 9216,
+    "distinctLinkTargets": {
+      "left": "https://example.com/inline-a",
+      "right": "https://example.com/inline-b",
+      "onlyWhenBothLinked": true,
+      "expectedPairCount": 256,
+      "expectedCaseCount": 2304
+    },
+    "contexts": [
+      {
+        "prefix": "",
+        "suffix": ""
+      },
+      {
+        "prefix": "a",
+        "suffix": "b"
+      },
+      {
+        "prefix": "前",
+        "suffix": "后"
+      }
+    ]
+  },
+  "textMatrix": {
+    "texts": [
+      "甲乙",
+      "culti",
+      "（注意！）",
+      "👩🏽‍💻",
+      "a*b",
+      "a_b",
+      "a~~b",
+      "a`b",
+      "  a  ",
+      "&amp; &#x2A;",
+      "   ",
+      "a``b"
+    ],
+    "expectedCaseCount": 384,
+    "whitespacePolicy": {
+      "withCode": "preserve-all-text-and-marks",
+      "withoutCode": "move-leading-and-trailing-whitespace-to-unmarked-segments",
+      "whitespaceDefinition": "Unicode White_Space",
+      "allWhitespaceWithoutCode": "single-unmarked-segment"
+    }
+  },
+  "rules": {
+    "code": "代码内部字面字符不解析为格式、转义、实体或链接；允许外层叠加其余四种 marks。",
+    "adjacency": "每个有序 markSets 对、separator 与 context 组合展开；prefix/suffix 为无样式文字，空文本不产生区间；不同链接目标额外展开。",
+    "serialization": "首选已有 bold→italic→link→strike→code 顺序；边界消歧允许等价定界符调整；不得插入可见空格、隐藏字符或 HTML，保存重开逐段语义一致。",
+    "normalization": "只合并相邻且全部 marks 含链接目标相同的区间；不得穿过普通空白区间或不同样式。",
+    "literal": "不得全局删除星号、下划线或反引号；仅移除生成的格式语法，用户字面字符必须保留。",
+    "history": "legacy-ambiguous 用例单独验证客户端有限历史恢复；转义定界符和代码内部内容不得触发恢复。",
+    "textMatrix": "每个 markSets 与 texts 组合按 whitespacePolicy 独立构造预期区间：code 存在时完整文字和全部 marks 保留；非 code 格式沿用 v7 首尾空白外置规则，纯空白没有可见格式。不得由消费者自行 trim 预期或删除字符。"
+  },
+  "cases": [
+    {
+      "id": "bold-next-to-italic-code",
+      "kind": "canonical",
+      "segments": [
+        {
+          "text": "土地",
+          "marks": {
+            "bold": true
+          }
+        },
+        {
+          "text": "culti",
+          "marks": {
+            "italic": true,
+            "code": true
+          }
+        }
+      ],
+      "canonical": "**土地**_`culti`_"
+    },
+    {
+      "id": "legacy-bold-next-to-italic-code",
+      "kind": "legacy-ambiguous",
+      "markdown": "**土地***`culti`*",
+      "segments": [
+        {
+          "text": "土地",
+          "marks": {
+            "bold": true
+          }
+        },
+        {
+          "text": "culti",
+          "marks": {
+            "italic": true,
+            "code": true
+          }
+        }
+      ],
+      "readingSegments": [
+        {
+          "text": "土地",
+          "marks": {
+            "bold": true
+          }
+        },
+        {
+          "text": "culti",
+          "marks": {
+            "italic": true,
+            "code": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "code-literal-star",
+      "kind": "canonical",
+      "segments": [
+        {
+          "text": "a*b",
+          "marks": {
+            "italic": true,
+            "code": true
+          }
+        }
+      ],
+      "canonical": "*`a*b`*"
+    },
+    {
+      "id": "code-literal-entity",
+      "kind": "canonical",
+      "segments": [
+        {
+          "text": "&amp; &#x2A;",
+          "marks": {
+            "italic": true,
+            "code": true
+          }
+        }
+      ],
+      "canonical": "*`&amp; &#x2A;`*"
+    },
+    {
+      "id": "code-literal-backtick",
+      "kind": "canonical",
+      "segments": [
+        {
+          "text": "a`b",
+          "marks": {
+            "bold": true,
+            "italic": true,
+            "code": true
+          }
+        }
+      ],
+      "canonical": "***``a`b``***"
+    },
+    {
+      "id": "code-literal-space",
+      "kind": "canonical",
+      "segments": [
+        {
+          "text": "  a  ",
+          "marks": {
+            "italic": true,
+            "code": true
+          }
+        }
+      ],
+      "canonical": "*`   a   `*"
+    },
+    {
+      "id": "all-five-marks",
+      "kind": "canonical",
+      "segments": [
+        {
+          "text": "甲乙",
+          "marks": {
+            "bold": true,
+            "italic": true,
+            "link": "https://example.com/inline-a",
+            "strike": true,
+            "code": true
+          }
+        }
+      ],
+      "canonical": "***[~~`甲乙`~~](https://example.com/inline-a)***"
+    },
+    {
+      "id": "escaped-style-delimiters",
+      "kind": "canonical",
+      "segments": [
+        {
+          "text": "*",
+          "marks": {}
+        },
+        {
+          "text": "culti",
+          "marks": {
+            "code": true
+          }
+        },
+        {
+          "text": "*",
+          "marks": {}
+        }
+      ],
+      "canonical": "\\*`culti`\\*"
+    },
+    {
+      "id": "code-contains-legacy-source",
+      "kind": "canonical",
+      "segments": [
+        {
+          "text": "**土地***culti*",
+          "marks": {
+            "code": true
+          }
+        }
+      ],
+      "canonical": "`**土地***culti*`"
+    },
+    {
+      "id": "code-then-apply-italic-forward",
+      "kind": "operation",
+      "segments": [
+        {
+          "text": "甲乙",
+          "marks": {
+            "code": true
+          }
+        }
+      ],
+      "selection": {
+        "anchor": 0,
+        "focus": 2
+      },
+      "operation": {
+        "type": "setMark",
+        "mark": "italic",
+        "value": true
+      },
+      "expectedSegments": [
+        {
+          "text": "甲乙",
+          "marks": {
+            "italic": true,
+            "code": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "code-then-apply-italic-reverse",
+      "kind": "operation",
+      "segments": [
+        {
+          "text": "甲乙",
+          "marks": {
+            "code": true
+          }
+        }
+      ],
+      "selection": {
+        "anchor": 2,
+        "focus": 0
+      },
+      "operation": {
+        "type": "setMark",
+        "mark": "italic",
+        "value": true
+      },
+      "expectedSegments": [
+        {
+          "text": "甲乙",
+          "marks": {
+            "italic": true,
+            "code": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "italic-then-apply-code",
+      "kind": "operation",
+      "segments": [
+        {
+          "text": "甲乙",
+          "marks": {
+            "italic": true
+          }
+        }
+      ],
+      "selection": {
+        "anchor": 0,
+        "focus": 2
+      },
+      "operation": {
+        "type": "setMark",
+        "mark": "code",
+        "value": true
+      },
+      "expectedSegments": [
+        {
+          "text": "甲乙",
+          "marks": {
+            "italic": true,
+            "code": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "partial-remove-italic-keeps-code",
+      "kind": "operation",
+      "segments": [
+        {
+          "text": "甲乙",
+          "marks": {
+            "italic": true,
+            "code": true
+          }
+        }
+      ],
+      "selection": {
+        "anchor": 0,
+        "focus": 1
+      },
+      "operation": {
+        "type": "setMark",
+        "mark": "italic",
+        "value": false
+      },
+      "expectedSegments": [
+        {
+          "text": "甲",
+          "marks": {
+            "code": true
+          }
+        },
+        {
+          "text": "乙",
+          "marks": {
+            "italic": true,
+            "code": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "code-only-spaces",
+      "kind": "semantic",
+      "segments": [
+        {
+          "text": "   ",
+          "marks": {
+            "italic": true,
+            "code": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "code-longest-backtick-run",
+      "kind": "canonical",
+      "segments": [
+        {
+          "text": "a``b",
+          "marks": {
+            "italic": true,
+            "code": true
+          }
+        }
+      ],
+      "canonical": "*```a``b```*"
+    }
+  ],
+  "acceptance": [
+    "真实编辑器消费全部矩阵和操作；不能只拼接预期 Markdown。",
+    "分别断言编辑状态、序列化后标准或协议阅读、保存重开和再次保存的完整文本与逐段 marks。",
+    "代码内原始实体不解码；普通文字的 Markdown 实体单遍解码。",
+    "复制/粘贴、撤销/重做和删除后重开保持对应区间语义。",
+    "历史恢复不得扩大到转义语法和代码内部；正常写入不得依赖历史恢复器。"
+  ]
+}

@@ -227,6 +227,10 @@ Content-Type: application/json
 
 消费者须覆盖修改检测、取消/离开提醒、重复提交、失败保留输入、409 冲突和成功后的版本/能力刷新；旧客户端省略字段不会重置权限，其他子贴不受影响。后端兼容版本先于客户端上线，不以服务端检查替代各端完整页面 UI 验收。
 
+### 行内代码叠加样式契约
+
+Windows 消费 [行内组合 v1](modules/markdown-content.md#行内组合-v1) 的 fixture/schema，保留旧 v7 测试。行内代码与粗体、斜体、删除线、安全链接允许组合，选区正向/反向及样式应用顺序不得改变结果；底部工具栏和系统 action 均须采用相同策略。代码中的实体、星号、空格与反引号保持字面内容。使用已提交后端 SHA 固定输入，不更新 HTTP SDK 或 Foundation Tag；通过组合矩阵、真实编辑、阅读、保存重开和安全保存回归后交付。
+
 ### 自定义收藏夹管理
 
 同步 `5.23.0-dev.20260913.1` 的精确后端 Git 契约提交并重新生成客户端类型。主题帖使用 `PATCH/DELETE /bookmarks/folders/{id}`；动态使用 `PATCH/DELETE /moments/bookmark-folders/{id}`，ID 必须来自各自目录。PATCH 传 `{ name }`（trim 后 1–24 字），消费对应收藏夹 DTO；DELETE 消费 `DeleteBookmarkFolderResponseDto` 的 `deletedFolderId` 与 `destinationFolderId`，收藏仍保留。
