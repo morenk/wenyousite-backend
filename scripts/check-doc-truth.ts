@@ -105,6 +105,8 @@ for (const fixtureName of [
   'markdown-v4-nodes-fixtures.json',
   'markdown-editor-roundtrip-v7-fixtures.json',
   'markdown-editor-newline-v1-fixtures.json',
+  'markdown-inline-combinations-v1-fixtures.json',
+  'markdown-inline-combinations-v1.schema.json',
 ]) {
   const backendFixture = fs.readFileSync(path.join('contracts', fixtureName), 'utf8');
   for (const client of ['wenyousite-frontend', 'wenyousite-mobile']) {
