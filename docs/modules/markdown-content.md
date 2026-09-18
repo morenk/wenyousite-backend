@@ -142,3 +142,5 @@ Web 和后端消费 v7；已审查 Flutter 副本尚未消费，Windows 修复�
 `segments` 是独立作者给出的文字区间及全部 marks；`canonical` 仅固定少量已验证标准语法，不要求全部矩阵预先生成 Markdown。消费者必须执行真实编辑操作，并以完整文字及逐段 marks 比对编辑、序列化、阅读、保存重开、复制和撤销；允许合并相邻等样式区间，不允许更换链接目标或插入隐藏字符。`legacy-ambiguous` 单独约定历史恢复，不能把所有星号包围代码的字面文字当成格式；转义定界符与代码内容不参加恢复。
 
 该契约不新增 HTTP 字段、错误码或 Markdown 存储格式，不提升 API 或 `/meta.markdownContractVersion`，OpenAPI 和 SDK 形状保持不变。Foundation 工具栏已声明相关能力且没有代码互斥字段，本次不要求 Token、包版本或正式 Tag 变化；组合语义属于此生产者正文契约。客户端应从后端已提交 SHA 同步 fixture/schema 并提交消费证据。
+
+行内组合 `textMatrix.whitespacePolicy` 保留 v7 空白规则：无代码样式时首尾 Unicode White_Space 外置为普通区间，仅中间文字有格式；纯空白成为普通区间。有代码样式时全部文字（含纯空格）及外层 marks 原样保留。客户端应按这项独立规则构造预期，不能为过测自行 trim 或丢弃空白。

@@ -13,7 +13,7 @@
       "const": 1
     },
     "revision": {
-      "const": 1
+      "const": 2
     },
     "markdownContractVersion": {
       "const": 5
@@ -105,7 +105,13 @@
           "   ",
           "a``b"
         ],
-        "expectedCaseCount": 384
+        "expectedCaseCount": 384,
+        "whitespacePolicy": {
+          "withCode": "preserve-all-text-and-marks",
+          "withoutCode": "move-leading-and-trailing-whitespace-to-unmarked-segments",
+          "whitespaceDefinition": "Unicode White_Space",
+          "allWhitespaceWithoutCode": "single-unmarked-segment"
+        }
       }
     },
     "rules": {
@@ -115,7 +121,8 @@
         "serialization": "首选已有 bold→italic→link→strike→code 顺序；边界消歧允许等价定界符调整；不得插入可见空格、隐藏字符或 HTML，保存重开逐段语义一致。",
         "normalization": "只合并相邻且全部 marks 含链接目标相同的区间；不得穿过普通空白区间或不同样式。",
         "literal": "不得全局删除星号、下划线或反引号；仅移除生成的格式语法，用户字面字符必须保留。",
-        "history": "legacy-ambiguous 用例单独验证客户端有限历史恢复；转义定界符和代码内部内容不得触发恢复。"
+        "history": "legacy-ambiguous 用例单独验证客户端有限历史恢复；转义定界符和代码内部内容不得触发恢复。",
+        "textMatrix": "每个 markSets 与 texts 组合按 whitespacePolicy 独立构造预期区间：code 存在时完整文字和全部 marks 保留；非 code 格式沿用 v7 首尾空白外置规则，纯空白没有可见格式。不得由消费者自行 trim 预期或删除字符。"
       }
     },
     "cases": {
