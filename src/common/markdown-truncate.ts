@@ -1,5 +1,6 @@
 /** Markdown 安全截断：保证不在标记内部截断，尽量在句子或段落边界处 */
 import removeMd from 'remove-markdown';
+import { protectPreviewCode } from './markdown-preview-code';
 import { stripMarkdownAlignmentMetadata } from './markdown-block-boundaries';
 import { stripVisibleMarkdownImages } from './markdown-cover-images';
 import { formatInternalReferencePreview } from './internal-reference';
@@ -23,20 +24,18 @@ function restorePlaceholders(s: string): string {
   });
 }
 
-function markdownToPlainText(md: string, omitImages = false): string {
+function markdownToPlainText(md: string, omitImages = false, decode = false): string {
   if (!md) return '';
 
   // Markdown v4 对齐引用定义是块元数据，不得泄漏到通知、搜索摘要或列表卡片。
-  const withoutAlignmentMarkers = stripMarkdownAlignmentMetadata(md);
+  const code = protectPreviewCode(stripMarkdownAlignmentMetadata(md));
+  const withoutAlignmentMarkers = code.source;
   // 必须先在原文上判定对齐；提前移除图片会制造孤立标记或让非法图文混排变成合法段落。
   const previewContent = omitImages
     ? stripVisibleMarkdownImages(withoutAlignmentMarkers)
     : withoutAlignmentMarkers;
   // Milkdown 空段落协议标记只在摘要中作为段落分隔，不把标签本身泄漏到通知/列表文案。
-  const withoutEmptyParagraphMarkers = previewContent.replace(
-    /^ {0,3}<br\s*\/?>[\t ]*$/gimu,
-    '\n',
-  );
+  const withoutEmptyParagraphMarkers = previewContent.replace(/^ {0,3}<br\s*\/?>[\t ]*$/gimu, '\n');
   // 图片只以统一占位进入摘要，避免 Milkdown 的比例 alt（如 1.00）泄漏为正文。
   const withImagePlaceholders = withoutEmptyParagraphMarkers.replace(
     /!\[[^\]]*\]\([^)]*\)/g,
@@ -53,12 +52,9 @@ function markdownToPlainText(md: string, omitImages = false): string {
     // 合法元数据已移除；剩余同形源码不能再被 remove-markdown 当作引用定义吞掉。
     .replace(/\[wenyousite-align-[^\]\n]*\]:/g, (marker) => ESCAPE_MAP.get('[')! + marker.slice(1))
     .replace(/</g, LT_PLACEHOLDER);
-  return (
-    restorePlaceholders(removeMd(protectedContent))
-      // Milkdown 硬换行（行尾反斜杠 + 换行）还原为普通换行，避免预览残留字面 \。
-      .replace(/\\\n/g, '\n')
-      .trim()
-  );
+  const plain = restorePlaceholders(removeMd(protectedContent)).replace(/\\\n/g, '\n').trim();
+  // 只解码普通正文；代码中的实体和 Markdown 标点是用户字面内容。
+  return code.restore(plain, decode ? decodeEntities : undefined);
 }
 
 function truncatePlainText(plain: string, maxLen: number, minLen: number): string {
@@ -99,6 +95,6 @@ export function truncateMarkdownToCompactPlainText(
   minLen = 50,
   options: { omitImages?: boolean } = {},
 ): string {
-  const compact = decodeEntities(markdownToPlainText(md, options.omitImages)).replace(/\s+/gu, ' ').trim();
+  const compact = markdownToPlainText(md, options.omitImages, true).replace(/\s+/gu, ' ').trim();
   return truncatePlainText(compact, maxLen, minLen);
 }

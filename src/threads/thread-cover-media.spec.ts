@@ -46,7 +46,8 @@ describe('主题帖封面媒体读模型', () => {
   it.each([
     ['围栏代码', '```md\n[wenyousite-align-v1-center]: #\n示例\n```', '[wenyousite-align-v1-center]: # 示例'],
     ['行内代码', '`[wenyousite-align-v1-center]: #`', '[wenyousite-align-v1-center]: #'],
-    ['跨行代码', '`示例\n[wenyousite-align-v1-center]: #\n正文`', '`示例 [wenyousite-align-v1-center]: # 正文`'],
+    // 跨行 code span 的反引号是语法；内部同形标记仍为可见文字。
+    ['跨行代码', '`示例\n[wenyousite-align-v1-center]: #\n正文`', '示例 [wenyousite-align-v1-center]: # 正文'],
     ['转义源码', '\\[wenyousite-align-v1-center]: #\n示例', '[wenyousite-align-v1-center]: # 示例'],
     ['孤立标记', '[wenyousite-align-v1-center]: #', '[wenyousite-align-v1-center]: #'],
     ['空行隔开的标记', '[wenyousite-align-v1-center]: #\n\n示例', '[wenyousite-align-v1-center]: # 示例'],
