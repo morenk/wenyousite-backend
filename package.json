@@ -52,7 +52,7 @@
     "arch:check": "tsx scripts/check-architecture.ts",
     "openapi:check": "bash scripts/check-openapi.sh",
     "test:openapi-runner": "bash scripts/check-openapi.test.sh",
-    "check": "pnpm lint && pnpm typecheck && pnpm arch:check && pnpm openapi:check && pnpm test:openapi-runner && pnpm test && pnpm test:rich-text && pnpm test:mobile-release && pnpm test:host-health-monitor && pnpm test:deploy-preflight && pnpm test:deploy-runtime && pnpm test:data-security && pnpm docs:check && pnpm build",
+    "check": "pnpm lint && pnpm typecheck && pnpm arch:check && pnpm openapi:check && pnpm test:openapi-runner && pnpm test && pnpm test:cleanup:unit && pnpm test:rich-text && pnpm test:mobile-release && pnpm test:host-health-monitor && pnpm test:deploy-preflight && pnpm test:deploy-runtime && pnpm test:data-security && pnpm docs:check && pnpm build",
     "test:integration:admin-console": "ADMIN_CONSOLE_TEST_ENV=test ts-node --transpile-only scripts/admin-console.integration.ts",
     "check:full": "pnpm security:audit && pnpm check && pnpm test:e2e:auth-terminal && pnpm test:e2e:economy-terminal && pnpm test:e2e && pnpm test:e2e:media-reclamation && pnpm test:e2e:ranking && pnpm test:integration:admin-console",
     "test:e2e:media-reclamation": "MEDIA_RECLAMATION_TEST_ENV=test tsx scripts/media-reclamation.integration.ts",
@@ -61,7 +61,9 @@
     "test:deploy-release:integration": "bash scripts/assemble-backend-release.integration.test.sh",
     "contract:rich-text": "tsx scripts/rich-text/cli.ts",
     "test:rich-text": "tsc -p scripts/rich-text/tsconfig.json && tsx --test scripts/rich-text/*.test.ts",
-    "media:display:backfill": "tsx scripts/backfill-media-display.ts"
+    "media:display:backfill": "tsx scripts/backfill-media-display.ts",
+    "test:cleanup:unit": "tsc -p scripts/tsconfig.e2e.json && tsx --test scripts/webe2e-cleanup.test.ts",
+    "test:cleanup:integration": "tsx scripts/webe2e-cleanup.integration.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.800.0",
