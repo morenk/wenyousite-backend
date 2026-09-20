@@ -4,7 +4,7 @@
 
 管理员身份继承一个已注册温油账号，不维护第二套用户资料。超级管理员发送邀请，用户以普通 Web 登录接受后获得 `ADMIN`；数据库只允许一个 `SUPER_ADMIN`，其身份只能通过显式移交变更。
 
-站务台使用独立的 HttpOnly Cookie 会话，普通用户 Bearer JWT 不能调用 `/admin/**`。登录需密码加邮件验证码；会话 30 分钟空闲失效、8 小时绝对失效，并限制每个管理员只有一个活动会话。账号管理、处罚、申诉推翻和运行开关等高风险操作还需最近 10 分钟内完成邮件 step-up。所有后台写请求同时校验 `X-CSRF-Token`。
+管理后台使用独立的 HttpOnly Cookie 会话，普通用户 Bearer JWT 不能调用 `/admin/**`。登录需密码加邮件验证码；会话 30 分钟空闲失效、8 小时绝对失效，并限制每个管理员只有一个活动会话。账号管理、处罚、申诉推翻和运行开关等高风险操作还需最近 10 分钟内完成邮件 step-up。所有后台写请求同时校验 `X-CSRF-Token`。
 
 前台与移动端的权力性功能使用独立的 `AdminBearerAuth` 边界：复用普通 Bearer 登录态并从数据库实时读取角色，只允许 `ADMIN / SUPER_ADMIN`，不要求独立站务会话、CSRF 或邮件 step-up。该边界只作用于明确声明的客户端权力接口，不放宽 `/admin/**`。
 
@@ -70,3 +70,17 @@
 ## 通知活动
 
 通知活动先按受众条件预估人数，再保存标题、正文、目标主题和发送时间。调度器每 30 秒领取到期活动，通过通知投递服务按 500 人分批直接写入 PostgreSQL；每批成功后才推进持久化游标，`campaignId` 与稳定事件键保证重试不会重复写入通知。活动可在发送前取消，状态为 `SCHEDULED / SENDING / SENT / CANCELED / FAILED`。
+
+## 综合内容管理
+
+`GET /admin/content` 按 type（thread 默认、post、moment、moment_comment）检索；可组合 q、精确 id、authorId、status（ACTIVE/HIDDEN，省略同时包含）、createdAfter/createdBefore。分类 category 和 tagId 仅用于 thread。每页 20 或 50 条，以 createdAt/id 降序；筛选绑定的不透明游标原样回传，修改筛选必须重置。
+
+列表、详情及用户内容计数共用后台可见性策略：只包含已发布公开内容和管理员隐藏项，排除草稿、私密主题、作者删除项及其子项；删除子贴和作者删除父楼层/父评论的子项同样排除。管理员隐藏父级的子项仍可查询，但 parentHidden 为 true，canRestore 为 false。原隐藏列表保留兼容。
+
+`GET /admin/content/:type/:id` 在一致快照内返回正文、上下文编号、绑定媒体和最近 20 条审计。主题帖正文仅取默认子贴 BODY；媒体仅来自已授权目标的附件关系，检查 COMPLETED/deletionClaimedAt 后复用 readMediaDisplay。客户端使用安全 Markdown/媒体组件，不通过上传者专用状态接口获取其他人的附件。
+
+`PATCH /admin/content/thread/:id/taxonomy` 接收 version、reason 及可选 category/tagIds。省略保持原值；分类不可清空；空标签数组删除所有标签，最多 5 个且不重复。已有停用项可保留或移除，新绑定必须启用。分类标识去空白转大写。聚合行锁、乐观版本、关系修改和 THREAD_TAXONOMY_UPDATED 前后值审计同事务；过期返回 409/40002，客户端保留输入并提示刷新。提交后失效公开主题列表和详情缓存，不改变内容和可见范围。
+
+用户列表新增精确 id；用户详情增加 bio、level、lastActiveDate（每日活动记录的最近北京时间日期；无记录为 null）与 contentCounts。计数使用和内容列表相同的过滤规则，不代表用户全部历史投稿。看板新增 newMoments/newMomentComments，沿用既有按创建日期统计产出的口径，保留所有旧字段。
+
+这些接口仅使用管理 Cookie 和写入 CSRF，普通 Bearer 不可替代；移动端无需新增管理页面。

@@ -1,3 +1,9 @@
+import {
+  adminCommentWhere,
+  adminMomentWhere,
+  adminPostWhere,
+  adminThreadWhere,
+} from '../access/admin-content.where';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ContentRemovalSource, Prisma, UserSanctionType } from '@prisma/client';
 import { stringify } from 'csv-stringify/sync';
@@ -127,6 +133,7 @@ export class AdminModerationQueryService {
         { email: { contains: q, mode: 'insensitive' } },
       ];
     }
+    if (query.id) where.id = query.id;
     if (query.role) where.role = query.role;
     if (query.status === 'ACTIVE') where.sanctions = { none: activeWhere };
     if (query.status === 'SUSPENDED') {
@@ -178,6 +185,17 @@ export class AdminModerationQueryService {
         username: true,
         role: true,
         createdAt: true,
+        bio: true,
+        level: true,
+        dailyActivities: { orderBy: { dateKey: 'desc' }, take: 1, select: { dateKey: true } },
+        _count: {
+          select: {
+            ownedThreads: { where: adminThreadWhere },
+            posts: { where: adminPostWhere },
+            moments: { where: adminMomentWhere },
+            momentComments: { where: adminCommentWhere },
+          },
+        },
         sanctions: {
           where: activeSanctionWhere(),
           orderBy: { createdAt: 'desc' },
@@ -187,9 +205,16 @@ export class AdminModerationQueryService {
       },
     });
     if (!user) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
-    const { sanctions, ...fields } = user;
+    const { sanctions, dailyActivities, _count, ...fields } = user;
     return {
       ...fields,
+      lastActiveDate: dailyActivities[0]?.dateKey ?? null,
+      contentCounts: {
+        thread: _count.ownedThreads,
+        post: _count.posts,
+        moment: _count.moments,
+        moment_comment: _count.momentComments,
+      },
       moderationStatus: moderationStatus(sanctions[0]),
       currentSanction: sanctions[0] ?? null,
     };

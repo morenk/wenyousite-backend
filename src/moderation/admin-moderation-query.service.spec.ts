@@ -76,6 +76,8 @@ describe('AdminModerationQueryService', () => {
 
   it('用户详情返回派生的永久封禁状态', async () => {
     prisma.user.findUnique.mockResolvedValue({
+      bio: null, level: 1, dailyActivities: [],
+      _count: { ownedThreads: 2, posts: 3, moments: 4, momentComments: 5 },
       id: 'user-1',
       email: 'u@example.com',
       username: 'user',

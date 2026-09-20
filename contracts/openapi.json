@@ -14547,6 +14547,355 @@
         "x-auth-mode": "admin"
       }
     },
+    "/api/v1/admin/content": {
+      "get": {
+        "operationId": "adminContentList",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
+            "schema": {
+              "example": "clxabc123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（默认 20，最大 50）",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number",
+              "enum": [
+                20,
+                50
+              ]
+            }
+          },
+          {
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "thread",
+              "type": "string",
+              "enum": [
+                "thread",
+                "post",
+                "moment",
+                "moment_comment"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "authorId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "HIDDEN"
+              ]
+            }
+          },
+          {
+            "name": "createdAfter",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "createdBefore",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 50,
+              "pattern": "^[A-Z][A-Z0-9_]{0,49}$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "tagId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "公开内容和管理员隐藏项",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminContentList200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "管理员内容列表",
+        "tags": [
+          "Admin Content"
+        ],
+        "x-auth-mode": "admin",
+        "x-pagination": "cursor"
+      }
+    },
+    "/api/v1/admin/content/{type}/{id}": {
+      "get": {
+        "operationId": "adminContentDetail",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "thread",
+                "post",
+                "moment",
+                "moment_comment"
+              ]
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminContentDetail200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "管理员内容详情",
+        "tags": [
+          "Admin Content"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/content/thread/{id}/taxonomy": {
+      "patch": {
+        "operationId": "adminContentUpdateTaxonomy",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateContentTaxonomyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminContentUpdateTaxonomy200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "整理主题帖分类和标签",
+        "tags": [
+          "Admin Content"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
     "/api/v1/admin/users": {
       "get": {
         "operationId": "adminModerationListUsers",
@@ -14579,6 +14928,15 @@
               "default": 20,
               "example": 20,
               "type": "number"
+            }
+          },
+          {
+            "name": "id",
+            "required": false,
+            "in": "query",
+            "description": "精确用户编号",
+            "schema": {
+              "type": "string"
             }
           },
           {
@@ -15344,6 +15702,7 @@
                 "USER_SANCTION_REVOKED",
                 "CONTENT_HIDDEN",
                 "CONTENT_RESTORED",
+                "THREAD_TAXONOMY_UPDATED",
                 "REPORT_RESOLVED",
                 "REPORT_DISMISSED",
                 "SYSTEM_NOTIFICATION_SENT",
@@ -15533,6 +15892,7 @@
                 "USER_SANCTION_REVOKED",
                 "CONTENT_HIDDEN",
                 "CONTENT_RESTORED",
+                "THREAD_TAXONOMY_UPDATED",
                 "REPORT_RESOLVED",
                 "REPORT_DISMISSED",
                 "SYSTEM_NOTIFICATION_SENT",
@@ -26935,6 +27295,450 @@
           "data"
         ]
       },
+      "AdminHiddenContentUserResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "username"
+        ]
+      },
+      "AdminContentTagDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "isActive"
+        ]
+      },
+      "AdminContentResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "thread",
+              "post",
+              "moment",
+              "moment_comment"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "summary": {
+            "type": "string"
+          },
+          "author": {
+            "$ref": "#/components/schemas/AdminHiddenContentUserResponseDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "parentHidden": {
+            "type": "boolean"
+          },
+          "canRestore": {
+            "type": "boolean"
+          },
+          "restoreBlockedReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "threadId": {
+            "type": "string",
+            "nullable": true
+          },
+          "parentPostId": {
+            "type": "string",
+            "nullable": true
+          },
+          "momentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "parentCommentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "category": {
+            "type": "string",
+            "nullable": true
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminContentTagDto"
+            }
+          },
+          "version": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "title",
+          "summary",
+          "author",
+          "createdAt",
+          "updatedAt",
+          "hidden",
+          "parentHidden",
+          "canRestore",
+          "restoreBlockedReason",
+          "threadId",
+          "parentPostId",
+          "momentId",
+          "parentCommentId",
+          "category",
+          "tags",
+          "version"
+        ]
+      },
+      "AdminContentMediaDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "display": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaDisplayResponseDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "display"
+        ]
+      },
+      "AdminAuditActorResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "ADMIN",
+              "SUPER_ADMIN"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "role"
+        ]
+      },
+      "AdminAuditLogResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "SUPER_ADMIN_BOOTSTRAPPED",
+              "ADMIN_ROLE_GRANTED",
+              "ADMIN_ROLE_REVOKED",
+              "USER_SUSPENDED",
+              "USER_BANNED",
+              "USER_SANCTION_REVOKED",
+              "CONTENT_HIDDEN",
+              "CONTENT_RESTORED",
+              "THREAD_TAXONOMY_UPDATED",
+              "REPORT_RESOLVED",
+              "REPORT_DISMISSED",
+              "SYSTEM_NOTIFICATION_SENT",
+              "THREAD_CATEGORY_CREATED",
+              "THREAD_CATEGORY_UPDATED",
+              "TAG_CREATED",
+              "TAG_UPDATED",
+              "ADMIN_INVITED",
+              "ADMIN_INVITE_ACCEPTED",
+              "ADMIN_INVITE_CANCELED",
+              "SUPER_ADMIN_TRANSFERRED",
+              "ADMIN_SESSION_REVOKED",
+              "CASE_RESOLVED",
+              "CASE_DISMISSED",
+              "APPEAL_SUBMITTED",
+              "APPEAL_UPHELD",
+              "APPEAL_OVERTURNED",
+              "USER_SESSIONS_REVOKED",
+              "PASSWORD_RESET_REQUESTED_BY_ADMIN",
+              "NOTIFICATION_CAMPAIGN_SCHEDULED",
+              "NOTIFICATION_CAMPAIGN_CANCELED",
+              "THREAD_CATEGORY_MERGED",
+              "TAG_MERGED",
+              "SITE_SETTINGS_UPDATED"
+            ]
+          },
+          "targetType": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "THREAD",
+              "POST",
+              "MOMENT",
+              "MOMENT_COMMENT",
+              "REPORT",
+              "SYSTEM_NOTIFICATION",
+              "THREAD_CATEGORY",
+              "TAG",
+              "MODERATION_CASE",
+              "MODERATION_DECISION",
+              "MODERATION_APPEAL",
+              "ADMIN_INVITE",
+              "ADMIN_SESSION",
+              "NOTIFICATION_CAMPAIGN",
+              "SITE_SETTINGS"
+            ]
+          },
+          "targetId": {
+            "type": "string",
+            "nullable": true
+          },
+          "reportId": {
+            "type": "string",
+            "nullable": true
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true
+          },
+          "actor": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminAuditActorResponseDto"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "targetType",
+          "targetId",
+          "reportId",
+          "reason",
+          "metadata",
+          "actor",
+          "createdAt"
+        ]
+      },
+      "AdminContentDetailResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "thread",
+              "post",
+              "moment",
+              "moment_comment"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "summary": {
+            "type": "string"
+          },
+          "author": {
+            "$ref": "#/components/schemas/AdminHiddenContentUserResponseDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "parentHidden": {
+            "type": "boolean"
+          },
+          "canRestore": {
+            "type": "boolean"
+          },
+          "restoreBlockedReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "threadId": {
+            "type": "string",
+            "nullable": true
+          },
+          "parentPostId": {
+            "type": "string",
+            "nullable": true
+          },
+          "momentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "parentCommentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "category": {
+            "type": "string",
+            "nullable": true
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminContentTagDto"
+            }
+          },
+          "version": {
+            "type": "number",
+            "nullable": true
+          },
+          "content": {
+            "type": "string"
+          },
+          "mediaIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "media": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminContentMediaDto"
+            }
+          },
+          "auditLogs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminAuditLogResponseDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "title",
+          "summary",
+          "author",
+          "createdAt",
+          "updatedAt",
+          "hidden",
+          "parentHidden",
+          "canRestore",
+          "restoreBlockedReason",
+          "threadId",
+          "parentPostId",
+          "momentId",
+          "parentCommentId",
+          "category",
+          "tags",
+          "version",
+          "content",
+          "mediaIds",
+          "media",
+          "auditLogs"
+        ]
+      },
+      "UpdateContentTaxonomyDto": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "number",
+            "minimum": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "category": {
+            "type": "string",
+            "description": "省略保持原值，不可清空",
+            "pattern": "^[A-Z][A-Z0-9_]{0,49}$",
+            "minLength": 1,
+            "maxLength": 50
+          },
+          "tagIds": {
+            "maxItems": 5,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "version",
+          "reason"
+        ]
+      },
       "AdminUserSanctionResponseDto": {
         "type": "object",
         "properties": {
@@ -27024,6 +27828,100 @@
           "role",
           "moderationStatus",
           "createdAt"
+        ]
+      },
+      "AdminUserContentCountsDto": {
+        "type": "object",
+        "properties": {
+          "thread": {
+            "type": "number"
+          },
+          "post": {
+            "type": "number"
+          },
+          "moment": {
+            "type": "number"
+          },
+          "moment_comment": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "thread",
+          "post",
+          "moment",
+          "moment_comment"
+        ]
+      },
+      "AdminUserDetailResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "username": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "ADMIN",
+              "SUPER_ADMIN"
+            ]
+          },
+          "moderationStatus": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "SUSPENDED",
+              "BANNED"
+            ]
+          },
+          "currentSanction": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminUserSanctionResponseDto"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "bio": {
+            "type": "string",
+            "nullable": true
+          },
+          "level": {
+            "type": "number"
+          },
+          "lastActiveDate": {
+            "type": "string",
+            "nullable": true,
+            "format": "date"
+          },
+          "contentCounts": {
+            "$ref": "#/components/schemas/AdminUserContentCountsDto"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "username",
+          "role",
+          "moderationStatus",
+          "createdAt",
+          "bio",
+          "level",
+          "lastActiveDate",
+          "contentCounts"
         ]
       },
       "SanctionUserDto": {
@@ -27130,21 +28028,6 @@
           "deletedAt"
         ]
       },
-      "AdminHiddenContentUserResponseDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "username": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "username"
-        ]
-      },
       "AdminHiddenContentResponseDto": {
         "type": "object",
         "properties": {
@@ -27223,137 +28106,6 @@
           "parentCommentId"
         ]
       },
-      "AdminAuditActorResponseDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "username": {
-            "type": "string"
-          },
-          "role": {
-            "type": "string",
-            "enum": [
-              "USER",
-              "ADMIN",
-              "SUPER_ADMIN"
-            ]
-          }
-        },
-        "required": [
-          "id",
-          "username",
-          "role"
-        ]
-      },
-      "AdminAuditLogResponseDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "action": {
-            "type": "string",
-            "enum": [
-              "SUPER_ADMIN_BOOTSTRAPPED",
-              "ADMIN_ROLE_GRANTED",
-              "ADMIN_ROLE_REVOKED",
-              "USER_SUSPENDED",
-              "USER_BANNED",
-              "USER_SANCTION_REVOKED",
-              "CONTENT_HIDDEN",
-              "CONTENT_RESTORED",
-              "REPORT_RESOLVED",
-              "REPORT_DISMISSED",
-              "SYSTEM_NOTIFICATION_SENT",
-              "THREAD_CATEGORY_CREATED",
-              "THREAD_CATEGORY_UPDATED",
-              "TAG_CREATED",
-              "TAG_UPDATED",
-              "ADMIN_INVITED",
-              "ADMIN_INVITE_ACCEPTED",
-              "ADMIN_INVITE_CANCELED",
-              "SUPER_ADMIN_TRANSFERRED",
-              "ADMIN_SESSION_REVOKED",
-              "CASE_RESOLVED",
-              "CASE_DISMISSED",
-              "APPEAL_SUBMITTED",
-              "APPEAL_UPHELD",
-              "APPEAL_OVERTURNED",
-              "USER_SESSIONS_REVOKED",
-              "PASSWORD_RESET_REQUESTED_BY_ADMIN",
-              "NOTIFICATION_CAMPAIGN_SCHEDULED",
-              "NOTIFICATION_CAMPAIGN_CANCELED",
-              "THREAD_CATEGORY_MERGED",
-              "TAG_MERGED",
-              "SITE_SETTINGS_UPDATED"
-            ]
-          },
-          "targetType": {
-            "type": "string",
-            "enum": [
-              "USER",
-              "THREAD",
-              "POST",
-              "MOMENT",
-              "MOMENT_COMMENT",
-              "REPORT",
-              "SYSTEM_NOTIFICATION",
-              "THREAD_CATEGORY",
-              "TAG",
-              "MODERATION_CASE",
-              "MODERATION_DECISION",
-              "MODERATION_APPEAL",
-              "ADMIN_INVITE",
-              "ADMIN_SESSION",
-              "NOTIFICATION_CAMPAIGN",
-              "SITE_SETTINGS"
-            ]
-          },
-          "targetId": {
-            "type": "string",
-            "nullable": true
-          },
-          "reportId": {
-            "type": "string",
-            "nullable": true
-          },
-          "reason": {
-            "type": "string",
-            "nullable": true
-          },
-          "metadata": {
-            "type": "object",
-            "additionalProperties": true,
-            "nullable": true
-          },
-          "actor": {
-            "nullable": true,
-            "type": "object",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/AdminAuditActorResponseDto"
-              }
-            ]
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "id",
-          "action",
-          "targetType",
-          "targetId",
-          "reportId",
-          "reason",
-          "metadata",
-          "actor",
-          "createdAt"
-        ]
-      },
       "AdminDashboardRangeResponseDto": {
         "type": "object",
         "properties": {
@@ -27429,6 +28181,14 @@
             "example": 86,
             "description": "新增楼层数，不包含主题正文 BODY"
           },
+          "newMoments": {
+            "type": "number",
+            "example": 8
+          },
+          "newMomentComments": {
+            "type": "number",
+            "example": 24
+          },
           "reportsReceived": {
             "type": "number",
             "example": 9
@@ -27443,6 +28203,8 @@
           "newUsers",
           "publishedThreads",
           "newPosts",
+          "newMoments",
+          "newMomentComments",
           "reportsReceived",
           "reportsHandled"
         ]
@@ -27524,6 +28286,14 @@
             "type": "number",
             "example": 18
           },
+          "newMoments": {
+            "type": "number",
+            "example": 8
+          },
+          "newMomentComments": {
+            "type": "number",
+            "example": 24
+          },
           "reportsReceived": {
             "type": "number",
             "example": 2
@@ -27539,6 +28309,8 @@
           "newUsers",
           "publishedThreads",
           "newPosts",
+          "newMoments",
+          "newMomentComments",
           "reportsReceived",
           "reportsHandled"
         ]
@@ -32640,6 +33412,63 @@
           }
         ]
       },
+      "AdminContentList200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AdminContentResponseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AdminContentDetail200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AdminContentDetailResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminContentUpdateTaxonomy200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AdminContentDetailResponseDto"
+              }
+            }
+          }
+        ]
+      },
       "AdminModerationListUsers200Response": {
         "allOf": [
           {
@@ -32673,7 +33502,7 @@
             ],
             "properties": {
               "data": {
-                "$ref": "#/components/schemas/AdminUserModerationResponseDto"
+                "$ref": "#/components/schemas/AdminUserDetailResponseDto"
               }
             }
           }

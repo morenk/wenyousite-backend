@@ -28,6 +28,7 @@ import {
   AdminUserModerationResponseDto,
   AdminUserSanctionResponseDto,
 } from './dto/moderation-response.dto';
+import { AdminUserDetailResponseDto } from './dto/admin-content-response.dto';
 import { ModerationService } from '../moderation/moderation.service';
 import { AdminModerationQueryService } from '../moderation/admin-moderation-query.service';
 
@@ -61,7 +62,7 @@ export class AdminModerationController {
 
   @Get('users/:id')
   @ApiOperation({ summary: '管理员用户详情' })
-  @ApiOkResponse({ type: AdminUserModerationResponseDto })
+  @ApiOkResponse({ type: AdminUserDetailResponseDto })
   getUser(@Param('id') id: string) {
     return this.queries.getUser(id);
   }

@@ -30,6 +30,12 @@ export class AdminDashboardPeriodMetricsDto {
   @ApiProperty({ example: 86, description: '新增楼层数，不包含主题正文 BODY' })
   newPosts!: number;
 
+  @ApiProperty({ example: 8 })
+  newMoments!: number;
+
+  @ApiProperty({ example: 24 })
+  newMomentComments!: number;
+
   @ApiProperty({ example: 9 })
   reportsReceived!: number;
 
@@ -94,6 +100,12 @@ export class AdminDashboardTimeseriesPointDto {
 
   @ApiProperty({ example: 18 })
   newPosts!: number;
+
+  @ApiProperty({ example: 8 })
+  newMoments!: number;
+
+  @ApiProperty({ example: 24 })
+  newMomentComments!: number;
 
   @ApiProperty({ example: 2 })
   reportsReceived!: number;

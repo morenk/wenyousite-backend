@@ -1,3 +1,5 @@
+import { AdminContentQueryService } from './admin-content-query.service';
+import { AdminContentTaxonomyService } from './admin-content-taxonomy.service';
 import { Module } from '@nestjs/common';
 import { AdminModerationQueryService } from './admin-moderation-query.service';
 import { AdminPolicyService } from './admin-policy.service';
@@ -10,6 +12,8 @@ import { ModerationProjectionService } from './moderation-projection.service';
 @Module({
   imports: [AuditModule],
   providers: [
+    AdminContentQueryService,
+    AdminContentTaxonomyService,
     AdminPolicyService,
     ModerationService,
     AdminModerationQueryService,
@@ -17,6 +21,8 @@ import { ModerationProjectionService } from './moderation-projection.service';
     ModerationProjectionService,
   ],
   exports: [
+    AdminContentQueryService,
+    AdminContentTaxonomyService,
     AdminPolicyService,
     ModerationService,
     AdminModerationQueryService,

@@ -299,6 +299,14 @@
 | GET | `/admin/notifications/system/history` | admin | 系统通知发送历史 |
 | GET | `/admin/users/search` | admin | 用户搜索（管理员用） |
 
+## Admin Content
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/admin/content` | admin | 管理员内容列表 |
+| GET | `/admin/content/{type}/{id}` | admin | 管理员内容详情 |
+| PATCH | `/admin/content/thread/{id}/taxonomy` | admin | 整理主题帖分类和标签 |
+
 ## Admin Moderation
 
 | 方法 | 路径 | 鉴权 | 说明 |
