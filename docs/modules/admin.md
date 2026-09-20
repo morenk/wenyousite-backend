@@ -4,7 +4,7 @@
 
 管理员身份继承一个已注册温油账号，不维护第二套用户资料。超级管理员发送邀请，用户以普通 Web 登录接受后获得 `ADMIN`；数据库只允许一个 `SUPER_ADMIN`，其身份只能通过显式移交变更。
 
-管理后台使用独立的 HttpOnly Cookie 会话，普通用户 Bearer JWT 不能调用 `/admin/**`。登录需密码加邮件验证码；会话 30 分钟空闲失效、8 小时绝对失效，并限制每个管理员只有一个活动会话。账号管理、处罚、申诉推翻和运行开关等高风险操作还需最近 10 分钟内完成邮件 step-up。所有后台写请求同时校验 `X-CSRF-Token`。
+管理后台使用独立的 HttpOnly Cookie 会话，普通用户 Bearer JWT 不能调用 `/admin/**`。登录需密码加邮件验证码；登录验证可选 rememberDevice，省略或 false 时会话保持 30 分钟空闲失效、8 小时绝对失效；true 时使用固定 7 天期限，跳过短空闲限制，请求和重新打开浏览器均不延长 expiresAt。Cookie 的 Max-Age 与固定期限一致，HttpOnly、Secure、SameSite 和路径保持既有设置。两种模式都限制每个管理员只有一个活动会话。账号管理、处罚、申诉推翻和运行开关等高风险操作还需最近 10 分钟内完成邮件 step-up。所有后台写请求同时校验 `X-CSRF-Token`。重新打开浏览器后通过现有 session 接口重新取得 CSRF；角色撤销、账号不可用、退出与后续登录均仍立即使旧会话失效。旧数据库会话迁移为 rememberDevice=false，不修改原期限。
 
 前台与移动端的权力性功能使用独立的 `AdminBearerAuth` 边界：复用普通 Bearer 登录态并从数据库实时读取角色，只允许 `ADMIN / SUPER_ADMIN`，不要求独立站务会话、CSRF 或邮件 step-up。该边界只作用于明确声明的客户端权力接口，不放宽 `/admin/**`。
 
@@ -84,3 +84,5 @@
 用户列表新增精确 id；用户详情增加 bio、level、lastActiveDate（每日活动记录的最近北京时间日期；无记录为 null）与 contentCounts。计数使用和内容列表相同的过滤规则，不代表用户全部历史投稿。看板新增 newMoments/newMomentComments，沿用既有按创建日期统计产出的口径，保留所有旧字段。
 
 这些接口仅使用管理 Cookie 和写入 CSRF，普通 Bearer 不可替代；移动端无需新增管理页面。
+
+登录 verify 使用专用 AdminLoginVerifyDto；step-up 不接收 rememberDevice。verify/session 保留既有字段，session.idleMinutes 反映有效上限：短会话默认 30；记住设备为 10080，表示固定七天期限而非额外滑动空闲计时。并发登录在用户行锁内串行消费挑战、撤销旧会话和创建新会话，同一验证码只能成功一次。

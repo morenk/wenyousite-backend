@@ -45,3 +45,7 @@
 ## 综合管理后台接口兼容
 
 综合检索新增 `GET /admin/content` 与详情、taxonomy 整理接口；`GET /admin/content/hidden` 继续兼容，不在本次删除。未来清理必须单独证明无消费者、数据迁移完成、回归覆盖和回滚路径。看板既有处罚/举报字段与用户列表 DTO 均保留。
+
+### 管理登录记住设备兼容扩展
+
+`rememberDevice` 是登录 verify 的可选布尔，省略维持既有短会话；旧记录默认 false，原 expiresAt 保持。verify/session 响应旧字段和 step-up DTO 保留；没有旧接口清理，也不要求 Mobile 新增管理功能。兼容 Backend 应先于 Web 消费端合并。

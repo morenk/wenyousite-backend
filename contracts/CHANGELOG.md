@@ -1,5 +1,11 @@
 # API 合同变更
 
+## 5.25.0-dev.20260921.1
+
+- 管理登录 verify 新增可选布尔 rememberDevice，省略保持原短会话；独立登录 DTO 不改变 step-up 输入。
+- 记住设备固定七天有效并跳过短空闲限制，Cookie 与 expiresAt 一致、不滑动续期；短会话及旧会话仍保持原空闲/绝对期限。AdminSession 新列默认 false，迁移不延长旧会话。
+- verify/session 既有字段保留，idleMinutes 表示有效策略（短会话默认30、记住设备10080）；管理认证、CSRF、单会话撤销和十分钟高风险确认不变。并发验证串行消费挑战并替换会话。
+
 ## 5.24.0-dev.20260920.1
 
 - 兼容新增管理内容列表、详情和主题帖分类标签整理接口，operationId 为 `adminContentList`、`adminContentDetail`、`adminContentUpdateTaxonomy`；旧隐藏列表及管理字段保留。

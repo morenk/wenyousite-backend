@@ -1,5 +1,14 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsUUID, Matches, MaxLength, MinLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsBoolean,
+  IsNotEmpty,
+  IsString,
+  IsUUID,
+  Matches,
+  MaxLength,
+  MinLength,
+  ValidateIf,
+} from 'class-validator';
 
 export class AdminLoginChallengeDto {
   @ApiProperty({ example: 'admin@example.com', description: '管理员邮箱或用户名' })
@@ -24,4 +33,11 @@ export class AdminChallengeVerifyDto {
   @IsString()
   @Matches(/^\d{6}$/)
   code: string;
+}
+
+export class AdminLoginVerifyDto extends AdminChallengeVerifyDto {
+  @ApiPropertyOptional({ default: false, description: '记住此设备七天，省略时沿用短会话' })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsBoolean()
+  rememberDevice?: boolean;
 }
