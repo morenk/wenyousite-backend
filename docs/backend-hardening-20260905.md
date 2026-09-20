@@ -23,7 +23,7 @@ Outbox 监听失败向投递层传播，支持重试；Markdown 图片遮罩采�
 
 - `pnpm check:full`：单元、契约、构建、认证、经济、真实 API、媒体回收和推荐集成。
 - `scripts/block-search.e2e.ts`：隔离数据库三账号，匿名缓存预热、双向/第三方可见性、正文搜索、嵌套回复、通知、导出、私聊历史、解除恢复及并发拉黑/关注。
-- `pnpm test:search:benchmark`：仅允许 loopback，独立数据库自动建表、填充、测试后删除；原始 EXPLAIN 见 [基准证据](evidence/search-benchmark-20260905.json)。
+- `pnpm test:search:benchmark`：现由[隔离 runner](e2e-isolation.md)启动独立数据进程后建表、填充，测试后清理本次进程与数据；原始 EXPLAIN 见 [基准证据](evidence/search-benchmark-20260905.json)。
 
 ## 十万条搜索基准
 

@@ -1,3 +1,5 @@
+import { assertIsolatedEnvironment, verifyIsolatedEnvironment } from './e2e-guard';
+assertIsolatedEnvironment();
 import { MediaReferenceService } from '../src/media/media-reference.service';
 import { mediaDisplayCleanupProtection } from '../src/media/media-display-reclamation';
 import 'reflect-metadata';
@@ -16,10 +18,10 @@ import { MediaDisplayProjectionService } from '../src/media/media-display-projec
 import { readMediaDisplay } from '../src/media/media-display';
 
 async function main() {
+  await verifyIsolatedEnvironment();
   assert.equal(process.env.MEDIA_DISPLAY_TEST_ENV, 'test');
   const base = new URL(process.env.DATABASE_URL!);
   assert(['127.0.0.1', 'localhost', '[::1]'].includes(base.hostname), '只允许 loopback');
-  assert.equal(base.port, '55432', '仅允许既有隔离 loadtest PostgreSQL，不允许生产端口');
   const suffix = randomUUID().replaceAll('-', '');
   const database = `wenyousite_display_test_${suffix}`;
   const role = `display_app_${suffix}`;

@@ -1,3 +1,5 @@
+import { assertIsolatedEnvironment, verifyIsolatedEnvironment } from './e2e-guard';
+assertIsolatedEnvironment();
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -7,6 +9,7 @@ import { MediaReferenceService } from '../src/media/media-reference.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 async function main() {
+  await verifyIsolatedEnvironment();
   assert.equal(process.env.MEDIA_RECLAMATION_TEST_ENV, 'test');
   const base = new URL(process.env.DATABASE_URL!);
   assert(['127.0.0.1', 'localhost', '::1'].includes(base.hostname), '只允许 loopback 测试数据库');

@@ -1,5 +1,21 @@
 {
   "extends": "../tsconfig.json",
-  "compilerOptions": { "rootDir": "..", "noEmit": true, "incremental": false },
-  "include": ["webe2e-cleanup.ts", "cleanup-webe2e.ts", "webe2e-cleanup.test.ts", "webe2e-cleanup.integration.ts", "e2e-resources.ts"]
+  "compilerOptions": {
+    "rootDir": "..",
+    "noEmit": true,
+    "incremental": false
+  },
+  "include": [
+    "webe2e-cleanup.ts",
+    "cleanup-webe2e.ts",
+    "webe2e-cleanup.test.ts",
+    "webe2e-cleanup.integration.ts",
+    "e2e-resources.ts",
+    "e2e-guard.ts",
+    "e2e-runner.ts",
+    "e2e-guard.test.ts",
+    "e2e-reap.ts",
+    "e2e-lifecycle.integration.ts",
+    "e2e-lifecycle.fixture.ts"
+  ]
 }

@@ -102,6 +102,11 @@ export async function apply(prisma: PrismaClient, manifest: Manifest, sha256: st
       moment_images, direct_messages, sticker_imports, audit_logs IN SHARE ROW EXCLUSIVE MODE`;
     const identity = await tx.user.findUnique({ where: { id: TARGET.id }, select: { username: true } });
     ensure(identity?.username === TARGET.username, '目标 ID/username 不匹配');
+    const databaseIdentity = await tx.$queryRaw<Array<{ database: string; oid: number; address: string | null; port: number | null }>>`
+      SELECT current_database() AS database, oid::integer AS oid,
+        inet_server_addr()::text AS address, inet_server_port() AS port
+      FROM pg_database WHERE datname = current_database()`;
+    ensure(canonical(databaseIdentity) === canonical(manifest.databaseIdentity), '数据库身份与原 manifest 不匹配');
     const receiptId = `webe2e-cleanup-${sha256}`;
     const receipt = await tx.auditLog.findUnique({ where: { id: receiptId } });
     if (receipt) {

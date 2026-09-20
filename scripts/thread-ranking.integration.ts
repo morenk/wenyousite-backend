@@ -1,3 +1,5 @@
+import { assertIsolatedEnvironment, verifyIsolatedEnvironment } from './e2e-guard';
+assertIsolatedEnvironment();
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -10,22 +12,24 @@ import { ThreadRankingService } from '../src/threads/thread-ranking.service';
 import { SMART_SCORE_ZSET, SMART_SCORE_READY } from '../src/threads/thread-smart-score';
 
 async function main() {
+  await verifyIsolatedEnvironment();
   assert.equal(process.env.THREAD_RANKING_TEST_ENV, 'test');
   const base = new URL(process.env.DATABASE_URL!);
-  const redisHost = process.env.REDIS_HOST ?? '127.0.0.1';
+  const redisHost = process.env.REDIS_HOST!;
   for (const host of [base.hostname, redisHost]) assert(['127.0.0.1', 'localhost', '::1'].includes(host));
   const database = `wenyousite_ranking_test_${randomUUID().replaceAll('-', '')}`;
   const adminUrl = new URL(base); adminUrl.pathname = '/postgres';
   const testUrl = new URL(base); testUrl.pathname = `/${database}`;
   const admin = new PrismaClient({ datasourceUrl: adminUrl.toString() });
   const db = new PrismaClient({ datasourceUrl: testUrl.toString() });
-  const connection = new Redis({ host: redisHost, port: Number(process.env.REDIS_PORT ?? 6379), db: 14 });
+  const connection = new Redis({ host: redisHost, port: Number(process.env.REDIS_PORT), db: 0, password: process.env.REDIS_PASSWORD });
   const redis = new RedisService(connection);
   const ranking = new ThreadRankingService(db as unknown as PrismaService, redis);
-  let created = false; let redisOwned = false;
+  let created = false;
   try {
-    assert.equal(await connection.dbsize(), 0, 'Redis DB 14 必须为空，拒绝覆盖既有数据');
-    redisOwned = true;
+    assert.equal(await connection.get('e2e:ownership'), process.env.E2E_RUN_ID);
+    // full 链中的 HTTP 实例已停止；本套件只重建自己的排行榜投影，保留身份键及无关数据。
+    await connection.del(SMART_SCORE_ZSET, SMART_SCORE_READY);
     await admin.$executeRawUnsafe(`CREATE DATABASE "${database}"`); created = true;
     execFileSync('pnpm', ['exec', 'prisma', 'migrate', 'deploy'], {
       env: { ...process.env, DATABASE_URL: testUrl.toString(), DIRECT_DATABASE_URL: testUrl.toString() }, stdio: 'pipe',
@@ -49,7 +53,7 @@ async function main() {
     await Promise.all([ranking.ensureReady(), ranking.ensureReady()]);
     assert.deepEqual(await redis.zrevrange(SMART_SCORE_ZSET, 0, -1), ['active', 'tie-b', 'tie-a', 'popular', 'old']);
     assert.equal((await db.thread.findUniqueOrThrow({ where: { id: 'active' } })).viewCount, 9);
-    await connection.flushdb();
+    await connection.del(SMART_SCORE_ZSET, SMART_SCORE_READY, ...['active', 'popular', 'tie-a', 'tie-b', 'old'].map((id) => `thread:${id}:stats`));
     await ranking.ensureReady();
     assert.deepEqual(await redis.hgetall('thread:popular:stats'), {
       views: '999999', replies: '0', likes: '10000', tips: '999999999',
@@ -76,7 +80,7 @@ async function main() {
     await db.$disconnect();
     if (created) await admin.$executeRawUnsafe(`DROP DATABASE "${database}"`);
     await admin.$disconnect();
-    if (redisOwned) await connection.flushdb();
+    await connection.del(SMART_SCORE_ZSET, SMART_SCORE_READY, ...['active', 'popular', 'tie-a', 'tie-b', 'old'].map((id) => `thread:${id}:stats`));
     await connection.quit();
   }
 }

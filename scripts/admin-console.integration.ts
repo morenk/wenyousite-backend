@@ -1,3 +1,5 @@
+import { assertIsolatedEnvironment, verifyIsolatedEnvironment } from './e2e-guard';
+assertIsolatedEnvironment();
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -18,6 +20,7 @@ import { ErrorCode } from '../src/common/exceptions/error-codes';
 import { AdminContentType } from '../src/admin/dto/admin-content.dto';
 
 async function main() {
+  await verifyIsolatedEnvironment();
   assert.equal(process.env.ADMIN_CONSOLE_TEST_ENV, 'test');
   const base = new URL(process.env.DATABASE_URL!);
   assert(['127.0.0.1', 'localhost', '[::1]'].includes(base.hostname), '只允许回环测试数据库');
