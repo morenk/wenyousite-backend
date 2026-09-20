@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "5.22.0-dev.20260912.2",
+  "contractVersion": "5.24.0-dev.20260920.1",
   "cases": [
     {
       "id": "full-animation",

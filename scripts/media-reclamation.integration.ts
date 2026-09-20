@@ -67,14 +67,25 @@ async function main() {
     await db.media.update({ where: { id: media[2].id }, data: { status: 'PROCESSING' } });
     assert.deepEqual(await references.claimUnreferenced([media[2].id], { status: 'COMPLETED' }), []);
 
+    const previewOnly = await db.media.create({
+      data: { userId: user.id, key: 'preview-only', url: 'https://media.example.invalid/preview-only', status: 'COMPLETED' },
+    });
+    await db.mediaPreviewAttempt.create({
+      data: { id: randomUUID(), mediaId: previewOnly.id, keys: ['preview-key'], expiresAt: new Date(), nextCleanupAt: new Date() },
+    });
+    assert.equal((await references.claimUnreferenced([previewOnly.id], { status: 'COMPLETED' })).length, 1,
+      '预览清理账本不构成内容绑定，不能阻止无引用媒体回收');
+
     const coverage = await db.$queryRaw<Array<{ missing: bigint }>>`
       SELECT count(*) AS missing FROM pg_constraint c
       JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
       WHERE c.contype = 'f' AND c.confrelid = 'media'::regclass
+        -- 预览尝试只记录派生文件清理，不是对媒体的业务绑定。
+        AND NOT (c.conrelid = 'media_preview_attempts'::regclass AND a.attname = 'media_id')
         AND NOT EXISTS (SELECT 1 FROM pg_trigger t WHERE t.tgrelid = c.conrelid
           AND t.tgname = 'guard_media_' || a.attname)
     `;
-    assert.equal(coverage[0].missing, 0n, '所有 Media 外键都必须具有绑定保护');
+    assert.equal(coverage[0].missing, 0n, '所有内容绑定 Media 外键都必须具有绑定保护');
     console.log('Media reclamation migration, binding races and retry checks passed');
   } finally {
     await db.$disconnect();

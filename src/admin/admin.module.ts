@@ -1,3 +1,4 @@
+import { AdminContentController } from './admin-content.controller';
 import { Module } from '@nestjs/common';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
@@ -54,6 +55,7 @@ import { EmailModule } from '../email/email.module';
     SiteOperationalSettingsController,
     NotificationCampaignController,
     AdminController,
+    AdminContentController,
     AdminModerationController,
     ClientContentModerationController,
     AdminDashboardController,

@@ -1,3 +1,9 @@
+import {
+  adminCommentWhere,
+  adminMomentWhere,
+  adminPostWhere,
+  adminThreadWhere,
+} from '../access/admin-content.where';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ContentRemovalSource, Prisma, UserSanctionType } from '@prisma/client';
 import { stringify } from 'csv-stringify/sync';
@@ -127,6 +133,7 @@ export class AdminModerationQueryService {
         { email: { contains: q, mode: 'insensitive' } },
       ];
     }
+    if (query.id) where.id = query.id;
     if (query.role) where.role = query.role;
     if (query.status === 'ACTIVE') where.sanctions = { none: activeWhere };
     if (query.status === 'SUSPENDED') {
@@ -178,6 +185,17 @@ export class AdminModerationQueryService {
         username: true,
         role: true,
         createdAt: true,
+        bio: true,
+        level: true,
+        dailyActivities: { orderBy: { dateKey: 'desc' }, take: 1, select: { dateKey: true } },
+        _count: {
+          select: {
+            ownedThreads: { where: adminThreadWhere },
+            posts: { where: adminPostWhere },
+            moments: { where: adminMomentWhere },
+            momentComments: { where: adminCommentWhere },
+          },
+        },
         sanctions: {
           where: activeSanctionWhere(),
           orderBy: { createdAt: 'desc' },
@@ -187,9 +205,16 @@ export class AdminModerationQueryService {
       },
     });
     if (!user) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
-    const { sanctions, ...fields } = user;
+    const { sanctions, dailyActivities, _count, ...fields } = user;
     return {
       ...fields,
+      lastActiveDate: dailyActivities[0]?.dateKey ?? null,
+      contentCounts: {
+        thread: _count.ownedThreads,
+        post: _count.posts,
+        moment: _count.moments,
+        moment_comment: _count.momentComments,
+      },
       moderationStatus: moderationStatus(sanctions[0]),
       currentSanction: sanctions[0] ?? null,
     };
@@ -233,6 +258,7 @@ export class AdminModerationQueryService {
               id: true,
               content: true,
               parentPostId: true,
+              parentPost: { select: { deletedAt: true } },
               deletedAt: true,
               removalReason: true,
               removedById: true,
@@ -281,6 +307,7 @@ export class AdminModerationQueryService {
               id: true,
               content: true,
               parentCommentId: true,
+              parentComment: { select: { deletedAt: true } },
               deletedAt: true,
               removalReason: true,
               removedById: true,
@@ -317,7 +344,8 @@ export class AdminModerationQueryService {
           post.thread.published &&
           post.thread.visibility === 'PUBLIC' &&
           !post.thread.deletedAt &&
-          !post.subthread.deletedAt;
+          !post.subthread.deletedAt &&
+          !post.parentPost?.deletedAt;
         return {
           targetType: 'POST' as const,
           targetId: post.id,
@@ -327,7 +355,7 @@ export class AdminModerationQueryService {
           hiddenAt: post.deletedAt!,
           reason: post.removalReason,
           canRestore,
-          restoreBlockedReason: canRestore ? null : '父级主题帖或子贴仍不可见，请先恢复父级内容',
+          restoreBlockedReason: canRestore ? null : '父级内容仍不可见，请先恢复父级内容',
           threadId: post.thread.id,
           parentPostId: post.parentPostId,
           momentId: null,
@@ -350,7 +378,7 @@ export class AdminModerationQueryService {
         parentCommentId: null,
       })),
       ...comments.map((comment) => {
-        const canRestore = !comment.moment.deletedAt;
+        const canRestore = !comment.moment.deletedAt && !comment.parentComment?.deletedAt;
         return {
           targetType: 'MOMENT_COMMENT' as const,
           targetId: comment.id,
@@ -360,7 +388,7 @@ export class AdminModerationQueryService {
           hiddenAt: comment.deletedAt!,
           reason: comment.removalReason,
           canRestore,
-          restoreBlockedReason: canRestore ? null : '所属动态仍不可见，请先恢复动态',
+          restoreBlockedReason: canRestore ? null : '父级内容仍不可见，请先恢复父级内容',
           threadId: null,
           parentPostId: null,
           momentId: comment.moment.id,

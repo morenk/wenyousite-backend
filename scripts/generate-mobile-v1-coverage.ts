@@ -74,6 +74,7 @@ const adminTags = new Set([
   'Admin Campaigns',
   'Admin',
   'Admin Moderation',
+  'Admin Content',
   'Admin Dashboard',
   'Admin Taxonomy',
 ]);

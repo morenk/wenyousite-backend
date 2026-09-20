@@ -40,3 +40,8 @@
 ## 行内组合兼容补充
 
 新增 markdown-inline-combinations v1 测试契约，保留 roundtrip v7 的原始 ID、48 条编辑操作和既有 Markdown v3/v4/v5。历史粗体紧邻斜体代码的歧义定界符只由消费者有限恢复，不批量改写数据库；转义星号与代码字面内容必须保留。Backend 摘要、Web 与 Mobile 分别提交消费证据；不清理任何旧协议、字段或兼容读取。Foundation 无代码互斥字段，不新增 Token 或 Tag 依赖；HTTP/OpenAPI 形状不变。
+
+
+## 综合管理后台接口兼容
+
+综合检索新增 `GET /admin/content` 与详情、taxonomy 整理接口；`GET /admin/content/hidden` 继续兼容，不在本次删除。未来清理必须单独证明无消费者、数据迁移完成、回归覆盖和回滚路径。看板既有处罚/举报字段与用户列表 DTO 均保留。

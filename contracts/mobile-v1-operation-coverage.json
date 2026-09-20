@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "5.23.0-dev.20260913.1",
+  "contractVersion": "5.24.0-dev.20260920.1",
   "counts": {
-    "total": 220,
+    "total": 223,
     "v1": 103,
     "deferred": 66,
-    "notApplicable": 50,
+    "notApplicable": 53,
     "infrastructure": 1
   },
   "operations": [
@@ -1406,6 +1406,30 @@
       "operationId": "adminSearchUsers",
       "method": "GET",
       "path": "/api/v1/admin/users/search",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminContentList",
+      "method": "GET",
+      "path": "/api/v1/admin/content",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminContentDetail",
+      "method": "GET",
+      "path": "/api/v1/admin/content/{type}/{id}",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminContentUpdateTaxonomy",
+      "method": "PATCH",
+      "path": "/api/v1/admin/content/thread/{id}/taxonomy",
       "module": "admin",
       "disposition": "not_applicable",
       "status": "not_applicable"

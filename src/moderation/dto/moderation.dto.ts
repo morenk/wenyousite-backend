@@ -57,6 +57,12 @@ export class UpdateAdminRoleDto {
 }
 
 export class AdminUserQueryDto extends CursorPaginationDto {
+  @ApiPropertyOptional({ description: '精确用户编号' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  id?: string;
+
   @ApiPropertyOptional({ description: '用户名或邮箱关键词' })
   @IsOptional()
   @IsString()

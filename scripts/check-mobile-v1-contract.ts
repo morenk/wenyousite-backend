@@ -6,7 +6,7 @@ const coverage = JSON.parse(fs.readFileSync(coveragePath, 'utf8')) as Record<str
 const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as Record<string, any>;
 const failures: string[] = [];
 
-const expectedCounts = { total: 220, v1: 103, deferred: 66, notApplicable: 50, infrastructure: 1 };
+const expectedCounts = { total: 223, v1: 103, deferred: 66, notApplicable: 53, infrastructure: 1 };
 for (const [name, expected] of Object.entries(expectedCounts)) {
   if (coverage.counts?.[name] !== expected) {
     failures.push(
@@ -16,6 +16,12 @@ for (const [name, expected] of Object.entries(expectedCounts)) {
 }
 
 const rows = Array.isArray(coverage.operations) ? coverage.operations : [];
+for (const operationId of ['adminContentList', 'adminContentDetail', 'adminContentUpdateTaxonomy']) {
+  const operation = rows.find((row: Record<string, unknown>) => row.operationId === operationId);
+  if (operation?.disposition !== 'not_applicable' || operation?.module !== 'admin') {
+    failures.push(`${operationId}: 综合管理接口不能纳入移动端功能范围`);
+  }
+}
 const seen = new Set<string>();
 for (const row of rows) {
   if (seen.has(row.operationId)) failures.push(`重复分类 operationId: ${row.operationId}`);

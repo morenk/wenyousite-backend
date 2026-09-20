@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { ThreadAccessService } from '../access/thread-access.service';
 import { PostingPolicyService } from '../access/posting-policy.service';
 import { BusinessException, forbidden, notFound } from '../common/exceptions/business.exception';
+import { isRecordNotFound, isTransactionConflict } from '../common/prisma-errors';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { hasVisibleMarkdownContent, prepareMarkdownContent } from '../common/markdown-content';
 import { truncateMarkdown } from '../common/markdown-truncate';
@@ -377,7 +378,9 @@ export class ThreadAggregateService {
       })
       .catch((error) => {
         if (error instanceof BusinessException) throw error;
-        if ((error as { code?: string })?.code === 'P2025') this.optimisticLockConflict('内容');
+        if (isRecordNotFound(error) || isTransactionConflict(error)) {
+          this.optimisticLockConflict('内容');
+        }
         throw error;
       });
 

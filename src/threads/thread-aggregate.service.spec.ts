@@ -213,6 +213,36 @@ describe('ThreadAggregateService', () => {
     );
   });
 
+  it.each([
+    { code: 'P2034' },
+    { code: 'P2010', meta: { code: '40001' } },
+    { code: 'P2010', meta: { code: '40P01' } },
+  ])('事务并发回滚转为可刷新重试的版本冲突：%j', async (error) => {
+    prisma.$transaction.mockRejectedValueOnce(error as never);
+    await expect(
+      service.save(
+        't1',
+        { version: 3, defaultSubthreadVersion: 2, content: '新正文', tagNames: [] },
+        'u1',
+      ),
+    ).rejects.toMatchObject({ errorCode: 40002, status: 409 });
+    expect(eventEmitter.emit).not.toHaveBeenCalled();
+    expect(tx.thread.update).not.toHaveBeenCalled();
+  });
+
+  it('未知原始 SQL 错误保持失败，不伪装为版本冲突', async () => {
+    const error = { code: 'P2010', meta: { code: '42P01' } };
+    prisma.$transaction.mockRejectedValueOnce(error as never);
+    await expect(
+      service.save(
+        't1',
+        { version: 3, defaultSubthreadVersion: 2, content: '新正文', tagNames: [] },
+        'u1',
+      ),
+    ).rejects.toBe(error);
+    expect(eventEmitter.emit).not.toHaveBeenCalled();
+  });
+
   it('任一正文版本冲突时拒绝整个聚合保存', async () => {
     tx.thread.findUnique.mockResolvedValue(
       makeCurrent({

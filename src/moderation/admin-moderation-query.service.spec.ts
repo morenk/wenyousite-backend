@@ -76,6 +76,8 @@ describe('AdminModerationQueryService', () => {
 
   it('用户详情返回派生的永久封禁状态', async () => {
     prisma.user.findUnique.mockResolvedValue({
+      bio: null, level: 1, dailyActivities: [],
+      _count: { ownedThreads: 2, posts: 3, moments: 4, momentComments: 5 },
       id: 'user-1',
       email: 'u@example.com',
       username: 'user',
@@ -157,7 +159,7 @@ describe('AdminModerationQueryService', () => {
         targetType: 'POST',
         targetId: 'post-1',
         canRestore: false,
-        restoreBlockedReason: '父级主题帖或子贴仍不可见，请先恢复父级内容',
+        restoreBlockedReason: '父级内容仍不可见，请先恢复父级内容',
       }),
     ]);
     expect(result.pagination.hasMore).toBe(false);

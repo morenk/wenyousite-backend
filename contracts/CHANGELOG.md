@@ -1,5 +1,13 @@
 # API 合同变更
 
+## 5.24.0-dev.20260920.1
+
+- 兼容新增管理内容列表、详情和主题帖分类标签整理接口，operationId 为 `adminContentList`、`adminContentDetail`、`adminContentUpdateTaxonomy`；旧隐藏列表及管理字段保留。
+- 新检索仅包含已发布公开内容及管理员隐藏项，排除草稿、私密、作者删除及其子项；绑定媒体经同一可见性策略授权后投影。post 列表/计数仅 FLOOR，精确详情兼容可见 BODY 定位。
+- taxonomy 请求省略保持原值、分类不能清空、标签最多 5 个；停用项只允许保留/移除。版本冲突返回 409/40002；更新、版本及新增 THREAD_TAXONOMY_UPDATED 审计同事务，包含兼容枚举 migration。
+- 用户详情增加 bio、level、lastActiveDate、contentCounts，用户列表增加精确 id；看板增加 newMoments/newMomentComments，保留旧指标口径。
+- Backend 兼容版本先行，Web 按精确提交同步；Mobile 的三个管理接口明确标为 not_applicable，仅同步契约快照。Foundation 不发布新包版本或 Token。
+
 ## 5.23.0-dev.20260913.1
 
 - 兼容新增主题帖与动态自定义收藏夹 PATCH/DELETE 管理接口，operationId 为 `bookmarksRenameFolder`、`bookmarksDeleteFolder`、`momentsRenameBookmarkFolder`、`momentsDeleteBookmarkFolder`。PATCH 返回对应现有收藏夹 DTO；DELETE 返回 `DeleteBookmarkFolderResponseDto`。

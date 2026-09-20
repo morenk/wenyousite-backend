@@ -46,6 +46,8 @@ interface TimeseriesRow {
   newUsers: bigint | number;
   publishedThreads: bigint | number;
   newPosts: bigint | number;
+  newMoments: bigint | number;
+  newMomentComments: bigint | number;
   reportsReceived: bigint | number;
   reportsHandled: bigint | number;
 }
@@ -130,6 +132,18 @@ export class AdminDashboardService {
         WHERE kind = CAST(${PostKind.FLOOR} AS "PostKind")
           AND created_at >= ${range.fromDate} AND created_at < ${range.toExclusive}
         GROUP BY 1
+      ), new_moments AS (
+        SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Shanghai')::date AS day,
+               COUNT(*)::int AS count
+        FROM moments
+        WHERE created_at >= ${range.fromDate} AND created_at < ${range.toExclusive}
+        GROUP BY 1
+      ), new_moment_comments AS (
+        SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Shanghai')::date AS day,
+               COUNT(*)::int AS count
+        FROM moment_comments
+        WHERE created_at >= ${range.fromDate} AND created_at < ${range.toExclusive}
+        GROUP BY 1
       ), received_reports AS (
         SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Shanghai')::date AS day,
                COUNT(*)::int AS count
@@ -148,6 +162,8 @@ export class AdminDashboardService {
              COALESCE(registrations.count, 0)::int AS "newUsers",
              COALESCE(published_threads.count, 0)::int AS "publishedThreads",
              COALESCE(new_posts.count, 0)::int AS "newPosts",
+             COALESCE(new_moments.count, 0)::int AS "newMoments",
+             COALESCE(new_moment_comments.count, 0)::int AS "newMomentComments",
              COALESCE(received_reports.count, 0)::int AS "reportsReceived",
              COALESCE(handled_reports.count, 0)::int AS "reportsHandled"
       FROM days
@@ -155,6 +171,8 @@ export class AdminDashboardService {
       LEFT JOIN registrations USING (day)
       LEFT JOIN published_threads USING (day)
       LEFT JOIN new_posts USING (day)
+      LEFT JOIN new_moments USING (day)
+      LEFT JOIN new_moment_comments USING (day)
       LEFT JOIN received_reports USING (day)
       LEFT JOIN handled_reports USING (day)
       ORDER BY days.day ASC
@@ -168,6 +186,8 @@ export class AdminDashboardService {
         newUsers: numeric(row.newUsers),
         publishedThreads: numeric(row.publishedThreads),
         newPosts: numeric(row.newPosts),
+        newMoments: numeric(row.newMoments),
+        newMomentComments: numeric(row.newMomentComments),
         reportsReceived: numeric(row.reportsReceived),
         reportsHandled: numeric(row.reportsHandled),
       })),
@@ -227,34 +247,46 @@ export class AdminDashboardService {
   }
 
   private async periodMetrics(from: string, to: string, fromDate: Date, toExclusive: Date) {
-    const [activeRows, newUsers, publishedThreads, newPosts, reportsReceived, reportsHandled] =
-      await Promise.all([
-        this.prisma.$queryRaw<CountRow[]>(Prisma.sql`
+    const [
+      activeRows,
+      newUsers,
+      publishedThreads,
+      newPosts,
+      reportsReceived,
+      reportsHandled,
+      newMoments,
+      newMomentComments,
+    ] = await Promise.all([
+      this.prisma.$queryRaw<CountRow[]>(Prisma.sql`
           SELECT COUNT(DISTINCT user_id) AS count
           FROM user_daily_activities
           WHERE date_key >= ${from} AND date_key <= ${to}
         `),
-        this.prisma.user.count({ where: { createdAt: { gte: fromDate, lt: toExclusive } } }),
-        this.prisma.thread.count({
-          where: {
-            published: true,
-            publishedAt: { gte: fromDate, lt: toExclusive },
-          },
-        }),
-        this.prisma.post.count({
-          where: { kind: PostKind.FLOOR, createdAt: { gte: fromDate, lt: toExclusive } },
-        }),
-        this.prisma.report.count({ where: { createdAt: { gte: fromDate, lt: toExclusive } } }),
-        this.prisma.report.count({
-          where: { handledAt: { gte: fromDate, lt: toExclusive } },
-        }),
-      ]);
+      this.prisma.user.count({ where: { createdAt: { gte: fromDate, lt: toExclusive } } }),
+      this.prisma.thread.count({
+        where: {
+          published: true,
+          publishedAt: { gte: fromDate, lt: toExclusive },
+        },
+      }),
+      this.prisma.post.count({
+        where: { kind: PostKind.FLOOR, createdAt: { gte: fromDate, lt: toExclusive } },
+      }),
+      this.prisma.report.count({ where: { createdAt: { gte: fromDate, lt: toExclusive } } }),
+      this.prisma.report.count({
+        where: { handledAt: { gte: fromDate, lt: toExclusive } },
+      }),
+      this.prisma.moment.count({ where: { createdAt: { gte: fromDate, lt: toExclusive } } }),
+      this.prisma.momentComment.count({ where: { createdAt: { gte: fromDate, lt: toExclusive } } }),
+    ]);
 
     return {
       activeUsers: numeric(activeRows[0]?.count),
       newUsers,
       publishedThreads,
       newPosts,
+      newMoments,
+      newMomentComments,
       reportsReceived,
       reportsHandled,
     };

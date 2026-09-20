@@ -1,3 +1,4 @@
+import { adminPostParentsVisible } from '../access/admin-content.where';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import {
   AuditAction,
@@ -14,10 +15,17 @@ import { AdminActor, AdminPolicyService } from './admin-policy.service';
 import { AuditService } from './audit.service';
 import { SanctionUserDto } from './dto/moderation.dto';
 import { AdminModerationQueryService } from './admin-moderation-query.service';
-import { ContentModerationEffect, ModerationProjectionService } from './moderation-projection.service';
+import {
+  ContentModerationEffect,
+  ModerationProjectionService,
+} from './moderation-projection.service';
 import { isUniqueConstraintViolation } from '../common/prisma-errors';
 import { markNotificationsReadForHiddenContent } from '../notifications/notification-invalidation';
-import { lockModeratedThreadAggregate } from './moderation-content-lock';
+import {
+  lockModeratedThreadAggregate,
+  lockModeratedMoment,
+  lockModeratedMomentComment,
+} from './moderation-content-lock';
 export type { ContentModerationEffect } from './moderation-projection.service';
 
 export interface AdminRequestContext {
@@ -330,7 +338,10 @@ export class ModerationService {
           removalReason: reason.trim(),
         },
       });
-      await tx.post.updateMany({ where: { threadId: targetId, pinnedAt: { not: null } }, data: { pinnedAt: null } });
+      await tx.post.updateMany({
+        where: { threadId: targetId, pinnedAt: { not: null } },
+        data: { pinnedAt: null },
+      });
     } else if (targetType === 'POST') {
       const post = await tx.post.findUnique({
         where: { id: targetId },
@@ -340,15 +351,10 @@ export class ModerationService {
           removalSource: true,
           thread: { select: { published: true, visibility: true, deletedAt: true } },
           subthread: { select: { deletedAt: true } },
+          parentPost: { select: { deletedAt: true } },
         },
       });
-      if (
-        !post ||
-        !post.thread.published ||
-        post.thread.visibility !== 'PUBLIC' ||
-        post.thread.deletedAt ||
-        post.subthread.deletedAt
-      ) {
+      if (!post || !adminPostParentsVisible(post)) {
         throw notFound(ErrorCode.POST_NOT_FOUND, '公开帖子不存在');
       }
       if (post.deletedAt) {
@@ -362,14 +368,15 @@ export class ModerationService {
       await tx.post.update({
         where: { id: targetId, deletedAt: null },
         data: {
-          deletedAt: now, pinnedAt: null,
+          deletedAt: now,
+          pinnedAt: null,
           removalSource: ContentRemovalSource.ADMIN,
           removedById: actor.id,
           removalReason: reason.trim(),
         },
       });
     } else if (targetType === 'MOMENT') {
-      await this.lockMoment(tx, targetId);
+      await lockModeratedMoment(tx, targetId);
       const moment = await tx.moment.findUnique({
         where: { id: targetId },
         select: { deletedAt: true, removalSource: true },
@@ -398,8 +405,8 @@ export class ModerationService {
         select: { momentId: true },
       });
       if (!target) throw notFound(ErrorCode.MOMENT_NOT_FOUND, '动态评论不存在');
-      await this.lockMoment(tx, target.momentId);
-      await this.lockMomentComment(tx, targetId);
+      await lockModeratedMoment(tx, target.momentId);
+      await lockModeratedMomentComment(tx, targetId);
       const comment = await tx.momentComment.findUnique({
         where: { id: targetId },
         select: {
@@ -407,9 +414,10 @@ export class ModerationService {
           deletedAt: true,
           removalSource: true,
           moment: { select: { deletedAt: true } },
+          parentComment: { select: { deletedAt: true } },
         },
       });
-      if (!comment || comment.moment.deletedAt)
+      if (!comment || comment.moment.deletedAt || comment.parentComment?.deletedAt)
         throw notFound(ErrorCode.MOMENT_NOT_FOUND, '动态评论不存在');
       if (comment.deletedAt) {
         throw conflict(
@@ -468,6 +476,7 @@ export class ModerationService {
     context: AdminRequestContext,
   ) {
     const effect = await this.prisma.$transaction(async (tx) => {
+      await lockModeratedThreadAggregate(tx, targetType, targetId);
       if (targetType === 'THREAD') {
         const thread = await tx.thread.findUnique({
           where: { id: targetId },
@@ -498,21 +507,17 @@ export class ModerationService {
             removalSource: true,
             thread: { select: { published: true, visibility: true, deletedAt: true } },
             subthread: { select: { deletedAt: true } },
+            parentPost: { select: { deletedAt: true } },
           },
         });
         if (!post) throw notFound(ErrorCode.POST_NOT_FOUND, '帖子不存在');
         if (!post.deletedAt || post.removalSource !== ContentRemovalSource.ADMIN) {
           throw conflict(ErrorCode.CONTENT_STATE_CONFLICT, '只能恢复由管理员隐藏的帖子');
         }
-        if (
-          !post.thread.published ||
-          post.thread.visibility !== 'PUBLIC' ||
-          post.thread.deletedAt ||
-          post.subthread.deletedAt
-        ) {
+        if (!adminPostParentsVisible(post)) {
           throw conflict(
             ErrorCode.CONTENT_STATE_CONFLICT,
-            '父级主题帖或子贴仍不可见，不能恢复帖子',
+            '父级内容仍不可见，不能恢复帖子',
           );
         }
         await tx.post.update({
@@ -520,7 +525,7 @@ export class ModerationService {
           data: { deletedAt: null, removalSource: null, removedById: null, removalReason: null },
         });
       } else if (targetType === 'MOMENT') {
-        await this.lockMoment(tx, targetId);
+        await lockModeratedMoment(tx, targetId);
         const moment = await tx.moment.findUnique({
           where: { id: targetId },
           select: { deletedAt: true, removalSource: true },
@@ -539,8 +544,8 @@ export class ModerationService {
           select: { momentId: true },
         });
         if (!target) throw notFound(ErrorCode.MOMENT_NOT_FOUND, '动态评论不存在');
-        await this.lockMoment(tx, target.momentId);
-        await this.lockMomentComment(tx, targetId);
+        await lockModeratedMoment(tx, target.momentId);
+        await lockModeratedMomentComment(tx, targetId);
         const comment = await tx.momentComment.findUnique({
           where: { id: targetId },
           select: {
@@ -548,14 +553,15 @@ export class ModerationService {
             removalSource: true,
             momentId: true,
             moment: { select: { deletedAt: true } },
+            parentComment: { select: { deletedAt: true } },
           },
         });
         if (!comment) throw notFound(ErrorCode.MOMENT_NOT_FOUND, '动态评论不存在');
         if (!comment.deletedAt || comment.removalSource !== ContentRemovalSource.ADMIN) {
           throw conflict(ErrorCode.CONTENT_STATE_CONFLICT, '只能恢复由管理员隐藏的动态评论');
         }
-        if (comment.moment.deletedAt)
-          throw conflict(ErrorCode.CONTENT_STATE_CONFLICT, '所属动态仍不可见，不能恢复评论');
+        if (comment.moment.deletedAt || comment.parentComment?.deletedAt)
+          throw conflict(ErrorCode.CONTENT_STATE_CONFLICT, '父级内容仍不可见，不能恢复评论');
         await tx.momentComment.update({
           where: { id: targetId },
           data: { deletedAt: null, removalSource: null, removedById: null, removalReason: null },
@@ -565,7 +571,7 @@ export class ModerationService {
           data: { commentCount: { increment: 1 } },
         });
         if (updated.count === 0) {
-          throw conflict(ErrorCode.CONTENT_STATE_CONFLICT, '所属动态仍不可见，不能恢复评论');
+          throw conflict(ErrorCode.CONTENT_STATE_CONFLICT, '父级内容仍不可见，不能恢复评论');
         }
       }
       await this.audit.record(
@@ -599,16 +605,6 @@ export class ModerationService {
 
   async finalizeContentMutation(effect: ContentModerationEffect) {
     await this.projections.finalizeContent(effect);
-  }
-
-  private async lockMoment(tx: Prisma.TransactionClient, momentId: string) {
-    await tx.$queryRaw`SELECT "id" FROM "moments" WHERE "id" = ${momentId} FOR UPDATE`;
-  }
-
-  private async lockMomentComment(tx: Prisma.TransactionClient, commentId: string) {
-    await tx.$queryRaw`
-      SELECT "id" FROM "moment_comments" WHERE "id" = ${commentId} FOR UPDATE
-    `;
   }
 
   private async loadContentEffect(
