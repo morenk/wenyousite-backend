@@ -388,6 +388,17 @@ async function main() {
       1,
     );
 
+    const resendInput = await challenge();
+    const realResendRace = await Promise.allSettled([
+      service.createLoginChallenge({ account: user.email, password }, {}),
+      service.verifyLoginChallenge(resendInput.challengeId, resendInput.code, {}, true),
+    ]);
+    assert.equal(realResendRace[0].status, 'fulfilled');
+    if (realResendRace[1].status === 'rejected') {
+      assert.equal(realResendRace[1].reason.errorCode, ErrorCode.ADMIN_CHALLENGE_INVALID);
+    }
+    assert.equal(await db.adminSession.count({ where: { userId: user.id, revokedAt: null } }), 1);
+
     // 强制旧挑战先持锁；验证持用户锁后等待挑战，挑战创建仍可取得外键 KEY SHARE。
     const overlapping = await challenge();
     let release!: () => void;
