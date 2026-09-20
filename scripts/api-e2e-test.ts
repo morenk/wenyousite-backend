@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { faker } from '@faker-js/faker';
 import { PrismaClient } from '@prisma/client';
+import { readMediaDisplay } from '../src/media/media-display';
 import { API_CONTRACT_VERSION } from '../src/common/swagger/openapi-document';
 import { DraftsService } from '../src/drafts/drafts.service';
 import { DiceService } from '../src/dice/dice.service';
@@ -121,11 +122,28 @@ const postSchema = z.object({
   createdAt: z.string().optional(),
 });
 
+const mediaDisplaySchema = z.object({
+  url: z.string().url(),
+  contentType: z.literal('image/webp'),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  bytes: z.number().int().positive(),
+  animated: z.boolean(),
+  frameCount: z.number().int().positive(),
+  durationMs: z.number().int().nonnegative(),
+  loopCount: z.number().int().nonnegative(),
+}).strict().refine((value) => readMediaDisplay(value) !== null, '完整展示资源元数据无效');
+const markdownMediaDisplaySchema = z.object({
+  sourceUrl: z.string(),
+  display: mediaDisplaySchema.nullable(),
+}).strict();
+
 const draftSchema = z
   .object({
     id: z.string(),
     userId: z.string(),
     slot: z.number().int().min(1).max(5),
+    mediaDisplays: z.array(markdownMediaDisplaySchema).optional(),
     content: z.string(),
     version: z.number().int().positive(),
     createdAt: z.string().datetime(),

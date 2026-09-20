@@ -7,6 +7,7 @@ import {
   adminCommentWhere,
   adminMomentWhere,
   adminPostWhere,
+  adminPostDetailWhere,
   adminRetainedWhere,
   adminThreadWhere,
 } from '../access/admin-content.where';
@@ -146,7 +147,7 @@ export class AdminContentQueryService {
   async detail(type: AdminContentType, id: string) {
     return this.prisma.$transaction(
       async (tx) => {
-        const row = (await this.find(tx, { type, id }, 1))[0];
+        const row = (await this.find(tx, { type, id }, 1, true))[0];
         if (!row) throw notFound(ErrorCode.NOT_FOUND, '内容不存在');
         const detail = await this.body(tx, type, id);
         const auditLogs = await tx.auditLog.findMany({
@@ -181,7 +182,7 @@ export class AdminContentQueryService {
     return { thread, post, moment, moment_comment };
   }
 
-  private async find(client: Client, query: AdminContentQueryDto, take: number) {
+  private async find(client: Client, query: AdminContentQueryDto, take: number, allowBody = false) {
     const type = query.type ?? 'thread';
     if (type !== 'thread' && (query.category || query.tagId)) {
       throw new BusinessException(
@@ -233,7 +234,7 @@ export class AdminContentQueryService {
       const rows = await client.post.findMany({
         where: {
           AND: [
-            adminPostWhere,
+            allowBody ? adminPostDetailWhere : adminPostWhere,
             base,
             cursor,
             {
@@ -320,12 +321,13 @@ export class AdminContentQueryService {
 
   private async body(tx: Prisma.TransactionClient, type: AdminContentType, id: string) {
     let content = '';
+    let sticker: { id: string; url: string; displayAsset: Prisma.JsonValue | null } | null = null;
     let media: Array<{ id: string; url: string; displayAsset: Prisma.JsonValue | null }> = [];
     if (type === 'thread' || type === 'post') {
       const post = await tx.post.findFirst({
         where:
           type === 'post'
-            ? { id, AND: [adminPostWhere] }
+            ? { id, AND: [adminPostDetailWhere] }
             : {
                 threadId: id,
                 kind: 'BODY',
@@ -360,19 +362,26 @@ export class AdminContentQueryService {
     } else {
       const comment = await tx.momentComment.findFirst({
         where: { id, AND: [adminCommentWhere] },
-        select: { content: true, media: { where: mediaWhere, select: mediaSelect } },
+        select: {
+          content: true,
+          media: { where: mediaWhere, select: mediaSelect },
+          sticker: { select: mediaSelect },
+        },
       });
       content = comment?.content ?? '';
       media = comment?.media ? [comment.media] : [];
+      sticker = comment?.sticker ?? null;
     }
     return {
       content,
       mediaIds: media.map((asset) => asset.id),
-      media: media.map(({ id: mediaId, url, displayAsset }) => ({
-        id: mediaId,
-        url,
-        display: readMediaDisplay(displayAsset),
-      })),
+      media: [...media, ...(sticker ? [sticker] : [])].map(
+        ({ id: mediaId, url, displayAsset }) => ({
+          id: mediaId,
+          url,
+          display: readMediaDisplay(displayAsset),
+        }),
+      ),
     };
   }
 }

@@ -262,6 +262,7 @@ const inputCategorySchemas = new Set([
   'CreateThreadDto',
   'UpdateThreadDto',
   'SaveThreadAggregateDto',
+  'UpdateContentTaxonomyDto',
 ]);
 for (const [schemaName, schema] of Object.entries(schemas)) {
   if (!isObject(schema) || !isObject(schema.properties) || !isObject(schema.properties.category))
@@ -269,6 +270,9 @@ for (const [schemaName, schema] of Object.entries(schemas)) {
   const category = schema.properties.category;
   if (category.type !== 'string' || Array.isArray(category.enum)) {
     failures.push(`${schemaName}.category 必须是开放字符串，不能是枚举`);
+  }
+  if (schemaName === 'UpdateContentTaxonomyDto' && category.nullable === true) {
+    failures.push('UpdateContentTaxonomyDto.category 不允许清空');
   }
   if (!inputCategorySchemas.has(schemaName) && category.nullable !== true) {
     failures.push(`${schemaName}.category 必须允许历史草稿或无分类值为 null`);

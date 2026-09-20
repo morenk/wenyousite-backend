@@ -18,3 +18,11 @@ export async function lockModeratedThreadAggregate(
   if (!post) throw notFound(ErrorCode.POST_NOT_FOUND, '公开帖子不存在');
   await tx.$queryRaw`SELECT "id" FROM "threads" WHERE "id" = ${post.threadId} FOR UPDATE`;
 }
+
+export async function lockModeratedMoment(tx: Prisma.TransactionClient, momentId: string) {
+  await tx.$queryRaw`SELECT "id" FROM "moments" WHERE "id" = ${momentId} FOR UPDATE`;
+}
+
+export async function lockModeratedMomentComment(tx: Prisma.TransactionClient, commentId: string) {
+  await tx.$queryRaw`SELECT "id" FROM "moment_comments" WHERE "id" = ${commentId} FOR UPDATE`;
+}

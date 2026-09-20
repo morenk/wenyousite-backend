@@ -258,6 +258,7 @@ export class AdminModerationQueryService {
               id: true,
               content: true,
               parentPostId: true,
+              parentPost: { select: { deletedAt: true } },
               deletedAt: true,
               removalReason: true,
               removedById: true,
@@ -306,6 +307,7 @@ export class AdminModerationQueryService {
               id: true,
               content: true,
               parentCommentId: true,
+              parentComment: { select: { deletedAt: true } },
               deletedAt: true,
               removalReason: true,
               removedById: true,
@@ -342,7 +344,8 @@ export class AdminModerationQueryService {
           post.thread.published &&
           post.thread.visibility === 'PUBLIC' &&
           !post.thread.deletedAt &&
-          !post.subthread.deletedAt;
+          !post.subthread.deletedAt &&
+          !post.parentPost?.deletedAt;
         return {
           targetType: 'POST' as const,
           targetId: post.id,
@@ -352,7 +355,7 @@ export class AdminModerationQueryService {
           hiddenAt: post.deletedAt!,
           reason: post.removalReason,
           canRestore,
-          restoreBlockedReason: canRestore ? null : '父级主题帖或子贴仍不可见，请先恢复父级内容',
+          restoreBlockedReason: canRestore ? null : '父级内容仍不可见，请先恢复父级内容',
           threadId: post.thread.id,
           parentPostId: post.parentPostId,
           momentId: null,
@@ -375,7 +378,7 @@ export class AdminModerationQueryService {
         parentCommentId: null,
       })),
       ...comments.map((comment) => {
-        const canRestore = !comment.moment.deletedAt;
+        const canRestore = !comment.moment.deletedAt && !comment.parentComment?.deletedAt;
         return {
           targetType: 'MOMENT_COMMENT' as const,
           targetId: comment.id,
@@ -385,7 +388,7 @@ export class AdminModerationQueryService {
           hiddenAt: comment.deletedAt!,
           reason: comment.removalReason,
           canRestore,
-          restoreBlockedReason: canRestore ? null : '所属动态仍不可见，请先恢复动态',
+          restoreBlockedReason: canRestore ? null : '父级内容仍不可见，请先恢复父级内容',
           threadId: null,
           parentPostId: null,
           momentId: comment.moment.id,

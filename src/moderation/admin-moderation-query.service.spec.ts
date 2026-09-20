@@ -159,7 +159,7 @@ describe('AdminModerationQueryService', () => {
         targetType: 'POST',
         targetId: 'post-1',
         canRestore: false,
-        restoreBlockedReason: '父级主题帖或子贴仍不可见，请先恢复父级内容',
+        restoreBlockedReason: '父级内容仍不可见，请先恢复父级内容',
       }),
     ]);
     expect(result.pagination.hasMore).toBe(false);

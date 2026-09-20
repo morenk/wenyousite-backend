@@ -77,7 +77,7 @@
 
 列表、详情及用户内容计数共用后台可见性策略：只包含已发布公开内容和管理员隐藏项，排除草稿、私密主题、作者删除项及其子项；删除子贴和作者删除父楼层/父评论的子项同样排除。管理员隐藏父级的子项仍可查询，但 parentHidden 为 true，canRestore 为 false。原隐藏列表保留兼容。
 
-`GET /admin/content/:type/:id` 在一致快照内返回正文、上下文编号、绑定媒体和最近 20 条审计。主题帖正文仅取默认子贴 BODY；媒体仅来自已授权目标的附件关系，检查 COMPLETED/deletionClaimedAt 后复用 readMediaDisplay。客户端使用安全 Markdown/媒体组件，不通过上传者专用状态接口获取其他人的附件。
+`GET /admin/content/:type/:id` 在一致快照内返回正文、上下文编号、绑定媒体和最近 20 条审计。主题帖正文仅取默认子贴 BODY；post 列表和计数只包含 FLOOR，精确详情允许通过相同可见性过滤的 BODY，以兼容旧编号定位；媒体仅来自已授权目标的附件关系，检查 COMPLETED/deletionClaimedAt 后复用 readMediaDisplay。客户端使用安全 Markdown/媒体组件，不通过上传者专用状态接口获取其他人的附件。
 
 `PATCH /admin/content/thread/:id/taxonomy` 接收 version、reason 及可选 category/tagIds。省略保持原值；分类不可清空；空标签数组删除所有标签，最多 5 个且不重复。已有停用项可保留或移除，新绑定必须启用。分类标识去空白转大写。聚合行锁、乐观版本、关系修改和 THREAD_TAXONOMY_UPDATED 前后值审计同事务；过期返回 409/40002，客户端保留输入并提示刷新。提交后失效公开主题列表和详情缓存，不改变内容和可见范围。
 

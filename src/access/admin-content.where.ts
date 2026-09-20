@@ -7,12 +7,15 @@ export const adminRetainedWhere = {
 export const adminThreadWhere: Prisma.ThreadWhereInput = {
   AND: [adminRetainedWhere, { published: true, visibility: 'PUBLIC' }],
 };
-export const adminPostWhere: Prisma.PostWhereInput = {
+export const adminPostDetailWhere: Prisma.PostWhereInput = {
   AND: [
     adminRetainedWhere,
-    { kind: 'FLOOR', thread: adminThreadWhere, subthread: { deletedAt: null } },
+    { thread: adminThreadWhere, subthread: { deletedAt: null } },
     { OR: [{ parentPostId: null }, { parentPost: adminRetainedWhere }] },
   ],
+};
+export const adminPostWhere: Prisma.PostWhereInput = {
+  AND: [adminPostDetailWhere, { kind: 'FLOOR' }],
 };
 export const adminMomentWhere: Prisma.MomentWhereInput = adminRetainedWhere;
 export const adminCommentWhere: Prisma.MomentCommentWhereInput = {
@@ -22,3 +25,18 @@ export const adminCommentWhere: Prisma.MomentCommentWhereInput = {
     { OR: [{ parentCommentId: null }, { parentComment: adminRetainedWhere }] },
   ],
 };
+
+/** 隐藏/恢复命令需要父级当前公开可见，不能仅依赖查询返回的按钮状态。 */
+export function adminPostParentsVisible(post: {
+  thread: { published: boolean; visibility: string; deletedAt: Date | null };
+  subthread: { deletedAt: Date | null };
+  parentPost?: { deletedAt: Date | null } | null;
+}) {
+  return (
+    post.thread.published &&
+    post.thread.visibility === 'PUBLIC' &&
+    !post.thread.deletedAt &&
+    !post.subthread.deletedAt &&
+    !post.parentPost?.deletedAt
+  );
+}
