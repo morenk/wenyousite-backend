@@ -26406,7 +26406,7 @@
             "type": "string"
           },
           "elevatedUntil": {
-            "type": "object",
+            "type": "string",
             "format": "date-time",
             "nullable": true
           }

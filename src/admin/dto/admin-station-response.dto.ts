@@ -36,7 +36,7 @@ export class AdminSessionInfoDto {
   @ApiPropertyOptional({ format: 'date-time' })
   lastActiveAt?: Date;
 
-  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
   elevatedUntil?: Date | null;
 }
 
