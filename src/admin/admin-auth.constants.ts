@@ -12,3 +12,5 @@ export function adminSessionCookieName(production: boolean): string {
 export function adminCsrfCookieName(production: boolean): string {
   return production ? ADMIN_CSRF_COOKIE : ADMIN_CSRF_COOKIE_DEV;
 }
+
+export const ADMIN_REMEMBER_DEVICE_MINUTES = 7 * 24 * 60;

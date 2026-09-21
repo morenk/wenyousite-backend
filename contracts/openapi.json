@@ -12321,7 +12321,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AdminChallengeVerifyDto"
+                "$ref": "#/components/schemas/AdminLoginVerifyDto"
               }
             }
           }
@@ -19873,7 +19873,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.26.0-dev.20260922.2",
+    "version": "5.26.0-dev.20260922.3",
     "contact": {}
   },
   "tags": [
@@ -26665,6 +26665,84 @@
           "expiresIn"
         ]
       },
+      "AdminLoginVerifyDto": {
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "example": "123456",
+            "pattern": "^\\d{6}$"
+          },
+          "rememberDevice": {
+            "type": "boolean",
+            "default": false,
+            "description": "记住此设备七天，省略时沿用短会话"
+          }
+        },
+        "required": [
+          "challengeId",
+          "code"
+        ]
+      },
+      "AdminSessionInfoDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "idleMinutes": {
+            "type": "number",
+            "description": "有效闲置上限（分钟）；短会话默认30，记住设备为10080且只受固定七天绝对期限约束",
+            "example": 30
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastActiveAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "elevatedUntil": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "expiresAt",
+          "idleMinutes"
+        ]
+      },
+      "AdminSessionResponseDto": {
+        "type": "object",
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/AdminSessionInfoDto"
+          },
+          "user": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "csrfToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "session",
+          "user",
+          "csrfToken"
+        ]
+      },
       "AdminChallengeVerifyDto": {
         "type": "object",
         "properties": {
@@ -26681,27 +26759,6 @@
         "required": [
           "challengeId",
           "code"
-        ]
-      },
-      "AdminSessionResponseDto": {
-        "type": "object",
-        "properties": {
-          "session": {
-            "type": "object",
-            "additionalProperties": true
-          },
-          "user": {
-            "type": "object",
-            "additionalProperties": true
-          },
-          "csrfToken": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "session",
-          "user",
-          "csrfToken"
         ]
       },
       "AdminStepUpResponseDto": {

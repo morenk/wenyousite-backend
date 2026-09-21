@@ -14,6 +14,7 @@ jest.mock('argon2', () => ({
 describe('AdminAuthService', () => {
   const prisma = {
     $transaction: jest.fn(),
+    $queryRaw: jest.fn().mockResolvedValue([]),
     user: { findFirst: jest.fn(), findUniqueOrThrow: jest.fn() },
     adminAuthChallenge: {
       updateMany: jest.fn(),
@@ -289,7 +290,7 @@ describe('AdminAuthService', () => {
   it('读取会话详情并注销当前会话，记录安全事件', async () => {
     prisma.adminSession.findUniqueOrThrow.mockResolvedValue({ id: 'session-1' });
     await expect(service.getSession('session-1')).resolves.toEqual({
-      session: { id: 'session-1' },
+      session: { id: 'session-1', idleMinutes: 30 },
     });
     prisma.adminSession.update.mockResolvedValue({ userId: 'admin-1' });
     await expect(service.logout('session-1', fingerprint)).resolves.toEqual({

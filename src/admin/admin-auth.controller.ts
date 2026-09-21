@@ -5,7 +5,11 @@ import { Throttle } from '@nestjs/throttler';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AdminAuthService } from './admin-auth.service';
 import { adminSessionCookieName } from './admin-auth.constants';
-import { AdminChallengeVerifyDto, AdminLoginChallengeDto } from './dto/admin-auth.dto';
+import {
+  AdminChallengeVerifyDto,
+  AdminLoginChallengeDto,
+  AdminLoginVerifyDto,
+} from './dto/admin-auth.dto';
 import { AdminAuth } from './admin-auth.decorator';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
 import {
@@ -61,7 +65,7 @@ export class AdminAuthController {
   @ApiOperation({ summary: '验证管理员验证码并建立独立管理员 Cookie 会话' })
   @ApiOkResponse({ type: AdminSessionResponseDto })
   async verify(
-    @Body() dto: AdminChallengeVerifyDto,
+    @Body() dto: AdminLoginVerifyDto,
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ) {
@@ -69,6 +73,7 @@ export class AdminAuthController {
       dto.challengeId,
       dto.code,
       fingerprint(request),
+      dto.rememberDevice ?? false,
     );
     const maxAge = Math.max(
       0,

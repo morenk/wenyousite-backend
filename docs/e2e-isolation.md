@@ -83,3 +83,5 @@ pnpm e2e:reap --root /tmp/wenyousite-e2e-<原目录后缀> --run-id <原runId> -
 清理失败时，后端 runner 会输出结构化 cleanup-failed 诊断：仅包含已知阶段、运行编号、进程组编号、白名单异常类别／错误码及受控断言原因。不输出异常正文、堆栈、环境或私有进程日志。诊断不改变身份校验、目录保留条件或验收失败判定；消费者须保留该脱敏 stderr，便于核对残留原因。
 
 Linux 退出期间可能先置位 PF_EXITING，进程仍暂时显示 R，且 environ 已不可读。身份读取失败后，仅当二次 stat 仍是同一启动时间并确认 PF_EXITING 或 Z/X 时，才将原进程视为退出；没有退出标志的活进程与 PID 复用继续拒绝。该处理解决任务验收暴露的既有退出竞态，不扩大可终止进程范围。
+
+管理员会话策略回归使用 `pnpm test:integration:admin-session`，由同一 runner 创建和核验随机资源；已纳入 `pnpm test:e2e:full`。原始脚本拒绝仅设置旧环境标记或 loopback 连接的执行。迁移前后验证使用该隔离 PostgreSQL 实例中的随机子库，迁移工作目录置于运行私有目录，正常完成主动移除；异常退出由 runner 一并回收实例及运行目录。
