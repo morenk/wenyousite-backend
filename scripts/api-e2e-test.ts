@@ -1,3 +1,5 @@
+import { assertIsolatedEnvironment, verifyIsolatedEnvironment } from './e2e-guard';
+assertIsolatedEnvironment();
 /**
  * API 端到端测试脚本 — 前端视角
  *
@@ -26,7 +28,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 // 配置
 // ═══════════════════════════════════════════════════════════════
 
-const BASE = process.env.API_BASE || 'http://localhost:3000/api/v1';
+const BASE = process.env.API_BASE!;
 const baseUrl = new URL(BASE);
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
 
@@ -45,9 +47,9 @@ if (!/^wenyousite_e2e_[a-z0-9_]+$/.test(databaseName)) {
 const e2ePrisma = new PrismaClient({ datasourceUrl: databaseUrl });
 
 const RUN_ID = Date.now().toString();
-const TEST_EMAIL = `e2e-${RUN_ID}@wenyou.site`;
-const SECOND_TEST_EMAIL = `e2e-drafts-peer-${RUN_ID}@wenyou.site`;
-const TEST_PASSWORD = 'E2eTest123!';
+const TEST_EMAIL = `e2e-${RUN_ID}@e2e.invalid`;
+const SECOND_TEST_EMAIL = `e2e-drafts-peer-${RUN_ID}@e2e.invalid`;
+const TEST_PASSWORD = process.env.E2E_PASSWORD!;
 const TEST_TAG_PREFIX = `e2e_${RUN_ID}_`;
 const TEST_SOURCE_IP = `198.18.${Number(RUN_ID.slice(-5)) % 255}.${(Number(RUN_ID.slice(-3)) % 254) + 1}`;
 const SECOND_TEST_SOURCE_IP = `198.19.${Number(RUN_ID.slice(-4)) % 255}.${(Number(RUN_ID.slice(-2)) % 254) + 1}`;
@@ -362,7 +364,7 @@ let playersOnlySubthreadId = '';
 let collaboratorParentPostId = '';
 let playersParentPostId = '';
 let postingMatrixClientSequence = 0;
-const useTestuserId = 'cms5zycb900017q0azar1nag2';
+const useTestuserId = process.env.E2E_USER_ID!;
 
 /** 从 email_verifications 表中读取最新验证码 */
 async function fetchCodeFromDB(email: string): Promise<string | null> {
@@ -556,7 +558,7 @@ test(s1, 'GET /search 全文搜索', async () => {
 
 test(s1, 'GET /users/:id 公开资料', async () => {
   const r = await api.get(`/users/${useTestuserId}`, apiResponse(z.any()));
-  assert(r.data.username === 'testuser', '用户名应为 testuser');
+  assert(r.data.username === process.env.E2E_USERNAME, '用户名应与本轮随机账号一致');
 });
 
 test(s1, 'GET /users/:id (不存在) → 404', async () => {
@@ -2097,6 +2099,7 @@ test(s14, 'POST /auth/logout 登出', async () => {
 // ═══════════════════════════════════════════════════════════════
 
 void (async () => {
+  await verifyIsolatedEnvironment();
   let succeeded = false;
   try {
     succeeded = await run();
