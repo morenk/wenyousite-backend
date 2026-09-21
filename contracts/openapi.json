@@ -2774,6 +2774,106 @@
         "x-auth-mode": "authenticated"
       }
     },
+    "/api/v1/users/me/followers/{id}": {
+      "delete": {
+        "description": "仅解除对方关注我的关系，保留我对对方的关注。不通知对方，对方仍可重新关注；关系不存在时幂等成功。",
+        "operationId": "usersFollowRemoveFollower",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "已移除粉丝（含关系已不存在）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsersFollowRemoveFollower200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "未登录或 Token 无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "403": {
+            "description": "当前账号无写入权限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "移除我的粉丝",
+        "tags": [
+          "Users"
+        ],
+        "x-auth-mode": "authenticated"
+      }
+    },
     "/api/v1/users/following": {
       "get": {
         "operationId": "usersFollowFollowing",
@@ -19575,7 +19675,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.24.0-dev.20260920.1",
+    "version": "5.25.0-dev.20260922.1",
     "contact": {}
   },
   "tags": [
@@ -21594,6 +21694,14 @@
           },
           "follower": {
             "$ref": "#/components/schemas/PostAuthorResponseDto"
+          },
+          "viewerIsFollowing": {
+            "type": "boolean",
+            "description": "仅本人列表返回：当前查看者是否关注该行用户；他人列表及匿名请求省略。"
+          },
+          "viewerIsFollowedBy": {
+            "type": "boolean",
+            "description": "仅本人列表返回：该行用户是否关注当前查看者；他人列表及匿名请求省略。"
           }
         },
         "required": [
@@ -30791,6 +30899,24 @@
         ]
       },
       "UsersFollowUnfollow200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MessageResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "UsersFollowRemoveFollower200Response": {
         "allOf": [
           {
             "$ref": "#/components/schemas/ApiSuccessEnvelope"

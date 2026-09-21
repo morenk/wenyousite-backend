@@ -1628,6 +1628,96 @@ test(s10, 'GET /users/:id/bookmarks 公开收藏', async () => {
   assert(r.code === 0, `公开收藏应成功 (got: ${r.code})`);
 });
 
+test(s10, '本人关系列表投影、回关、单向移除及匿名拒绝', async () => {
+  const pair = { OR: [
+    { followerId: currentUserId, followingId: peerUserId },
+    { followerId: peerUserId, followingId: currentUserId },
+  ] };
+  try {
+    await api.post('/users/follow/' + peerUserId);
+    await peerApi.post('/users/follow/' + currentUserId);
+    for (const path of ['/users/following', '/users/followers',
+      '/users/' + currentUserId + '/following', '/users/' + currentUserId + '/followers']) {
+      const result = await api.get(path);
+      const row = result.data.find((r: { followerId: string; followingId: string }) =>
+        r.followerId === peerUserId || r.followingId === peerUserId);
+      assert(row?.viewerIsFollowing === true && row?.viewerIsFollowedBy === true, '本人入口应返回互关状态');
+    }
+    const stranger = await peerApi.get('/users/' + currentUserId + '/followers');
+    assert(stranger.data.every((r: object) => !('viewerIsFollowing' in r) && !('viewerIsFollowedBy' in r)),
+      '他人列表不返回查看者管理投影');
+    const anonymous = new Client();
+    const publicList = await anonymous.get('/users/' + currentUserId + '/followers');
+    assert(publicList.data.every((r: object) => !('viewerIsFollowing' in r) && !('viewerIsFollowedBy' in r)),
+      '匿名列表不返回管理投影');
+    const denied = await anonymous.expectStatus('/users/me/followers/' + peerUserId, 'DELETE');
+    assert(denied.status === 401, '匿名移除必须拒绝');
+
+    const eventsBefore = await e2ePrisma.domainOutbox.count({ where: { eventType: 'user.followed' } });
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const removed = await api.del('/users/me/followers/' + peerUserId);
+      assert(removed.code === 0 && removed.data.message === '已移除粉丝', '重复移除应幂等成功');
+    }
+    const remaining = await e2ePrisma.userFollow.findMany({ where: pair });
+    assert(remaining.length === 1 && remaining[0].followerId === currentUserId, '移除应保留本人对对方的关注');
+    assert(await e2ePrisma.domainOutbox.count({ where: { eventType: 'user.followed' } }) === eventsBefore,
+      '移除粉丝不能新增关注通知事件');
+    await peerApi.post('/users/follow/' + currentUserId);
+    await api.del('/users/follow/' + peerUserId);
+    const followers = await api.get('/users/followers');
+    const row = followers.data.find((r: { followerId: string }) => r.followerId === peerUserId);
+    assert(row?.viewerIsFollowing === false && row?.viewerIsFollowedBy === true, '取消本人关注后保留粉丝并允许回关');
+  } finally {
+    await e2ePrisma.userFollow.deleteMany({ where: pair });
+  }
+});
+
+test(s10, '移除粉丝归属固定为本人，封禁凭证不能写入', async () => {
+  await e2ePrisma.userFollow.createMany({ data: [
+    { followerId: peerUserId, followingId: currentUserId },
+    { followerId: peerUserId, followingId: useTestuserId },
+  ], skipDuplicates: true });
+  let sanctionId: string | undefined;
+  try {
+    const response = await api.del('/users/me/followers/' + peerUserId, { followingId: useTestuserId });
+    assert(response.code === 0, '合法移除应成功');
+    assert(await e2ePrisma.userFollow.count({ where: { followerId: peerUserId, followingId: useTestuserId } }) === 1,
+      '请求体不能选择第三方所有者');
+    const sanction = await e2ePrisma.userSanction.create({ data: {
+      userId: currentUserId, type: 'BAN', reason: '隔离关系权限回归', createdById: useTestuserId,
+    } });
+    sanctionId = sanction.id;
+    const denied = await api.expectStatus('/users/me/followers/' + peerUserId, 'DELETE');
+    assert(denied.status === 401 && (denied.json as { code: number }).code === 40109, '封禁凭证必须被现有认证策略拒绝');
+  } finally {
+    if (sanctionId) await e2ePrisma.userSanction.delete({ where: { id: sanctionId } });
+    await e2ePrisma.userFollow.deleteMany({ where: { followerId: peerUserId, followingId: { in: [currentUserId, useTestuserId] } } });
+  }
+});
+
+test(s10, '并发关注、取消和移除保留另一方向且完成后允许重新关注', async () => {
+  try {
+    await api.post('/users/follow/' + peerUserId);
+    const results = await Promise.all([
+      peerApi.post('/users/follow/' + currentUserId),
+      peerApi.del('/users/follow/' + currentUserId),
+      api.del('/users/me/followers/' + peerUserId),
+    ]);
+    assert(results.every((r) => r.code === 0), '同一用户对并发写入应串行完成');
+    assert(await e2ePrisma.userFollow.count({ where: { followerId: currentUserId, followingId: peerUserId } }) === 1,
+      '并发操作不应删除相反方向');
+    await api.del('/users/me/followers/' + peerUserId);
+    await peerApi.post('/users/follow/' + currentUserId);
+    assert(await e2ePrisma.userFollow.count({ where: { followerId: peerUserId, followingId: currentUserId } }) === 1,
+      '移除完成后的重新关注必须保留');
+  } finally {
+    await e2ePrisma.userFollow.deleteMany({ where: { OR: [
+      { followerId: currentUserId, followingId: peerUserId },
+      { followerId: peerUserId, followingId: currentUserId },
+    ] } });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════
 // 11. 动态收藏夹
 // ═══════════════════════════════════════════════════════════════

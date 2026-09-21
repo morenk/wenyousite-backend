@@ -150,3 +150,11 @@ PATCH 请求 `{ name: string }`，trim 后必须为 1–24 个字符，否则 40
 ### 综合管理后台兼容扩展
 
 新增管理内容检索、详情、主题分类标签整理，以及用户详情活动日/可管理内容计数、看板动态产出指标。完整参数、安全排除与事务语义见[管理后台后端](modules/admin.md#综合内容管理)。旧隐藏列表及既有字段继续保留；消费者先接入兼容后端，再发布 Web。Mobile 只同步已提交 OpenAPI 快照及操作覆盖表。
+
+## 本人关注与粉丝管理
+
+契约 5.25.0-dev.20260922.1 新增 DELETE /users/me/followers/{id}（路径带 /api/v1 前缀），使用 @Auth() 写权限。路径 id 是粉丝，列表所有者固定取登录身份；只删除对方 → 本人的关注，保留本人 → 对方。不发送通知，允许对方重新关注，关系不存在也返回 MessageResponseDto 成功。取消关注继续使用 DELETE /users/follow/{id}，回关使用 POST /users/follow/{id} 及原关注通知规则。
+
+GET /users/following、GET /users/followers 和 /users/{id}/following|followers 在 id 为当前查看者时，为每行返回 viewerIsFollowing、viewerIsFollowedBy 两个布尔值，分别表示本人 → 行用户和行用户 → 本人。匿名和查看他人列表省略字段。两个字段在 schema 中可选以兼容旧服务，缺失不是 false。列表批量投影，沿用双向拉黑可见性且排除软删除账号。
+
+取消关注、移除粉丝和关注按同组有序用户行锁串行写入；最终状态取决于锁后实际提交顺序。成功后消费者刷新本人资料、相关主页、列表和计数；网络超时先读取核对，不自动重放移除请求。本人列表的行内管理、统一细描边按钮与移除确认依 Foundation 交互规范实现。
