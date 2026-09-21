@@ -26,6 +26,18 @@ function summarize(rows: Array<{ id: string } & Record<string, unknown>>) {
   }).sort((a, b) => a.id.localeCompare(b.id));
 }
 
+async function preservedSnapshot(tx: Prisma.TransactionClient) {
+  const [user, wallet, transactions] = await Promise.all([
+    tx.user.findUnique({ where: { id: TARGET.id } }),
+    tx.wallet.findUnique({ where: { userId: TARGET.id } }),
+    tx.walletTransaction.findMany({ where: { OR: [
+      { targetUserId: TARGET.id }, { senderWallet: { userId: TARGET.id } },
+      { recipientWallet: { userId: TARGET.id } }, { platformWallet: { userId: TARGET.id } },
+    ] } }),
+  ]);
+  return { userSha256: digest(user), walletSha256: digest(wallet), transactions: summarize(transactions) };
+}
+
 export async function snapshot(tx: Prisma.TransactionClient) {
   const databaseIdentity = await tx.$queryRaw<Array<{ database: string; oid: number; address: string | null; port: number | null }>>`
     SELECT current_database() AS database, oid::integer AS oid,
@@ -38,7 +50,7 @@ export async function snapshot(tx: Prisma.TransactionClient) {
   const threadId = { in: ids };
   const posts = await tx.post.findMany({ where: { threadId }, orderBy: { id: 'asc' } });
   const postId = { in: posts.map((p) => p.id) };
-  const [subthreads, members, likes, bookmarks, subscriptions, invites, tags, mentions, dice, media, notifications, drafts, wallet, transactions, moments, comments, outsidePosts, pendingEvents] = await Promise.all([
+  const [subthreads, members, likes, bookmarks, subscriptions, invites, tags, mentions, dice, media, notifications, drafts, preserved, transactions, moments, comments, outsidePosts, pendingEvents] = await Promise.all([
     tx.subthread.findMany({ where: { threadId } }), tx.threadMember.findMany({ where: { threadId } }),
     tx.threadLike.findMany({ where: { threadId } }), tx.userBookmark.findMany({ where: { threadId } }),
     tx.subscription.findMany({ where: { threadId } }), tx.threadInvite.findMany({ where: { threadId } }),
@@ -46,8 +58,8 @@ export async function snapshot(tx: Prisma.TransactionClient) {
     tx.diceRoll.findMany({ where: { postId } }), tx.postMedia.findMany({ where: { postId } }),
     tx.notification.findMany({ where: { OR: [{ threadId }, { postId }] } }),
     tx.draft.findMany({ where: { userId: TARGET.id } }),
-    tx.wallet.findUnique({ where: { userId: TARGET.id } }),
-    tx.walletTransaction.count({ where: { OR: [{ targetThreadId: threadId }, { targetUserId: TARGET.id }, { senderWallet: { userId: TARGET.id } }, { recipientWallet: { userId: TARGET.id } }] } }),
+    preservedSnapshot(tx),
+    tx.walletTransaction.count({ where: { targetThreadId: threadId } }),
     tx.moment.count({ where: { authorId: TARGET.id } }), tx.momentComment.count({ where: { authorId: TARGET.id } }),
     tx.post.count({ where: { threadId: { notIn: ids }, OR: [{ authorId: TARGET.id }, { parentPostId: postId }, { replyToPostId: postId }] } }),
     tx.domainOutbox.count({ where: { processedAt: null, OR: [
@@ -59,7 +71,7 @@ export async function snapshot(tx: Prisma.TransactionClient) {
     + [...members, ...likes, ...bookmarks, ...subscriptions, ...notifications].filter((r) => r.userId !== TARGET.id).length
     + mentions.filter((r) => r.mentionedUserId !== TARGET.id).length;
   ensure(otherUsers === 0, '范围包含其他用户内容或关联，拒绝删除');
-  ensure(transactions === 0, '存在交易，拒绝删除');
+  ensure(transactions === 0, '目标内容存在交易引用，拒绝删除');
   ensure(moments === 0 && comments === 0 && drafts.length === 0 && outsidePosts === 0, '存在审计范围外的内容，拒绝删除');
   ensure(pendingEvents === 0, '范围存在未处理 Outbox，等待处理后重新审计');
   const resources = {
@@ -70,13 +82,13 @@ export async function snapshot(tx: Prisma.TransactionClient) {
     notifications: summarize(notifications),
   };
   return {
-    version: 1, target: TARGET, databaseIdentity, resources,
+    version: 2, target: TARGET, databaseIdentity, resources,
     counts: { ...Object.fromEntries(Object.entries(resources).map(([k, v]) => [k, v.length])),
       softDeletedThreads: threads.filter((t) => t.deletedAt).length,
       draftThreads: threads.filter((t) => !t.deletedAt && !t.published).length,
       transactions, otherUsers, drafts: drafts.length, moments, comments, outsidePosts, pendingEvents },
     mediaIds: [...new Set(media.map((r) => r.mediaId))].sort(),
-    preservedWalletSha256: digest(wallet),
+    preserved,
   };
 }
 export type Manifest = Awaited<ReturnType<typeof snapshot>>;
@@ -91,7 +103,7 @@ export async function dryRun(prisma: PrismaClient) {
 export async function apply(prisma: PrismaClient, manifest: Manifest, sha256: string, backupSha256: string) {
   ensure(digest(manifest) === sha256 && /^[a-f0-9]{64}$/.test(sha256), 'manifest 校验值不匹配');
   ensure(/^[a-f0-9]{64}$/.test(backupSha256), '缺少已验证备份校验值');
-  ensure(canonical(manifest.target) === canonical(TARGET) && manifest.version === 1, 'manifest 目标不匹配');
+  ensure(canonical(manifest.target) === canonical(TARGET) && manifest.version === 2, 'manifest 目标不匹配');
   return prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SET LOCAL lock_timeout = '5s'`;
     // 短暂阻止受影响关系写入，覆盖 FK 级联、无 FK 的 Outbox 与新建内容；超时即失败关闭。
@@ -118,6 +130,7 @@ export async function apply(prisma: PrismaClient, manifest: Manifest, sha256: st
     await tx.thread.deleteMany({ where: { id: { in: manifest.resources.threads.map((t) => t.id) }, ownerId: TARGET.id } });
     const references = new MediaReferenceService(prisma as PrismaService);
     await references.reconcileMediaIds(tx, manifest.mediaIds);
+    ensure(digest(await preservedSnapshot(tx)) === digest(manifest.preserved), '保留账号、钱包或账务发生变化，回滚删除');
     await tx.auditLog.create({ data: {
       id: receiptId, action: 'CONTENT_HIDDEN', targetType: 'USER', targetId: TARGET.id,
       reason: '受控历史测试内容硬删除；保留账号、钱包与审计',

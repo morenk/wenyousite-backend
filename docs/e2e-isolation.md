@@ -9,7 +9,7 @@
 治理管理入口显式注入 `CLEANUP_DATABASE_URL` 与 `CLEANUP_REDIS_URL`，不得把凭据放在命令行、聊天、Git 或仓库 `.env`。使用已提交工具，以 root 私有目录保存所有操作材料。
 
 1. 默认 dry-run：`pnpm exec tsx scripts/cleanup-webe2e.ts --manifest /root/private/manifest.json`。事务为只读、可重复读；输出各表资源 ID、关联数量、逐行 SHA-256、NFC/换行规范化内容哈希与字符数，不输出正文、邀请令牌或数据库连接串。控制台输出的 `sha256` 是规范化 JSON 的校验值，并非格式化文件的 `sha256sum`。
-2. 核对主题、已软删主题、草稿主题和正文楼层数。历史审计预期是 68 / 60 / 8 / 96；这些是人工复核基线，不是可以跳过重新审计的授权。交易、其他用户内容/关联、独立草稿、动态/评论、范围外正文及相关未完成 Outbox 均导致拒绝。
+2. 核对主题、已软删主题、草稿主题和正文楼层数。历史审计预期是 68 / 60 / 8 / 96；这些是人工复核基线，不是可以跳过重新审计的授权。目标主题的交易 FK 引用、其他用户内容/关联、独立草稿、动态/评论、范围外正文及相关未完成 Outbox 均导致拒绝。
 3. 管理入口完成完整数据库 custom dump，校验 SHA-256、`pg_restore --list`，在无网络的新临时数据卷/容器恢复并核对计数。不得恢复到活动卷。把备份与恢复证据绑定到本次 manifest；备份后发生范围漂移必须重新审核并补备份。
 4. 创建 root 所有、0600 的备份证明 JSON，字段如下。路径必须指向 root 所有且无组/其他用户权限的普通文件；禁止符号链接。
 
@@ -27,7 +27,7 @@
 
 5. 管理身份执行 `pnpm exec tsx scripts/cleanup-webe2e.ts --apply --manifest /root/private/manifest.json --sha256 <原校验值> --backup-proof /root/private/backup-proof.json`。工具实际读取并计算备份/恢复证据哈希；恢复是否成功由治理签署的私有证明负责，不能只创建空的“已验证”标记。
 6. apply 在短事务内锁定受影响关系并重新计算完整 manifest。锁等待上限 5 秒、事务上限 30 秒，超时回滚，不终止线上会话。表锁期间会短暂阻止相关业务写入，应由治理选择操作窗口。仅删除 manifest 中主题，FK 级联释放其关联；共享媒体仍被其他内容引用时保留，无引用完成媒体设置 `orphanedAt`，交给现有回收任务处理，不直接删除文件。
-7. 同事务新增审计凭据（现有 `CONTENT_HIDDEN` 分类，metadata 的 `operation=webe2e-hard-delete-v1` 明确为硬删除），保存 manifest/备份哈希及缓存待办。账号、钱包、其他审计记录均保留。Redis 仅删除各主题 stats、移除三个排行榜中的指定主题、失效推荐 ready 标记；不执行 FLUSH。失败退出时保留 `cacheInvalidation=pending`，使用**原 manifest、原校验值、原备份证明**重复 apply 完成补偿。已提交清理不会再次删除新建主题。
+7. 同事务新增审计凭据（现有 `CONTENT_HIDDEN` 分类，metadata 的 `operation=webe2e-hard-delete-v1` 明确为硬删除），保存 manifest/备份哈希及缓存待办。账号、钱包、无关账务和其他审计记录均保留。manifest v2 的 `preserved` 保存完整账号、钱包的行哈希与相关账务的 ID/行哈希；无关账务不阻止内容清理，但其新增、删除或变动会使原 manifest 失效。事务内删除前复核完整 manifest，删除后再次复核 `preserved`，不一致即回滚；旧版 manifest 必须重新生成并绑定备份证明。Redis 仅删除各主题 stats、移除三个排行榜中的指定主题、失效推荐 ready 标记；不执行 FLUSH。失败退出时保留 `cacheInvalidation=pending`，使用**原 manifest、原校验值、原备份证明**重复 apply 完成补偿。已提交清理不会再次删除新建主题。
 8. 治理只读核对用户主题/正文归零、账号钱包审计保留、媒体引用与缓存结果。工具不负责部署、重启或替用户确认线上删除。
 
 ## 隔离测试基础进程

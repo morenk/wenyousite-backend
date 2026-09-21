@@ -95,3 +95,17 @@ test('缓存失败保留 pending，重试只定向失效且记录完成', async 
   assert.equal(f.state.auditLog[0].metadata.cacheInvalidation, 'complete');
   assert(keys.every((k) => k.startsWith('threads:by:') || k === 'thread:t1:stats'));
 });
+
+test('三笔无关账务纳入 preserved 且原样保留，账务漂移拒绝', async () => {
+  const f = fixture();
+  f.state.walletTransaction = [1, 2, 3].map((id) => ({ id: `tx${id}`, grossAmount: 100n, targetUserId: TARGET.id }));
+  const before = structuredClone(f.state.walletTransaction);
+  const manifest = await dryRun(f.prisma);
+  assert.equal(manifest.counts.transactions, 0);
+  assert.equal(manifest.preserved.transactions.length, 3);
+  f.state.walletTransaction[0].grossAmount = 200n;
+  await assert.rejects(apply(f.prisma, manifest, digest(manifest), '1'.repeat(64)), /漂移/);
+  f.state.walletTransaction = structuredClone(before);
+  await apply(f.prisma, manifest, digest(manifest), '1'.repeat(64));
+  assert.deepEqual(f.state.walletTransaction, before);
+});
