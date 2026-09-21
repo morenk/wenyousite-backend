@@ -1,3 +1,4 @@
+import { syncGalleryIndex } from '../image-gallery/gallery-index';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { MediaPurpose, MediaStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -18,6 +19,7 @@ export class MediaReferenceService {
 
   async syncPostContent(tx: Prisma.TransactionClient, postId: string, content: string) {
     const mediaIds = await this.resolveCompletedMarkdownMedia(tx, content);
+    await syncGalleryIndex(tx, postId, content);
     const previous = await tx.postMedia.findMany({
       where: { postId },
       select: { mediaId: true },

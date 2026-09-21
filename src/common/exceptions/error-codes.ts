@@ -183,6 +183,8 @@ export const ErrorCode = {
   APPEAL_WINDOW_CLOSED: 40922,
   /** 管理员邀请已存在或已经处理 */
   ADMIN_INVITE_CONFLICT: 40923,
+  /** 图片历史位置索引尚未回填完成 */
+  IMAGE_GALLERY_NOT_READY: 40924,
   /** 注册被站务临时暂停 */
   REGISTRATION_PAUSED: 40924,
   /** 用户内容写入被站务临时暂停 */

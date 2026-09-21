@@ -127,6 +127,7 @@ function moduleFor(operation: Operation, disposition: Disposition): string {
   if (id.startsWith('search') || id.startsWith('threadSearch')) return 'search';
   if (id === 'threadCategoriesList') return 'home';
   if (id === 'metaGetMeta') return 'app-shell';
+  if (id.startsWith('gallery')) return 'image-gallery';
   if (id.startsWith('tags')) return 'editor';
   if (id.startsWith('mobileDevice')) return 'notifications';
   if (id.startsWith('stickers')) return 'editor';

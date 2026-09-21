@@ -551,3 +551,7 @@ Web 与 Flutter 都应从仓库内已审核的 `contracts/openapi.json` 生成�
 同步[收藏夹管理契约](api-contract.md#自定义收藏夹重命名与删除)对应的精确后端 Git 提交并重新生成客户端类型。主题帖使用 `PATCH/DELETE /bookmarks/folders/{id}`；动态使用 `PATCH/DELETE /moments/bookmark-folders/{id}`，ID 必须来自各自目录。PATCH 传 `{ name }`（trim 后 1–24 字），消费对应收藏夹 DTO；DELETE 消费 `DeleteBookmarkFolderResponseDto` 的 `deletedFolderId` 与 `destinationFolderId`，收藏仍保留。
 
 默认夹不显示重命名/删除入口，服务器同时强制 409；删除前说明收藏将移入默认夹。成功后刷新同类型目录、列表和选择器，删除当前目录时切换到返回的默认夹，清除失效选择；重命名后刷新名称。400 展示名称校验，409 展示冲突并刷新后允许重试，404 刷新目录恢复选择。测试两类型、默认夹保护、重名/越权、空夹与非空夹删除、失败后保留原状态；不要按名称合并目录或取消收藏。本次保留旧客户端协议，无弃用清理；Foundation 沿用既有控件与反馈契约，无需发布新版本。详见[后端契约](api-contract.md#自定义收藏夹重命名与删除)。
+
+## 全屏图片连续浏览
+
+兼容契约新增 [图片图集查询](image-gallery.md)。Mobile 先显示点击图片，再接入双向分页；Web 保留原查看交互，新增契约只同步类型与夹具。共享位置测试见 `contracts/gallery-image-occurrences.json`，重复 URL 按位置保留，贴纸仅按 title 前缀排除。权限丢失 404 必须清除对应缓存图，40900 重新打开会话，40924 保留当前图片并提示稍后再试。
