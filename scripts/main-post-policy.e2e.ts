@@ -1,3 +1,5 @@
+import { assertIsolatedEnvironment, verifyIsolatedEnvironment } from './e2e-guard';
+assertIsolatedEnvironment();
 import assert from 'node:assert/strict';
 import { randomUUID, createHash } from 'node:crypto';
 import { PrismaClient, PostingPolicy } from '@prisma/client';
@@ -58,6 +60,7 @@ async function payload(extra: Record<string, unknown> = {}) {
   };
 }
 async function run() {
+  await verifyIsolatedEnvironment();
   for (const id of users) await db.user.create({ data: {
     id, email: `${id}@example.invalid`, username: id, password: 'unused',
     wallet: { create: { kind: 'USER' } },

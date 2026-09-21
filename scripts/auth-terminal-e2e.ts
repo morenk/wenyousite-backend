@@ -1,5 +1,6 @@
+import { assertIsolatedEnvironment, verifyIsolatedEnvironment } from './e2e-guard';
+assertIsolatedEnvironment();
 import 'reflect-metadata';
-import { readFileSync } from 'node:fs';
 import { cp, copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -36,18 +37,9 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
-function readEnvValue(source: string, key: string) {
-  const match = source.match(new RegExp(`^${key}=(.*)$`, 'm'));
-  return match?.[1]?.trim().replace(/^['"]|['"]$/g, '');
-}
-
 function testDatabaseUrl() {
-  const fromProcess = process.env.DATABASE_URL;
-  if (fromProcess) return fromProcess;
-  const env = readFileSync(resolve('.env'), 'utf8');
-  const fromFile = readEnvValue(env, 'DATABASE_URL');
-  if (!fromFile) throw new Error('缺少 DATABASE_URL');
-  return fromFile;
+  assert(process.env.DATABASE_URL, '必须由隔离 runner 注入数据库');
+  return process.env.DATABASE_URL;
 }
 
 function schemaUrl(databaseUrl: string, schema: string) {
@@ -473,6 +465,7 @@ async function verifyRuntime(databaseUrl: string) {
 }
 
 async function main() {
+  await verifyIsolatedEnvironment();
   if (process.env.AUTH_TERMINAL_E2E_ENV !== 'test') {
     throw new Error('AUTH_TERMINAL_E2E_ENV 必须显式设为 test');
   }

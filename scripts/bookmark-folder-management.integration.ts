@@ -1,3 +1,5 @@
+import { assertIsolatedEnvironment, verifyIsolatedEnvironment } from './e2e-guard';
+assertIsolatedEnvironment();
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -10,6 +12,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { BusinessException } from '../src/common/exceptions/business.exception';
 
 async function main() {
+  await verifyIsolatedEnvironment();
   assert.equal(process.env.BOOKMARK_MANAGEMENT_TEST_ENV, 'test');
   const base = new URL(process.env.DATABASE_URL!);
   const appBase = new URL(process.env.BOOKMARK_MANAGEMENT_TEST_APP_URL!);

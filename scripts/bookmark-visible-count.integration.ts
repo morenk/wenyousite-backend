@@ -1,3 +1,5 @@
+import { assertIsolatedEnvironment, verifyIsolatedEnvironment } from './e2e-guard';
+assertIsolatedEnvironment();
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -10,6 +12,7 @@ import { MomentAccessService } from '../src/moments/moment-access.service';
 
 // 仅在新建临时数据库造数；服务查询使用应用角色，不读取运行环境凭据。
 async function main() {
+  await verifyIsolatedEnvironment();
   assert.equal(process.env.BOOKMARK_COUNT_TEST_ENV, 'test');
   const base = new URL(process.env.DATABASE_URL!);
   const appBase = new URL(process.env.BOOKMARK_COUNT_TEST_APP_URL!);
