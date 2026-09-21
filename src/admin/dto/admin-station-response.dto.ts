@@ -17,9 +17,32 @@ export class AdminChallengeResponseDto {
   expiresIn!: number;
 }
 
+export class AdminSessionInfoDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  expiresAt!: Date;
+
+  @ApiProperty({
+    description: '有效闲置上限（分钟）；短会话默认30，记住设备为10080且只受固定七天绝对期限约束',
+    example: 30,
+  })
+  idleMinutes!: number;
+
+  @ApiPropertyOptional({ format: 'date-time' })
+  createdAt?: Date;
+
+  @ApiPropertyOptional({ format: 'date-time' })
+  lastActiveAt?: Date;
+
+  @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
+  elevatedUntil?: Date | null;
+}
+
 export class AdminSessionResponseDto {
-  @ApiProperty({ type: 'object', additionalProperties: true })
-  session!: Record<string, unknown>;
+  @ApiProperty({ type: AdminSessionInfoDto })
+  session!: AdminSessionInfoDto;
 
   @ApiProperty({ type: 'object', additionalProperties: true })
   user!: Record<string, unknown>;

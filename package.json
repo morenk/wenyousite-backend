@@ -67,7 +67,8 @@
     "e2e:run": "tsx scripts/e2e-runner.ts",
     "test:e2e:full": "tsx scripts/e2e-runner.ts --full",
     "e2e:reap": "tsx scripts/e2e-reap.ts",
-    "test:e2e:lifecycle": "tsx scripts/e2e-lifecycle.integration.ts"
+    "test:e2e:lifecycle": "tsx scripts/e2e-lifecycle.integration.ts",
+    "test:integration:admin-session": "tsx scripts/e2e-runner.ts --suite=admin-session"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.800.0",

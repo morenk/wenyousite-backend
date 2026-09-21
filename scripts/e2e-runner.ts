@@ -14,6 +14,7 @@ const SUITES: Record<string, [string, string]> = {
   media: ['media-reclamation.integration.ts', 'MEDIA_RECLAMATION_TEST_ENV'],
   ranking: ['thread-ranking.integration.ts', 'THREAD_RANKING_TEST_ENV'],
   admin: ['admin-console.integration.ts', 'ADMIN_CONSOLE_TEST_ENV'],
+  'admin-session': ['admin-session.integration.ts', 'ADMIN_SESSION_TEST_ENV'],
   display: ['media-display.integration.ts', 'MEDIA_DISPLAY_TEST_ENV'],
   bookmarks: ['bookmark-folder-management.integration.ts', 'BOOKMARK_MANAGEMENT_TEST_ENV'],
   'bookmark-count': ['bookmark-visible-count.integration.ts', 'BOOKMARK_COUNT_TEST_ENV'],

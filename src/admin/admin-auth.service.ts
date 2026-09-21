@@ -8,6 +8,7 @@ import { EmailService } from '../email/email.service';
 import { activeSanctionWhere, sanctionFailure } from '../access/account-status';
 import { unauthorized, forbidden } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
+import { ADMIN_REMEMBER_DEVICE_MINUTES } from './admin-auth.constants';
 import { AdminLoginChallengeDto } from './dto/admin-auth.dto';
 
 const CHALLENGE_TTL_MS = 10 * 60 * 1000;
@@ -133,8 +134,18 @@ export class AdminAuthService {
     return { challengeId, expiresIn: CHALLENGE_TTL_MS / 1000 };
   }
 
-  async verifyLoginChallenge(challengeId: string, code: string, fingerprint: RequestFingerprint) {
+  async verifyLoginChallenge(
+    challengeId: string,
+    code: string,
+    fingerprint: RequestFingerprint,
+    rememberDevice = false,
+  ) {
     const outcome = await this.prisma.$transaction(async (tx) => {
+      // 串行同一管理员的验证；不锁主键，允许并发挑战创建的外键 KEY SHARE 完成。
+      await tx.$queryRaw`SELECT u.id FROM users u
+        JOIN admin_auth_challenges c ON c.user_id = u.id
+        WHERE c.id = ${challengeId} FOR NO KEY UPDATE OF u`;
+      await tx.$queryRaw`SELECT id FROM admin_auth_challenges WHERE id = ${challengeId} FOR UPDATE`;
       const challenge = await tx.adminAuthChallenge.findUnique({
         where: { id: challengeId },
         include: {
@@ -185,7 +196,10 @@ export class AdminAuthService {
       const rawToken = randomBytes(32).toString('base64url');
       const now = new Date();
       const expiresAt = new Date(
-        now.getTime() + (this.config.get<number>('admin.absoluteHours') ?? 8) * 60 * 60 * 1000,
+        now.getTime() +
+          (rememberDevice
+            ? ADMIN_REMEMBER_DEVICE_MINUTES * 60_000
+            : (this.config.get<number>('admin.absoluteHours') ?? 8) * 60 * 60 * 1000),
       );
       await tx.adminAuthChallenge.update({
         where: { id: challenge.id },
@@ -199,6 +213,7 @@ export class AdminAuthService {
         data: {
           userId: user.id,
           tokenHash: this.hash(rawToken),
+          rememberDevice,
           ip: fingerprint.ip,
           userAgent: fingerprint.userAgent?.slice(0, 512),
           expiresAt,
@@ -225,7 +240,7 @@ export class AdminAuthService {
       session: {
         id: outcome.session.id,
         expiresAt: outcome.session.expiresAt,
-        idleMinutes: this.config.get<number>('admin.idleMinutes') ?? 30,
+        idleMinutes: this.effectiveIdleMinutes(outcome.session.rememberDevice),
       },
       user: {
         id: outcome.user.id,
@@ -267,7 +282,7 @@ export class AdminAuthService {
       !session ||
       session.revokedAt !== null ||
       session.expiresAt <= now ||
-      now.getTime() - session.lastActiveAt.getTime() > idleLimit ||
+      (!session.rememberDevice && now.getTime() - session.lastActiveAt.getTime() > idleLimit) ||
       session.user.deletedAt !== null ||
       !roleAllowed ||
       Boolean(sanctionFailure(session.user.sanctions[0]));
@@ -297,6 +312,12 @@ export class AdminAuthService {
     };
   }
 
+  private effectiveIdleMinutes(rememberDevice: boolean) {
+    return rememberDevice
+      ? ADMIN_REMEMBER_DEVICE_MINUTES
+      : (this.config.get<number>('admin.idleMinutes') ?? 30);
+  }
+
   async getSession(sessionId: string) {
     const session = await this.prisma.adminSession.findUniqueOrThrow({
       where: { id: sessionId },
@@ -306,9 +327,11 @@ export class AdminAuthService {
         lastActiveAt: true,
         expiresAt: true,
         elevatedUntil: true,
+        rememberDevice: true,
       },
     });
-    return { session };
+    const { rememberDevice, ...fields } = session;
+    return { session: { ...fields, idleMinutes: this.effectiveIdleMinutes(rememberDevice) } };
   }
 
   async logout(sessionId: string, fingerprint: RequestFingerprint) {

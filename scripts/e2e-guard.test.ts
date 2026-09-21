@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { mkdtempSync, chmodSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -61,4 +62,20 @@ test('非法 URL 与损坏私有登记不会回显敏感输入', () => {
     writeFileSync(f.path, marker);
     assert.throws(() => assertIsolatedEnvironment(f.env), (error: Error) => !error.message.includes(marker));
   } finally { f.close(); }
+});
+
+
+test('管理员会话原始入口拒绝旧手工环境，先于数据库和迁移操作退出', () => {
+  const result = spawnSync(process.execPath, [
+    '--require', require.resolve('ts-node/register/transpile-only'),
+    join(__dirname, 'admin-session.integration.ts'),
+  ], {
+    cwd: join(__dirname, '..'),
+    env: { ...cleanEnvironment(), ADMIN_SESSION_TEST_ENV: 'test',
+      DATABASE_URL: 'postgresql://unused:unused@127.0.0.1:1/unused' },
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /runner/);
+  assert.doesNotMatch(result.stderr, /PrismaClientInitializationError|Can't reach database/);
 });

@@ -151,6 +151,8 @@ PATCH 请求 `{ name: string }`，trim 后必须为 1–24 个字符，否则 40
 
 新增管理内容检索、详情、主题分类标签整理，以及用户详情活动日/可管理内容计数、看板动态产出指标。完整参数、安全排除与事务语义见[管理后台后端](modules/admin.md#综合内容管理)。旧隐藏列表及既有字段继续保留；消费者先接入兼容后端，再发布 Web。Mobile 只同步已提交 OpenAPI 快照及操作覆盖表。
 
+管理登录 `POST /admin/auth/verify` 的可选 `rememberDevice` 默认为 false，true 选择固定七天 Cookie/会话期限并跳过短空闲检查。仅登录验证接受此字段，step-up 不变；`session.idleMinutes` 返回有效上限（30 或 10080），后者不表示滑动续期。旧会话不自动延长，详细规则见 [管理后台](modules/admin.md)。
+
 ## 本人关注与粉丝管理
 
 契约 5.25.0-dev.20260922.1 新增 DELETE /users/me/followers/{id}（路径带 /api/v1 前缀），使用 @Auth() 写权限。路径 id 是粉丝，列表所有者固定取登录身份；只删除对方 → 本人的关注，保留本人 → 对方。不发送通知，允许对方重新关注，关系不存在也返回 MessageResponseDto 成功。取消关注继续使用 DELETE /users/follow/{id}，回关使用 POST /users/follow/{id} 及原关注通知规则。
