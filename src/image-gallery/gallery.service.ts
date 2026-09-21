@@ -133,6 +133,16 @@ export class GalleryService {
     order: ReplyOrder,
     viewerId?: string,
   ): Promise<GallerySession> {
+    const [{ snapshotTx }] = await this.prisma.$queryRaw<
+      { snapshotTx: string }[]
+    >`SELECT txid_current_snapshot()::text AS "snapshotTx"`;
+    // 极端并发下拒绝建立过大的快照，不能产出超过查询参数上限的游标。
+    if (snapshotTx.length > 2048)
+      throw new BusinessException(
+        ErrorCode.CONFLICT,
+        '图片浏览暂时繁忙，请重新打开',
+        HttpStatus.CONFLICT,
+      );
     const snapshot = Date.now();
     const pinned =
       query.scope === GalleryScope.SUBTHREAD
@@ -158,6 +168,7 @@ export class GalleryService {
       authorId: query.authorId ?? null,
       viewerId: viewerId ?? null,
       snapshot,
+      snapshotTx,
       pinnedIds: pinned.map((post) => post.id),
     };
   }
@@ -171,7 +182,7 @@ export class GalleryService {
         : {}),
     };
     const missing = await this.prisma.post.findFirst({
-      where: { ...where, galleryIndexed: false },
+      where: { ...where, galleryIndex: { is: null } },
       select: { id: true },
     });
     if (missing)
@@ -180,10 +191,7 @@ export class GalleryService {
         '图片图集尚未就绪，请稍后重新打开',
         HttpStatus.CONFLICT,
       );
-    const edited = await this.prisma.post.findFirst({
-      where: { ...where, galleryContentUpdatedAt: { gt: new Date(session.snapshot) } },
-      select: { id: true },
-    });
+    const edited = await this.rows.contentChanged(session);
     if (edited) return changed();
   }
   private async assertSourceVisible(

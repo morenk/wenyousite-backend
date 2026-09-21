@@ -10,6 +10,7 @@ export type GallerySession = {
   authorId: string | null;
   viewerId: string | null;
   snapshot: number;
+  snapshotTx: string;
   pinnedIds: string[];
 };
 export type GalleryBoundary = {
@@ -55,6 +56,8 @@ export function decodeGalleryCursor(value: string, secret: string): GalleryCurso
       !parsed.boundary ||
       !['before', 'after'].includes(parsed.direction) ||
       !Number.isSafeInteger(parsed.session.snapshot) ||
+      typeof parsed.session.snapshotTx !== 'string' ||
+      parsed.session.snapshotTx.length > 2048 ||
       parsed.session.snapshot > Date.now() ||
       Date.now() - parsed.session.snapshot > 24 * 60 * 60 * 1000
     )

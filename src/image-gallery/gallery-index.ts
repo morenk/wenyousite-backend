@@ -40,5 +40,5 @@ export async function syncGalleryIndex(
       data: urls.map((url, imageIndex) => ({ postId, imageIndex, imageCount: urls.length, url })),
     });
   // 不改变 updatedAt：索引是正文事务内的派生状态，不构成正文编辑。
-  await tx.$executeRaw`UPDATE posts SET gallery_indexed = TRUE, gallery_content_updated_at = CURRENT_TIMESTAMP WHERE id = ${postId}`;
+  await tx.$executeRaw`INSERT INTO post_gallery_indexes (post_id, content_transaction) VALUES (${postId}, txid_current()) ON CONFLICT (post_id) DO UPDATE SET content_transaction = EXCLUDED.content_transaction`;
 }

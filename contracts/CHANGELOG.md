@@ -1,9 +1,9 @@
 # API 合同变更
 
-## 5.26.0-dev.20260922.1
+## 5.26.0-dev.20260922.2
 
 - 兼容新增 OptionalAuth 图集读取 `GET /image-gallery`，五种阅读范围、点击锚点、双向签名游标与 source 定位。详见 [图片图集](../docs/image-gallery.md)。
-- 新增 40924 IMAGE_GALLERY_NOT_READY，历史索引未就绪不能伪装完整图集；既有 CONFLICT 表示图片锚点或会话正文已改变。
+- 新增 40926 IMAGE_GALLERY_NOT_READY，历史索引未就绪不能伪装完整图集；既有 CONFLICT 表示图片锚点或会话正文已改变。
 - 新增正文图片位置索引及有界回填工具，原媒体账本、Markdown、上传与 COMPLETED 语义不变。
 
 ## 5.25.0-dev.20260922.1

@@ -72,6 +72,18 @@ export class GalleryRowsService {
         ${unblockedUserSql(viewerId ?? undefined, Prisma.sql`c.author_id`)}
     `;
   }
+  /** 事务快照排除打开时仍未提交的正文编辑；置顶不写内容事务号。 */
+  async contentChanged(session: GallerySession) {
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+      SELECT p.id FROM posts p JOIN post_gallery_indexes gi ON gi.post_id = p.id WHERE p.deleted_at IS NULL AND p.created_at <= ${new Date(session.snapshot)}
+        AND ${session.scope === GalleryScope.SUBTHREAD ? Prisma.sql`p.subthread_id = ${session.scopeId} AND p.parent_post_id IS NULL` : Prisma.sql`p.parent_post_id = ${session.scopeId} AND p.kind = 'FLOOR'`}
+        ${session.authorId ? Prisma.sql`AND (p.kind = 'BODY' OR p.author_id = ${session.authorId})` : Prisma.empty}
+        ${unblockedUserSql(session.viewerId ?? undefined, Prisma.sql`p.author_id`)}
+        AND NOT txid_visible_in_snapshot(gi.content_transaction, ${session.snapshotTx}::txid_snapshot)
+      LIMIT 1
+    `);
+    return rows.length > 0;
+  }
   async anchor(
     session: GallerySession,
     context: GalleryContext,

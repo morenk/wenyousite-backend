@@ -8,7 +8,7 @@ async function main() {
   const after = args.find((arg) => arg.startsWith('--after='))?.slice(8);
   const limit = Number(args.find((arg) => arg.startsWith('--limit='))?.slice(8) ?? 250);
   if (!Number.isInteger(limit) || limit < 1 || limit > 500) throw new Error('limit 必须为 1–500');
-  const rows = await prisma.post.findMany({ where: { galleryIndexed: false, ...(after ? { id: { gt: after } } : {}) },
+  const rows = await prisma.post.findMany({ where: { galleryIndex: { is: null }, ...(after ? { id: { gt: after } } : {}) },
     orderBy: { id: 'asc' }, take: limit, select: { id: true, content: true } });
   let images = 0;
   let applied = 0;
@@ -16,8 +16,8 @@ async function main() {
     if (apply) {
       await prisma.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT id FROM posts WHERE id = ${row.id} FOR UPDATE`;
-        const current = await tx.post.findUnique({ where: { id: row.id }, select: { galleryIndexed: true, content: true } });
-        if (!current || current.galleryIndexed) return;
+        const current = await tx.post.findUnique({ where: { id: row.id }, select: { galleryIndex: { select: { postId: true } }, content: true } });
+        if (!current || current.galleryIndex) return;
         images += galleryImageUrls(current.content).length;
         await syncGalleryIndex(tx, row.id, current.content);
         applied++;

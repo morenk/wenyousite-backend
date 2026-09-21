@@ -25,7 +25,7 @@ async function main() {
   const other = await db.user.create({ data: { username: 'gallery_' + randomUUID().slice(0, 8), email: randomUUID() + '@gallery.invalid', password: 'unused' } });
   const thread = await db.thread.create({ data: { ownerId: owner.id, title: '图库隔离用例', published: true, members: { create: { userId: owner.id, role: 'OWNER' } } } });
   const sub = await db.subthread.create({ data: { threadId: thread.id, title: '子贴' } });
-  const otherSub = await db.subthread.create({ data: { threadId: thread.id, title: '其他子贴' } });
+  const otherSub = await db.subthread.create({ data: { threadId: thread.id, title: '其他子贴', sortOrder: 1 } });
   const old = new Date(Date.now() - 60000);
   const post = async (content: string, extra = {}) => db.$transaction(async tx => {
     const row = await tx.post.create({ data: { threadId: thread.id, subthreadId: sub.id, authorId: owner.id, content, createdAt: old, updatedAt: old, ...extra } });
@@ -38,11 +38,15 @@ async function main() {
   const pin = await post(image, { floorNumber: 2, pinnedAt: old });
   const reply = await post(image, { parentPostId: floor.id });
   const otherFloor = await post(image, { floorNumber: 3, authorId: other.id });
-  await post(image, { subthreadId: otherSub.id, floorNumber: 1 });
+  const offScopeFloor = await post(image, { subthreadId: otherSub.id, floorNumber: 1 });
   // 连续无图楼层不能中断索引分页，也不把全部正文取到客户端。
   for (let n = 4; n < 30; n++) await post('无图', { floorNumber: n });
   const last = await post(image, { floorNumber: 30 });
   const base = { scope: 'SUBTHREAD', scopeId: sub.id, order: 'OLDEST', limit: 2 };
+  const legacyResponse = await fetch(process.env.API_BASE + '/posts/' + body.id, { headers: { authorization: 'Bearer ' + token } });
+  assert.equal(legacyResponse.status, 200);
+  const legacyBody = await legacyResponse.json() as { data: Record<string, unknown> };
+  for (const field of ['galleryIndexed', 'galleryContentTransaction', 'galleryIndex', 'galleryImages']) assert(!(field in legacyBody.data), '旧正文响应不能泄露内部索引字段');
   const first = await query({ ...base, anchorId: body.id, anchorIndex: 0, anchorVersion: 1 });
   assert.equal(first.status, 200);
   assert.deepEqual(first.data.items.map(i => i.sourceId), [body.id, body.id]);
@@ -66,6 +70,30 @@ async function main() {
   assert.deepEqual(frozen.data.items.map(i => i.sourceId), [pin.id, floor.id]);
   const late = await post(image, { floorNumber: 31, createdAt: new Date() });
   assert(!(await query({ ...base, cursor: after.data.nextCursor! })).data.items.some(i => i.sourceId === late.id));
+  const concurrentAnchor = await post(image, { subthreadId: otherSub.id, floorNumber: 2 });
+  for (const mode of ['edit', 'insert']) {
+    let signalWritten!: () => void;
+    let allowCommit!: () => void;
+    const written = new Promise<void>(resolve => { signalWritten = resolve; });
+    const release = new Promise<void>(resolve => { allowCommit = resolve; });
+    const transaction = db.$transaction(async tx => {
+      const target = mode === 'edit'
+        ? await tx.post.update({ where: { id: offScopeFloor.id }, data: { content: image + '\n' + image, version: { increment: 1 } } })
+        : await tx.post.create({ data: { threadId: thread.id, subthreadId: otherSub.id, authorId: owner.id, floorNumber: 3, content: image } });
+      await syncGalleryIndex(tx, target.id, target.content);
+      signalWritten();
+      await release;
+    }, { timeout: 20000 });
+    await written;
+    const concurrentBase = { scope: 'SUBTHREAD', scopeId: otherSub.id, limit: 1 };
+    const opened = await query({ ...concurrentBase, anchorId: concurrentAnchor.id, anchorIndex: 0, anchorVersion: 1 });
+    assert.equal(opened.status, 200);
+    assert(opened.data.previousCursor);
+    allowCommit();
+    await transaction;
+    assert.equal((await query({ ...concurrentBase, cursor: opened.data.previousCursor })).status, 409,
+      '打开前开始、打开后提交的正文编辑/新增不得混入快照，即使边界图片未编辑');
+  }
   const replies = await query({ scope: 'POST_REPLIES', scopeId: floor.id, anchorId: reply.id, anchorIndex: 0, anchorVersion: 1 });
   assert.deepEqual(replies.data.items.map(i => i.sourceId), [reply.id]);
   const tied = [reply];
@@ -101,7 +129,7 @@ async function main() {
   await db.thread.update({ where: { id: thread.id }, data: { visibility: 'PUBLIC' } });
   const unindexed = await db.post.create({ data: { threadId: thread.id, subthreadId: sub.id, authorId: owner.id, content: image, floorNumber: 32 } });
   const notReady = await query({ ...base, anchorId: body.id, anchorIndex: 0, anchorVersion: 1 });
-  assert.equal(notReady.status, 409); assert.equal(notReady.code, 40924);
+  assert.equal(notReady.status, 409); assert.equal(notReady.code, 40926);
   await db.$transaction(tx => syncGalleryIndex(tx, unindexed.id, image));
   await new Promise(resolve => setTimeout(resolve, 5));
   await db.$transaction(async tx => {
@@ -118,7 +146,7 @@ async function main() {
   const assets = await Promise.all([media('MOMENT'), media('MOMENT'), media('MOMENT_COMMENT'), media('MOMENT_COMMENT')]);
   const moment = await db.moment.create({ data: { authorId: owner.id, title: '动态图集', clientRequestId: randomUUID(), createRequestHash: 'fixture',
     images: { create: assets.slice(0, 2).map((asset, sortOrder) => ({ mediaId: asset.id, sortOrder })) } } });
-  const comment = await db.momentComment.create({ data: { momentId: moment.id, authorId: owner.id, content: '', mediaId: assets[2].id, clientRequestId: randomUUID(), createRequestHash: 'fixture' } });
+  const comment = await db.momentComment.create({ data: { momentId: moment.id, authorId: owner.id, content: '一级评论', mediaId: assets[2].id, clientRequestId: randomUUID(), createRequestHash: 'fixture' } });
   const commentReply = await db.momentComment.create({ data: { momentId: moment.id, authorId: owner.id, parentCommentId: comment.id, content: '', mediaId: assets[3].id, clientRequestId: randomUUID(), createRequestHash: 'fixture' } });
   const m = await query({ scope: 'MOMENT', scopeId: moment.id, anchorId: moment.id, anchorIndex: 0, anchorVersion: 1 });
   assert.equal(m.status, 200); assert.equal(m.data.items.length, 2);

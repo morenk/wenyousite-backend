@@ -11,6 +11,7 @@ describe('图片图集游标签名', () => {
       authorId: null,
       order: ReplyOrder.OLDEST,
       snapshot: Date.now(),
+      snapshotTx: '1:2:',
       pinnedIds: ['pin'],
     },
     boundary: { sourceId: 'post', sourceVersion: 2, imageIndex: 1, groupKey: 2, timeKey: 5 },
@@ -31,4 +32,13 @@ describe('图片图集游标签名', () => {
     };
     expect(() => decodeGalleryCursor(encodeGalleryCursor(expired, 'secret'), 'secret')).toThrow();
   });
+  it('允许的最长快照和置顶集合生成的游标小于查询参数上限', () => {
+    const large = { ...cursor, session: { ...cursor.session, snapshotTx: '1:2:' + '3,'.repeat(1022),
+      scopeId: 's'.repeat(64), viewerId: 'v'.repeat(64), authorId: 'a'.repeat(64), pinnedIds: Array.from({ length: 10 }, () => 'p'.repeat(64)) } };
+    const token = encodeGalleryCursor(large, 'secret');
+    expect(token.length).toBeLessThan(8192);
+    expect(decodeGalleryCursor(token, 'secret')).toEqual(large);
+    expect(() => decodeGalleryCursor(encodeGalleryCursor({ ...large, session: { ...large.session, snapshotTx: '1'.repeat(2049) } }, 'secret'), 'secret')).toThrow();
+  });
+
 });

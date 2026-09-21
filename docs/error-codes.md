@@ -90,7 +90,7 @@
 | `APPEAL_ALREADY_SUBMITTED` | 40921 | 同一治理决定已经提交申诉 |
 | `APPEAL_WINDOW_CLOSED` | 40922 | 治理决定已超过申诉期限 |
 | `ADMIN_INVITE_CONFLICT` | 40923 | 管理员邀请已存在或已经处理 |
-| `IMAGE_GALLERY_NOT_READY` | 40924 | 图片历史位置索引尚未回填完成 |
+| `IMAGE_GALLERY_NOT_READY` | 40926 | 图片历史位置索引尚未回填完成 |
 | `REGISTRATION_PAUSED` | 40924 | 注册被站务临时暂停 |
 | `CONTENT_WRITES_PAUSED` | 40925 | 用户内容写入被站务临时暂停 |
 | `RATE_LIMITED` | 42900 | 请求过于频繁 |

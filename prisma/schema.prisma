@@ -1107,8 +1107,7 @@ model Post {
   diceRolls        DiceRoll[]
   mediaAttachments PostMedia[]
   galleryImages PostImageOccurrence[]
-  galleryIndexed Boolean @default(false) @map("gallery_indexed")
-  galleryContentUpdatedAt DateTime? @map("gallery_content_updated_at")
+  galleryIndex PostGalleryIndex?
 
   @@unique([subthreadId, floorNumber])
   @@unique([authorId, clientRequestId])
@@ -1613,4 +1612,11 @@ model PostImageOccurrence {
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
   @@id([postId, imageIndex])
   @@map("post_image_occurrences")
+}
+
+model PostGalleryIndex {
+  postId String @id @map("post_id")
+  contentTransaction BigInt @map("content_transaction")
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  @@map("post_gallery_indexes")
 }
