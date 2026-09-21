@@ -77,3 +77,5 @@ pnpm e2e:reap --root /tmp/wenyousite-e2e-<原目录后缀> --run-id <原runId> -
 ```
 
 默认 dry-run；核对 ownership、UID、supervisor 启动时间、原进程组/PID 启动时间及进程 env 中的随机身份（Redis 改写 environ 时，仅原 leader 允许以原启动时间和私有 cwd 双重核验）后，apply 只终止匹配进程并清理该目录。原任务仍活跃、PID 复用、路径/身份漂移或进程不可核验时拒绝，不能使用递归删除/FLUSH 代替验证。该授权不包括其他任务资源或公网数据库。
+
+进程组清理逐项核验 `/proc` 身份。若读取 `stat` 后进程退出导致 `environ` 为空或不可读，只在重新读取确认同一启动时间的进程已进入 Z/X 状态，或 PID 已消失时视为结束；活跃身份不符、无法确认退出或 PID 复用仍拒绝清理。`test:cleanup:unit` 确定性覆盖这些竞态，`test:e2e:lifecycle` 覆盖并发、失败、遗留后代、SIGINT/SIGTERM 及 SIGKILL 定向恢复，不以重试成功替代当轮清理验收。

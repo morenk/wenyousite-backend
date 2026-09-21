@@ -62,7 +62,7 @@
     "contract:rich-text": "tsx scripts/rich-text/cli.ts",
     "test:rich-text": "tsc -p scripts/rich-text/tsconfig.json && tsx --test scripts/rich-text/*.test.ts",
     "media:display:backfill": "tsx scripts/backfill-media-display.ts",
-    "test:cleanup:unit": "tsc -p scripts/tsconfig.e2e.json && tsx --test scripts/webe2e-cleanup.test.ts scripts/e2e-guard.test.ts",
+    "test:cleanup:unit": "tsc -p scripts/tsconfig.e2e.json && tsx --test scripts/webe2e-cleanup.test.ts scripts/e2e-guard.test.ts scripts/e2e-processes.test.ts",
     "test:cleanup:integration": "tsx scripts/webe2e-cleanup.integration.ts",
     "e2e:run": "tsx scripts/e2e-runner.ts",
     "test:e2e:full": "tsx scripts/e2e-runner.ts --full",

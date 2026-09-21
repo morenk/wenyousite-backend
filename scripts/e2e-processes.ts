@@ -11,7 +11,7 @@ export function ownedGroup(group: number, runId: string, root: string, started?:
     if (!/^\d+$/.test(entry)) continue;
     let fields: string[];
     try { fields = readFileSync(`/proc/${entry}/stat`, 'utf8').split(') ').at(-1)!.split(' '); } catch { continue; }
-    if (Number(fields[2]) !== group || fields[0] === 'Z') continue;
+    if (Number(fields[2]) !== group || ['Z', 'X'].includes(fields[0])) continue;
     try {
       const env = readFileSync(`/proc/${entry}/environ`, 'utf8').split('\0');
       const environmentMatches = env.includes(`E2E_RUN_ID=${runId}`) && env.includes(`E2E_RESOURCE_ROOT=${root}`);
@@ -21,7 +21,14 @@ export function ownedGroup(group: number, runId: string, root: string, started?:
       assert(statSync(`/proc/${entry}`).uid === process.getuid?.() && (environmentMatches || leaderMatches), '进程组身份漂移，拒绝终止');
       members.push(Number(entry));
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT' || (error as NodeJS.ErrnoException).code === 'ESRCH') continue;
+      // stat 与 environ/cwd 并非原子快照：退出可能清空身份或撤销访问权限。
+      // 只有原启动时间对应的进程已死亡或 PID 消失才可忽略；活进程与 PID 复用仍拒绝。
+      try {
+        const current = readFileSync(`/proc/${entry}/stat`, 'utf8').split(') ').at(-1)!.split(' ');
+        if (current[19] === fields[19] && ['Z', 'X'].includes(current[0])) continue;
+      } catch (stateError) {
+        if (['ENOENT', 'ESRCH'].includes((stateError as NodeJS.ErrnoException).code ?? '')) continue;
+      }
       throw error;
     }
   }

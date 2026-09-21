@@ -9,7 +9,7 @@ async function reaper(root: string, runId: string, apply: boolean) {
   const child = spawn(process.execPath, ['--import', require.resolve('tsx'), resolve('scripts/e2e-reap.ts'), '--root', root, '--run-id', runId, ...(apply ? ['--apply'] : [])], { env: cleanEnvironment(), stdio: 'ignore' });
   return new Promise((ok) => child.once('exit', ok));
 }
-async function signalCase(signal: 'SIGTERM' | 'SIGKILL') {
+async function signalCase(signal: 'SIGTERM' | 'SIGINT' | 'SIGKILL') {
   const supervisor = spawn(process.execPath, ['--import', require.resolve('tsx'), resolve('scripts/e2e-lifecycle.fixture.ts')], { env: { ...cleanEnvironment(), ...toolsEnv }, stdio: ['ignore', 'pipe', 'pipe'] });
   const done = new Promise((ok) => supervisor.once('exit', ok));
   let output = '';
@@ -59,7 +59,7 @@ async function main() {
   }), /injected failure/);
   assert(!existsSync(failedRoot));
   assert.deepEqual(ownedGroup(group, runId, failedRoot), [], '退出的消费者遗留后代也应被清理');
-  await signalCase('SIGTERM'); await signalCase('SIGKILL');
-  console.log('隔离生命周期通过：两轮并发独立身份、异常清理、遗留后代、SIGTERM、SIGKILL 残留 dry-run/拒绝/定向恢复清理');
+  await signalCase('SIGTERM'); await signalCase('SIGINT'); await signalCase('SIGKILL');
+  console.log('隔离生命周期通过：两轮并发独立身份、异常清理、遗留后代、SIGTERM、SIGINT、SIGKILL 残留 dry-run/拒绝/定向恢复清理');
 }
 void main().catch((error) => { require('node:fs').writeFileSync('/tmp/backend-e2e-lifecycle-error.log', error instanceof Error ? error.stack : String(error), { mode: 0o600 }); console.error('隔离生命周期验证失败'); process.exitCode = 1; });
