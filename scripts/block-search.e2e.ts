@@ -1,3 +1,5 @@
+import { assertIsolatedEnvironment, verifyIsolatedEnvironment } from './e2e-guard';
+assertIsolatedEnvironment();
 import assert from 'node:assert/strict';
 import { randomUUID, createHash } from 'node:crypto';
 import { inflateRawSync } from 'node:zlib';
@@ -109,6 +111,7 @@ async function hiddenMatrix(viewer: string, hidden: string) {
   assert(!dm.data.some((item: any) => item.id === `${prefix}dm`));
 }
 async function run() {
+  await verifyIsolatedEnvironment();
   await seed();
   // Warm anonymous cache, including C's default BODY written by B.
   await request(undefined, `/threads/${thread(b)}`);

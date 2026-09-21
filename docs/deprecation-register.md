@@ -49,3 +49,9 @@
 ### 管理登录记住设备兼容扩展
 
 `rememberDevice` 是登录 verify 的可选布尔，省略维持既有短会话；旧记录默认 false，原 expiresAt 保持。verify/session 响应旧字段和 step-up DTO 保留；没有旧接口清理，也不要求 Mobile 新增管理功能。兼容 Backend 应先于 Web 消费端合并。
+
+## 本人关系管理兼容登记
+
+- 新增移除本人粉丝端点与可选 viewerIsFollowing / viewerIsFollowedBy 字段；保留原关注、取消关注及四个列表入口。无弃用、无删除、无迁移。
+- Web / Mobile 旧服务响应缺字段时按未知处理；仅在兼容后端就绪后启用新能力。Foundation 同步本人列表状态及按钮规范，消费者使用精确契约提交生成。
+- 本次移除是用户请求的单向业务关系删除，不属于兼容协议清理。未来删除旧协议仍须独立四项证据评审。

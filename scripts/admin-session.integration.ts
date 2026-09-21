@@ -1,10 +1,11 @@
+import { assertIsolatedEnvironment, verifyIsolatedEnvironment } from './e2e-guard';
+assertIsolatedEnvironment();
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { cp, mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { mock } from 'node:test';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -28,6 +29,7 @@ const PEPPER = 'isolated-admin-session-test';
 const hash = (s: string) => createHash('sha256').update(s).digest('hex');
 
 async function main() {
+  await verifyIsolatedEnvironment();
   assert.equal(process.env.ADMIN_SESSION_TEST_ENV, 'test');
   const base = new URL(process.env.DATABASE_URL!);
   assert(['127.0.0.1', 'localhost', '[::1]'].includes(base.hostname));
@@ -36,7 +38,7 @@ async function main() {
   const url = new URL(base);
   url.pathname = '/' + dbName;
   const db = new PrismaClient({ datasourceUrl: url.toString() });
-  const migrationRoot = await mkdtemp(join(tmpdir(), 'admin-session-migration-'));
+  const migrationRoot = await mkdtemp(join(dirname(process.env.E2E_MANIFEST!), 'admin-session-migration-'));
   let app: NestFastifyApplication | undefined;
   let created = false;
   const deploy = (schema?: string) =>
@@ -63,8 +65,8 @@ async function main() {
     const password = 'Admin-session-test-only-20260921';
     const user = await db.user.create({
       data: {
-        email: 'admin-session@example.invalid',
-        username: 'session-test',
+        email: randomUUID() + '@admin-session.invalid',
+        username: 'session-' + randomUUID().slice(0, 8),
         password: await argon2.hash(password),
         role: 'ADMIN',
       },

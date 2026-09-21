@@ -14,7 +14,7 @@
 
 本次 `pnpm check:full` 在完整 `pnpm check` 和构建完成后，于 auth E2E 因工作区缺 `.env` 失败，最终退出码为 1；后续 economy、隔离 API、media/ranking E2E 未在该调用中执行。初次交付已单独执行这些入口，均因尚未配置测试数据库、缺 `.env` / `DATABASE_URL` 阻塞；本次不重复探查凭据、不使用生产数据回归、不另建基础设施。
 
-`scripts/main-post-policy.e2e.ts` 已接入隔离 API 链且通过独立 TypeScript 检查，但尚未实际运行。具备授权的 loopback 可恢复测试环境后，应补跑 `pnpm check:full`，并验证：
+`scripts/main-post-policy.e2e.ts` 已接入隔离 API 链且通过独立 TypeScript 检查，但尚未实际运行。配置[隔离 runner](e2e-isolation.md)所需只读二进制后，应补跑 `pnpm check:full`，并验证：
 
 - 游客不能管理；普通参与者、玩家和登录非成员不能修改权限；楼主与协作者可以保存。
 - 三种权限下游客、楼主、协作者、玩家、普通参与者、登录非成员的详情能力，与楼层和楼中楼实际写入一致；公开帖登录非成员仅在开放策略首次发言后自动进入候选池。

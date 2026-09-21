@@ -47,24 +47,57 @@ export class UserRelationsService {
   }
 
   async unfollow(userId: string, targetId: string) {
-    await this.prisma.userFollow.deleteMany({
-      where: { followerId: userId, followingId: targetId },
-    });
+    await this.deleteFollow(userId, targetId);
     return { message: '已取消关注' };
   }
 
-  following(userId: string, viewerId?: string) {
-    return this.prisma.userFollow.findMany({
-      where: { followerId: userId, following: visibleUserWhere(viewerId) },
-      include: { following: { select: publicUserSummarySelect } },
+  async removeFollower(userId: string, followerId: string) {
+    await this.deleteFollow(followerId, userId);
+    return { message: '已移除粉丝' };
+  }
+
+  private async deleteFollow(followerId: string, followingId: string) {
+    await this.prisma.$transaction(async (tx) => {
+      // 解除关系不要求仍可互动，但须与关注、拉黑共用同一组用户锁。
+      await lockInteractionUsers(tx, [followerId, followingId]);
+      await tx.userFollow.deleteMany({ where: { followerId, followingId } });
     });
   }
 
-  followers(userId: string, viewerId?: string) {
-    return this.prisma.userFollow.findMany({
-      where: { followingId: userId, follower: visibleUserWhere(viewerId) },
+  async following(userId: string, viewerId?: string) {
+    const records = await this.prisma.userFollow.findMany({
+      where: { followerId: userId, following: { deletedAt: null, ...visibleUserWhere(viewerId) } },
+      include: { following: { select: publicUserSummarySelect } },
+    });
+    if (viewerId !== userId || records.length === 0) return records;
+    const reverse = await this.prisma.userFollow.findMany({
+      where: { followingId: userId, followerId: { in: records.map((record) => record.followingId) } },
+      select: { followerId: true },
+    });
+    const followers = new Set(reverse.map((record) => record.followerId));
+    return records.map((record) => ({
+      ...record,
+      viewerIsFollowing: true,
+      viewerIsFollowedBy: followers.has(record.followingId),
+    }));
+  }
+
+  async followers(userId: string, viewerId?: string) {
+    const records = await this.prisma.userFollow.findMany({
+      where: { followingId: userId, follower: { deletedAt: null, ...visibleUserWhere(viewerId) } },
       include: { follower: { select: publicUserSummarySelect } },
     });
+    if (viewerId !== userId || records.length === 0) return records;
+    const reverse = await this.prisma.userFollow.findMany({
+      where: { followerId: userId, followingId: { in: records.map((record) => record.followerId) } },
+      select: { followingId: true },
+    });
+    const following = new Set(reverse.map((record) => record.followingId));
+    return records.map((record) => ({
+      ...record,
+      viewerIsFollowing: following.has(record.followerId),
+      viewerIsFollowedBy: true,
+    }));
   }
 
   async userFollowing(userId: string, viewerId?: string) {

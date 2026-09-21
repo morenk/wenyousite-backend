@@ -1,6 +1,7 @@
 import { Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -43,6 +44,17 @@ export class UsersFollowController {
   @ApiOkResponse({ type: MessageResponseDto, description: '已取消关注' })
   unfollow(@Param('id') targetId: string, @CurrentUser() user: CurrentUserPayload) {
     return this.relations.unfollow(user.id, targetId);
+  }
+
+  @Delete('me/followers/:id')
+  @Auth()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '移除我的粉丝', description: '仅解除对方关注我的关系，保留我对对方的关注。不通知对方，对方仍可重新关注；关系不存在时幂等成功。' })
+  @ApiOkResponse({ type: MessageResponseDto, description: '已移除粉丝（含关系已不存在）' })
+  @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
+  @ApiForbiddenResponse({ description: '当前账号无写入权限' })
+  removeFollower(@Param('id') followerId: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.relations.removeFollower(user.id, followerId);
   }
 
   @Get('following')

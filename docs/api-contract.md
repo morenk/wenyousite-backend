@@ -115,7 +115,7 @@ HTTP 契约 `5.19.0-dev.20260909.1` 在所有主题帖列表卡片增加 `coverM
 
 Web 与 Flutter 应同步本版本固定 OpenAPI，验证“数量 0 + 空列表”、跨页总数、状态变化后刷新，以及主题/动态目录独立性；不得用第一页条数替代服务器总数。Foundation 同步接口说明；Flutter 生成与设备验收只在 Windows 执行。
 
-后端回归入口为 `pnpm test:integration:bookmark-count`：只接受 loopback 测试 PostgreSQL，`DATABASE_URL` 提供临时库创建/迁移权限，`BOOKMARK_COUNT_TEST_APP_URL` 指向同一实例的 `wenyousite_app` 测试角色。脚本新建随机名称数据库、应用迁移，以应用角色调用真实 Service 并在结束时删除该临时库；不得传入公网运行环境凭据。
+后端回归入口为 `pnpm test:integration:bookmark-count`：由[隔离 runner](e2e-isolation.md)启动独立 PostgreSQL/Redis 进程，随机数据库迁移及应用角色查询均限定于本次登记的进程，结束后清理本次资源。`DATABASE_URL` 和 `BOOKMARK_COUNT_TEST_APP_URL` 由 runner 私下生成，不得传入公网运行环境凭据。
 
 ## 富文本测试契约与 HTTP 边界
 
@@ -152,3 +152,11 @@ PATCH 请求 `{ name: string }`，trim 后必须为 1–24 个字符，否则 40
 新增管理内容检索、详情、主题分类标签整理，以及用户详情活动日/可管理内容计数、看板动态产出指标。完整参数、安全排除与事务语义见[管理后台后端](modules/admin.md#综合内容管理)。旧隐藏列表及既有字段继续保留；消费者先接入兼容后端，再发布 Web。Mobile 只同步已提交 OpenAPI 快照及操作覆盖表。
 
 管理登录 `POST /admin/auth/verify` 的可选 `rememberDevice` 默认为 false，true 选择固定七天 Cookie/会话期限并跳过短空闲检查。仅登录验证接受此字段，step-up 不变；`session.idleMinutes` 返回有效上限（30 或 10080），后者不表示滑动续期。旧会话不自动延长，详细规则见 [管理后台](modules/admin.md)。
+
+## 本人关注与粉丝管理
+
+契约 5.25.0-dev.20260922.1 新增 DELETE /users/me/followers/{id}（路径带 /api/v1 前缀），使用 @Auth() 写权限。路径 id 是粉丝，列表所有者固定取登录身份；只删除对方 → 本人的关注，保留本人 → 对方。不发送通知，允许对方重新关注，关系不存在也返回 MessageResponseDto 成功。取消关注继续使用 DELETE /users/follow/{id}，回关使用 POST /users/follow/{id} 及原关注通知规则。
+
+GET /users/following、GET /users/followers 和 /users/{id}/following|followers 在 id 为当前查看者时，为每行返回 viewerIsFollowing、viewerIsFollowedBy 两个布尔值，分别表示本人 → 行用户和行用户 → 本人。匿名和查看他人列表省略字段。两个字段在 schema 中可选以兼容旧服务，缺失不是 false。列表批量投影，沿用双向拉黑可见性且排除软删除账号。
+
+取消关注、移除粉丝和关注按同组有序用户行锁串行写入；最终状态取决于锁后实际提交顺序。成功后消费者刷新本人资料、相关主页、列表和计数；网络超时先读取核对，不自动重放移除请求。本人列表的行内管理、统一细描边按钮与移除确认依 Foundation 交互规范实现。

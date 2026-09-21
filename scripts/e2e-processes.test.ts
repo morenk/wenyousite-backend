@@ -1,0 +1,87 @@
+import assert from 'node:assert/strict';
+import { mock, test } from 'node:test';
+import fs from 'node:fs';
+import { ownedGroup } from './e2e-processes';
+import { cleanupDiagnostic } from './e2e-cleanup-diagnostics';
+
+// 精确推进到 stat 已读而 environ 被退出过程清空的窗口，无需概率重试。
+function procFixture(nextState: string, nextStart = '123', environment = '', failure?: string, nextFlags = 0) {
+  let reads = 0;
+  const stat = (state: string, start: string, flags: number) => {
+    const fields = [state, '1', '41', ...Array(16).fill('0'), start];
+    fields[6] = String(flags);
+    return '42 (fixture) ' + fields.join(' ');
+  };
+  mock.method(fs, 'readdirSync', () => ['42']);
+  mock.method(fs, 'readFileSync', (path: string) => {
+    if (path.endsWith('/stat')) {
+      reads++;
+      if (reads > 1 && nextState === 'gone') throw Object.assign(new Error('gone'), { code: 'ENOENT' });
+      return stat(reads === 1 ? 'R' : nextState, reads === 1 ? '123' : nextStart, reads === 1 ? 0 : nextFlags);
+    }
+    if (path.endsWith('/environ')) {
+      if (failure) throw Object.assign(new Error('proc read failed'), { code: failure });
+      return environment;
+    }
+    throw new Error('unexpected read');
+  });
+  mock.method(fs, 'statSync', () => ({ uid: process.getuid?.() }));
+}
+for (const state of ['Z', 'X', 'gone']) test(`身份读取时变为 ${state} 的原进程已退出`, () => {
+  try { procFixture(state); assert.deepEqual(ownedGroup(41, 'run', '/private'), []); }
+  finally { mock.restoreAll(); }
+});
+test('退出期间 environ 变为不可读，仅确认原进程已退出才忽略', () => {
+  try { procFixture('Z', '123', '', 'EACCES'); assert.deepEqual(ownedGroup(41, 'run', '/private'), []); }
+  finally { mock.restoreAll(); }
+});
+for (const [label, state, start, failure] of [
+  ['仍存活但身份为空', 'R', '123', undefined],
+  ['PID 已复用', 'Z', '456', undefined],
+  ['仍存活且 environ 不可读', 'R', '123', 'EACCES'],
+  ['environ 消失但进程仍存活', 'R', '123', 'ENOENT'],
+] as const) test(`${label} 保持拒绝`, () => {
+  try { procFixture(state, start, '', failure); assert.throws(() => ownedGroup(41, 'run', '/private')); }
+  finally { mock.restoreAll(); }
+});
+test('活跃且身份匹配的后代仍被发现', () => {
+  try { procFixture('R', '123', 'E2E_RUN_ID=run\0E2E_RESOURCE_ROOT=/private\0'); assert.deepEqual(ownedGroup(41, 'run', '/private'), [42]); }
+  finally { mock.restoreAll(); }
+});
+
+test('清理诊断仅暴露受控断言、阶段与进程组', () => {
+  const error = Object.assign(new Error('进程组身份漂移，拒绝终止'), { name: 'AssertionError', code: 'ERR_ASSERTION' });
+  assert.deepEqual(cleanupDiagnostic('e2e_123456789012345678901234', 'process-group', error, 42), {
+    event: 'cleanup-failed', runId: 'e2e_123456789012345678901234', stage: 'process-group', group: 42,
+    errorType: 'AssertionError', errorCode: 'ERR_ASSERTION', reason: 'process-identity-mismatch',
+  });
+});
+test('清理诊断不透传任意异常正文、堆栈、环境或无效身份', () => {
+  const privateText = 'PRIVATE_SECRET_VALUE';
+  const error = { name: privateText, code: privateText, message: privateText, stack: privateText, env: privateText };
+  const diagnostic = cleanupDiagnostic(privateText, 'root-removal', error, -1);
+  assert.equal(JSON.stringify(diagnostic).includes(privateText), false);
+  assert.deepEqual(diagnostic, {
+    event: 'cleanup-failed', runId: 'unknown', stage: 'root-removal',
+    errorType: 'Error', errorCode: 'OTHER', reason: 'unclassified',
+  });
+});
+test('清理诊断保留受控文件系统错误码而隐藏路径正文', () => {
+  const diagnostic = cleanupDiagnostic('e2e_123456789012345678901234', 'root-identity', Object.assign(new Error('/private/path'), { code: 'EACCES' }));
+  assert.equal(diagnostic.errorCode, 'EACCES');
+  assert.equal(diagnostic.reason, 'unclassified');
+  assert.equal(JSON.stringify(diagnostic).includes('/private/path'), false);
+});
+
+for (const failure of [undefined, 'EACCES']) test('原进程仍为 R 但已进入 PF_EXITING，身份读取失败 ' + (failure ?? '空环境') + ' 可确认退出', () => {
+  try { procFixture('R', '123', '', failure, 0x40000c); assert.deepEqual(ownedGroup(41, 'run', '/private'), []); }
+  finally { mock.restoreAll(); }
+});
+test('PF_EXITING 不能绕过启动时间不一致的 PID 复用拒绝', () => {
+  try { procFixture('R', '456', '', 'EACCES', 0x40000c); assert.throws(() => ownedGroup(41, 'run', '/private')); }
+  finally { mock.restoreAll(); }
+});
+test('非退出 flags 不能绕过活进程身份拒绝', () => {
+  try { procFixture('R', '123', '', 'EACCES', 0x400008); assert.throws(() => ownedGroup(41, 'run', '/private')); }
+  finally { mock.restoreAll(); }
+});
