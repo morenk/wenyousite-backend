@@ -1,5 +1,11 @@
 # API 合同变更
 
+## 5.25.0-dev.20260922.1
+
+- 兼容新增 DELETE /users/me/followers/{id}：需写权限，仅解除对方关注本人，幂等且不发通知，保留反向关注和重新关注能力。
+- UserFollowRecordResponseDto 新增可选 viewerIsFollowing / viewerIsFollowedBy；仅本人列表（含公开路径 id 为本人）返回当前查看者两个方向的关系。匿名和他人列表省略，消费者缺字段时视为未知。
+- 关注、取消关注、移除粉丝使用相同有序用户锁；列表批量查询互关状态并排除软删除账号，无数据库迁移或旧接口删除。
+
 ## 5.24.0-dev.20260920.1
 
 - 兼容新增管理内容列表、详情和主题帖分类标签整理接口，operationId 为 `adminContentList`、`adminContentDetail`、`adminContentUpdateTaxonomy`；旧隐藏列表及管理字段保留。

@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "5.24.0-dev.20260920.1",
+  "contractVersion": "5.25.0-dev.20260922.1",
   "counts": {
-    "total": 223,
-    "v1": 103,
+    "total": 224,
+    "v1": 104,
     "deferred": 66,
     "notApplicable": 53,
     "infrastructure": 1
@@ -278,6 +278,14 @@
       "operationId": "usersFollowUnfollow",
       "method": "DELETE",
       "path": "/api/v1/users/follow/{id}",
+      "module": "users",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "usersFollowRemoveFollower",
+      "method": "DELETE",
+      "path": "/api/v1/users/me/followers/{id}",
       "module": "users",
       "disposition": "v1",
       "status": "planned"

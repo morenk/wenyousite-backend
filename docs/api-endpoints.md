@@ -48,6 +48,7 @@
 | GET | `/users/{id}` | optional | 获取指定用户的公开资料。登录后额外返回关注/拉黑关系 |
 | POST | `/users/follow/{id}` | authenticated | 关注用户 |
 | DELETE | `/users/follow/{id}` | authenticated | 取消关注 |
+| DELETE | `/users/me/followers/{id}` | authenticated | 移除我的粉丝 |
 | GET | `/users/following` | authenticated | 我的关注列表 |
 | GET | `/users/followers` | authenticated | 我的粉丝列表 |
 | GET | `/users/{id}/following` | optional | 指定用户的关注列表 |

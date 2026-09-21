@@ -22,10 +22,11 @@ export function ownedGroup(group: number, runId: string, root: string, started?:
       members.push(Number(entry));
     } catch (error) {
       // stat 与 environ/cwd 并非原子快照：退出可能清空身份或撤销访问权限。
-      // 只有原启动时间对应的进程已死亡或 PID 消失才可忽略；活进程与 PID 复用仍拒绝。
+      // PF_EXITING (Linux sched.h: 0x4) 会先于 Z/X 置位，此时 environ 已可能返回 EACCES。
+      // 仅同启动时间且已进入不可逆退出的原进程可忽略；活进程与 PID 复用仍拒绝。
       try {
         const current = readFileSync(`/proc/${entry}/stat`, 'utf8').split(') ').at(-1)!.split(' ');
-        if (current[19] === fields[19] && ['Z', 'X'].includes(current[0])) continue;
+        if (current[19] === fields[19] && (['Z', 'X'].includes(current[0]) || (Number(current[6]) & 0x4) !== 0)) continue;
       } catch (stateError) {
         if (['ENOENT', 'ESRCH'].includes((stateError as NodeJS.ErrnoException).code ?? '')) continue;
       }

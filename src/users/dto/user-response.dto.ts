@@ -273,6 +273,12 @@ export class UserFollowRecordResponseDto {
 
   @ApiPropertyOptional({ type: PostAuthorResponseDto })
   follower?: PostAuthorResponseDto;
+
+  @ApiPropertyOptional({ description: '仅本人列表返回：当前查看者是否关注该行用户；他人列表及匿名请求省略。' })
+  viewerIsFollowing?: boolean;
+
+  @ApiPropertyOptional({ description: '仅本人列表返回：该行用户是否关注当前查看者；他人列表及匿名请求省略。' })
+  viewerIsFollowedBy?: boolean;
 }
 
 export class BlockedUserRecordResponseDto {

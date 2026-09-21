@@ -6,7 +6,7 @@ const coverage = JSON.parse(fs.readFileSync(coveragePath, 'utf8')) as Record<str
 const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as Record<string, any>;
 const failures: string[] = [];
 
-const expectedCounts = { total: 223, v1: 103, deferred: 66, notApplicable: 53, infrastructure: 1 };
+const expectedCounts = { total: 224, v1: 104, deferred: 66, notApplicable: 53, infrastructure: 1 };
 for (const [name, expected] of Object.entries(expectedCounts)) {
   if (coverage.counts?.[name] !== expected) {
     failures.push(
@@ -21,6 +21,11 @@ for (const operationId of ['adminContentList', 'adminContentDetail', 'adminConte
   if (operation?.disposition !== 'not_applicable' || operation?.module !== 'admin') {
     failures.push(`${operationId}: 综合管理接口不能纳入移动端功能范围`);
   }
+}
+const removeFollower = rows.find((row: Record<string, unknown>) => row.operationId === 'usersFollowRemoveFollower');
+if (removeFollower?.disposition !== 'v1' || removeFollower?.method !== 'DELETE'
+  || removeFollower?.path !== '/api/v1/users/me/followers/{id}') {
+  failures.push('移除本人粉丝必须纳入移动端 V1 写接口');
 }
 const seen = new Set<string>();
 for (const row of rows) {
