@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mock, test } from 'node:test';
 import fs from 'node:fs';
 import { ownedGroup } from './e2e-processes';
+import { cleanupDiagnostic } from './e2e-cleanup-diagnostics';
 
 // 精确推进到 stat 已读而 environ 被退出过程清空的窗口，无需概率重试。
 function procFixture(nextState: string, nextStart = '123', environment = '', failure?: string) {
@@ -42,4 +43,28 @@ for (const [label, state, start, failure] of [
 test('活跃且身份匹配的后代仍被发现', () => {
   try { procFixture('R', '123', 'E2E_RUN_ID=run\0E2E_RESOURCE_ROOT=/private\0'); assert.deepEqual(ownedGroup(41, 'run', '/private'), [42]); }
   finally { mock.restoreAll(); }
+});
+
+test('清理诊断仅暴露受控断言、阶段与进程组', () => {
+  const error = Object.assign(new Error('进程组身份漂移，拒绝终止'), { name: 'AssertionError', code: 'ERR_ASSERTION' });
+  assert.deepEqual(cleanupDiagnostic('e2e_123456789012345678901234', 'process-group', error, 42), {
+    event: 'cleanup-failed', runId: 'e2e_123456789012345678901234', stage: 'process-group', group: 42,
+    errorType: 'AssertionError', errorCode: 'ERR_ASSERTION', reason: 'process-identity-mismatch',
+  });
+});
+test('清理诊断不透传任意异常正文、堆栈、环境或无效身份', () => {
+  const privateText = 'PRIVATE_SECRET_VALUE';
+  const error = { name: privateText, code: privateText, message: privateText, stack: privateText, env: privateText };
+  const diagnostic = cleanupDiagnostic(privateText, 'root-removal', error, -1);
+  assert.equal(JSON.stringify(diagnostic).includes(privateText), false);
+  assert.deepEqual(diagnostic, {
+    event: 'cleanup-failed', runId: 'unknown', stage: 'root-removal',
+    errorType: 'Error', errorCode: 'OTHER', reason: 'unclassified',
+  });
+});
+test('清理诊断保留受控文件系统错误码而隐藏路径正文', () => {
+  const diagnostic = cleanupDiagnostic('e2e_123456789012345678901234', 'root-identity', Object.assign(new Error('/private/path'), { code: 'EACCES' }));
+  assert.equal(diagnostic.errorCode, 'EACCES');
+  assert.equal(diagnostic.reason, 'unclassified');
+  assert.equal(JSON.stringify(diagnostic).includes('/private/path'), false);
 });

@@ -10,6 +10,7 @@ import Redis from 'ioredis';
 import { ensure } from './webe2e-cleanup';
 import { registry } from './e2e-registry';
 import { processStart, stopOwnedGroup } from './e2e-processes';
+import { cleanupDiagnostic } from './e2e-cleanup-diagnostics';
 const childOwners = new WeakMap<ChildProcess, { runId: string; root: string; started?: string }>();
 
 export function cleanEnvironment(): NodeJS.ProcessEnv {
@@ -28,7 +29,10 @@ export async function stopChild(child: ChildProcess) {
   ensure(owner, '拒绝停止未登记进程');
   const closed = child.exitCode !== null || child.signalCode !== null ? Promise.resolve()
     : new Promise<void>((ok) => child.once('close', () => ok()));
-  await stopOwnedGroup(child.pid, owner.runId, owner.root, owner.started);
+  try { await stopOwnedGroup(child.pid, owner.runId, owner.root, owner.started); } catch (error) {
+    console.error(JSON.stringify(cleanupDiagnostic(owner.runId, 'process-group', error, child.pid)));
+    throw error;
+  }
   // /proc 可先观察到 zombie；等待 Node 的 close 事件，确保退出码与末尾日志已收齐。
   await closed;
 }
@@ -137,16 +141,26 @@ export async function withResources<T>(use: (resources: Resources) => Promise<T>
     await prisma?.$disconnect();
     const cleanupErrors: unknown[] = [];
     for (const child of children.reverse()) {
-      try { await stopChild(child); } catch (error) { cleanupErrors.push(error); }
+      try { await stopChild(child); } catch (error) {
+        cleanupErrors.push(error);
+      }
     }
     if (cleanupErrors.length) for (const child of children) {
       child.stdout?.destroy(); child.stderr?.destroy(); child.unref();
     }
     ensure(cleanupErrors.length === 0, '部分进程身份无法核验，已关闭其余自有进程；保留目录供残留清理');
-    const valid = existsSync(marker) && JSON.stringify(JSON.parse(readFileSync(marker, 'utf8'))) === JSON.stringify(ownership)
-      && realpathSync(root) === ownership.root && !lstatSync(root).isSymbolicLink();
-    ensure(valid, '资源身份验证失败，保留目录供治理核对；未删除未知资源');
-    rmSync(root, { recursive: true });
+    try {
+      const valid = existsSync(marker) && JSON.stringify(JSON.parse(readFileSync(marker, 'utf8'))) === JSON.stringify(ownership)
+        && realpathSync(root) === ownership.root && !lstatSync(root).isSymbolicLink();
+      ensure(valid, '资源身份验证失败，保留目录供治理核对；未删除未知资源');
+    } catch (error) {
+      console.error(JSON.stringify(cleanupDiagnostic(runId, 'root-identity', error)));
+      throw error;
+    }
+    try { rmSync(root, { recursive: true }); } catch (error) {
+      console.error(JSON.stringify(cleanupDiagnostic(runId, 'root-removal', error)));
+      throw error;
+    }
     unregister();
   }
 }
