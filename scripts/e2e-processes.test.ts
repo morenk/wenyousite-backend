@@ -5,15 +5,19 @@ import { ownedGroup } from './e2e-processes';
 import { cleanupDiagnostic } from './e2e-cleanup-diagnostics';
 
 // 精确推进到 stat 已读而 environ 被退出过程清空的窗口，无需概率重试。
-function procFixture(nextState: string, nextStart = '123', environment = '', failure?: string) {
+function procFixture(nextState: string, nextStart = '123', environment = '', failure?: string, nextFlags = 0) {
   let reads = 0;
-  const stat = (state: string, start: string) => `42 (fixture) ${[state, '1', '41', ...Array(16).fill('0'), start].join(' ')}`;
+  const stat = (state: string, start: string, flags: number) => {
+    const fields = [state, '1', '41', ...Array(16).fill('0'), start];
+    fields[6] = String(flags);
+    return '42 (fixture) ' + fields.join(' ');
+  };
   mock.method(fs, 'readdirSync', () => ['42']);
   mock.method(fs, 'readFileSync', (path: string) => {
     if (path.endsWith('/stat')) {
       reads++;
       if (reads > 1 && nextState === 'gone') throw Object.assign(new Error('gone'), { code: 'ENOENT' });
-      return stat(reads === 1 ? 'R' : nextState, reads === 1 ? '123' : nextStart);
+      return stat(reads === 1 ? 'R' : nextState, reads === 1 ? '123' : nextStart, reads === 1 ? 0 : nextFlags);
     }
     if (path.endsWith('/environ')) {
       if (failure) throw Object.assign(new Error('proc read failed'), { code: failure });
@@ -67,4 +71,17 @@ test('清理诊断保留受控文件系统错误码而隐藏路径正文', () =>
   assert.equal(diagnostic.errorCode, 'EACCES');
   assert.equal(diagnostic.reason, 'unclassified');
   assert.equal(JSON.stringify(diagnostic).includes('/private/path'), false);
+});
+
+for (const failure of [undefined, 'EACCES']) test('原进程仍为 R 但已进入 PF_EXITING，身份读取失败 ' + (failure ?? '空环境') + ' 可确认退出', () => {
+  try { procFixture('R', '123', '', failure, 0x40000c); assert.deepEqual(ownedGroup(41, 'run', '/private'), []); }
+  finally { mock.restoreAll(); }
+});
+test('PF_EXITING 不能绕过启动时间不一致的 PID 复用拒绝', () => {
+  try { procFixture('R', '456', '', 'EACCES', 0x40000c); assert.throws(() => ownedGroup(41, 'run', '/private')); }
+  finally { mock.restoreAll(); }
+});
+test('非退出 flags 不能绕过活进程身份拒绝', () => {
+  try { procFixture('R', '123', '', 'EACCES', 0x400008); assert.throws(() => ownedGroup(41, 'run', '/private')); }
+  finally { mock.restoreAll(); }
 });
