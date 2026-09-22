@@ -1107,6 +1107,8 @@ model Post {
   notifications    Notification[]
   diceRolls        DiceRoll[]
   mediaAttachments PostMedia[]
+  galleryImages PostImageOccurrence[]
+  galleryIndex PostGalleryIndex?
 
   @@unique([subthreadId, floorNumber])
   @@unique([authorId, clientRequestId])
@@ -1601,4 +1603,21 @@ model UserDailyActivity {
   @@id([userId, dateKey])
   @@index([dateKey, userId])
   @@map("user_daily_activities")
+}
+
+model PostImageOccurrence {
+  postId String @map("post_id")
+  imageIndex Int @map("image_index")
+  imageCount Int @map("image_count")
+  url String
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  @@id([postId, imageIndex])
+  @@map("post_image_occurrences")
+}
+
+model PostGalleryIndex {
+  postId String @id @map("post_id")
+  contentTransaction BigInt @map("content_transaction")
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  @@map("post_gallery_indexes")
 }

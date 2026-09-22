@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "5.25.0-dev.20260922.2",
+  "contractVersion": "5.26.0-dev.20260922.3",
   "counts": {
-    "total": 224,
-    "v1": 104,
+    "total": 225,
+    "v1": 105,
     "deferred": 66,
     "notApplicable": 53,
     "infrastructure": 1
@@ -1829,6 +1829,14 @@
       "module": "economy",
       "disposition": "deferred",
       "status": "deferred"
+    },
+    {
+      "operationId": "galleryList",
+      "method": "GET",
+      "path": "/api/v1/image-gallery",
+      "module": "image-gallery",
+      "disposition": "v1",
+      "status": "planned"
     }
   ]
 }

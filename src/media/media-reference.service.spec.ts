@@ -10,6 +10,8 @@ describe('MediaReferenceService', () => {
     },
   };
   const tx = {
+    postImageOccurrence: { deleteMany: jest.fn(), createMany: jest.fn() },
+    $executeRaw: jest.fn(),
     media: prisma.media,
     postMedia: {
       findMany: jest.fn(),

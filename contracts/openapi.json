@@ -19670,12 +19670,210 @@
         ],
         "x-auth-mode": "authenticated"
       }
+    },
+    "/api/v1/image-gallery": {
+      "get": {
+        "operationId": "galleryList",
+        "parameters": [
+          {
+            "name": "scope",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "SUBTHREAD",
+                "POST_REPLIES",
+                "MOMENT",
+                "MOMENT_COMMENTS",
+                "MOMENT_REPLIES"
+              ]
+            }
+          },
+          {
+            "name": "scopeId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "anchorId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "anchorIndex",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "anchorVersion",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "OLDEST",
+                "NEWEST"
+              ]
+            }
+          },
+          {
+            "name": "authorId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GalleryList200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "查询参数或游标无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "阅读范围或图片不存在/不可见",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "409": {
+            "description": "图片锚点已变化，或历史索引尚未就绪，请重新加载",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "从点击图片锚点双向浏览当前阅读范围的普通图片",
+        "tags": [
+          "Image Gallery"
+        ],
+        "x-auth-mode": "optional",
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
+      }
     }
   },
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.25.0-dev.20260922.2",
+    "version": "5.26.0-dev.20260922.3",
     "contact": {}
   },
   "tags": [
@@ -30255,6 +30453,126 @@
           "recipientTipCount"
         ]
       },
+      "GalleryImageDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string"
+          },
+          "sourceVersion": {
+            "type": "number"
+          },
+          "imageIndex": {
+            "type": "number",
+            "minimum": 0
+          },
+          "imageCount": {
+            "type": "number"
+          },
+          "mediaId": {
+            "type": "string",
+            "nullable": true
+          },
+          "url": {
+            "type": "string"
+          },
+          "display": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaDisplayResponseDto"
+              }
+            ]
+          },
+          "width": {
+            "type": "number",
+            "nullable": true
+          },
+          "height": {
+            "type": "number",
+            "nullable": true
+          },
+          "animated": {
+            "type": "boolean"
+          },
+          "threadId": {
+            "type": "string",
+            "nullable": true
+          },
+          "subthreadId": {
+            "type": "string",
+            "nullable": true
+          },
+          "parentPostId": {
+            "type": "string",
+            "nullable": true
+          },
+          "momentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "parentCommentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "floorNumber": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "sourceId",
+          "sourceVersion",
+          "imageIndex",
+          "imageCount",
+          "mediaId",
+          "url",
+          "display",
+          "width",
+          "height",
+          "animated",
+          "threadId",
+          "subthreadId",
+          "parentPostId",
+          "momentId",
+          "parentCommentId",
+          "floorNumber"
+        ]
+      },
+      "GalleryPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GalleryImageDto"
+            }
+          },
+          "previousCursor": {
+            "type": "string",
+            "nullable": true
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          },
+          "anchorItemId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "items",
+          "previousCursor",
+          "nextCursor",
+          "anchorItemId"
+        ]
+      },
       "ApiPaginationMeta": {
         "type": "object",
         "required": [
@@ -34537,6 +34855,24 @@
           }
         ]
       },
+      "GalleryList200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/GalleryPageDto"
+              }
+            }
+          }
+        ]
+      },
       "BusinessErrorCode": {
         "type": "integer",
         "enum": [
@@ -34626,6 +34962,7 @@
           40921,
           40922,
           40923,
+          40926,
           40924,
           40925,
           42900,
@@ -34719,6 +35056,7 @@
           "APPEAL_ALREADY_SUBMITTED",
           "APPEAL_WINDOW_CLOSED",
           "ADMIN_INVITE_CONFLICT",
+          "IMAGE_GALLERY_NOT_READY",
           "REGISTRATION_PAUSED",
           "CONTENT_WRITES_PAUSED",
           "RATE_LIMITED",

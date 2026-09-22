@@ -1,3 +1,4 @@
+import { GalleryModule } from './image-gallery/gallery.module';
 import { Module, RequestMethod } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -190,6 +191,7 @@ function buildPinoTransport(logLevel: PinoLogLevel, nodeEnv: string, logFileDir?
     ActivityModule,
     TaxonomyModule,
     MomentsModule,
+    GalleryModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

@@ -160,3 +160,7 @@ PATCH 请求 `{ name: string }`，trim 后必须为 1–24 个字符，否则 40
 GET /users/following、GET /users/followers 和 /users/{id}/following|followers 在 id 为当前查看者时，为每行返回 viewerIsFollowing、viewerIsFollowedBy 两个布尔值，分别表示本人 → 行用户和行用户 → 本人。匿名和查看他人列表省略字段。两个字段在 schema 中可选以兼容旧服务，缺失不是 false。列表批量投影，沿用双向拉黑可见性且排除软删除账号。
 
 取消关注、移除粉丝和关注按同组有序用户行锁串行写入；最终状态取决于锁后实际提交顺序。成功后消费者刷新本人资料、相关主页、列表和计数；网络超时先读取核对，不自动重放移除请求。本人列表的行内管理、统一细描边按钮与移除确认依 Foundation 交互规范实现。
+
+## 全屏图片连续浏览
+
+兼容契约 5.26.0-dev.20260922.3 新增 [图片图集查询](image-gallery.md)。Mobile 先显示点击图片，再接入双向分页；Web 保留原查看交互，新增契约只同步类型与夹具。共享位置测试见 `contracts/gallery-image-occurrences.json`，重复 URL 按位置保留，贴纸仅按 title 前缀排除。权限丢失 404 必须清除对应缓存图，40900 重新打开会话，40926 保留当前图片并提示稍后再试。

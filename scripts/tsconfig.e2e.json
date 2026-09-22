@@ -17,6 +17,8 @@
     "e2e-processes.test.ts",
     "e2e-reap.ts",
     "e2e-lifecycle.integration.ts",
-    "e2e-lifecycle.fixture.ts"
+    "e2e-lifecycle.fixture.ts",
+    "image-gallery.integration.ts",
+    "backfill-gallery-index.ts"
   ]
 }

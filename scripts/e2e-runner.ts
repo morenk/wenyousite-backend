@@ -9,6 +9,7 @@ import { ensure } from './webe2e-cleanup';
 import type { E2EManifest } from './e2e-guard';
 
 const SUITES: Record<string, [string, string]> = {
+  gallery: ['image-gallery.integration.ts', 'IMAGE_GALLERY_TEST_ENV'],
   auth: ['auth-terminal-e2e.ts', 'AUTH_TERMINAL_E2E_ENV'],
   economy: ['economy-terminal-e2e.ts', 'ECONOMY_TERMINAL_E2E_ENV'],
   media: ['media-reclamation.integration.ts', 'MEDIA_RECLAMATION_TEST_ENV'],
@@ -115,8 +116,9 @@ export async function run(args = process.argv.slice(2)) {
       }
       const suites = options.includes('--full') ? Object.keys(SUITES).filter((key) => key !== 'search')
         : options.filter((o) => o.startsWith('--suite=')).map((o) => o.slice(8));
+      if (suites.includes('gallery')) await runScript('image-gallery.integration.ts', { IMAGE_GALLERY_TEST_ENV: 'test' });
       if (suites.length) await stopChild(app);
-      for (const key of suites) {
+      for (const key of suites.filter(key => key !== 'gallery')) {
         const [script, flag] = SUITES[key];
         await runScript(script, { [flag]: 'test' });
       }

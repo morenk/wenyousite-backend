@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "duplicates-and-sticker",
+      "markdown": "![普通](https://example.test/a.png)\n![表情](https://example.test/a.png \"wenyousite-sticker:abc\")\n![重复](https://example.test/a.png)",
+      "urls": [
+        "https://example.test/a.png",
+        "https://example.test/a.png"
+      ]
+    },
+    {
+      "id": "title-prefix",
+      "markdown": "![普通](https://example.test/a.png \"包含 wenyousite-sticker: 文字\")",
+      "urls": [
+        "https://example.test/a.png"
+      ]
+    },
+    {
+      "id": "fenced-unclosed",
+      "markdown": "![a](https://example.test/a.png)\n\n```\n![hidden](https://example.test/b.png)",
+      "urls": [
+        "https://example.test/a.png"
+      ]
+    },
+    {
+      "id": "indented-code",
+      "markdown": "    ![hidden](https://example.test/b.png)\n\n![a](https://example.test/a.png)",
+      "urls": [
+        "https://example.test/a.png"
+      ]
+    },
+    {
+      "id": "quote-fence",
+      "markdown": "> ```\n> ![hidden](https://example.test/b.png)\n> ```\n>\n> ![a](https://example.test/a.png)",
+      "urls": [
+        "https://example.test/a.png"
+      ]
+    },
+    {
+      "id": "nested-parens",
+      "markdown": "![a](https://example.test/a(b).png)",
+      "urls": [
+        "https://example.test/a(b).png"
+      ]
+    },
+    {
+      "id": "escape-and-inline",
+      "markdown": "\\![hidden](https://example.test/b.png) `![hidden](https://example.test/b.png)` ![a](https://example.test/a.png)",
+      "urls": [
+        "https://example.test/a.png"
+      ]
+    },
+    {
+      "id": "reference",
+      "markdown": "![a][photo]\n\n[photo]: https://example.test/a.png",
+      "urls": [
+        "https://example.test/a.png"
+      ]
+    },
+    {
+      "id": "align",
+      "markdown": "<div align=\"center\">\n\n![a](https://example.test/a.png)\n\n</div>\n\n![b](https://example.test/b.png)",
+      "urls": [
+        "https://example.test/a.png",
+        "https://example.test/b.png"
+      ]
+    },
+    {
+      "id": "unpublished-and-unsafe",
+      "markdown": "![a](https://local.invalid/wenyou-pending/a)\n![b](file:///private/image)\n![c](https://user:pass@example.test/private)",
+      "urls": []
+    },
+    {
+      "id": "unicode-and-entities",
+      "markdown": "![图](https://example.test/图.png?x=1&amp;y=2)",
+      "urls": [
+        "https://example.test/%E5%9B%BE.png?x=1&y=2"
+      ]
+    },
+    {
+      "id": "reference-across-alignment",
+      "markdown": "<div align=\"left\">\n\n![甲][photo]\n\n</div>\n\n<div align=\"right\">\n\n![乙][photo]\n\n</div>\n\n[photo]: https://example.test/a.png?x=1&amp;y=2",
+      "urls": [
+        "https://example.test/a.png?x=1&y=2",
+        "https://example.test/a.png?x=1&y=2"
+      ]
+    }
+  ]
+}

@@ -400,3 +400,9 @@
 | POST | `/threads/{id}/tips` | authenticated | 向已发布主题帖楼主打赏温油 |
 | POST | `/users/{id}/tips` | authenticated | 直接向用户打赏温油 |
 | POST | `/moments/{id}/tips` | authenticated | 给公开动态作者加油 |
+
+## Image Gallery
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/image-gallery` | optional | 从点击图片锚点双向浏览当前阅读范围的普通图片 |
