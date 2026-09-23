@@ -1874,6 +1874,58 @@ test(s11, '动态点赞与评论下游计数可一致回收', async () => {
   assert(cleaned.data.commentCount === 0, '删除评论后计数应归零');
 });
 
+test(s11, '作者删除纯图片动态评论时清理引用并保持计数一致', async () => {
+  const media = await e2ePrisma.media.create({
+    data: {
+      userId: currentUserId,
+      url: `https://media.e2e.invalid/${crypto.randomUUID()}.png`,
+      key: `e2e/moment-comment/${crypto.randomUUID()}.png`,
+      purpose: 'MOMENT_COMMENT',
+      contentType: 'image/png',
+      size: 1,
+      width: 1,
+      height: 1,
+      status: 'COMPLETED',
+    },
+  });
+  const created = await api.post(`/moments/${momentId}/comments`, {
+    content: '',
+    mediaId: media.id,
+    clientRequestId: crypto.randomUUID(),
+  });
+  assert(created.code === 0, '纯图片评论应发布成功');
+
+  const removed = await api.del(`/moments/${momentId}/comments/${created.data.id}`);
+  assert(removed.code === 0, '作者删除纯图片评论不得返回 500');
+
+  const stored = await e2ePrisma.momentComment.findUniqueOrThrow({
+    where: { id: created.data.id },
+    select: { deletedAt: true, removalSource: true, removedById: true, mediaId: true },
+  });
+  assert(stored.deletedAt !== null, '纯图片评论应已软删除');
+  assert(stored.removalSource === 'AUTHOR', '作者删除应记录 AUTHOR 来源');
+  assert(stored.removedById === currentUserId, '应记录实际删除人');
+  assert(stored.mediaId === null, '软删除后不得继续引用评论图片');
+  let emptyActiveCommentRejected = false;
+  try {
+    await e2ePrisma.momentComment.update({
+      where: { id: created.data.id },
+      data: { deletedAt: null },
+    });
+  } catch {
+    emptyActiveCommentRejected = true;
+  }
+  assert(emptyActiveCommentRejected, '未删除评论仍必须保留文字、图片或表情');
+
+  const releasedMedia = await e2ePrisma.media.findUniqueOrThrow({
+    where: { id: media.id },
+    select: { orphanedAt: true },
+  });
+  assert(releasedMedia.orphanedAt !== null, '解除引用后应标记媒体待回收');
+  const detail = await api.get(`/moments/${momentId}`);
+  assert(detail.data.commentCount === 0, '删除纯图片评论后计数应归零');
+});
+
 test(s11, 'POST /moments/:id/bookmark 收藏到指定收藏夹', async () => {
   const r = await api.post(`/moments/${momentId}/bookmark`, { folderId: momentFolderId });
   assert(r.code === 0 && r.data.active === true, '动态收藏应成功');
