@@ -82,6 +82,7 @@ function createContext() {
     moments,
     outbox,
     stickers,
+    mediaReferences,
     service: new MomentCommentsService(
       prisma as never,
       moments as never,
@@ -575,5 +576,32 @@ describe('MomentCommentsService', () => {
       where: { id: 'moment-1', deletedAt: null },
       data: { commentCount: { decrement: 1 } },
     });
+  });
+
+  it('作者删除纯图片评论时解除媒体引用并重新对账', async () => {
+    const { service, tx, mediaReferences } = createContext();
+    tx.momentComment.findFirst.mockResolvedValue({
+      authorId: 'comment-author',
+      deletedAt: null,
+      removalSource: null,
+      mediaId: 'media-1',
+      parentComment: null,
+      moment: { authorId: 'moment-owner', deletedAt: null },
+    });
+
+    await expect(
+      service.remove('moment-1', 'comment-1', { id: 'comment-author' }),
+    ).resolves.toEqual({ message: '评论已删除' });
+
+    expect(tx.momentComment.update).toHaveBeenCalledWith({
+      where: { id: 'comment-1' },
+      data: expect.objectContaining({
+        deletedAt: expect.any(Date),
+        removalSource: 'AUTHOR',
+        removedById: 'comment-author',
+        mediaId: null,
+      }),
+    });
+    expect(mediaReferences.reconcileMediaIds).toHaveBeenCalledWith(tx, ['media-1']);
   });
 });
