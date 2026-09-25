@@ -4,10 +4,10 @@
 
 ## CLI 与生命周期
 
-`pnpm dev:preview start --session <批次名> --snapshot <目录> --web-port <端口>` 创建实例；再次启动同名实例复用。必须显式提供快照目录。快照按北京时间日期登记，首次创建只接受当天、SHA-256 校验成功的快照。运行实例跨天保持原数据。`resume` 是 `start` 的别名。
+`pnpm dev:preview start --session <批次名> --snapshot <目录> --web-port <端口>` 创建实例；再次启动同名实例复用。可省略 --snapshot 自动选择 PREVIEW_SNAPSHOT_ROOT 下当天目录；不存在则停止。快照按北京时间日期登记，首次创建只接受当天、SHA-256 校验成功的快照。运行实例跨天保持原数据。`resume` 是 `start` 的别名。
 `pnpm dev:preview status --session <批次名>` 输出状态和 consumer 路径；`export` 输出 consumer JSON；`stop` 终止登记进程并保留磁盘数据；`reset --confirm <sessionId> --snapshot <目录>` 显式重建数据（仍保留会话编号，生成新 runId）；`cleanup --confirm <sessionId>` 仅移除已停止且身份匹配的登记目录。没有隐式全局清理。
 批次名匹配 `[a-z][a-z0-9-]{2,47}`，只在创建它的 Backend Worktree 中控制；每次启动持有原子操作锁。启动失败停止本轮所有已登记子进程，保留数据和私有诊断。
-管理身份在单独审核启用后运行 `dev:preview:snapshot --source-env <root私有文件> --output <受限目录> --source-sha <40位SHA> --media-origin <https域名>`，只读导出 PG custom archive，提取 migration 版本与允许读取的历史对象映射；相同日期只复用校验成功的快照。开发身份不获得源凭据。
+管理身份在单独审核启用后运行 `dev:preview:snapshot --source-env <root私有文件> --output <受限目录> --source-sha <40位SHA> --media-origin <https域名> --pg-bin <二进制目录> --publish-root <开发私有目录> [--backup-root <逻辑备份目录>]`，优先复用当天校验过的逻辑备份，没有才只读导出 PG custom archive，提取 migration 版本与允许读取的历史对象映射；相同日期只复用校验成功的快照。开发身份不获得源凭据。
 
 ## 消费者描述
 
@@ -34,3 +34,5 @@ PG/Redis 为本实例创建的独立进程；API/Worker 使用受限 `wenyousite
 仅运行 loopback s3rver 与独立媒体目录，既有 Worker 处理新增上传。历史对象只允许读取快照 manifest 登记的公开 HTTPS URL；域名精确匹配、禁止重定向/非公网解析/任意 URL，并限制大小。删除只作用于本地对象。
 邮件使用本地私有文件收件箱，真实 SMTP、Firebase、Sentry 关闭。收件箱文件可能含验证码，只可在 VPS 私有目录查看，不输出到任务日志。
 停止保留数据，恢复保留 Redis 持久数据和媒体；显式 reset/cleanup 才删除本批次资源。预览与一次性 E2E 登记独立，E2E reaper 不清理预览。
+
+实现命令、快照受限发布与启动时源码摘要见 [开发预览运行说明](dev-preview.md)。机器入口 `node --import tsx scripts/dev-preview/cli.ts` 的 export/stdout 为纯 JSON；status 含 consumerPath、sourceSha、sourceDigest 与 sourceDirty。

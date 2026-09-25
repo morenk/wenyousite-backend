@@ -1,3 +1,4 @@
+import { isolatedChildIdentity } from '../config/configuration';
 
 import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
@@ -33,13 +34,13 @@ async function runChild(source: Buffer, deadline: number): Promise<EncodedPrevie
   if (remaining < 500) return [];
   return new Promise((resolve) => {
     const isTypeScript = __filename.endsWith('.ts');
-    const args = ['--max-old-space-size=96', ...(isTypeScript ? ['--import', 'tsx'] : []),
+    const args = ['--max-old-space-size=96', ...(isTypeScript ? ['--import', require.resolve('tsx')] : []),
       join(__dirname, 'media-animation-preview.worker.' + (isTypeScript ? 'ts' : 'js'))];
     let monitor: ReturnType<typeof setInterval> | undefined;
     const child = execFile(process.execPath, args, {
       timeout: remaining, killSignal: 'SIGKILL', maxBuffer: source.length * 2 + 8192,
       encoding: 'buffer',
-      env: { NODE_ENV: 'production', VIPS_CONCURRENCY: '1', MALLOC_ARENA_MAX: '2' },
+      env: { ...isolatedChildIdentity(), NODE_ENV: 'production', VIPS_CONCURRENCY: '1', MALLOC_ARENA_MAX: '2' },
     }, (error, stdout) => {
       if (monitor) clearInterval(monitor);
       if (error || Date.now() >= deadline) return resolve([]);
