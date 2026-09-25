@@ -95,6 +95,34 @@ describe('AdminAccountsService', () => {
     );
   });
 
+  it('未单设站务入口时使用公网 Web 地址发送邀请', async () => {
+    config.get.mockImplementation(
+      (key: string) =>
+        ({
+          'app.adminWebEntryUrl': '',
+          'app.webUrl': 'https://wenyou.site/',
+        })[key],
+    );
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 'user@example.test',
+      role: UserRole.USER,
+      deletedAt: null,
+    });
+    prisma.adminInvite.create.mockResolvedValue({
+      id: 'invite-1',
+      expiresAt: new Date('2026-08-23T00:00:00Z'),
+      user: { email: 'user@example.test' },
+    });
+
+    await service.invite(actor, 'user-1', context);
+
+    expect(email.sendAdminInvite).toHaveBeenCalledWith(
+      'user@example.test',
+      expect.stringContaining('https://wenyou.site/station/invite?token='),
+    );
+  });
+
   it('拒绝不存在、已删除或已有管理身份的目标', async () => {
     prisma.user.findUnique.mockResolvedValueOnce(null);
     await expect(service.invite(actor, 'missing', context)).rejects.toMatchObject({
