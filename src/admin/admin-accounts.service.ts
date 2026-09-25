@@ -72,6 +72,13 @@ export class AdminAccountsService {
       throw conflict(ErrorCode.ADMIN_INVITE_CONFLICT, '该用户已经是管理员');
     }
     const rawToken = randomBytes(32).toString('base64url');
+    const adminEntryUrl = this.config.get<string>('app.adminWebEntryUrl');
+    const webUrl = this.config.get<string>('app.webUrl');
+    if (!adminEntryUrl && !webUrl) {
+      throw new Error('缺少管理员邀请入口地址');
+    }
+    const inviteUrl = new URL(adminEntryUrl || '/station/invite', webUrl);
+    inviteUrl.searchParams.set('token', rawToken);
     const invite = await this.prisma
       .$transaction(async (tx) => {
         const created = await tx.adminInvite.create({
@@ -102,13 +109,7 @@ export class AdminAccountsService {
         }
         throw error;
       });
-    const baseUrl =
-      this.config.get<string>('app.adminWebEntryUrl') ||
-      `${this.config.get<string>('app.webUrl') ?? 'http://localhost:3001'}/station/invite`;
-    await this.email.sendAdminInvite(
-      invite.user.email,
-      `${baseUrl}?token=${encodeURIComponent(rawToken)}`,
-    );
+    await this.email.sendAdminInvite(invite.user.email, inviteUrl.toString());
     return { id: invite.id, expiresAt: invite.expiresAt };
   }
 

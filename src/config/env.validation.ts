@@ -59,6 +59,32 @@ export function parseCorsOrigins(raw: string, strict = false): string[] {
   });
 }
 
+function validatePublicWebUrl(value: string, key: string, expectedPath: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`生产环境 ${key} 必须是合法的 HTTPS 地址`);
+  }
+  const hostname = parsed.hostname.toLowerCase();
+  if (
+    parsed.protocol !== 'https:' ||
+    !hostname ||
+    hostname === 'localhost' ||
+    hostname.endsWith('.localhost') ||
+    hostname === '[::1]' ||
+    hostname === '0.0.0.0' ||
+    /^127\./.test(hostname) ||
+    parsed.username ||
+    parsed.password ||
+    parsed.pathname !== expectedPath ||
+    parsed.search ||
+    parsed.hash
+  ) {
+    throw new Error(`生产环境 ${key} 必须是可访问的 HTTPS ${expectedPath} 地址`);
+  }
+}
+
 export class EnvironmentVariables {
   @IsEnum(Environment)
   @IsOptional()
@@ -323,6 +349,9 @@ export function validate(config: Record<string, unknown>) {
   const validatedConfig = plainToInstance(EnvironmentVariables, config, {
     enableImplicitConversion: true,
   });
+  if (validatedConfig.NODE_ENV === Environment.Production && !config.WEB_APP_URL) {
+    validatedConfig.WEB_APP_URL = 'https://wenyou.site';
+  }
   const errors = validateSync(validatedConfig, {
     skipMissingProperties: false,
   });
@@ -379,6 +408,14 @@ export function validate(config: Record<string, unknown>) {
       throw new Error('生产环境 HOST 必须只监听 loopback');
     }
     parseCorsOrigins(validatedConfig.CORS_ORIGINS, true);
+    validatePublicWebUrl(validatedConfig.WEB_APP_URL, 'WEB_APP_URL', '/');
+    if (validatedConfig.ADMIN_WEB_ENTRY_URL) {
+      validatePublicWebUrl(
+        validatedConfig.ADMIN_WEB_ENTRY_URL,
+        'ADMIN_WEB_ENTRY_URL',
+        '/station/invite',
+      );
+    }
     if (validatedConfig.ENABLE_API_DOCS === true) {
       throw new Error('生产环境禁止公开 API 文档');
     }

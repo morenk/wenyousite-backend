@@ -99,6 +99,31 @@ describe('环境变量校验', () => {
     ).toThrow('wenyousite_app');
   });
 
+  it('生产环境未配置 Web 地址时使用公网入口，避免邀请邮件回退 localhost', () => {
+    expect(validate(productionBase).WEB_APP_URL).toBe('https://wenyou.site');
+  });
+
+  it.each([
+    ['WEB_APP_URL', 'http://localhost:3001'],
+    ['WEB_APP_URL', 'https://127.0.0.1:3001'],
+    ['WEB_APP_URL', 'http://wenyou.site'],
+    ['WEB_APP_URL', 'https://wenyou.site/other'],
+    ['ADMIN_WEB_ENTRY_URL', 'http://localhost:3001/station/invite'],
+    ['ADMIN_WEB_ENTRY_URL', 'https://wenyou.site/other'],
+  ])('生产环境拒绝非法邀请入口 %s=%s', (key, value) => {
+    expect(() => validate({ ...productionBase, [key]: value })).toThrow(key);
+  });
+
+  it('生产环境接受显式公网 Web 与站务台入口', () => {
+    const result = validate({
+      ...productionBase,
+      WEB_APP_URL: 'https://web.example.com',
+      ADMIN_WEB_ENTRY_URL: 'https://web.example.com/station/invite',
+    });
+    expect(result.WEB_APP_URL).toBe('https://web.example.com');
+    expect(result.ADMIN_WEB_ENTRY_URL).toBe('https://web.example.com/station/invite');
+  });
+
   it('生产环境要求 loopback 监听和 Redis ACL', () => {
     expect(() => validate({ ...productionBase, HOST: '0.0.0.0' })).toThrow('loopback');
     expect(() => validate({ ...productionBase, REDIS_PASSWORD: '' })).toThrow('Redis');
@@ -129,9 +154,9 @@ describe('环境变量校验', () => {
     expect(() => validate({ ...productionBase, CORS_ORIGINS: 'http://web.example.com' })).toThrow(
       '精确 HTTPS origin',
     );
-    expect(() => validate({ ...productionBase, CORS_ORIGINS: 'https://web.example.com/path' })).toThrow(
-      '精确 HTTPS origin',
-    );
+    expect(() =>
+      validate({ ...productionBase, CORS_ORIGINS: 'https://web.example.com/path' }),
+    ).toThrow('精确 HTTPS origin');
     expect(() => validate({ ...productionBase, ENABLE_API_DOCS: 'true' })).toThrow(
       '禁止公开 API 文档',
     );
