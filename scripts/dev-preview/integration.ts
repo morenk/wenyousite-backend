@@ -59,7 +59,8 @@ async function run() {
     try {
       assert.equal(await isolated.db.emailVerification.count(),0);assert.equal(await isolated.db.refreshToken.count(),0);
       assert.equal(await isolated.db.domainOutbox.count({where:{eventKey:'source-outbox'}}),0);
-      assert(await argon2.verify((await isolated.db.user.findUniqueOrThrow({where:{id:sampleUserId}})).password,password));
+      const sampleUser=await isolated.db.user.findUniqueOrThrow({where:{id:sampleUserId}});
+      assert(await argon2.verify(sampleUser.password,password));
       const noIdentity=await fetch(c.backend.apiBase+'/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({account,password})});
       assert.equal(noIdentity.status,409);
       const login=await fetch(c.backend.apiBase+'/auth/login',{method:'POST',headers:{'content-type':'application/json',[HEADER]:s.runId,'x-client-platform':'mobile'},body:JSON.stringify({account,password})});
@@ -92,7 +93,8 @@ async function run() {
       const mail=new EmailService(new ConfigService({app:{nodeEnv:'test'},ses:{previewMailbox:join(s.root,'mailbox'),from:'preview@preview.invalid'}}));
       await mail.sendVerification('nobody@preview.invalid','123456');
       assert.equal(readdirSync(join(s.root,'mailbox')).length,1);
-      writePrivate(join(s.root,'sample-account.json'),{account,password,userId:sampleUserId,isolatedSample:true});
+      // 客户端用户名校验不接受隔离随机用户名中的分隔符；使用同一账号已有邮箱。
+      writePrivate(join(s.root,'sample-account.json'),{account:sampleUser.email,password,userId:sampleUserId,isolatedSample:true});
       console.log(JSON.stringify({event:'passed',scenarios:['snapshot-reuse','existing-logical-backup-import','source-unchanged','credential-preserved','sessions-sanitized','missing-identity-denied','login','bad-signature-denied','presigned-put','local-delete','image-worker','public-image','private-mailbox'],runId:s.runId}));
     }finally{isolated.redis.disconnect();await isolated.db.$disconnect();}
     const guardClients=clients(s);await guardClients.redis.connect();
