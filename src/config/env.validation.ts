@@ -86,6 +86,10 @@ function validatePublicWebUrl(value: string, key: string, expectedPath: string):
 }
 
 export class EnvironmentVariables {
+  @IsString()
+  @IsOptional()
+  PREVIEW_MAILBOX_DIR: string = '';
+
   @IsEnum(Environment)
   @IsOptional()
   NODE_ENV: Environment = Environment.Development;

@@ -1,3 +1,4 @@
+import { isolatedChildIdentity } from '../config/configuration';
 import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -13,14 +14,14 @@ export async function generateAnimationDisplay(source: Buffer, mode: 'media' | '
     body: Buffer; width: number; height: number; frameCount: number; durationMs: number; loopCount: number;
   }>((resolve, reject) => {
     const isTypeScript = __filename.endsWith('.ts');
-    const args = ['--max-old-space-size=96', ...(isTypeScript ? ['--import', 'tsx'] : []),
+    const args = ['--max-old-space-size=96', ...(isTypeScript ? ['--import', require.resolve('tsx')] : []),
       join(__dirname, 'media-animation-display.worker.' + (isTypeScript ? 'ts' : 'js')),
       ...(mode === 'sticker' ? ['--sticker'] : [])];
     let monitor: ReturnType<typeof setInterval> | undefined;
     const child = execFile(process.execPath, args, {
       timeout: Math.max(1, deadline - Date.now()), killSignal: 'SIGKILL',
       maxBuffer: DISPLAY_MAX_OUTPUT_BYTES + 8192, encoding: 'buffer',
-      env: { NODE_ENV: 'production', VIPS_CONCURRENCY: '1', MALLOC_ARENA_MAX: '2' },
+      env: { ...isolatedChildIdentity(), NODE_ENV: 'production', VIPS_CONCURRENCY: '1', MALLOC_ARENA_MAX: '2' },
     }, (error, stdout, stderr) => {
       if (monitor) clearInterval(monitor);
       if (error || Date.now() >= deadline) {

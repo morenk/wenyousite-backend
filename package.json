@@ -52,7 +52,7 @@
     "arch:check": "tsx scripts/check-architecture.ts",
     "openapi:check": "bash scripts/check-openapi.sh",
     "test:openapi-runner": "bash scripts/check-openapi.test.sh",
-    "check": "pnpm lint && pnpm typecheck && pnpm arch:check && pnpm openapi:check && pnpm test:openapi-runner && pnpm test && pnpm test:cleanup:unit && pnpm test:rich-text && pnpm test:mobile-release && pnpm test:host-health-monitor && pnpm test:deploy-preflight && pnpm test:deploy-runtime && pnpm test:data-security && pnpm docs:check && pnpm build",
+    "check": "pnpm lint && pnpm typecheck && pnpm arch:check && pnpm openapi:check && pnpm test:openapi-runner && pnpm test && pnpm test:preview && pnpm test:cleanup:unit && pnpm test:rich-text && pnpm test:mobile-release && pnpm test:host-health-monitor && pnpm test:deploy-preflight && pnpm test:deploy-runtime && pnpm test:data-security && pnpm docs:check && pnpm build",
     "test:integration:admin-console": "tsx scripts/e2e-runner.ts --suite=admin",
     "check:full": "pnpm security:audit && pnpm check && pnpm test:cleanup:integration && pnpm test:e2e:lifecycle && pnpm test:e2e:full",
     "test:e2e:media-reclamation": "tsx scripts/e2e-runner.ts --suite=media",
@@ -69,7 +69,11 @@
     "e2e:reap": "tsx scripts/e2e-reap.ts",
     "test:e2e:lifecycle": "tsx scripts/e2e-lifecycle.integration.ts",
     "test:integration:gallery": "tsx scripts/e2e-runner.ts --suite=gallery",
-    "test:integration:admin-session": "tsx scripts/e2e-runner.ts --suite=admin-session"
+    "test:integration:admin-session": "tsx scripts/e2e-runner.ts --suite=admin-session",
+    "dev:preview": "tsx scripts/dev-preview/cli.ts",
+    "dev:preview:snapshot": "tsx scripts/dev-preview/cli.ts snapshot",
+    "test:preview": "tsc -p scripts/dev-preview/tsconfig.json && tsx --test scripts/dev-preview/*.test.ts",
+    "test:preview:integration": "tsx scripts/dev-preview/integration.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.800.0",
@@ -123,11 +127,14 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@aws-crypto/sha256-js": "^5.2.0",
     "@eslint/js": "^9.0.0",
     "@faker-js/faker": "^10.5.0",
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "11.2.1",
+    "@smithy/protocol-http": "^5.6.2",
+    "@smithy/signature-v4": "^5.7.3",
     "@types/archiver": "^8.0.0",
     "@types/jest": "^30.0.0",
     "@types/markdown-it": "14.1.2",
@@ -141,6 +148,7 @@
     "jest-mock-extended": "^4.0.1",
     "picocolors": "^1.1.1",
     "prettier": "^3.5.0",
+    "s3rver": "3.7.1",
     "ts-jest": "^29.3.0",
     "ts-node": "^10.9.0",
     "tsx": "^4.19.0",

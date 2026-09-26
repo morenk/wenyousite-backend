@@ -1,4 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { lstatSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import type JSONTransport from 'nodemailer/lib/json-transport';
@@ -29,6 +32,19 @@ export class EmailService {
       this.transporter = nodemailer.createTransport({
         jsonTransport: true,
       } satisfies JSONTransport.Options);
+      const mailbox = this.config.get<string>('ses.previewMailbox');
+      if (mailbox) {
+        const stat = lstatSync(mailbox);
+        if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid?.() || (stat.mode & 0o777) !== 0o700) {
+          throw new Error('预览收件箱必须是本身份的 0700 目录');
+        }
+        this.transporter.use('compile', (mail, done) => {
+          try {
+            writeFileSync(join(mailbox, randomUUID() + '.json'), JSON.stringify(mail.data), { mode: 0o600, flag: 'wx' });
+            done();
+          } catch { done(new Error('预览邮件写入失败')); }
+        });
+      }
       return;
     }
     this.transporter = nodemailer.createTransport({
