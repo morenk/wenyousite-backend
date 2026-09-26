@@ -40,6 +40,21 @@ async function main() {
   assert.equal((await confirm('ADMIN')).status,403);
   assert.equal((await confirm('SUPER_ADMIN')).status,201);
   assert.equal((await fetch(manifest.apiBase+'/mobile-releases/android/1960000000')).status,404);
+  if (process.env.E2E_MOBILE_RELEASE_FIXTURES) {
+    const releasePath=process.env.E2E_MOBILE_RELEASE_FIXTURES;
+    assert.equal(releasePath,join(dirname(manifestPath),'mobile-release-fixtures.json'));
+    const releases=JSON.parse(readFileSync(releasePath,'utf8'));assert.equal(releases.runId,fixture.runId);
+    const published=releases.published;
+    const publicPath=manifest.apiBase+`/mobile-releases/android/${published.buildNumber}`;
+    // 两个正常登录加本轮 CRUD 已接近全局每秒限流；不改变生产限流配置。
+    await new Promise(resolve=>setTimeout(resolve,1100));
+    const edit=(role:string)=>fetch(manifest.apiBase+`/admin/mobile-releases/${published.id}`,{method:'PATCH',headers:headers[role],body:JSON.stringify({revision:published.revision,summary:'修正后的隔离摘要',items:['修正后的隔离条目']})});
+    assert.equal((await edit('ADMIN')).status,403);
+    assert.equal((await edit('SUPER_ADMIN')).status,200);
+    const old=await (await fetch(publicPath)).json() as {data:{summary:string}};assert.equal(old.data.summary,published.summary);
+    const confirmPublished=await fetch(manifest.apiBase+`/admin/mobile-releases/${published.id}/confirm`,{method:'POST',headers:headers.SUPER_ADMIN,body:JSON.stringify({revision:published.revision+1})});assert.equal(confirmPublished.status,201);
+    const corrected=await (await fetch(publicPath)).json() as {data:{summary:string}};assert.equal(corrected.data.summary,'修正后的隔离摘要');
+  }
   console.log(JSON.stringify({ event:'admin-fixtures-verified',runId:fixture.runId,credentialsPrinted:false }));
 }
 void main().catch(()=>{console.error('管理测试账号真实登录/CSRF联验失败（凭据已隐藏）');process.exitCode=1;});

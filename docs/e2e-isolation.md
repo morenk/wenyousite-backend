@@ -97,3 +97,5 @@ Linux 退出期间可能先置位 PF_EXITING，进程仍暂时显示 R，且 env
 浏览器按正常 `/admin/auth/challenge` → `/admin/auth/verify` 登录；验证码仅从该 0700 mailboxPath 下的 0600 Nodemailer JSON 邮件读取，按收件人和本次挑战时间筛选。通过 verify/session 取得管理 Cookie 与 CSRF，再调用真实 API。不提供固定验证码、生产测试后门或数据库凭据；禁止打印账号、邮件、Cookie 或 CSRF。runner 结束一并清理账号、收件箱、上传及进程。
 
 `pnpm test:integration:mobile-releases` 经同一 runner 验证迁移后的真实数据路径、后台 Guard/CSRF、revision 竞争、确认快照与受限发布数据库恢复；不进行真实发包或修改共享策略。
+
+需要已发布修正文案联验时，再加 `--mobile-release-fixtures`：`pnpm e2e:run --admin-fixtures --mobile-release-fixtures -- <消费者命令>`。该选项在本轮实际身份核验后，以 `wenyousite_app`、领域服务和 Publication 状态机创建一条已发布样本（android/build 100）和一条待确认草稿（build 101）；不调用 sudo、对象存储或真实晋级。`E2E_MOBILE_RELEASE_FIXTURES` 指向本轮 0600 JSON `{version:1,runId,published:AdminMobileReleaseDto,draft:AdminMobileReleaseDto}`，包含测试版本/id/revision，无数据库凭据。Web 可据此验证普通管理员修改已发布说明返回 403、超级管理员编辑期间旧公开内容保留、确认后替换。样本不是安装包发布验证。
