@@ -321,15 +321,17 @@ restore_journal() {
       return 0
     fi
   fi
-  cp -p -- "$JOURNAL/backend.env" "$ENV_NEXT" || return 1
-  sync -f "$ENV_NEXT" || return 1
-  mv -fT -- "$ENV_NEXT" "$ENV_FILE" || return 1
-  if [ -f "$JOURNAL/history.tsv" ]; then
-    cp -p -- "$JOURNAL/history.tsv" "$HISTORY_FILE" || return 1
-  elif [ -e "$HISTORY_FILE" ]; then
-    rm -- "$HISTORY_FILE" || return 1
+  if [ -f "$JOURNAL/policy-started" ]; then
+    cp -p -- "$JOURNAL/backend.env" "$ENV_NEXT" || return 1
+    sync -f "$ENV_NEXT" || return 1
+    mv -fT -- "$ENV_NEXT" "$ENV_FILE" || return 1
+    if [ -f "$JOURNAL/history.tsv" ]; then
+      cp -p -- "$JOURNAL/history.tsv" "$HISTORY_FILE" || return 1
+    elif [ -e "$HISTORY_FILE" ]; then
+      rm -- "$HISTORY_FILE" || return 1
+    fi
+    if [ "$SKIP_RESTART" != true ]; then restore_backend || return 1; fi
   fi
-  if [ "$SKIP_RESTART" != true ]; then restore_backend || return 1; fi
   [ "$status_failed" = false ] || return 1
   if [ -n "${token:-}" ]; then notes_command abort "{\"operationId\":\"$token\"}" >/dev/null || return 1; fi
   rm -rf -- "$JOURNAL"
@@ -398,6 +400,8 @@ if [ "$MODE" = promote ]; then
 fi
 if [ "$MODE" = promote ]; then write_policy "$ENV_NEXT" true; else write_policy "$ENV_NEXT" false; fi
 sync -f "$ENV_NEXT"
+touch "$JOURNAL/policy-started"
+sync -f "$JOURNAL/policy-started"
 mv -fT -- "$ENV_NEXT" "$ENV_FILE"
 if [ "$SKIP_RESTART" != true ]; then restart_and_verify; fi
 

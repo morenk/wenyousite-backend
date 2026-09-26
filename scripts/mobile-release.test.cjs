@@ -54,7 +54,7 @@ else if(url.endsWith('/meta')) {
 } else if(url.endsWith('/health')) console.log('{}'); else process.exit(1);
 `,{mode:0o700});
   const systemctl=path.join(root,'systemctl');
-  fs.writeFileSync(systemctl,'#!/bin/sh\nexit 0\n',{mode:0o700});
+  fs.writeFileSync(systemctl,`#!${process.execPath}\nrequire('node:fs').appendFileSync(__dirname+'/systemctl.log',process.argv.slice(2).join(' ')+'\\n');\n`,{mode:0o700});
   const env={...process.env,PATH:root+':'+process.env.PATH,BACKEND_ENV_FILE:envFile,MOBILE_RELEASE_HISTORY_FILE:history,MOBILE_RELEASE_CURL_BIN:curl,MOBILE_RELEASE_NODE_BINARY:process.execPath,MOBILE_RELEASE_NOTES_HELPER:helper,MOBILE_RELEASE_SKIP_RESTART:'false'};
   const run=(options=args)=>spawnSync('bash',[script,...options],{env,encoding:'utf8',timeout:20000});
   const flags=value=>fs.writeFileSync(path.join(root,'flags.json'),JSON.stringify(value));
@@ -73,6 +73,7 @@ test('预检只读且机器输出固定；晋级绑定 revision，同 build 幂�
 for(const stage of ['begin','publish','commit','finish','meta','public']) test(`失败 ${stage} 恢复原策略/历史并可重试`,t=>{
  const f=fixture(t);f.flags({fail:stage});const r=f.run();assert.notEqual(r.status,0);
  assert.equal(fs.readFileSync(f.envFile,'utf8'),f.original);assert.equal(fs.existsSync(f.history),false);assert.equal(fs.existsSync(f.journal),false,r.stderr);
+ if(stage==='begin')assert.equal(fs.existsSync(path.join(f.root,'systemctl.log')),false,'说明领取失败不得重启服务');
  f.flags({});const retry=f.run();assert.equal(retry.status,0,retry.stderr);assert.equal(fs.readFileSync(f.history,'utf8').trim().split('\n').length,1);
 });
 test('TSV 原子替换失败补偿且重试不遗漏说明登记',t=>{
