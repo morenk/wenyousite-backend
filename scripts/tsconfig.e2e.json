@@ -14,6 +14,7 @@
     "e2e-guard.ts",
     "e2e-runner.ts",
     "mobile-releases.integration.ts",
+    "mobile-release-preview.ts",
     "e2e-admin-fixtures.integration.ts",
     "e2e-guard.test.ts",
     "e2e-processes.test.ts",
