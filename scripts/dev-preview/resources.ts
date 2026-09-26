@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
 import { ownedGroup, processStart, stopOwnedGroup } from '../e2e-processes';
-import { Session, databaseUrl, environment, load, save } from './common';
+import { Session, databaseUrl, environment, load, sameBoot, save } from './common';
 
 export function runTool(s: Session, file: string, args: string[], env: NodeJS.ProcessEnv = {}) {
   return execFileSync(file,args,{ cwd:s.root, env:{...environment(s),...env},stdio:'pipe' });
@@ -22,10 +22,12 @@ export function launch(s: Session, name: string, file: string, args: string[], e
   } finally { closeSync(fd); }
 }
 export async function stop(s: Session) {
+  if(!sameBoot(s)){s.processes=[];}
   for (const p of [...s.processes].reverse()) await stopOwnedGroup(p.group,s.runId,s.root,p.started);
   s.processes=[]; s.state='stopped'; save(s);
 }
 export function alive(s: Session, name: string) {
+  if(!sameBoot(s))return false;
   const p=s.processes.find(p=>p.name===name);
   return !!p && ownedGroup(p.group,s.runId,s.root,p.started).length>0;
 }

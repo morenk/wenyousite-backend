@@ -18,7 +18,7 @@ export async function gateway(name:string) {
   const storage=new S3rver({directory:join(s.root,'uploads'),silent:true,resetOnClose:false,allowMismatchedSignatures:false,vhostBuckets:false,configureBuckets:[{name:'preview',configs:[cors]}]});
   await storage.configureBuckets();
   const s3=storage.callback();
-  const local=new S3Client({endpoint:c.media.origin,region:'us-east-1',forcePathStyle:true,credentials:{accessKeyId:'S3RVER',secretAccessKey:'S3RVER'}});
+  const local=new S3Client({endpoint:c.media.origin,region:'us-east-1',forcePathStyle:true,credentials:{accessKeyId:'S3RVER',secretAccessKey:s.mediaSecret!}});
   const mediaText=readFileSync(join(s.root,'historical-media.json'),'utf8');
   assert.equal(hash(mediaText),s.snapshot.mediaSha256,'历史媒体映射校验失败');
   const map=JSON.parse(mediaText) as Record<string,string>;
@@ -80,7 +80,7 @@ export async function gateway(name:string) {
   const media=createServer((req,res)=>{
     void (async()=>{
       if(!await guard(req,res,'media'))return;
-      try {await verifyS3Signature(req,c.media.origin);} catch {send(res,403,{error:'PREVIEW_S3_SIGNATURE_INVALID'});return;}
+      try {await verifyS3Signature(req,c.media.origin,Date.now(),s.mediaSecret);} catch {send(res,403,{error:'PREVIEW_S3_SIGNATURE_INVALID'});return;}
       const u=new URL(req.url||'/',c.media.origin);
       assert(u.pathname.startsWith('/preview/'),'只允许本会话桶');
       const key=decodeURIComponent(u.pathname.slice('/preview/'.length));

@@ -11,6 +11,7 @@ import { ensure } from './webe2e-cleanup';
 import { registry } from './e2e-registry';
 import { processStart, stopOwnedGroup } from './e2e-processes';
 import { cleanupDiagnostic } from './e2e-cleanup-diagnostics';
+const {acquireHeavyLease,registerHeavyGroup}=require('./dev-heavy.mjs') as {acquireHeavyLease:()=>Promise<()=>Promise<void>>;registerHeavyGroup:(pid:number)=>void};
 const childOwners = new WeakMap<ChildProcess, { runId: string; root: string; started?: string }>();
 
 export function cleanEnvironment(): NodeJS.ProcessEnv {
@@ -43,6 +44,10 @@ export interface Resources {
   verify: () => Promise<void>; logPath: (child: ChildProcess) => string;
 }
 export async function withResources<T>(use: (resources: Resources) => Promise<T>): Promise<T> {
+  const release=await acquireHeavyLease();
+  try{return await withResourcesHeld(use);}finally{await release();}
+}
+async function withResourcesHeld<T>(use: (resources: Resources) => Promise<T>): Promise<T> {
   ensure(process.getuid?.() !== 0, '隔离 runner 必须由开发身份运行，禁止 root 数据进程');
   const pgBin = process.env.E2E_PG_BIN;
   const redisBin = process.env.E2E_REDIS_BIN;
@@ -69,6 +74,7 @@ export async function withResources<T>(use: (resources: Resources) => Promise<T>
     const child = spawn(command, args, { cwd, env: { ...childEnv, E2E_RUN_ID: runId, E2E_RESOURCE_ROOT: root }, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
     children.push(child);
     childOwners.set(child, { runId, root, started: child.pid ? processStart(child.pid) : undefined });
+    if(child.pid)registerHeavyGroup(child.pid);
     if (child.pid) processRegistry.push({ group: child.pid, started: processStart(child.pid) });
     writeFileSync(join(root, 'processes.json'), JSON.stringify({ runId, root, supervisorPid: process.pid, supervisorStart: processStart(process.pid), processes: processRegistry }), { mode: 0o600 });
     child.on('error', () => undefined);

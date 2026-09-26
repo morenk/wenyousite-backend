@@ -40,3 +40,12 @@ test('AWS SDK 内部 HEAD/PUT/DELETE header 签名兼容，匿名仅GET/HEAD',as
   await assert.rejects(()=>verifyS3Signature({method:'PUT',headers:{host:'127.0.0.1:43888'},url:'/preview/image.png'},origin));
   client.destroy();
 });
+
+test('相同固定媒体端口拒绝其他批次的有效预签名 PUT',async()=>{
+ const oldClient=new S3Client({...config,credentials:{accessKeyId:'S3RVER',secretAccessKey:'old-batch-secret'}});
+ const url=new URL(await getSignedUrl(oldClient,new PutObjectCommand({Bucket:'preview',Key:'same-key.png',ContentType:'image/png'}),{expiresIn:600}));
+ const req={method:'PUT',url:url.pathname+url.search,headers:{host:url.host,'content-type':'image/png'}};
+ await verifyS3Signature(req,origin,Date.now(),'old-batch-secret');
+ await assert.rejects(()=>verifyS3Signature(req,origin,Date.now(),'new-batch-secret'));
+ oldClient.destroy();
+});

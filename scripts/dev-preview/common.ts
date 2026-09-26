@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { userInfo } from 'node:os';
 import { join, resolve } from 'node:path';
 import { cleanEnvironment } from '../e2e-resources';
 
@@ -28,7 +28,7 @@ export interface Session {
   state: 'initializing' | 'ready' | 'stopped' | 'failed'; initialized: boolean; backendSha: string; sourceDigest: string; sourceDirty: boolean;
   snapshot: Snapshot; ports: { postgres: number; redis: number; backend: number; media: number; api: number; web: number };
   secrets: { owner: string; app: string; redis: string; jwt: string; pepper: string };
-  redisInstance?: string;
+  redisInstance?: string; bootId?: string; mediaSecret?: string;
   processes: Array<{ name: string; group: number; started: string }>;
   tools: { pg: string; redis: string; library?: string };
 }
@@ -53,30 +53,32 @@ export function writePrivate(path: string, value: unknown) {
   renameSync(temp, path);
 }
 export function stateRoot() {
-  return privateDirectory(resolve(process.env.PREVIEW_STATE_ROOT || join(homedir(), '.local/state/wenyousite-preview')), true);
+  return privateDirectory(resolve(process.env.PREVIEW_STATE_ROOT || join(userInfo().homedir, '.local/state/wenyousite-preview')), true);
 }
 export function sessionRoot(name: string) { return join(stateRoot(), safeName(name)); }
 export function save(s: Session) { writePrivate(join(s.root, 'session.json'), s); }
-export function load(name: string) {
-  const root = privateDirectory(sessionRoot(name));
+export function loadAt(parent: string, name: string, requireOwner = false) {
+  const root = privateDirectory(join(privateDirectory(parent), safeName(name)));
   const s = JSON.parse(readFileSync(privateFile(join(root, 'session.json')), 'utf8')) as Session;
-  assert(s.version === 1 && s.sessionId === name && s.uid === process.getuid?.() && s.root === root && s.worktree === REPO && /^preview_[a-f0-9]{24}$/.test(s.runId), '会话归属不符');
+  assert(s.version === 1 && s.sessionId === name && s.uid === process.getuid?.() && s.root === root && (!requireOwner || s.worktree === REPO) && /^preview_[a-f0-9]{24}$/.test(s.runId), '会话归属不符');
   const own = JSON.parse(readFileSync(privateFile(join(root, 'ownership.json')), 'utf8'));
   assert(own.runId === s.runId && own.root === root && own.uid === s.uid && own.worktree === s.worktree, '归属登记漂移');
   assert(Object.values(s.secrets).every(v=>/^[a-f0-9]{64}$/.test(v)), '私有凭据格式漂移');
+  assert(s.mediaSecret===undefined||/^[a-f0-9]{64}$/.test(s.mediaSecret),'媒体签名身份漂移');
   Object.values(s.ports).forEach(safePort);
   assert(new Set(Object.values(s.ports)).size === Object.values(s.ports).length, '端口重复');
   return s;
 }
+export function load(name: string) { return loadAt(stateRoot(), name, true); }
 export function environment(s?: Session) {
   return { ...cleanEnvironment(), ...(s?.tools.library ? { LD_LIBRARY_PATH: s.tools.library } : process.env.E2E_LIBRARY_PATH ? { LD_LIBRARY_PATH: process.env.E2E_LIBRARY_PATH } : {}) };
 }
 export function sha() { return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: REPO, encoding: 'utf8' }).trim(); }
 export function sourceEvidence() {
-  const files = execFileSync('git', ['ls-files', '-co', '--exclude-standard', '-z', '--', 'src', 'prisma', 'scripts/dev-preview', 'package.json', 'pnpm-lock.yaml'], {cwd:REPO}).toString().split('\0').filter(Boolean).sort();
+  const files = execFileSync('git', ['ls-files', '-co', '--exclude-standard', '-z', '--', 'src', 'prisma', 'scripts/dev-preview', 'scripts/dev-heavy.mjs', 'scripts/e2e-resources.ts', 'scripts/e2e-processes.ts', 'package.json', 'pnpm-lock.yaml'], {cwd:REPO}).toString().split('\0').filter(Boolean).sort();
   const digest = createHash('sha256');
   for (const file of [...new Set(files)]) { digest.update(file + '\0'); if (existsSync(join(REPO,file))) digest.update(readFileSync(join(REPO,file))); }
-  const dirty = execFileSync('git',['status','--porcelain','--','src','prisma','scripts/dev-preview','package.json','pnpm-lock.yaml'],{cwd:REPO,encoding:'utf8'}).length>0;
+  const dirty = execFileSync('git',['status','--porcelain','--','src','prisma','scripts/dev-preview','scripts/dev-heavy.mjs','scripts/e2e-resources.ts','scripts/e2e-processes.ts','package.json','pnpm-lock.yaml'],{cwd:REPO,encoding:'utf8'}).length>0;
   return {sourceDigest:digest.digest('hex'),sourceDirty:dirty};
 }
 export function databaseUrl(s: Session, owner = false) {
@@ -102,4 +104,12 @@ export async function verifyConsumer(s: Session) {
     assert(response.ok && response.headers.get(HEADER) === s.runId && response.headers.get('content-type')?.includes('application/json'), '预览响应身份不符');
     assert.deepEqual(await response.json(), identity(s, role), '预览实际资源不符');
   }
+}
+
+export function sameBoot(s:Session) {
+  if(s.bootId)return s.bootId===readFileSync('/proc/sys/kernel/random/boot_id','utf8').trim();
+  // v1 旧登记没有 bootId；主机启动前落盘的进程登记不可能仍存活。
+  const boot=readFileSync('/proc/stat','utf8').match(/^btime (\d+)$/m);
+  assert(boot,'无法核验主机启动时间');
+  return lstatSync(join(s.root,'session.json')).mtimeMs>=Number(boot[1])*1000;
 }
