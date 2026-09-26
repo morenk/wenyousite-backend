@@ -19,3 +19,8 @@ test('跨任务重命令竞争被拒绝，父子嵌套可重入，结束释放�
 test('资源租约释放后不能凭本进程残留登记绕过锁',async()=>{
  const inherited=inheritedHeavy();const release=await acquireHeavyLease();assert(inheritedHeavy());await release();assert.equal(inheritedHeavy(),inherited);
 });
+
+test('内部入口不能绕过实际 flock',async()=>{
+ const bypass=spawn(process.execPath,[script,'--held',process.execPath,'-e','process.exit(0)'],{stdio:'ignore'});
+ assert.equal(await new Promise(ok=>bypass.once('close',ok)),1);
+});

@@ -7,7 +7,7 @@ import { IncomingMessage } from 'node:http';
 import { hash } from './common';
 
 /** s3rver 的 V4 校验未实现；网关验证 AWS SigV4 canonical request，保持预签名 Host/端口语义。 */
-export async function verifyS3Signature(req:Pick<IncomingMessage,'method'|'headers'|'url'>,origin:string,now=Date.now()) {
+export async function verifyS3Signature(req:Pick<IncomingMessage,'method'|'headers'|'url'>,origin:string,now=Date.now(),secretAccessKey='S3RVER') {
   if(req.method==='OPTIONS')return;
   const url=new URL(req.url||'/',origin);
   const rawPath=(req.url||'/').split('?',1)[0];
@@ -48,7 +48,7 @@ export async function verifyS3Signature(req:Pick<IncomingMessage,'method'|'heade
   }
   selected['x-amz-content-sha256']=presigned?'UNSIGNED-PAYLOAD':String(req.headers['x-amz-content-sha256']||hash(''));
   // 用同一官方签名器重建 canonical request；query 的 signature 字段由其规范化逻辑排除。
-  const signer=new SignatureV4({service:'s3',region:'us-east-1',credentials:{accessKeyId:'S3RVER',secretAccessKey:'S3RVER'},sha256:Sha256,uriEscapePath:false,applyChecksum:false});
+  const signer=new SignatureV4({service:'s3',region:'us-east-1',credentials:{accessKeyId:'S3RVER',secretAccessKey},sha256:Sha256,uriEscapePath:false,applyChecksum:false});
   const unsigned=new Set(['x-amz-date','x-amz-content-sha256'].filter(name=>!headers.includes(name)));
   const signed=await signer.sign(new HttpRequest({protocol:url.protocol,hostname:url.hostname,port:Number(url.port),method:req.method,path:rawPath,query:Object.fromEntries(query.entries()),headers:selected}),{signingDate:new Date(stamp),unsignableHeaders:unsigned});
   const result=signed.headers.authorization.match(/SignedHeaders=([^,]+), Signature=([a-f0-9]{64})$/);

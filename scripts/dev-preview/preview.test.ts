@@ -55,14 +55,14 @@ test('历史对象映射包含派生图且移除 bucket 前缀',()=>{
  const tables=parseCopy('COPY public.media (key, url, display_asset) FROM stdin;\na\thttps://media.example/a\t\\N\n\\.\n');
  assert.equal(tables.media[0].display_asset,null);
 });
-test('同会话竞争只有一个持有者，死锁恢复不移除活锁',async()=>{
+test('不同会话与状态根竞争同一个主机锁',async()=>{
  const name='unit-lock-'+process.pid;
  let release:()=>void=()=>{};
  const held=withLock(name,()=>new Promise<void>(ok=>{release=ok;}));
- await assert.rejects(()=>withLock(name,async()=>{}));
- release();await held;
- const file=join(stateRoot(),name+'.lock');
- writeFileSync(file,JSON.stringify({pid:process.pid,started:'0'}),{mode:0o600});
- await withLock(name,async()=>{assert(existsSync(file));});
- assert(!existsSync(file));
+ await new Promise(ok=>setTimeout(ok,150));
+ const original=process.env.PREVIEW_STATE_ROOT;const other=mkdtempSync(join(tmpdir(),'preview-lock-'));
+ process.env.PREVIEW_STATE_ROOT=other;
+ try{await assert.rejects(()=>withLock('another-session',async()=>{}));}
+ finally{if(original===undefined)delete process.env.PREVIEW_STATE_ROOT;else process.env.PREVIEW_STATE_ROOT=original;release();await held;rmSync(other,{recursive:true});}
+ await withLock(name,async()=>{});
 });

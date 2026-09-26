@@ -60,8 +60,16 @@ export async function acquireHeavyLease() {
   await new Promise((ok,fail)=>{helper.once('error',fail);helper.stdout.once('data',ok);helper.once('close',()=>fail(new Error('DEV_HEAVY_BUSY')));});
   return async()=>{const saved=owner();if(saved?.pid===process.pid)writeOwner({...saved,active:false});helper.stdin.end();await closed;};
 }
-async function main(){const [mode,command,...args]=process.argv.slice(2);if(mode==='--lease'){assertNoOrphan();const parent=proc(Number(command));assert(parent&&parent.started===args[0]);writeOwner({pid:parent.pid,started:parent.started,boot:boot(),groups:[],worktree:process.cwd()});process.stdout.write('locked');process.stdin.resume();return;}assert(['--','--held'].includes(mode)&&command,'使用 dev-heavy.mjs -- command args');
-  if(mode==='--held'){assertNoOrphan();process.exitCode=await execute(command,args,true);}else process.exitCode=await runHeavy(command,args);
+function assertHeldLock() {
+  assert(realpathSync('/proc/'+process.ppid+'/exe')===realpathSync('/usr/bin/flock'),'只允许 flock 调用内部入口');
+  const expected=join(controlRoot(),'heavy.lock');let held=false;
+  for(const fd of readdirSync('/proc/'+process.ppid+'/fd'))try{
+    if(realpathSync('/proc/'+process.ppid+'/fd/'+fd)===expected&&/FLOCK\s+ADVISORY\s+WRITE/.test(readFileSync('/proc/'+process.ppid+'/fdinfo/'+fd,'utf8')))held=true;
+  }catch{/* 其他文件描述符关闭时继续核验登记锁。 */}
+  assert(held,'内部入口必须实际持有规范重任务锁');
+}
+async function main(){const [mode,command,...args]=process.argv.slice(2);if(mode==='--lease'){assertHeldLock();assertNoOrphan();const parent=proc(Number(command));assert(parent&&parent.started===args[0]);writeOwner({pid:parent.pid,started:parent.started,boot:boot(),groups:[],worktree:process.cwd()});process.stdout.write('locked');process.stdin.resume();return;}assert(['--','--held'].includes(mode)&&command,'使用 dev-heavy.mjs -- command args');
+  if(mode==='--held'){assertHeldLock();assertNoOrphan();process.exitCode=await execute(command,args,true);}else process.exitCode=await runHeavy(command,args);
   if(process.exitCode===75)console.error(JSON.stringify({error:'DEV_HEAVY_BUSY',detail:'另一个构建或 E2E 正在运行，请等待其完成'}));
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url))void main().catch(()=>{console.error(JSON.stringify({error:'DEV_HEAVY_FAILED',detail:'重任务锁或进程归属核验失败'}));process.exitCode=1;});

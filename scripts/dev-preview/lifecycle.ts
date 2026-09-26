@@ -1,31 +1,16 @@
+import { assertExclusive, assertFixed, bootId, FIXED_PORTS, processesAlive, withControlLock } from './control';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, unlinkSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { createServer } from 'node:net';
 import { unusedPort } from '../e2e-resources';
-import { processStart } from '../e2e-processes';
 import { businessDate, consumer, databaseUrl, environment, load, privateDirectory, REPO, safeName, safePort, save, Session, sessionRoot, sha, sourceEvidence, stateRoot, verifyConsumer, writePrivate } from './common';
 import { readSnapshot } from './snapshot';
 import { alive, clients, launch, runTool, stop, verifyResources, waitFor } from './resources';
 
-export async function withLock<T>(name:string, use:()=>Promise<T>) {
-  safeName(name);
-  const file=join(stateRoot(),name+'.lock');
-  const recovery=file+'.recovery';
-  writeFileSync(recovery,'',{mode:0o600,flag:'wx'});
-  try {
-  if(existsSync(file)) {
-    const lock=JSON.parse(readFileSync(file,'utf8'));
-    assert(Number.isInteger(lock.pid)&&typeof lock.started==='string','操作锁非法');
-    assert(processStart(lock.pid)!==lock.started,'同一会话操作正在运行');
-    unlinkSync(file);
-  }
-  writeFileSync(file,JSON.stringify({pid:process.pid,started:processStart(process.pid)}),{mode:0o600,flag:'wx'});
-  } finally { unlinkSync(recovery); }
-  try { return await use(); } finally { unlinkSync(file); }
-}
+export async function withLock<T>(name:string,use:()=>Promise<T>) { safeName(name); return withControlLock(use); }
 async function available(port:number) {
   const server=createServer();
   await new Promise<void>((ok,fail)=>{server.once('error',fail);server.listen(port,'127.0.0.1',ok);});
@@ -44,13 +29,14 @@ async function create(name:string,args:Record<string,string>) {
   const tools=toolPaths();
   const root=sessionRoot(name);
   const ports={} as Session['ports'];
-  ports.web=safePort(Number(args['web-port']||4310));
-  for(const key of ['postgres','redis','backend','media','api'] as const) {
+  assert(!args['web-port']||Number(args['web-port'])===FIXED_PORTS.web,'Web 预览端口固定为 4310');
+  Object.assign(ports,FIXED_PORTS);
+  for(const key of ['postgres','redis','api'] as const) {
     do { ports[key]=safePort(await unusedPort()); } while(Object.values(ports).filter(x=>x===ports[key]).length>1);
   }
   const secret=()=>randomBytes(32).toString('hex');
   mkdirSync(root,{mode:0o700});
-  const s:Session={ version:1,sessionId:name,runId:'preview_'+randomBytes(12).toString('hex'),root,worktree:REPO,uid:process.getuid!(),state:'initializing',initialized:false,backendSha:sha(),...sourceEvidence(),snapshot:snapshot.metadata,ports,secrets:{owner:secret(),app:secret(),redis:secret(),jwt:secret(),pepper:secret()},processes:[],tools };
+  const s:Session={ version:1,sessionId:name,runId:'preview_'+randomBytes(12).toString('hex'),root,worktree:REPO,uid:process.getuid!(),state:'initializing',initialized:false,backendSha:sha(),...sourceEvidence(),snapshot:snapshot.metadata,ports,secrets:{owner:secret(),app:secret(),redis:secret(),jwt:secret(),pepper:secret()},processes:[],tools,bootId:bootId(),mediaSecret:secret() };
   save(s);
   writePrivate(join(root,'ownership.json'),{runId:s.runId,root,uid:s.uid,worktree:REPO});
   copyFileSync(snapshot.dump,join(root,'database.dump'));
@@ -93,20 +79,24 @@ function appEnvironment(s:Session):NodeJS.ProcessEnv {
     REDIS_HOST:'127.0.0.1',REDIS_PORT:String(s.ports.redis),REDIS_DB:'0',REDIS_PASSWORD:s.secrets.redis,
     JWT_ACCESS_SECRET:s.secrets.jwt,ADMIN_CHALLENGE_PEPPER:s.secrets.pepper,PUSH_ENABLED:'false',SENTRY_DSN:'',
     SES_SMTP_HOST:'',SES_SMTP_USER:'',SES_SMTP_PASS:'',SES_FROM_ADDRESS:'preview@preview.invalid',PREVIEW_MAILBOX_DIR:join(s.root,'mailbox'),
-    GOOGLE_APPLICATION_CREDENTIALS:'',COS_ENDPOINT:c.media.origin,COS_REGION:'us-east-1',COS_BUCKET:'preview',COS_ACCESS_KEY_ID:'S3RVER',COS_SECRET_ACCESS_KEY:'S3RVER',
+    GOOGLE_APPLICATION_CREDENTIALS:'',COS_ENDPOINT:c.media.origin,COS_REGION:'us-east-1',COS_BUCKET:'preview',COS_ACCESS_KEY_ID:'S3RVER',COS_SECRET_ACCESS_KEY:s.mediaSecret!,
     ENABLE_API_DOCS:'false',LOG_LEVEL:'info',BUILD_SHA:s.backendSha,APP_URL:c.backend.origin,WEB_APP_URL:c.web.origin,CORS_ORIGINS:c.web.origin,
     TS_NODE_PROJECT:join(REPO,'tsconfig.json')};
 }
 export async function start(name:string,args:Record<string,string>) {
   assert(process.getuid?.()!==0,'预览进程禁止 root');
+  await assertExclusive(name);
   let s:Session;
   const existing=existsSync(sessionRoot(name));
   if(existing) {
     s=load(name);
-    if(s.state==='ready') { await verifyConsumer(s); return s; }
+    if(args.confirm)assert.equal(args.confirm,s.runId,'runId 已变化');
+    assertFixed(s);
+    if(s.state==='ready'&&s.mediaSecret&&s.bootId) { try { await verifyConsumer(s); return s; } catch { /* 自有失活会话可按登记安全恢复。 */ } }
     assert(s.initialized,'初始化未完成；需显式 reset');
     assert(!args['web-port']||Number(args['web-port'])===s.ports.web,'已有会话端口不可隐式变更');
     await stop(s);
+    s.bootId=bootId();s.mediaSecret ||= randomBytes(32).toString('hex');
     s.state='initializing';s.backendSha=sha();Object.assign(s,sourceEvidence());save(s);
   } else s=await create(name,args);
   try {
@@ -163,4 +153,25 @@ export async function reset(name:string,args:Record<string,string>) {
   readSnapshot(args.snapshot||join(process.env.PREVIEW_SNAPSHOT_ROOT||join(homedir(),'.local/state/wenyousite-preview-snapshots'),businessDate()));
   await stop(s);await cleanup(s,args.confirm);
   return start(name,{...args,'web-port':args['web-port']||String(s.ports.web)});
+}
+
+export async function rebind(name:string,confirm:string) {
+  const s=load(name);assert.equal(confirm,s.runId,'必须确认精确 runId');
+  assert(!processesAlive(s),'必须先暂停全部自有进程');
+  assert(['stopped','failed'].includes(s.state),'先 pause 再 rebind');
+  assertRebindSafe(s);
+  Object.assign(s.ports,FIXED_PORTS);
+  assert(new Set(Object.values(s.ports)).size===Object.values(s.ports).length,'内部端口与固定端口冲突，保留数据并停止');
+  s.mediaSecret ||= randomBytes(32).toString('hex');save(s);return s;
+}
+
+export function assertRebindSafe(s:Session) {
+  if(s.ports.media===FIXED_PORTS.media)return;
+  const uploads=join(s.root,'uploads');
+  const inspect=(dir:string)=>{for(const entry of readdirSync(dir,{withFileTypes:true})){
+    assert(!entry.isSymbolicLink(),'媒体目录归属不可核验');
+    if(entry.isDirectory())inspect(join(dir,entry.name));
+    else assert(entry.isFile()&&entry.name==='._S3rver_cors.xml','PREVIEW_MEDIA_REBIND_REQUIRES_MIGRATION: 旧端口已有媒体对象；先独立迁移引用，保留原归属与数据');
+  }};
+  if(existsSync(uploads))inspect(uploads);
 }

@@ -6,7 +6,7 @@
 
 `pnpm dev:preview start --session <批次名> --snapshot <目录> --web-port <端口>` 创建实例；再次启动同名实例复用。可省略 --snapshot 自动选择 PREVIEW_SNAPSHOT_ROOT 下当天目录；不存在则停止。快照按北京时间日期登记，首次创建只接受当天、SHA-256 校验成功的快照。运行实例跨天保持原数据。`resume` 是 `start` 的别名。
 `pnpm dev:preview status --session <批次名>` 输出状态和 consumer 路径；`export` 输出 consumer JSON；`stop` 终止登记进程并保留磁盘数据；`reset --confirm <sessionId> --snapshot <目录>` 显式重建数据（仍保留会话编号，生成新 runId）；`cleanup --confirm <sessionId>` 仅移除已停止且身份匹配的登记目录。没有隐式全局清理。
-批次名匹配 `[a-z][a-z0-9-]{2,47}`，只在创建它的 Backend Worktree 中控制；每次启动持有原子操作锁。启动失败停止本轮所有已登记子进程，保留数据和私有诊断。
+批次名匹配 `[a-z][a-z0-9-]{2,47}`，由当前 owner Backend Worktree 控制；跨 owner 暂停与迁移只接受下文显式 runId 确认入口。每次启动持有主机全局 flock。启动失败停止本轮所有已登记子进程，保留数据和私有诊断。
 管理身份在单独审核启用后运行 `dev:preview:snapshot --source-env <root私有文件> --output <受限目录> --source-sha <40位SHA> --media-origin <https域名> --pg-bin <二进制目录> --publish-root <开发私有目录> [--backup-root <逻辑备份目录>]`，优先复用当天校验过的逻辑备份，没有才只读导出 PG custom archive，提取 migration 版本与允许读取的历史对象映射；相同日期只复用校验成功的快照。开发身份不获得源凭据。
 
 ## 消费者描述
@@ -25,7 +25,7 @@ JSON schema 在 `contracts/dev-preview-session.schema.json`。字段：
 `{ version: 1, kind: "wenyou-dev-preview", sessionId, runId, role: "backend" | "media", resourceId: runId, snapshotSha256 }`。
 同一响应头 `X-Wenyou-Preview-Run` 必须等于 runId，body 的 sessionId、runId、resourceId、snapshotSha256 必须与消费者描述一致。后端启动前已核验真实 PostgreSQL cluster_name、Redis 实例及归属标记；媒体进程由同一登记管理，使用独立目录。
 所有后端业务请求必须发送 `X-Wenyou-Preview-Run: <runId>`；缺少或错误返回 409，不执行业务请求。业务响应也携带该头。媒体预签名 URL 保持原 URL，上传无需另加自定义头（避免改变签名）；上传前必须核验 media identity。
-Web 浏览器固化页面所属 runId 与每次 Web 启动独立产生的公开 webSessionId；业务请求携带 X-Wenyou-Preview-Run 与 X-Wenyou-Preview-Web，Web 代理先逐项核验再向 Backend 转发批次请求头。旧页面在换批次、恢复或更换 Web 任务后拒绝业务请求，客户端不配置另一 API 地址。webSessionId 与私有 Cookie token 分开；consumer 和身份 JSON 仍保持 v1，Web 响应额外携带公开 Web 生命周期头。Mobile 的 API 客户端注入此头并在登录及所有写入前确保身份已校验，连接变化重新校验。
+Web 浏览器固化页面所属 runId 与每次 Web 启动独立产生的公开 webSessionId；业务请求携带 X-Wenyou-Preview-Run 与 X-Wenyou-Preview-Web，Web 代理先逐项核验再向 Backend 转发批次请求头。旧页面在换批次、恢复或更换 Web 任务后拒绝业务请求，客户端不配置另一 API 地址。webSessionId 与私有 Cookie token 分开；consumer 和身份 JSON 仍保持 v1，Web 响应额外携带公开 Web 生命周期头。Mobile 的 API 客户端只注入 X-Wenyou-Preview-Run（不发送 Web 生命周期头），在登录及所有写入前确保身份已校验，连接变化重新校验。
 SSH 采用同端口转发 backend/media/web，Android 使用同端口 `adb reverse`；拒绝占用冲突，不悄悄换本地端口（签名 URL 含端口）。不允许 fallback 到线上 3000。identity 不属于公开业务路由，正式服务不注册它。
 
 ## 数据与外部副作用
@@ -40,14 +40,14 @@ PG/Redis 为本实例创建的独立进程；API/Worker 使用受限 `wenyousite
 
 ## 单活动批次控制协议（兼容 v1）
 
-消费者 JSON v1 不变。新建批次固定 Web `4310`、Backend `4311`、Media `4312`；内部数据库、Redis、API 仍动态分配。所有端口只监听 loopback。旧已停止批次必须执行 `rebind --session <name> --confirm <name>` 后恢复，保持 runId、账号与业务数据；媒体签名使用本批次私有密钥，旧批次签名不能写入另一个批次。
+消费者 JSON v1 不变。新建批次固定 Web `4310`、Backend `4311`、Media `4312`；内部数据库、Redis、API 仍动态分配。所有端口只监听 loopback。旧已停止批次必须执行 `rebind --session <name> --confirm <runId>` 后恢复，保持 runId、账号与业务数据；媒体签名使用本批次私有密钥，旧批次签名不能写入另一个批次。
 
 机器入口仍为 `node --import tsx scripts/dev-preview/cli.ts`：
 
 - `list` 不需要 session，跨已登记状态根及默认旧状态根列出全部批次。
 - `start/resume --session <name> [--confirm <runId>]` 对已有批次在锁内核对可选 runId，防止 list 后同名 reset；在另一个批次有存活登记进程时拒绝。启动前检查全局记录与固定端口，不终止未知进程。
 - `pause/stop --session <name> [--confirm <runId>]` 等价，精确核验后停止本批次，数据保留；只有创建者 Backend Worktree 可执行。管理入口必须带刚读取的 runId 确认，防止同名实例重置后误停。
-- `rebind --session <name> --confirm <name>` 只接受全部登记进程已停止的批次；固定端口迁移不重置数据。
+- `rebind --session <name> --confirm <runId>` 只接受全部登记进程已停止的批次；固定端口迁移不重置数据。
 - `status/export/reset/cleanup` 保留原接口与门禁。已登记 ready 但身份失效显示 unavailable，不能输出可用 consumer。
 
 切换由管理入口执行：读取 `list`，按当前条目的 `worktree` 与 `stateRoot` 调用其 `pause`，确认 `processesAlive=false`，再按目标 owner 调用 `resume`。没有隐式抢占；暂停失败时不得启动目标。所有写操作竞争同一个 OS 用户的主机锁，PREVIEW_STATE_ROOT 不改变此锁。遗留进程或身份漂移优先阻断并保留诊断。

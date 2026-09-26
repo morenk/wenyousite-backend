@@ -7,7 +7,7 @@
 已配置 E2E 只读二进制（参见 [E2E 隔离](e2e-isolation.md)）并生成 Prisma Client 后，在 Backend 任务 Worktree：
 
 ```bash
-pnpm dev:preview start --session page-layout --web-port 43881
+pnpm dev:preview start --session page-layout --web-port 4310
 pnpm dev:preview status --session page-layout
 pnpm dev:preview export --session page-layout
 pnpm dev:preview stop --session page-layout
@@ -18,13 +18,13 @@ pnpm dev:preview resume --session page-layout
 
 启动后 stdout 只输出 JSON，consumerPath 是私有消费者描述的绝对路径。机器入口为 node --import tsx scripts/dev-preview/cli.ts，command/参数与上面相同；export 只有在两个运行身份端点验证成功后输出纯消费者 JSON。status 额外输出实际 sourceSha/sourceDigest/sourceDirty；源码摘要覆盖 src、prisma、开发工具和依赖声明，dirty=true 必须标注为未提交候选。Backend 源码改变后 stop/resume 才是新一轮运行；Web/Mobile 连续改样式不重启 Backend。
 
-状态目录默认 ~/.local/state/wenyousite-preview，可通过 PREVIEW_STATE_ROOT 改到其他 0700 私有目录。每个批次固定创建它的 Backend Worktree；同名操作互斥，不接管其他 Worktree。所有服务仅监听 127.0.0.1，禁止 3000/3001/5432/6379。端口占用拒绝启动，不停止占用者。
+状态目录默认 ~/.local/state/wenyousite-preview，可通过 PREVIEW_STATE_ROOT 改到其他 0700 私有目录。每个批次固定创建它的 Backend Worktree；全局操作互斥，最多一个活动批次；旧归属只接受显式 runId 确认的 pause/adopt，不隐式接管其他 Worktree。所有服务仅监听 127.0.0.1，禁止 3000/3001/5432/6379。端口占用拒绝启动，不停止占用者。
 
 Web/Mobile 消费 [已提交的 v1 协议](dev-preview-session.md)，只获得 consumer.json。后端与媒体端点每次验证实际 PG cluster_name、Redis 实例/归属；Backend 网关还核对实际 API 监听 socket 属于登记的进程组。业务请求缺少 X-Wenyou-Preview-Run 直接拒绝。SSH、ADB reverse 必须同端口，不改预签名 URL。Web refreshToken Cookie 由网关按 runId 命名，防止不同 loopback 端口的批次覆盖彼此会话。
 
 ## 媒体与邮件
 
-每个批次使用独立目录运行仅开发依赖 s3rver 3.7.1，接入既有预签名、确认和图片 Worker。s3rver 自身未实现 SigV4 校验，预览网关使用官方 Smithy 签名器核对 canonical request、期限与同端口 Host，并拒绝匿名写入。凭据 S3RVER 仅为本机模拟 S3 固定标识，无线上权限；生产依赖不包含 s3rver。
+每个批次使用独立目录运行仅开发依赖 s3rver 3.7.1，接入既有预签名、确认和图片 Worker。s3rver 自身未实现 SigV4 校验，预览网关使用官方 Smithy 签名器核对 canonical request、期限与同端口 Host，并拒绝匿名写入。accessKeyId S3RVER 仅为本机模拟 S3 固定标识，签名 secret 每批次独立生成，均无线上权限；生产依赖不包含 s3rver。
 
 历史图片原 URL 继续只读显示。后台需要原图时，只为快照登记 key 从精确 HTTPS 源域名下载到本地 S3；先固定 DNS 的公网 IPv4，禁止重定向，限制 32 MiB 与超时。未登记对象无法触发回源。DELETE 只删本地对象并登记 tombstone，防止删除后从历史源复活；不向历史源发出任何写入。
 
@@ -40,7 +40,7 @@ pnpm dev:preview stop --session page-layout
 pnpm dev:preview cleanup --session page-layout --confirm page-layout
 ```
 
-reset 在停止旧实例前先核验新快照；产生新 runId，消费者必须重新导出连接。cleanup 必须已停止/失败，只删除当前已登记目录；身份漂移时保留现场。普通启动失败停止本轮自有进程并保留私有日志；不是清理线上数据的入口。SIGKILL 后遗留进程可用同批次 stop 逐项核验回收。锁恢复采用独立原子 recovery 锁；recovery 本身异常遗留时拒绝猜测删除，核对原进程结束后再由本任务处理该确切文件。
+reset 在停止旧实例前先核验新快照；产生新 runId，消费者必须重新导出连接。cleanup 必须已停止/失败，只删除当前已登记目录；身份漂移时保留现场。普通启动失败停止本轮自有进程并保留私有日志；不是清理线上数据的入口。SIGKILL 后遗留进程可用同批次 stop 逐项核验回收。主机 flock 随持锁进程退出自动释放；随后仍须逐项核验登记进程与启动 epoch，锁释放不表示遗留资源已停止。
 
 ## 管理入口启用与当天快照
 
@@ -105,4 +105,8 @@ env -i HOME=/root PATH=/usr/bin:/bin E2E_LIBRARY_PATH="$PREVIEW_PG_LIB" \
 
 pnpm test:preview 覆盖协议 schema、日期、保留端口、坏快照、媒体域/IP、派生对象映射、互斥与死锁恢复；pnpm test:preview:integration 创建真实独立 PG/Redis 样本，覆盖密码保留、净化、API 身份、签名上传、Worker、收件箱、错误资源、端口冲突、停止恢复、重置与清理。完整交付执行 pnpm check 及高风险 pnpm check:full。
 
-交互反馈只跑受影响检查并提供画面，视觉收敛后才执行完整交付门禁。pnpm exec tsx scripts/dev-preview/integration.ts --keep 可在同样隔离边界留一个 live-preview-acceptance 样本批次，Web 端口 43881；随机测试账号只写 VPS 本批次 sample-account.json。该样本只用于联验，不能冒称当天真实用户数据；验收结束必须 stop/cleanup，并按输出登记回收样本快照目录。
+交互反馈只跑受影响检查并提供画面，视觉收敛后才执行完整交付门禁。pnpm exec tsx scripts/dev-preview/integration.ts --keep 可在同样隔离边界留一个 live-preview-acceptance 样本批次，Web 端口 4310；随机测试账号只写 VPS 本批次 sample-account.json。该样本只用于联验，不能冒称当天真实用户数据；验收结束必须 stop/cleanup，并按输出登记回收样本快照目录。
+
+单活动列表、固定端口、旧归属 adopt 与重任务门禁见 [控制协议](dev-preview-session.md#单活动批次控制协议兼容-v1)。标准 build/check/check:full 与 withResources 隔离入口自动使用主机重任务锁；冲突退出后等待当前任务完成，不改端口或绕过入口。
+
+跨端管理入口联调需要两个新批次时，可先运行 `pnpm test:preview:integration --snapshot-only`。它只用本轮独立 PostgreSQL/Redis 创建随机账号与样本快照，源资源验证并清理后输出 `snapshotPath/snapshotRoot`，不启动预览、不占 431x、不消费真实快照。随机账号只留在 VPS `snapshotRoot/sample-account.json`，不得输出口令或复制到 Windows。随后两个任务批次均以同一已校验快照路径启动，分别创建独立数据库；验收后按 runId stop/cleanup，再核验 snapshotRoot/ownership.json 的路径、UID、Worktree 和 kind 后回收该确切样本根。此入口保留样本供联调，不代表真实用户数据验收。

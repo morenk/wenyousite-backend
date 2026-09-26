@@ -18,10 +18,11 @@ import { alive, clients, stop, waitFor } from './resources';
 
 async function run() {
   const keep=process.argv.includes('--keep');
+  const snapshotOnly=process.argv.includes('--snapshot-only');assert(!(keep&&snapshotOnly),'keep 与 snapshot-only 不可合用');
   const name=keep?'live-preview-acceptance':'preview-integration-'+randomBytes(4).toString('hex');
   const snapshots=mkdtempSync(join(tmpdir(),'preview-snapshots-'));chmodSync(snapshots,0o700);
   const account='preview_'+randomBytes(4).toString('hex');const password='Preview!'+randomBytes(12).toString('hex');
-  let sampleUserId='';
+  let sampleUserId='';let snapshotExported=false;
   try {
     await withResources(async r=>{
       await r.verify();
@@ -53,8 +54,18 @@ async function run() {
       }finally{await db.$disconnect();}
     });
     console.log(JSON.stringify({event:'source-snapshot-isolated-and-cleaned'}));
-    let s=await withLock(name,()=>start(name,{snapshot:join(snapshots,businessDate()),'web-port':keep?'43881':'43882'}));
+    if(snapshotOnly){
+      writePrivate(join(snapshots,'sample-account.json'),{account:account+'@preview.invalid',password,userId:sampleUserId,isolatedSample:true});
+      writePrivate(join(snapshots,'ownership.json'),{version:1,root:snapshots,uid:process.getuid!(),worktree:REPO,sourceSha:sha(),kind:'preview-isolated-sample'});
+      snapshotExported=true;console.log(JSON.stringify({event:'isolated-sample-snapshot-ready',snapshotPath:join(snapshots,businessDate()),snapshotRoot:snapshots,isolatedSample:true,sourceSha:sha(),resourcesCleaned:true}));return;
+    }
+
+    let s=await withLock(name,()=>start(name,{snapshot:join(snapshots,businessDate()),'web-port':'4310'}));
     const c=consumer(s);await verifyConsumer(s);
+    const second=name+'-two';
+    await assert.rejects(()=>withLock(second,()=>start(second,{snapshot:join(snapshots,businessDate())})));
+    assert(!existsSync(join(stateRoot(),second)));
+    let staleUpload='';
     const isolated=clients(s);
     try {
       assert.equal(await isolated.db.emailVerification.count(),0);assert.equal(await isolated.db.refreshToken.count(),0);
@@ -74,7 +85,7 @@ async function run() {
       };
       const png=await sharp({create:{width:128,height:128,channels:3,background:'#dd8844'}}).png().toBuffer();
       const upload=await call('/media/upload-url',{filename:'preview.png',contentType:'image/png',size:png.length,purpose:'AVATAR'});
-      assert.equal(new URL(upload.uploadUrl).origin,c.media.origin);
+      assert.equal(new URL(upload.uploadUrl).origin,c.media.origin);staleUpload=upload.uploadUrl;
       const wrongSignature=new URL(upload.uploadUrl);wrongSignature.searchParams.set('X-Amz-Signature','0'.repeat(64));
       assert.equal((await fetch(wrongSignature,{method:'PUT',headers:{'content-type':'image/png'},body:png})).status,403);
       const put=await fetch(upload.uploadUrl,{method:'PUT',headers:{'content-type':'image/png'},body:png});
@@ -84,7 +95,7 @@ async function run() {
       await waitFor(async()=>{processed=await call('/media/'+upload.mediaId);assert.equal(processed.status,'COMPLETED');},'图片 Worker 未完成',120);
       const image=await fetch(processed.url);assert(image.ok);
       assert((await image.arrayBuffer()).byteLength>0);
-      const localStorage=new S3Client({endpoint:c.media.origin,region:'us-east-1',forcePathStyle:true,credentials:{accessKeyId:'S3RVER',secretAccessKey:'S3RVER'}});
+      const localStorage=new S3Client({endpoint:c.media.origin,region:'us-east-1',forcePathStyle:true,credentials:{accessKeyId:'S3RVER',secretAccessKey:s.mediaSecret!}});
       const objectKey=decodeURIComponent(new URL(processed.url).pathname.slice('/preview/'.length));
       await localStorage.send(new DeleteObjectCommand({Bucket:'preview',Key:objectKey}));
       assert.equal((await fetch(processed.url)).status,404);localStorage.destroy();
@@ -108,6 +119,12 @@ async function run() {
     await assert.rejects(()=>verifyConsumer(s));
     await withLock(name,()=>stop(s));
     assert(existsSync(join(s.root,'postgres')));
+    const secondSession=await withLock(second,()=>start(second,{snapshot:join(snapshots,businessDate())}));
+    try {
+      assert.equal((await fetch(c.backend.apiBase+'/auth/login',{method:'POST',headers:{[HEADER]:runId,'content-type':'application/json'},body:'{}'})).status,409);
+      assert.equal((await fetch(staleUpload,{method:'PUT',headers:{'content-type':'image/png'},body:Buffer.alloc(0)})).status,403);
+    }finally{await withLock(second,async()=>{await stop(secondSession);await cleanup(secondSession,second);});}
+
     const blocker=createServer((_req,res)=>res.end('foreign process'));
     await new Promise<void>(ok=>blocker.listen(s.ports.backend,'127.0.0.1',ok));
     await assert.rejects(()=>withLock(name,()=>start(name,{})));
@@ -118,12 +135,12 @@ async function run() {
     s=await withLock(name,()=>reset(name,{confirm:name,snapshot:join(snapshots,businessDate())}));assert.notEqual(s.runId,runId);
     await withLock(name,async()=>{await stop(s);await cleanup(s,name);});
     assert(!existsSync(s.root));
-    console.log(JSON.stringify({event:'passed',scenarios:['killed-api-fails-identity','resource-mismatch-denied','port-conflict-preserves-foreign-process','stop-preserves','resume-keeps-run','reset-new-run','cleanup-owned'],resourcesCleaned:true}));
+    console.log(JSON.stringify({event:'passed',scenarios:['global-single-active','fixed-port-switch-rejects-stale-client','old-media-signature-denied','killed-api-fails-identity','resource-mismatch-denied','port-conflict-preserves-foreign-process','stop-preserves','resume-keeps-run','reset-new-run','cleanup-owned'],resourcesCleaned:true}));
   }finally{
     if(!keep&&existsSync(join(stateRoot(),name))) {
       const s=load(name);await stop(s);await cleanup(s,name);
     }
-    if(!keep)rmSync(snapshots,{recursive:true});
+    if(!keep&&!snapshotExported)rmSync(snapshots,{recursive:true});
   }
 }
 void run().catch((error)=>{writeFileSync('/tmp/preview-integration-failure-'+process.pid+'.log',String(error?.stack||error),{mode:0o600});console.error('预览隔离集成验收失败；请核对本批次私有日志');process.exitCode=1;});
