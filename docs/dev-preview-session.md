@@ -36,3 +36,30 @@ PG/Redis 为本实例创建的独立进程；API/Worker 使用受限 `wenyousite
 停止保留数据，恢复保留 Redis 持久数据和媒体；显式 reset/cleanup 才删除本批次资源。预览与一次性 E2E 登记独立，E2E reaper 不清理预览。
 
 实现命令、快照受限发布与启动时源码摘要见 [开发预览运行说明](dev-preview.md)。机器入口 `node --import tsx scripts/dev-preview/cli.ts` 的 export/stdout 为纯 JSON；status 含 consumerPath、sourceSha、sourceDigest 与 sourceDirty。
+
+
+## 单活动批次控制协议（兼容 v1）
+
+消费者 JSON v1 不变。新建批次固定 Web `4310`、Backend `4311`、Media `4312`；内部数据库、Redis、API 仍动态分配。所有端口只监听 loopback。旧已停止批次必须执行 `rebind --session <name> --confirm <name>` 后恢复，保持 runId、账号与业务数据；媒体签名使用本批次私有密钥，旧批次签名不能写入另一个批次。
+
+机器入口仍为 `node --import tsx scripts/dev-preview/cli.ts`：
+
+- `list` 不需要 session，跨已登记状态根及默认旧状态根列出全部批次。
+- `start/resume --session <name>` 在另一个批次有存活登记进程时拒绝。启动前检查全局记录与固定端口，不终止未知进程。
+- `pause/stop --session <name> [--confirm <runId>]` 等价，精确核验后停止本批次，数据保留；只有创建者 Backend Worktree 可执行。管理入口必须带刚读取的 runId 确认，防止同名实例重置后误停。
+- `rebind --session <name> --confirm <name>` 只接受全部登记进程已停止的批次；固定端口迁移不重置数据。
+- `status/export/reset/cleanup` 保留原接口与门禁。已登记 ready 但身份失效显示 unavailable，不能输出可用 consumer。
+
+切换由管理入口执行：读取 `list`，按当前条目的 `worktree` 与 `stateRoot` 调用其 `pause`，确认 `processesAlive=false`，再按目标 owner 调用 `resume`。没有隐式抢占；暂停失败时不得启动目标。所有写操作竞争同一个 OS 用户的主机锁，PREVIEW_STATE_ROOT 不改变此锁。遗留进程或身份漂移优先阻断并保留诊断。
+
+`list` stdout 示例（没有数据库口令、账号、令牌）：
+
+```json
+{"version":1,"kind":"wenyou-dev-preview-list","ports":{"web":4310,"backend":4311,"media":4312},"sessions":[{"sessionId":"page-layout","runId":"preview_aaaaaaaaaaaaaaaaaaaaaaaa","worktree":"/srv/wenyousite/worktrees/backend-page-layout","stateRoot":"/home/wenyou-dev/.local/state/wenyousite-preview","state":"paused","recordedState":"stopped","processesAlive":false,"verified":false,"ports":{"web":4310,"backend":4311,"media":4312},"consumerPath":"/home/wenyou-dev/.local/state/wenyousite-preview/page-layout/consumer.json"}]}
+```
+
+`state` 为 `ready|paused|unavailable|initializing|failed|invalid`，`recordedState` 保留登记状态。只有两个 identity 验证通过才 `ready, verified=true`；`paused` 表示登记 stopped 且无自有存活进程；`unavailable` 表示登记 ready 但已失活或部分进程存活、身份未通过。`processesAlive` 为 true/false，无法核验时为 null 并返回 `invalid`，不得按 false 处理。无有效登记的项目 `runId/worktree` 可为 null，`error` 仅为固定诊断代码。
+
+### 重任务互斥
+
+`node scripts/dev-heavy.mjs -- <command> [args...]` 是可直接复制已提交版本的独立 Node 入口，无 tsx、Prisma 或其他依赖。Backend 和 Web 使用完全相同的锁协议：通过 `os.userInfo().homedir` 解析固定 `~/.local/state/wenyousite-dev-control`，`flock -n heavy.lock` 拒绝并行重任务。持锁父进程、启动时间与 boot ID 写入 `heavy-owner.json`；仅实际 `/proc` 祖先链匹配才允许 check→build→E2E 嵌套，环境变量不能直接绕过。父进程异常退出但其受控命令仍存活时锁继续持有。手工调用底层编译器不属于受支持入口；标准 build/check/check:full 与隔离资源入口接入此门禁。

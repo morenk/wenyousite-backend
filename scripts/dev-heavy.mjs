@@ -1,0 +1,56 @@
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync, renameSync, readdirSync } from 'node:fs';
+import { userInfo } from 'node:os';
+import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+export function controlRoot() {
+  const root=join(userInfo().homedir,'.local/state/wenyousite-dev-control');
+  if(!existsSync(root))mkdirSync(root,{recursive:true,mode:0o700});
+  const stat=lstatSync(root);
+  assert(stat.isDirectory()&&!stat.isSymbolicLink()&&stat.uid===process.getuid()&&(stat.mode&0o777)===0o700&&realpathSync(root)===root,'开发锁目录归属不符');
+  return root;
+}
+function proc(pid) {
+  try {const fields=readFileSync('/proc/'+pid+'/stat','utf8').split(') ').at(-1).split(' ');return {pid:Number(pid),parent:Number(fields[1]),group:Number(fields[2]),started:fields[19],state:fields[0]};}catch{return null;}
+}
+function boot(){return readFileSync('/proc/sys/kernel/random/boot_id','utf8').trim();}
+function owner() {
+  const file=join(controlRoot(),'heavy-owner.json');
+  if(!existsSync(file))return null;
+  const st=lstatSync(file);assert(st.isFile()&&!st.isSymbolicLink()&&st.uid===process.getuid()&&(st.mode&0o077)===0,'重任务登记归属不符');
+  return JSON.parse(readFileSync(file,'utf8'));
+}
+export function inheritedHeavy() {
+  const saved=owner();if(!saved||saved.boot!==boot())return false;
+  const ancestor=proc(saved.pid);if(!ancestor||ancestor.started!==saved.started)return false;
+  let current=proc(process.pid);const seen=new Set();
+  while(current&&!seen.has(current.pid)){if(current.pid===saved.pid)return true;seen.add(current.pid);current=proc(current.parent);}
+  return false;
+}
+function assertNoOrphan() {
+  const saved=owner();if(!saved||saved.boot!==boot()||!saved.group)return;
+  for(const entry of readdirSync('/proc')){
+    if(!/^\d+$/.test(entry))continue;const p=proc(entry);
+    assert(!p||p.group!==saved.group||['Z','X'].includes(p.state),'先处理已登记重任务遗留进程；不得并发启动');
+  }
+}
+function writeOwner(value){const file=join(controlRoot(),'heavy-owner.json');const temp=file+'.'+process.pid;writeFileSync(temp,JSON.stringify(value),{mode:0o600,flag:'wx'});renameSync(temp,file);}
+async function execute(command,args,held=false){
+  const child=spawn(command,args,{stdio:'inherit',detached:held});
+  if(held){assert(child.pid);writeOwner({pid:process.pid,started:proc(process.pid).started,boot:boot(),group:child.pid,groupStarted:proc(child.pid)?.started,worktree:process.cwd()});}
+  const signal=sig=>{if(child.pid)try{process.kill(held?-child.pid:child.pid,sig);}catch{/* 已退出时由 close 收尾。 */}};
+  const term=()=>signal('SIGTERM'),interrupt=()=>signal('SIGINT');process.on('SIGTERM',term);process.on('SIGINT',interrupt);
+  try{return await new Promise((ok,fail)=>{child.once('error',fail);child.once('close',(code)=>ok(code??1));});}
+  finally{process.off('SIGTERM',term);process.off('SIGINT',interrupt);}
+}
+export async function runHeavy(command,args=[]) {
+  if(inheritedHeavy())return execute(command,args);
+  return execute('/usr/bin/flock',['--nonblock','--conflict-exit-code','75',join(controlRoot(),'heavy.lock'),process.execPath,fileURLToPath(import.meta.url),'--held',command,...args]);
+}
+async function main(){const [mode,command,...args]=process.argv.slice(2);assert(['--','--held'].includes(mode)&&command,'使用 dev-heavy.mjs -- command args');
+  if(mode==='--held'){assertNoOrphan();process.exitCode=await execute(command,args,true);}else process.exitCode=await runHeavy(command,args);
+  if(process.exitCode===75)console.error(JSON.stringify({error:'DEV_HEAVY_BUSY',detail:'另一个构建或 E2E 正在运行，请等待其完成'}));
+}
+if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url))void main().catch(()=>{console.error(JSON.stringify({error:'DEV_HEAVY_FAILED',detail:'重任务锁或进程归属核验失败'}));process.exitCode=1;});
