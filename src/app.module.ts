@@ -1,3 +1,4 @@
+import { MobileReleasesModule } from './mobile-releases/mobile-releases.module';
 import { GalleryModule } from './image-gallery/gallery.module';
 import { Module, RequestMethod } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -185,6 +186,7 @@ function buildPinoTransport(logLevel: PinoLogLevel, nodeEnv: string, logFileDir?
     DirectMessagesModule,
     StickersModule,
     MetaModule,
+    MobileReleasesModule,
     MobilePushModule,
     ProgressionModule,
     EconomyModule,

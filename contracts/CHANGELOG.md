@@ -1,5 +1,12 @@
 # API 合同变更
 
+## 5.27.0-dev.20260927.1
+
+- 新增公开已发布历史/详情，以及后台草稿、revision 编辑、SUPER_ADMIN 确认接口；纯文本 summary/items，OpenAPI 为机器事实源。
+- 保留 `/meta` 既有字段；兼容新增端点提升 MINOR 版本；尚未发布说明不公开。API 冲突使用 40900，非法游标 40007。
+- 新增不可变审计分类 MOBILE_RELEASE_UPDATED/MOBILE_RELEASE；移动 coverage 的公开接口为 planned，后台接口不适用移动端，不冒称客户端已实现。
+
+
 ## 5.26.0-dev.20260922.3
 
 - 兼容新增 OptionalAuth 图集读取 `GET /image-gallery`，五种阅读范围、点击锚点、双向签名游标与 source 定位。详见 [图片图集](../docs/image-gallery.md)。

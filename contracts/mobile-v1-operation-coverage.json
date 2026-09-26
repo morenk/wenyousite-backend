@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "5.26.0-dev.20260922.3",
+  "contractVersion": "5.27.0-dev.20260927.1",
   "counts": {
-    "total": 225,
-    "v1": 105,
+    "total": 232,
+    "v1": 107,
     "deferred": 66,
-    "notApplicable": 53,
+    "notApplicable": 58,
     "infrastructure": 1
   },
   "operations": [
@@ -1781,6 +1781,62 @@
         "test/mobile_update_test.dart",
         "test/app_shell_test.dart"
       ]
+    },
+    {
+      "operationId": "mobileReleasesList",
+      "method": "GET",
+      "path": "/api/v1/mobile-releases",
+      "module": "app-shell",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "mobileReleasesDetail",
+      "method": "GET",
+      "path": "/api/v1/mobile-releases/{platform}/{buildNumber}",
+      "module": "app-shell",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "adminMobileReleasesList",
+      "method": "GET",
+      "path": "/api/v1/admin/mobile-releases",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminMobileReleasesCreate",
+      "method": "POST",
+      "path": "/api/v1/admin/mobile-releases",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminMobileReleasesDetail",
+      "method": "GET",
+      "path": "/api/v1/admin/mobile-releases/{id}",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminMobileReleasesUpdate",
+      "method": "PATCH",
+      "path": "/api/v1/admin/mobile-releases/{id}",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminMobileReleasesConfirm",
+      "method": "POST",
+      "path": "/api/v1/admin/mobile-releases/{id}/confirm",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
     },
     {
       "operationId": "economyGetWallet",
