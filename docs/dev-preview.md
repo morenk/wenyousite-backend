@@ -18,7 +18,7 @@ pnpm dev:preview resume --session page-layout
 
 启动后 stdout 只输出 JSON，consumerPath 是私有消费者描述的绝对路径。机器入口为 node --import tsx scripts/dev-preview/cli.ts，command/参数与上面相同；export 只有在两个运行身份端点验证成功后输出纯消费者 JSON。status 额外输出实际 sourceSha/sourceDigest/sourceDirty；源码摘要覆盖 src、prisma、开发工具和依赖声明，dirty=true 必须标注为未提交候选。Backend 源码改变后 stop/resume 才是新一轮运行；Web/Mobile 连续改样式不重启 Backend。
 
-状态目录默认 ~/.local/state/wenyousite-preview，可通过 PREVIEW_STATE_ROOT 改到其他 0700 私有目录。每个批次固定创建它的 Backend Worktree；全局操作互斥，最多一个活动批次；旧归属只接受显式 runId 确认的 pause/adopt，不隐式接管其他 Worktree。所有服务仅监听 127.0.0.1，禁止 3000/3001/5432/6379。端口占用拒绝启动，不停止占用者。
+状态目录默认 ~/.local/state/wenyousite-preview，可通过 PREVIEW_STATE_ROOT 改到其他 0700 私有目录。每个批次固定创建它的 Backend Worktree；全局操作互斥，最多一个活动批次；旧归属只接受显式 runId 确认的 pause/adopt，不隐式接管其他 Worktree。所有服务仅监听 127.0.0.1，禁止 3000/3001/5432/6379。预览 PostgreSQL 仅启用 TCP（Unix socket 关闭），与 Prisma/恢复工具的显式 loopback 连接一致，较长的状态根或批次名不会触发 Unix socket 路径上限。端口占用拒绝启动，不停止占用者。
 
 Web/Mobile 消费 [已提交的 v1 协议](dev-preview-session.md)，只获得 consumer.json。后端与媒体端点每次验证实际 PG cluster_name、Redis 实例/归属；Backend 网关还核对实际 API 监听 socket 属于登记的进程组。业务请求缺少 X-Wenyou-Preview-Run 直接拒绝。SSH、ADB reverse 必须同端口，不改预签名 URL。Web refreshToken Cookie 由网关按 runId 命名，防止不同 loopback 端口的批次覆盖彼此会话。
 

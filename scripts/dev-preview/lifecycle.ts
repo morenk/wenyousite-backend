@@ -101,7 +101,7 @@ export async function start(name:string,args:Record<string,string>) {
   } else s=await create(name,args);
   try {
     for(const port of Object.values(s.ports)) await available(port);
-    launch(s,'postgres',join(s.tools.pg,'postgres'),['-D',join(s.root,'postgres'),'-h','127.0.0.1','-p',String(s.ports.postgres),'-k',join(s.root,'socket'),'-c','cluster_name='+s.runId,'-c','max_connections=50']);
+    launch(s,'postgres',join(s.tools.pg,'postgres'),['-D',join(s.root,'postgres'),'-h','127.0.0.1','-p',String(s.ports.postgres),'-k','', '-c','cluster_name='+s.runId,'-c','max_connections=50']);
     writeFileSync(join(s.root,'redis.conf'),'bind 127.0.0.1\nport '+s.ports.redis+'\nrequirepass '+s.secrets.redis+'\ndir '+s.root+'\nappendonly yes\nappendfsync everysec\nsave ""\n',{mode:0o600});
     launch(s,'redis',s.tools.redis,[join(s.root,'redis.conf')]);
     const {db,redis}=clients(s,true);

@@ -14,11 +14,14 @@ import { businessDate, consumer, databaseUrl, HEADER, load, REPO, sha, stateRoot
 import { captureSnapshot } from './snapshot';
 import { importDailyBackup } from './backup';
 import { cleanup, reset, start, withLock } from './lifecycle';
-import { alive, clients, stop, waitFor } from './resources';
+import { alive, clients, stop, verifyResources, waitFor } from './resources';
 
 async function run() {
   const keep=process.argv.includes('--keep');
   const snapshotOnly=process.argv.includes('--snapshot-only');assert(!(keep&&snapshotOnly),'keep 与 snapshot-only 不可合用');
+  const previousStateRoot=process.env.PREVIEW_STATE_ROOT;
+  const longStateRoot=!keep&&!snapshotOnly?mkdtempSync(join(tmpdir(),'preview-long-state-'+ 'x'.repeat(72)+'-')):undefined;
+  if(longStateRoot)process.env.PREVIEW_STATE_ROOT=longStateRoot;
   const name=keep?'live-preview-acceptance':'preview-integration-'+randomBytes(4).toString('hex');
   const snapshots=mkdtempSync(join(tmpdir(),'preview-snapshots-'));chmodSync(snapshots,0o700);
   const account='preview_'+randomBytes(4).toString('hex');const password='Preview!'+randomBytes(12).toString('hex');
@@ -60,8 +63,16 @@ async function run() {
       snapshotExported=true;console.log(JSON.stringify({event:'isolated-sample-snapshot-ready',snapshotPath:join(snapshots,businessDate()),snapshotRoot:snapshots,isolatedSample:true,sourceSha:sha(),resourcesCleaned:true}));return;
     }
 
+    if(longStateRoot)assert(Buffer.byteLength(join(longStateRoot,name,'socket','.s.PGSQL.65535'))>107,'回归必须确实超过 Unix socket 路径上限');
     let s=await withLock(name,()=>start(name,{snapshot:join(snapshots,businessDate()),'web-port':'4310'}));
     const c=consumer(s);await verifyConsumer(s);
+    const tcpRuntime=clients(s,true);
+    try {
+      await verifyResources(s,tcpRuntime.db,tcpRuntime.redis);
+      const settings=await tcpRuntime.db.$queryRawUnsafe<Array<{unix_socket_directories:string}>>('SHOW unix_socket_directories');
+      assert.equal(settings[0]?.unix_socket_directories,'','预览只应监听已核验的 loopback TCP');
+    }finally{tcpRuntime.redis.disconnect();await tcpRuntime.db.$disconnect();}
+
     const second=name+'-two';
     await assert.rejects(()=>withLock(second,()=>start(second,{snapshot:join(snapshots,businessDate())})));
     assert(!existsSync(join(stateRoot(),second)));
@@ -135,12 +146,14 @@ async function run() {
     s=await withLock(name,()=>reset(name,{confirm:name,snapshot:join(snapshots,businessDate())}));assert.notEqual(s.runId,runId);
     await withLock(name,async()=>{await stop(s);await cleanup(s,name);});
     assert(!existsSync(s.root));
-    console.log(JSON.stringify({event:'passed',scenarios:['global-single-active','fixed-port-switch-rejects-stale-client','old-media-signature-denied','killed-api-fails-identity','resource-mismatch-denied','port-conflict-preserves-foreign-process','stop-preserves','resume-keeps-run','reset-new-run','cleanup-owned'],resourcesCleaned:true}));
+    console.log(JSON.stringify({event:'passed',scenarios:['long-state-root-tcp-only','global-single-active','fixed-port-switch-rejects-stale-client','old-media-signature-denied','killed-api-fails-identity','resource-mismatch-denied','port-conflict-preserves-foreign-process','stop-preserves','resume-keeps-run','reset-new-run','cleanup-owned'],resourcesCleaned:true}));
   }finally{
-    if(!keep&&existsSync(join(stateRoot(),name))) {
-      const s=load(name);await stop(s);await cleanup(s,name);
+    if(!keep&&!snapshotOnly)for(const batchName of [name,name+'-two'])if(existsSync(join(stateRoot(),batchName))) {
+      const s=load(batchName);await stop(s);await cleanup(s,batchName);
     }
     if(!keep&&!snapshotExported)rmSync(snapshots,{recursive:true});
+    if(longStateRoot){assert(readdirSync(longStateRoot).length===0,'长路径回归仍有登记资源，保留目录');rmSync(longStateRoot,{recursive:true});}
+    if(previousStateRoot===undefined)delete process.env.PREVIEW_STATE_ROOT;else process.env.PREVIEW_STATE_ROOT=previousStateRoot;
   }
 }
 void run().catch((error)=>{writeFileSync('/tmp/preview-integration-failure-'+process.pid+'.log',String(error?.stack||error),{mode:0o600});console.error('预览隔离集成验收失败；请核对本批次私有日志');process.exitCode=1;});
