@@ -23,17 +23,17 @@ function owner() {
   return JSON.parse(readFileSync(file,'utf8'));
 }
 export function inheritedHeavy() {
-  const saved=owner();if(!saved||saved.boot!==boot())return false;
+  const saved=owner();if(!saved||saved.active===false||saved.boot!==boot())return false;
   const ancestor=proc(saved.pid);if(!ancestor||ancestor.started!==saved.started)return false;
   let current=proc(process.pid);const seen=new Set();
   while(current&&!seen.has(current.pid)){if(current.pid===saved.pid)return true;seen.add(current.pid);current=proc(current.parent);}
   return false;
 }
 function assertNoOrphan() {
-  const saved=owner();if(!saved||saved.boot!==boot()||!saved.group)return;
+  const saved=owner();if(!saved||saved.boot!==boot())return;
   for(const entry of readdirSync('/proc')){
     if(!/^\d+$/.test(entry))continue;const p=proc(entry);
-    assert(!p||p.group!==saved.group||['Z','X'].includes(p.state),'先处理已登记重任务遗留进程；不得并发启动');
+    assert(!p||![saved.group,...(saved.groups||[])].includes(p.group)||['Z','X'].includes(p.state),'先处理已登记重任务遗留进程；不得并发启动');
   }
 }
 function writeOwner(value){const file=join(controlRoot(),'heavy-owner.json');const temp=file+'.'+process.pid;writeFileSync(temp,JSON.stringify(value),{mode:0o600,flag:'wx'});renameSync(temp,file);}
@@ -49,7 +49,18 @@ export async function runHeavy(command,args=[]) {
   if(inheritedHeavy())return execute(command,args);
   return execute('/usr/bin/flock',['--nonblock','--conflict-exit-code','75',join(controlRoot(),'heavy.lock'),process.execPath,fileURLToPath(import.meta.url),'--held',command,...args]);
 }
-async function main(){const [mode,command,...args]=process.argv.slice(2);assert(['--','--held'].includes(mode)&&command,'使用 dev-heavy.mjs -- command args');
+export function registerHeavyGroup(group) {
+  assert(inheritedHeavy(),'资源必须先获取重任务锁');
+  const saved=owner();saved.groups=[...new Set([...(saved.groups||[]),group])];writeOwner(saved);
+}
+export async function acquireHeavyLease() {
+  if(inheritedHeavy())return async()=>{};
+  const helper=spawn('/usr/bin/flock',['--nonblock','--conflict-exit-code','75',join(controlRoot(),'heavy.lock'),process.execPath,fileURLToPath(import.meta.url),'--lease',String(process.pid),proc(process.pid).started],{stdio:['pipe','pipe','inherit']});
+  const closed=new Promise(ok=>helper.once('close',ok));
+  await new Promise((ok,fail)=>{helper.once('error',fail);helper.stdout.once('data',ok);helper.once('close',()=>fail(new Error('DEV_HEAVY_BUSY')));});
+  return async()=>{const saved=owner();if(saved?.pid===process.pid)writeOwner({...saved,active:false});helper.stdin.end();await closed;};
+}
+async function main(){const [mode,command,...args]=process.argv.slice(2);if(mode==='--lease'){assertNoOrphan();const parent=proc(Number(command));assert(parent&&parent.started===args[0]);writeOwner({pid:parent.pid,started:parent.started,boot:boot(),groups:[],worktree:process.cwd()});process.stdout.write('locked');process.stdin.resume();return;}assert(['--','--held'].includes(mode)&&command,'使用 dev-heavy.mjs -- command args');
   if(mode==='--held'){assertNoOrphan();process.exitCode=await execute(command,args,true);}else process.exitCode=await runHeavy(command,args);
   if(process.exitCode===75)console.error(JSON.stringify({error:'DEV_HEAVY_BUSY',detail:'另一个构建或 E2E 正在运行，请等待其完成'}));
 }
