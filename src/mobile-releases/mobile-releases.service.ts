@@ -167,22 +167,24 @@ export class MobileReleasesService {
   async confirm(actor: AdminActor, id: string, revision: number, context: AdminRequestContext) {
     if (actor.role !== 'SUPER_ADMIN') throw forbidden('仅超级管理员可以确认版本说明');
     return this.mutate(actor, id, revision, context, 'confirm', (tx, row) =>
-      tx.mobileRelease.update({
-        where: { id },
-        data: {
-          confirmedRevision: row.revision,
-          confirmedSummary: row.summary,
-          confirmedItems: row.items,
-          confirmedAt: new Date(),
-          ...(row.publishedAt
-            ? {
-                publishedRevision: row.revision,
-                publishedSummary: row.summary,
-                publishedItems: row.items,
-              }
-            : {}),
-        },
-      }),
+      row.confirmedRevision === row.revision
+        ? Promise.resolve(row)
+        : tx.mobileRelease.update({
+            where: { id },
+            data: {
+              confirmedRevision: row.revision,
+              confirmedSummary: row.summary,
+              confirmedItems: row.items,
+              confirmedAt: new Date(),
+              ...(row.publishedAt
+                ? {
+                    publishedRevision: row.revision,
+                    publishedSummary: row.summary,
+                    publishedItems: row.items,
+                  }
+                : {}),
+            },
+          }),
     );
   }
   private async mutate(

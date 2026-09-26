@@ -190,6 +190,13 @@ describe('移动版本说明策略', () => {
       ),
     ).rejects.toMatchObject({ errorCode: ErrorCode.CONFLICT });
   });
+  it('重复确认同 revision 保留确认时间与快照身份', async () => {
+    const confirmed = row({ confirmedRevision: 2 });
+    db.mobileRelease.findUnique.mockResolvedValue(confirmed);
+    const result = await service.confirm(superAdmin, 'release', 2, {});
+    expect(result.confirmed?.confirmedAt).toBe(confirmed.confirmedAt!.toISOString());
+    expect(db.mobileRelease.update).not.toHaveBeenCalled();
+  });
   it('重复平台/build 返回 40900，禁止改绑版本', async () => {
     db.mobileRelease.create.mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError('duplicate', { code: 'P2002', clientVersion: '6' }),

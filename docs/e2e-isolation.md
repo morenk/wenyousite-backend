@@ -89,3 +89,11 @@ Linux 退出期间可能先置位 PF_EXITING，进程仍暂时显示 R，且 env
 ## 持续交互预览
 
 需要跨多轮视觉反馈保留数据时，使用 [交互式开发预览](dev-preview.md)，其登记、停止与清理独立于本页一次性 runner。不得把长期预览传给 E2E reaper，也不能把预览实例当作全量 E2E 的共享数据源。
+
+### 管理界面真实 API 联验
+
+`pnpm e2e:run --admin-fixtures -- pnpm --dir /absolute/web <隔离测试命令>` 在同一已核验独立实例额外创建随机 ADMIN/SUPER_ADMIN。消费者环境中的 `E2E_ADMIN_FIXTURES` 指向本轮 0600 `admin-fixtures.json`，结构为 `{version:1,runId,mailboxPath,accounts:[{role,userId,email,password}]}`。读取前验证 runId 与 manifest 一致、文件为本身份 0600 普通文件且目录位于本轮资源根。
+
+浏览器按正常 `/admin/auth/challenge` → `/admin/auth/verify` 登录；验证码仅从该 0700 mailboxPath 下的 0600 Nodemailer JSON 邮件读取，按收件人和本次挑战时间筛选。通过 verify/session 取得管理 Cookie 与 CSRF，再调用真实 API。不提供固定验证码、生产测试后门或数据库凭据；禁止打印账号、邮件、Cookie 或 CSRF。runner 结束一并清理账号、收件箱、上传及进程。
+
+`pnpm test:integration:mobile-releases` 经同一 runner 验证迁移后的真实数据路径、后台 Guard/CSRF、revision 竞争、确认快照与受限发布数据库恢复；不进行真实发包或修改共享策略。

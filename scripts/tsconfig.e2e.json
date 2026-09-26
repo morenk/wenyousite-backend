@@ -13,6 +13,8 @@
     "e2e-resources.ts",
     "e2e-guard.ts",
     "e2e-runner.ts",
+    "mobile-releases.integration.ts",
+    "e2e-admin-fixtures.integration.ts",
     "e2e-guard.test.ts",
     "e2e-processes.test.ts",
     "e2e-reap.ts",

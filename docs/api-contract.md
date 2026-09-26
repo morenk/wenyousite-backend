@@ -174,7 +174,7 @@ GET /users/following、GET /users/followers 和 /users/{id}/following|followers 
 - `GET /admin/mobile-releases?platform=android`、`GET /admin/mobile-releases/:id`：后台 Cookie 管理会话可读草稿、确认和已发布快照。
 - `POST /admin/mobile-releases`：ADMIN/SUPER_ADMIN 创建，HTTP 201；提交身份、summary、items。
 - `PATCH /admin/mobile-releases/:id`：提交完整 summary/items 和最后读取的 revision，可选 versionName 仅用于从未确认草稿纠错，HTTP 200；普通管理员只能编辑尚未发布记录。编辑增加 revision，保留旧确认和公开快照。
-- `POST /admin/mobile-releases/:id/confirm`：SUPER_ADMIN 提交 revision，HTTP 201；确认当前草稿。未发布版本进入 READY，等待受限发布通道；已发布版本原子替换公开文案，首次 publishedAt 保留。此操作不构建、上传或晋级安装包。
+- `POST /admin/mobile-releases/:id/confirm`：SUPER_ADMIN 提交 revision，HTTP 201；确认当前草稿。未发布版本进入 READY，等待受限发布通道；已发布版本原子替换公开文案，首次 publishedAt 保留。同 revision 重复确认幂等并保留 confirmedAt。此操作不构建、上传或晋级安装包。
 
 所有管理写操作复用 `X-CSRF-Token`。summary 最多 200 字符；items 为 1–30 条，每条最多 500 字符；全部必须包含非空白字符，服务端去首尾空白。纯文本不解析 Markdown/HTML，客户端必须按文本渲染。
 

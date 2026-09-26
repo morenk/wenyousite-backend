@@ -4,6 +4,7 @@
 
 - 新增公开已发布历史/详情，以及后台草稿、revision 编辑、SUPER_ADMIN 确认接口；纯文本 summary/items，OpenAPI 为机器事实源。
 - 保留 `/meta` 既有字段；兼容新增端点提升 MINOR 版本；尚未发布说明不公开。API 冲突使用 40900，非法游标 40007。
+- 受限发布通道新增只读 `--preflight`、晋级必填 `--notes-revision` 与中断恢复 `--recover`；配置/数据库/TSV 失败补偿，同 build 重试仍校验说明。
 - 新增不可变审计分类 MOBILE_RELEASE_UPDATED/MOBILE_RELEASE；移动 coverage 的公开接口为 planned，后台接口不适用移动端，不冒称客户端已实现。
 
 

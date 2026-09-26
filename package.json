@@ -39,6 +39,7 @@
     "test:e2e": "API_E2E_ISOLATED_ENV=test tsx scripts/api-e2e-isolated.ts",
     "test:integration:bookmark-management": "tsx scripts/e2e-runner.ts --suite=bookmarks",
     "test:integration:bookmark-count": "tsx scripts/e2e-runner.ts --suite=bookmark-count",
+    "test:integration:mobile-releases": "tsx scripts/e2e-runner.ts --suite=mobile-releases",
     "test:mobile-release": "bash scripts/mobile-release.test.sh",
     "test:host-health-monitor": "bash scripts/host-health-monitor.test.sh",
     "test:deploy-preflight": "bash scripts/assert-releasable-repo.test.sh",
