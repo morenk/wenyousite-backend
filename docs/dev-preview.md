@@ -7,7 +7,7 @@
 已配置 E2E 只读二进制（参见 [E2E 隔离](e2e-isolation.md)）并生成 Prisma Client 后，在 Backend 任务 Worktree：
 
 ```bash
-pnpm dev:preview start --session page-layout --web-port 4310
+pnpm dev:preview start --session page-layout --web-port 14310
 pnpm dev:preview status --session page-layout
 pnpm dev:preview export --session page-layout
 pnpm dev:preview stop --session page-layout
@@ -105,7 +105,7 @@ env -i HOME=/root PATH=/usr/bin:/bin E2E_LIBRARY_PATH="$PREVIEW_PG_LIB" \
 
 pnpm test:preview 覆盖协议 schema、日期、保留端口、坏快照、媒体域/IP、派生对象映射、互斥与死锁恢复；pnpm test:preview:integration 创建真实独立 PG/Redis 样本，覆盖密码保留、净化、API 身份、签名上传、Worker、收件箱、错误资源、端口冲突、停止恢复、重置与清理。完整交付执行 pnpm check 及高风险 pnpm check:full。
 
-交互反馈只跑受影响检查并提供画面，视觉收敛后才执行完整交付门禁。pnpm exec tsx scripts/dev-preview/integration.ts --keep 可在同样隔离边界留一个 live-preview-acceptance 样本批次，Web 端口 4310；随机测试账号只写 VPS 本批次 sample-account.json。该样本只用于联验，不能冒称当天真实用户数据；验收结束必须 stop/cleanup，并按输出登记回收样本快照目录。
+交互反馈只跑受影响检查并提供画面，视觉收敛后才执行完整交付门禁。pnpm exec tsx scripts/dev-preview/integration.ts --keep 可在同样隔离边界留一个 live-preview-acceptance 样本批次，Web 端口 14310；随机测试账号只写 VPS 本批次 sample-account.json。该样本只用于联验，不能冒称当天真实用户数据；验收结束必须 stop/cleanup，并按输出登记回收样本快照目录。
 
 单活动列表、固定端口、旧归属 adopt 与重任务门禁见 [控制协议](dev-preview-session.md#单活动批次控制协议兼容-v1)。标准 build/check/check:full 与 withResources 隔离入口自动使用主机重任务锁；冲突退出后等待当前任务完成，不改端口或绕过入口。
 

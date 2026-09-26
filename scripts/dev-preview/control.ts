@@ -6,7 +6,7 @@ import { join, dirname } from 'node:path';
 import { loadAt, privateDirectory, privateFile, Session, sameBoot, stateRoot, verifyConsumer, writePrivate } from './common';
 import { alive } from './resources';
 const {controlRoot} = require('../dev-heavy.mjs') as {controlRoot:()=>string};
-export const FIXED_PORTS={web:4310,backend:4311,media:4312};
+export const FIXED_PORTS={web:14310,backend:14311,media:14312};
 export const bootId=()=>readFileSync('/proc/sys/kernel/random/boot_id','utf8').trim();
 export async function withControlLock<T>(use:()=>Promise<T>):Promise<T> {
   const lock=spawn('/usr/bin/flock',['--nonblock','--conflict-exit-code','75',join(controlRoot(),'preview.lock'),process.execPath,'-e',"process.stdout.write('locked');process.stdin.resume()"],{stdio:['pipe','pipe','ignore']});

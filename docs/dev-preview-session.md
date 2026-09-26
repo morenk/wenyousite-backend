@@ -40,7 +40,7 @@ PG/Redis 为本实例创建的独立进程；API/Worker 使用受限 `wenyousite
 
 ## 单活动批次控制协议（兼容 v1）
 
-消费者 JSON v1 不变。新建批次固定 Web `4310`、Backend `4311`、Media `4312`；内部数据库、Redis、API 仍动态分配。所有端口只监听 loopback。旧已停止批次必须执行 `rebind --session <name> --confirm <runId>` 后恢复，保持 runId、账号与业务数据；媒体签名使用本批次私有密钥，旧批次签名不能写入另一个批次。
+消费者 JSON v1 不变。新建批次固定 Web `14310`、Backend `14311`、Media `14312`；内部数据库、Redis、API 仍动态分配。所有端口只监听 loopback。旧已停止批次必须执行 `rebind --session <name> --confirm <runId>` 后恢复，保持 runId、账号与业务数据；媒体签名使用本批次私有密钥，旧批次签名不能写入另一个批次。
 
 机器入口仍为 `node --import tsx scripts/dev-preview/cli.ts`：
 
@@ -55,7 +55,7 @@ PG/Redis 为本实例创建的独立进程；API/Worker 使用受限 `wenyousite
 `list` stdout 示例（没有数据库口令、账号、令牌）：
 
 ```json
-{"version":1,"kind":"wenyou-dev-preview-list","ports":{"web":4310,"backend":4311,"media":4312},"sessions":[{"sessionId":"page-layout","runId":"preview_aaaaaaaaaaaaaaaaaaaaaaaa","worktree":"/srv/wenyousite/worktrees/backend-page-layout","stateRoot":"/home/wenyou-dev/.local/state/wenyousite-preview","state":"paused","recordedState":"stopped","processesAlive":false,"verified":false,"ports":{"web":4310,"backend":4311,"media":4312},"consumerPath":"/home/wenyou-dev/.local/state/wenyousite-preview/page-layout/consumer.json"}]}
+{"version":1,"kind":"wenyou-dev-preview-list","ports":{"web":14310,"backend":14311,"media":14312},"sessions":[{"sessionId":"page-layout","runId":"preview_aaaaaaaaaaaaaaaaaaaaaaaa","worktree":"/srv/wenyousite/worktrees/backend-page-layout","stateRoot":"/home/wenyou-dev/.local/state/wenyousite-preview","state":"paused","recordedState":"stopped","processesAlive":false,"verified":false,"ports":{"web":14310,"backend":14311,"media":14312},"consumerPath":"/home/wenyou-dev/.local/state/wenyousite-preview/page-layout/consumer.json"}]}
 ```
 
 `state` 为 `ready|paused|unavailable|initializing|failed|invalid`，`recordedState` 保留登记状态。只有两个 identity 验证通过才 `ready, verified=true`；`paused` 表示登记 stopped 且无自有存活进程；`unavailable` 表示登记 ready 但已失活或部分进程存活、身份未通过。`processesAlive` 为 true/false，无法核验时为 null 并返回 `invalid`，不得按 false 处理。无有效登记的项目 `runId/worktree` 可为 null，`error` 仅为固定诊断代码。

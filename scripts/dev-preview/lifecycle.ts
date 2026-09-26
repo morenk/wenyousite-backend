@@ -29,7 +29,7 @@ async function create(name:string,args:Record<string,string>) {
   const tools=toolPaths();
   const root=sessionRoot(name);
   const ports={} as Session['ports'];
-  assert(!args['web-port']||Number(args['web-port'])===FIXED_PORTS.web,'Web 预览端口固定为 4310');
+  assert(!args['web-port']||Number(args['web-port'])===FIXED_PORTS.web,'Web 预览端口固定为 14310');
   Object.assign(ports,FIXED_PORTS);
   for(const key of ['postgres','redis','api'] as const) {
     do { ports[key]=safePort(await unusedPort()); } while(Object.values(ports).filter(x=>x===ports[key]).length>1);

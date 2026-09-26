@@ -32,7 +32,7 @@ test('旧归属暂停必须核验 runId，显式 adopt/rebind 保留数据，失
    await main(['adopt','--session',name,'--owner-worktree',s.worktree,'--confirm',runId]);
    await assert.rejects(()=>main(['rebind','--session',name,'--confirm',name]));
    await main(['rebind','--session',name,'--confirm',runId]);
-   const adopted=load(name);assert.equal(adopted.worktree,REPO);assert.equal(adopted.runId,runId);assert.equal(adopted.ports.media,4312);assert.equal(readFileSync(join(dir,'data-marker.json'),'utf8').includes('true'),true);
+   const adopted=load(name);assert.equal(adopted.worktree,REPO);assert.equal(adopted.runId,runId);assert.equal(adopted.ports.media,14312);assert.equal(readFileSync(join(dir,'data-marker.json'),'utf8').includes('true'),true);
    row=(await listSessions()).sessions.find(x=>x.sessionId===name)!;assert.equal(row.state,'paused');
    const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{detached:true,cwd:dir,stdio:'ignore',env:{E2E_RUN_ID:runId,E2E_RESOURCE_ROOT:dir}});
    assert(child.pid);adopted.processes=[{name:'fixture',group:child.pid,started:processStart(child.pid)!}];adopted.state='ready';save(adopted);

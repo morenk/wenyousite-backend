@@ -64,7 +64,7 @@ async function run() {
     }
 
     if(longStateRoot)assert(Buffer.byteLength(join(longStateRoot,name,'socket','.s.PGSQL.65535'))>107,'回归必须确实超过 Unix socket 路径上限');
-    let s=await withLock(name,()=>start(name,{snapshot:join(snapshots,businessDate()),'web-port':'4310'}));
+    let s=await withLock(name,()=>start(name,{snapshot:join(snapshots,businessDate()),'web-port':'14310'}));
     const c=consumer(s);await verifyConsumer(s);
     const tcpRuntime=clients(s,true);
     try {
