@@ -249,10 +249,18 @@ Flutter 代码、类型生成和设备回归仅在 Windows 执行；本后端 PR
 
 兼容契约 5.26.0-dev.20260922.3 新增 [图片图集查询](image-gallery.md)。Mobile 先显示点击图片，再接入双向分页；Web 保留原查看交互，新增契约只同步类型与夹具。共享位置测试见 `contracts/gallery-image-occurrences.json`，重复 URL 按位置保留，贴纸仅按 title 前缀排除。权限丢失 404 必须清除对应缓存图，40900 重新打开会话，40926 保留当前图片并提示稍后再试。
 
-## Android 更新说明与历史
+## Android 更新前与升级后提醒
 
-本节新增接口兼容现有 `/meta`，版本策略仍完全由 `/meta.mobileCompatibility.android` 决定。推荐横幅可以读目标 build 的 summary，“查看更新”展示完整 items 和现有下载操作；强制页展示完整说明。历史页使用 `GET /mobile-releases?platform=android` 的不透明游标，按构建号倒序；以实际安装 build 标记当前版本，下载/更新操作只对 `/meta` 的实际可更新目标开放，不从历史猜测更新策略。
+移动端消费语义以 [Foundation 更新提醒规范（72d4785）](https://github.com/morenk/wenyousite-foundation/blob/72d4785860d96ff0e2b336bc3f0f355ff908f77e/docs/mobile-releases.md) 为准。本次将 App 展示目标调整为更新前与升级后的一次性弹窗，移除独立“查看更新”按钮、说明／版本历史页面及设置与游客“我的”中的历史入口；旧页面地址安全回退。这是客户端接入要求，不代表新交互已上线或完成真机验收。
 
-公开 DTO：`platform, versionName, buildNumber, summary, items, revision, publishedAt`。详情路径 `GET /mobile-releases/android/{buildNumber}`。未发布/不存在都是 404，空历史显示空态，读取失败可以重试但不阻断启动或破坏强制升级流程。说明是纯文本，禁止 Markdown/HTML 渲染；没有升级后的自动弹窗。不得从 Git 提交自动拼接缺失说明。
+版本策略仍完全由 `/meta.mobileCompatibility.android` 决定。更新前弹窗按实际升级目标 build 读取并显示版本身份、summary 和完整 items，保留现有更新／下载动作。推荐按目标平台与 build 在本机持久去重，完整说明实际可见后才记为已提示，允许关闭及原生返回，已有忽略记录继续有效。强制更新保持不可关闭的阻断弹窗／启动门禁；推荐已提示、旧忽略、说明失败或任何一次性记录都不能解除强制约束。更新动作执行前重新核对策略与目标，不从说明或历史推断下载资格。
+
+升级后弹窗按设备实际安装的平台、build 和对应版本名读取已发布说明，不取服务器最新说明替代。优先恢复已有本机安装基线；构建号上升时仅为本次安装版建立待提示，跨过多版不补播中间版本。无本机记录的首次迁移，仅在有效 Android 安装／更新时间证明发生过覆盖安装时建立当前版本待提示，使用“已安装当前版本”，不推测旧 build；时间相同按首次安装处理，缺失、无效或逆序时也只建立基线。已有基线后，同构建覆盖安装不新增提示；卸载或清除数据后的记录丢失不能保证继续去重，具体边界遵循上述 Foundation 规范。
+
+安装基线、待提示和已展示记录相互独立，均由客户端本机持久保存，不随登录切换清除。升级后按平台与 build 一次，版本名或 revision 修正不重弹；只有正确版本的完整说明实际可见才记为已展示，基线更新不能清掉待提示。弹窗可关闭，不提供已安装版本的再次下载入口。所有提醒串行协调：强制优先；应用可用且处于安全前台时先处理升级后待提示，推荐留到其结束后的下一次安全前台机会，不在关闭回调中接弹或叠窗。
+
+公开 DTO 保持 `platform, versionName, buildNumber, summary, items, revision, publishedAt`；详情路径仍为 `GET /mobile-releases/android/{buildNumber}`。未发布／不存在均为 404，只有明确无记录才显示“此版本暂无更新说明”。推荐与升级后说明读取失败可关闭、可重试，不阻断普通启动、不误记已展示，也不在同一前台会话自动循环弹出；强制说明失败仍保留更新动作、重试入口和阻断。说明是纯文本，禁止 Markdown/HTML 渲染，不得从 Git 提交自动拼接缺失说明。
+
+`GET /mobile-releases?platform=android` 的公开历史、倒序分页与不透明游标继续兼容，空列表仍返回空数组。App 历史入口移除不删除该接口、详情接口、后台管理能力或历史数据；HTTP/OpenAPI、数据库及契约版本 `5.27.0-dev.20260927.1` 均不变，不新增服务端已读状态。
 
 管理接口和精确长度、错误码见 [API 契约](api-contract.md#android-版本说明兼容增量)。发布工具的受限说明预检与确认 revision 绑定见 [发布运维](mobile-release-operations.md)，构建-only 不要求后台说明，真实晋级必须以最终受限通道契约校验。本次不新增 iOS 发布或 FCM 消息。
