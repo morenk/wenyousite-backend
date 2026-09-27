@@ -3,10 +3,10 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PostAuthorResponseDto } from '../../posts/dto/post-response.dto';
 
 class UserSocialCountResponseDto {
-  @ApiProperty({ minimum: 0 })
+  @ApiProperty({ minimum: 0, description: '当前查看者可见且未注销的关注账号数；与关注列表口径一致，游客资料可能命中最长五分钟缓存。' })
   following!: number;
 
-  @ApiProperty({ minimum: 0 })
+  @ApiProperty({ minimum: 0, description: '当前查看者可见且未注销的粉丝账号数；与粉丝列表口径一致，游客资料可能命中最长五分钟缓存。' })
   followers!: number;
 }
 

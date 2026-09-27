@@ -51,6 +51,14 @@ const userSelectPrivate = {
   wallet: { select: { receivedTipTotal: true, receivedTipCount: true } },
 };
 
+const socialCountSelect = (viewerId?: string) => {
+  const visibleUser = { deletedAt: null, ...visibleUserWhere(viewerId) };
+  return {
+    following: { where: { following: visibleUser } },
+    followers: { where: { follower: visibleUser } },
+  };
+};
+
 const userSelectPublic = () => ({
   id: true,
   username: true,
@@ -172,7 +180,7 @@ export class UsersService {
       where: { id },
       select: {
         ...userSelectPrivate,
-        _count: { select: { following: { where: { following: visibleUserWhere(id) } }, followers: { where: { follower: visibleUserWhere(id) } } } },
+        _count: { select: socialCountSelect(id) },
       },
     });
     if (!user) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
@@ -188,7 +196,7 @@ export class UsersService {
 
       const user = await this.prisma.user.findUnique({
         where: { id },
-        select: { ...userSelectPublic(), _count: { select: { following: true, followers: true } } },
+        select: { ...userSelectPublic(), _count: { select: socialCountSelect() } },
       });
       if (!user) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');
       const masked = maskDeactivated(user);
@@ -200,7 +208,7 @@ export class UsersService {
       where: { id, ...visibleUserWhere(viewerId) },
       select: {
         ...userSelectPublic(),
-        _count: { select: { following: { where: { following: visibleUserWhere(viewerId) } }, followers: { where: { follower: visibleUserWhere(viewerId) } } } },
+        _count: { select: socialCountSelect(viewerId) },
       },
     });
     if (!user) throw notFound(ErrorCode.USER_NOT_FOUND, '用户不存在');

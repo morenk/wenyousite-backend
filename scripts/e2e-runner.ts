@@ -13,6 +13,7 @@ import { AuditService } from '../src/moderation/audit.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 const SUITES: Record<string, [string, string]> = {
+  'profile-follow-counts': ['profile-follow-counts.integration.ts', 'PROFILE_FOLLOW_COUNTS_TEST_ENV'],
   'mobile-releases': ['mobile-releases.integration.ts', 'MOBILE_RELEASE_TEST_ENV'],
   gallery: ['image-gallery.integration.ts', 'IMAGE_GALLERY_TEST_ENV'],
   auth: ['auth-terminal-e2e.ts', 'AUTH_TERMINAL_E2E_ENV'],
@@ -159,9 +160,13 @@ export async function run(args = process.argv.slice(2)) {
       }
       const suites = options.includes('--full') ? Object.keys(SUITES).filter((key) => key !== 'search')
         : options.filter((o) => o.startsWith('--suite=')).map((o) => o.slice(8));
-      if (suites.includes('gallery')) await runScript('image-gallery.integration.ts', { IMAGE_GALLERY_TEST_ENV: 'test' });
+      const httpSuites = ['gallery', 'profile-follow-counts'];
+      for (const key of suites.filter(key => httpSuites.includes(key))) {
+        const [script, flag] = SUITES[key];
+        await runScript(script, { [flag]: 'test' });
+      }
       if (suites.length) await stopChild(app);
-      for (const key of suites.filter(key => key !== 'gallery')) {
+      for (const key of suites.filter(key => !httpSuites.includes(key))) {
         const [script, flag] = SUITES[key];
         await runScript(script, { [flag]: 'test' });
       }
