@@ -167,7 +167,7 @@ GET /users/following、GET /users/followers 和 /users/{id}/following|followers 
 
 ## Android 版本说明（兼容增量）
 
-`/meta` 既有结构与升级策略不变，兼容契约版本提升至 `5.27.0-dev.20260927.1`。版本说明独立保存，身份为 `platform=android`、`versionName`、`buildNumber`；同平台/build 唯一；从未确认的草稿可在 PATCH 中修正 versionName，首次确认后身份固定。目前拒绝 iOS，不触发推送或升级后弹窗。
+`/meta` 既有结构与升级策略不变，兼容契约版本提升至 `5.27.0-dev.20260927.1`。版本说明独立保存，身份为 `platform=android`、`versionName`、`buildNumber`；同平台/build 唯一；从未确认的草稿可在 PATCH 中修正 versionName，首次确认后身份固定。目前拒绝 iOS，本功能不新增推送。Mobile 更新前／升级后提醒由客户端消费公开详情并管理本机展示状态，见 [客户端接入要求](mobile-client-guide.md#android-更新前与升级后提醒)；App 独立历史入口移除不改变以下 HTTP 契约或历史数据，不新增服务端已读字段，契约版本保持不变。
 
 - `GET /mobile-releases?platform=android&limit=20&cursor=...`：匿名可读，按 build 倒序，仅公开已成功晋级的确认快照；分页为 `data: PublicMobileReleaseDto[]` 和 `meta: {cursor,hasMore}`。空历史返回空数组。
 - `GET /mobile-releases/android/:buildNumber`：公开详情，不存在与未发布均返回 404；包含平台、版本名、build、摘要、逐条内容、revision、首次发布时间，不返回草稿、管理身份或下载 URL。
