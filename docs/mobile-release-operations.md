@@ -196,7 +196,7 @@ wenyou-release ALL=(root) NOPASSWD: /usr/local/sbin/wenyousite-promote-android *
 
 CLI 只解析 `/etc/wenyousite/backend.env` 的应用 `DATABASE_URL`，验证角色名为 `wenyousite_app`，不读取 migration owner 配置，不启动 Nest AppModule、定时器或队列。数据库表及辅助 CLI 必须先随后端兼容版本部署，再切换 Windows 发布工具。旧工具缺少 `--notes-revision` 会被拒绝。
 
-本任务只提交源码和测试；安装受限入口、合并、部署和真实晋级均须独立授权。
+合并及部署遵循工作区授权门禁；真实 APK 晋级仍须单独授权，部署说明管理功能不会自动发包或调整升级策略。
 
 ## 构建前只读预检
 
@@ -257,5 +257,7 @@ sudo -n /usr/local/sbin/wenyousite-promote-android --withdraw
 ## 验证
 
 `pnpm test:mobile-release` 在本轮私有临时目录使用故障注入覆盖公开对象核验、revision 参数、同 build、策略/DB/公开读回/TSV 失败，以及 PREPARED/STAGED/COMMITTED 的 SIGKILL 与恢复。外部系统由测试替身提供，不安装系统脚本、不 sudo 或重启真实服务。
+
+管理部署以 root 运行 `pnpm check` 时，这组测试先清空补充组，再永久切换到系统 `nobody` 用户及其主组。测试仅执行临时目录中的脚本副本，子进程不继承部署环境；身份无法解析或降权失败则直接失败。普通开发用户直接执行同一组测试，不需要 sudo。
 
 `pnpm test:integration:mobile-releases` 通过已登记独立 PostgreSQL/Redis runner 验证真实 Prisma 事务、Guard/CSRF、草稿不可见、并发、快照、持久发布锁和补偿幂等。完整交付还运行 `pnpm check` 与 `pnpm check:full`；真实发包不属于自动化测试。

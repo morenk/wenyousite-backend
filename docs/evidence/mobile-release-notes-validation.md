@@ -1,6 +1,6 @@
 # Android 版本说明后端验收记录
 
-本记录对应 `codex/20260927-mobile-release-notes` / PR #32，验收日期为北京时间 2026-09-27。没有执行安装系统脚本、sudo、合并、部署、真实 APK 晋级或线上写入。
+本记录对应 `codex/20260927-mobile-release-notes` / PR #32，验收日期为北京时间 2026-09-27。负责人随后明确授权合并与部署；本文记录合并前验证，不代表已部署、真实 APK 晋级或负责人视觉验收通过。本开发任务没有 sudo、重启正式服务或线上写入。
 
 ## 交接版本
 
@@ -19,6 +19,9 @@ Windows 安装器、DPAPI、SSH 指纹、分段发布与密钥轮换说明从 Mo
 - 定向数据库/CLI 联验：`e2e_9f431d6119440ecb840e9ba8` 通过并清理。最终全量还覆盖迁移前植入的账号、内容、钱包、审计在增量迁移及重复 migrate deploy 后逐行不变，及真实受限 shell + 编译后数据库 CLI 的失败补偿和同 build 幂等。
 - shell 故障测试 13 项通过：确认记录、对象身份、降 build、TSV/数据库/策略/公开读回失败，PREPARED/STAGED/COMMITTED 的 SIGKILL，数据库临时不可读时先恢复策略并保留锁，受限 `--recover` 后可重试。
 - 全量门禁后的小修正仅调整“说明领取失败、尚未写策略时不重启服务”；重新运行 13 项 shell 测试及移动说明真实隔离集成。没有放宽断言或跳过用例。
+- 最终部署复核发现 root 门禁与 shell 测试非特权约束冲突，已让测试在创建样本前清空补充组、永久降为 `nobody`，只执行私有临时目录中的源码副本，子进程不继承部署环境。普通开发身份下 13 项故障测试通过。
+- 治理经 `wenyou-admin-vps` 以 root 启动同一 `node --test scripts/mobile-release.test.cjs`，13/13 通过、0 失败/跳过，耗时 33.18 秒。执行前后测试文件 SHA-256 均为 `4536c83361ad34e591fc0537db3c3c39080793e2c109dfae8f25853a608f99cc`。该次仅运行降权测试，没有调用正式晋级或改写生产环境；原始日志由治理保存在 Windows 的 `artifacts/mobile-release-notes-20260927/backend-root-release-tests.log`。
+- 合并前最终 `pnpm check` 全部通过，包含 182 个 Jest 套件/2439 项测试、13 项 shell 故障测试及类型、架构、OpenAPI、文档、运维脚本和构建检查。日志为本任务 `/tmp/mobile-release-check-merge.log`，定向 shell 日志为 `/tmp/mobile-release-shell-root-gate-fix.log`；实际迁移/CLI 最后定向 runId 为 `e2e_a51e21e5bb0ab30313abfd57`，通过并清理。
 
 隔离测试使用本轮新建 PostgreSQL/Redis，应用角色为 `wenyousite_app`，外部邮件、推送、Sentry 和存储写入关闭。APK 公网对象、systemctl 和重启后的策略读回由本地测试替身提供，真实 DB 事务和 HTTP 权限不模拟；这些证据不代表已测试真实发包。
 

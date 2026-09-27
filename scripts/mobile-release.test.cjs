@@ -1,17 +1,30 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
-const script = path.join(__dirname, 'promote-android-release.sh');
+const scriptSource = fs.readFileSync(path.join(__dirname, 'promote-android-release.sh'));
+// 部署门禁以 root 启动；先读取源码，再永久降权，避免测试触碰固定生产入口。
+if (process.getuid() === 0) {
+  const group = spawnSync('/usr/bin/id', ['-g', 'nobody'], { encoding: 'utf8', env: {} });
+  assert.equal(group.status, 0, '无法解析非特权测试身份');
+  assert.match(group.stdout.trim(), /^[1-9][0-9]*$/);
+  process.setgroups([]);
+  process.setgid(Number(group.stdout.trim()));
+  process.setuid('nobody');
+  process.chdir('/tmp');
+}
+assert.notEqual(process.getuid(), 0, '测试必须完成降权');
+assert.equal(process.geteuid(), process.getuid(), '测试不能保留特权身份');
 const version = '1.0.0'; const build = 42; const sha = 'a'.repeat(64);
 const url = 'https://wenyou-apk.cn-nb1.rains3.com/mobile/android/wenyou-1.0.0-42.apk';
 const args = ['--version',version,'--build',String(build),'--url',url,'--size','123','--sha256',sha,'--notes-revision','1'];
 function fixture(t) {
   assert.notEqual(process.getuid(), 0, '测试不能以 root 执行固定生产入口');
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mobile-release-shell-'));
+  const root = fs.mkdtempSync(path.join('/tmp', 'mobile-release-shell-'));
   t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const script = path.join(root, 'promote-android-release.sh');
+  fs.writeFileSync(script, scriptSource, { mode: 0o700 });
   const envFile = path.join(root,'backend.env'); const history = path.join(root,'history.tsv');
   const original = 'DATABASE_URL=postgresql://unused.invalid/test\nMOBILE_ANDROID_RECOMMENDED_BUILD=\nMOBILE_ANDROID_UPDATE_URL=\nMOBILE_ANDROID_MIN_SUPPORTED_BUILD=\nMOBILE_IOS_RECOMMENDED_BUILD=20\n';
   fs.writeFileSync(envFile,original,{mode:0o600});
@@ -55,10 +68,10 @@ else if(url.endsWith('/meta')) {
 `,{mode:0o700});
   const systemctl=path.join(root,'systemctl');
   fs.writeFileSync(systemctl,`#!${process.execPath}\nrequire('node:fs').appendFileSync(__dirname+'/systemctl.log',process.argv.slice(2).join(' ')+'\\n');\n`,{mode:0o700});
-  const env={...process.env,PATH:root+':'+process.env.PATH,BACKEND_ENV_FILE:envFile,MOBILE_RELEASE_HISTORY_FILE:history,MOBILE_RELEASE_CURL_BIN:curl,MOBILE_RELEASE_NODE_BINARY:process.execPath,MOBILE_RELEASE_NOTES_HELPER:helper,MOBILE_RELEASE_SKIP_RESTART:'false'};
+  const env={PATH:root+':/usr/local/bin:/usr/bin:/bin',BACKEND_ENV_FILE:envFile,MOBILE_RELEASE_HISTORY_FILE:history,MOBILE_RELEASE_CURL_BIN:curl,MOBILE_RELEASE_NODE_BINARY:process.execPath,MOBILE_RELEASE_NOTES_HELPER:helper,MOBILE_RELEASE_SKIP_RESTART:'false'};
   const run=(options=args)=>spawnSync('bash',[script,...options],{env,encoding:'utf8',timeout:20000});
   const flags=value=>fs.writeFileSync(path.join(root,'flags.json'),JSON.stringify(value));
-  return {root,env,envFile,history,original,run,flags,state:()=>JSON.parse(fs.readFileSync(path.join(root,'state.json'),'utf8')),journal:path.join(root,'.mobile-release.pending')};
+  return {root,script,env,envFile,history,original,run,flags,state:()=>JSON.parse(fs.readFileSync(path.join(root,'state.json'),'utf8')),journal:path.join(root,'.mobile-release.pending')};
 }
 test('预检只读且机器输出固定；晋级绑定 revision，同 build 幂等，撤回保留历史',t=>{
  const f=fixture(t);const pre=f.run(['--preflight','--version',version,'--build','42']);assert.equal(pre.status,0,pre.stderr);assert.equal(JSON.parse(pre.stdout).confirmedRevision,1);assert.equal(fs.existsSync(f.history),false);assert.equal(fs.existsSync(f.journal),false);
@@ -84,7 +97,7 @@ test('TSV 原子替换失败补偿且重试不遗漏说明登记',t=>{
 });
 for(const stage of ['begin','publish','commit']) test(`SIGKILL ${stage} 后预检只读拒绝，--recover 恢复并允许重试`,async t=>{
  const f=fixture(t);f.flags({crash:stage});
- const child=spawn('bash',[script,...args],{env:f.env,detached:true,stdio:'ignore'});
+ const child=spawn('bash',[f.script,...args],{env:f.env,detached:true,stdio:'ignore'});
  const done=new Promise(ok=>child.once('exit',ok));
  t.after(()=>{try{process.kill(-child.pid,'SIGKILL');}catch{}});
  for(let i=0;i<500 && !fs.existsSync(path.join(f.root,'paused'));i++) await new Promise(ok=>setTimeout(ok,10));
@@ -109,7 +122,7 @@ test('保留 URL/摘要/构建号降级校验，历史同 build 必须匹配 APK
 });
 test('DB 状态暂时不可读仍补偿策略，保留 journal 等待受限恢复',async t=>{
  const f=fixture(t);f.flags({crash:'commit'});
- const child=spawn('bash',[script,...args],{env:f.env,detached:true,stdio:'ignore'});
+ const child=spawn('bash',[f.script,...args],{env:f.env,detached:true,stdio:'ignore'});
  const done=new Promise(ok=>child.once('exit',ok));t.after(()=>{try{process.kill(-child.pid,'SIGKILL');}catch{}});
  for(let i=0;i<500&&!fs.existsSync(path.join(f.root,'paused'));i++)await new Promise(ok=>setTimeout(ok,10));
  assert(fs.existsSync(path.join(f.root,'paused')));process.kill(-child.pid,'SIGKILL');await done;
