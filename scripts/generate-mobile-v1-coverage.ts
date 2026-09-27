@@ -66,6 +66,7 @@ const implementedEvidence: Record<string, { module: string; tests: string[] }> =
 
 const adminTags = new Set([
   'Admin Reports',
+  'Admin Mobile Releases',
   'Admin Auth',
   'Admin Accounts',
   'Admin Cases',
@@ -126,6 +127,7 @@ function moduleFor(operation: Operation, disposition: Disposition): string {
   if (id.startsWith('media')) return 'media';
   if (id.startsWith('search') || id.startsWith('threadSearch')) return 'search';
   if (id === 'threadCategoriesList') return 'home';
+  if (id.startsWith('mobileReleases')) return 'app-shell';
   if (id === 'metaGetMeta') return 'app-shell';
   if (id.startsWith('gallery')) return 'image-gallery';
   if (id.startsWith('tags')) return 'editor';

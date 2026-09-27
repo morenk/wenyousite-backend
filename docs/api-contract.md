@@ -164,3 +164,20 @@ GET /users/following、GET /users/followers 和 /users/{id}/following|followers 
 ## 全屏图片连续浏览
 
 兼容契约 5.26.0-dev.20260922.3 新增 [图片图集查询](image-gallery.md)。Mobile 先显示点击图片，再接入双向分页；Web 保留原查看交互，新增契约只同步类型与夹具。共享位置测试见 `contracts/gallery-image-occurrences.json`，重复 URL 按位置保留，贴纸仅按 title 前缀排除。权限丢失 404 必须清除对应缓存图，40900 重新打开会话，40926 保留当前图片并提示稍后再试。
+
+## Android 版本说明（兼容增量）
+
+`/meta` 既有结构与升级策略不变，兼容契约版本提升至 `5.27.0-dev.20260927.1`。版本说明独立保存，身份为 `platform=android`、`versionName`、`buildNumber`；同平台/build 唯一；从未确认的草稿可在 PATCH 中修正 versionName，首次确认后身份固定。目前拒绝 iOS，不触发推送或升级后弹窗。
+
+- `GET /mobile-releases?platform=android&limit=20&cursor=...`：匿名可读，按 build 倒序，仅公开已成功晋级的确认快照；分页为 `data: PublicMobileReleaseDto[]` 和 `meta: {cursor,hasMore}`。空历史返回空数组。
+- `GET /mobile-releases/android/:buildNumber`：公开详情，不存在与未发布均返回 404；包含平台、版本名、build、摘要、逐条内容、revision、首次发布时间，不返回草稿、管理身份或下载 URL。
+- `GET /admin/mobile-releases?platform=android`、`GET /admin/mobile-releases/:id`：后台 Cookie 管理会话可读草稿、确认和已发布快照。
+- `POST /admin/mobile-releases`：ADMIN/SUPER_ADMIN 创建，HTTP 201；提交身份、summary、items。
+- `PATCH /admin/mobile-releases/:id`：提交完整 summary/items 和最后读取的 revision，可选 versionName 仅用于从未确认草稿纠错，HTTP 200；普通管理员只能编辑尚未发布记录。编辑增加 revision，保留旧确认和公开快照。
+- `POST /admin/mobile-releases/:id/confirm`：SUPER_ADMIN 提交 revision，HTTP 201；确认当前草稿。未发布版本进入 READY，等待受限发布通道；已发布版本原子替换公开文案，首次 publishedAt 保留。同 revision 重复确认幂等并保留 confirmedAt。此操作不构建、上传或晋级安装包。
+
+所有管理写操作复用 `X-CSRF-Token`。summary 最多 200 字符；items 为 1–30 条，每条最多 500 字符；全部必须包含非空白字符，服务端去首尾空白。纯文本不解析 Markdown/HTML，客户端必须按文本渲染。
+
+管理 DTO 的 `status=DRAFT|READY|PUBLISHED`，`hasUnconfirmedChanges` 表示草稿 revision 与确认 revision 不同；`confirmed` 和 `published` 是可空快照，`publishing` 表示受限通道正在处理，期间拒绝编辑/确认。状态 PUBLISHED 不代表正在编辑的草稿已经公开。
+
+重复 build、revision 竞争或发布锁统一为 HTTP 409 / `CONFLICT=40900`；非法游标为 HTTP 400 / `INVALID_CURSOR=40007`。权限不足为 403，客户端不可把 409 自动覆盖提交。审计枚举新增 `MOBILE_RELEASE_UPDATED` / `MOBILE_RELEASE`，记录操作及 revision，不保存文案正文；Web 操作日志需提供“移动版本说明”标签。

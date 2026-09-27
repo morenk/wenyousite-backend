@@ -257,6 +257,7 @@ enum AuditAction {
   THREAD_CATEGORY_MERGED
   TAG_MERGED
   SITE_SETTINGS_UPDATED
+  MOBILE_RELEASE_UPDATED
 }
 
 enum AuditTargetType {
@@ -276,6 +277,7 @@ enum AuditTargetType {
   ADMIN_SESSION
   NOTIFICATION_CAMPAIGN
   SITE_SETTINGS
+  MOBILE_RELEASE
 }
 
 model User {
@@ -1620,4 +1622,46 @@ model PostGalleryIndex {
   contentTransaction BigInt @map("content_transaction")
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
   @@map("post_gallery_indexes")
+}
+
+// 编辑稿、确认快照与公开快照分离；发布锁在进程故障后保留，由受限通道恢复。
+model MobileRelease {
+  id String @id @default(cuid())
+  platform String
+  versionName String @map("version_name")
+  buildNumber Int @map("build_number")
+  summary String
+  items String[]
+  revision Int @default(1)
+  confirmedRevision Int? @map("confirmed_revision")
+  confirmedSummary String? @map("confirmed_summary")
+  confirmedItems String[] @map("confirmed_items")
+  confirmedAt DateTime? @map("confirmed_at")
+  publishedRevision Int? @map("published_revision")
+  publishedSummary String? @map("published_summary")
+  publishedItems String[] @map("published_items")
+  publishedAt DateTime? @map("published_at")
+  promotionId String? @unique @map("promotion_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  promotions MobileReleasePromotion[]
+  @@unique([platform, buildNumber])
+  @@index([platform, publishedAt, buildNumber])
+  @@map("mobile_releases")
+}
+
+model MobileReleasePromotion {
+  id String @id
+  releaseId String @map("release_id")
+  revision Int
+  status String @default("PREPARED")
+  apkSha256 String @map("apk_sha256")
+  apkSize String @map("apk_size")
+  updateUrl String @map("update_url")
+  previousPublishedRevision Int? @map("previous_published_revision")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  release MobileRelease @relation(fields: [releaseId], references: [id], onDelete: Restrict)
+  @@index([releaseId, status])
+  @@map("mobile_release_promotions")
 }

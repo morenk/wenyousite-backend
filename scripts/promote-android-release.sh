@@ -5,9 +5,24 @@ ENV_FILE=${BACKEND_ENV_FILE:-/etc/wenyousite/backend.env}
 HISTORY_FILE=${MOBILE_RELEASE_HISTORY_FILE:-/var/lib/wenyousite/mobile-release-history.tsv}
 ALLOWED_BASE_URL=${MOBILE_RELEASE_ALLOWED_BASE_URL:-https://wenyou-apk.cn-nb1.rains3.com/mobile/android}
 BACKEND_SERVICE=${MOBILE_RELEASE_BACKEND_SERVICE:-wenyousite-backend.service}
-NODE_BINARY=${MOBILE_RELEASE_NODE_BINARY:-/root/.local/share/fnm/node-versions/v24.18.0/installation/bin/node}
+RELEASE_ROOT=/var/lib/wenyousite/backend/current
+NODE_BINARY=${MOBILE_RELEASE_NODE_BINARY:-$RELEASE_ROOT/bin/node}
+NOTES_HELPER=${MOBILE_RELEASE_NOTES_HELPER:-$RELEASE_ROOT/dist/mobile-releases/mobile-release-cli.js}
 CURL_BIN=${MOBILE_RELEASE_CURL_BIN:-curl}
 SKIP_RESTART=${MOBILE_RELEASE_SKIP_RESTART:-false}
+
+# sudo 入口不接受调用方自选路径、运行时或跳过核验；测试覆盖仅在非 root 临时目录运行。
+if [ "$EUID" -eq 0 ]; then
+  export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+  ENV_FILE=/etc/wenyousite/backend.env
+  HISTORY_FILE=/var/lib/wenyousite/mobile-release-history.tsv
+  ALLOWED_BASE_URL=https://wenyou-apk.cn-nb1.rains3.com/mobile/android
+  BACKEND_SERVICE=wenyousite-backend.service
+  NODE_BINARY=$RELEASE_ROOT/bin/node
+  NOTES_HELPER=$RELEASE_ROOT/dist/mobile-releases/mobile-release-cli.js
+  CURL_BIN=/usr/bin/curl
+  SKIP_RESTART=false
+fi
 
 MODE=promote
 VERSION_NAME=
@@ -15,6 +30,7 @@ BUILD_NUMBER=
 UPDATE_URL=
 APK_SIZE=
 APK_SHA256=
+NOTES_REVISION=
 
 usage() {
   cat <<'EOF'
@@ -24,18 +40,28 @@ usage() {
     --build 42 \
     --url https://wenyou-apk.cn-nb1.rains3.com/mobile/android/wenyou-0.3.0-dev.36-42.apk \
     --size 90900000 \
-    --sha256 <64 hex>
+    --sha256 <64 hex> \
+    --notes-revision <预检返回的 confirmedRevision>
+
+只读预检（构建前运行，stdout 仅输出 JSON）：
+  promote-android-release.sh --preflight --version 0.3.0-dev.36 --build 42
+
+恢复上次中断操作（只接受此参数，不发包、不晋级）：
+  promote-android-release.sh --recover
 
 撤回当前推荐与强制升级策略：
   promote-android-release.sh --withdraw
 EOF
 }
 
-if [ "${1:-}" = --withdraw ]; then
+if [ "${1:-}" = --recover ]; then
+  [ "$#" -eq 1 ] || { usage >&2; exit 2; }; MODE=recover; shift
+elif [ "${1:-}" = --withdraw ]; then
   if [ "$#" -ne 1 ]; then usage >&2; exit 2; fi
   MODE=withdraw
   shift
 else
+  if [ "${1:-}" = --preflight ]; then MODE=preflight; shift; fi
   while (($# > 0)); do
     case "$1" in
       --version) VERSION_NAME=${2:-}; shift 2 ;;
@@ -43,6 +69,7 @@ else
       --url) UPDATE_URL=${2:-}; shift 2 ;;
       --size) APK_SIZE=${2:-}; shift 2 ;;
       --sha256) APK_SHA256=${2:-}; shift 2 ;;
+      --notes-revision) NOTES_REVISION=${2:-}; shift 2 ;;
       --help|-h) usage; exit 0 ;;
       *) echo "未知参数: $1" >&2; usage >&2; exit 2 ;;
     esac
@@ -57,16 +84,24 @@ if ! command -v "$CURL_BIN" >/dev/null 2>&1; then
   echo "无法执行 curl: $CURL_BIN" >&2
   exit 2
 fi
-if [ "$MODE" = promote ]; then
+if [ "$MODE" = promote ] || [ "$MODE" = preflight ]; then
   if [[ ! "$VERSION_NAME" =~ ^[0-9A-Za-z][0-9A-Za-z._-]{0,63}$ ]]; then
     echo "version 格式不合法" >&2
     exit 2
   fi
-  if [[ ! "$BUILD_NUMBER" =~ ^[1-9][0-9]*$ ]] || ((BUILD_NUMBER > 2100000000)); then
+  if [[ ! "$BUILD_NUMBER" =~ ^[1-9][0-9]{0,9}$ ]] || ((BUILD_NUMBER > 2100000000)); then
     echo "build 格式不合法" >&2
     exit 2
   fi
-  if [[ ! "$APK_SIZE" =~ ^[1-9][0-9]*$ ]]; then
+fi
+if [ "$MODE" = preflight ] && { [ -n "$APK_SIZE$APK_SHA256$UPDATE_URL$NOTES_REVISION" ]; }; then
+  echo "预检只接受 version/build" >&2; exit 2
+fi
+if [ "$MODE" = promote ]; then
+  if [[ ! "$NOTES_REVISION" =~ ^[1-9][0-9]{0,9}$ ]] || ((NOTES_REVISION > 2147483646)); then
+    echo "必须提供预检确认 revision" >&2; exit 2
+  fi
+  if [[ ! "$APK_SIZE" =~ ^[1-9][0-9]{0,14}$ ]]; then
     echo "APK size 格式不合法" >&2
     exit 2
   fi
@@ -81,6 +116,37 @@ if [ "$MODE" = promote ]; then
     echo "更新地址不在允许的 RainS3 路径或与版本不一致" >&2
     exit 2
   fi
+fi
+
+if [ "$EUID" -eq 0 ]; then
+  # 与后端部署共用锁，固定整个操作期间的 release/环境/数据库 schema。
+  exec 8</var/lib/wenyousite/deploy.lock
+  if [ "$MODE" = preflight ]; then flock -sn 8; else flock -n 8; fi
+fi
+
+notes_command() {
+  local action=$1
+  local payload=$2
+  if [ "$EUID" -eq 0 ]; then
+    local resolved path
+    resolved=$(readlink -f -- "$RELEASE_ROOT")
+    [[ "$resolved" =~ ^/var/lib/wenyousite/backend/releases/[0-9a-f]{40}$ ]] || return 1
+    # 部署已完整检查依赖树；调用前再检查固定入口及祖先的所有权和可写位。
+    for path in "$NODE_BINARY" "$NOTES_HELPER" "$RELEASE_ROOT/node_modules"; do
+      path=$(readlink -f -- "$path") || return 1
+      [[ "$path" = "$resolved"/* ]] || return 1
+      while [ "$path" != / ]; do
+        [ "$(stat -c %u -- "$path")" = 0 ] || return 1
+        (( (8#$(stat -c %a -- "$path") & 0022) == 0 )) || return 1
+        path=$(dirname -- "$path")
+      done
+    done
+  fi
+  printf '%s' "$payload" | env -i PATH=/usr/bin:/bin "$NODE_BINARY" "$NOTES_HELPER" "$action" "$ENV_FILE"
+}
+if [ "$MODE" = preflight ]; then
+  notes_command preflight "{\"platform\":\"android\",\"versionName\":\"$VERSION_NAME\",\"buildNumber\":$BUILD_NUMBER}"
+  exit $?
 fi
 
 install -d -m 0755 "$(dirname -- "$HISTORY_FILE")"
@@ -201,7 +267,7 @@ verify_meta() {
     return 1
   fi
   meta=$($CURL_BIN --fail --silent --show-error http://127.0.0.1:3000/api/v1/meta)
-  META_JSON=$meta MODE=$MODE EXPECTED_BUILD=$BUILD_NUMBER EXPECTED_URL=$UPDATE_URL "$NODE_BINARY" <<'NODE'
+  env -i PATH=/usr/bin:/bin META_JSON="$meta" MODE="$MODE" EXPECTED_BUILD="$BUILD_NUMBER" EXPECTED_URL="$UPDATE_URL" "$NODE_BINARY" <<'NODE'
 const body = JSON.parse(process.env.META_JSON);
 const android = body?.data?.mobileCompatibility?.android;
 if (!android) process.exit(1);
@@ -216,18 +282,64 @@ NODE
 }
 
 restart_and_verify() {
-  systemctl restart "$BACKEND_SERVICE"
-  systemctl is-active --quiet "$BACKEND_SERVICE"
-  wait_for_health
+  systemctl restart "$BACKEND_SERVICE" || return 1
+  systemctl is-active --quiet "$BACKEND_SERVICE" || return 1
+  wait_for_health || return 1
   verify_meta
 }
 
+verify_restored_policy() {
+  local meta
+  meta=$($CURL_BIN --fail --silent --show-error --max-time 20 http://127.0.0.1:3000/api/v1/meta) || return 1
+  printf '%s' "$meta" | env -i PATH=/usr/bin:/bin EXPECTED_BUILD="$(read_env_value MOBILE_ANDROID_RECOMMENDED_BUILD)" EXPECTED_MIN="$(read_env_value MOBILE_ANDROID_MIN_SUPPORTED_BUILD)" EXPECTED_URL="$(read_env_value MOBILE_ANDROID_UPDATE_URL)" "$NODE_BINARY" -e '
+    let text="";process.stdin.on("data",x=>text+=x);process.stdin.on("end",()=>{
+      const a=JSON.parse(text).data?.mobileCompatibility?.android;
+      if(!a || a.recommendedBuild!==(Number(process.env.EXPECTED_BUILD)||null) || a.minimumSupportedBuild!==(Number(process.env.EXPECTED_MIN)||null) || a.updateUrl!==(process.env.EXPECTED_URL||null)) process.exit(1);
+    });'
+}
+
 restore_backend() {
-  systemctl restart "$BACKEND_SERVICE"
-  systemctl is-active --quiet "$BACKEND_SERVICE"
-  wait_for_health
+  systemctl restart "$BACKEND_SERVICE" || return 1
+  systemctl is-active --quiet "$BACKEND_SERVICE" || return 1
+  wait_for_health || return 1
+  verify_restored_policy || return 1
   $CURL_BIN --fail --silent --show-error https://wenyou.site/api/v1/health >/dev/null
 }
+
+JOURNAL="$(dirname -- "$HISTORY_FILE")/.mobile-release.pending"
+ENV_NEXT="${ENV_FILE}.mobile-release-next"
+OPERATION_ID=
+restore_journal() {
+  [ -d "$JOURNAL" ] || return 0
+  local result token status_failed=false
+  if [ -f "$JOURNAL/operation" ]; then
+    token=$(cat "$JOURNAL/operation")
+    [[ "$token" =~ ^[0-9a-f-]{36}$ ]] || return 1
+    result=$(notes_command status "{\"operationId\":\"$token\"}") || status_failed=true
+    if [ "$result" = '{"status":"SUCCEEDED"}' ]; then
+      rm -rf -- "$JOURNAL"
+      return 0
+    fi
+  fi
+  if [ -f "$JOURNAL/policy-started" ]; then
+    cp -p -- "$JOURNAL/backend.env" "$ENV_NEXT" || return 1
+    sync -f "$ENV_NEXT" || return 1
+    mv -fT -- "$ENV_NEXT" "$ENV_FILE" || return 1
+    if [ -f "$JOURNAL/history.tsv" ]; then
+      cp -p -- "$JOURNAL/history.tsv" "$HISTORY_FILE" || return 1
+    elif [ -e "$HISTORY_FILE" ]; then
+      rm -- "$HISTORY_FILE" || return 1
+    fi
+    if [ "$SKIP_RESTART" != true ]; then restore_backend || return 1; fi
+  fi
+  [ "$status_failed" = false ] || return 1
+  if [ -n "${token:-}" ]; then notes_command abort "{\"operationId\":\"$token\"}" >/dev/null || return 1; fi
+  rm -rf -- "$JOURNAL"
+}
+# 异常终止后先恢复原策略/登记，再释放数据库锁；失败保留 journal，拒绝下一次晋级。
+restore_journal || { echo "上次发布补偿未完成，保留恢复记录" >&2; exit 1; }
+
+if [ "$MODE" = recover ]; then echo '{"schemaVersion":1,"recovered":true}'; exit 0; fi
 
 CURRENT_RECOMMENDED=$(read_env_value MOBILE_ANDROID_RECOMMENDED_BUILD)
 CURRENT_MINIMUM=$(read_env_value MOBILE_ANDROID_MIN_SUPPORTED_BUILD)
@@ -249,8 +361,7 @@ if [ "$MODE" = promote ]; then
         echo "同一构建号不能关联不同 URL" >&2
         exit 2
       fi
-      echo "Android 构建已处于推荐状态: $BUILD_NUMBER"
-      exit 0
+      : # 同 build 必须继续校验说明、APK 身份与发布登记。
     fi
   fi
   if [ -n "$CURRENT_MINIMUM" ] && ((BUILD_NUMBER < CURRENT_MINIMUM)); then
@@ -262,35 +373,73 @@ elif [ -z "$CURRENT_RECOMMENDED" ] && [ -z "$CURRENT_MINIMUM" ] && [ -z "$CURREN
   exit 0
 fi
 
-ENV_BACKUP=$(mktemp "${ENV_FILE}.mobile-release-backup.XXXXXX")
-ENV_NEXT=$(mktemp "${ENV_FILE}.mobile-release-next.XXXXXX")
-cleanup() { rm -f -- "$ENV_BACKUP" "$ENV_NEXT"; }
-trap cleanup EXIT
-cp -p -- "$ENV_FILE" "$ENV_BACKUP"
-if [ "$MODE" = promote ]; then
-  write_policy "$ENV_NEXT" true
-else
-  write_policy "$ENV_NEXT" false
-fi
-mv -- "$ENV_NEXT" "$ENV_FILE"
-
-if [ "$SKIP_RESTART" != true ]; then
-  if ! restart_and_verify; then
-    echo "移动版本策略生效失败，正在恢复旧配置" >&2
-    cp -p -- "$ENV_BACKUP" "$ENV_FILE"
-    restore_backend || true
-    exit 1
+umask 077
+JOURNAL_STAGING=$(mktemp -d "${JOURNAL}.prepare.XXXXXX")
+cp -p -- "$ENV_FILE" "$JOURNAL_STAGING/backend.env"
+sync -f "$JOURNAL_STAGING/backend.env"
+if [ -f "$HISTORY_FILE" ]; then cp -p -- "$HISTORY_FILE" "$JOURNAL_STAGING/history.tsv"; sync -f "$JOURNAL_STAGING/history.tsv"; fi
+mv -T -- "$JOURNAL_STAGING" "$JOURNAL"
+sync -f "$(dirname -- "$JOURNAL")"
+cleanup() {
+  local code=$?
+  trap - EXIT INT TERM
+  if [ "$code" -ne 0 ]; then
+    echo "移动发布失败，正在补偿原策略及登记" >&2
+    restore_journal || echo "补偿失败；恢复记录和数据库发布锁已保留，重试将先恢复" >&2
   fi
-fi
-
+  exit "$code"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 if [ "$MODE" = promote ]; then
-  printf '%s\tpromote\tandroid\t%s\t%s\t%s\t%s\t%s\n' \
-    "$(date --utc +'%Y-%m-%dT%H:%M:%SZ')" "$VERSION_NAME" "$BUILD_NUMBER" "$APK_SHA256" "$APK_SIZE" "$UPDATE_URL" >> "$HISTORY_FILE"
-  echo "Android 推荐版本晋级完成: $BUILD_NUMBER"
-  echo "url=$UPDATE_URL"
+  OPERATION_ID=$(cat /proc/sys/kernel/random/uuid)
+  printf '%s' "$OPERATION_ID" > "$JOURNAL/operation"
+  sync -f "$JOURNAL/operation"
+  notes_command begin "{\"platform\":\"android\",\"versionName\":\"$VERSION_NAME\",\"buildNumber\":$BUILD_NUMBER,\"confirmedRevision\":$NOTES_REVISION,\"operationId\":\"$OPERATION_ID\",\"apkSha256\":\"$APK_SHA256\",\"apkSize\":\"$APK_SIZE\",\"updateUrl\":\"$UPDATE_URL\"}" >/dev/null
+fi
+if [ "$MODE" = promote ]; then write_policy "$ENV_NEXT" true; else write_policy "$ENV_NEXT" false; fi
+sync -f "$ENV_NEXT"
+touch "$JOURNAL/policy-started"
+sync -f "$JOURNAL/policy-started"
+mv -fT -- "$ENV_NEXT" "$ENV_FILE"
+if [ "$SKIP_RESTART" != true ]; then restart_and_verify; fi
+
+# TSV 以替换方式提交；任何失败均进入补偿。公开说明只在策略核验和登记成功后出现。
+if [ -f "$HISTORY_FILE" ]; then cp -- "$HISTORY_FILE" "$JOURNAL/next.tsv"; else touch "$JOURNAL/next.tsv"; fi
+if [ "$MODE" = promote ]; then
+  history_match=0
+  awk -F '\t' -v build="$BUILD_NUMBER" -v version="$VERSION_NAME" -v sha="$APK_SHA256" -v size="$APK_SIZE" -v url="$UPDATE_URL" '
+    $2 == "promote" && $3 == "android" && $5 == build {
+      found=1; if ($4 != version || $6 != sha || $7 != size || $8 != url) mismatch=1
+    }
+    END { exit mismatch ? 2 : (found ? 0 : 1) }
+  ' "$JOURNAL/next.tsv" || history_match=$?
+  if [ "$history_match" -eq 2 ]; then echo "历史登记与本次 APK 身份不符" >&2; exit 1; fi
+  if [ "$history_match" -ne 0 ]; then
+    printf '%s\tpromote\tandroid\t%s\t%s\t%s\t%s\t%s\n' \
+      "$(date --utc +'%Y-%m-%dT%H:%M:%SZ')" "$VERSION_NAME" "$BUILD_NUMBER" "$APK_SHA256" "$APK_SIZE" "$UPDATE_URL" >> "$JOURNAL/next.tsv"
+  fi
 else
   printf '%s\twithdraw\tandroid\t%s\t%s\n' \
-    "$(date --utc +'%Y-%m-%dT%H:%M:%SZ')" "${CURRENT_RECOMMENDED:-}" "${CURRENT_URL:-}" >> "$HISTORY_FILE"
-  echo "Android 移动版本策略已撤回"
+    "$(date --utc +'%Y-%m-%dT%H:%M:%SZ')" "${CURRENT_RECOMMENDED:-}" "${CURRENT_URL:-}" >> "$JOURNAL/next.tsv"
 fi
-chmod 0644 "$HISTORY_FILE"
+chmod 0644 "$JOURNAL/next.tsv"
+sync -f "$JOURNAL/next.tsv"
+mv -fT -- "$JOURNAL/next.tsv" "$HISTORY_FILE"
+if [ "$MODE" = promote ]; then
+  notes_command publish "{\"operationId\":\"$OPERATION_ID\"}" >/dev/null
+  notes_command commit "{\"operationId\":\"$OPERATION_ID\"}" >/dev/null
+  if [ "$SKIP_RESTART" != true ]; then
+    verify_meta
+    public=$($CURL_BIN --fail --silent --show-error --max-time 20 "https://wenyou.site/api/v1/mobile-releases/android/$BUILD_NUMBER")
+    printf '%s' "$public" | env -i PATH=/usr/bin:/bin EXPECTED_VERSION="$VERSION_NAME" EXPECTED_BUILD="$BUILD_NUMBER" EXPECTED_REVISION="$NOTES_REVISION" "$NODE_BINARY" -e '
+      let text=""; process.stdin.on("data", x => text+=x); process.stdin.on("end",()=>{
+        const d=JSON.parse(text).data;
+        if(d?.platform!=="android" || d.versionName!==process.env.EXPECTED_VERSION || d.buildNumber!==Number(process.env.EXPECTED_BUILD) || d.revision!==Number(process.env.EXPECTED_REVISION)) process.exit(1);
+      });'
+  fi
+  notes_command finish "{\"operationId\":\"$OPERATION_ID\"}" >/dev/null
+fi
+rm -rf -- "$JOURNAL"
+echo "Android 移动版本操作完成: $MODE ${BUILD_NUMBER:-}"

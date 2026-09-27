@@ -248,3 +248,11 @@ Flutter 代码、类型生成和设备回归仅在 Windows 执行；本后端 PR
 ## 全屏图片连续浏览
 
 兼容契约 5.26.0-dev.20260922.3 新增 [图片图集查询](image-gallery.md)。Mobile 先显示点击图片，再接入双向分页；Web 保留原查看交互，新增契约只同步类型与夹具。共享位置测试见 `contracts/gallery-image-occurrences.json`，重复 URL 按位置保留，贴纸仅按 title 前缀排除。权限丢失 404 必须清除对应缓存图，40900 重新打开会话，40926 保留当前图片并提示稍后再试。
+
+## Android 更新说明与历史
+
+本节新增接口兼容现有 `/meta`，版本策略仍完全由 `/meta.mobileCompatibility.android` 决定。推荐横幅可以读目标 build 的 summary，“查看更新”展示完整 items 和现有下载操作；强制页展示完整说明。历史页使用 `GET /mobile-releases?platform=android` 的不透明游标，按构建号倒序；以实际安装 build 标记当前版本，下载/更新操作只对 `/meta` 的实际可更新目标开放，不从历史猜测更新策略。
+
+公开 DTO：`platform, versionName, buildNumber, summary, items, revision, publishedAt`。详情路径 `GET /mobile-releases/android/{buildNumber}`。未发布/不存在都是 404，空历史显示空态，读取失败可以重试但不阻断启动或破坏强制升级流程。说明是纯文本，禁止 Markdown/HTML 渲染；没有升级后的自动弹窗。不得从 Git 提交自动拼接缺失说明。
+
+管理接口和精确长度、错误码见 [API 契约](api-contract.md#android-版本说明兼容增量)。发布工具的受限说明预检与确认 revision 绑定见 [发布运维](mobile-release-operations.md)，构建-only 不要求后台说明，真实晋级必须以最终受限通道契约校验。本次不新增 iOS 发布或 FCM 消息。

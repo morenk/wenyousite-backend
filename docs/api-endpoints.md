@@ -390,6 +390,23 @@
 |---|---|---|---|
 | GET | `/meta` | public |  |
 
+## Mobile Releases
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/mobile-releases` | public | 已发布版本历史，按构建号倒序；仅返回公开快照 |
+| GET | `/mobile-releases/{platform}/{buildNumber}` | public | 读取已发布版本说明；不存在或未发布均为 404 |
+
+## Admin Mobile Releases
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/admin/mobile-releases` | admin |  |
+| POST | `/admin/mobile-releases` | admin |  |
+| GET | `/admin/mobile-releases/{id}` | admin |  |
+| PATCH | `/admin/mobile-releases/{id}` | admin | 更新编辑稿；已发布版本仅 SUPER_ADMIN 可修正，旧公开快照保留 |
+| POST | `/admin/mobile-releases/{id}/confirm` | admin | 超级管理员确认当前 revision；已发布文案原子换为确认快照，不触发安装包发布 |
+
 ## Wallet
 
 | 方法 | 路径 | 鉴权 | 说明 |

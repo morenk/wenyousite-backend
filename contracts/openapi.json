@@ -15826,7 +15826,8 @@
                 "NOTIFICATION_CAMPAIGN_CANCELED",
                 "THREAD_CATEGORY_MERGED",
                 "TAG_MERGED",
-                "SITE_SETTINGS_UPDATED"
+                "SITE_SETTINGS_UPDATED",
+                "MOBILE_RELEASE_UPDATED"
               ]
             }
           },
@@ -15852,7 +15853,8 @@
                 "ADMIN_INVITE",
                 "ADMIN_SESSION",
                 "NOTIFICATION_CAMPAIGN",
-                "SITE_SETTINGS"
+                "SITE_SETTINGS",
+                "MOBILE_RELEASE"
               ]
             }
           },
@@ -16016,7 +16018,8 @@
                 "NOTIFICATION_CAMPAIGN_CANCELED",
                 "THREAD_CATEGORY_MERGED",
                 "TAG_MERGED",
-                "SITE_SETTINGS_UPDATED"
+                "SITE_SETTINGS_UPDATED",
+                "MOBILE_RELEASE_UPDATED"
               ]
             }
           },
@@ -16042,7 +16045,8 @@
                 "ADMIN_INVITE",
                 "ADMIN_SESSION",
                 "NOTIFICATION_CAMPAIGN",
-                "SITE_SETTINGS"
+                "SITE_SETTINGS",
+                "MOBILE_RELEASE"
               ]
             }
           },
@@ -19051,6 +19055,639 @@
         "security": []
       }
     },
+    "/api/v1/mobile-releases": {
+      "get": {
+        "operationId": "mobileReleasesList",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
+            "schema": {
+              "example": "clxabc123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（默认 20，最大 50）",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "platform",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "android"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "已发布版本说明",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MobileReleasesList200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "已发布版本历史，按构建号倒序；仅返回公开快照",
+        "tags": [
+          "Mobile Releases"
+        ],
+        "x-auth-mode": "public",
+        "x-pagination": "cursor",
+        "security": []
+      }
+    },
+    "/api/v1/mobile-releases/{platform}/{buildNumber}": {
+      "get": {
+        "operationId": "mobileReleasesDetail",
+        "parameters": [
+          {
+            "name": "platform",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "android"
+              ]
+            }
+          },
+          {
+            "name": "buildNumber",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "minimum": 1,
+              "maximum": 2100000000,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MobileReleasesDetail200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "无已发布说明",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "读取已发布版本说明；不存在或未发布均为 404",
+        "tags": [
+          "Mobile Releases"
+        ],
+        "x-auth-mode": "public",
+        "security": []
+      }
+    },
+    "/api/v1/admin/mobile-releases": {
+      "get": {
+        "operationId": "adminMobileReleasesList",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
+            "schema": {
+              "example": "clxabc123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（默认 20，最大 50）",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "platform",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "android"
+              ]
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "版本说明编辑稿及快照，按构建号倒序",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMobileReleasesList200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "tags": [
+          "Admin Mobile Releases"
+        ],
+        "x-auth-mode": "admin",
+        "x-pagination": "cursor"
+      },
+      "post": {
+        "operationId": "adminMobileReleasesCreate",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMobileReleaseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMobileReleasesCreate201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "409": {
+            "description": "平台与构建号已存在，禁止重新绑定版本名",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "tags": [
+          "Admin Mobile Releases"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/mobile-releases/{id}": {
+      "get": {
+        "operationId": "adminMobileReleasesDetail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMobileReleasesDetail200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "tags": [
+          "Admin Mobile Releases"
+        ],
+        "x-auth-mode": "admin"
+      },
+      "patch": {
+        "operationId": "adminMobileReleasesUpdate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMobileReleaseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMobileReleasesUpdate200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "409": {
+            "description": "revision 已变化或发布锁定",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "更新编辑稿；已发布版本仅 SUPER_ADMIN 可修正，旧公开快照保留",
+        "tags": [
+          "Admin Mobile Releases"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/mobile-releases/{id}/confirm": {
+      "post": {
+        "operationId": "adminMobileReleasesConfirm",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MobileReleaseRevisionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMobileReleasesConfirm201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "409": {
+            "description": "revision 已变化或发布锁定",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "summary": "超级管理员确认当前 revision；已发布文案原子换为确认快照，不触发安装包发布",
+        "tags": [
+          "Admin Mobile Releases"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
     "/api/v1/wallet": {
       "get": {
         "operationId": "economyGetWallet",
@@ -19873,7 +20510,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.26.0-dev.20260922.3",
+    "version": "5.27.0-dev.20260927.1",
     "contact": {}
   },
   "tags": [
@@ -27880,7 +28517,8 @@
               "NOTIFICATION_CAMPAIGN_CANCELED",
               "THREAD_CATEGORY_MERGED",
               "TAG_MERGED",
-              "SITE_SETTINGS_UPDATED"
+              "SITE_SETTINGS_UPDATED",
+              "MOBILE_RELEASE_UPDATED"
             ]
           },
           "targetType": {
@@ -27901,7 +28539,8 @@
               "ADMIN_INVITE",
               "ADMIN_SESSION",
               "NOTIFICATION_CAMPAIGN",
-              "SITE_SETTINGS"
+              "SITE_SETTINGS",
+              "MOBILE_RELEASE"
             ]
           },
           "targetId": {
@@ -30182,6 +30821,279 @@
           "markdownContractVersion",
           "capabilities",
           "mobileCompatibility"
+        ]
+      },
+      "PublicMobileReleaseDto": {
+        "type": "object",
+        "properties": {
+          "platform": {
+            "type": "string",
+            "enum": [
+              "android"
+            ]
+          },
+          "versionName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[0-9A-Za-z][0-9A-Za-z._-]{0,63}$"
+          },
+          "buildNumber": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 2100000000
+          },
+          "summary": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "revision": {
+            "type": "number"
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "platform",
+          "versionName",
+          "buildNumber",
+          "summary",
+          "items",
+          "revision",
+          "publishedAt"
+        ]
+      },
+      "MobileReleaseSnapshotDto": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "纯文本摘要；至少含一个非空白字符，不解析 Markdown/HTML"
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 30,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "description": "1–30 条纯文本，每条最多 500 字符且非空白；客户端按文本显示"
+          },
+          "revision": {
+            "type": "number"
+          },
+          "confirmedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "summary",
+          "items",
+          "revision",
+          "confirmedAt"
+        ]
+      },
+      "AdminMobileReleaseDto": {
+        "type": "object",
+        "properties": {
+          "platform": {
+            "type": "string",
+            "enum": [
+              "android"
+            ]
+          },
+          "versionName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[0-9A-Za-z][0-9A-Za-z._-]{0,63}$"
+          },
+          "buildNumber": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 2100000000
+          },
+          "id": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "revision": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "READY",
+              "PUBLISHED"
+            ],
+            "description": "已发布记录即使有待确认修正仍为 PUBLISHED；hasUnconfirmedChanges 表示草稿与确认快照不同"
+          },
+          "hasUnconfirmedChanges": {
+            "type": "boolean"
+          },
+          "publishing": {
+            "type": "boolean"
+          },
+          "confirmed": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MobileReleaseSnapshotDto"
+              }
+            ]
+          },
+          "published": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PublicMobileReleaseDto"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "platform",
+          "versionName",
+          "buildNumber",
+          "id",
+          "summary",
+          "items",
+          "revision",
+          "status",
+          "hasUnconfirmedChanges",
+          "publishing",
+          "confirmed",
+          "published",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateMobileReleaseDto": {
+        "type": "object",
+        "properties": {
+          "platform": {
+            "type": "string",
+            "enum": [
+              "android"
+            ]
+          },
+          "versionName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[0-9A-Za-z][0-9A-Za-z._-]{0,63}$"
+          },
+          "buildNumber": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 2100000000
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 30,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            }
+          }
+        },
+        "required": [
+          "platform",
+          "versionName",
+          "buildNumber",
+          "summary",
+          "items"
+        ]
+      },
+      "UpdateMobileReleaseDto": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "纯文本摘要；至少含一个非空白字符，不解析 Markdown/HTML"
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 30,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "description": "1–30 条纯文本，每条最多 500 字符且非空白；客户端按文本显示"
+          },
+          "versionName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[0-9A-Za-z][0-9A-Za-z._-]{0,63}$",
+            "description": "仅从未确认的草稿允许修正版本名；平台/build 固定"
+          },
+          "revision": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 2147483646
+          }
+        },
+        "required": [
+          "summary",
+          "items",
+          "revision"
+        ]
+      },
+      "MobileReleaseRevisionDto": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 2147483646,
+            "description": "最后读取的编辑 revision；竞争返回 HTTP 409，重新读取后再操作"
+          }
+        },
+        "required": [
+          "revision"
         ]
       },
       "WalletResponseDto": {
@@ -34739,6 +35651,138 @@
             "properties": {
               "data": {
                 "$ref": "#/components/schemas/ApiMetaResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "MobileReleasesList200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PublicMobileReleaseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "MobileReleasesDetail200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/PublicMobileReleaseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminMobileReleasesList200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiPaginatedSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AdminMobileReleaseDto"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AdminMobileReleasesCreate201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AdminMobileReleaseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminMobileReleasesDetail200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AdminMobileReleaseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminMobileReleasesUpdate200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AdminMobileReleaseDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminMobileReleasesConfirm201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AdminMobileReleaseDto"
               }
             }
           }
