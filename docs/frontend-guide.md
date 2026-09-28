@@ -429,6 +429,8 @@ DELETE /drafts/:id?version=2 按 version 条件删除；重复删除幂等成功
 
 ## 7. 关注 / 拉黑
 
+个人资料 `_count.following` / `_count.followers` 与同一查看者的关系列表使用相同过滤：排除已注销账号，登录时沿用双向拉黑可见性。同步本次计数纠错精确提交的 OpenAPI；此次仅修正计数及说明，字段与类型不变。游客资料仍可能命中最长五分钟缓存，详见[本人关注与粉丝管理](api-contract.md#本人关注与粉丝管理)。
+
 ```
 POST   /users/follow/:id      关注用户
 DELETE /users/follow/:id      取消关注

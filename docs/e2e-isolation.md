@@ -65,6 +65,8 @@ manifest 不包含口令，v1 字段为：`version=1`、`runId`、`state=ready`�
 
 后端入口统一为 `pnpm test:e2e`（HTTP 主链）、`pnpm test:e2e:full`（HTTP + 认证终端/经济/媒体/排行/管理/收藏）、各原 `test:integration:*` 命令，以及 `pnpm e2e:run --suite=<auth|economy|media|ranking|admin|display|bookmarks|bookmark-count|search>`。底层脚本直接调用时必须先校验 manifest，再只读验证真实 PostgreSQL `cluster_name` 与 Redis 实例/身份键；缺少 runner 环境立即拒绝，`API_E2E_ENV=test` 本身不再放行。
 
+`pnpm test:integration:profile-follow-counts`（`--suite=profile-follow-counts`）通过本次隔离 API 和真实 Prisma 聚合验证注销关系保留时资料计数与列表一致、双向拉黑、单向移除及游客缓存命中/过期；已纳入 `test:e2e:full`。随机账号、缓存和所有关系由该 runner 随本轮资源清理，不复用持续预览。
+
 ## 安装与异常残留
 
 治理可从已校验、没有运行数据的发行包解压根执行 `bash scripts/prepare-e2e-tools.sh --source-root <包解压根>`，安装固定只读工具到 `/opt/wenyousite/e2e-tools`。脚本不启用 systemd、不接触 Docker/线上网络与卷、不复制 pg-data/redis-data，不覆盖已有安装。输出仅含三个无凭据配置路径；开发身份只需这些路径，不持有线上管理凭据。也可使用管理员已安装的兼容 PostgreSQL/Redis 二进制。
