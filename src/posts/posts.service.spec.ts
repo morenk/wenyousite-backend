@@ -735,6 +735,61 @@ describe('PostsService', () => {
     ).rejects.toThrow(BusinessException);
   });
 
+  describe('正文编辑时间', () => {
+    const previous = new Date('2026-09-01T00:00:00.000Z');
+    const content = '原文\n<br />';
+    beforeEach(() => {
+      mockPrisma.post.findUnique.mockResolvedValue({
+        id: 'p1', authorId: 'u1', threadId: 't1', content, version: 3,
+        thread: { published: true }, subthread: { deletedAt: null }, diceRolls: [],
+      });
+      mockPrisma.post.update.mockImplementation(async ({ data }) => ({
+        id: 'p1', author: { username: 'test' }, editedAt: previous, ...data,
+      }));
+    });
+
+    it('规范化后相同的正文不写 editedAt，并保留原有版本递增', async () => {
+      const result = await service.update('p1', { version: 3, content: '原文\r\n<br>' }, 'u1');
+      expect(result.editedAt).toEqual(previous);
+      expect(mockPrisma.post.update).toHaveBeenCalledWith({
+        where: { id: 'p1', version: 3, content, deletedAt: null },
+        data: { content, version: { increment: 1 } },
+      });
+    });
+
+    it('正文改变时在同一写入中设置服务端时间', async () => {
+      const before = Date.now();
+      const result = await service.update('p1', { version: 3, content: '新内容' }, 'u1');
+      expect(result.editedAt!.getTime()).toBeGreaterThanOrEqual(before);
+      expect(result.editedAt!.getTime()).toBeLessThanOrEqual(Date.now());
+      expect(mockPrisma.post.update).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ version: 3, content }),
+        data: expect.objectContaining({ editedAt: expect.any(Date), content: '新内容' }),
+      }));
+    });
+
+    it('内容比较基线发生并发变化时拒绝写入且不发成功事件', async () => {
+      mockPrisma.post.update.mockRejectedValueOnce({ code: 'P2025' });
+      await expect(service.update('p1', { version: 4, content }, 'u1')).rejects.toBeInstanceOf(BusinessException);
+      expect(mockPrisma.post.update).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ version: 4, content }),
+      }));
+      expect(mockEventEmitter.emit).not.toHaveBeenCalledWith('post.updated', expect.anything());
+    });
+
+    it.each([false, true])('BODY upsert 正文是否改变=%s 时使用相同编辑语义', async (changed) => {
+      mockPrisma.subthread.findUnique.mockResolvedValue({ id: 's1', threadId: 't1', thread: { published: true } });
+      mockPrisma.post.findFirst.mockResolvedValue({ id: 'p1', content, version: 3, diceRolls: [] });
+      const result = await service.upsertBody('s1', changed ? '新正文' : '原文\r\n<br>', 3, 'u1');
+      const data = mockPrisma.post.update.mock.calls[0][0].data;
+      if (changed) expect(data.editedAt).toBeInstanceOf(Date);
+      else {
+        expect(data).not.toHaveProperty('editedAt');
+        expect(result.editedAt).toEqual(previous);
+      }
+    });
+  });
+
   it('update 编辑自己的帖子应该成功', async () => {
     mockPrisma.post.findUnique.mockResolvedValue({
       id: 'p1',

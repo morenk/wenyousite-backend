@@ -70,6 +70,7 @@
     "test:e2e:full": "tsx scripts/e2e-runner.ts --full",
     "e2e:reap": "tsx scripts/e2e-reap.ts",
     "test:e2e:lifecycle": "tsx scripts/e2e-lifecycle.integration.ts",
+    "test:integration:post-edited-time": "tsx scripts/e2e-runner.ts --suite=post-edited-time",
     "test:integration:gallery": "tsx scripts/e2e-runner.ts --suite=gallery",
     "test:integration:admin-session": "tsx scripts/e2e-runner.ts --suite=admin-session",
     "dev:preview": "tsx scripts/dev-preview/cli.ts",

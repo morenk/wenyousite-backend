@@ -14,6 +14,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 
 const SUITES: Record<string, [string, string]> = {
   'profile-follow-counts': ['profile-follow-counts.integration.ts', 'PROFILE_FOLLOW_COUNTS_TEST_ENV'],
+  'post-edited-time': ['post-edited-time.integration.ts', 'POST_EDITED_TIME_TEST_ENV'],
   'mobile-releases': ['mobile-releases.integration.ts', 'MOBILE_RELEASE_TEST_ENV'],
   gallery: ['image-gallery.integration.ts', 'IMAGE_GALLERY_TEST_ENV'],
   auth: ['auth-terminal-e2e.ts', 'AUTH_TERMINAL_E2E_ENV'],
@@ -160,7 +161,7 @@ export async function run(args = process.argv.slice(2)) {
       }
       const suites = options.includes('--full') ? Object.keys(SUITES).filter((key) => key !== 'search')
         : options.filter((o) => o.startsWith('--suite=')).map((o) => o.slice(8));
-      const httpSuites = ['gallery', 'profile-follow-counts'];
+      const httpSuites = ['gallery', 'profile-follow-counts', 'post-edited-time'];
       for (const key of suites.filter(key => httpSuites.includes(key))) {
         const [script, flag] = SUITES[key];
         await runScript(script, { [flag]: 'test' });

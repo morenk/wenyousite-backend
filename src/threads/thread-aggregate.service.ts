@@ -1,3 +1,4 @@
+import { postContentEditData } from '../posts/post-content-edit';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Prisma } from '@prisma/client';
@@ -203,7 +204,7 @@ export class ThreadAggregateService {
           if (existingBody.content !== content) {
             const post = await tx.post.update({
               where: { id: existingBody.id, version: dto.bodyVersion, ...notDeleted },
-              data: { content, version: { increment: 1 } },
+              data: postContentEditData(existingBody.content, content),
             });
             await this.mediaReferences.syncPostContent(tx, post.id, content);
             if (current.published) {

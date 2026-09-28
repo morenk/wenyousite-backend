@@ -352,6 +352,7 @@
 | replyToPostId | String? | FK posts | 被回复的帖子 ID（必须位于同一子贴） |
 | pinnedAt | DateTime? | — | 主楼层置顶到当前子贴的时间；BODY 和楼中楼回复必须为 null |
 | content | String | — | 正文（Markdown，含图片 URL 与内联骰子节点） |
+| editedAt | DateTime? | — | 规范化正文实际改变且事务成功的最后编辑时间；历史与未编辑为 null，置顶/删除恢复/发布结算不改变 |
 | version | Int | default 1 | 乐观锁 |
 | deletedAt | DateTime? | — | 软删除时间 |
 

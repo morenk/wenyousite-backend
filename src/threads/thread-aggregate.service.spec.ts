@@ -317,6 +317,9 @@ describe('ThreadAggregateService', () => {
       'u1',
     );
 
+    expect(tx.post.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ editedAt: expect.any(Date) }),
+    }));
     expect(mentions.syncMentionsInTransaction).toHaveBeenCalledWith(
       tx,
       'p1',
