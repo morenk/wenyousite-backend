@@ -185,3 +185,9 @@ GET /users/me 与有效用户的 GET /users/{id} 中，`_count.following` / `_co
 管理 DTO 的 `status=DRAFT|READY|PUBLISHED`，`hasUnconfirmedChanges` 表示草稿 revision 与确认 revision 不同；`confirmed` 和 `published` 是可空快照，`publishing` 表示受限通道正在处理，期间拒绝编辑/确认。状态 PUBLISHED 不代表正在编辑的草稿已经公开。
 
 重复 build、revision 竞争或发布锁统一为 HTTP 409 / `CONFLICT=40900`；非法游标为 HTTP 400 / `INVALID_CURSOR=40007`。权限不足为 403，客户端不可把 409 自动覆盖提交。审计枚举新增 `MOBILE_RELEASE_UPDATED` / `MOBILE_RELEASE`，记录操作及 revision，不保存文案正文；Web 操作日志需提供“移动版本说明”标签。
+
+## 楼层与楼中楼编辑时间
+
+契约 `5.28.0-dev.20260929.1` 在 PostBaseResponseDto 新增可选、可空 ISO 8601 `editedAt`。创建与历史记录为 null；正文编辑（包括 BODY upsert 和聚合保存）只在规范化后实际持久正文改变且事务成功时设置服务端时间。无改动保存保留既有 editedAt；失败、取消、置顶、删除恢复与发布骰子结算不会产生编辑记录。迁移仅新增可空列，不根据 updatedAt 推算或回填历史。
+
+字段覆盖楼层列表、内嵌回复、回复分页、帖子详情、创建和编辑响应。Web / Mobile 的主楼层、楼中楼预览和独立回复页使用 `editedAt ?? createdAt`，存在 editedAt 时仅显示“编辑于…”并沿用现有时间格式与时区；字段缺失或 null 保留原发布时间展示。读屏、悬停及 time 元素同样使用所显示的时间。主题信息、子贴正文与最新回复摘要的展示范围不变，列表继续按既有楼层号或 createdAt 排序；updatedAt 和 version 不用作编辑依据。兼容后端先发布，消费者随后接入，旧消费者忽略新增字段。

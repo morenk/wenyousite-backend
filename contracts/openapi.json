@@ -20510,7 +20510,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.27.1-dev.20260928.1",
+    "version": "5.28.0-dev.20260929.1",
     "contact": {}
   },
   "tags": [
@@ -26120,6 +26120,12 @@
             "type": "string",
             "format": "date-time"
           },
+          "editedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "最后一次成功保存且规范化正文实际改变的服务端时间；历史与未编辑帖子为 null"
+          },
           "pinnedAt": {
             "type": "string",
             "format": "date-time",
@@ -26234,6 +26240,12 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "editedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "最后一次成功保存且规范化正文实际改变的服务端时间；历史与未编辑帖子为 null"
           },
           "pinnedAt": {
             "type": "string",
@@ -26421,6 +26433,12 @@
             "type": "string",
             "format": "date-time"
           },
+          "editedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "最后一次成功保存且规范化正文实际改变的服务端时间；历史与未编辑帖子为 null"
+          },
           "pinnedAt": {
             "type": "string",
             "format": "date-time",
@@ -26600,6 +26618,12 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "editedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "最后一次成功保存且规范化正文实际改变的服务端时间；历史与未编辑帖子为 null"
           },
           "pinnedAt": {
             "type": "string",

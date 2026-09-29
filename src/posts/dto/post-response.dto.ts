@@ -145,6 +145,14 @@ export class PostBaseResponseDto {
     type: String,
     format: 'date-time',
     nullable: true,
+    description: '最后一次成功保存且规范化正文实际改变的服务端时间；历史与未编辑帖子为 null',
+  })
+  editedAt?: Date | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    nullable: true,
     description: '主楼层置顶到当前子贴的时间；正文和楼中楼回复为 null',
   })
   pinnedAt?: Date | null;

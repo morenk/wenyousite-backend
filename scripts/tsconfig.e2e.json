@@ -14,6 +14,8 @@
     "e2e-guard.ts",
     "e2e-runner.ts",
     "profile-follow-counts.integration.ts",
+    "post-edited-time.integration.ts",
+    "post-edited-time-preview.ts",
     "mobile-releases.integration.ts",
     "mobile-release-preview.ts",
     "e2e-admin-fixtures.integration.ts",

@@ -101,3 +101,7 @@ Linux 退出期间可能先置位 PF_EXITING，进程仍暂时显示 R，且 env
 `pnpm test:integration:mobile-releases` 经同一 runner 验证迁移后的真实数据路径、后台 Guard/CSRF、revision 竞争、确认快照与受限发布数据库恢复；不进行真实发包或修改共享策略。
 
 需要已发布修正文案联验时，再加 `--mobile-release-fixtures`：`pnpm e2e:run --admin-fixtures --mobile-release-fixtures -- <消费者命令>`。该选项在本轮实际身份核验后，以 `wenyousite_app`、领域服务和 Publication 状态机创建一条已发布样本（android/build 100）和一条待确认草稿（build 101）；不调用 sudo、对象存储或真实晋级。`E2E_MOBILE_RELEASE_FIXTURES` 指向本轮 0600 JSON `{version:1,runId,published:AdminMobileReleaseDto,draft:AdminMobileReleaseDto}`，包含测试版本/id/revision，无数据库凭据。Web 可据此验证普通管理员修改已发布说明返回 403、超级管理员编辑期间旧公开内容保留、确认后替换。样本不是安装包发布验证。
+
+### 帖子编辑时间
+
+`pnpm test:integration:post-edited-time` 已纳入 `test:e2e:full`，核验实际独立 PostgreSQL/Redis 身份后覆盖 nullable 列迁移前后与重复执行、历史 null 保留、楼层/回复 HTTP 序列化、规范化无改动保存、冲突/拒绝/骰子失败事务回滚、BODY 与聚合写入、置顶和管理员隐藏恢复及发布骰子结算。迁移样本子库和文件仅属于本轮私有目录，finally 清理；runner 继续核验并清理全部独立资源。

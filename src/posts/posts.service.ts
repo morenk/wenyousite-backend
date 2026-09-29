@@ -1,3 +1,4 @@
+import { postContentEditData, rethrowPostEditConflict } from './post-content-edit';
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
@@ -423,7 +424,7 @@ export class PostsService {
         await this.mentionEvents.lockContentInteraction(tx, subthread.threadId, userId, normalizedContent, [existing.id]);
         const post = await tx.post.update({
           where: { id: existing.id, version, ...notDeleted },
-          data: { content: normalizedContent, version: { increment: 1 } },
+          data: postContentEditData(oldContent, normalizedContent),
         });
         await this.mediaReferences.syncPostContent(tx, post.id, normalizedContent);
         if (subthread.thread.published) {
@@ -453,16 +454,7 @@ export class PostsService {
         }
         return updatedPost;
       })
-      .catch((err) => {
-        if (err?.code === 'P2025') {
-          throw new BusinessException(
-            ErrorCode.OPTIMISTIC_LOCK_CONFLICT,
-            '正文已被修改，请刷新后重试',
-            HttpStatus.CONFLICT,
-          );
-        }
-        throw err;
-      });
+      .catch((err: unknown) => rethrowPostEditConflict(err, '正文已被修改，请刷新后重试'));
 
     this.eventEmitter.emit('post.updated', {
       postId: updated.id,
@@ -518,8 +510,8 @@ export class PostsService {
       .$transaction(async (tx) => {
         await this.mentionEvents.lockContentInteraction(tx, postLight.threadId, userId, content);
         const post = await tx.post.update({
-          where: { id, version: dto.version, ...notDeleted },
-          data: { content, version: { increment: 1 } },
+          where: { id, version: dto.version, content: oldContent, ...notDeleted },
+          data: postContentEditData(oldContent, content),
         });
         await this.mediaReferences.syncPostContent(tx, post.id, content);
         if (threadPublished) {
@@ -549,16 +541,7 @@ export class PostsService {
         }
         return updatedPost;
       })
-      .catch((err) => {
-        if (err?.code === 'P2025') {
-          throw new BusinessException(
-            ErrorCode.OPTIMISTIC_LOCK_CONFLICT,
-            '帖子已被编辑，请刷新后重试',
-            HttpStatus.CONFLICT,
-          );
-        }
-        throw err;
-      });
+      .catch((err: unknown) => rethrowPostEditConflict(err, '帖子已被编辑，请刷新后重试'));
 
     // 缓存失效事件
     this.eventEmitter.emit('post.updated', {

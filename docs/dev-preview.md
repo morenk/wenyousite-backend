@@ -112,3 +112,7 @@ pnpm test:preview 覆盖协议 schema、日期、保留端口、坏快照、媒�
 没有当天真实快照时可在已生成 Prisma Client 的本目标 Worktree 执行 `pnpm exec tsx scripts/mobile-release-preview.ts`。它先登记并验证一次性独立 PostgreSQL/Redis，创建随机 USER/ADMIN/SUPER_ADMIN 和草稿/待发布/已发布说明，导出当天**合成数据**快照后清理源进程，再通过本页既有预览工具启动 `mobile-release-notes` 批次。它不复制旧快照、不读取线上数据、不实际上传或晋级 APK。
 
 stdout 仅含 consumerPath/accountPath 与非秘密资源身份。账号仅在该批次 0600 `sample-accounts.json`，验证码进同批次本地 mailbox；Web/Mobile 共用 consumer.json 并先验证 backend/media 身份。说明样本不改变 `/meta` 更新策略，不代表真实 APK 更新验收。批次可复用但不接管别的 Worktree。停止用 `dev:preview stop --session mobile-release-notes`，验收结束经批次确认清理，并按 `sample-snapshot-ownership.json` 登记回收合成快照目录。真实快照缺失时仍须明确标注“合成数据候选／待负责人验收”。
+
+### 楼层编辑时间合成样本
+
+没有当天真实快照时，本目标可用 `pnpm exec tsx scripts/post-edited-time-preview.ts` 创建 `post-edited-time` 批次。入口在本轮已核验独立 PostgreSQL/Redis 生成未编辑/已编辑楼层与楼中楼，导出明确标注的合成快照并清理源进程，再启动既有预览协议。账号仅留本批次 0600 `sample-accounts.json`，定位 ID 在 `sample-content.json`；不使用真实账号口令，不冒充当天真实快照。Web/Mobile 共用 consumer.json 并核验运行身份。验收结束使用 `dev:preview stop/cleanup --session post-edited-time`（cleanup 同时传 `--confirm post-edited-time`），按 sample-snapshot-ownership.json 回收本批次合成快照；持续反馈期间保留会话。
