@@ -12,6 +12,8 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - fast-uri@3.1.7 || 4.1.4
 overrides:
+  # Swagger 精确依赖旧 js-yaml；仅此链路升级，修复 GHSA-r3ph-w7gj-g6xm。
+  '@nestjs/swagger@11.4.7>js-yaml': 5.4.1
   brace-expansion@2.1.2: 2.1.4
   brace-expansion@5.0.8: 5.0.9
   deepmerge-ts@7.1.5: 8.0.0
