@@ -6,7 +6,7 @@ const coverage = JSON.parse(fs.readFileSync(coveragePath, 'utf8')) as Record<str
 const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as Record<string, any>;
 const failures: string[] = [];
 
-const expectedCounts = { total: 232, v1: 107, deferred: 66, notApplicable: 58, infrastructure: 1 };
+const expectedCounts = { total: 233, v1: 108, deferred: 66, notApplicable: 58, infrastructure: 1 };
 for (const [name, expected] of Object.entries(expectedCounts)) {
   if (coverage.counts?.[name] !== expected) {
     failures.push(
@@ -26,6 +26,11 @@ const removeFollower = rows.find((row: Record<string, unknown>) => row.operation
 if (removeFollower?.disposition !== 'v1' || removeFollower?.method !== 'DELETE'
   || removeFollower?.path !== '/api/v1/users/me/followers/{id}') {
   failures.push('移除本人粉丝必须纳入移动端 V1 写接口');
+}
+const ensureInvite = rows.find((row: Record<string, unknown>) => row.operationId === 'threadsEnsureInviteLink');
+if (ensureInvite?.disposition !== 'v1' || ensureInvite?.method !== 'PUT'
+  || ensureInvite?.path !== '/api/v1/threads/{id}/invite-link') {
+  failures.push('私帖邀请复用必须纳入移动端 V1 PUT 接口');
 }
 const seen = new Set<string>();
 for (const row of rows) {

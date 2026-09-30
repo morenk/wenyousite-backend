@@ -13,6 +13,8 @@
     "e2e-resources.ts",
     "e2e-guard.ts",
     "e2e-runner.ts",
+    "private-invite-reuse.integration.ts",
+    "private-invite-reuse-preview.ts",
     "profile-follow-counts.integration.ts",
     "post-edited-time.integration.ts",
     "post-edited-time-preview.ts",

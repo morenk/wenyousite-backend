@@ -266,3 +266,11 @@ Flutter 代码、类型生成和设备回归仅在 Windows 执行；本后端 PR
 `GET /mobile-releases?platform=android` 的公开历史、倒序分页与不透明游标继续兼容，空列表仍返回空数组。App 历史入口移除不删除该接口、详情接口、后台管理能力或历史数据；HTTP/OpenAPI、数据库及契约版本 `5.27.0-dev.20260927.1` 均不变，不新增服务端已读状态。
 
 管理接口和精确长度、错误码见 [API 契约](api-contract.md#android-版本说明兼容增量)。发布工具的受限说明预检与确认 revision 绑定见 [发布运维](mobile-release-operations.md)，构建-only 不要求后台说明，真实晋级必须以最终受限通道契约校验。本次不新增 iOS 发布或 FCM 消息。
+
+## 私帖邀请链接重复分享
+
+契约 `5.29.0-dev.20261001.1` 新增无请求体的 `PUT /threads/{id}/invite-link`（`threadsEnsureInviteLink`），返回 200 与现有 `InviteLinkResponseDto`；认证与归属沿用敏感写操作，仅已发布私帖楼主可用。重复、并发及跨设备取得同一个当前 token；不存在时才原子创建，不修改成员。
+
+主操作“复制邀请链接”每次调用 PUT，禁止失败后回退到重新生成。保留 `POST` / `threadsCreateInviteLink` 供单独“重置邀请链接”，确认文案：“旧邀请链接将立即失效，已加入成员的权限不受影响。”重置结果不明时不自动重发 POST，通过 PUT 重新取得当前链接。重置后旧链接预览、加入对所有人均失效；已有成员仍从帖子入口访问。
+
+请求期间禁止重复操作，剪贴板失败保留可手动复制的链接，区分接口错误与复制失败；关闭、切号或离开时清理内存中的邀请凭据，不写日志或独立持久缓存。Web 与 Windows Mobile 从后端精确提交同步 OpenAPI，Mobile 使用独立 chore 契约提交并重新生成客户端。Foundation 只补充交互说明，不发布组件或 Token 版本。

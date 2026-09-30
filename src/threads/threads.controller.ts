@@ -3,6 +3,7 @@ import {
   HttpCode,
   Get,
   Post,
+  Put,
   Patch,
   Delete,
   Body,
@@ -246,6 +247,20 @@ export class ThreadsController {
   async unlike(@Param('id') id: string, @Req() req: FastifyRequest) {
     const user = req['user'] as { id: string };
     return this.threadsService.unlike(id, user.id);
+  }
+
+  @Put(':id/invite-link')
+  @HttpCode(200)
+  @Auth()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '取得或首次创建私密帖邀请链接（仅 OWNER，已发布 + 私密帖）' })
+  @ApiOkResponse({ type: InviteLinkResponseDto, description: '当前邀请链接；重复或并发请求不更换 token' })
+  @ApiUnauthorizedResponse({ description: '未登录' })
+  @ApiForbiddenResponse({ description: '仅 OWNER / 未发布 / 非私密帖' })
+  @ApiNotFoundResponse({ description: '主题帖不存在或不可访问' })
+  async ensureInviteLink(@Param('id') id: string, @Req() req: FastifyRequest) {
+    const user = req['user'] as { id: string };
+    return this.threadsService.ensureInviteLink(id, user.id);
   }
 
   @Post(':id/invite-link')

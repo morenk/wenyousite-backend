@@ -317,10 +317,13 @@ DELETE /threads/:id/like     取消点赞
 ### 4.5 私密帖 + 邀请
 
 ```
-POST   /threads/:id/invite-link   生成邀请链接 → 返回 { threadId, token }
+PUT    /threads/:id/invite-link   取得或首次创建邀请链接 → 返回现有 InviteLinkResponseDto
+POST   /threads/:id/invite-link   主动重置邀请链接 → 返回现有 InviteLinkResponseDto
 GET    /threads/join-by-link/:token   预览邀请链接 → 返回 { thread: { id, title, category, status, owner, memberCount, createdAt }, alreadyJoined }
 POST   /threads/join-by-link/:token   通过 16 位 token 幂等加入私密帖
 ```
+
+楼主日常复制每次调用 PUT，只有确认“旧邀请链接将立即失效，已加入成员的权限不受影响。”后才调用 POST 重置；重置结果不明时通过 PUT 取回当前链接，不自动重复 POST。请求期间禁止重复操作，剪贴板失败时保留手动复制；离开或切号清理内存 token。
 
 前端收到邀请链接后，先调 `GET` 预览。`alreadyJoined=true` 时直接进入 `/threads/{id}`；否则展示确认页面，用户确认后再调 `POST` 正式加入。POST 使用唯一键 upsert，重复或并发提交都返回现有成员记录。
 

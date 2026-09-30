@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "5.28.0-dev.20260929.1",
+  "contractVersion": "5.29.0-dev.20261001.1",
   "counts": {
-    "total": 232,
-    "v1": 107,
+    "total": 233,
+    "v1": 108,
     "deferred": 66,
     "notApplicable": 58,
     "infrastructure": 1
@@ -546,6 +546,14 @@
       "operationId": "threadsUnlike",
       "method": "DELETE",
       "path": "/api/v1/threads/{id}/like",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "threadsEnsureInviteLink",
+      "method": "PUT",
+      "path": "/api/v1/threads/{id}/invite-link",
       "module": "threads",
       "disposition": "v1",
       "status": "planned"

@@ -191,3 +191,11 @@ GET /users/me 与有效用户的 GET /users/{id} 中，`_count.following` / `_co
 契约 `5.28.0-dev.20260929.1` 在 PostBaseResponseDto 新增可选、可空 ISO 8601 `editedAt`。创建与历史记录为 null；正文编辑（包括 BODY upsert 和聚合保存）只在规范化后实际持久正文改变且事务成功时设置服务端时间。无改动保存保留既有 editedAt；失败、取消、置顶、删除恢复与发布骰子结算不会产生编辑记录。迁移仅新增可空列，不根据 updatedAt 推算或回填历史。
 
 字段覆盖楼层列表、内嵌回复、回复分页、帖子详情、创建和编辑响应。Web / Mobile 的主楼层、楼中楼预览和独立回复页使用 `editedAt ?? createdAt`，存在 editedAt 时仅显示“编辑于…”并沿用现有时间格式与时区；字段缺失或 null 保留原发布时间展示。读屏、悬停及 time 元素同样使用所显示的时间。主题信息、子贴正文与最新回复摘要的展示范围不变，列表继续按既有楼层号或 createdAt 排序；updatedAt 和 version 不用作编辑依据。兼容后端先发布，消费者随后接入，旧消费者忽略新增字段。
+
+## 私帖邀请链接重复分享
+
+契约 `5.29.0-dev.20261001.1` 新增无请求体的 `PUT /threads/{id}/invite-link`（`threadsEnsureInviteLink`），返回 200 与现有 `InviteLinkResponseDto`；认证与归属沿用敏感写操作，仅已发布私帖楼主可用。重复、并发及跨设备取得同一个当前 token；不存在时才原子创建，不修改成员。
+
+主操作“复制邀请链接”每次调用 PUT，禁止失败后回退到重新生成。保留 `POST` / `threadsCreateInviteLink` 供单独“重置邀请链接”，确认文案：“旧邀请链接将立即失效，已加入成员的权限不受影响。”重置结果不明时不自动重发 POST，通过 PUT 重新取得当前链接。重置后旧链接预览、加入对所有人均失效；已有成员仍从帖子入口访问。
+
+请求期间禁止重复操作，剪贴板失败保留可手动复制的链接，区分接口错误与复制失败；关闭、切号或离开时清理内存中的邀请凭据，不写日志或独立持久缓存。Web 与 Windows Mobile 从后端精确提交同步 OpenAPI，Mobile 使用独立 chore 契约提交并重新生成客户端。Foundation 只补充交互说明，不发布组件或 Token 版本。

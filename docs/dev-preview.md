@@ -116,3 +116,9 @@ stdout 仅含 consumerPath/accountPath 与非秘密资源身份。账号仅在�
 ### 楼层编辑时间合成样本
 
 没有当天真实快照时，本目标可用 `pnpm exec tsx scripts/post-edited-time-preview.ts` 创建 `post-edited-time` 批次。入口在本轮已核验独立 PostgreSQL/Redis 生成未编辑/已编辑楼层与楼中楼，导出明确标注的合成快照并清理源进程，再启动既有预览协议。账号仅留本批次 0600 `sample-accounts.json`，定位 ID 在 `sample-content.json`；不使用真实账号口令，不冒充当天真实快照。Web/Mobile 共用 consumer.json 并核验运行身份。验收结束使用 `dev:preview stop/cleanup --session post-edited-time`（cleanup 同时传 `--confirm post-edited-time`），按 sample-snapshot-ownership.json 回收本批次合成快照；持续反馈期间保留会话。
+
+### 私帖邀请链接复用合成样本
+
+当天真实快照不可用时，本目标可用 `pnpm exec tsx scripts/private-invite-reuse-preview.ts` 创建 `private-invite-reuse` 批次（Web 端口 43931，占用时拒绝）。入口在本轮已核验独立 PostgreSQL/Redis 生成 OWNER/MEMBER/NEWCOMER 随机账号及已发布私帖，导出明确标注的合成快照、清理源进程，再启动既有预览协议。账号只留本批次 0600 `sample-accounts.json`，定位 ID 在 `sample-content.json`；不读取线上内容，不冒称当天真实快照。
+
+Web/Mobile 共用 `consumer.json`，先核验后端及媒体真实运行身份。反馈批次保留会话；验收结束使用 `dev:preview stop/cleanup --session private-invite-reuse`（cleanup 同时传 `--confirm private-invite-reuse`），按 `sample-snapshot-ownership.json` 回收本批次合成快照。
