@@ -105,3 +105,7 @@ Linux 退出期间可能先置位 PF_EXITING，进程仍暂时显示 R，且 env
 ### 帖子编辑时间
 
 `pnpm test:integration:post-edited-time` 已纳入 `test:e2e:full`，核验实际独立 PostgreSQL/Redis 身份后覆盖 nullable 列迁移前后与重复执行、历史 null 保留、楼层/回复 HTTP 序列化、规范化无改动保存、冲突/拒绝/骰子失败事务回滚、BODY 与聚合写入、置顶和管理员隐藏恢复及发布骰子结算。迁移样本子库和文件仅属于本轮私有目录，finally 清理；runner 继续核验并清理全部独立资源。
+
+### 私帖邀请链接复用
+
+`pnpm test:integration:private-invite-reuse` 经本轮独立 PostgreSQL/Redis 身份验证执行真实 HTTP 与 Prisma 并发回归，已纳入 `test:e2e:full`。覆盖首次并发取得、重复与跨登录会话复用、主动重置旧链接失效、成员权限保留及匿名/非楼主/草稿/公开/软删除拒绝。数据、成员、token 仅在本轮隔离资源中生成；日志只输出受控断言，runner 登记 runId 并清理所有资源。

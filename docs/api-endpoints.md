@@ -102,6 +102,7 @@
 | POST | `/threads/{id}/like` | authenticated | 点赞主题帖（幂等，不通知自己） |
 | DELETE | `/threads/{id}/like` | authenticated | 取消点赞主题帖（幂等） |
 | POST | `/threads/{id}/invite-link` | authenticated | 生成或刷新私密帖邀请链接（仅 OWNER，需已发布 + 私密帖） |
+| PUT | `/threads/{id}/invite-link` | authenticated | 取得或首次创建私密帖邀请链接（仅 OWNER，已发布 + 私密帖） |
 | GET | `/threads/join-by-link/{token}` | authenticated | 预览邀请链接对应的私密帖信息，并判断当前用户是否已加入 |
 | POST | `/threads/join-by-link/{token}` | authenticated | 通过 16 位邀请 token 幂等加入私密帖（需已发布） |
 | GET | `/threads/{threadId}/members` | optional | 获取主题帖参与人列表 |

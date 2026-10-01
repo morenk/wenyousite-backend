@@ -16,18 +16,32 @@ export class ThreadInviteService {
     private readonly threadAccess: ThreadAccessService,
   ) {}
 
-  async create(threadId: string, userId: string) {
-    await this.threadAccess.assertOwner(threadId, userId);
-    const thread = await this.prisma.thread.findUnique({ where: { id: threadId, ...notDeleted } });
-    if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
-    if (!thread.published) throw forbidden('请先发布主题帖');
-    if (thread.visibility !== 'PRIVATE') throw forbidden('仅私密帖可生成邀请链接');
+  async ensure(threadId: string, userId: string) {
+    await this.assertCanShare(threadId, userId);
+    // 非空 update 让 Prisma 使用数据库原生 upsert；冲突时只写回唯一键，
+    // 不覆盖 token，保证并发首次复制及与重置竞争时不会复活旧凭据。
+    return this.prisma.threadInvite.upsert({
+      where: { threadId },
+      create: { threadId, token: this.generateToken() },
+      update: { threadId },
+    });
+  }
 
+  async create(threadId: string, userId: string) {
+    await this.assertCanShare(threadId, userId);
     return this.prisma.threadInvite.upsert({
       where: { threadId },
       create: { threadId, token: this.generateToken() },
       update: { token: this.generateToken() },
     });
+  }
+
+  private async assertCanShare(threadId: string, userId: string) {
+    await this.threadAccess.assertOwner(threadId, userId);
+    const thread = await this.prisma.thread.findUnique({ where: { id: threadId, ...notDeleted } });
+    if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
+    if (!thread.published) throw forbidden('请先发布主题帖');
+    if (thread.visibility !== 'PRIVATE') throw forbidden('仅私密帖可生成邀请链接');
   }
 
   async preview(token: string, userId?: string) {

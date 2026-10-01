@@ -1368,6 +1368,22 @@ describe('ThreadsService', () => {
     });
   });
 
+  describe('ensureInviteLink', () => {
+    it('取得已有链接时不得替换 token', async () => {
+      mockPrisma.thread.findUnique.mockResolvedValue({
+        id: 't1', ownerId: 'u1', published: true, visibility: 'PRIVATE',
+      });
+      const current = { id: 'inv1', threadId: 't1', token: 'existing' };
+      mockPrisma.threadInvite.upsert.mockResolvedValue(current);
+      await expect(service.ensureInviteLink('t1', 'u1')).resolves.toBe(current);
+      expect(mockPrisma.threadInvite.upsert).toHaveBeenCalledWith({
+        where: { threadId: 't1' },
+        create: { threadId: 't1', token: expect.any(String) },
+        update: { threadId: 't1' },
+      });
+    });
+  });
+
   describe('createInviteLink', () => {
     it('未发布帖禁止生成邀请链接', async () => {
       mockPrisma.thread.findUnique.mockResolvedValue({

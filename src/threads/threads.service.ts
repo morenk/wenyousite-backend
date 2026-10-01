@@ -516,6 +516,11 @@ export class ThreadsService {
     return this.threadAccess.assertCanManage(threadId, userId);
   }
 
+  /** 取得当前邀请链接；只有首次分享才创建。 */
+  async ensureInviteLink(threadId: string, userId: string) {
+    return this.invites.ensure(threadId, userId);
+  }
+
   /** 生成或刷新私密帖邀请链接（仅 OWNER，已发布 + 私密帖） */
   async createInviteLink(threadId: string, userId: string) {
     return this.invites.create(threadId, userId);
