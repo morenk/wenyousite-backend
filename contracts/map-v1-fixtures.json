@@ -1,0 +1,138 @@
+{
+  "contract": "wenyousite-map",
+  "version": 1,
+  "reference": {
+    "markdown": "[地图：青石镇](/maps/cmsewdo0h000x7qv6aa77ll1v/versions/1?threadId=cmsewdp4i00147qv6gjc85l9p)",
+    "mapId": "cmsewdo0h000x7qv6aa77ll1v",
+    "version": 1,
+    "threadId": "cmsewdp4i00147qv6gjc85l9p"
+  },
+  "document": {
+    "schemaVersion": 1,
+    "kind": "interior",
+    "title": "双层住宅",
+    "description": "公开场景说明",
+    "seed": "home-1",
+    "generatorVersion": "1.0.0",
+    "templateId": "house",
+    "templateVersion": "1.0.0",
+    "style": "parchment",
+    "width": 400,
+    "height": 300,
+    "parameters": {
+      "floors": 2,
+      "rooms": 4,
+      "furnitureDensity": 0.5
+    },
+    "defaultView": {
+      "x": 200,
+      "y": 150,
+      "zoom": 1
+    },
+    "floors": [
+      {
+        "id": "floor-0",
+        "name": "一楼",
+        "level": 0
+      },
+      {
+        "id": "floor-1",
+        "name": "二楼",
+        "level": 1
+      }
+    ],
+    "features": [
+      {
+        "id": "room-0",
+        "kind": "room",
+        "layer": "regions",
+        "floorId": "floor-0",
+        "name": "大厅",
+        "description": "客人会面之处",
+        "points": [
+          {
+            "x": 20,
+            "y": 20
+          },
+          {
+            "x": 180,
+            "y": 20
+          },
+          {
+            "x": 180,
+            "y": 260
+          },
+          {
+            "x": 20,
+            "y": 260
+          }
+        ],
+        "locked": false,
+        "hidden": false
+      },
+      {
+        "id": "stair-0",
+        "kind": "stair",
+        "layer": "openings",
+        "floorId": "floor-0",
+        "name": "楼梯",
+        "description": "",
+        "points": [
+          {
+            "x": 190,
+            "y": 30
+          },
+          {
+            "x": 230,
+            "y": 30
+          },
+          {
+            "x": 230,
+            "y": 90
+          },
+          {
+            "x": 190,
+            "y": 90
+          }
+        ],
+        "locked": true,
+        "hidden": false,
+        "connectsTo": [
+          "stair-1"
+        ]
+      },
+      {
+        "id": "stair-1",
+        "kind": "stair",
+        "layer": "openings",
+        "floorId": "floor-1",
+        "name": "楼梯",
+        "description": "",
+        "points": [
+          {
+            "x": 190,
+            "y": 30
+          },
+          {
+            "x": 230,
+            "y": 30
+          },
+          {
+            "x": 230,
+            "y": 90
+          },
+          {
+            "x": 190,
+            "y": 90
+          }
+        ],
+        "locked": true,
+        "hidden": false,
+        "connectsTo": [
+          "stair-0"
+        ]
+      }
+    ],
+    "markers": []
+  }
+}

@@ -1,0 +1,312 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "town",
+        "interior"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "seed": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "generatorVersion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40
+    },
+    "templateId": {
+      "type": "string",
+      "enum": [
+        "village",
+        "market-town",
+        "walled-town",
+        "house",
+        "inn",
+        "shop",
+        "manor"
+      ]
+    },
+    "templateVersion": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "style": {
+      "type": "string",
+      "enum": [
+        "ink",
+        "parchment",
+        "soft"
+      ]
+    },
+    "width": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 10000
+    },
+    "height": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 10000
+    },
+    "defaultView": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "y": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "zoom": {
+          "type": "number",
+          "minimum": 0.05,
+          "maximum": 20
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "zoom"
+      ],
+      "additionalProperties": false
+    },
+    "floors": {
+      "maxItems": 8,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,80}$"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "level": {
+            "type": "integer",
+            "minimum": -8,
+            "maximum": 8
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "level"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "features": {
+      "maxItems": 12000,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,80}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "terrain",
+              "water",
+              "road",
+              "building",
+              "region",
+              "wall",
+              "door",
+              "window",
+              "stair",
+              "room",
+              "corridor",
+              "furniture"
+            ]
+          },
+          "layer": {
+            "type": "string",
+            "enum": [
+              "terrain",
+              "water",
+              "roads",
+              "buildings",
+              "regions",
+              "labels",
+              "walls",
+              "openings",
+              "furniture",
+              "markers"
+            ]
+          },
+          "floorId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,80}$"
+          },
+          "regionId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,80}$"
+          },
+          "roomId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,80}$"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "points": {
+            "minItems": 1,
+            "maxItems": 128,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 10000
+                },
+                "y": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 10000
+                }
+              },
+              "required": [
+                "x",
+                "y"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "connectsTo": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,80}$"
+            }
+          },
+          "interior": {
+            "type": "object",
+            "properties": {
+              "mapId": {
+                "type": "string",
+                "format": "cuid",
+                "pattern": "^[cC][0-9a-z]{6,}$"
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "mapId",
+              "version"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "layer",
+          "name",
+          "description",
+          "points"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "markers": {
+      "maxItems": 200,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,80}$"
+          },
+          "x": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "y": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "floorId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,80}$"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "id",
+          "x",
+          "y",
+          "label",
+          "description"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "kind",
+    "title",
+    "description",
+    "seed",
+    "generatorVersion",
+    "templateId",
+    "templateVersion",
+    "style",
+    "width",
+    "height",
+    "defaultView",
+    "floors",
+    "features",
+    "markers"
+  ],
+  "additionalProperties": false
+}
