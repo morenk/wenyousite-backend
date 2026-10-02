@@ -30,6 +30,7 @@
     "e2e-lifecycle.fixture.ts",
     "image-gallery.integration.ts",
     "backfill-gallery-index.ts",
-    "discussion-navigation.integration.ts"
+    "discussion-navigation.integration.ts",
+    "discussion-fixtures.consumer-test.ts"
   ]
 }
