@@ -85,15 +85,15 @@ export class AppDownloadsController {
     return this.dispatch(request, reply);
   }
 
-  @Get('android/:buildNumber/file')
-  @FileContract()
-  file(@Req() request: FastifyRequest, @Res() reply: FastifyReply) {
-    return this.dispatch(request, reply);
-  }
-
   @Head('android/:buildNumber/file')
   @FileContract()
   head(@Req() request: FastifyRequest, @Res() reply: FastifyReply) {
+    return this.dispatch(request, reply);
+  }
+
+  @Get('android/:buildNumber/file')
+  @FileContract()
+  file(@Req() request: FastifyRequest, @Res() reply: FastifyReply) {
     return this.dispatch(request, reply);
   }
 

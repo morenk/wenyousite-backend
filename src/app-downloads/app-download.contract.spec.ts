@@ -1,3 +1,6 @@
+import { Test } from '@nestjs/testing';
+import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+import { AppDownloadsModule } from './app-downloads.module';
 import 'reflect-metadata';
 import { AUTH_MODE_KEY } from '../auth/decorators/auth-mode.constants';
 import { AppDownloadsController } from './app-downloads.controller';
@@ -22,5 +25,25 @@ describe('匿名下载契约', () => {
       ]),
     );
     expect(DOWNLOAD_LIMITS.globalBytesPerSecond * 8).toBe(4_000_000);
+  });
+});
+
+describe('主 API 的默认 Fastify 路由注册', () => {
+  it('显式 HEAD 与自动 HEAD 不冲突且主 API 始终 fail closed', async () => {
+    const module = await Test.createTestingModule({ imports: [AppDownloadsModule] }).compile();
+    const app = module.createNestApplication<NestFastifyApplication>(new FastifyAdapter(), {
+      logger: false,
+    });
+    try {
+      app.setGlobalPrefix('api/v1');
+      await app.init();
+      await app.getHttpAdapter().getInstance().ready();
+      for (const method of ['GET', 'HEAD'] as const) {
+        const response = await app.inject({ method, url: '/api/v1/app-downloads/android/42/file' });
+        expect(response.statusCode).toBe(503);
+      }
+    } finally {
+      await app.close();
+    }
   });
 });

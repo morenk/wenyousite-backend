@@ -1,5 +1,10 @@
 # API 合同变更
 
+## 5.30.0-dev.20261002.2
+
+- 下载 DTO、路径、operationId 与前版一致；HEAD 在 GET 之前注册，兼容主 API 默认 Fastify 自动 HEAD 行为，避免重复路由阻止启动。生成文档方法顺序相应调整。
+- 本提交只修正路由注册与机器文档顺序；独立预算、预热、位置登记和合成下载预览随后在同分支交付。
+
 ## 5.30.0-dev.20261002.1
 
 - 兼容新增匿名下载信息 `appDownloadsInfo` 与固定构建 GET/HEAD `appDownloadsFile` / `appDownloadsHead`；DTO、Range、状态码与旧 APP metadata 见 [下载网关契约](../docs/app-download-gateway.md)。

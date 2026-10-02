@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "5.30.0-dev.20261002.1",
+  "contractVersion": "5.30.0-dev.20261002.2",
   "counts": {
     "total": 236,
     "v1": 108,
@@ -18,16 +18,16 @@
       "status": "not_applicable"
     },
     {
-      "operationId": "appDownloadsFile",
-      "method": "GET",
+      "operationId": "appDownloadsHead",
+      "method": "HEAD",
       "path": "/api/v1/app-downloads/android/{buildNumber}/file",
       "module": "infrastructure",
       "disposition": "infrastructure",
       "status": "not_applicable"
     },
     {
-      "operationId": "appDownloadsHead",
-      "method": "HEAD",
+      "operationId": "appDownloadsFile",
+      "method": "GET",
       "path": "/api/v1/app-downloads/android/{buildNumber}/file",
       "module": "infrastructure",
       "disposition": "infrastructure",
