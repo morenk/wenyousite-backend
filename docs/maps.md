@@ -22,7 +22,7 @@
 
 嵌入是普通 Markdown 链接：`[地图：青石镇](/maps/<mapId>/versions/<version>?threadId=<threadId>)`。这是 map-reference-v1，正文 Markdown 版本不变。Web/Mobile 精确识别路径并用授权读取结果生成封面卡，未识别的旧客户端显示普通链接。title/URL 不得充当权限依据。正文可以包含不可访问的链接，但阅读器只显示不可用占位，不泄露名称或几何。新版本不会重写旧帖子正文。
 
-Mobile WebView 保持与 Web 同源的 viewer route，授权由应用受控消息通道注入内存；token 不进 URL、日志、HTML 产物、localStorage 或帖子。不新增绕过 API Guard 的鉴权端点；所有版本读取继续使用现有 Bearer。加载未信任页面或导航离开 viewer 时不得发送 token。
+Mobile 使用 Native data bridge：Flutter 通过既有 Dio/token 仓库读取发布快照，只向可信 Web viewer shell 传白名单发布数据；WebView 不持有账户 token。嵌套室内请求由 Native 核对确切已声明链接后重新调用 API 并逐次授权。URL、日志、HTML、localStorage 与帖子均不出现 token，不新增绕过 API Guard 的端点。
 
 ## 并发与错误
 
