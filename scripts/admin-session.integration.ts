@@ -1,3 +1,4 @@
+import { registerAdminCsrfProtection } from '../src/admin/admin-csrf';
 import { assertIsolatedEnvironment, verifyIsolatedEnvironment } from './e2e-guard';
 assertIsolatedEnvironment();
 import 'reflect-metadata';
@@ -126,15 +127,7 @@ async function main() {
       getToken: (req) => String(req.headers['x-csrf-token'] ?? ''),
     });
     const server = app.getHttpAdapter().getInstance();
-    server.addHook('onRequest', (request, reply, done) => {
-      const publicPaths = ['/api/v1/admin/auth/challenge', '/api/v1/admin/auth/verify'];
-      if (
-        ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method) &&
-        !publicPaths.includes(request.url.split('?', 1)[0])
-      ) {
-        server.csrfProtection(request, reply, done);
-      } else done();
-    });
+    registerAdminCsrfProtection(server);
     await app.init();
     await server.ready();
     await assert.rejects(service.validateSession('legacy-token'), {

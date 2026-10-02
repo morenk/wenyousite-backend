@@ -6,6 +6,8 @@
     "incremental": false
   },
   "include": [
+    "admin-csrf.test.ts",
+    "dependency-parsers.test.ts",
     "webe2e-cleanup.ts",
     "cleanup-webe2e.ts",
     "webe2e-cleanup.test.ts",

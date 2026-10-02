@@ -16,6 +16,7 @@ import { createOpenApiDocument } from './common/swagger/openapi-document';
 import { requestIdFromHeader } from './common/http/request-id';
 import configuration from './config/configuration';
 import { adminCsrfCookieName } from './admin/admin-auth.constants';
+import { registerAdminCsrfProtection } from './admin/admin-csrf';
 
 async function bootstrap() {
   const runtime = configuration();
@@ -63,16 +64,7 @@ async function bootstrap() {
     },
   });
   const fastify = app.getHttpAdapter().getInstance();
-  fastify.addHook('onRequest', (request, reply, done) => {
-    const path = request.url.split('?', 1)[0];
-    const mutating = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method);
-    const publicAdminAuth = new Set(['/api/v1/admin/auth/challenge', '/api/v1/admin/auth/verify']);
-    if (!mutating || !path.startsWith('/api/v1/admin/') || publicAdminAuth.has(path)) {
-      done();
-      return;
-    }
-    fastify.csrfProtection(request, reply, done);
-  });
+  registerAdminCsrfProtection(fastify);
 
   // Swagger 文档：仅当开启时挂载，与 NODE_ENV 解耦，方便线上移动端开发
   if (runtime.app.apiDocsEnabled) {
