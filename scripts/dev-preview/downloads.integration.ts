@@ -10,6 +10,7 @@ import { stop, clients, verifyResources } from './resources';
 import { sampleDownloadConfig } from './download-sample';
 import { DownloadBudget } from '../../src/app-downloads/download-budget';
 import { downloadBudgetLimits } from '../../src/app-downloads/download-config';
+import { API_CONTRACT_VERSION } from '../../src/common/swagger/openapi-document';
 
 async function main() {
   const root=mkdtempSync(join(tmpdir(),'download-preview-test-'));
@@ -24,6 +25,9 @@ async function main() {
     try { await verifyResources(s,isolated.db,isolated.redis); assert.equal(await isolated.db.user.count(),0); }
     finally { isolated.redis.disconnect(); await isolated.db.$disconnect(); }
     const info=await fetch(c.backend.apiBase+'/app-downloads/android'); assert.equal(info.status,200);
+    assert.equal(info.headers.get('x-api-contract-version'),API_CONTRACT_VERSION);
+    assert.match(info.headers.get('x-request-id') || '',/^[0-9a-f-]{36}$/);
+    assert.equal(info.headers.get('x-content-type-options'),'nosniff');
     const release=(await info.json() as {data:{release:{buildNumber:number;downloadUrl:string;releaseNotesUrl:string;sizeBytes:number;sha256:string}}}).data.release;
     assert.equal(release.buildNumber,4242); assert.equal(new URL(release.downloadUrl).origin,c.backend.origin); assert.equal(new URL(release.releaseNotesUrl).origin,c.backend.origin);
     const head=await fetch(release.downloadUrl,{method:'HEAD'}); assert.equal(head.status,200); assert.equal(head.headers.get('x-amz-meta-apk-sha256'),release.sha256);
@@ -39,7 +43,7 @@ async function main() {
     s=await withLock(name,()=>start(name,{})); await verifyConsumer(s); assert.equal(s.runId,runId);
     assert.equal(readFileSync(join(s.root,'download-fixture.json'),'utf8'),fixture);
     b=budget(); assert.equal(b.status().dayReservedBytes,reserved); b.close();
-    console.log(JSON.stringify({event:'download-preview-passed',runId,scenarios:['verified-independent-resources','anonymous-file-navigation','private-notes','head-metadata','body-sha','write-identity-required','origin-denied','stop-preserves','resume-preserves-budget']}));
+    console.log(JSON.stringify({event:'download-preview-passed',runId,scenarios:['verified-independent-resources','anonymous-file-navigation','contract-response-headers','private-notes','head-metadata','body-sha','write-identity-required','origin-denied','stop-preserves','resume-preserves-budget']}));
   } finally {
     if(existsSync(join(root,name))) {const s=load(name);await withLock(name,async()=>{await stop(s);await cleanup(s,name);});}
     rmSync(root,{recursive:true});
