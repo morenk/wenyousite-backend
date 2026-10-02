@@ -37,7 +37,6 @@ function DownloadErrors() {
 }
 function FileContract() {
   return applyDecorators(
-    Public(),
     ApiParam({ name: 'buildNumber', schema: { type: 'integer', minimum: 1, maximum: 2100000000 } }),
     ApiHeader({
       name: 'Range',
@@ -86,12 +85,14 @@ export class AppDownloadsController {
   }
 
   @Head('android/:buildNumber/file')
+  @Public()
   @FileContract()
   head(@Req() request: FastifyRequest, @Res() reply: FastifyReply) {
     return this.dispatch(request, reply);
   }
 
   @Get('android/:buildNumber/file')
+  @Public()
   @FileContract()
   file(@Req() request: FastifyRequest, @Res() reply: FastifyReply) {
     return this.dispatch(request, reply);
