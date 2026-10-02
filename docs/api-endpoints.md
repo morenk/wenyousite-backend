@@ -2,6 +2,13 @@
 
 > 本文件由 `pnpm docs:generate` 从 OpenAPI 生成，请勿手工编辑。路径均位于 `/api/v1` 下。
 
+## App Downloads
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/app-downloads/android` | public | 匿名读取当前 Android 下载信息；仅 JSON，不预取 APK |
+| GET | `/app-downloads/android/{buildNumber}/file` | public |  |
+
 ## Health
 
 | 方法 | 路径 | 鉴权 | 说明 |

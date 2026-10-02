@@ -1,5 +1,7 @@
 # 兼容协议登记
 
+Android APK 源站 URL：保留历史 promotion/TSV 原文与旧 APP HEAD metadata。新公开文件 URL 独立记录；关闭 APK 公共读需完成预热、本站 meta/Web、旧 APP 验收后独立评审，不修改图片桶或实例开关。见 [下载网关契约](app-download-gateway.md)。
+
 | 协议 | 状态 | 消费者与退出条件 |
 | --- | --- | --- |
 | 帖子列表 coverImages | 保留兼容，未安排删除 | Web / Mobile 旧版本仍消费；只有无消费者、数据迁移完成、回归覆盖、回滚路径明确后才可独立 PR 删除 |

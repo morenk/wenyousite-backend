@@ -1,5 +1,7 @@
 # API 契约发布流程
 
+Android 匿名下载 JSON、固定构建 GET/HEAD、范围请求和迁移见 [下载网关契约](app-download-gateway.md)。字段以已提交 OpenAPI 的 `AndroidDownloadInfoDto` 为准。
+
 ## 事实源与优先级
 
 1. `src/**` DTO、控制器装饰器与统一响应拦截器定义运行时和源 schema。

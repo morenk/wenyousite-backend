@@ -1,5 +1,7 @@
 # Flutter / 原生移动端接入
 
+Android `/meta.updateUrl` 将兼容迁移到本站固定构建 APK 路由，保留旧 APP HEAD 校验 metadata；不指向 HTML 下载页。Windows 迁移、发布 CLI 与灰度顺序见 [下载网关契约](app-download-gateway.md)，VPS 不代表移动端门禁已执行。
+
 本文定义原生移动客户端需要遵循的 HTTP、安全、重试和推送生命周期。字段与端点以 [`contracts/openapi.json`](../contracts/openapi.json) 为机器事实源；移动端 V1 范围与黄金旅程分别以 [`mobile-v1-operation-coverage.json`](../contracts/mobile-v1-operation-coverage.json) 和 [`mobile-v1-golden-fixtures.json`](../contracts/mobile-v1-golden-fixtures.json) 为准；动态分类、Markdown、站内传送门与 FCM data 继续使用各自独立 fixtures/schema。
 
 界面、字体、文字缩放和页面状态由公开 `wenyousite-foundation` 维护；仓库边界与入口见 [`mobile-ui-contract.md`](./mobile-ui-contract.md)，实际版本以 Flutter 客户端的 `foundation.lock.json` 为准。

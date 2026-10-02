@@ -1,3 +1,4 @@
+import { AppDownloadsModule } from './app-downloads/app-downloads.module';
 import { MobileReleasesModule } from './mobile-releases/mobile-releases.module';
 import { GalleryModule } from './image-gallery/gallery.module';
 import { Module, RequestMethod } from '@nestjs/common';
@@ -92,6 +93,7 @@ function buildPinoTransport(logLevel: PinoLogLevel, nodeEnv: string, logFileDir?
 /** 根模块：注册所有特性模块和全局功能 */
 @Module({
   imports: [
+    AppDownloadsModule,
     SentryModule.forRoot(),
     // 环境变量配置
     ConfigModule.forRoot({
