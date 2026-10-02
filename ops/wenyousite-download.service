@@ -1,0 +1,48 @@
+[Unit]
+Description=Wenyou Android download gateway (cache only)
+After=local-fs.target
+
+[Service]
+Type=simple
+User=wenyousite-download
+Group=wenyousite-download-proxy
+SupplementaryGroups=wenyousite-download-cache
+WorkingDirectory=/var/lib/wenyousite/backend/current
+ExecStart=/var/lib/wenyousite/backend/current/bin/node --max-old-space-size=128 /var/lib/wenyousite/backend/current/dist/app-downloads/download-main.js --env /etc/wenyousite/download.env
+RuntimeDirectory=wenyousite-download
+RuntimeDirectoryMode=0750
+RuntimeDirectoryPreserve=no
+UMask=0077
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+KillMode=control-group
+MemoryHigh=192M
+MemoryMax=256M
+CPUQuota=50%
+TasksMax=32
+LimitNOFILE=128
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+PrivateNetwork=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+RestrictAddressFamilies=AF_UNIX
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+ReadOnlyPaths=/var/cache/wenyousite-download /var/lib/wenyousite-download/catalog
+ReadWritePaths=/var/lib/wenyousite-download/egress /run/wenyousite-download
+InaccessiblePaths=/etc/wenyousite/backend.env /etc/wenyousite/download-origin.env /etc/wenyousite/migration.env /var/lib/wenyousite-download/origin /var/lib/wenyousite-download/inbox
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

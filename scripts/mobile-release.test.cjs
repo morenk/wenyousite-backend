@@ -130,3 +130,39 @@ test('DB 状态暂时不可读仍补偿策略，保留 journal 等待受限恢�
  assert.equal(fs.readFileSync(f.envFile,'utf8'),f.original);assert(fs.existsSync(f.journal));
  f.flags({});assert.equal(f.run(['--recover']).status,0);assert.equal(fs.existsSync(f.journal),false);
 });
+function gatewayFixture(t) {
+ const f=fixture(t), helper=path.join(f.root,'helper.cjs');
+ let source=fs.readFileSync(helper,'utf8');
+ source=source.replace("if(action==='preflight') {", `if(action==='register-download'){console.log('{"status":"registered"}');process.exit(0);}
+if(action==='download-proof'){console.log(JSON.stringify({schemaVersion:1,platform:'android',versionName:'1.0.0',buildNumber:42,sha256:'${sha}',sizeBytes:123,publishedAt:'2026-10-02T00:00:00.000Z',operationId:Object.keys(state)[0]}));process.exit(0);}
+if(action==='preflight') {`); fs.writeFileSync(helper,source);
+ const download=path.join(f.root,'download.cjs'), catalog=path.join(f.root,'catalog.json'), inbox=path.join(f.root,'inbox');fs.mkdirSync(inbox);fs.writeFileSync(catalog,JSON.stringify({state:'no_release'}));
+ fs.writeFileSync(download,`
+ const fs=require('node:fs'),path=require('node:path');const root=__dirname,command=process.argv[2];
+ const flags=fs.existsSync(root+'/flags.json')?JSON.parse(fs.readFileSync(root+'/flags.json')):{};
+ fs.appendFileSync(root+'/download.log',command+'\\n');
+ if(flags.fail==='download-'+command)process.exit(1);
+ if(command==='publish')fs.writeFileSync(root+'/catalog.json',JSON.stringify({state:'available'}));
+ if(command==='withdraw')fs.writeFileSync(root+'/catalog.json',JSON.stringify({state:'withdrawn'}));
+ console.log(JSON.stringify({status:command==='warm'?'ready':command}));
+ `);
+ Object.assign(f.env,{MOBILE_RELEASE_DOWNLOAD_HELPER:download,MOBILE_RELEASE_DOWNLOAD_ENV:path.join(f.root,'download.env'),MOBILE_RELEASE_DOWNLOAD_ORIGIN_ENV:path.join(f.root,'origin.env'),MOBILE_RELEASE_DOWNLOAD_CATALOG:catalog,MOBILE_RELEASE_DOWNLOAD_INBOX:inbox});
+ return {...f,catalog,runGateway:()=>f.run(['--gateway',...args])};
+}
+test('网关晋级鉴权预热先行、保留源站审计、meta 使用本站构建 URL',t=>{
+ const f=gatewayFixture(t);const r=f.runGateway();assert.equal(r.status,0,r.stderr);
+ assert.match(fs.readFileSync(f.envFile,'utf8'),/MOBILE_ANDROID_UPDATE_URL=https:\/\/wenyou.site\/api\/v1\/app-downloads\/android\/42\/file/);
+ assert.equal(fs.readFileSync(f.history,'utf8').trim().split('\t').at(-1),url);
+ assert.deepEqual(fs.readFileSync(path.join(f.root,'download.log'),'utf8').trim().split('\n'),['register','warm','verify-origin','verify-cache','publish']);
+ assert.equal(JSON.parse(fs.readFileSync(f.catalog)).state,'available');
+ assert.equal(f.run(['--gateway','--withdraw']).status,0);assert.equal(JSON.parse(fs.readFileSync(f.catalog)).state,'withdrawn');
+});
+for(const stage of ['download-warm','download-verify-origin','download-publish','meta','finish'])test(`网关失败 ${stage} 恢复 catalog/meta/历史`,t=>{
+ const f=gatewayFixture(t);f.flags({fail:stage});const r=f.runGateway();assert.notEqual(r.status,0);
+ assert.equal(fs.readFileSync(f.envFile,'utf8'),f.original);assert.equal(JSON.parse(fs.readFileSync(f.catalog)).state,'no_release');assert.equal(fs.existsSync(f.history),false);assert.equal(fs.existsSync(f.journal),false,r.stderr);
+ f.flags({});assert.equal(f.runGateway().status,0);
+});
+test('已迁移 meta 的旧撤回入口也关闭文件，空 meta 不跳过显式网关撤回',t=>{
+ const f=gatewayFixture(t);assert.equal(f.runGateway().status,0);assert.equal(f.run(['--withdraw']).status,0);assert.equal(JSON.parse(fs.readFileSync(f.catalog)).state,'withdrawn');
+ fs.writeFileSync(f.catalog,JSON.stringify({state:'available'}));assert.equal(f.run(['--gateway','--withdraw']).status,0);assert.equal(JSON.parse(fs.readFileSync(f.catalog)).state,'withdrawn');
+});

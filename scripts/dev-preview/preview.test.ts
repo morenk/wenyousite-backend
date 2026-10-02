@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync, rmSync, readFileSync, existsSync, mkdirSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Ajv from 'ajv/dist/2020';
-import { businessDate, consumer, hash, REPO, safeName, safePort, Session, writePrivate } from './common';
+import { anonymousSampleRead, businessDate, consumer, hash, REPO, safeName, safePort, Session, writePrivate } from './common';
 import { publicIPv4 } from './history';
 import { readSnapshot, validateHistoricalMap } from './snapshot';
 import { parseArgs } from './cli';
@@ -23,6 +23,15 @@ test('媒体只允许快照登记源与公网 IPv4',()=>{
   for(const url of ['http://media.example.com/a/x.png','https://evil.example/a/x.png','https://media.example.com/a/x.png?q=1','https://x@media.example.com/a/x.png'])assert.throws(()=>validateHistoricalMap({'a/x.png':url},'https://media.example.com'));
   for(const ip of ['127.0.0.1','10.0.0.1','100.64.0.1','172.31.0.1','192.168.1.1','169.254.1.1','::1','::ffff:8.8.8.8','224.1.1.1'])assert.equal(publicIPv4(ip),false);
   assert.equal(publicIPv4('8.8.8.8'),true);
+});
+test('合成下载只允许精确 GET/HEAD 导航省略身份头，写入与其他 API 仍拒绝',()=>{
+  for(const url of ['/api/v1/app-downloads/android','/api/v1/app-downloads/android/4242/file','/api/v1/mobile-releases/android/4242']) {
+    assert(anonymousSampleRead({sample:'downloads'},'GET',url));
+    assert(anonymousSampleRead({sample:'downloads'},'HEAD',url));
+    assert(!anonymousSampleRead({},'GET',url));
+    assert(!anonymousSampleRead({sample:'downloads'},'POST',url));
+  }
+  for(const url of ['/api/v1/auth/login','/api/v1/users/me','/api/v1/app-downloads/android/../users','/api/v1/app-downloads/android?other=1'])assert(!anonymousSampleRead({sample:'downloads'},'GET',url));
 });
 test('快照哈希损坏与过期拒绝，时间绑定同一北京时间业务日',()=>{
   const root=mkdtempSync(join(tmpdir(),'preview-unit-'));
@@ -46,6 +55,7 @@ test('实际消费者样例通过 JSON schema 且没有 secret/db 字段',()=>{
   const validate=new Ajv().compile(JSON.parse(readFileSync(join(REPO,'contracts/dev-preview-session.schema.json'),'utf8')));
   assert(validate(c),JSON.stringify(validate.errors));
   assert(!JSON.stringify(c).includes('secrets'));
+  assert(validate(consumer({...s,sample:'downloads'})),JSON.stringify(validate.errors));
   c.web.port=3001;assert.equal(validate(c),false);
 });
 

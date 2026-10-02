@@ -1646,6 +1646,7 @@ model MobileRelease {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   promotions MobileReleasePromotion[]
+  downloadArtifact MobileDownloadArtifact?
   @@unique([platform, buildNumber])
   @@index([platform, publishedAt, buildNumber])
   @@map("mobile_releases")
@@ -1665,4 +1666,19 @@ model MobileReleasePromotion {
   release MobileRelease @relation(fields: [releaseId], references: [id], onDelete: Restrict)
   @@index([releaseId, status])
   @@map("mobile_release_promotions")
+}
+
+// 下载地址演进单独登记；禁止重写旧 promotion.updateUrl 或 TSV 制品审计事实。
+model MobileDownloadArtifact {
+  releaseId String @id @map("release_id")
+  applicationId String @map("application_id")
+  apkSha256 String @map("apk_sha256")
+  apkSize String @map("apk_size")
+  storageBucket String @map("storage_bucket")
+  storageKey String @map("storage_key")
+  publicUrl String @map("public_url")
+  createdAt DateTime @default(now()) @map("created_at")
+  release MobileRelease @relation(fields: [releaseId], references: [id], onDelete: Restrict)
+  @@unique([storageBucket, storageKey])
+  @@map("mobile_download_artifacts")
 }

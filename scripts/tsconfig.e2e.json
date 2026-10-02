@@ -21,6 +21,7 @@
     "post-edited-time.integration.ts",
     "post-edited-time-preview.ts",
     "mobile-releases.integration.ts",
+    "app-downloads.integration.ts",
     "mobile-release-preview.ts",
     "e2e-admin-fixtures.integration.ts",
     "e2e-guard.test.ts",

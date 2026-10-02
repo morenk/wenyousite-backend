@@ -37,7 +37,8 @@ async function verifyIncrementalMigration() {
     await control.$executeRawUnsafe(`CREATE DATABASE "${name}"`);
     mkdirSync(join(root,'migrations'));
     cpSync(join(repo,'prisma/schema.prisma'),join(root,'schema.prisma'));
-    for(const entry of readdirSync(join(repo,'prisma/migrations'))) if(entry!==migration) cpSync(join(repo,'prisma/migrations',entry),join(root,'migrations',entry),{recursive:true});
+    // zzz_ 是既有八月补齐迁移的排序标记，历史基线仍须包含它；不能引入未来依赖本表的迁移。
+    for(const entry of readdirSync(join(repo,'prisma/migrations'))) if(entry.replace(/^zzz_/,'')<migration||entry==='migration_lock.toml') cpSync(join(repo,'prisma/migrations',entry),join(root,'migrations',entry),{recursive:true});
     const deploy=()=>execFileSync(process.execPath,[require.resolve('prisma/build/index.js'),'migrate','deploy','--schema',join(root,'schema.prisma')],{cwd:root,env:{PATH:process.env.PATH,DATABASE_URL:url.toString(),DIRECT_DATABASE_URL:url.toString()},stdio:'pipe'});
     deploy();
     const user=await db.user.create({data:{username:'migration-'+randomUUID().slice(0,8),email:randomUUID()+'@e2e.invalid',password:randomUUID()}});

@@ -122,3 +122,7 @@ stdout 仅含 consumerPath/accountPath 与非秘密资源身份。账号仅在�
 当天真实快照不可用时，本目标可用 `pnpm exec tsx scripts/private-invite-reuse-preview.ts` 创建 `private-invite-reuse` 批次（Web 端口 43931，占用时拒绝）。入口在本轮已核验独立 PostgreSQL/Redis 生成 OWNER/MEMBER/NEWCOMER 随机账号及已发布私帖，导出明确标注的合成快照、清理源进程，再启动既有预览协议。账号只留本批次 0600 `sample-accounts.json`，定位 ID 在 `sample-content.json`；不读取线上内容，不冒称当天真实快照。
 
 Web/Mobile 共用 `consumer.json`，先核验后端及媒体真实运行身份。反馈批次保留会话；验收结束使用 `dev:preview stop/cleanup --session private-invite-reuse`（cleanup 同时传 `--confirm private-invite-reuse`），按 `sample-snapshot-ownership.json` 回收本批次合成快照。
+
+## 下载页面合成样本
+
+无需真实快照的匿名下载页面反馈可使用 `--sample downloads`，隔离边界、consumer 标记和运行命令见 [下载网关](app-download-gateway.md#隔离验证与-web-样本预览)。该模式不替代真实数据或安装包验收。

@@ -19,7 +19,7 @@ export async function main(input=process.argv.slice(2)) {
   if(command==='snapshot'){await adminSnapshot(args);return;}
   assert(['start','resume','status','export','stop','reset','cleanup'].includes(command),'未知预览命令');
   assert(args.session,'必须指定 --session');
-  assert(Object.keys(args).every(k=>['session','snapshot','web-port','confirm'].includes(k)),'未知预览参数');
+  assert(Object.keys(args).every(k=>['session','snapshot','web-port','confirm','sample'].includes(k)),'未知预览参数');
   await withLock(args.session,async()=>{
     if(command==='start'||command==='resume'||command==='reset'){
       const s=command==='reset'?await reset(args.session,args):await start(args.session,args);

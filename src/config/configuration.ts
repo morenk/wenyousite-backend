@@ -66,7 +66,8 @@ export default function configuration() {
 
     // 阿里云邮件推送 (DirectMail) SMTP（注册验证、找回密码）
     ses: {
-      previewMailbox: env.NODE_ENV === Environment.Test ? env.PREVIEW_MAILBOX_DIR || undefined : undefined,
+      previewMailbox:
+        env.NODE_ENV === Environment.Test ? env.PREVIEW_MAILBOX_DIR || undefined : undefined,
       host: env.SES_SMTP_HOST,
       port: env.SES_SMTP_PORT,
       user: env.SES_SMTP_USER,
@@ -138,6 +139,23 @@ export type AppConfig = ReturnType<typeof configuration>;
 export function isolatedChildIdentity(): NodeJS.ProcessEnv {
   const runId = process.env.E2E_RUN_ID;
   const root = process.env.E2E_RESOURCE_ROOT;
-  if (process.env.NODE_ENV !== 'test' || !runId || !/^(e2e|preview)_[a-f0-9]{24}$/.test(runId) || !root?.startsWith('/')) return {};
+  if (
+    process.env.NODE_ENV !== 'test' ||
+    !runId ||
+    !/^(e2e|preview)_[a-f0-9]{24}$/.test(runId) ||
+    !root?.startsWith('/')
+  )
+    return {};
   return { E2E_RUN_ID: runId, E2E_RESOURCE_ROOT: root };
+}
+
+/** 独立下载公开进程不得继承任何数据面/云凭据；只允许专用无密钥配置文件。 */
+export function gatewayEnvironmentSafe(env: NodeJS.ProcessEnv = process.env) {
+  return !Object.entries(env).some(
+    ([key, value]) =>
+      value &&
+      /^(?:AWS_|COS_|DOWNLOAD_S3_|DATABASE_URL$|DIRECT_DATABASE_URL$|REDIS_PASSWORD$|NODE_OPTIONS$)/.test(
+        key,
+      ),
+  );
 }

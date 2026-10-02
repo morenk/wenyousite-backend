@@ -22,14 +22,59 @@ Range 只支持单段 `bytes=start-end`、`bytes=start-`、`bytes=-suffix`；非
 
 - 公共 socket：`/run/wenyousite-download/gateway.sock`。Caddy 覆盖 `X-Real-IP` 与 `X-Forwarded-For` 为真实 peer IP，删除 `Forwarded`；网关仅取覆盖后的单值 `X-Real-IP`；仅经受控 Unix socket 访问，不开放公网 TCP。
 - 公共进程用户 `wenyousite-download`，socket group `wenyousite-download-proxy`（仅 Caddy 与网关成员），缓存读取 group `wenyousite-download-cache`。发布用户 `wenyousite-download-publisher` 写缓存和制品目录；公共进程只有只读权限。
-- 公共环境 `/etc/wenyousite/download.env`；私有回源环境 `/etc/wenyousite/download-origin.env` 只提供给发布 CLI，不能传入网关 unit。固定桶 `wenyou-apk`、键 `mobile/android/wenyou-<version>-<build>.apk`，独立只读凭据；不复用图片凭据。
+- 公共环境 `/etc/wenyousite/download.env`；私有回源环境 `/etc/wenyousite/download-origin.env` 只提供给显式发布预热/修复 CLI，不能传入网关 unit。允许在该专用私有配置中复用已有存储凭据，不要求新建独立只读凭据，不修改原凭据权限以免影响已有上传/图片。代码固定桶 `wenyou-apk`、键 `mobile/android/wenyou-<version>-<build>.apk`，仅调用所需 HEAD/GET；这是应用访问限制，不代表现有凭据在云端只读或仅限 APK，泄漏仍可能影响其原有全部授权资源。
 - 缓存 `/var/cache/wenyousite-download`，公开目录 `/var/lib/wenyousite-download/catalog`；出站账本 `/var/lib/wenyousite-download/egress/budget.sqlite`，回源账本 `/var/lib/wenyousite-download/origin/budget.sqlite`。账本显式初始化，运行时缺失/损坏拒绝服务，不重建或清零。
 - 全局 4 Mbps / 4 并发，每连接 2 Mbps、每 IP 2 并发、每 IP 每分钟 30 请求（含 HEAD、GET 失败）；无无限等待队列。带宽为十进制 bit/s；容量和预算为 GiB/MiB。
 - 北京时间日/月：出站 5 GiB/100 GiB，回源 512 MiB/2 GiB。SQLite 事务预留完整发送长度，断开/失败不退款；跨日/月连接归属预留时段，重启保持累计。健康探针只返回健康，不读写或暴露预算。
-- 缓存上限 1 GiB，保留推荐与最近两个已发布包（集合去重）；不足则预热失败，不逐出保留包。公众 miss 503，不访问 S3、不重定向源站。显式预热/修复合并同制品工作，按尝试预留回源流量，流式落盘验证大小/SHA-256/包名/构建号，fsync 后原子启用。
+- 缓存上限 1 GiB，保留推荐与最近两个其他已发布包（集合去重）；不足则预热失败，不逐出保留包。公众 miss 503，不访问 S3、不重定向源站。显式预热/修复合并同制品工作，按尝试预留回源流量，流式落盘验证大小/SHA-256/包名/构建号，fsync 后原子启用。
 
-CLI 固定入口 `node <release>/dist/app-downloads/download-cli.js <command> --env <配置文件>`；不从参数接收密钥。命令：`init-ledger --kind egress|origin`（只创建不存在账本）、`register --manifest <JSON>`、`warm --build <n>`、`repair --build <n>`、`publish --build <n> --published-at <ISO>`、`withdraw`、`pause`、`resume`、`status`、`verify-cache --build <n>`。`warm/repair` 另用 `--origin-env <私有环境文件>`。制品 manifest v1 字段为 `schemaVersion=1,applicationId,versionName,buildNumber,sizeBytes,sha256,bucket,key,legacyUpdateUrl`；publicUrl 由 build 计算。先版本说明预检、登记/鉴权预热，再受限晋级；`publish` 只能在版本说明发布确认后执行。输出只有状态与制品身份。
+CLI 固定入口 `node <release>/dist/app-downloads/download-cli.js <command> --env <配置文件>`；不从参数接收密钥。命令：`init-ledger --kind egress|origin`（只创建不存在账本）、`register --manifest <JSON>`、`warm --build <n>`、`repair --build <n>`、`publish --build <n> --published-at <ISO> --publication-proof <root 所有的 JSON>`、`withdraw`、`pause`、`resume`、`status`、`verify-cache --build <n>`。`verify-origin --build <n>` 单独鉴权 HEAD；`warm/repair/verify-origin` 另用 `--origin-env <私有环境文件>`。制品 manifest v1 字段为 `schemaVersion=1,applicationId,versionName,buildNumber,sizeBytes,sha256,bucket,key,legacyUpdateUrl`；publicUrl 由 build 计算。先版本说明预检、登记/鉴权预热，再受限晋级；`publish` 只能在版本说明发布确认后执行。输出只有状态与制品身份。
 
 迁移顺序：兼容网关与发布工具 → 预热现有包 → 切 meta/Web → 旧 APP HEAD+GET 验收 → 独立评审关闭 APK 公共读。只允许 APK 权限变化，不修改图片桶或 RainS3 实例开关；不自动购买流量。
 
-契约提交先交付路由、DTO、响应头和运维约定；文件发送、CLI、隔离测试与安全模板在同分支继续实现。主 API 未注入网关 handler 时这些路由返回 503，不能绕过独立网关。
+主 API 未注入网关 handler 时这些路由返回 503，不能绕过独立网关。Caddy 只将 `/api/v1/app-downloads/*` 路由到 UDS；socket 无监听时 Caddy 返回 502，不回落主 API 或源站。治理实现固定于 wenyousite-workspace 提交 `22f129c`。
+
+
+## 预算、缓存和失败语义
+
+SQLite 使用 `BEGIN IMMEDIATE`、WAL 和 `synchronous=FULL`，每次正文发送前同时检查/写入北京时间日与自然月两个计数。JSON 成功/错误正文也预留并共享全局带宽；HEAD 不预留正文。预算连错误 JSON 都无法容纳，或瞬时带宽桶已耗尽时，429/503 只返回状态、Retry-After 与零长度正文，消费者须按 HTTP 状态兜底。容量上限与断开不退款不受时区环境变量影响。管理配置可显式设置 `DOWNLOAD_DAY_BYTES/MONTH_BYTES` 与 `DOWNLOAD_ORIGIN_DAY_BYTES/MONTH_BYTES`，省略为上述默认；提高额度必须经过运维评审，不自动调整。时钟回拨、账本被替换、缺失、损坏或锁失败均拒绝。状态页在完整 APK 剩余额度不足时显示 paused 及重试秒数，不暴露余额。
+
+同一 egress 目录通过独立 SQLite 排他事务锁限制为一个进程；锁在异常退出后由内核释放，重启不清预算。启动不移除既有 socket。缓存 O_NOFOLLOW 打开，检查普通文件/链接数/写权限，通过同一 fd 计算 SHA-256、校验二进制 AndroidManifest.xml 的包名/版本/构建号并发送；校验缓存按 inode、大小、mtime、ctime 失效。网络调度每连接最多等待一块，轮转公平，没有无限队列，最多四条发送连接，背压/关闭/超时均释放槽位；已经预留的字节不退回。
+
+预热进程串行写目录，同制品并发合并为一次 GET；SDK 隐式重试关闭，仅上游 500/502/503/504 最多显式重试一次。每次尝试先预留 APK 大小 + 128 KiB 有界元数据/错误传输余量；HEAD 独立鉴权预留 128 KiB。失败也收费。错误体上限 64 KiB，APK 主体 64 KiB 级流式落盘，清单解压限制 1 MiB。超时十分钟，失败临时文件正常清理，SIGKILL 留下的 `.part` 继续占容量，绝不当成有效 APK。
+
+1 GiB 容量包含全部完整文件、本次临时文件和异常遗留文件。为避免删除在途 inode 后低估实际磁盘占用，在线预热不会逐出旧包；修复替换的旧 inode 也改名保留为 `.part`，继续计入容量；容量不足明确失败。管理身份在独立维护窗口停止网关后，用 `flock -n /var/lib/wenyousite/deploy.lock /var/lib/wenyousite/backend/current/bin/node /var/lib/wenyousite/backend/current/dist/app-downloads/download-cli.js prune --env /etc/wenyousite/download.env` 与晋级互斥；CLI 再取得网关排他锁和发布锁，保留推荐及最近两个其他已发布包（去重），仅清理目录内已登记旧制品及符合本工具命名的 `.part`。本任务不执行停机或清理。
+
+## 受限发布与历史迁移
+
+现有 `promote-android-release.sh` 加前置 `--gateway` 启用新通道，原 `--url` 继续传 RainS3 对象地址，作为原始制品身份。顺序为：登记独立 `mobile_download_artifacts` → 私有 HEAD/GET 预热与真实清单核验 → 私有 HEAD 鉴权 → 检查缓存 → 领取原说明发布状态机 → commit 公开说明 → 导出 root 所有的发布证明 → 原子启用网关 catalog → 修改 meta 环境并重启验证 → 追加原格式 TSV → finish。所有写入由已有受限 root 管理入口运行，公开下载进程不取得数据库或源站凭据。
+
+`register-download` 和 `download-proof` 为 `mobile-release-cli` 内部命令。独立新增表固定 releaseId、SHA/大小、bucket/key 与 publicUrl，不更新旧 promotion 或旧 TSV。迁移只新增表/唯一键/FK，不回填、删除或改写历史内容。已发布旧包可再次以相同 identity 运行 `--gateway` 完成迁移；不同 SHA/大小或源站身份拒绝。普通旧通道仍保留，关闭公共读后不得再使用旧通道。
+
+本地 journal 在切换前同步保存 meta/TSV/catalog。任一步失败恢复三者并补偿原说明状态，数据库不可达时保留恢复记录。中断后仅使用原 `--recover` 恢复；未完成恢复时拒绝新的晋级。网关 withdraw 同步阻止所有旧文件 URL；pause 可 resume，withdraw 只能重新经过发布流程，不由 resume 复活。
+
+## 运行模板与安全检查
+
+模板为 [独立 systemd unit](../ops/wenyousite-download.service)、[无密钥配置](../ops/secrets/download.env.example) 和 [私有回源配置](../ops/secrets/download-origin.env.example)。Node 使用已部署不可变 release 内的 24.x 运行时与构建；SQLite 与应用数据卷一并持久保存，不用 tmpfs 或 Redis AOF 替代。迁移/启用均须从合并提交经管理部署门禁，不从开发工作树执行。
+
+目录初始权限：catalog/cache 为 publisher:wenyousite-download-cache、2750；egress 为 wenyousite-download、0700；origin 为 publisher、0700；inbox 为 root:wenyousite-download-cache、0750。publisher 主组 `wenyousite-download-publisher`、附加 cache 组；网关附加 cache 组，Caddy 仅附加 proxy 组。公共配置 root:cache 0640，origin 配置 root:publisher 0640。分别以对应运行身份执行 `init-ledger --kind egress|origin`，只允许首次显式初始化；已存在账本拒绝覆盖。预热不自动读取 backend.env 或继承图片 SDK 凭据；复用时由授权管理身份单独配置 origin 文件，不复制整份生产配置。公开网关不得持有、读取或继承任何 S3 凭据。日志不输出密钥、原始配置或带凭据错误；本代码交付不读取/打印真实密钥，不配置服务器或修改云策略。
+
+unit 限制 AF_UNIX、PrivateNetwork、MemoryMax=256M、MemoryHigh=192M、CPUQuota=50%、TasksMax=32、只读缓存/目录，明确隐藏 backend/migration/origin 配置与私有回源目录。`node --import tsx scripts/validate-download-security.ts` 验证模板；管理安装后加 `--installed` 校验安装模板及公共配置权限，仍需现场核验有效 unit、身份/组、目录权限和 Caddy 覆写 IP。`GET /__health` 与 `GET /__metrics` 仅供本机 UDS 管理探针；Caddy 不转发它们。健康探针不读账本或消耗预算；内部指标包含聚合请求/拒绝原因/完成/中断/活动数、缓存命中/失败数与只读出站预算累计；回源量由 publisher 的 status 只读查询独立账本。不含 IP、对象路径或凭据；预算指标不得暴露给公网信息页或健康探针。
+
+## 隔离验证与 Web 样本预览
+
+`pnpm test:downloads` 执行类型检查、真实 UDS、私有对象存储、持久预算、并发/限速、失败恢复与模板拒绝测试；测试目录独立且清理。`pnpm test:integration:app-downloads` 由标准 E2E runner 创建并核验独立 PostgreSQL/Redis，再验证新增 migration 重入、旧用户/钱包/制品审计保留、真实注册并发和私有预热。已纳入完整门禁。首次定向验证可使用 `pnpm e2e:run --suite=app-downloads --source` 启动本任务源码（仍使用同一隔离身份校验），正式完整门禁使用构建产物。测试对象存储拒绝未签名 GET/HEAD，完全使用合成 APK，不访问 RainS3。
+
+仅下载页面交互可用合成持续预览（相关安全门禁通过且源码已提交后启动）：
+
+```bash
+pnpm dev:preview start --session app-downloads --sample downloads --web-port 4310
+pnpm dev:preview status --session app-downloads
+pnpm dev:preview stop --session app-downloads
+```
+
+该模式使用新建并核验的 PostgreSQL/Redis、独立目录/账本与合成 APK，不要求真实快照或云凭据；`consumer.json` 明确 `sample=downloads`，不得称为真实数据/可安装正式包。Web 使用 consumer 的身份与 backend origin 接口；预览代理仅对 JSON 中的下载/说明 URL 改写为同一隔离 origin，禁止点击样本后跳去公网。浏览器导航仅允许这些精确路径的 GET/HEAD 省略自定义身份头，仍核验本次数据进程、API/下载进程与请求 Origin；其他 API 和写入仍要求身份头。其 stop 保留数据，不使用 E2E reaper；清理仍须明确指定预览批次。`pnpm exec tsx scripts/dev-preview/downloads.integration.ts` 验证匿名文件导航、元数据/正文哈希、说明、拒绝路径与恢复不清预算，最终清理自有样本。账号登录旅程及真机安装仍须单独验收。
+
+消费端若限定下载 URL 为生产域，应仅在已核验的合成预览会话中接受 `consumer.backend.origin`，继续校验构建号对应的精确路径；不要全局放开任意 localhost/外部 URL。Web 可将这个已核验地址转换为同源 API 路径并经既有预览代理下载；直接跟随完整样本 URL 的浏览器/移动端须同端口转发 consumer 的 backend 端口。正式运行仍只接受 `https://wenyou.site`。
+
+持久性依据 [SQLite synchronous](https://sqlite.org/pragma.html#pragma_synchronous)，二进制清单格式依据 [Android ResourceTypes](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/libs/androidfw/include/androidfw/ResourceTypes.h)。这些实现证据不代替真实 RainS3 鉴权读取验证、有效 systemd/Caddy 部署或旧 APP 真机验收；关闭公共读仍须独立评审。

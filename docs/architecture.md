@@ -29,9 +29,11 @@ Prisma / Redis / BullMQ / Object Storage
 5. 队列生产者/消费者归所属业务模块：通知归 `notifications`，图片处理归 `media`；`jobs` 只保留跨模块维护任务。
 6. 模块必须显式导入依赖的特性模块，不通过全局 `CommonModule` 隐式获得领域服务。
 7. `admin` 只承载管理端认证、Controller 和站务编排；处罚、内容处置、案件与审计属于顶层 `moderation` 能力，`reports` 等业务模块不得反向依赖 `admin` 的治理实现。
-8. S3 兼容协议、客户端构造、预签名和公开 URL 统一由 `storage/ObjectStorageService` 适配；媒体、表情等模块只声明各自的对象键与内容策略。
+8. 图片 S3 兼容协议、客户端构造、预签名和公开 URL 统一由 `storage/ObjectStorageService` 适配；媒体、表情等模块只声明各自的对象键与内容策略。
 
 图片元数据只能由 `common/image-inspection.ts` 读取；该技术层固定首帧读取，向领域层提供 `frameWidth`、`frameHeight`、`frameCount`、`totalFramePixels` 和时长，不暴露 sharp 在全帧模式下表示垂直堆叠尺寸的 `height`。输入及转码输出共用此入口；APNG 的动画声明按 PNG chunk 边界和校验检查；当前明确不支持 APNG，即使只声明一帧也拒绝，防止把独立默认图当成动画内容。未来解码库支持 APNG 时仍须独立评审政策和回归，不随库能力变化自动接受。`media-image-inspection.ts` 保留媒体自身的格式、MIME 与 GIF 预算，表情模块保留独立的静态/动画像素、帧数、时长及转码政策，不共用产品预算。真实编码的多帧、边界、输出尺寸和损坏文件回归验证这项约束。
+
+Android APK 下载使用独立进程、只读缓存和持久化预算账本；仅私有发布 CLI 的 `StreamingApkOrigin` 从专用配置读取存储凭据并流式读取 APK，不复用图片 Buffer 适配器。允许复用已有凭据，代码只调用固定 APK 路径的读取操作，不代表凭据在云端只读或仅限 APK。隔离边界见 [下载网关](app-download-gateway.md)。
 
 这些规则由 `pnpm arch:check` 自动检查。当前还限制单个 service 不超过 650 行；达到阈值前应优先按职责拆分。
 

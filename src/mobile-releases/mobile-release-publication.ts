@@ -1,4 +1,6 @@
 import { AuditAction, AuditTargetType, Prisma, PrismaClient } from '@prisma/client';
+import { artifactSchema, Artifact } from '../app-downloads/download-model';
+import { downloadUrl } from '../app-downloads/app-download.contract';
 
 export interface ReleaseIdentity {
   platform: 'android';
@@ -103,6 +105,90 @@ export class MobileReleasePublication {
     });
   }
 
+  registerDownload(input: Artifact) {
+    const artifact = artifactSchema.parse(input);
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM mobile_releases WHERE platform = 'android' AND build_number = ${artifact.buildNumber} FOR UPDATE`;
+      const row = await tx.mobileRelease.findUnique({
+        where: { platform_buildNumber: { platform: 'android', buildNumber: artifact.buildNumber } },
+      });
+      assertReady(
+        row && row.versionName === artifact.versionName && row.confirmedRevision === row.revision,
+      );
+      const previous = await tx.mobileReleasePromotion.findFirst({
+        where: { releaseId: row.id, status: 'SUCCEEDED' },
+      });
+      if (previous)
+        assertReady(
+          previous.apkSha256 === artifact.sha256 &&
+            previous.apkSize === String(artifact.sizeBytes) &&
+            previous.updateUrl === artifact.legacyUpdateUrl,
+        );
+      const data = {
+        releaseId: row.id,
+        applicationId: artifact.applicationId,
+        apkSha256: artifact.sha256,
+        apkSize: String(artifact.sizeBytes),
+        storageBucket: artifact.bucket,
+        storageKey: artifact.key,
+        publicUrl: downloadUrl(artifact.buildNumber),
+      };
+      const prior = await tx.mobileDownloadArtifact.findUnique({ where: { releaseId: row.id } });
+      if (prior)
+        for (const key of Object.keys(data) as Array<keyof typeof data>)
+          assertReady(prior[key] === data[key]);
+      else {
+        await tx.mobileDownloadArtifact.create({ data });
+        await tx.auditLog.create({
+          data: {
+            action: AuditAction.MOBILE_RELEASE_UPDATED,
+            targetType: AuditTargetType.MOBILE_RELEASE,
+            targetId: row.id,
+            metadata: {
+              operation: 'download-location-registered',
+              buildNumber: artifact.buildNumber,
+              sha256: artifact.sha256,
+            },
+          },
+        });
+      }
+      return { status: 'registered', buildNumber: artifact.buildNumber, publicUrl: data.publicUrl };
+    });
+  }
+
+  async downloadProof(identity: ReleaseIdentity) {
+    const row = await this.prisma.mobileRelease.findUnique({
+      where: {
+        platform_buildNumber: { platform: identity.platform, buildNumber: identity.buildNumber },
+      },
+      include: { downloadArtifact: true },
+    });
+    assertReady(
+      row && row.versionName === identity.versionName && row.publishedAt && row.downloadArtifact,
+    );
+    const artifact = row.downloadArtifact;
+    const promotion = await this.prisma.mobileReleasePromotion.findFirst({
+      where: {
+        releaseId: row.id,
+        status: { in: ['COMMITTED', 'SUCCEEDED'] },
+        apkSha256: artifact.apkSha256,
+        apkSize: artifact.apkSize,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    assertReady(promotion);
+    return {
+      schemaVersion: 1,
+      platform: 'android',
+      versionName: row.versionName,
+      buildNumber: row.buildNumber,
+      sha256: artifact.apkSha256,
+      sizeBytes: Number(artifact.apkSize),
+      publishedAt: row.publishedAt.toISOString(),
+      operationId: promotion.id,
+    };
+  }
+
   async status(operationId: string) {
     const row = await this.prisma.mobileReleasePromotion.findUnique({ where: { id: operationId } });
     return { status: row?.status ?? 'ABSENT' };
@@ -134,7 +220,7 @@ export class MobileReleasePublication {
       let status: string;
       if (action === 'publish') {
         assertReady(['PREPARED', 'STAGED'].includes(operation.status));
-        // 此阶段只登记策略/TSV已生效，尚不改变公开快照；kill 后不会泄漏待提交说明。
+        // 只登记受限入口已暂存的发布步骤，尚不改变公开快照；kill 后不会泄漏待提交说明。
         status = 'STAGED';
       } else if (action === 'commit') {
         assertReady(['STAGED', 'COMMITTED'].includes(operation.status));

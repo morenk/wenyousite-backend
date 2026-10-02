@@ -1,0 +1,1 @@
+{"extends":"../../tsconfig.json","compilerOptions":{"rootDir":"../..","noEmit":true,"incremental":false},"include":["*.ts","../validate-download-security.ts"]}

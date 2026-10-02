@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { parse } from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
+import { artifactSchema } from '../app-downloads/download-model';
 import { MobileReleasePublication } from './mobile-release-publication';
 
 export const identitySchema = z.object({
@@ -25,6 +26,8 @@ export async function runReleaseCommand(
   action: string,
   input: unknown,
 ) {
+  if (action === 'register-download') return store.registerDownload(artifactSchema.parse(input));
+  if (action === 'download-proof') return store.downloadProof(identitySchema.strict().parse(input));
   if (action === 'preflight') return store.preflight(identitySchema.strict().parse(input));
   if (action === 'begin') {
     const data = promotionSchema.parse(input);
