@@ -78,7 +78,8 @@
     "dev:preview": "tsx scripts/dev-preview/cli.ts",
     "dev:preview:snapshot": "tsx scripts/dev-preview/cli.ts snapshot",
     "test:preview": "tsc -p scripts/dev-preview/tsconfig.json && tsx --test scripts/dev-preview/*.test.ts",
-    "test:preview:integration": "tsx scripts/dev-preview/integration.ts"
+    "test:preview:integration": "tsx scripts/dev-preview/integration.ts",
+    "test:integration:discussion-navigation": "tsx scripts/e2e-runner.ts --suite=discussion-navigation"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.800.0",

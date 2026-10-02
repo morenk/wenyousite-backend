@@ -13,6 +13,8 @@ import {
   ApiConflictResponse,
 } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
+import { DiscussionWindowService } from './discussion-window.service';
+import { DiscussionWindowQueryDto, FloorWindowResponseDto, ReplyWindowResponseDto } from './dto/discussion-window.dto';
 import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
@@ -35,7 +37,7 @@ import { ReplyOrder, ReplyQueryDto } from '../common/dto/reply-query.dto';
 @ApiTags('Posts')
 @Controller()
 export class PostsController {
-  constructor(private postsService: PostsService) {}
+  constructor(private postsService: PostsService, private windows: DiscussionWindowService) {}
 
   @Get('threads/:threadId/posts/latest')
   @OptionalAuth()
@@ -76,6 +78,28 @@ export class PostsController {
       query.order ?? ReplyOrder.OLDEST,
       query.authorId,
     );
+  }
+
+  @Get('subthreads/:subthreadId/posts/window')
+  @OptionalAuth()
+  @ApiOperation({ summary: '按固定楼层编号或帖子 ID 直接读取有界双向窗口' })
+  @ApiOkResponse({ type: FloorWindowResponseDto })
+  @ApiBadRequestResponse({ description: '参数互斥或游标无效（40007）' })
+  @ApiNotFoundResponse({ description: '目标不存在或不可访问' })
+  @ApiConflictResponse({ description: '目标被作者筛选排除（40010），可清筛选重试' })
+  async findFloorWindow(@Param('subthreadId') id: string, @Query() query: DiscussionWindowQueryDto, @Req() req: FastifyRequest) {
+    return this.windows.find('floors', id, query, (req.user as { id: string } | undefined)?.id);
+  }
+
+  @Get('posts/:id/replies/window')
+  @OptionalAuth()
+  @ApiOperation({ summary: '按固定回复编号或帖子 ID 直接读取有界双向窗口' })
+  @ApiOkResponse({ type: ReplyWindowResponseDto })
+  @ApiBadRequestResponse({ description: '参数互斥或游标无效（40007）' })
+  @ApiNotFoundResponse({ description: '目标不存在或不可访问' })
+  @ApiConflictResponse({ description: '目标被作者筛选排除（40010），可清筛选重试' })
+  async findReplyWindow(@Param('id') id: string, @Query() query: DiscussionWindowQueryDto, @Req() req: FastifyRequest) {
+    return this.windows.find('replies', id, query, (req.user as { id: string } | undefined)?.id);
   }
 
   @Get('subthreads/:subthreadId/posts/authors')

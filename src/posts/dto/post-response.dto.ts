@@ -109,6 +109,9 @@ export class PostBaseResponseDto {
   @ApiProperty({ type: Number, nullable: true })
   floorNumber!: number | null;
 
+  @ApiPropertyOptional({ type: Number, nullable: true, minimum: 1, description: '根楼内固定回复编号，排序筛选与删除不重编号；主楼与正文为 null' })
+  replyNumber?: number | null;
+
   @ApiProperty({ type: String, nullable: true })
   parentPostId!: string | null;
 

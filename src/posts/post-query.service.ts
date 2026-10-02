@@ -41,18 +41,18 @@ export class PostQueryService {
     private readonly threadAccess: ThreadAccessService,
   ) {}
 
-  private async findSubthreadContext(subthreadId: string, userId?: string) {
-    const subthread = await this.prisma.subthread.findUnique({
+  async findSubthreadContext(subthreadId: string, userId?: string, client: Prisma.TransactionClient | PrismaService = this.prisma) {
+    const subthread = await client.subthread.findUnique({
       where: { id: subthreadId, ...notDeleted },
       select: { id: true, threadId: true, thread: { select: { ownerId: true } } },
     });
     if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
-    await this.threadAccess.assertAccessible(subthread.threadId, userId);
+    await this.threadAccess.assertAccessible(subthread.threadId, userId, client);
     return subthread;
   }
 
-  private async findDiscussionRoot(postId: string, userId?: string) {
-    const post = await this.prisma.post.findUnique({
+  async findDiscussionRoot(postId: string, userId?: string, client: Prisma.TransactionClient | PrismaService = this.prisma) {
+    const post = await client.post.findUnique({
       where: { id: postId, ...visiblePostWhere(userId) },
       select: {
         id: true,
@@ -66,7 +66,7 @@ export class PostQueryService {
     if (!post || post.subthread.deletedAt || post.kind !== 'FLOOR' || post.parentPostId !== null) {
       throw notFound(ErrorCode.POST_NOT_FOUND, '楼层不存在');
     }
-    await this.threadAccess.assertAccessible(post.threadId, userId);
+    await this.threadAccess.assertAccessible(post.threadId, userId, client);
     return post;
   }
 
@@ -311,13 +311,14 @@ export class PostQueryService {
       );
   }
 
-  private async isEligibleDiscussionAuthor(
+  async isEligibleDiscussionAuthor(
     threadId: string,
     ownerId: string,
     authorId: string,
+    client: Prisma.TransactionClient | PrismaService = this.prisma,
   ): Promise<boolean> {
     if (authorId === ownerId) return true;
-    const member = await this.prisma.threadMember.findUnique({
+    const member = await client.threadMember.findUnique({
       where: { threadId_userId: { threadId, userId: authorId } },
       select: { role: true, playerMarked: true },
     });

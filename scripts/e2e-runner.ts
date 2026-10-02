@@ -13,6 +13,7 @@ import { AuditService } from '../src/moderation/audit.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 const SUITES: Record<string, [string, string]> = {
+  'discussion-navigation': ['discussion-navigation.integration.ts', 'DISCUSSION_NAVIGATION_TEST_ENV'],
   'private-invite-reuse': ['private-invite-reuse.integration.ts', 'PRIVATE_INVITE_REUSE_TEST_ENV'],
   'profile-follow-counts': ['profile-follow-counts.integration.ts', 'PROFILE_FOLLOW_COUNTS_TEST_ENV'],
   'post-edited-time': ['post-edited-time.integration.ts', 'POST_EDITED_TIME_TEST_ENV'],
@@ -162,7 +163,7 @@ export async function run(args = process.argv.slice(2)) {
       }
       const suites = options.includes('--full') ? Object.keys(SUITES).filter((key) => key !== 'search')
         : options.filter((o) => o.startsWith('--suite=')).map((o) => o.slice(8));
-      const httpSuites = ['private-invite-reuse', 'gallery', 'profile-follow-counts', 'post-edited-time'];
+      const httpSuites = ['discussion-navigation', 'private-invite-reuse', 'gallery', 'profile-follow-counts', 'post-edited-time'];
       for (const key of suites.filter(key => httpSuites.includes(key))) {
         const [script, flag] = SUITES[key];
         await runScript(script, { [flag]: 'test' });

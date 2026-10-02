@@ -1,5 +1,9 @@
 # API 合同变更
 
+## 5.30.0-dev.20261001.1
+
+- 兼容新增固定 replyNumber、主楼/楼中楼有界双向窗口及筛选排除专用错误40010，保留旧分页和帖子ID深链。语义见 [讨论定位](../docs/discussion-navigation.md)。
+
 ## 5.29.0-dev.20261001.1
 
 - 兼容新增 PUT /threads/{id}/invite-link（threadsEnsureInviteLink），无请求体、200、现有 InviteLinkResponseDto。仅已发布私帖楼主可用，原子取得或首次创建；重复和并发复制不刷新 token。
