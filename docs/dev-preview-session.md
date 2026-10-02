@@ -6,6 +6,7 @@
 
 `pnpm dev:preview start --session <批次名> --snapshot <目录> --web-port <端口>` 创建实例；再次启动同名实例复用。可省略 --snapshot 自动选择 PREVIEW_SNAPSHOT_ROOT 下当天目录；不存在则停止。快照按北京时间日期登记，首次创建只接受当天、SHA-256 校验成功的快照。运行实例跨天保持原数据。`resume` 是 `start` 的别名。
 `pnpm dev:preview status --session <批次名>` 输出状态和 consumer 路径；`export` 输出 consumer JSON；`stop` 终止登记进程并保留磁盘数据；`reset --confirm <sessionId> --snapshot <目录>` 显式重建数据（仍保留会话编号，生成新 runId）；`cleanup --confirm <sessionId>` 仅移除已停止且身份匹配的登记目录。没有隐式全局清理。
+`rebind-web-port --session <批次名> --web-port <新端口> --confirm <批次名>` 在消费者已停止、旧/新 Web 端口空闲后，按归属停止本批次、原子登记端口并恢复；保持 runId、数据和预算，Backend/media 端口不变。重绑定期间 consumer 标记 stopped，只有恢复核验成功才发布 ready 描述；失败保留新端口，可用 resume 重试。消费者重新读取描述、核验身份并重建同端口转发，不能手改 consumer 或 session 登记。
 批次名匹配 `[a-z][a-z0-9-]{2,47}`，只在创建它的 Backend Worktree 中控制；每次启动持有原子操作锁。启动失败停止本轮所有已登记子进程，保留数据和私有诊断。
 管理身份在单独审核启用后运行 `dev:preview:snapshot --source-env <root私有文件> --output <受限目录> --source-sha <40位SHA> --media-origin <https域名> --pg-bin <二进制目录> --publish-root <开发私有目录> [--backup-root <逻辑备份目录>]`，优先复用当天校验过的逻辑备份，没有才只读导出 PG custom archive，提取 migration 版本与允许读取的历史对象映射；相同日期只复用校验成功的快照。开发身份不获得源凭据。
 

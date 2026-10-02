@@ -32,6 +32,23 @@ async function available(port:number) {
   await new Promise<void>((ok,fail)=>{server.once('error',fail);server.listen(port,'127.0.0.1',ok);});
   await new Promise<void>((ok,fail)=>server.close(e=>e?fail(e):ok()));
 }
+export async function rebindWebPort(name:string,args:Record<string,string>) {
+  assert(process.getuid?.()!==0,'预览进程禁止 root');
+  assert(Object.keys(args).every(k=>['session','web-port','confirm'].includes(k)),'重绑定不接受快照或样本变更');
+  assert.equal(args.confirm,name,'必须显式确认批次名');
+  assert(/^\d+$/.test(args['web-port'] || ''),'必须指定 Web 端口');
+  const s=load(name), port=safePort(Number(args['web-port']));
+  assert(s.initialized,'初始化未完成，不能重绑定');
+  assert(port!==s.ports.web,'端口未改变，请使用 resume');
+  assert(!Object.values(s.ports).includes(port),'端口与本批次资源冲突');
+  // Web 消费者由所属任务先停止；任何旧/新监听占用都不能由此入口接管。
+  await available(s.ports.web); await available(port);
+  await stop(s);
+  // 先使旧描述失效；崩溃或恢复失败时，消费者不能把半完成状态当作 ready。
+  writePrivate(join(s.root,'consumer.json'),{...consumer(s),state:'stopped'});
+  s.ports.web=port; save(s);
+  return s;
+}
 function toolPaths() {
   const pg=process.env.E2E_PG_BIN;
   const redis=process.env.E2E_REDIS_BIN;
@@ -110,9 +127,9 @@ export async function start(name:string,args:Record<string,string>) {
     s=load(name);
     assert(!args.sample || args.sample === s.sample, '已有会话不能切换样本来源');
     assert(!args.snapshot || !s.sample, '合成会话不能隐式切换真实快照');
+    assert(!args['web-port']||Number(args['web-port'])===s.ports.web,'已有会话端口不可隐式变更');
     if(s.state==='ready') { await verifyConsumer(s); return s; }
     assert(s.initialized,'初始化未完成；需显式 reset');
-    assert(!args['web-port']||Number(args['web-port'])===s.ports.web,'已有会话端口不可隐式变更');
     await stop(s);
     s.state='initializing';s.backendSha=sha();Object.assign(s,sourceEvidence());save(s);
   } else s=await create(name,args);
