@@ -9,6 +9,7 @@ import { StickersModule } from '../stickers/stickers.module';
 import { MediaReferenceModule } from '../media/media-reference.module';
 import { DiceModule } from '../dice/dice.module';
 import { PostMentionEventsService } from './post-mention-events.service';
+import { DiscussionWindowService } from './discussion-window.service';
 import { PostPinService } from './post-pin.service';
 
 /** 楼层模块：发帖、楼中楼、编辑、软删除 */
@@ -22,7 +23,7 @@ import { PostPinService } from './post-pin.service';
     DiceModule,
   ],
   controllers: [PostsController],
-  providers: [PostsService, PostQueryService, PostMentionEventsService, PostPinService],
+  providers: [DiscussionWindowService, PostsService, PostQueryService, PostMentionEventsService, PostPinService],
   exports: [PostsService],
 })
 export class PostsModule {}

@@ -6,6 +6,7 @@ import { PrismaClient } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { withResources, unusedPort, stopChild } from './e2e-resources';
 import { ensure } from './webe2e-cleanup';
+import { createDiscussionFixtures } from './discussion-fixtures';
 import type { E2EManifest } from './e2e-guard';
 import { MobileReleasePublication } from '../src/mobile-releases/mobile-release-publication';
 import { MobileReleasesService } from '../src/mobile-releases/mobile-releases.service';
@@ -13,6 +14,7 @@ import { AuditService } from '../src/moderation/audit.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 const SUITES: Record<string, [string, string]> = {
+  'discussion-navigation': ['discussion-navigation.integration.ts', 'DISCUSSION_NAVIGATION_TEST_ENV'],
   'private-invite-reuse': ['private-invite-reuse.integration.ts', 'PRIVATE_INVITE_REUSE_TEST_ENV'],
   'profile-follow-counts': ['profile-follow-counts.integration.ts', 'PROFILE_FOLLOW_COUNTS_TEST_ENV'],
   'post-edited-time': ['post-edited-time.integration.ts', 'POST_EDITED_TIME_TEST_ENV'],
@@ -48,10 +50,11 @@ export async function run(args = process.argv.slice(2)) {
   const boundary = args.indexOf('--');
   const options = boundary < 0 ? args : args.slice(0, boundary);
   const command = boundary < 0 ? [] : args.slice(boundary + 1);
-  ensure(options.every((o) => ['--api', '--full', '--block-search-only', '--admin-fixtures', '--mobile-release-fixtures'].includes(o) || (o.startsWith('--suite=') && Object.hasOwn(SUITES, o.slice(8)))), '非法 runner 参数');
+  ensure(options.every((o) => ['--api', '--full', '--block-search-only', '--admin-fixtures', '--mobile-release-fixtures', '--discussion-fixtures'].includes(o) || (o.startsWith('--suite=') && Object.hasOwn(SUITES, o.slice(8)))), '非法 runner 参数');
   ensure(command.length > 0 || options.length > 0, '使用 --api / --full 或 -- <测试命令>');
   ensure(!options.includes('--admin-fixtures') || command.length > 0, '--admin-fixtures 必须配合本轮消费者命令');
   ensure(!options.includes('--mobile-release-fixtures') || options.includes('--admin-fixtures'), '--mobile-release-fixtures 需要 --admin-fixtures');
+  ensure(!options.includes('--discussion-fixtures') || (command.length > 0 && !options.some(o => o === '--full' || o.startsWith('--suite='))), '--discussion-fixtures 仅配合独立消费者命令');
   const completedRunId = await withResources(async (r) => {
     const owner = new PrismaClient({ datasourceUrl: r.databaseUrl, log: [] });
     const databaseName = `wenyousite_${r.runId}`;
@@ -97,6 +100,16 @@ export async function run(args = process.argv.slice(2)) {
       const port = await unusedPort(); const backendURL = `http://127.0.0.1:${port}`;
       const manifestPath = join(r.root, 'manifest.json'); const privateEnvPath = join(r.root, 'private.env.json');
       const appUrl = new URL(ownerUrl); appUrl.username = 'wenyousite_app'; appUrl.password = appPassword;
+      let discussionFixturesPath: string | undefined;
+      if (options.includes('--discussion-fixtures')) {
+        await r.verify();
+        const fixtureDb = new PrismaClient({ datasourceUrl: appUrl.toString(), log: [] });
+        try {
+          const fixture = await createDiscussionFixtures(fixtureDb, user.id);
+          discussionFixturesPath = join(r.root, 'discussion-fixtures.json');
+          writeFileSync(discussionFixturesPath, JSON.stringify({ version: 1, runId: r.runId, ...fixture }), { mode: 0o600, flag: 'wx' });
+        } finally { await fixtureDb.$disconnect(); }
+      }
       let releaseFixturesPath: string | undefined;
       if (options.includes('--mobile-release-fixtures')) {
         await r.verify();
@@ -123,6 +136,7 @@ export async function run(args = process.argv.slice(2)) {
         PREVIEW_MAILBOX_DIR: adminMailboxPath ?? '',
         E2E_ADMIN_FIXTURES: adminFixturesPath ?? '',
         E2E_MOBILE_RELEASE_FIXTURES: releaseFixturesPath ?? '',
+        E2E_DISCUSSION_FIXTURES: discussionFixturesPath ?? '',
         PUSH_ENABLED: 'false', SENTRY_DSN: '', SES_SMTP_HOST: '', SES_SMTP_USER: '', SES_SMTP_PASS: '',
         COS_ENDPOINT: '', COS_BUCKET: '', COS_ACCESS_KEY_ID: '', COS_SECRET_ACCESS_KEY: '', GOOGLE_APPLICATION_CREDENTIALS: '',
         ENABLE_API_DOCS: 'false', LOG_LEVEL: 'info', BUILD_SHA: 'e'.repeat(40),
@@ -131,7 +145,7 @@ export async function run(args = process.argv.slice(2)) {
         E2E_BACKEND_URL: backendURL, API_BASE: `${backendURL}/api/v1`, API_E2E_ENV: 'test',
         E2E_USERNAME: username, E2E_EMAIL: email, E2E_PASSWORD: password, E2E_USER_ID: user.id,
       };
-      const webEnv = Object.fromEntries(['E2E_RUN_ID', 'E2E_MANIFEST', 'E2E_PRIVATE_ENV', 'E2E_BACKEND_URL', 'API_BASE', 'E2E_USERNAME', 'E2E_EMAIL', 'E2E_PASSWORD', 'E2E_USER_ID', 'E2E_ADMIN_FIXTURES', 'E2E_MOBILE_RELEASE_FIXTURES'].map((key) => [key, env[key]]));
+      const webEnv = Object.fromEntries(['E2E_RUN_ID', 'E2E_MANIFEST', 'E2E_PRIVATE_ENV', 'E2E_BACKEND_URL', 'API_BASE', 'E2E_USERNAME', 'E2E_EMAIL', 'E2E_PASSWORD', 'E2E_USER_ID', 'E2E_ADMIN_FIXTURES', 'E2E_MOBILE_RELEASE_FIXTURES', 'E2E_DISCUSSION_FIXTURES'].map((key) => [key, env[key]]));
       writeFileSync(privateEnvPath, JSON.stringify(webEnv), { flag: 'wx', mode: 0o600 });
       const app = r.spawn(process.execPath, [join(REPOSITORY, 'dist/main.js')], env);
       await health(backendURL, app);
@@ -162,7 +176,7 @@ export async function run(args = process.argv.slice(2)) {
       }
       const suites = options.includes('--full') ? Object.keys(SUITES).filter((key) => key !== 'search')
         : options.filter((o) => o.startsWith('--suite=')).map((o) => o.slice(8));
-      const httpSuites = ['private-invite-reuse', 'gallery', 'profile-follow-counts', 'post-edited-time'];
+      const httpSuites = ['discussion-navigation', 'private-invite-reuse', 'gallery', 'profile-follow-counts', 'post-edited-time'];
       for (const key of suites.filter(key => httpSuites.includes(key))) {
         const [script, flag] = SUITES[key];
         await runScript(script, { [flag]: 'test' });

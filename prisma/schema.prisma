@@ -1085,6 +1085,7 @@ model Post {
   authorId        String                @map("author_id")
   kind            PostKind              @default(FLOOR) @map("kind")
   floorNumber     Int?                  @map("floor_number")
+  replyNumber     Int?                  @map("reply_number")
   parentPostId    String?               @map("parent_post_id")
   replyToPostId   String?               @map("reply_to_post_id")
   clientRequestId String?               @map("client_request_id") @db.Uuid
@@ -1114,6 +1115,8 @@ model Post {
   galleryIndex PostGalleryIndex?
 
   @@unique([subthreadId, floorNumber])
+  @@unique([parentPostId, replyNumber])
+  @@index([parentPostId, deletedAt, replyNumber], map: "posts_reply_window_idx")
   @@unique([authorId, clientRequestId])
   @@unique([id, subthreadId], map: "posts_id_subthread_id_key")
   @@index([subthreadId, kind, deletedAt, floorNumber], map: "posts_floor_page_idx")

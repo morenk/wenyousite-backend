@@ -70,6 +70,7 @@
     "test:cleanup:integration": "tsx scripts/webe2e-cleanup.integration.ts",
     "e2e:run": "tsx scripts/e2e-runner.ts",
     "test:e2e:full": "tsx scripts/e2e-runner.ts --full",
+    "test:e2e:discussion-fixtures": "tsx scripts/e2e-runner.ts --discussion-fixtures -- node --import tsx scripts/discussion-fixtures.consumer-test.ts",
     "e2e:reap": "tsx scripts/e2e-reap.ts",
     "test:e2e:lifecycle": "tsx scripts/e2e-lifecycle.integration.ts",
     "test:integration:post-edited-time": "tsx scripts/e2e-runner.ts --suite=post-edited-time",
@@ -78,7 +79,8 @@
     "dev:preview": "tsx scripts/dev-preview/cli.ts",
     "dev:preview:snapshot": "tsx scripts/dev-preview/cli.ts snapshot",
     "test:preview": "tsc -p scripts/dev-preview/tsconfig.json && tsx --test scripts/dev-preview/*.test.ts",
-    "test:preview:integration": "tsx scripts/dev-preview/integration.ts"
+    "test:preview:integration": "tsx scripts/dev-preview/integration.ts",
+    "test:integration:discussion-navigation": "tsx scripts/e2e-runner.ts --suite=discussion-navigation"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.800.0",

@@ -25,6 +25,8 @@ export const ErrorCode = {
   INVALID_WENYOU_AMOUNT: 40008,
   /** 正文包含工具栏能力白名单之外的 Markdown 结构 */
   UNSUPPORTED_MARKDOWN_FORMAT: 40009,
+  /** 定位目标可访问，但被当前作者筛选排除；客户端可清筛选重试 */
+  DISCUSSION_TARGET_FILTERED: 40010,
 
   // ── 认证 401xx ──
   /** 未认证 */

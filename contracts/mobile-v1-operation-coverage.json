@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "5.29.0-dev.20261001.1",
+  "contractVersion": "5.30.0-dev.20261001.1",
   "counts": {
-    "total": 233,
-    "v1": 108,
+    "total": 235,
+    "v1": 110,
     "deferred": 66,
     "notApplicable": 58,
     "infrastructure": 1
@@ -990,6 +990,22 @@
       "operationId": "postsCreate",
       "method": "POST",
       "path": "/api/v1/subthreads/{subthreadId}/posts",
+      "module": "posts",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "postsFindFloorWindow",
+      "method": "GET",
+      "path": "/api/v1/subthreads/{subthreadId}/posts/window",
+      "module": "posts",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "postsFindReplyWindow",
+      "method": "GET",
+      "path": "/api/v1/posts/{id}/replies/window",
       "module": "posts",
       "disposition": "v1",
       "status": "planned"
