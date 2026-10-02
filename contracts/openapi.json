@@ -10864,6 +10864,366 @@
         "x-auth-mode": "authenticated"
       }
     },
+    "/api/v1/subthreads/{subthreadId}/posts/window": {
+      "get": {
+        "operationId": "postsFindFloorWindow",
+        "parameters": [
+          {
+            "name": "subthreadId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
+            "schema": {
+              "example": "clxabc123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（默认 20，最大 50）",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "description": "列表顺序；帖子回复与动态独立楼中楼默认 OLDEST，动态主评论默认 NEWEST；动态主评论内嵌回复固定 OLDEST",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "OLDEST",
+                "NEWEST"
+              ]
+            }
+          },
+          {
+            "name": "authorId",
+            "required": false,
+            "in": "query",
+            "description": "只返回指定作者的回复",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "required": false,
+            "in": "query",
+            "description": "固定楼层/回复编号；与 postId、cursor 互斥",
+            "schema": {
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "postId",
+            "required": false,
+            "in": "query",
+            "description": "已有帖子深链 ID；与 number、cursor 互斥",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostsFindFloorWindow200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "参数互斥或游标无效（40007）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "目标不存在或不可访问",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "409": {
+            "description": "目标被作者筛选排除（40010），可清筛选重试",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "按固定楼层编号或帖子 ID 直接读取有界双向窗口",
+        "tags": [
+          "Posts"
+        ],
+        "x-auth-mode": "optional",
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
+      }
+    },
+    "/api/v1/posts/{id}/replies/window": {
+      "get": {
+        "operationId": "postsFindReplyWindow",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "服务端返回的不透明分页游标；首次请求不传，后续必须原样回传",
+            "schema": {
+              "example": "clxabc123...",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（默认 20，最大 50）",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "description": "列表顺序；帖子回复与动态独立楼中楼默认 OLDEST，动态主评论默认 NEWEST；动态主评论内嵌回复固定 OLDEST",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "OLDEST",
+                "NEWEST"
+              ]
+            }
+          },
+          {
+            "name": "authorId",
+            "required": false,
+            "in": "query",
+            "description": "只返回指定作者的回复",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "required": false,
+            "in": "query",
+            "description": "固定楼层/回复编号；与 postId、cursor 互斥",
+            "schema": {
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "postId",
+            "required": false,
+            "in": "query",
+            "description": "已有帖子深链 ID；与 number、cursor 互斥",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostsFindReplyWindow200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "参数互斥或游标无效（40007）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "目标不存在或不可访问",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "409": {
+            "description": "目标被作者筛选排除（40010），可清筛选重试",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "按固定回复编号或帖子 ID 直接读取有界双向窗口",
+        "tags": [
+          "Posts"
+        ],
+        "x-auth-mode": "optional",
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
+      }
+    },
     "/api/v1/subthreads/{subthreadId}/posts/authors": {
       "get": {
         "operationId": "postsFindFloorAuthors",
@@ -21364,7 +21724,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.30.0-dev.20261002.2",
+    "version": "5.31.0-dev.20261003.1",
     "contact": {}
   },
   "tags": [
@@ -27033,6 +27393,12 @@
             "type": "number",
             "nullable": true
           },
+          "replyNumber": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 1,
+            "description": "根楼内固定回复编号，排序筛选与删除不重编号；主楼与正文为 null"
+          },
           "parentPostId": {
             "type": "string",
             "nullable": true
@@ -27154,6 +27520,12 @@
             "type": "number",
             "nullable": true
           },
+          "replyNumber": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 1,
+            "description": "根楼内固定回复编号，排序筛选与删除不重编号；主楼与正文为 null"
+          },
           "parentPostId": {
             "type": "string",
             "nullable": true
@@ -27241,6 +27613,147 @@
           "author",
           "_count",
           "replies"
+        ]
+      },
+      "DiscussionWindowTargetDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "number"
+        ]
+      },
+      "FloorWindowResponseDto": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "number",
+            "minimum": 0,
+            "description": "当前查看者、作者筛选下的可见条数"
+          },
+          "maxNumber": {
+            "type": "number",
+            "nullable": true,
+            "description": "当前查看者在本范围可访问的最大固定编号，不受作者筛选影响；无可访问内容为 null"
+          },
+          "target": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DiscussionWindowTargetDto"
+              }
+            ]
+          },
+          "beforeCursor": {
+            "type": "string",
+            "nullable": true
+          },
+          "afterCursor": {
+            "type": "string",
+            "nullable": true
+          },
+          "hasBefore": {
+            "type": "boolean"
+          },
+          "hasAfter": {
+            "type": "boolean"
+          },
+          "items": {
+            "description": "自然编号顺序窗口，最多 limit 条；置顶也仅在其自然编号位置",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FloorResponseDto"
+            }
+          },
+          "pinnedItems": {
+            "description": "仅默认首屏返回最多十条置顶；消费者保留置顶区时须按 ID 抑制 items 重复，直接定位时清空置顶区",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FloorResponseDto"
+            }
+          }
+        },
+        "required": [
+          "total",
+          "maxNumber",
+          "target",
+          "beforeCursor",
+          "afterCursor",
+          "hasBefore",
+          "hasAfter",
+          "items",
+          "pinnedItems"
+        ]
+      },
+      "ReplyWindowResponseDto": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "number",
+            "minimum": 0,
+            "description": "当前查看者、作者筛选下的可见条数"
+          },
+          "maxNumber": {
+            "type": "number",
+            "nullable": true,
+            "description": "当前查看者在本范围可访问的最大固定编号，不受作者筛选影响；无可访问内容为 null"
+          },
+          "target": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DiscussionWindowTargetDto"
+              }
+            ]
+          },
+          "beforeCursor": {
+            "type": "string",
+            "nullable": true
+          },
+          "afterCursor": {
+            "type": "string",
+            "nullable": true
+          },
+          "hasBefore": {
+            "type": "boolean"
+          },
+          "hasAfter": {
+            "type": "boolean"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReplyResponseDto"
+            }
+          },
+          "pinnedItems": {
+            "description": "楼中楼恒为空数组",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FloorResponseDto"
+            }
+          }
+        },
+        "required": [
+          "total",
+          "maxNumber",
+          "target",
+          "beforeCursor",
+          "afterCursor",
+          "hasBefore",
+          "hasAfter",
+          "items",
+          "pinnedItems"
         ]
       },
       "DiscussionAuthorResponseDto": {
@@ -27345,6 +27858,12 @@
           "floorNumber": {
             "type": "number",
             "nullable": true
+          },
+          "replyNumber": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 1,
+            "description": "根楼内固定回复编号，排序筛选与删除不重编号；主楼与正文为 null"
           },
           "parentPostId": {
             "type": "string",
@@ -27531,6 +28050,12 @@
           "floorNumber": {
             "type": "number",
             "nullable": true
+          },
+          "replyNumber": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 1,
+            "description": "根楼内固定回复编号，排序筛选与删除不重编号；主楼与正文为 null"
           },
           "parentPostId": {
             "type": "string",
@@ -34836,6 +35361,42 @@
           }
         ]
       },
+      "PostsFindFloorWindow200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/FloorWindowResponseDto"
+              }
+            }
+          }
+        ]
+      },
+      "PostsFindReplyWindow200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/ReplyWindowResponseDto"
+              }
+            }
+          }
+        ]
+      },
       "PostsFindFloorAuthors200Response": {
         "allOf": [
           {
@@ -36944,6 +37505,7 @@
           40007,
           40008,
           40009,
+          40010,
           40100,
           40101,
           40102,
@@ -37038,6 +37600,7 @@
           "INVALID_CURSOR",
           "INVALID_WENYOU_AMOUNT",
           "UNSUPPORTED_MARKDOWN_FORMAT",
+          "DISCUSSION_TARGET_FILTERED",
           "UNAUTHORIZED",
           "TOKEN_EXPIRED",
           "TOKEN_INVALID",

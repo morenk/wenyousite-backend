@@ -113,3 +113,11 @@ Linux 退出期间可能先置位 PF_EXITING，进程仍暂时显示 R，且 env
 ### APK 下载
 
 `pnpm test:integration:app-downloads` 使用本 runner 核验的独立 PostgreSQL/Redis 与私有样本对象存储，覆盖新增制品位置表迁移、并发登记、旧制品身份/钱包保留和鉴权预热。网关 UDS、预算账本和上传文件均属于本轮目录；退出一并清理。持续页面反馈使用 [下载合成预览](app-download-gateway.md#隔离验证与-web-样本预览)，不混用一次性 reaper。
+
+### 长讨论浏览器样本
+
+`pnpm e2e:run --discussion-fixtures -- <Web 隔离消费者命令>` 在本轮独立资源身份核验后，使用 `wenyousite_app` 创建 1000、5000、10000 三组公开样本；每组含对应数量的主楼，以及首个主楼下对应数量的回复。该选项仅用于消费者模式，不能与 `--full` 或 `--suite` 组合，也不会向持续真实快照预览写入数据。普通测试不传此选项，不创建压力样本。
+
+消费者 env 与 `E2E_PRIVATE_ENV` 同时包含 `E2E_DISCUSSION_FIXTURES`，指向运行根下的 0600 `discussion-fixtures.json`：`{version:1,runId,ownerUserId,otherUserId,scenarios:[{size,threadId,subthreadId,rootPostId,pinnedPostId,editableFloorId,editableReplyId,otherAuthorFloorId,otherAuthorReplyId}]}`。不增加 manifest 字段，不交付数据库、Redis 或签名凭据。消费者读取前必须确认普通文件、UID/0600、文件位于 manifest 同一运行根且 runId 匹配；缺少或不匹配时停止，不回退到其他实例。
+
+奇数编号属于本轮登录用户，偶数属于另一个无登录凭据的样本成员；编号 `size-1` 的主楼置顶，editable ID 对应编号 3，otherAuthor ID 对应编号 2。初始没有删除空洞，浏览器可按正常业务 API 编辑、删除或新建以验证编号连续分配与空洞。`pnpm test:e2e:discussion-fixtures` 用不持有数据库凭据的消费者，验证本轮文件/环境绑定、实际 HTTP 首/中/末定位、置顶、筛选拒绝及样本 ID。全部样本和消费者后代由同一 runner 在成功、失败或中断后回收。

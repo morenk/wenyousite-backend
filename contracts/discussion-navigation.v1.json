@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "contractVersion": "5.31.0-dev.20261003.1",
+  "scenarios": [
+    {
+      "name": "reply-number-does-not-renumber",
+      "numbers": [
+        1,
+        3,
+        8
+      ],
+      "total": 3,
+      "maxNumber": 8
+    },
+    {
+      "name": "filtered-target",
+      "httpStatus": 409,
+      "code": 40010,
+      "clearAuthorAndRetry": true
+    },
+    {
+      "name": "missing-or-invisible-target",
+      "httpStatus": 404,
+      "codeName": "POST_NOT_FOUND",
+      "clearAuthorAndRetry": false
+    },
+    {
+      "name": "default-pins",
+      "pinnedIds": [
+        "floor-8"
+      ],
+      "naturalIds": [
+        "floor-1",
+        "floor-8"
+      ],
+      "renderIds": [
+        "floor-8",
+        "floor-1"
+      ]
+    },
+    {
+      "name": "direct-target-clears-pins",
+      "pinnedItems": [],
+      "target": {
+        "id": "floor-8",
+        "number": 8
+      }
+    },
+    {
+      "name": "cursor-scope",
+      "boundFields": [
+        "scope",
+        "scopeId",
+        "order",
+        "authorId",
+        "viewerId"
+      ]
+    }
+  ]
+}

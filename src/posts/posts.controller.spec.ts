@@ -71,7 +71,7 @@ describe('PostsController Swagger 响应契约', () => {
     const postsService = {
       findLatestInThread: jest.fn().mockResolvedValue({ id: 'reply-latest' }),
     };
-    const controller = new PostsController(postsService as never);
+    const controller = new PostsController(postsService as never, {} as never);
 
     await controller.findLatestInThread('thread-1', { user: { id: 'viewer-1' } } as never);
 
@@ -86,7 +86,7 @@ describe('PostsController Swagger 响应契约', () => {
     const postsService = {
       findAllBySubthread: jest.fn().mockResolvedValue({ items: [], meta: {} }),
     };
-    const controller = new PostsController(postsService as never);
+    const controller = new PostsController(postsService as never, {} as never);
 
     await controller.findFloors(
       'subthread-1',
@@ -114,7 +114,7 @@ describe('PostsController Swagger 响应契约', () => {
       findFloorAuthors: jest.fn().mockResolvedValue([]),
       findReplyAuthors: jest.fn().mockResolvedValue([]),
     };
-    const controller = new PostsController(postsService as never);
+    const controller = new PostsController(postsService as never, {} as never);
 
     await controller.findFloorAuthors(
       'subthread-1',

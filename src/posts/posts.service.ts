@@ -132,6 +132,16 @@ export class PostsService {
         });
 
         let floorNumber: number | null = null;
+        let replyNumber: number | null = null;
+        if (dto.parentPostId) {
+          // 上游已锁定主题聚合；包含软删记录，避免删除后重用旧编号。
+          await tx.$queryRaw`SELECT id FROM posts WHERE id = ${dto.parentPostId} FOR UPDATE`;
+          const maxReply = await tx.post.aggregate({
+            where: { parentPostId: dto.parentPostId },
+            _max: { replyNumber: true },
+          });
+          replyNumber = (maxReply._max.replyNumber ?? 0) + 1;
+        }
         if (!dto.parentPostId) {
           await tx.$queryRaw`SELECT id FROM subthreads WHERE id = ${subthreadId} FOR UPDATE`;
           const maxFloor = await tx.post.aggregate({
@@ -148,6 +158,7 @@ export class PostsService {
             authorId: userId,
             kind: 'FLOOR',
             floorNumber,
+            replyNumber,
             parentPostId: dto.parentPostId ?? null,
             replyToPostId: dto.replyToPostId ?? null,
             clientRequestId: dto.clientRequestId ?? null,

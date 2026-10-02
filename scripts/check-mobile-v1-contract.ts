@@ -6,7 +6,7 @@ const coverage = JSON.parse(fs.readFileSync(coveragePath, 'utf8')) as Record<str
 const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as Record<string, any>;
 const failures: string[] = [];
 
-const expectedCounts = { total: 236, v1: 108, deferred: 66, notApplicable: 58, infrastructure: 4 };
+const expectedCounts = { total: 238, v1: 110, deferred: 66, notApplicable: 58, infrastructure: 4 };
 for (const [name, expected] of Object.entries(expectedCounts)) {
   if (coverage.counts?.[name] !== expected) {
     failures.push(
@@ -31,6 +31,15 @@ const ensureInvite = rows.find((row: Record<string, unknown>) => row.operationId
 if (ensureInvite?.disposition !== 'v1' || ensureInvite?.method !== 'PUT'
   || ensureInvite?.path !== '/api/v1/threads/{id}/invite-link') {
   failures.push('私帖邀请复用必须纳入移动端 V1 PUT 接口');
+}
+for (const [operationId, path] of [
+  ['postsFindFloorWindow', '/api/v1/subthreads/{subthreadId}/posts/window'],
+  ['postsFindReplyWindow', '/api/v1/posts/{id}/replies/window'],
+]) {
+  const operation = rows.find((row: Record<string, unknown>) => row.operationId === operationId);
+  if (operation?.disposition !== 'v1' || operation?.method !== 'GET' || operation?.path !== path) {
+    failures.push(operationId + ': 讨论直接定位必须纳入移动端 V1 有界读取');
+  }
 }
 const seen = new Set<string>();
 for (const row of rows) {

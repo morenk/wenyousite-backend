@@ -83,3 +83,7 @@ Android APK 源站 URL：保留历史 promotion/TSV 原文与旧 APP HEAD metada
 `5.29.0-dev.20261001.1` 兼容新增 PUT 取得或首次创建接口；保留 POST 主动重置、既有 operationId 和响应 DTO。旧客户端仍可重置，不删除旧接口、历史成员或数据；Backend 先行、Web/Mobile 随后消费。不存在协议清理或数据库迁移，后续删除仍需四项证据及独立 PR。
 
 当前 Web / App 邀请入口简化为点击即复制：每次调用 PUT，仅剪贴板失败时就地显示手动复制链接；不再提供重置 UI，也不展示正常态链接正文。该 UI 调整不等于 POST 弃用或授权清理，接口失败不得回退 POST；保留机器 OpenAPI、契约版本、旧客户端重置行为及成员规则。本轮仅更新接入文档来源，不新增迁移或 API 版本。
+
+## 讨论定位兼容（2026-10-01）
+
+旧帖子列表分页、通知和搜索 ID 深链继续支持；新增 window 接口与 nullable replyNumber 不替换旧协议。旧写入兼容编号触发器保留。暂无旧协议删除日期；须待 Web/Mobile 无消费者、迁移完成、回归和回滚证据齐全后独立 PR 清理。详见 [讨论定位契约](discussion-navigation.md)。

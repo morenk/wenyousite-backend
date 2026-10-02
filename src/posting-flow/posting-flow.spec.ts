@@ -900,9 +900,10 @@ describe('发帖全流程集成测试', () => {
           ...basicTx(prisma),
           post: {
             ...basicTx(prisma).post,
-            aggregate: jest.fn(),
+            aggregate: jest.fn().mockResolvedValue({ _max: { replyNumber: 7 } }),
             create: jest.fn().mockResolvedValue({
               id: 'p2',
+              replyNumber: 8,
               floorNumber: null,
               parentPostId: 'p1',
               content: 'reply',
@@ -919,6 +920,7 @@ describe('发帖全流程集成测试', () => {
       );
       expect(result.floorNumber).toBeNull();
       expect(result.parentPostId).toBe('p1');
+      expect(result.replyNumber).toBe(8);
     });
 
     it('创建回复：replyToPostId 指定目标，不设置 floorNumber', async () => {
@@ -1189,9 +1191,10 @@ describe('发帖全流程集成测试', () => {
           ...basicTx(prisma),
           post: {
             ...basicTx(prisma).post,
-            aggregate: jest.fn(),
+            aggregate: jest.fn().mockResolvedValue({ _max: { replyNumber: 7 } }),
             create: jest.fn().mockResolvedValue({
               id: 'p2',
+              replyNumber: 8,
               floorNumber: null,
               parentPostId: 'p1',
               content: 'reply',
