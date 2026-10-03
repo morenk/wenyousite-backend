@@ -75,3 +75,47 @@ it('真实静态资源插件正常读取自身目录并拒绝目录穿越', asyn
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+it('Firebase 实际 multipart 依赖在限时子进程处理超长边界与原型名头', () => {
+  const busboyPath = resolveDependency(['firebase-admin', '@fastify/busboy']);
+  const script = String.raw`
+    const assert = require('node:assert/strict');
+    const { once } = require('node:events');
+    const Busboy = require(${JSON.stringify(busboyPath)});
+    async function parse(boundary, extraHeaders = '') {
+      const parser = new Busboy({
+        headers: { 'content-type': 'multipart/form-data; boundary=' + boundary },
+      });
+      const fields = [];
+      parser.on('field', (name, value) => fields.push([name, value]));
+      const finished = once(parser, 'finish');
+      const prefix = 'prefix\r\n--a';
+      const value = prefix + 'x'.repeat(1024);
+      const part = (name) => '--' + boundary + '\r\n'
+        + 'Content-Disposition: form-data; name="' + name + '"\r\n'
+        + extraHeaders + '\r\n' + value + '\r\n';
+      const body = part('first') + part('second') + '--' + boundary + '--\r\n';
+      const split = body.indexOf(prefix) + prefix.length;
+      parser.write(body.slice(0, split));
+      parser.end(body.slice(split));
+      await finished;
+      assert.deepEqual(fields, [['first', value], ['second', value]]);
+    }
+    (async () => {
+      await parse('normal-fixture');
+      // GHSA-xjh9-v7x6-24jw: 252-byte boundary plus CRLF-- wraps an 8-bit skip table.
+      await parse('a'.repeat(252));
+      // GHSA-x8mw-p69m-v3mx: these names must not resolve to inherited header values.
+      await parse('prototype-fixture', '__proto__: fixture\r\nconstructor: fixture\r\n');
+      process.stdout.write('passed');
+    })().catch(() => { process.exitCode = 1; });
+  `;
+  const output = execFileSync(process.execPath, ['--max-old-space-size=128', '-e', script], {
+    env: { PATH: process.env.PATH },
+    timeout: 5000,
+    killSignal: 'SIGKILL',
+    maxBuffer: 4096,
+    encoding: 'utf8',
+  });
+  assert.equal(output, 'passed');
+});
