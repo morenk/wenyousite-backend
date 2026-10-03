@@ -131,6 +131,6 @@ stdout 仅含 consumerPath/accountPath 与非秘密资源身份。账号仅在�
 
 Web/Mobile 共用 `consumer.json`，先核验后端及媒体真实运行身份。反馈批次保留会话；验收结束使用 `dev:preview stop/cleanup --session private-invite-reuse`（cleanup 同时传 `--confirm private-invite-reuse`），按 `sample-snapshot-ownership.json` 回收本批次合成快照。
 
-## 下载页面合成样本
+## 下载入口合成样本
 
-无需真实快照的匿名下载页面反馈可使用 `--sample downloads`，隔离边界、consumer 标记和运行命令见 [下载网关](app-download-gateway.md#隔离验证与-web-样本预览)。该模式不替代真实数据或安装包验收。
+无需真实快照的 ThemeMenu「下载 APP」入口反馈可使用 `--sample downloads`，验证一次显式点击内的版本/状态查询、HEAD 校验与浏览器原生 GET 下载，隔离边界、consumer 标记和运行命令见 [下载网关](app-download-gateway.md#隔离验证与-web-样本预览)。该模式不替代真实数据或安装包验收。

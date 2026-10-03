@@ -10,13 +10,15 @@
 | `GET /api/v1/app-downloads/android/{buildNumber}/file` | 固定构建 APK，200 完整正文或 206 单段 Range |
 | `HEAD /api/v1/app-downloads/android/{buildNumber}/file` | 与 GET 相同元数据，无正文，不计出站字节，仍计请求频率 |
 
-JSON 顶层为 `status`（`available/no_release/withdrawn/paused/unavailable`）、`release`（仅 available 非 null）和 `retryAfterSeconds`（整数秒或 null）。状态事实源为发布 CLI 原子写入的 catalog；withdrawn/paused 会同时拒绝所有已发布文件 URL。无推荐返回 no_release，明确撤回返回 withdrawn，运维暂停返回 paused，推荐缓存缺失或损坏返回 unavailable；这些均 HTTP 200。账本/目录依赖异常才 503，IP 限频 429。`release` 字段：`platform="android"`、`applicationId="site.wenyou.app"`、`versionName`、`buildNumber`（整数）、`sizeBytes`（整数）、`sha256`（小写 64 hex）、`fileName`、`publishedAt`（ISO 8601）、`downloadUrl`（本站固定构建文件绝对 URL）、`releaseNotesUrl`（本站 `/api/v1/mobile-releases/android/{buildNumber}`）。JSON 使用 `Cache-Control: no-store`。页面只请求 JSON；只有用户点击下载才 GET APK；桌面二维码指向 `https://wenyou.site/download`。
+JSON 顶层为 `status`（`available/no_release/withdrawn/paused/unavailable`）、`release`（仅 available 非 null）和 `retryAfterSeconds`（整数秒或 null）。状态事实源为发布 CLI 原子写入的 catalog；withdrawn/paused 会同时拒绝所有已发布文件 URL。无推荐返回 no_release，明确撤回返回 withdrawn，运维暂停返回 paused，推荐缓存缺失或损坏返回 unavailable；这些均 HTTP 200。账本/目录依赖异常才 503，IP 限频 429。`release` 字段：`platform="android"`、`applicationId="site.wenyou.app"`、`versionName`、`buildNumber`（整数）、`sizeBytes`（整数）、`sha256`（小写 64 hex）、`fileName`、`publishedAt`（ISO 8601）、`downloadUrl`（本站固定构建文件绝对 URL）、`releaseNotesUrl`（本站 `/api/v1/mobile-releases/android/{buildNumber}`）。JSON 使用 `Cache-Control: no-store`。
+
+Web 仅保留 ThemeMenu「下载 APP」入口，不提供独立 `/download` 页面或二维码。用户一次显式点击后，先请求上述 JSON 获取当前版本与状态；仅当状态为 available，且下载 URL 与构建号校验通过时，对同一固定构建文件发起 HEAD，核对响应状态、文件类型、大小、SHA-256 元数据、包名、版本名与构建号。全部匹配后由浏览器原生 GET 下载该文件，无需再次点击确认。非 available、查询失败或 HEAD 校验失败时显示相应状态及重试提示，不发起 APK GET；后续重试由用户显式触发。页面加载、菜单展开或悬停均不触发这条查询/校验/下载链路。
 
 文件响应保留 `Content-Type: application/vnd.android.package-archive`、`Content-Length`、`Content-Disposition: attachment; filename="wenyou-<version>-<build>.apk"`、`x-amz-meta-apk-sha256`、`x-amz-meta-application-id`、`x-amz-meta-version-name`、`x-amz-meta-version-code`，另有 SHA-256 ETag、Last-Modified、Accept-Ranges。200/206 使用 `Cache-Control: private, no-store`，禁止 Caddy/CDN 缓存绕过预算。允许空 Referer，无登录、JS 或验证码前置条件。旧 APP 可原样先 HEAD 再 GET；客户端应接受缓存策略变化。
 
 Range 只支持单段 `bytes=start-end`、`bytes=start-`、`bytes=-suffix`；非法、多段、越界均为 416，含 `Content-Range: bytes */<size>`。If-Range 不匹配时发送完整文件；非法 Range 不因 If-Range 而放行。HEAD 支持相同范围选择。错误为标准 `{code,message,data:null}`（HEAD 无正文）：404 未发布/未知构建，416 错误范围，429 请求/并发/预算超限且带 Retry-After，503 缓存缺失/损坏、持久化故障或未接通网关。错误不含桶、对象键、IP、凭据或内部路径。
 
-`/meta.mobileCompatibility.android.updateUrl` 迁移后为 `https://wenyou.site/api/v1/app-downloads/android/{buildNumber}/file`，不是 `/download` 页面；iOS 不变。旧数据库 promotion.updateUrl 与历史 TSV 原文保留，通过独立制品记录存储 bucket/key/publicUrl，不重写旧审计事实。
+`/meta.mobileCompatibility.android.updateUrl` 迁移后为 `https://wenyou.site/api/v1/app-downloads/android/{buildNumber}/file`；iOS 不变。旧数据库 promotion.updateUrl 与历史 TSV 原文保留，通过独立制品记录存储 bucket/key/publicUrl，不重写旧审计事实。
 
 ## 进程和运维交接
 
@@ -37,7 +39,7 @@ CLI 固定入口 `node <release>/dist/app-downloads/download-cli.js <command> --
 
 ## 预算、缓存和失败语义
 
-SQLite 使用 `BEGIN IMMEDIATE`、WAL 和 `synchronous=FULL`，每次正文发送前同时检查/写入北京时间日与自然月两个计数。JSON 成功/错误正文也预留并共享全局带宽；HEAD 不预留正文。预算连错误 JSON 都无法容纳，或瞬时带宽桶已耗尽时，429/503 只返回状态、Retry-After 与零长度正文，消费者须按 HTTP 状态兜底。容量上限与断开不退款不受时区环境变量影响。管理配置可显式设置 `DOWNLOAD_DAY_BYTES/MONTH_BYTES` 与 `DOWNLOAD_ORIGIN_DAY_BYTES/MONTH_BYTES`，省略为上述默认；提高额度必须经过运维评审，不自动调整。时钟回拨、账本被替换、缺失、损坏或锁失败均拒绝。状态页在完整 APK 剩余额度不足时显示 paused 及重试秒数，不暴露余额。
+SQLite 使用 `BEGIN IMMEDIATE`、WAL 和 `synchronous=FULL`，每次正文发送前同时检查/写入北京时间日与自然月两个计数。JSON 成功/错误正文也预留并共享全局带宽；HEAD 不预留正文。预算连错误 JSON 都无法容纳，或瞬时带宽桶已耗尽时，429/503 只返回状态、Retry-After 与零长度正文，消费者须按 HTTP 状态兜底。容量上限与断开不退款不受时区环境变量影响。管理配置可显式设置 `DOWNLOAD_DAY_BYTES/MONTH_BYTES` 与 `DOWNLOAD_ORIGIN_DAY_BYTES/MONTH_BYTES`，省略为上述默认；提高额度必须经过运维评审，不自动调整。时钟回拨、账本被替换、缺失、损坏或锁失败均拒绝。下载信息接口在完整 APK 剩余额度不足时返回 paused 及重试秒数，不暴露余额。
 
 同一 egress 目录通过独立 SQLite 排他事务锁限制为一个进程；锁在异常退出后由内核释放，重启不清预算。启动不移除既有 socket。缓存 O_NOFOLLOW 打开，检查普通文件/链接数/写权限，通过同一 fd 计算 SHA-256、校验二进制 AndroidManifest.xml 的包名/版本/构建号并发送；校验缓存按 inode、大小、mtime、ctime 失效。网络调度每连接最多等待一块，轮转公平，没有无限队列，最多四条发送连接，背压/关闭/超时均释放槽位；已经预留的字节不退回。
 
@@ -59,13 +61,13 @@ SQLite 使用 `BEGIN IMMEDIATE`、WAL 和 `synchronous=FULL`，每次正文发�
 
 目录初始权限：catalog/cache 为 publisher:wenyousite-download-cache、2750；egress 为 wenyousite-download、0700；origin 为 publisher、0700；inbox 为 root:wenyousite-download-cache、0750。publisher 主组 `wenyousite-download-publisher`、附加 cache 组；网关附加 cache 组，Caddy 仅附加 proxy 组。公共配置 root:cache 0640，origin 配置 root:publisher 0640。分别以对应运行身份执行 `init-ledger --kind egress|origin`，只允许首次显式初始化；已存在账本拒绝覆盖。预热不自动读取 backend.env 或继承图片 SDK 凭据；复用时由授权管理身份单独配置 origin 文件，不复制整份生产配置。公开网关不得持有、读取或继承任何 S3 凭据。日志不输出密钥、原始配置或带凭据错误；本代码交付不读取/打印真实密钥，不配置服务器或修改云策略。
 
-unit 限制 AF_UNIX、PrivateNetwork、MemoryMax=256M、MemoryHigh=192M、CPUQuota=50%、TasksMax=32、只读缓存/目录，明确隐藏 backend/migration/origin 配置与私有回源目录。`node --import tsx scripts/validate-download-security.ts` 验证模板；管理安装后加 `--installed` 校验安装模板及公共配置权限，仍需现场核验有效 unit、身份/组、目录权限和 Caddy 覆写 IP。`GET /__health` 与 `GET /__metrics` 仅供本机 UDS 管理探针；Caddy 不转发它们。健康探针不读账本或消耗预算；内部指标包含聚合请求/拒绝原因/完成/中断/活动数、缓存命中/失败数与只读出站预算累计；回源量由 publisher 的 status 只读查询独立账本。不含 IP、对象路径或凭据；预算指标不得暴露给公网信息页或健康探针。
+unit 限制 AF_UNIX、PrivateNetwork、MemoryMax=256M、MemoryHigh=192M、CPUQuota=50%、TasksMax=32、只读缓存/目录，明确隐藏 backend/migration/origin 配置与私有回源目录。`node --import tsx scripts/validate-download-security.ts` 验证模板；管理安装后加 `--installed` 校验安装模板及公共配置权限，仍需现场核验有效 unit、身份/组、目录权限和 Caddy 覆写 IP。`GET /__health` 与 `GET /__metrics` 仅供本机 UDS 管理探针；Caddy 不转发它们。健康探针不读账本或消耗预算；内部指标包含聚合请求/拒绝原因/完成/中断/活动数、缓存命中/失败数与只读出站预算累计；回源量由 publisher 的 status 只读查询独立账本。不含 IP、对象路径或凭据；预算指标不得暴露给公开下载信息接口或健康探针。
 
 ## 隔离验证与 Web 样本预览
 
 `pnpm test:downloads` 执行类型检查、真实 UDS、私有对象存储、持久预算、并发/限速、失败恢复与模板拒绝测试；测试目录独立且清理。`pnpm test:integration:app-downloads` 由标准 E2E runner 创建并核验独立 PostgreSQL/Redis，再验证新增 migration 重入、旧用户/钱包/制品审计保留、真实注册并发和私有预热。已纳入完整门禁。首次定向验证可使用 `pnpm e2e:run --suite=app-downloads --source` 启动本任务源码（仍使用同一隔离身份校验），正式完整门禁使用构建产物。测试对象存储拒绝未签名 GET/HEAD，完全使用合成 APK，不访问 RainS3。
 
-仅下载页面交互可用合成持续预览（相关安全门禁通过且源码已提交后启动）：
+ThemeMenu「下载 APP」入口交互可用合成持续预览（相关安全门禁通过且源码已提交后启动）：
 
 ```bash
 pnpm dev:preview start --session app-downloads --sample downloads --web-port 4310
