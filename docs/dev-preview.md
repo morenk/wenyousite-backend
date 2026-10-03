@@ -113,6 +113,12 @@ env -i HOME=/root PATH=/usr/bin:/bin E2E_LIBRARY_PATH="$PREVIEW_PG_LIB" \
 
 pnpm test:preview 覆盖协议 schema、日期、保留端口、坏快照、媒体域/IP、派生对象映射、互斥与死锁恢复；pnpm test:preview:integration 创建真实独立 PG/Redis 样本，覆盖密码保留、净化、API 身份、签名上传、Worker、收件箱、错误资源、端口冲突、停止恢复、重置与清理。完整交付执行 pnpm check 及高风险 pnpm check:full。
 
+管理身份运行部署门禁时，`test:preview` 与 `test:downloads` 通过 `scripts/run-unprivileged-tests.cjs` 启动实际测试。Linux root 调用者以 checkout 的非 root 系统属主 UID/主 GID 运行子进程，使用 `getent` 核验身份、`setpriv` 清空附加组并禁止获取新权限；root 所有的 checkout 或无效身份直接失败，不回退 root。普通开发身份保持自身 UID。两种入口都只传递工具 PATH、语言/时区及本轮随机 0700 临时目录登记，不继承 Compose、数据库、云、Node 注入参数或既有预览配置。原始退出码/信号失败继续阻止部署，结束前核验身份再清理本轮目录。类型检查仍按原命令执行，预览业务入口的禁 root 约束保持不变。
+
+降权后的监督进程为 Node 测试创建独立进程组，复用 `e2e-processes.ts` 的 UID、随机身份与启动时间核验及有界 TERM/KILL 回收。正常结束和收到 INT/TERM 都先确认本组退出，再写入完成证明；外层缺少该证明时保留目录并失败，不清理其他进程组。
+
+`pnpm test:deploy-preflight` 包含启动器的真实子进程回归，覆盖身份、凭据隔离、临时目录、失败/信号传递，以及启动器收到 TERM 时真实 Node 测试及活跃后代退出、无关进程组保留；由 root 执行时还实际验证预览入口拒绝 root。管理侧定向验证入口为 `pnpm test:deploy-preflight && pnpm test:preview && pnpm test:downloads`，仅执行本轮隔离测试，不部署、不恢复持续预览、不读取生产凭据。完整 E2E/持续预览仍须按原要求由开发身份启动。
+
 交互反馈只跑受影响检查并提供画面，视觉收敛后才执行完整交付门禁。pnpm exec tsx scripts/dev-preview/integration.ts --keep 可在同样隔离边界留一个 live-preview-acceptance 样本批次，Web 端口 43881；随机测试账号只写 VPS 本批次 sample-account.json。该样本只用于联验，不能冒称当天真实用户数据；验收结束必须 stop/cleanup，并按输出登记回收样本快照目录。
 
 ### Android 版本说明目标的合成样本
