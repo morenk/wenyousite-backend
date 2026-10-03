@@ -10,7 +10,7 @@ import { Session, hash, writePrivate } from './common';
 import { clients, verifyResources } from './resources';
 
 export function sampleDownloadConfig(s: Session): DownloadConfig {
-  return { DOWNLOAD_SOCKET: join(s.root, 'socket/download.sock'), DOWNLOAD_CACHE_DIR: join(s.root, 'download-cache'), DOWNLOAD_CATALOG_DIR: join(s.root, 'download-catalog'), DOWNLOAD_EGRESS_DIR: join(s.root, 'download-egress'), DOWNLOAD_ORIGIN_DIR: join(s.root, 'download-origin') };
+  return { DOWNLOAD_SOCKET: join(s.root, 'socket/download.sock'), DOWNLOAD_CACHE_DIR: join(s.root, 'download-cache'), DOWNLOAD_CATALOG_DIR: join(s.root, 'download-catalog'), DOWNLOAD_EGRESS_DIR: join(s.root, 'download-egress'), DOWNLOAD_ORIGIN_DIR: join(s.root, 'download-origin'), DOWNLOAD_PREVIEW_RUN_ID: s.runId };
 }
 export async function prepareDownloadSample(s: Session) {
   const config = sampleDownloadConfig(s);

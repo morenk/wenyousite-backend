@@ -13,6 +13,13 @@ const configSchema = z
     DOWNLOAD_CATALOG_DIR: pathSchema,
     DOWNLOAD_EGRESS_DIR: pathSchema,
     DOWNLOAD_ORIGIN_DIR: pathSchema,
+    DOWNLOAD_DEVICE_DAY_COUNT: z.coerce.number().int().min(1).max(1_000_000).optional(),
+    DOWNLOAD_IP_DAY_COUNT: z.coerce.number().int().min(1).max(1_000_000).optional(),
+    DOWNLOAD_COUNT_MAX_SUBJECTS: z.coerce.number().int().min(2).max(200_000).optional(),
+    DOWNLOAD_PREVIEW_RUN_ID: z
+      .string()
+      .regex(/^preview_[a-f0-9]{24}$/)
+      .optional(),
     DOWNLOAD_DAY_BYTES: z.coerce
       .number()
       .int()
@@ -72,4 +79,11 @@ export function downloadBudgetLimits(config: DownloadConfig, kind: 'egress' | 'o
         day: config.DOWNLOAD_ORIGIN_DAY_BYTES ?? DOWNLOAD_LIMITS.originDayBytes,
         month: config.DOWNLOAD_ORIGIN_MONTH_BYTES ?? DOWNLOAD_LIMITS.originMonthBytes,
       };
+}
+export function downloadQuotaLimits(config: DownloadConfig) {
+  return {
+    device: config.DOWNLOAD_DEVICE_DAY_COUNT ?? DOWNLOAD_LIMITS.deviceDownloadsPerDay,
+    ip: config.DOWNLOAD_IP_DAY_COUNT ?? DOWNLOAD_LIMITS.ipDownloadsPerDay,
+    subjects: config.DOWNLOAD_COUNT_MAX_SUBJECTS ?? DOWNLOAD_LIMITS.quotaSubjectsPerDay,
+  };
 }

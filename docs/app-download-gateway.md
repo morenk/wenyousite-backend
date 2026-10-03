@@ -20,6 +20,30 @@ Web 常驻下载入口为 ThemeMenu「下载 APP」，不提供独立 `/download
 
 Range 只支持单段 `bytes=start-end`、`bytes=start-`、`bytes=-suffix`；非法、多段、越界均为 416，含 `Content-Range: bytes */<size>`。If-Range 不匹配时发送完整文件；非法 Range 不因 If-Range 而放行。HEAD 支持相同范围选择。错误为标准 `{code,message,data:null}`（HEAD 无正文）：404 未发布/未知构建，416 错误范围，429 请求/并发/预算超限且带 Retry-After，503 缓存缺失/损坏、持久化故障或未接通网关。错误不含桶、对象键、IP、凭据或内部路径。
 
+### 每日下载尝试次数（5.32 兼容扩展）
+
+默认同一有效浏览器标识每天 3 次，单 IP 总计每天 10 次；设备与 IP 分别累计、互相独立、跨构建号共享，按北京时间每天重置。计的是获准传输的下载尝试：GET 完成路由、Range、发布策略与缓存校验后，在准备发送正文的最后阶段用同一 SQLite 事务预占一次设备/IP 次数及完整响应长度的字节预算。任何次数、容量或字节限额拒绝都会回滚整笔预占。HEAD、info、预检失败均不扣下载次数；有效 Range GET 每次计一次，预占后断连、传输失败和主动重试不退。错误 JSON 仍按实际响应字节收费，这不属于 APK 正文预占。
+
+HEAD 对同一访客预检次数与所请求范围的字节预算，但不预留；HEAD 成功与后续 GET 之间可能有并发竞争，GET 仍以服务端最终事务为准。info 的 release/status 始终表示全局发布、缓存及字节可用性，不因某位访客用尽次数而改为 paused；不输出个体余额，也不缓存个体拒绝为全局版本状态。请求频率、并发和带宽保护继续覆盖 HEAD、info 与失败请求。
+
+429 的 `X-Download-Limit-Reason` 枚举为 `device_daily_limit`、`ip_daily_limit`、`byte_budget`、`request_rate`、`concurrency`、`bandwidth`。设备/IP 次数耗尽时 `Retry-After` 为到北京时间下一日的整数秒；其他原因使用相应预算或限流等待时间。HEAD 无正文，GET 在无法容纳错误正文时也可能只有状态与响应头；客户端先读 HTTP 状态/原因头/Retry-After，不能依赖 JSON 必然存在。Web 在 HEAD 拒绝时就地反馈，不启动原生 GET；原生 GET 仍可能因竞争拒绝，不自动重试。
+
+第一方随机浏览器标识用 HMAC-SHA256 签名 Cookie 传递：生产名为 `__Host-wenyou-download-device`，`Path=/; HttpOnly; SameSite=Lax; Secure`，不设置 Domain，最长 30 天。合法 Cookie 保留同一随机标识，接近到期或密钥轮换时续签；篡改、重复同名、未知签名、过期或缺失按无有效标识处理并签发新随机标识，不接受客户端自报设备 ID。info 或有效文件 HEAD/GET 均可签发，客户端让同源浏览器自动携带和接收，不读取/复制 HttpOnly 值。签发本身不落次数记录，只有获准 GET 才计次。
+
+Cookie 可清除、浏览器可拒绝保存，不能保证物理设备唯一。没有有效 Cookie 的客户端仍受同一可信 IP 的总次数限制；直接 GET 新签发的随机标识也记本次尝试，但客户端不保存就无法在后续请求识别为同一设备。旧 Android APP 不必增加 info、Cookie 或改变 URL，可直接先 HEAD 再 GET，保持原 metadata；共享 Wi-Fi/NAT 的客户端共用 IP 10 次。IP 只取 Caddy 覆写且已规范化的 X-Real-IP，客户端自报转发头不参与身份。次数表只存按日及类别隔离的 HMAC 伪名，不存原 IP 或 Cookie，日志与公开指标不输出标识/密钥。
+
+HTTP 隔离预览通过本批次 `DOWNLOAD_PREVIEW_RUN_ID` 使用 `preview-<runId>-download-device`，保留 HttpOnly/SameSite=Lax，仅该显式预览模式省略 Secure；签名绑定 Cookie 名且各批次密钥独立。预览代理保留当前批次 Cookie 与 Set-Cookie，不接受其他批次标识。生产安装检查拒绝预览模式。Cookie 前缀与同源行为参考 [MDN Set-Cookie](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie)；用户主动关闭 Cookie 后只能保证 IP 限制。
+
+默认配置可由管理身份通过 `DOWNLOAD_DEVICE_DAY_COUNT=3`、`DOWNLOAD_IP_DAY_COUNT=10` 调整，不接受请求参数覆盖。`DOWNLOAD_COUNT_MAX_SUBJECTS=100000` 限制同一天设备/IP 伪名总行数；到上限时拒绝新主体（503），不逐出当日有效计数，既有主体仍按自身余额判定。下一北京时间日首次成功的正文计量事务删除过期次数/主体行；空闲时最多保留上次活动日，不随 Cookie 签发或 HEAD 增长。SQLite 数据文件强制 4 KiB 页、最大 16384 页（64 MiB），WAL 每 256 页尝试 checkpoint、回收后保留上限 1 MiB；长事务可临时延迟 WAL 回收，不能通过清空账本释放额度。文件或存储耗尽时拒绝服务。数据文件上限依据 [SQLite max_page_count](https://www.sqlite.org/pragma.html#pragma_max_page_count)。
+
+### 账本升级、签名持久化与轮换
+
+全新出站账本显式初始化为 v2；回源账本仍为 v1。已存在的出站 v1 不可删除重建：管理身份先停止网关，保留离线备份（含 SQLite 已提交 WAL 状态），再执行 `node <release>/dist/app-downloads/download-cli.js upgrade-egress-ledger --env <专用配置>`。CLI 取得既有 gateway-lock 后，在单事务中增加次数表和密钥状态并更新版本；原日/月字节 counters、clock、文件 inode 与缓存/目录不变。重复升级只验证已有 v2，不重新生成密钥或清零任何额度。新网关遇到未升级 v1、损坏或缺失密钥即拒绝启动；升级失败保持原状态供修复。
+
+签名密钥与用于计数伪名的独立 HMAC 密钥由显式初始化/升级生成，保存在私有 0600 出站 SQLite 和 0700 目录内，随账本持久化/备份；不放公共配置、环境、命令参数或日志，重启不重新生成。离线 `rotate-device-key --env <专用配置>` 同样取得网关锁，保留旧签名密钥最多 30 天验证宽限；浏览器下次请求以原随机 ID 换发新签名，计数伪名密钥不变，当前次数不重置。只保留当前/上一代两把签名密钥，上一代宽限未结束时拒绝再次轮换，避免静默使有效 Cookie 失效；当前程序须重启读取新密钥。
+
+升级前可回滚尚未提交的 SQLite 事务；升级后旧 v1 程序按版本校验拒绝 v2，不能通过删表、删库、恢复旧快照或降版本放开已用额度。优先前滚修复或回滚到支持 v2 及同一次数语义的实现，并保留当前账本；灾难恢复仍遵循独立新卷、备份验证与显式切换门禁，不能自动覆盖活动账本。持续预览也只在源码已提交后停止本任务、用相同 CLI 升级、再 resume；保留 runId、原数据与所有旧预算，不 reset。
+
 `/meta.mobileCompatibility.android.updateUrl` 迁移后为 `https://wenyou.site/api/v1/app-downloads/android/{buildNumber}/file`；iOS 不变。旧数据库 promotion.updateUrl 与历史 TSV 原文保留，通过独立制品记录存储 bucket/key/publicUrl，不重写旧审计事实。
 
 ## 进程和运维交接

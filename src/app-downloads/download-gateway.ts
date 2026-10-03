@@ -11,6 +11,7 @@ import { DownloadCache } from './download-cache';
 import { Admission, Bandwidth, trustedIp } from './download-limits';
 import { Artifact, DownloadFailure, assertDownload, fileName, publicInfo } from './download-model';
 import { selectRange } from './download-range';
+import { DownloadDevice } from './download-device';
 
 export class DownloadGateway implements DownloadHandler {
   readonly admission = new Admission();
@@ -30,11 +31,15 @@ export class DownloadGateway implements DownloadHandler {
       unavailable: 0,
       range: 0,
       not_found: 0,
+      bandwidth: 0,
+      device_daily_limit: 0,
+      ip_daily_limit: 0,
     },
   };
   constructor(
     private readonly budget: DownloadBudget,
     private readonly cache: DownloadCache,
+    private readonly devices: DownloadDevice,
   ) {}
 
   async handle(request: FastifyRequest, reply: FastifyReply) {
@@ -83,6 +88,7 @@ export class DownloadGateway implements DownloadHandler {
       const catalog = await this.cache.catalog();
       signal.throwIfAborted();
       if (request.url === `${DOWNLOAD_PREFIX}/android` && request.method === 'GET') {
+        this.visitor(request, reply, ip);
         const info: AndroidDownloadInfoDto = {
           status: catalog.state,
           release: null,
@@ -137,17 +143,19 @@ export class DownloadGateway implements DownloadHandler {
       }
       signal.throwIfAborted();
       await this.assertPublished(a);
+      signal.throwIfAborted();
+      const visitor = this.visitor(request, reply, ip);
       this.fileHeaders(reply, a, modified, etag, range.length);
       if (range.partial)
         reply.header('Content-Range', `bytes ${range.start}-${range.end}/${a.sizeBytes}`);
       if (request.method === 'HEAD') {
+        this.budget.preflightFile(range.length, visitor);
         reply.status(range.partial ? 206 : 200).send();
         return;
       }
-      this.budget.reserve(range.length);
-      // 从校验到发头再次检查状态，撤回不会因耗时哈希而被绕过。
-      await this.assertPublished(a);
       flow = this.bandwidth.add();
+      // 最后一次异步策略校验已完成；次数与正文预算同时提交后直接发头，中断不退。
+      this.budget.reserveFile(range.length, visitor);
       const response = reply.raw;
       reply.status(range.partial ? 206 : 200);
       reply.hijack();
@@ -186,6 +194,7 @@ export class DownloadGateway implements DownloadHandler {
           failure.status === 416 ? 'range' : failure.status === 404 ? 'not_found' : failure.reason
         ]++;
         if (failure.retryAfter) reply.header('Retry-After', failure.retryAfter);
+        if (failure.status === 429) this.limitReason(reply, failure.reason);
         for (const key of [
           'Content-Length',
           'Content-Disposition',
@@ -224,6 +233,16 @@ export class DownloadGateway implements DownloadHandler {
       }
     }
   }
+  private visitor(request: FastifyRequest, reply: FastifyReply, ip: string) {
+    // 回拨或账本替换时先拒绝，不能先给浏览器覆盖为新标识再报告故障。
+    this.budget.status();
+    const identity = this.devices.resolve(request.headers.cookie);
+    if (identity.setCookie) reply.header('Set-Cookie', identity.setCookie);
+    return { ip, device: identity.device };
+  }
+  private limitReason(reply: FastifyReply, reason: DownloadFailure['reason']) {
+    reply.header('X-Download-Limit-Reason', reason === 'budget' ? 'byte_budget' : reason);
+  }
   private async openCache(artifact: Artifact) {
     try {
       const file = await this.cache.open(artifact);
@@ -253,6 +272,11 @@ export class DownloadGateway implements DownloadHandler {
     }
     // 小型 JSON 也共享全局带宽，限流失败不再生成另一份未计量的正文。
     if (!this.bandwidth.smallResponse(Buffer.byteLength(body))) {
+      if (!reply.hasHeader('X-Download-Limit-Reason')) this.limitReason(reply, 'bandwidth');
+      if (reply.hasHeader('Retry-After')) {
+        reply.status(429).header('Content-Length', 0).send();
+        return;
+      }
       reply.status(429).header('Retry-After', 1).header('Content-Length', 0).send();
       return;
     }
@@ -260,8 +284,11 @@ export class DownloadGateway implements DownloadHandler {
       this.budget.reserve(Buffer.byteLength(body));
     } catch (error) {
       const failure = error instanceof DownloadFailure ? error : new DownloadFailure(503, 60);
-      reply.status(failure.status);
-      if (failure.retryAfter) reply.header('Retry-After', failure.retryAfter);
+      if (!reply.hasHeader('X-Download-Limit-Reason')) {
+        reply.status(failure.status);
+        if (failure.retryAfter) reply.header('Retry-After', failure.retryAfter);
+        if (failure.status === 429) this.limitReason(reply, failure.reason);
+      }
       reply.header('Content-Length', 0).send();
       return;
     }

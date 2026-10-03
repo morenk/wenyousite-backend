@@ -13,9 +13,11 @@ import {
   ledgerPath,
   loadDownloadConfig,
   downloadBudgetLimits,
+  downloadQuotaLimits,
 } from './download-config';
 import { assertDownload } from './download-model';
 import { gatewayEnvironmentSafe } from '../config/configuration';
+import { DownloadDevice } from './download-device';
 
 export async function startDownloadGateway(config: DownloadConfig) {
   const lock = new DownloadInstanceLock(join(config.DOWNLOAD_EGRESS_DIR, 'gateway-lock.sqlite'));
@@ -27,10 +29,12 @@ export async function startDownloadGateway(config: DownloadConfig) {
       ledgerPath(config, 'egress'),
       'egress',
       downloadBudgetLimits(config, 'egress'),
+      downloadQuotaLimits(config),
     );
     gateway = new DownloadGateway(
       budget,
       new DownloadCache(config.DOWNLOAD_CACHE_DIR, config.DOWNLOAD_CATALOG_DIR),
+      new DownloadDevice(budget.deviceKeys(), config.DOWNLOAD_PREVIEW_RUN_ID),
     );
     const instance = gateway;
     @Module({

@@ -19,16 +19,27 @@ import {
 } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { Public } from '../auth/decorators/public.decorator';
-import { APK_MEDIA_TYPE, APK_RESPONSE_HEADERS } from './app-download.contract';
+import {
+  APK_MEDIA_TYPE,
+  APK_RESPONSE_HEADERS,
+  DOWNLOAD_COOKIE_HEADER,
+  DOWNLOAD_LIMIT_HEADERS,
+} from './app-download.contract';
 import { AndroidDownloadInfoDto } from './app-download.dto';
 
 export const DOWNLOAD_HANDLER = Symbol('DOWNLOAD_HANDLER');
 export interface DownloadHandler {
   handle(request: FastifyRequest, reply: FastifyReply): Promise<void>;
 }
-function DownloadErrors() {
+function DownloadErrors(file = false) {
   return applyDecorators(
-    ApiResponse({ status: 429, description: '请求频率、并发或持久化流量预算超限；Retry-After 秒' }),
+    ApiResponse({
+      status: 429,
+      description: file
+        ? '设备/IP 每日下载尝试次数、请求频率、并发、带宽或持久化字节预算超限；次数默认3/10，跨构建累计，次数耗尽时 Retry-After 到北京时间下一日；HEAD 预检不计次，GET 最终判定；无有效 Cookie 仍受 IP 总限额'
+        : '请求频率、并发、带宽或持久化字节预算超限；info 不检查也不消费个体下载次数',
+      headers: { ...DOWNLOAD_LIMIT_HEADERS, ...DOWNLOAD_COOKIE_HEADER },
+    }),
     ApiResponse({
       status: 503,
       description: '账本/目录依赖异常或网关未接通；文件缓存缺失/损坏、撤回/暂停也为 503；绝不回源',
@@ -50,13 +61,14 @@ function FileContract() {
     }),
     ApiResponse({
       status: 200,
-      description: '已发布且已验证的完整 APK；HEAD 无正文',
+      description:
+        '已发布且已验证的完整 APK；合法 GET 最后阶段原子预占一次尝试与正文预算，中断/失败不退；HEAD 预检但不消费次数或正文预算，HEAD→GET 仍可能竞争失败',
       headers: APK_RESPONSE_HEADERS,
       content: { [APK_MEDIA_TYPE]: { schema: { type: 'string', format: 'binary' } } },
     }),
     ApiResponse({
       status: 206,
-      description: '单段范围；HEAD 无正文',
+      description: '单段范围；每次有效 Range GET 也计一次尝试，主动重试不豁免；HEAD 无正文且不计次',
       headers: { ...APK_RESPONSE_HEADERS, 'Content-Range': { schema: { type: 'string' } } },
       content: { [APK_MEDIA_TYPE]: { schema: { type: 'string', format: 'binary' } } },
     }),
@@ -66,7 +78,7 @@ function FileContract() {
       description: '非法、多段或越界 Range',
       headers: { 'Content-Range': { schema: { type: 'string' }, description: 'bytes */<总长度>' } },
     }),
-    DownloadErrors(),
+    DownloadErrors(true),
   );
 }
 
@@ -77,8 +89,12 @@ export class AppDownloadsController {
 
   @Get('android')
   @Public()
-  @ApiOperation({ summary: '匿名读取当前 Android 下载信息；仅 JSON，不预取 APK' })
-  @ApiOkResponse({ type: AndroidDownloadInfoDto })
+  @ApiOperation({
+    summary: '匿名读取当前 Android 下载信息；仅 JSON，不预取 APK',
+    description:
+      'release/status 表示全局发布及缓存可用性，不因当前访客次数耗尽改为 paused；不扣下载次数。可签发/续签随机浏览器 Cookie，需同源携带；客户端不自行生成标识。旧 APP 无需新增此调用，直接 HEAD/GET 保持兼容。',
+  })
+  @ApiOkResponse({ type: AndroidDownloadInfoDto, headers: DOWNLOAD_COOKIE_HEADER })
   @DownloadErrors()
   info(@Req() request: FastifyRequest, @Res() reply: FastifyReply) {
     return this.dispatch(request, reply);

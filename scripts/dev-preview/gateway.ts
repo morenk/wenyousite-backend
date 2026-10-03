@@ -70,7 +70,7 @@ export async function gateway(name:string) {
       assert(req.url?.startsWith('/api/v1/'),'只代理业务 API 路由');
       const download = s.sample === 'downloads' && req.url?.startsWith('/api/v1/app-downloads/') === true;
       if(download) assert(alive(load(s.sessionId),'download'),'下载网关未运行');
-      const forwarded=request({...(download ? {socketPath:join(s.root,'socket/download.sock')} : {host:'127.0.0.1',port:s.ports.api}),path:req.url,method:req.method,headers:{...req.headers,'x-real-ip':req.socket.remoteAddress || '127.0.0.1',cookie:(req.headers.cookie||'').split(';').map(x=>x.trim()).filter(x=>!x.startsWith('refreshToken=')&&(!x.startsWith('preview-')||x.startsWith('preview-'+s.runId+'-refreshToken='))).map(x=>x.startsWith('preview-'+s.runId+'-')?x.slice(('preview-'+s.runId+'-').length):x).join('; '),host:'127.0.0.1:'+s.ports.api}},upstream=>{
+      const forwarded=request({...(download ? {socketPath:join(s.root,'socket/download.sock')} : {host:'127.0.0.1',port:s.ports.api}),path:req.url,method:req.method,headers:{...req.headers,'x-real-ip':req.socket.remoteAddress || '127.0.0.1',cookie:(req.headers.cookie||'').split(';').map(x=>x.trim()).filter(x=>!x.startsWith('refreshToken=')&&(!x.startsWith('preview-')||x.startsWith('preview-'+s.runId+'-refreshToken=')||(download&&x.startsWith('preview-'+s.runId+'-download-device=')))).map(x=>x.startsWith('preview-'+s.runId+'-refreshToken=')?x.slice(('preview-'+s.runId+'-').length):x).join('; '),host:'127.0.0.1:'+s.ports.api}},upstream=>{
         const cookies=upstream.headers['set-cookie'];
         if(cookies)upstream.headers['set-cookie']=cookies.map(x=>x.startsWith('refreshToken=')?'preview-'+s.runId+'-'+x:x);
         if(download && req.url==='/api/v1/app-downloads/android' && req.method==='GET' && upstream.statusCode===200) {
@@ -82,7 +82,7 @@ export async function gateway(name:string) {
                 payload.data.release.downloadUrl=c.backend.origin+'/api/v1/app-downloads/android/'+payload.data.release.buildNumber+'/file';
                 payload.data.release.releaseNotesUrl=c.backend.origin+'/api/v1/mobile-releases/android/'+payload.data.release.buildNumber;
               }
-              for(const header of ['x-api-contract-version','x-request-id','x-content-type-options']) {
+              for(const header of ['x-api-contract-version','x-request-id','x-content-type-options','set-cookie']) {
                 const value=upstream.headers[header];
                 if(value!==undefined)res.setHeader(header,value);
               }

@@ -18,7 +18,10 @@ export function validateDownloadUnit(unit: string) {
 }
 export function validateInstalledConfig(path: string) {
   const file = lstatSync(path); assert(file.isFile() && !file.isSymbolicLink() && file.uid === 0 && (file.mode & 0o027) === 0 && realpathSync(path) === resolve(path));
-  const text = readFileSync(path, 'utf8'); assert(!/(?:AWS_|COS_|DATABASE_URL|REDIS_|S3_)/.test(text));
+  validatePublicDownloadConfigText(readFileSync(path, 'utf8'));
+}
+export function validatePublicDownloadConfigText(text:string) {
+  assert(!/(?:AWS_|COS_|DATABASE_URL|REDIS_|S3_|DOWNLOAD_PREVIEW_RUN_ID)/.test(text));
 }
 if (require.main === module) {
   try {

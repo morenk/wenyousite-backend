@@ -3,10 +3,25 @@
   "paths": {
     "/api/v1/app-downloads/android": {
       "get": {
+        "description": "release/status 表示全局发布及缓存可用性，不因当前访客次数耗尽改为 paused；不扣下载次数。可签发/续签随机浏览器 Cookie，需同源携带；客户端不自行生成标识。旧 APP 无需新增此调用，直接 HEAD/GET 保持兼容。",
         "operationId": "appDownloadsInfo",
         "parameters": [],
         "responses": {
           "200": {
+            "headers": {
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "可选：第一方签名随机浏览器标识；HttpOnly、SameSite=Lax，生产 Secure；不是用户认证，旧 APP 可忽略"
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            },
             "description": "",
             "content": {
               "application/json": {
@@ -14,34 +29,46 @@
                   "$ref": "#/components/schemas/AppDownloadsInfo200Response"
                 }
               }
-            },
+            }
+          },
+          "429": {
+            "description": "请求频率、并发、带宽或持久化字节预算超限；info 不检查也不消费个体下载次数",
             "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              },
+              "X-Download-Limit-Reason": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "device_daily_limit",
+                    "ip_daily_limit",
+                    "byte_budget",
+                    "request_rate",
+                    "concurrency",
+                    "bandwidth"
+                  ]
+                },
+                "description": "脱敏机器原因；HEAD 无正文，GET 错误正文也可能为空"
+              },
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "可选：第一方签名随机浏览器标识；HttpOnly、SameSite=Lax，生产 Secure；不是用户认证，旧 APP 可忽略"
+              },
               "X-Request-ID": {
                 "$ref": "#/components/headers/XRequestId"
               },
               "X-API-Contract-Version": {
                 "$ref": "#/components/headers/XApiContractVersion"
               }
-            }
-          },
-          "429": {
-            "description": "请求频率、并发或持久化流量预算超限；Retry-After 秒",
+            },
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorEnvelope"
                 }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "$ref": "#/components/headers/XRequestId"
-              },
-              "X-API-Contract-Version": {
-                "$ref": "#/components/headers/XApiContractVersion"
-              },
-              "Retry-After": {
-                "$ref": "#/components/headers/RetryAfter"
               }
             }
           },
@@ -125,8 +152,14 @@
         ],
         "responses": {
           "200": {
-            "description": "已发布且已验证的完整 APK；HEAD 无正文",
+            "description": "已发布且已验证的完整 APK；合法 GET 最后阶段原子预占一次尝试与正文预算，中断/失败不退；HEAD 预检但不消费次数或正文预算，HEAD→GET 仍可能竞争失败",
             "headers": {
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "可选：第一方签名随机浏览器标识；HttpOnly、SameSite=Lax，生产 Secure；不是用户认证，旧 APP 可忽略"
+              },
               "Content-Type": {
                 "schema": {
                   "type": "string",
@@ -215,8 +248,14 @@
             }
           },
           "206": {
-            "description": "单段范围；HEAD 无正文",
+            "description": "单段范围；每次有效 Range GET 也计一次尝试，主动重试不豁免；HEAD 无正文且不计次",
             "headers": {
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "可选：第一方签名随机浏览器标识；HttpOnly、SameSite=Lax，生产 Secure；不是用户认证，旧 APP 可忽略"
+              },
               "Content-Type": {
                 "schema": {
                   "type": "string",
@@ -352,23 +391,43 @@
             }
           },
           "429": {
-            "description": "请求频率、并发或持久化流量预算超限；Retry-After 秒",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
+            "description": "设备/IP 每日下载尝试次数、请求频率、并发、带宽或持久化字节预算超限；次数默认3/10，跨构建累计，次数耗尽时 Retry-After 到北京时间下一日；HEAD 预检不计次，GET 最终判定；无有效 Cookie 仍受 IP 总限额",
             "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              },
+              "X-Download-Limit-Reason": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "device_daily_limit",
+                    "ip_daily_limit",
+                    "byte_budget",
+                    "request_rate",
+                    "concurrency",
+                    "bandwidth"
+                  ]
+                },
+                "description": "脱敏机器原因；HEAD 无正文，GET 错误正文也可能为空"
+              },
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "可选：第一方签名随机浏览器标识；HttpOnly、SameSite=Lax，生产 Secure；不是用户认证，旧 APP 可忽略"
+              },
               "X-Request-ID": {
                 "$ref": "#/components/headers/XRequestId"
               },
               "X-API-Contract-Version": {
                 "$ref": "#/components/headers/XApiContractVersion"
-              },
-              "Retry-After": {
-                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
               }
             }
           },
@@ -449,8 +508,14 @@
         ],
         "responses": {
           "200": {
-            "description": "已发布且已验证的完整 APK；HEAD 无正文",
+            "description": "已发布且已验证的完整 APK；合法 GET 最后阶段原子预占一次尝试与正文预算，中断/失败不退；HEAD 预检但不消费次数或正文预算，HEAD→GET 仍可能竞争失败",
             "headers": {
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "可选：第一方签名随机浏览器标识；HttpOnly、SameSite=Lax，生产 Secure；不是用户认证，旧 APP 可忽略"
+              },
               "Content-Type": {
                 "schema": {
                   "type": "string",
@@ -539,8 +604,14 @@
             }
           },
           "206": {
-            "description": "单段范围；HEAD 无正文",
+            "description": "单段范围；每次有效 Range GET 也计一次尝试，主动重试不豁免；HEAD 无正文且不计次",
             "headers": {
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "可选：第一方签名随机浏览器标识；HttpOnly、SameSite=Lax，生产 Secure；不是用户认证，旧 APP 可忽略"
+              },
               "Content-Type": {
                 "schema": {
                   "type": "string",
@@ -676,23 +747,43 @@
             }
           },
           "429": {
-            "description": "请求频率、并发或持久化流量预算超限；Retry-After 秒",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorEnvelope"
-                }
-              }
-            },
+            "description": "设备/IP 每日下载尝试次数、请求频率、并发、带宽或持久化字节预算超限；次数默认3/10，跨构建累计，次数耗尽时 Retry-After 到北京时间下一日；HEAD 预检不计次，GET 最终判定；无有效 Cookie 仍受 IP 总限额",
             "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              },
+              "X-Download-Limit-Reason": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "device_daily_limit",
+                    "ip_daily_limit",
+                    "byte_budget",
+                    "request_rate",
+                    "concurrency",
+                    "bandwidth"
+                  ]
+                },
+                "description": "脱敏机器原因；HEAD 无正文，GET 错误正文也可能为空"
+              },
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "可选：第一方签名随机浏览器标识；HttpOnly、SameSite=Lax，生产 Secure；不是用户认证，旧 APP 可忽略"
+              },
               "X-Request-ID": {
                 "$ref": "#/components/headers/XRequestId"
               },
               "X-API-Contract-Version": {
                 "$ref": "#/components/headers/XApiContractVersion"
-              },
-              "Retry-After": {
-                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
               }
             }
           },
@@ -21724,7 +21815,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.31.0-dev.20261003.1",
+    "version": "5.32.0-dev.20261003.1",
     "contact": {}
   },
   "tags": [

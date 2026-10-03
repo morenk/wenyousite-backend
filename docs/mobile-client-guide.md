@@ -2,6 +2,8 @@
 
 Android `/meta.updateUrl` 将兼容迁移到本站固定构建 APK 路由，保留旧 APP HEAD 校验 metadata；不指向 HTML 下载页。Windows 迁移、发布 CLI 与灰度顺序见 [下载网关契约](app-download-gateway.md)，VPS 不代表移动端门禁已执行。
 
+下载次数兼容：默认同一有效浏览器标识每天 3 次、单 IP 总计每天 10 次，按北京时间重置并跨构建累计。现有 APP 无需增加 info 调用、Cookie 或改变文件 URL，可继续直接 HEAD/GET；没有有效 Cookie 时只能按 IP 总次数约束，不等于验证设备唯一。HEAD 可能提前返回 429，GET 仍会最终判定；按 `Retry-After` 等待，`X-Download-Limit-Reason` 可区分 `device_daily_limit`、`ip_daily_limit` 与既有预算/频率限制。获准后中断、Range 和主动重试都计尝试，不能自动无限重试。Windows Flutter 消费端需基于固定契约同步；此文档不代表已执行真机门禁。
+
 本文定义原生移动客户端需要遵循的 HTTP、安全、重试和推送生命周期。字段与端点以 [`contracts/openapi.json`](../contracts/openapi.json) 为机器事实源；移动端 V1 范围与黄金旅程分别以 [`mobile-v1-operation-coverage.json`](../contracts/mobile-v1-operation-coverage.json) 和 [`mobile-v1-golden-fixtures.json`](../contracts/mobile-v1-golden-fixtures.json) 为准；动态分类、Markdown、站内传送门与 FCM data 继续使用各自独立 fixtures/schema。
 
 界面、字体、文字缩放和页面状态由公开 `wenyousite-foundation` 维护；仓库边界与入口见 [`mobile-ui-contract.md`](./mobile-ui-contract.md)，实际版本以 Flutter 客户端的 `foundation.lock.json` 为准。

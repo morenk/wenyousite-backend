@@ -68,7 +68,14 @@ export class DownloadFailure extends Error {
   constructor(
     readonly status: 404 | 416 | 429 | 503,
     readonly retryAfter?: number,
-    readonly reason: 'request_rate' | 'concurrency' | 'budget' | 'unavailable' = 'unavailable',
+    readonly reason:
+      | 'request_rate'
+      | 'concurrency'
+      | 'budget'
+      | 'bandwidth'
+      | 'device_daily_limit'
+      | 'ip_daily_limit'
+      | 'unavailable' = 'unavailable',
   ) {
     super('DOWNLOAD_UNAVAILABLE');
   }

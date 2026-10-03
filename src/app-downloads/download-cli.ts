@@ -22,6 +22,8 @@ export function parseDownloadArgs(args: string[]) {
   }
   const allowed: Record<string, string[]> = {
     'init-ledger': ['--env', '--kind'],
+    'upgrade-egress-ledger': ['--env'],
+    'rotate-device-key': ['--env'],
     register: ['--env', '--manifest'],
     warm: ['--env', '--build', '--origin-env'],
     'verify-origin': ['--env', '--build', '--origin-env'],
@@ -82,7 +84,31 @@ async function main() {
     publisher = new DownloadPublisher(config),
     build = Number(options['--build']);
   let result: unknown;
-  if (command === 'init-ledger') {
+  if (command === 'upgrade-egress-ledger' || command === 'rotate-device-key') {
+    const lock = new DownloadInstanceLock(join(config.DOWNLOAD_EGRESS_DIR, 'gateway-lock.sqlite'));
+    try {
+      if (command === 'upgrade-egress-ledger')
+        DownloadBudget.upgradeEgress(ledgerPath(config, 'egress'));
+      else {
+        const budget = new DownloadBudget(
+          ledgerPath(config, 'egress'),
+          'egress',
+          downloadBudgetLimits(config, 'egress'),
+        );
+        try {
+          budget.rotateDeviceKey();
+        } finally {
+          budget.close();
+        }
+      }
+      result = {
+        status: command === 'upgrade-egress-ledger' ? 'upgraded' : 'rotated',
+        ledgerVersion: 2,
+      };
+    } finally {
+      lock.close();
+    }
+  } else if (command === 'init-ledger') {
     const kind = options['--kind'];
     assertDownload(kind === 'egress' || kind === 'origin');
     await initializeDownloads(config, kind);

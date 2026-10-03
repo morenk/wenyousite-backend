@@ -8,6 +8,9 @@ export const DOWNLOAD_LIMITS = Object.freeze({
   globalConnections: 4,
   ipConnections: 2,
   requestsPerMinute: 30,
+  deviceDownloadsPerDay: 3,
+  ipDownloadsPerDay: 10,
+  quotaSubjectsPerDay: 100_000,
   outboundDayBytes: 5 * 1024 ** 3,
   outboundMonthBytes: 100 * 1024 ** 3,
   originDayBytes: 512 * 1024 ** 2,
@@ -19,8 +22,36 @@ export const DOWNLOAD_LIMITS = Object.freeze({
 export function downloadUrl(buildNumber: number): string {
   return `https://wenyou.site${DOWNLOAD_PREFIX}/android/${buildNumber}/file`;
 }
+export const DOWNLOAD_COOKIE_HEADER = {
+  'Set-Cookie': {
+    schema: { type: 'string' },
+    description:
+      '可选：第一方签名随机浏览器标识；HttpOnly、SameSite=Lax，生产 Secure；不是用户认证，旧 APP 可忽略',
+  },
+};
+export const DOWNLOAD_LIMIT_HEADERS = {
+  'Retry-After': {
+    schema: { type: 'integer', minimum: 1 },
+    description: '重试等待秒数；设备/IP 每日次数耗尽时到北京时间下一日',
+  },
+  'X-Download-Limit-Reason': {
+    schema: {
+      type: 'string',
+      enum: [
+        'device_daily_limit',
+        'ip_daily_limit',
+        'byte_budget',
+        'request_rate',
+        'concurrency',
+        'bandwidth',
+      ],
+    },
+    description: '脱敏机器原因；HEAD 无正文，GET 错误正文也可能为空',
+  },
+};
 
 export const APK_RESPONSE_HEADERS = {
+  ...DOWNLOAD_COOKIE_HEADER,
   'Content-Type': { schema: { type: 'string', enum: [APK_MEDIA_TYPE] } },
   'Content-Length': {
     schema: { type: 'integer', minimum: 0 },
