@@ -133,4 +133,4 @@ Web/Mobile 共用 `consumer.json`，先核验后端及媒体真实运行身份�
 
 ## 下载入口合成样本
 
-无需真实快照的 ThemeMenu「下载 APP」入口反馈可使用 `--sample downloads`，验证一次显式点击内的版本/状态查询、HEAD 校验与浏览器原生 GET 下载，隔离边界、consumer 标记和运行命令见 [下载网关](app-download-gateway.md#隔离验证与-web-样本预览)。该模式不替代真实数据或安装包验收。
+无需真实快照的 ThemeMenu「下载 APP」入口反馈可使用 `--sample downloads`，验证一次显式点击内的版本/状态查询、HEAD 校验与浏览器原生 GET 下载，隔离边界、consumer 标记和运行命令见 [下载网关](app-download-gateway.md#隔离验证与-web-样本预览)。同时验证 Android/iOS 移动设备会话首次访问自动提示、可关闭且同会话不重复；提示明确仅提供 Android 安装包并允许 iOS 继续网页，展示时不触发 APK HEAD/GET。该模式不替代真实数据或安装包验收。

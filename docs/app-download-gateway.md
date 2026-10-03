@@ -12,7 +12,9 @@
 
 JSON 顶层为 `status`（`available/no_release/withdrawn/paused/unavailable`）、`release`（仅 available 非 null）和 `retryAfterSeconds`（整数秒或 null）。状态事实源为发布 CLI 原子写入的 catalog；withdrawn/paused 会同时拒绝所有已发布文件 URL。无推荐返回 no_release，明确撤回返回 withdrawn，运维暂停返回 paused，推荐缓存缺失或损坏返回 unavailable；这些均 HTTP 200。账本/目录依赖异常才 503，IP 限频 429。`release` 字段：`platform="android"`、`applicationId="site.wenyou.app"`、`versionName`、`buildNumber`（整数）、`sizeBytes`（整数）、`sha256`（小写 64 hex）、`fileName`、`publishedAt`（ISO 8601）、`downloadUrl`（本站固定构建文件绝对 URL）、`releaseNotesUrl`（本站 `/api/v1/mobile-releases/android/{buildNumber}`）。JSON 使用 `Cache-Control: no-store`。
 
-Web 仅保留 ThemeMenu「下载 APP」入口，不提供独立 `/download` 页面或二维码。用户一次显式点击后，先请求上述 JSON 获取当前版本与状态；仅当状态为 available，且下载 URL 与构建号校验通过时，对同一固定构建文件发起 HEAD，核对响应状态、文件类型、大小、SHA-256 元数据、包名、版本名与构建号。全部匹配后由浏览器原生 GET 下载该文件，无需再次点击确认。非 available、查询失败或 HEAD 校验失败时显示相应状态及重试提示，不发起 APK GET；后续重试由用户显式触发。页面加载、菜单展开或悬停均不触发这条查询/校验/下载链路。
+Web 常驻下载入口为 ThemeMenu「下载 APP」，不提供独立 `/download` 页面或二维码。用户一次显式点击后，先请求上述 JSON 获取当前版本与状态；仅当状态为 available，且下载 URL 与构建号校验通过时，对同一固定构建文件发起 HEAD，核对响应状态、文件类型、大小、SHA-256 元数据、包名、版本名与构建号。全部匹配后由浏览器原生 GET 下载该文件，无需再次点击确认。非 available、查询失败或 HEAD 校验失败时显示相应状态及重试提示，不发起 APK GET；后续重试由用户显式触发。页面加载、菜单展开或悬停均不触发这条查询/校验/下载链路。
+
+移动设备（Android/iOS）在浏览器会话首次访问时自动显示下载提示；按真实移动设备识别，不因桌面窗口变窄而触发。提示可关闭，同一会话不重复弹出。文案明确目前仅提供 Android 安装包，iOS 用户可继续使用网页版，不暗示存在可安装的 iOS APP。提示的展示与关闭均不发起 APK HEAD/GET，用户点击提示中的下载操作后，复用上述版本/状态查询、HEAD 校验与原生 GET 流程。
 
 文件响应保留 `Content-Type: application/vnd.android.package-archive`、`Content-Length`、`Content-Disposition: attachment; filename="wenyou-<version>-<build>.apk"`、`x-amz-meta-apk-sha256`、`x-amz-meta-application-id`、`x-amz-meta-version-name`、`x-amz-meta-version-code`，另有 SHA-256 ETag、Last-Modified、Accept-Ranges。200/206 使用 `Cache-Control: private, no-store`，禁止 Caddy/CDN 缓存绕过预算。允许空 Referer，无登录、JS 或验证码前置条件。旧 APP 可原样先 HEAD 再 GET；客户端应接受缓存策略变化。
 
