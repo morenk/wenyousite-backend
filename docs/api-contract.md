@@ -1,5 +1,7 @@
 # API 契约发布流程
 
+Android 匿名下载 JSON、固定构建 GET/HEAD、范围请求和迁移见 [下载网关契约](app-download-gateway.md)。字段以已提交 OpenAPI 的 `AndroidDownloadInfoDto` 为准。`5.32.0-dev.20261003.1` 增加可选随机浏览器 Cookie、持久设备/IP 每日尝试次数和 `X-Download-Limit-Reason` 响应头；HEAD 仅预检，GET 与字节预算原子预占。无 Cookie 旧 APP 仍可直接 HEAD/GET，受 IP 总次数限制；info 的 release/status 不受当前访客次数影响。
+
 ## 事实源与优先级
 
 1. `src/**` DTO、控制器装饰器与统一响应拦截器定义运行时和源 schema。

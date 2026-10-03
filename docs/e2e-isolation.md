@@ -110,6 +110,10 @@ Linux 退出期间可能先置位 PF_EXITING，进程仍暂时显示 R，且 env
 
 `pnpm test:integration:private-invite-reuse` 经本轮独立 PostgreSQL/Redis 身份验证执行真实 HTTP 与 Prisma 并发回归，已纳入 `test:e2e:full`。覆盖首次并发取得、重复与跨登录会话复用、主动重置旧链接失效、成员权限保留及匿名/非楼主/草稿/公开/软删除拒绝。数据、成员、token 仅在本轮隔离资源中生成；日志只输出受控断言，runner 登记 runId 并清理所有资源。
 
+### APK 下载
+
+`pnpm test:integration:app-downloads` 使用本 runner 核验的独立 PostgreSQL/Redis 与私有样本对象存储，覆盖新增制品位置表迁移、并发登记、旧制品身份/钱包保留和鉴权预热。网关 UDS、预算账本和上传文件均属于本轮目录；退出一并清理。持续页面反馈使用 [下载合成预览](app-download-gateway.md#隔离验证与-web-样本预览)，不混用一次性 reaper。
+
 ### 长讨论浏览器样本
 
 `pnpm e2e:run --discussion-fixtures -- <Web 隔离消费者命令>` 在本轮独立资源身份核验后，使用 `wenyousite_app` 创建 1000、5000、10000 三组公开样本；每组含对应数量的主楼，以及首个主楼下对应数量的回复。该选项仅用于消费者模式，不能与 `--full` 或 `--suite` 组合，也不会向持续真实快照预览写入数据。普通测试不传此选项，不创建压力样本。

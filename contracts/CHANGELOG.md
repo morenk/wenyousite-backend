@@ -1,5 +1,26 @@
 # API 合同变更
 
+## 5.32.0-dev.20261003.1
+
+- 下载文件 GET 兼容增加服务端持久次数限制，默认随机浏览器标识每天 3 次、单 IP 每天 10 次，北京时间日界、跨构建累计。有效 GET 在最后阶段同时预占次数与字节，Range/中断/主动重试不豁免；HEAD 预检但不扣次数，公开 info 仍表示全局可用性。
+- 429 增加 `X-Download-Limit-Reason` 与 `Retry-After` 响应契约；可选 `Set-Cookie` 签发第一方随机签名标识。保留所有路径、operationId、DTO、旧 APP 元数据与无 Cookie 直接 HEAD/GET；无有效 Cookie 仅保证 IP 总次数限制，不宣称物理设备唯一。
+- 出站 SQLite v1 必须显式离线升级到 v2，保留既有日/月字节与时钟；密钥持久化、轮换宽限、次数保留及回滚边界见 [下载网关](../docs/app-download-gateway.md)。无 Prisma schema 变化，无协议删除。消费者同步固定提交后处理限额原因，旧客户端可按既有 429/Retry-After 兜底。
+
+## 5.31.0-dev.20261003.1
+
+- 合并已发布的讨论定位基线与匿名下载契约，共 238 个操作；下载 DTO、operationId、路径和响应语义与 5.30.0-dev.20261002.2 一致。Web/Mobile 从本版完整 OpenAPI 重新生成，不覆盖讨论窗口与 replyNumber。
+- 交付独立网关、持久预算、私有预热、制品位置登记和合成预览；允许仅在发布私有配置中复用现有存储凭据，不改变其云端权限。
+
+## 5.30.0-dev.20261002.2
+
+- 下载 DTO、路径、operationId 与前版一致；HEAD 在 GET 之前注册，兼容主 API 默认 Fastify 自动 HEAD 行为，避免重复路由阻止启动。生成文档方法顺序相应调整。
+- 本提交只修正路由注册与机器文档顺序；独立预算、预热、位置登记和合成下载预览随后在同分支交付。
+
+## 5.30.0-dev.20261002.1
+
+- 兼容新增匿名下载信息 `appDownloadsInfo` 与固定构建 GET/HEAD `appDownloadsFile` / `appDownloadsHead`；DTO、Range、状态码与旧 APP metadata 见 [下载网关契约](../docs/app-download-gateway.md)。
+- Android meta 的 updateUrl 允许本站固定构建文件 URL；旧源站发布身份与审计原文保留。先兼容网关/发布工具和预热，再切换消费者，关闭 APK 公共读需独立评审。
+
 ## 5.30.0-dev.20261001.1
 
 - 兼容新增固定 replyNumber、主楼/楼中楼有界双向窗口及筛选排除专用错误40010，保留旧分页和帖子ID深链。语义见 [讨论定位](../docs/discussion-navigation.md)。

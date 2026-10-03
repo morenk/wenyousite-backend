@@ -3,7 +3,7 @@ import { createServer, IncomingMessage, request, ServerResponse } from 'node:htt
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { S3Client, HeadObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
-import { consumer, hash, HEADER, identity, load, Session, writePrivate } from './common';
+import { anonymousSampleRead, consumer, hash, HEADER, identity, load, Session, writePrivate } from './common';
 import { alive, clients, ownsListener, verifyResources } from './resources';
 import { historicalDownload } from './history';
 import { validateHistoricalMap } from './snapshot';
@@ -58,8 +58,9 @@ export async function gateway(name:string) {
     await verifyResources(s,db,redis);
     if(role==='media')assert(alive(fresh,'worker'),'图片 Worker 未运行');
     if(role==='backend')assert(alive(fresh,'api')&&ownsListener(fresh,'api',s.ports.api),'API 进程或监听归属不符');
+    if(s.sample === 'downloads')assert(alive(fresh,'download'),'下载网关未运行');
     if(req.url==='/__preview/identity'&&req.method==='GET'){send(res,200,identity(s,role));return false;}
-    if(role==='backend'&&req.headers[HEADER.toLowerCase()]!==s.runId){send(res,409,{error:'PREVIEW_IDENTITY_REQUIRED'});return false;}
+    if(role==='backend'&&req.headers[HEADER.toLowerCase()]!==s.runId&&!anonymousSampleRead(s,req.method,req.url)){send(res,409,{error:'PREVIEW_IDENTITY_REQUIRED'});return false;}
     if(req.headers.origin&&req.headers.origin!==c.web.origin){send(res,403,{error:'PREVIEW_ORIGIN_REJECTED'});return false;}
     res.setHeader(HEADER,s.runId);return true;
   };
@@ -67,10 +68,28 @@ export async function gateway(name:string) {
     void (async()=>{
       if(!await guard(req,res,'backend'))return;
       assert(req.url?.startsWith('/api/v1/'),'只代理业务 API 路由');
-      const forwarded=request({host:'127.0.0.1',port:s.ports.api,path:req.url,method:req.method,headers:{...req.headers,cookie:(req.headers.cookie||'').split(';').map(x=>x.trim()).filter(x=>!x.startsWith('refreshToken=')&&(!x.startsWith('preview-')||x.startsWith('preview-'+s.runId+'-refreshToken='))).map(x=>x.startsWith('preview-'+s.runId+'-')?x.slice(('preview-'+s.runId+'-').length):x).join('; '),host:'127.0.0.1:'+s.ports.api}},upstream=>{
+      const download = s.sample === 'downloads' && req.url?.startsWith('/api/v1/app-downloads/') === true;
+      if(download) assert(alive(load(s.sessionId),'download'),'下载网关未运行');
+      const forwarded=request({...(download ? {socketPath:join(s.root,'socket/download.sock')} : {host:'127.0.0.1',port:s.ports.api}),path:req.url,method:req.method,headers:{...req.headers,'x-real-ip':req.socket.remoteAddress || '127.0.0.1',cookie:(req.headers.cookie||'').split(';').map(x=>x.trim()).filter(x=>!x.startsWith('refreshToken=')&&(!x.startsWith('preview-')||x.startsWith('preview-'+s.runId+'-refreshToken=')||(download&&x.startsWith('preview-'+s.runId+'-download-device=')))).map(x=>x.startsWith('preview-'+s.runId+'-refreshToken=')?x.slice(('preview-'+s.runId+'-').length):x).join('; '),host:'127.0.0.1:'+s.ports.api}},upstream=>{
         const cookies=upstream.headers['set-cookie'];
         if(cookies)upstream.headers['set-cookie']=cookies.map(x=>x.startsWith('refreshToken=')?'preview-'+s.runId+'-'+x:x);
-        res.writeHead(upstream.statusCode||502,{...upstream.headers,[HEADER]:s.runId});upstream.pipe(res);
+        if(download && req.url==='/api/v1/app-downloads/android' && req.method==='GET' && upstream.statusCode===200) {
+          let body=''; upstream.on('data',chunk=>{body+=String(chunk);if(body.length>16384)upstream.destroy();});
+          upstream.on('end',()=>{
+            try {
+              const payload=JSON.parse(body);
+              if(payload.data?.release) {
+                payload.data.release.downloadUrl=c.backend.origin+'/api/v1/app-downloads/android/'+payload.data.release.buildNumber+'/file';
+                payload.data.release.releaseNotesUrl=c.backend.origin+'/api/v1/mobile-releases/android/'+payload.data.release.buildNumber;
+              }
+              for(const header of ['x-api-contract-version','x-request-id','x-content-type-options','set-cookie']) {
+                const value=upstream.headers[header];
+                if(value!==undefined)res.setHeader(header,value);
+              }
+              send(res,200,payload);
+            } catch {send(res,503,{error:'PREVIEW_DOWNLOAD_UNAVAILABLE'});}
+          });
+        } else { res.writeHead(upstream.statusCode||502,{...upstream.headers,[HEADER]:s.runId});upstream.pipe(res); }
       });
       forwarded.setTimeout(30000,()=>forwarded.destroy());
       forwarded.once('error',()=>{if(!res.headersSent)send(res,503,{error:'PREVIEW_API_UNAVAILABLE'});else res.destroy();});

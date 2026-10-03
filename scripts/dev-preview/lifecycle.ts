@@ -7,6 +7,7 @@ import { createServer } from 'node:net';
 import { unusedPort } from '../e2e-resources';
 import { processStart } from '../e2e-processes';
 import { businessDate, consumer, databaseUrl, environment, load, privateDirectory, REPO, safeName, safePort, save, Session, sessionRoot, sha, sourceEvidence, stateRoot, verifyConsumer, writePrivate } from './common';
+import { prepareDownloadSample, DOWNLOAD_SAMPLE_HASH } from './download-sample';
 import { readSnapshot } from './snapshot';
 import { alive, clients, launch, runTool, stop, verifyResources, waitFor } from './resources';
 
@@ -31,6 +32,23 @@ async function available(port:number) {
   await new Promise<void>((ok,fail)=>{server.once('error',fail);server.listen(port,'127.0.0.1',ok);});
   await new Promise<void>((ok,fail)=>server.close(e=>e?fail(e):ok()));
 }
+export async function rebindWebPort(name:string,args:Record<string,string>) {
+  assert(process.getuid?.()!==0,'预览进程禁止 root');
+  assert(Object.keys(args).every(k=>['session','web-port','confirm'].includes(k)),'重绑定不接受快照或样本变更');
+  assert.equal(args.confirm,name,'必须显式确认批次名');
+  assert(/^\d+$/.test(args['web-port'] || ''),'必须指定 Web 端口');
+  const s=load(name), port=safePort(Number(args['web-port']));
+  assert(s.initialized,'初始化未完成，不能重绑定');
+  assert(port!==s.ports.web,'端口未改变，请使用 resume');
+  assert(!Object.values(s.ports).includes(port),'端口与本批次资源冲突');
+  // Web 消费者由所属任务先停止；任何旧/新监听占用都不能由此入口接管。
+  await available(s.ports.web); await available(port);
+  await stop(s);
+  // 先使旧描述失效；崩溃或恢复失败时，消费者不能把半完成状态当作 ready。
+  writePrivate(join(s.root,'consumer.json'),{...consumer(s),state:'stopped'});
+  s.ports.web=port; save(s);
+  return s;
+}
 function toolPaths() {
   const pg=process.env.E2E_PG_BIN;
   const redis=process.env.E2E_REDIS_BIN;
@@ -40,7 +58,9 @@ function toolPaths() {
 }
 async function create(name:string,args:Record<string,string>) {
   const snapshotPath=args.snapshot || join(process.env.PREVIEW_SNAPSHOT_ROOT || join(homedir(),'.local/state/wenyousite-preview-snapshots'),businessDate());
-  const snapshot=readSnapshot(snapshotPath);
+  assert(!args.sample || args.sample === 'downloads', '不支持的合成样本');
+  assert(!args.sample || !args.snapshot, '合成样本与真实快照互斥');
+  const snapshot = args.sample ? { dump: '', media: {}, metadata: {version:1 as const,sourceKind:'synthetic-downloads' as const,capturedAt:new Date().toISOString(),businessDate:businessDate(),sha256:DOWNLOAD_SAMPLE_HASH,sourceSha:sha(),migrationVersion:'20261002160000_app_download_artifacts',mediaSha256:sha(),mediaOrigin:'https://synthetic.invalid'} } : readSnapshot(snapshotPath);
   const tools=toolPaths();
   const root=sessionRoot(name);
   const ports={} as Session['ports'];
@@ -50,11 +70,10 @@ async function create(name:string,args:Record<string,string>) {
   }
   const secret=()=>randomBytes(32).toString('hex');
   mkdirSync(root,{mode:0o700});
-  const s:Session={ version:1,sessionId:name,runId:'preview_'+randomBytes(12).toString('hex'),root,worktree:REPO,uid:process.getuid!(),state:'initializing',initialized:false,backendSha:sha(),...sourceEvidence(),snapshot:snapshot.metadata,ports,secrets:{owner:secret(),app:secret(),redis:secret(),jwt:secret(),pepper:secret()},processes:[],tools };
+  const s:Session={ ...(args.sample ? {sample:'downloads' as const}:{}), version:1,sessionId:name,runId:'preview_'+randomBytes(12).toString('hex'),root,worktree:REPO,uid:process.getuid!(),state:'initializing',initialized:false,backendSha:sha(),...sourceEvidence(),snapshot:snapshot.metadata,ports,secrets:{owner:secret(),app:secret(),redis:secret(),jwt:secret(),pepper:secret()},processes:[],tools };
   save(s);
   writePrivate(join(root,'ownership.json'),{runId:s.runId,root,uid:s.uid,worktree:REPO});
-  copyFileSync(snapshot.dump,join(root,'database.dump'));
-  const {chmodSync}=await import('node:fs'); chmodSync(join(root,'database.dump'),0o600);
+  if (!s.sample) { copyFileSync(snapshot.dump,join(root,'database.dump')); const {chmodSync}=await import('node:fs'); chmodSync(join(root,'database.dump'),0o600); }
   writePrivate(join(root,'historical-media.json'),snapshot.media);
   for(const dir of ['socket','uploads','mailbox']) mkdirSync(join(root,dir),{mode:0o700});
   writeFileSync(join(root,'postgres.password'),s.secrets.owner,{mode:0o600,flag:'wx'});
@@ -65,9 +84,11 @@ async function sanitize(s:Session) {
   const {db,redis}=clients(s,true);
   try {
     await verifyResources(s,db,redis);
+    if (!s.sample) {
     runTool(s,join(s.tools.pg,'pg_restore'),['--no-owner','--no-acl','--exit-on-error','--dbname','postgres',join(s.root,'database.dump')],{PGHOST:'127.0.0.1',PGPORT:String(s.ports.postgres),PGUSER:'preview_owner',PGPASSWORD:s.secrets.owner});
     const migrations=await db.$queryRawUnsafe<Array<{migration_name:string}>>('SELECT migration_name FROM "_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL ORDER BY migration_name DESC LIMIT 1');
     assert.equal(migrations[0]?.migration_name,s.snapshot.migrationVersion,'恢复 migration 与快照不符');
+    }
     // 只对新建且刚验证身份的独立实例执行迁移与净化。
     runTool(s,process.execPath,[require.resolve('prisma/build/index.js'),'migrate','deploy','--schema',join(REPO,'prisma/schema.prisma')],{DATABASE_URL:databaseUrl(s,true),DIRECT_DATABASE_URL:databaseUrl(s,true)});
     await db.$transaction(async tx=>{
@@ -83,6 +104,7 @@ async function sanitize(s:Session) {
     await db.$executeRawUnsafe('GRANT USAGE ON SCHEMA public TO wenyousite_app');
     await db.$executeRawUnsafe('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO wenyousite_app');
     await db.$executeRawUnsafe('GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO wenyousite_app');
+    if (s.sample) { s.snapshot.mediaSha256 = (await import('./common')).hash(readFileSync(join(s.root,'historical-media.json'))); }
     s.initialized=true; save(s);
   } finally {redis.disconnect();await db.$disconnect();}
 }
@@ -103,9 +125,11 @@ export async function start(name:string,args:Record<string,string>) {
   const existing=existsSync(sessionRoot(name));
   if(existing) {
     s=load(name);
+    assert(!args.sample || args.sample === s.sample, '已有会话不能切换样本来源');
+    assert(!args.snapshot || !s.sample, '合成会话不能隐式切换真实快照');
+    assert(!args['web-port']||Number(args['web-port'])===s.ports.web,'已有会话端口不可隐式变更');
     if(s.state==='ready') { await verifyConsumer(s); return s; }
     assert(s.initialized,'初始化未完成；需显式 reset');
-    assert(!args['web-port']||Number(args['web-port'])===s.ports.web,'已有会话端口不可隐式变更');
     await stop(s);
     s.state='initializing';s.backendSha=sha();Object.assign(s,sourceEvidence());save(s);
   } else s=await create(name,args);
@@ -131,12 +155,19 @@ export async function start(name:string,args:Record<string,string>) {
       await verifyResources(s,db,redis);
     } finally {redis.disconnect();await db.$disconnect();}
     if(!s.initialized) await sanitize(s);
+    if(s.sample) {
+      await prepareDownloadSample(s);
+      const socket = join(s.root,'socket/download.sock');
+      if(existsSync(socket)) unlinkSync(socket); // 原会话进程均已按身份停止，单实例账本锁仍由网关再次核验。
+      launch(s,'download',process.execPath,['--require',require.resolve('ts-node/register/transpile-only'),join(REPO,'src/app-downloads/download-main.ts'),'--env',join(s.root,'download.env')],{TS_NODE_PROJECT:join(REPO,'tsconfig.json')});
+    }
     launch(s,'gateway',process.execPath,['--import',require.resolve('tsx'),join(REPO,'scripts/dev-preview/gateway.ts'),s.sessionId],{PREVIEW_STATE_ROOT:stateRoot()});
     const env=appEnvironment(s);
     launch(s,'api',process.execPath,['--require',require.resolve('ts-node/register/transpile-only'),join(REPO,'src/main.ts')],env);
     launch(s,'worker',process.execPath,['--require',require.resolve('ts-node/register/transpile-only'),join(REPO,'src/image-worker.ts')],env);
     await waitFor(async()=>{
       assert(alive(s,'gateway')&&alive(s,'api')&&alive(s,'worker'));
+      if(s.sample) assert(alive(s,'download'));
       const response=await fetch('http://127.0.0.1:'+s.ports.api+'/api/v1/health',{signal:AbortSignal.timeout(1000)});
       assert(response.ok);
       await verifyConsumer(s);
@@ -160,7 +191,8 @@ export async function reset(name:string,args:Record<string,string>) {
   const s=load(name);
   assert.equal(args.confirm,s.sessionId,'必须显式确认批次名');
   // 先验证新快照，损坏或过期时保留当前可用实例。
-  readSnapshot(args.snapshot||join(process.env.PREVIEW_SNAPSHOT_ROOT||join(homedir(),'.local/state/wenyousite-preview-snapshots'),businessDate()));
+  if (!s.sample) readSnapshot(args.snapshot||join(process.env.PREVIEW_SNAPSHOT_ROOT||join(homedir(),'.local/state/wenyousite-preview-snapshots'),businessDate()));
+  else assert(!args.snapshot, '合成会话不能隐式切换真实快照');
   await stop(s);await cleanup(s,args.confirm);
-  return start(name,{...args,'web-port':args['web-port']||String(s.ports.web)});
+  return start(name,{...args,...(s.sample?{sample:s.sample}:{}),'web-port':args['web-port']||String(s.ports.web)});
 }

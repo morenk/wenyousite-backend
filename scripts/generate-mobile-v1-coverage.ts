@@ -144,7 +144,7 @@ function moduleFor(operation: Operation, disposition: Disposition): string {
 
 function dispositionFor(operation: Operation): Disposition {
   const primaryTag = operation.tags[0] ?? '';
-  if (operation.operationId === 'healthCheck') return 'infrastructure';
+  if (operation.operationId === 'healthCheck' || operation.tags.includes('App Downloads')) return 'infrastructure';
   if (adminTags.has(primaryTag)) return 'not_applicable';
   if (v1Operations.has(operation.operationId)) return 'v1';
   if (deferredTags.has(primaryTag) || deferredOperations.has(operation.operationId)) {

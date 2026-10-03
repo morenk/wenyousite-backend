@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
+import { request } from 'node:http';
 import { join, resolve } from 'node:path';
 import { cleanEnvironment } from '../e2e-resources';
 
@@ -10,11 +11,13 @@ export const REPO = realpathSync(resolve(__dirname, '../..'));
 export const HEADER = 'X-Wenyou-Preview-Run';
 export const KIND = 'wenyou-dev-preview';
 export interface Snapshot {
+  sourceKind?: 'synthetic-downloads';
   version: 1; capturedAt: string; businessDate: string; sha256: string; sourceSha: string;
   migrationVersion: string; mediaSha256: string; mediaOrigin: string;
 }
 export interface Consumer {
   version: 1; kind: typeof KIND; sessionId: string; runId: string; state: 'ready';
+  sample?: 'downloads';
   snapshot: Pick<Snapshot, 'capturedAt' | 'businessDate' | 'sha256' | 'sourceSha' | 'migrationVersion'>;
   source: { backendSha: string; worktree: string };
   backend: { port: number; origin: string; apiBase: string; identityUrl: string };
@@ -24,6 +27,7 @@ export interface Consumer {
   ownership: { uid: number; resourceId: string };
 }
 export interface Session {
+  sample?: 'downloads';
   version: 1; sessionId: string; runId: string; root: string; worktree: string; uid: number;
   state: 'initializing' | 'ready' | 'stopped' | 'failed'; initialized: boolean; backendSha: string; sourceDigest: string; sourceDirty: boolean;
   snapshot: Snapshot; ports: { postgres: number; redis: number; backend: number; media: number; api: number; web: number };
@@ -73,10 +77,11 @@ export function environment(s?: Session) {
 }
 export function sha() { return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: REPO, encoding: 'utf8' }).trim(); }
 export function sourceEvidence() {
-  const files = execFileSync('git', ['ls-files', '-co', '--exclude-standard', '-z', '--', 'src', 'prisma', 'scripts/dev-preview', 'package.json', 'pnpm-lock.yaml'], {cwd:REPO}).toString().split('\0').filter(Boolean).sort();
+  const paths = ['src', 'prisma', 'scripts/dev-preview', 'scripts/download-tests/fixture.ts', 'package.json', 'pnpm-lock.yaml'];
+  const files = execFileSync('git', ['ls-files', '-co', '--exclude-standard', '-z', '--', ...paths], {cwd:REPO}).toString().split('\0').filter(Boolean).sort();
   const digest = createHash('sha256');
   for (const file of [...new Set(files)]) { digest.update(file + '\0'); if (existsSync(join(REPO,file))) digest.update(readFileSync(join(REPO,file))); }
-  const dirty = execFileSync('git',['status','--porcelain','--','src','prisma','scripts/dev-preview','package.json','pnpm-lock.yaml'],{cwd:REPO,encoding:'utf8'}).length>0;
+  const dirty = execFileSync('git',['status','--porcelain','--',...paths],{cwd:REPO,encoding:'utf8'}).length>0;
   return {sourceDigest:digest.digest('hex'),sourceDirty:dirty};
 }
 export function databaseUrl(s: Session, owner = false) {
@@ -85,7 +90,7 @@ export function databaseUrl(s: Session, owner = false) {
 export function consumer(s: Session): Consumer {
   const { capturedAt, businessDate, sha256, sourceSha, migrationVersion } = s.snapshot;
   const origin = (port: number) => 'http://127.0.0.1:' + port;
-  return { version: 1, kind: KIND, sessionId: s.sessionId, runId: s.runId, state: 'ready',
+  return { version: 1, kind: KIND, ...(s.sample ? {sample:s.sample} : {}), sessionId: s.sessionId, runId: s.runId, state: 'ready',
     snapshot: { capturedAt, businessDate, sha256, sourceSha, migrationVersion },
     source: { backendSha: s.backendSha, worktree: s.worktree },
     backend: { port: s.ports.backend, origin: origin(s.ports.backend), apiBase: origin(s.ports.backend) + '/api/v1', identityUrl: origin(s.ports.backend) + '/__preview/identity' },
@@ -102,4 +107,14 @@ export async function verifyConsumer(s: Session) {
     assert(response.ok && response.headers.get(HEADER) === s.runId && response.headers.get('content-type')?.includes('application/json'), '预览响应身份不符');
     assert.deepEqual(await response.json(), identity(s, role), '预览实际资源不符');
   }
+  if (s.sample === 'downloads') await new Promise<void>((ok, fail) => {
+    const req = request({socketPath:join(s.root,'socket/download.sock'),path:'/__health',timeout:3000},res=>{
+      res.resume(); res.on('error',fail); res.on('end',()=>res.statusCode===200?ok():fail(new Error('下载网关未就绪')));
+    });
+    req.on('timeout',()=>req.destroy(new Error('下载网关健康超时'))); req.on('error',fail); req.end();
+  });
+}
+/** 浏览器下载与公开说明导航不会携带自定义头；仅合成样本的精确只读路径可省略它。 */
+export function anonymousSampleRead(s: Pick<Session,'sample'>, method: string | undefined, url: string | undefined) {
+  return s.sample === 'downloads' && ['GET','HEAD'].includes(method || '') && /^\/api\/v1\/(?:app-downloads\/android(?:\/[1-9][0-9]{0,9}\/file)?|mobile-releases\/android\/[1-9][0-9]{0,9})$/.test(url || '');
 }

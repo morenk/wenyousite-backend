@@ -40,6 +40,14 @@ pnpm dev:preview stop --session page-layout
 pnpm dev:preview cleanup --session page-layout --confirm page-layout
 ```
 
+本机 Web 端口冲突时，先由所属任务停止 Web/Mobile 消费者并确认新端口在 VPS 与本机均空闲，再显式重绑定：
+
+```bash
+pnpm dev:preview rebind-web-port --session page-layout --web-port 44310 --confirm page-layout
+```
+
+此入口先核对批次归属和 VPS 旧/新 Web 端口，无监听后按登记身份停止本批次进程；不停止占用端口的其他进程。它令旧 consumer 描述失效，原子保存新 Web 端口，再通过原有启动和资源身份核验恢复。保留原 runId、快照、数据库、Redis、媒体、账号和下载预算，不运行 reset、重新净化或清理。Backend/media 端口不变，API CORS 与媒体配置随新 Web origin 重建。恢复失败保留已登记的新端口与全部数据，consumer 不标记 ready；排除冲突后用 resume 重试。成功后消费者必须重新读取 consumer.json、验证 Backend/media 身份，并按新端口建立同端口 SSH 转发。普通 start/resume 即使实例仍 ready，也拒绝改变 --web-port。
+
 reset 在停止旧实例前先核验新快照；产生新 runId，消费者必须重新导出连接。cleanup 必须已停止/失败，只删除当前已登记目录；身份漂移时保留现场。普通启动失败停止本轮自有进程并保留私有日志；不是清理线上数据的入口。SIGKILL 后遗留进程可用同批次 stop 逐项核验回收。锁恢复采用独立原子 recovery 锁；recovery 本身异常遗留时拒绝猜测删除，核对原进程结束后再由本任务处理该确切文件。
 
 ## 管理入口启用与当天快照
@@ -122,3 +130,7 @@ stdout 仅含 consumerPath/accountPath 与非秘密资源身份。账号仅在�
 当天真实快照不可用时，本目标可用 `pnpm exec tsx scripts/private-invite-reuse-preview.ts` 创建 `private-invite-reuse` 批次（Web 端口 43931，占用时拒绝）。入口在本轮已核验独立 PostgreSQL/Redis 生成 OWNER/MEMBER/NEWCOMER 随机账号及已发布私帖，导出明确标注的合成快照、清理源进程，再启动既有预览协议。账号只留本批次 0600 `sample-accounts.json`，定位 ID 在 `sample-content.json`；不读取线上内容，不冒称当天真实快照。
 
 Web/Mobile 共用 `consumer.json`，先核验后端及媒体真实运行身份。反馈批次保留会话；验收结束使用 `dev:preview stop/cleanup --session private-invite-reuse`（cleanup 同时传 `--confirm private-invite-reuse`），按 `sample-snapshot-ownership.json` 回收本批次合成快照。
+
+## 下载入口合成样本
+
+无需真实快照的 ThemeMenu「下载 APP」入口反馈可使用 `--sample downloads`，验证一次显式点击内的版本/状态查询、HEAD 校验与浏览器原生 GET 下载，隔离边界、consumer 标记和运行命令见 [下载网关](app-download-gateway.md#隔离验证与-web-样本预览)。同时验证 Android/iOS 移动设备会话首次访问自动提示、可关闭且同会话不重复；提示明确仅提供 Android 安装包并允许 iOS 继续网页，展示时不触发 APK HEAD/GET。该模式不替代真实数据或安装包验收。

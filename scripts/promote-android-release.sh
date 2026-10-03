@@ -24,6 +24,20 @@ if [ "$EUID" -eq 0 ]; then
   SKIP_RESTART=false
 fi
 
+DOWNLOAD_HELPER=${MOBILE_RELEASE_DOWNLOAD_HELPER:-$RELEASE_ROOT/dist/app-downloads/download-cli.js}
+DOWNLOAD_ENV=${MOBILE_RELEASE_DOWNLOAD_ENV:-/etc/wenyousite/download.env}
+DOWNLOAD_ORIGIN_ENV=${MOBILE_RELEASE_DOWNLOAD_ORIGIN_ENV:-/etc/wenyousite/download-origin.env}
+DOWNLOAD_CATALOG=${MOBILE_RELEASE_DOWNLOAD_CATALOG:-/var/lib/wenyousite-download/catalog/catalog.json}
+DOWNLOAD_INBOX=${MOBILE_RELEASE_DOWNLOAD_INBOX:-/var/lib/wenyousite-download/inbox}
+if [ "$EUID" -eq 0 ]; then
+  DOWNLOAD_HELPER=$RELEASE_ROOT/dist/app-downloads/download-cli.js
+  DOWNLOAD_ENV=/etc/wenyousite/download.env
+  DOWNLOAD_ORIGIN_ENV=/etc/wenyousite/download-origin.env
+  DOWNLOAD_CATALOG=/var/lib/wenyousite-download/catalog/catalog.json
+  DOWNLOAD_INBOX=/var/lib/wenyousite-download/inbox
+fi
+GATEWAY=false
+if [ "${1:-}" = --gateway ]; then GATEWAY=true; shift; fi
 MODE=promote
 VERSION_NAME=
 BUILD_NUMBER=
@@ -42,6 +56,10 @@ usage() {
     --size 90900000 \
     --sha256 <64 hex> \
     --notes-revision <预检返回的 confirmedRevision>
+
+本站网关迁移/晋级：在原参数前加 --gateway；--url 保留原始对象地址，
+鉴权预热通过后 meta 自动使用本站固定构建文件地址，不重写旧审计。
+网关撤回：promote-android-release.sh --gateway --withdraw
 
 只读预检（构建前运行，stdout 仅输出 JSON）：
   promote-android-release.sh --preflight --version 0.3.0-dev.36 --build 42
@@ -132,7 +150,7 @@ notes_command() {
     resolved=$(readlink -f -- "$RELEASE_ROOT")
     [[ "$resolved" =~ ^/var/lib/wenyousite/backend/releases/[0-9a-f]{40}$ ]] || return 1
     # 部署已完整检查依赖树；调用前再检查固定入口及祖先的所有权和可写位。
-    for path in "$NODE_BINARY" "$NOTES_HELPER" "$RELEASE_ROOT/node_modules"; do
+    for path in "$NODE_BINARY" "$NOTES_HELPER" "$DOWNLOAD_HELPER" "$RELEASE_ROOT/node_modules"; do
       path=$(readlink -f -- "$path") || return 1
       [[ "$path" = "$resolved"/* ]] || return 1
       while [ "$path" != / ]; do
@@ -144,6 +162,20 @@ notes_command() {
   fi
   printf '%s' "$payload" | env -i PATH=/usr/bin:/bin "$NODE_BINARY" "$NOTES_HELPER" "$action" "$ENV_FILE"
 }
+download_command() {
+  local command=$1
+  shift
+  if [ "$EUID" -eq 0 ]; then
+    runuser -u wenyousite-download-publisher -- env -i PATH=/usr/bin:/bin "$NODE_BINARY" "$DOWNLOAD_HELPER" "$command" --env "$DOWNLOAD_ENV" "$@"
+  else
+    env -i PATH=/usr/bin:/bin "$NODE_BINARY" "$DOWNLOAD_HELPER" "$command" --env "$DOWNLOAD_ENV" "$@"
+  fi
+}
+PUBLIC_UPDATE_URL=$UPDATE_URL
+if [ "$GATEWAY" = true ] && [ "$MODE" = promote ]; then
+  PUBLIC_UPDATE_URL="https://wenyou.site/api/v1/app-downloads/android/$BUILD_NUMBER/file"
+fi
+
 if [ "$MODE" = preflight ]; then
   notes_command preflight "{\"platform\":\"android\",\"versionName\":\"$VERSION_NAME\",\"buildNumber\":$BUILD_NUMBER}"
   exit $?
@@ -243,7 +275,7 @@ write_policy() {
       printf 'MOBILE_ANDROID_MIN_SUPPORTED_BUILD=%s\n' "$current_minimum" >> "$next_file"
     fi
     printf 'MOBILE_ANDROID_RECOMMENDED_BUILD=%s\n' "$BUILD_NUMBER" >> "$next_file"
-    printf 'MOBILE_ANDROID_UPDATE_URL=%s\n' "$UPDATE_URL" >> "$next_file"
+    printf 'MOBILE_ANDROID_UPDATE_URL=%s\n' "$PUBLIC_UPDATE_URL" >> "$next_file"
   fi
   chmod --reference="$ENV_FILE" "$next_file"
   chown --reference="$ENV_FILE" "$next_file"
@@ -267,7 +299,7 @@ verify_meta() {
     return 1
   fi
   meta=$($CURL_BIN --fail --silent --show-error http://127.0.0.1:3000/api/v1/meta)
-  env -i PATH=/usr/bin:/bin META_JSON="$meta" MODE="$MODE" EXPECTED_BUILD="$BUILD_NUMBER" EXPECTED_URL="$UPDATE_URL" "$NODE_BINARY" <<'NODE'
+  env -i PATH=/usr/bin:/bin META_JSON="$meta" MODE="$MODE" EXPECTED_BUILD="$BUILD_NUMBER" EXPECTED_URL="$PUBLIC_UPDATE_URL" "$NODE_BINARY" <<'NODE'
 const body = JSON.parse(process.env.META_JSON);
 const android = body?.data?.mobileCompatibility?.android;
 if (!android) process.exit(1);
@@ -321,6 +353,12 @@ restore_journal() {
       return 0
     fi
   fi
+  if [ -f "$JOURNAL/download-catalog.json" ]; then
+    cp -p -- "$JOURNAL/download-catalog.json" "${DOWNLOAD_CATALOG}.restore" || return 1
+    sync -f "${DOWNLOAD_CATALOG}.restore" || return 1
+    mv -fT -- "${DOWNLOAD_CATALOG}.restore" "$DOWNLOAD_CATALOG" || return 1
+    sync -f "$(dirname -- "$DOWNLOAD_CATALOG")" || return 1
+  fi
   if [ -f "$JOURNAL/policy-started" ]; then
     cp -p -- "$JOURNAL/backend.env" "$ENV_NEXT" || return 1
     sync -f "$ENV_NEXT" || return 1
@@ -344,9 +382,10 @@ if [ "$MODE" = recover ]; then echo '{"schemaVersion":1,"recovered":true}'; exit
 CURRENT_RECOMMENDED=$(read_env_value MOBILE_ANDROID_RECOMMENDED_BUILD)
 CURRENT_MINIMUM=$(read_env_value MOBILE_ANDROID_MIN_SUPPORTED_BUILD)
 CURRENT_URL=$(read_env_value MOBILE_ANDROID_UPDATE_URL)
+if [ "$MODE" = withdraw ] && [[ "$CURRENT_URL" = https://wenyou.site/api/v1/app-downloads/android/*/file ]]; then GATEWAY=true; fi
 
 if [ "$MODE" = promote ]; then
-  validate_public_object
+  if [ "$GATEWAY" != true ]; then validate_public_object; fi
   if [ -n "$CURRENT_RECOMMENDED" ]; then
     if [[ ! "$CURRENT_RECOMMENDED" =~ ^[1-9][0-9]*$ ]]; then
       echo "现有推荐构建号无效" >&2
@@ -357,7 +396,7 @@ if [ "$MODE" = promote ]; then
       exit 2
     fi
     if ((BUILD_NUMBER == CURRENT_RECOMMENDED)); then
-      if [ "$CURRENT_URL" != "$UPDATE_URL" ]; then
+      if [ "$CURRENT_URL" != "$UPDATE_URL" ] && [ "$CURRENT_URL" != "$PUBLIC_UPDATE_URL" ]; then
         echo "同一构建号不能关联不同 URL" >&2
         exit 2
       fi
@@ -368,7 +407,7 @@ if [ "$MODE" = promote ]; then
     echo "待晋级构建号不能低于最低支持构建号 $CURRENT_MINIMUM" >&2
     exit 2
   fi
-elif [ -z "$CURRENT_RECOMMENDED" ] && [ -z "$CURRENT_MINIMUM" ] && [ -z "$CURRENT_URL" ]; then
+elif [ "$GATEWAY" != true ] && [ -z "$CURRENT_RECOMMENDED" ] && [ -z "$CURRENT_MINIMUM" ] && [ -z "$CURRENT_URL" ]; then
   echo "Android 移动版本策略已经撤回"
   exit 0
 fi
@@ -377,12 +416,17 @@ umask 077
 JOURNAL_STAGING=$(mktemp -d "${JOURNAL}.prepare.XXXXXX")
 cp -p -- "$ENV_FILE" "$JOURNAL_STAGING/backend.env"
 sync -f "$JOURNAL_STAGING/backend.env"
+if [ "$GATEWAY" = true ]; then
+  cp -p -- "$DOWNLOAD_CATALOG" "$JOURNAL_STAGING/download-catalog.json"
+  sync -f "$JOURNAL_STAGING/download-catalog.json"
+fi
 if [ -f "$HISTORY_FILE" ]; then cp -p -- "$HISTORY_FILE" "$JOURNAL_STAGING/history.tsv"; sync -f "$JOURNAL_STAGING/history.tsv"; fi
 mv -T -- "$JOURNAL_STAGING" "$JOURNAL"
 sync -f "$(dirname -- "$JOURNAL")"
 cleanup() {
   local code=$?
   trap - EXIT INT TERM
+  if [ -n "${DOWNLOAD_INPUT:-}" ]; then rm -f -- "$DOWNLOAD_INPUT"; fi
   if [ "$code" -ne 0 ]; then
     echo "移动发布失败，正在补偿原策略及登记" >&2
     restore_journal || echo "补偿失败；恢复记录和数据库发布锁已保留，重试将先恢复" >&2
@@ -392,11 +436,35 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+if [ "$GATEWAY" = true ] && [ "$MODE" = promote ]; then
+  DOWNLOAD_INPUT=$(mktemp "$DOWNLOAD_INBOX/input.XXXXXX.json")
+  env -i PATH=/usr/bin:/bin VERSION_NAME="$VERSION_NAME" BUILD_NUMBER="$BUILD_NUMBER" APK_SHA256="$APK_SHA256" APK_SIZE="$APK_SIZE" UPDATE_URL="$UPDATE_URL" "$NODE_BINARY" -e '
+    const e=process.env;console.log(JSON.stringify({schemaVersion:1,applicationId:"site.wenyou.app",versionName:e.VERSION_NAME,buildNumber:Number(e.BUILD_NUMBER),sha256:e.APK_SHA256,sizeBytes:Number(e.APK_SIZE),bucket:"wenyou-apk",key:`mobile/android/wenyou-${e.VERSION_NAME}-${e.BUILD_NUMBER}.apk`,legacyUpdateUrl:e.UPDATE_URL}));' > "$DOWNLOAD_INPUT"
+  if [ "$EUID" -eq 0 ]; then chown root:wenyousite-download-cache "$DOWNLOAD_INPUT"; fi
+  chmod 0640 "$DOWNLOAD_INPUT"
+  notes_command register-download "$(cat "$DOWNLOAD_INPUT")" >/dev/null
+  download_command register --manifest "$DOWNLOAD_INPUT" >/dev/null
+  download_command warm --build "$BUILD_NUMBER" --origin-env "$DOWNLOAD_ORIGIN_ENV" >/dev/null
+  download_command verify-origin --build "$BUILD_NUMBER" --origin-env "$DOWNLOAD_ORIGIN_ENV" >/dev/null
+  download_command verify-cache --build "$BUILD_NUMBER" >/dev/null
+fi
 if [ "$MODE" = promote ]; then
   OPERATION_ID=$(cat /proc/sys/kernel/random/uuid)
   printf '%s' "$OPERATION_ID" > "$JOURNAL/operation"
   sync -f "$JOURNAL/operation"
   notes_command begin "{\"platform\":\"android\",\"versionName\":\"$VERSION_NAME\",\"buildNumber\":$BUILD_NUMBER,\"confirmedRevision\":$NOTES_REVISION,\"operationId\":\"$OPERATION_ID\",\"apkSha256\":\"$APK_SHA256\",\"apkSize\":\"$APK_SIZE\",\"updateUrl\":\"$UPDATE_URL\"}" >/dev/null
+fi
+if [ "$GATEWAY" = true ]; then
+  if [ "$MODE" = promote ]; then
+    notes_command publish "{\"operationId\":\"$OPERATION_ID\"}" >/dev/null
+    notes_command commit "{\"operationId\":\"$OPERATION_ID\"}" >/dev/null
+    notes_command download-proof "{\"platform\":\"android\",\"versionName\":\"$VERSION_NAME\",\"buildNumber\":$BUILD_NUMBER}" > "$DOWNLOAD_INPUT"
+    sync -f "$DOWNLOAD_INPUT"
+    published_at=$(env -i PATH=/usr/bin:/bin "$NODE_BINARY" -e 'console.log(JSON.parse(require("node:fs").readFileSync(process.argv[1],"utf8")).publishedAt)' "$DOWNLOAD_INPUT")
+    download_command publish --build "$BUILD_NUMBER" --published-at "$published_at" --publication-proof "$DOWNLOAD_INPUT" >/dev/null
+  else
+    download_command withdraw >/dev/null
+  fi
 fi
 if [ "$MODE" = promote ]; then write_policy "$ENV_NEXT" true; else write_policy "$ENV_NEXT" false; fi
 sync -f "$ENV_NEXT"
@@ -428,8 +496,10 @@ chmod 0644 "$JOURNAL/next.tsv"
 sync -f "$JOURNAL/next.tsv"
 mv -fT -- "$JOURNAL/next.tsv" "$HISTORY_FILE"
 if [ "$MODE" = promote ]; then
-  notes_command publish "{\"operationId\":\"$OPERATION_ID\"}" >/dev/null
-  notes_command commit "{\"operationId\":\"$OPERATION_ID\"}" >/dev/null
+  if [ "$GATEWAY" != true ]; then
+    notes_command publish "{\"operationId\":\"$OPERATION_ID\"}" >/dev/null
+    notes_command commit "{\"operationId\":\"$OPERATION_ID\"}" >/dev/null
+  fi
   if [ "$SKIP_RESTART" != true ]; then
     verify_meta
     public=$($CURL_BIN --fail --silent --show-error --max-time 20 "https://wenyou.site/api/v1/mobile-releases/android/$BUILD_NUMBER")

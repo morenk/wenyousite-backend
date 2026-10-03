@@ -137,6 +137,10 @@
           "type": "string"
         }
       }
+    },
+    "sample": {
+      "const": "downloads",
+      "description": "显式合成下载样本，不是生产数据快照或正式 APK"
     }
   },
   "$defs": {

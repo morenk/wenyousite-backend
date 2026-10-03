@@ -1,14 +1,38 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "5.30.0-dev.20261001.1",
+  "contractVersion": "5.32.0-dev.20261003.1",
   "counts": {
-    "total": 235,
+    "total": 238,
     "v1": 110,
     "deferred": 66,
     "notApplicable": 58,
-    "infrastructure": 1
+    "infrastructure": 4
   },
   "operations": [
+    {
+      "operationId": "appDownloadsInfo",
+      "method": "GET",
+      "path": "/api/v1/app-downloads/android",
+      "module": "infrastructure",
+      "disposition": "infrastructure",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "appDownloadsHead",
+      "method": "HEAD",
+      "path": "/api/v1/app-downloads/android/{buildNumber}/file",
+      "module": "infrastructure",
+      "disposition": "infrastructure",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "appDownloadsFile",
+      "method": "GET",
+      "path": "/api/v1/app-downloads/android/{buildNumber}/file",
+      "module": "infrastructure",
+      "disposition": "infrastructure",
+      "status": "not_applicable"
+    },
     {
       "operationId": "healthCheck",
       "method": "GET",

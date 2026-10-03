@@ -14,6 +14,7 @@ import { AuditService } from '../src/moderation/audit.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 const SUITES: Record<string, [string, string]> = {
+  'app-downloads': ['app-downloads.integration.ts', 'APP_DOWNLOADS_TEST_ENV'],
   'discussion-navigation': ['discussion-navigation.integration.ts', 'DISCUSSION_NAVIGATION_TEST_ENV'],
   'private-invite-reuse': ['private-invite-reuse.integration.ts', 'PRIVATE_INVITE_REUSE_TEST_ENV'],
   'profile-follow-counts': ['profile-follow-counts.integration.ts', 'PROFILE_FOLLOW_COUNTS_TEST_ENV'],
@@ -50,7 +51,7 @@ export async function run(args = process.argv.slice(2)) {
   const boundary = args.indexOf('--');
   const options = boundary < 0 ? args : args.slice(0, boundary);
   const command = boundary < 0 ? [] : args.slice(boundary + 1);
-  ensure(options.every((o) => ['--api', '--full', '--block-search-only', '--admin-fixtures', '--mobile-release-fixtures', '--discussion-fixtures'].includes(o) || (o.startsWith('--suite=') && Object.hasOwn(SUITES, o.slice(8)))), '非法 runner 参数');
+  ensure(options.every((o) => ['--api', '--full', '--block-search-only', '--admin-fixtures', '--mobile-release-fixtures', '--source', '--discussion-fixtures'].includes(o) || (o.startsWith('--suite=') && Object.hasOwn(SUITES, o.slice(8)))), '非法 runner 参数');
   ensure(command.length > 0 || options.length > 0, '使用 --api / --full 或 -- <测试命令>');
   ensure(!options.includes('--admin-fixtures') || command.length > 0, '--admin-fixtures 必须配合本轮消费者命令');
   ensure(!options.includes('--mobile-release-fixtures') || options.includes('--admin-fixtures'), '--mobile-release-fixtures 需要 --admin-fixtures');
@@ -147,8 +148,12 @@ export async function run(args = process.argv.slice(2)) {
       };
       const webEnv = Object.fromEntries(['E2E_RUN_ID', 'E2E_MANIFEST', 'E2E_PRIVATE_ENV', 'E2E_BACKEND_URL', 'API_BASE', 'E2E_USERNAME', 'E2E_EMAIL', 'E2E_PASSWORD', 'E2E_USER_ID', 'E2E_ADMIN_FIXTURES', 'E2E_MOBILE_RELEASE_FIXTURES', 'E2E_DISCUSSION_FIXTURES'].map((key) => [key, env[key]]));
       writeFileSync(privateEnvPath, JSON.stringify(webEnv), { flag: 'wx', mode: 0o600 });
-      const app = r.spawn(process.execPath, [join(REPOSITORY, 'dist/main.js')], env);
-      await health(backendURL, app);
+      const app = r.spawn(process.execPath, options.includes('--source') ? ['--require', require.resolve('ts-node/register/transpile-only'), join(REPOSITORY, 'src/main.ts')] : [join(REPOSITORY, 'dist/main.js')], { ...env, TS_NODE_PROJECT: join(REPOSITORY, 'tsconfig.json') });
+      try { await health(backendURL, app); } catch (error) {
+        const failureLog = `/tmp/wenyousite-e2e-startup-${r.runId}.log`;
+        writeFileSync(failureLog, readFileSync(r.logPath(app)), { flag: 'wx', mode: 0o600 });
+        console.error(JSON.stringify({event:'startup-failed',runId:r.runId,privateLog:failureLog})); throw error;
+      }
       const resources = JSON.parse(readFileSync(join(r.root, 'resources.json'), 'utf8'));
       const manifest: E2EManifest = { version: 1, runId: r.runId, state: 'ready', backendURL, apiBase: env.API_BASE!,
         privateEnvPath, resourcesPath: join(r.root, 'resources.json'), uploadPath: join(r.root, 'uploads'),

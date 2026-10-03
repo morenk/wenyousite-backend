@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { consumer, load, verifyConsumer } from './common';
-import { cleanup, reset, start, withLock } from './lifecycle';
+import { cleanup, rebindWebPort, reset, start, withLock } from './lifecycle';
 import { stop } from './resources';
 import { adminSnapshot } from './snapshot';
 
@@ -17,10 +17,17 @@ export function parseArgs(input:string[]) {
 export async function main(input=process.argv.slice(2)) {
   const [command,...rest]=input;const args=parseArgs(rest);
   if(command==='snapshot'){await adminSnapshot(args);return;}
-  assert(['start','resume','status','export','stop','reset','cleanup'].includes(command),'未知预览命令');
+  assert(['start','resume','status','export','stop','reset','cleanup','rebind-web-port'].includes(command),'未知预览命令');
   assert(args.session,'必须指定 --session');
-  assert(Object.keys(args).every(k=>['session','snapshot','web-port','confirm'].includes(k)),'未知预览参数');
+  assert(Object.keys(args).every(k=>['session','snapshot','web-port','confirm','sample'].includes(k)),'未知预览参数');
   await withLock(args.session,async()=>{
+    if(command==='rebind-web-port') {
+      const previous=await rebindWebPort(args.session,args);
+      const s=await start(args.session,{});
+      assert.equal(s.runId,previous.runId);
+      console.log(JSON.stringify({state:s.state,sessionId:s.sessionId,runId:s.runId,webPort:s.ports.web,consumerPath:join(s.root,'consumer.json')}));
+      return;
+    }
     if(command==='start'||command==='resume'||command==='reset'){
       const s=command==='reset'?await reset(args.session,args):await start(args.session,args);
       console.log(JSON.stringify({state:s.state,sessionId:s.sessionId,runId:s.runId,consumerPath:join(s.root,'consumer.json')}));

@@ -1,5 +1,7 @@
 # 兼容协议登记
 
+Android APK 源站 URL：保留历史 promotion/TSV 原文与旧 APP HEAD metadata。新公开文件 URL 独立记录；关闭 APK 公共读需完成预热、本站 meta/Web、旧 APP 验收后独立评审，不修改图片桶或实例开关。见 [下载网关契约](app-download-gateway.md)。
+
 | 协议 | 状态 | 消费者与退出条件 |
 | --- | --- | --- |
 | 帖子列表 coverImages | 保留兼容，未安排删除 | Web / Mobile 旧版本仍消费；只有无消费者、数据迁移完成、回归覆盖、回滚路径明确后才可独立 PR 删除 |
@@ -85,3 +87,9 @@
 ## 讨论定位兼容（2026-10-01）
 
 旧帖子列表分页、通知和搜索 ID 深链继续支持；新增 window 接口与 nullable replyNumber 不替换旧协议。旧写入兼容编号触发器保留。暂无旧协议删除日期；须待 Web/Mobile 无消费者、迁移完成、回归和回滚证据齐全后独立 PR 清理。详见 [讨论定位契约](discussion-navigation.md)。
+
+## Android 下载次数兼容（2026-10-03）
+
+`5.32.0-dev.20261003.1` 兼容扩展下载响应头及设备/IP 每日尝试次数；路径、DTO、operationId、旧 APP HEAD 元数据、/meta 文件 URL 和匿名访问保持。随机浏览器 Cookie 可清除，不是硬件身份；无 Cookie 客户端仍可直接 HEAD/GET，但共用可信来源 IP 的每日 10 次限额。不要求旧 APP 增加前置调用或提交自报设备字段。
+
+出站 SQLite v1→v2 仅增加次数与密钥状态，显式离线升级保留字节累计/时钟；旧 v1 程序会拒绝 v2，不能靠删库、还原旧账本或降版来放开已用额度。先提交兼容 Backend/OpenAPI，再同步 Web/Mobile 的原因头与等待提示，部署另行批准。无 Prisma 迁移、旧协议删除或历史审计清理；后续取消无 Cookie 兼容须独立四项证据评审。
