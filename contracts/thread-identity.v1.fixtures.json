@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "httpContractVersion": "5.33.0-dev.20261004.1",
+  "httpContractVersion": "5.33.0-dev.20261005.1",
   "markdownVersion": 5,
   "cases": [
     {
@@ -45,6 +45,57 @@
           "label": "白 鸦！",
           "displayName": "白 鸦！",
           "identityId": "rp1"
+        }
+      ]
+    }
+  ],
+  "authorModeCases": [
+    {
+      "id": "explicit-account-ignores-rp-change",
+      "identityMode": "ACCOUNT",
+      "effectiveRp": true,
+      "identityToken": "stale",
+      "accepted": true,
+      "snapshot": false
+    },
+    {
+      "id": "explicit-rp-missing-token",
+      "identityMode": "RP",
+      "effectiveRp": true,
+      "accepted": false,
+      "httpStatus": 409,
+      "errorCode": 40011
+    },
+    {
+      "id": "explicit-rp-unavailable",
+      "identityMode": "RP",
+      "effectiveRp": false,
+      "accepted": false,
+      "httpStatus": 409,
+      "errorCode": 40011
+    },
+    {
+      "id": "legacy-rp-requires-token",
+      "effectiveRp": true,
+      "accepted": false,
+      "httpStatus": 409,
+      "errorCode": 40011
+    },
+    {
+      "id": "mixed-account-rp-history",
+      "userId": "u1",
+      "posts": [
+        {
+          "identityMode": "ACCOUNT",
+          "rpIdentity": null
+        },
+        {
+          "identityMode": "RP",
+          "rpIdentity": {
+            "id": "rp1",
+            "nickname": "白鸦",
+            "avatar": null
+          }
         }
       ]
     }

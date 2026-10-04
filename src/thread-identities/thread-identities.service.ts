@@ -211,9 +211,11 @@ export class ThreadIdentitiesService {
     threadId: string,
     userId: string,
     expected?: string,
+    mode?: 'ACCOUNT' | 'RP',
   ) {
+    if (mode === 'ACCOUNT') return { identityCreateMode: mode };
     const current = await this.context(threadId, userId, tx);
-    assertIdentityToken(expected, current.token, Boolean(current.display));
+    assertIdentityToken(expected, current.token, Boolean(current.display), mode);
     if (!current.display) return {};
     const mediaId = current.identity?.avatarMediaId ?? current.user.avatarMediaId;
     if (mediaId) {
@@ -236,6 +238,7 @@ export class ThreadIdentitiesService {
     });
     if (mediaId) await tx.media.update({ where: { id: mediaId }, data: { orphanedAt: null } });
     return {
+      identityCreateMode: mode ?? null,
       authorIdentitySnapshot: {
         id: current.display.id,
         nickname: current.display.nickname,

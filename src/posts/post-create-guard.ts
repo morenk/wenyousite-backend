@@ -110,6 +110,7 @@ export function assertSamePostCreateRequest(
     content: string;
     parentPostId: string | null;
     replyToPostId: string | null;
+    identityCreateMode?: string | null;
   },
   subthreadId: string,
   dto: CreatePostDto,
@@ -118,6 +119,7 @@ export function assertSamePostCreateRequest(
   if (
     post.subthreadId !== subthreadId ||
     post.content !== content ||
+    (post.identityCreateMode ?? null) !== (dto.identityMode ?? null) ||
     post.parentPostId !== (dto.parentPostId ?? null) ||
     post.replyToPostId !== (dto.replyToPostId ?? null)
   ) {

@@ -22155,7 +22155,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.33.0-dev.20261004.1",
+    "version": "5.33.0-dev.20261005.1",
     "contact": {}
   },
   "tags": [
@@ -25844,7 +25844,7 @@
         "properties": {
           "rpIdentityEnabled": {
             "type": "boolean",
-            "default": false
+            "description": "帖内身份是否开启；旧响应缺失时按 false"
           },
           "id": {
             "type": "string"
@@ -26110,6 +26110,14 @@
           "identityToken": {
             "type": "string",
             "description": "GET 帖内身份返回的确认 token；新建正文或发言时使用。身份变化返回 409/40011，保留草稿并重新确认"
+          },
+          "identityMode": {
+            "type": "string",
+            "enum": [
+              "ACCOUNT",
+              "RP"
+            ],
+            "description": "本次新发言身份；ACCOUNT 明确使用站内账号且不校验 RP token，RP 要求有效帖内身份和 identityToken。省略沿用旧确认规则；编辑已有正文忽略此字段"
           },
           "title": {
             "type": "string",
@@ -27884,6 +27892,14 @@
             "type": "string",
             "description": "GET 帖内身份返回的确认 token；新建正文或发言时使用。身份变化返回 409/40011，保留草稿并重新确认"
           },
+          "identityMode": {
+            "type": "string",
+            "enum": [
+              "ACCOUNT",
+              "RP"
+            ],
+            "description": "本次新发言身份；ACCOUNT 明确使用站内账号且不校验 RP token，RP 要求有效帖内身份和 identityToken。省略沿用旧确认规则；编辑已有正文忽略此字段"
+          },
           "clientRequestId": {
             "type": "string",
             "format": "uuid",
@@ -28534,6 +28550,14 @@
             "type": "string",
             "description": "GET 帖内身份返回的确认 token；新建正文或发言时使用。身份变化返回 409/40011，保留草稿并重新确认"
           },
+          "identityMode": {
+            "type": "string",
+            "enum": [
+              "ACCOUNT",
+              "RP"
+            ],
+            "description": "本次新发言身份；ACCOUNT 明确使用站内账号且不校验 RP token，RP 要求有效帖内身份和 identityToken。省略沿用旧确认规则；编辑已有正文忽略此字段"
+          },
           "content": {
             "type": "string",
             "example": "这里是子贴正文…",
@@ -28681,6 +28705,14 @@
           "identityToken": {
             "type": "string",
             "description": "GET 帖内身份返回的确认 token；新建正文或发言时使用。身份变化返回 409/40011，保留草稿并重新确认"
+          },
+          "identityMode": {
+            "type": "string",
+            "enum": [
+              "ACCOUNT",
+              "RP"
+            ],
+            "description": "本次新发言身份；ACCOUNT 明确使用站内账号且不校验 RP token，RP 要求有效帖内身份和 identityToken。省略沿用旧确认规则；编辑已有正文忽略此字段"
           },
           "content": {
             "type": "string",

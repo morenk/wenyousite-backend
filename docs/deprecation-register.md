@@ -97,3 +97,5 @@ Android APK 源站 URL：保留历史 promotion/TSV 原文与旧 APP HEAD metada
 ## 帖内身份兼容保留
 
 RP 采用 additive 字段；原 username/avatar、按 userId 互动和 Markdown mention 保留。无 RP 的旧客户端写入不变；有效 RP 需身份确认。无旧协议清理授权。
+
+- `5.33.0-dev.20261005.1`：可选 identityMode 允许逐条 ACCOUNT/RP，省略仍沿用旧确认语义；无字段旧请求与账号读字段继续兼容，本期不清理。

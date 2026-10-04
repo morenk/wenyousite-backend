@@ -30,6 +30,13 @@ describe('帖内身份发言与提及策略', () => {
     expect(() => assertIdentityToken('a', 'a', true)).not.toThrow();
     expect(identityToken(['thread', 'a'])).not.toBe(identityToken(['other', 'a']));
   });
+  it('逐条 ACCOUNT 不受 RP token 变化影响，RP 不可用也不能静默降级', () => {
+    expect(() => assertIdentityToken('stale', 'new', true, 'ACCOUNT')).not.toThrow();
+    expect(() => assertIdentityToken(undefined, 'new', false, 'ACCOUNT')).not.toThrow();
+    expect(() => assertIdentityToken('same', 'same', false, 'RP')).toThrow();
+    expect(() => assertIdentityToken(undefined, 'same', true, 'RP')).toThrow();
+    expect(() => assertIdentityToken('same', 'same', true, 'RP')).not.toThrow();
+  });
   it('同账号多种标签分别保留，支持空格和标点，代码和转义不触发身份语义', () => {
     const body =
       '[@白 鸦！](/users/u1) [@夜渡](/users/u1) `[@代码](/users/u2)` \\[@转义](/users/u3)';

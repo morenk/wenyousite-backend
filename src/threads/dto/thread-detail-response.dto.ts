@@ -161,7 +161,7 @@ class ThreadCapabilitiesResponseDto {
 
 /** 主题详情显式契约，供 Web 与 Flutter 获取正文骰子状态。 */
 export class ThreadDetailResponseDto {
-  @ApiPropertyOptional({ default: false })
+  @ApiPropertyOptional({ description: '帖内身份是否开启；旧响应缺失时按 false' })
   rpIdentityEnabled?: boolean;
   @ApiProperty()
   id!: string;

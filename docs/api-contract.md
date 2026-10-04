@@ -211,3 +211,7 @@ GET /users/me 与有效用户的 GET /users/{id} 中，`_count.following` / `_co
 ## 帖内 RP 身份
 
 新增兼容身份设置、发言确认、历史作者和提及投影；详见[帖内身份 v1](thread-identity.md)。
+
+## 帖内身份逐条选择
+
+`5.33.0-dev.20261005.1` 为新发言与首次 BODY 增加可选 identityMode=ACCOUNT/RP；账号模式独立于 RP 确认状态，RP 模式必须有效 token，成功请求幂等比对包含 mode。已有正文编辑保留发表身份，缺省 mode 继续兼容。完整权限、错误与历史规则见 [帖内身份契约](thread-identity.md)。

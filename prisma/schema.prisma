@@ -1115,6 +1115,7 @@ model DirectMessage {
 }
 
 model Post {
+  identityCreateMode       String?               @map("identity_create_mode") @db.VarChar(7)
   authorIdentitySnapshot   Json?                 @map("author_identity_snapshot")
   mentionIdentitySnapshots Json?                 @map("mention_identity_snapshots")
   identityAvatarMediaId    String?               @map("identity_avatar_media_id")

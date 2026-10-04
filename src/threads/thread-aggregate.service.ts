@@ -244,7 +244,7 @@ export class ThreadAggregateService {
                 threadId,
                 subthreadId: defaultSubthread.id,
                 authorId: userId,
-                ...(await this.identities.prepareAuthor(tx, threadId, userId, dto.identityToken)),
+                ...(await this.identities.prepareAuthor(tx, threadId, userId, dto.identityToken, dto.identityMode)),
                 mentionIdentitySnapshots: await this.identities.prepareMentions(tx, threadId, content),
                 kind: 'BODY',
                 content,

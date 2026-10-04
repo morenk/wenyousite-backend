@@ -30,7 +30,7 @@ export class IdentityProjectionService {
     const notifications: Row[] = [];
     let count = 0;
     const visit = (node: unknown, field = '') => {
-      if (++count > 15000) return;
+      if (++count > 500000) return;
       if (Array.isArray(node)) {
         node.forEach((item) => visit(item, field));
         return;
@@ -57,6 +57,7 @@ export class IdentityProjectionService {
       delete node.authorIdentitySnapshot;
       delete node.mentionIdentitySnapshots;
       delete node.identityAvatarMediaId;
+      delete node.identityCreateMode;
       delete node.rpIdentityVersion;
       for (const [key, child] of Object.entries(node))
         if (

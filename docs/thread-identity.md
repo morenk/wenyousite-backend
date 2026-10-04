@@ -1,6 +1,6 @@
 # 帖内 RP 身份 v1
 
-HTTP 事实源为 `contracts/openapi.json`，版本 `5.33.0-dev.20261004.1`。本功能不改变 Markdown v5 的存储语法；Foundation 同步本页和 `contracts/thread-identity.v1.fixtures.json`，无需变更 token 包版本。
+HTTP 事实源为 `contracts/openapi.json`，版本 `5.33.0-dev.20261005.1`。本功能不改变 Markdown v5 的存储语法；Foundation 同步本页和 `contracts/thread-identity.v1.fixtures.json`，无需变更 token 包版本。
 
 ## 范围与权限
 
@@ -24,13 +24,19 @@ HTTP 事实源为 `contracts/openapi.json`，版本 `5.33.0-dev.20261004.1`。�
 
 ## 发言确认与历史
 
-CreatePostDto、UpsertBodyDto、CreateSubthreadDto、SaveThreadAggregateDto 新增可选 identityToken。新建发言或首次 BODY 时发送编辑器上显示的本人 token；编辑已有正文保持原作者，不要求新 token。
+CreatePostDto、UpsertBodyDto、CreateSubthreadDto、SaveThreadAggregateDto 接受可选 identityMode（ACCOUNT | RP）与 identityToken。每次新建楼层、楼中楼或首次 BODY 可选身份；同一账号可交替使用站内账号与同一帖内角色。
 
-后端在与主题设置/成员资格相同的聚合锁内重新校验；提供 token 但失效，或省略 token 而存在有效 RP，返回 HTTP 409 / RP_IDENTITY_CHANGED=40011，不写入任何发言/自动加入/Outbox。客户端保留草稿，重新 GET 自己身份并显示新名字，用户确认后新请求提交。无有效 RP 且省略 token 的旧客户端继续以账号发表；有效 RP 下旧客户端须升级或清除自己的资料，不能静默换身份。
+- ACCOUNT：本条明确使用站内账号，不写 RP 快照；忽略 identityToken，不因无关的 RP 开关、角色资料或使用资格变化拒绝。阅读、发言和管理权限仍实时检查。
+- RP：必须当前已开启、具备资格且有有效帖内资料，并提供当前 identityToken；不满足时返回 HTTP 409 / RP_IDENTITY_CHANGED=40011，不能静默降级为账号。
+- 省略 identityMode：保留原确认规则；存在有效 RP 必须有 token，没有有效 RP 且不带 token 的旧请求按账号发表。显式 ACCOUNT 与省略 mode 在幂等请求中视为不同输入。
 
-token只关联本帖身份设置、资格、开关专用版本与展示缺省字段，不受标题变更或发言更新时间影响。成功发言的同 clientRequestId 网络重试先返回原帖，后续改名/关闭不能导致重复发帖；同幂等键不同正文仍按原冲突规则拒绝。客户端冻结待重试 payload；明确409未写入、重新确认身份后使用新幂等键。
+编辑已有正文保持原作者，忽略 identityMode 和新 token。新建主题尚未开放帖内身份，首正文沿用站内账号。逐条选择只组合整套身份，不提供头像与昵称分别切换。
 
-修改和清除仅影响后续新发言，编辑旧正文不换作者。关闭时全部已保存 RP 显示恢复账号，重新开启恢复快照。开启前与关闭期间新发言不追溯套用。资格撤销保留旧历史，后续账号模式。快照有真实媒体引用，换头像后旧图不被孤儿回收；治理移除仍令 URL 与变体都不可展示。账号注销不暴露历史身份。
+后端在与主题设置/成员资格相同的聚合锁内重新校验；RP 或省略 mode 时提供 token 但失效，或省略 token 而存在有效 RP，返回 HTTP 409 / RP_IDENTITY_CHANGED=40011，不写入任何发言/自动加入/Outbox。客户端保留草稿，重新 GET 自己身份并显示新名字，用户确认后新请求提交。无有效 RP 且省略 token 的旧客户端继续以账号发表；有效 RP 下旧客户端须升级或清除自己的资料，不能静默换身份。
+
+token只关联本帖身份设置、资格、开关专用版本与展示缺省字段，不受标题变更或发言更新时间影响。成功发言的同 clientRequestId 网络重试先返回原帖，后续改名/关闭不能导致重复发帖；同幂等键不同正文或 identityMode 仍按原冲突规则拒绝（帖子409/CONFLICT，子贴409/IDEMPOTENCY_KEY_REUSED=40912）。mode包含在冻结payload中；token只用于首次确认，不因成功重试时角色变化而重新校验。客户端冻结待重试 payload；明确409未写入、重新确认身份后使用新幂等键。
+
+修改和清除仅影响后续新发言，编辑旧正文不换作者。关闭时全部已保存 RP 显示恢复账号，重新开启恢复快照。开启前与关闭期间新发言不追溯套用。资格撤销保留旧历史，后续可明确选择 ACCOUNT；尚停留 RP 的草稿须确认改为 ACCOUNT 后再发。快照有真实媒体引用，换头像后旧图不被孤儿回收；治理移除仍令 URL 与变体都不可展示。账号注销不暴露历史身份。
 
 ## Markdown 提及
 

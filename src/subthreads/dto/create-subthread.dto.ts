@@ -16,6 +16,11 @@ export class CreateSubthreadDto {
   @IsOptional() @IsString() @MaxLength(64)
   identityToken?: string;
 
+  @ApiPropertyOptional({ enum: ['ACCOUNT', 'RP'], description: '本次新发言身份；ACCOUNT 明确使用站内账号且不校验 RP token，RP 要求有效帖内身份和 identityToken。省略沿用旧确认规则；编辑已有正文忽略此字段' })
+  @IsOptional()
+  @IsIn(['ACCOUNT', 'RP'])
+  identityMode?: 'ACCOUNT' | 'RP';
+
   @ApiPropertyOptional({
     format: 'uuid',
     description: '客户端创建幂等键；同一次提交和网络重试必须复用',

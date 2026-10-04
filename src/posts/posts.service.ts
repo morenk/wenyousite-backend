@@ -158,7 +158,7 @@ export class PostsService {
             threadId: subthread.threadId,
             subthreadId,
             authorId: userId,
-            ...(await this.identities.prepareAuthor(tx, subthread.threadId, userId, dto.identityToken)),
+            ...(await this.identities.prepareAuthor(tx, subthread.threadId, userId, dto.identityToken, dto.identityMode)),
             mentionIdentitySnapshots: await this.identities.prepareMentions(tx, subthread.threadId, content),
             kind: 'FLOOR',
             floorNumber,
@@ -277,6 +277,7 @@ export class PostsService {
     version: number | undefined,
     userId: string,
     identityToken?: string,
+    identityMode?: 'ACCOUNT' | 'RP',
   ) {
     const parsedContent = this.diceService.parseContent(prepareMarkdownContent(content));
     const normalizedContent = parsedContent.content;
@@ -327,7 +328,7 @@ export class PostsService {
               threadId: subthread.threadId,
               subthreadId,
               authorId: userId,
-              ...(await this.identities.prepareAuthor(tx, subthread.threadId, userId, identityToken)),
+              ...(await this.identities.prepareAuthor(tx, subthread.threadId, userId, identityToken, identityMode)),
               mentionIdentitySnapshots: await this.identities.prepareMentions(tx, subthread.threadId, normalizedContent),
               kind: 'BODY',
               content: normalizedContent,
@@ -415,6 +416,7 @@ export class PostsService {
     const updated = await this.prisma
       .$transaction(async (tx) => {
         await this.mentionEvents.lockContentInteraction(tx, subthread.threadId, userId, normalizedContent, [existing.id]);
+        await tx.$queryRaw`SELECT id FROM threads WHERE id = ${subthread.threadId} FOR UPDATE`;
         const post = await tx.post.update({
           where: { id: existing.id, version, ...notDeleted },
           data: { ...postContentEditData(oldContent, normalizedContent),
@@ -504,6 +506,7 @@ export class PostsService {
     const updated = await this.prisma
       .$transaction(async (tx) => {
         await this.mentionEvents.lockContentInteraction(tx, postLight.threadId, userId, content);
+        await tx.$queryRaw`SELECT id FROM threads WHERE id = ${postLight.threadId} FOR UPDATE`;
         const post = await tx.post.update({
           where: { id, version: dto.version, content: oldContent, ...notDeleted },
           data: { ...postContentEditData(oldContent, content),

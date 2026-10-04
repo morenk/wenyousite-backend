@@ -22,8 +22,11 @@ export function assertIdentityToken(
   expected: string | undefined,
   actual: string,
   usingIdentity: boolean,
+  mode?: 'ACCOUNT' | 'RP',
 ) {
+  if (mode === 'ACCOUNT') return;
   if (
+    (mode === 'RP' && !usingIdentity) ||
     (expected !== undefined && expected !== actual) ||
     (expected === undefined && usingIdentity)
   ) {
