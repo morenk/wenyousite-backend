@@ -222,6 +222,8 @@ export class MediaReferenceService {
   private referenceWhere(): Prisma.MediaWhereInput[] {
     return [
       { avatarUser: { isNot: null } },
+      { threadIdentityAvatars: { some: {} } },
+      { postIdentityAvatars: { some: {} } },
       { profileCoverUser: { isNot: null } },
       { profileCoverMobileUser: { isNot: null } },
       { directMessage: { isNot: null } },

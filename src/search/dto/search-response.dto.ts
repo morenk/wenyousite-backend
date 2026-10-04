@@ -1,3 +1,4 @@
+import { RpIdentityResponseDto, MentionIdentityDisplayDto } from '../../thread-identities/thread-identity.dto';
 import { MediaDisplayResponseDto, MarkdownMediaDisplayResponseDto } from '../../media/dto/media-display.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { HomeThreadListItemResponseDto } from '../../threads/dto/thread-list-response.dto';
@@ -20,6 +21,8 @@ export class SearchUserResponseDto {
 }
 
 class SearchAuthorResponseDto {
+  @ApiPropertyOptional({ type: RpIdentityResponseDto, nullable: true })
+  rpIdentity?: RpIdentityResponseDto | null;
   @ApiProperty({ description: '用户 ID' })
   id: string;
 
@@ -52,6 +55,8 @@ class SearchSubthreadReferenceResponseDto {
 }
 
 export class SearchPostResponseDto {
+  @ApiPropertyOptional({ type: [MentionIdentityDisplayDto] })
+  mentionIdentities?: MentionIdentityDisplayDto[];
   @ApiPropertyOptional({ type: [MarkdownMediaDisplayResponseDto], description: '已授权正文的精确来源映射' })
   mediaDisplays?: MarkdownMediaDisplayResponseDto[];
 

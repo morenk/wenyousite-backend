@@ -93,3 +93,7 @@ Android APK 源站 URL：保留历史 promotion/TSV 原文与旧 APP HEAD metada
 `5.32.0-dev.20261003.1` 兼容扩展下载响应头及设备/IP 每日尝试次数；路径、DTO、operationId、旧 APP HEAD 元数据、/meta 文件 URL 和匿名访问保持。随机浏览器 Cookie 可清除，不是硬件身份；无 Cookie 客户端仍可直接 HEAD/GET，但共用可信来源 IP 的每日 10 次限额。不要求旧 APP 增加前置调用或提交自报设备字段。
 
 出站 SQLite v1→v2 仅增加次数与密钥状态，显式离线升级保留字节累计/时钟；旧 v1 程序会拒绝 v2，不能靠删库、还原旧账本或降版来放开已用额度。先提交兼容 Backend/OpenAPI，再同步 Web/Mobile 的原因头与等待提示，部署另行批准。无 Prisma 迁移、旧协议删除或历史审计清理；后续取消无 Cookie 兼容须独立四项证据评审。
+
+## 帖内身份兼容保留
+
+RP 采用 additive 字段；原 username/avatar、按 userId 互动和 Markdown mention 保留。无 RP 的旧客户端写入不变；有效 RP 需身份确认。无旧协议清理授权。

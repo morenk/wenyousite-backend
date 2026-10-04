@@ -1,3 +1,5 @@
+import { MentionIdentityDisplayDto } from '../../thread-identities/thread-identity.dto';
+import { RpIdentityResponseDto } from '../../thread-identities/thread-identity.dto';
 import { MarkdownMediaDisplayResponseDto, MediaDisplayResponseDto } from '../../media/dto/media-display.dto';
 /** 帖子响应 DTO：统一楼层、楼中楼和编辑器读写链路的跨端类型 */
 
@@ -43,6 +45,8 @@ export class DiceRollResponseDto {
 
 /** 帖子作者摘要 */
 export class PostAuthorResponseDto {
+  @ApiPropertyOptional({ type: RpIdentityResponseDto, nullable: true, description: '仅帖内上下文返回；账号字段不变，展示优先使用此身份' })
+  rpIdentity?: RpIdentityResponseDto | null;
   @ApiPropertyOptional({ type: MediaDisplayResponseDto, nullable: true, description: '头像完整 WebP 展示资源；avatar 保留来源身份' })
   avatarDisplay?: MediaDisplayResponseDto | null;
 
@@ -88,6 +92,8 @@ export class LatestThreadPostResponseDto {
 
 /** 帖子公共字段 */
 export class PostBaseResponseDto {
+  @ApiPropertyOptional({ type: [MentionIdentityDisplayDto], description: '渲染 canonical mention 的按 userId + 原始 label 映射，编辑继续保存原正文' })
+  mentionIdentities?: MentionIdentityDisplayDto[];
   @ApiPropertyOptional({ type: [MarkdownMediaDisplayResponseDto], description: '仅此次已授权正文中的精确来源映射；编辑保存继续使用 sourceUrl' })
   mediaDisplays?: MarkdownMediaDisplayResponseDto[];
 

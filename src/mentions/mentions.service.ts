@@ -1,3 +1,5 @@
+import { IdentityProjectionService } from '../thread-identities/identity-projection.service';
+import { RpIdentityResponseDto } from '../thread-identities/thread-identity.dto';
 import { lockInteractionUsers, assertInteractionAllowed } from '../access/block-visibility.where';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -20,7 +22,8 @@ export interface MentionCandidate {
   id: string;
   username: string;
   avatar: string | null;
-  relation: 'FOLLOWING' | 'PLAYER';
+  relation: 'FOLLOWING' | 'PLAYER' | 'OWNER' | 'COLLABORATOR';
+  rpIdentity?: RpIdentityResponseDto | null;
 }
 
 interface MentionTokens {
@@ -52,6 +55,7 @@ export class MentionsService {
     private prisma: PrismaService,
     private threadAccess: ThreadAccessService,
     private blockFilter: BlockFilterService,
+    private readonly identities: IdentityProjectionService,
   ) {}
 
   /** 在内容锁之前一次锁定全部互动对象；全体提及自动略过拉黑对象。 */
@@ -215,17 +219,15 @@ export class MentionsService {
     await this.threadAccess.assertAccessible(threadId, userId);
     const blockSets = await this.blockFilter.loadBlockSets(userId);
     const normalizedQuery = query?.trim();
-    const userFilter = normalizedQuery
-      ? { username: { contains: normalizedQuery, mode: 'insensitive' as const } }
-      : {};
+
     const [following, players] = await Promise.all([
       this.prisma.userFollow.findMany({
-        where: { followerId: userId, following: { deletedAt: null, ...userFilter } },
+        where: { followerId: userId, following: { deletedAt: null } },
         select: { following: { select: { id: true, username: true, avatar: true } } },
       }),
       this.prisma.threadMember.findMany({
-        where: { threadId, playerMarked: true, user: { deletedAt: null, ...userFilter } },
-        select: { user: { select: { id: true, username: true, avatar: true } } },
+        where: { threadId, OR: [{ playerMarked: true }, { role: { in: ['OWNER', 'COLLABORATOR'] } }], user: { deletedAt: null } },
+        select: { role: true, user: { select: { id: true, username: true, avatar: true } } },
       }),
     ]);
 
@@ -237,7 +239,7 @@ export class MentionsService {
       const previous = candidates.get(item.user.id);
       candidates.set(item.user.id, {
         ...item.user,
-        relation: previous?.relation ?? 'PLAYER',
+        relation: item.role === 'OWNER' || item.role === 'COLLABORATOR' ? item.role : previous?.relation ?? 'PLAYER',
       });
     }
     const thread = await this.prisma.thread.findUnique({
@@ -257,7 +259,9 @@ export class MentionsService {
     const visibleIds = new Set(
       this.blockFilter.filterRecipients([...candidates.keys()], blockSets),
     );
+    await this.identities.projectCurrent(threadId, [...candidates.values()]);
     return [...candidates.values()]
+      .filter((candidate) => !normalizedQuery || [candidate.username, candidate.rpIdentity?.nickname].some((name) => name?.toLocaleLowerCase().includes(normalizedQuery.toLocaleLowerCase())))
       .filter((candidate) => candidate.id !== userId)
       .filter((candidate) => visibleIds.has(candidate.id))
       .sort((a, b) => a.username.localeCompare(b.username))
@@ -314,7 +318,7 @@ export class MentionsService {
         select: { followingId: true },
       }),
       client.threadMember.findMany({
-        where: { threadId, playerMarked: true, userId: { in: ids } },
+        where: { threadId, OR: [{ playerMarked: true }, { role: { in: ['OWNER', 'COLLABORATOR'] } }], userId: { in: ids } },
         select: { userId: true },
       }),
       client.threadMember.findMany({

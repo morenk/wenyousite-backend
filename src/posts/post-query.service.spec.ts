@@ -313,7 +313,7 @@ describe('PostQueryService.findAllBySubthread', () => {
   });
 
   it('主楼层作者候选只保留当前子贴实际发言的楼主、协作者和玩家', async () => {
-    prisma.post.findMany.mockResolvedValue([
+    prisma.post.findMany.mockResolvedValueOnce([
       {
         authorId: 'player-user-id',
         author: { id: 'player-user-id', username: '甲玩家', avatar: null, level: 2 },
@@ -331,6 +331,7 @@ describe('PostQueryService.findAllBySubthread', () => {
         author: { id: 'collaborator-user-id', username: '协作者', avatar: null, level: 2 },
       },
     ]);
+    prisma.post.findMany.mockResolvedValueOnce([]);
     prisma.threadMember.findMany.mockResolvedValue([
       { userId: 'player-user-id', role: 'PARTICIPANT', playerMarked: true },
       { userId: 'participant-user-id', role: 'PARTICIPANT', playerMarked: false },

@@ -12,6 +12,10 @@ import { PostingPolicy } from '@prisma/client';
 
 /** 创建子贴 DTO */
 export class CreateSubthreadDto {
+  @ApiPropertyOptional({ type: String, description: 'GET 帖内身份返回的确认 token；新建正文或发言时使用。身份变化返回 409/40011，保留草稿并重新确认' })
+  @IsOptional() @IsString() @MaxLength(64)
+  identityToken?: string;
+
   @ApiPropertyOptional({
     format: 'uuid',
     description: '客户端创建幂等键；同一次提交和网络重试必须复用',

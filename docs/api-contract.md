@@ -207,3 +207,7 @@ GET /users/me 与有效用户的 GET /users/{id} 中，`_count.following` / `_co
 ## 大讨论串定位
 
 固定编号、有界双向窗口、置顶去重与筛选错误语义见 [讨论定位契约](discussion-navigation.md)。
+
+## 帖内 RP 身份
+
+新增兼容身份设置、发言确认、历史作者和提及投影；详见[帖内身份 v1](thread-identity.md)。

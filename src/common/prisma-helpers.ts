@@ -36,6 +36,7 @@ export const includeSubthreads = (viewerId?: string) => ({
         select: {
           id: true,
           content: true,
+          author: { select: publicUserSummarySelect },
           version: true,
           diceRolls: { orderBy: { createdAt: 'asc' as const } },
         },

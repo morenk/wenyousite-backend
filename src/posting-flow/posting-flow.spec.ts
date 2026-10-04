@@ -1,3 +1,5 @@
+import { IdentityProjectionService } from '../thread-identities/identity-projection.service';
+import { ThreadIdentitiesService } from '../thread-identities/thread-identities.service';
 import { ThreadRankingService } from '../threads/thread-ranking.service';
 /** 发帖全流程集成测试：主题帖 → 子贴 → 楼层 → 楼中楼 → 编辑/删除 */
 import { Test, TestingModule } from '@nestjs/testing';
@@ -253,6 +255,8 @@ describe('发帖全流程集成测试', () => {
     const threadAccess = new ThreadAccessService(prisma as unknown as PrismaService);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: IdentityProjectionService, useValue: { project: jest.fn().mockImplementation(async (value) => value), projectCurrent: jest.fn() } },
+        { provide: ThreadIdentitiesService, useValue: { prepareAuthor: jest.fn().mockResolvedValue({}), prepareMentions: jest.fn().mockResolvedValue([]) } },
         PostsService,
         PostPinService,
         SubthreadsService,
@@ -1638,6 +1642,7 @@ describe('发帖全流程集成测试', () => {
       const mod = await Test.createTestingModule({
         providers: [
           MentionsService,
+          { provide: IdentityProjectionService, useValue: { projectCurrent: jest.fn() } },
           { provide: PrismaService, useValue: prisma },
           {
             provide: ThreadAccessService,

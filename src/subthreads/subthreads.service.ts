@@ -1,3 +1,4 @@
+import { ThreadIdentitiesService } from '../thread-identities/thread-identities.service';
 import { MentionsService } from '../mentions/mentions.service';
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -36,6 +37,7 @@ export class SubthreadsService {
     private stickerContent: StickerContentService,
     private mediaReferences: MediaReferenceService,
     private mentions: MentionsService,
+    private readonly identities: ThreadIdentitiesService,
   ) {}
 
   /** 获取主题帖下的子贴列表 */
@@ -156,6 +158,8 @@ export class SubthreadsService {
               threadId,
               subthreadId: subthread.id,
               authorId: userId,
+              ...(await this.identities.prepareAuthor(tx, threadId, userId, dto.identityToken)),
+              mentionIdentitySnapshots: await this.identities.prepareMentions(tx, threadId, content),
               kind: 'BODY',
               content,
             },

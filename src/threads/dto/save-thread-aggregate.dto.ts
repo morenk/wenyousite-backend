@@ -27,6 +27,10 @@ import { TAG_NAME_PATTERN } from '../../tags/tag-name';
 
 /** 原子保存主题帖编辑器中的元数据、默认正文与标签。 */
 export class SaveThreadAggregateDto {
+  @ApiPropertyOptional({ type: String, description: 'GET 帖内身份返回的确认 token；新建正文或发言时使用。身份变化返回 409/40011，保留草稿并重新确认' })
+  @IsOptional() @IsString() @MaxLength(64)
+  identityToken?: string;
+
   @ApiPropertyOptional({ minLength: 1, maxLength: 100 })
   @IsOptional()
   @IsString()

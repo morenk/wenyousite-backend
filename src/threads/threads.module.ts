@@ -1,3 +1,4 @@
+import { ThreadIdentitiesModule } from '../thread-identities/thread-identities.module';
 import { ThreadRankingModule } from './thread-ranking.module';
 import { Module } from '@nestjs/common';
 import { ThreadsController } from './threads.controller';
@@ -26,7 +27,7 @@ import { ThreadExportService } from './thread-export.service';
 
 /** 主题帖模块：CRUD、参与人管理、标签关联 */
 @Module({
-  imports: [
+  imports: [ThreadIdentitiesModule,
     ThreadRankingModule,
     AccessPolicyModule,
     TagsModule,

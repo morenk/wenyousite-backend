@@ -221,7 +221,7 @@ describe('ThreadMembersService', () => {
     await service.updateMember('t1', 'target', { role: 'COLLABORATOR' }, 'owner');
     await service.updateMember('t1', 'target', { role: 'COLLABORATOR' }, 'owner');
 
-    expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(4);
     expect(mockOutbox.enqueue).toHaveBeenCalledTimes(1);
   });
 

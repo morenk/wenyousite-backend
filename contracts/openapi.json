@@ -7496,6 +7496,346 @@
         "x-auth-mode": "authenticated"
       }
     },
+    "/api/v1/threads/{threadId}/identity": {
+      "get": {
+        "operationId": "threadIdentitiesMine",
+        "parameters": [
+          {
+            "name": "threadId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadIdentitiesMine200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "读取自己的帖内身份与发言确认 token",
+        "tags": [
+          "Threads"
+        ],
+        "x-auth-mode": "authenticated"
+      },
+      "put": {
+        "operationId": "threadIdentitiesUpdate",
+        "parameters": [
+          {
+            "name": "threadId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateThreadIdentityDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadIdentitiesUpdate200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "设置自己的帖内身份；仅影响之后的新发言",
+        "tags": [
+          "Threads"
+        ],
+        "x-auth-mode": "authenticated"
+      },
+      "delete": {
+        "operationId": "threadIdentitiesClear",
+        "parameters": [
+          {
+            "name": "threadId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadIdentitiesClear200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "清除自己的当前帖内资料；保留历史发言身份",
+        "tags": [
+          "Threads"
+        ],
+        "x-auth-mode": "authenticated"
+      }
+    },
+    "/api/v1/threads/{threadId}/identities/{userId}": {
+      "get": {
+        "operationId": "threadIdentitiesFindUser",
+        "parameters": [
+          {
+            "name": "threadId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadIdentitiesFindUser200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "读取可访问主题内的当前身份卡与真实账号",
+        "tags": [
+          "Threads"
+        ],
+        "x-auth-mode": "optional",
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
+      }
+    },
+    "/api/v1/threads/{threadId}/identity-settings": {
+      "patch": {
+        "operationId": "threadIdentitiesSetEnabled",
+        "parameters": [
+          {
+            "name": "threadId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetThreadIdentityEnabledDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadIdentitiesSetEnabled200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "楼主开启或关闭全帖身份展示；不删除历史资料",
+        "tags": [
+          "Threads"
+        ],
+        "x-auth-mode": "authenticated"
+      }
+    },
     "/api/v1/tags": {
       "get": {
         "operationId": "tagsSearch",
@@ -21815,7 +22155,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.32.0-dev.20261003.1",
+    "version": "5.33.0-dev.20261004.1",
     "contact": {}
   },
   "tags": [
@@ -22516,9 +22856,49 @@
           "message"
         ]
       },
+      "RpIdentityResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "nickname": {
+            "type": "string",
+            "description": "实际展示昵称，已应用账号缺省值"
+          },
+          "avatar": {
+            "type": "string",
+            "nullable": true
+          },
+          "avatarDisplay": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaDisplayResponseDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "nickname",
+          "avatar"
+        ]
+      },
       "PostAuthorResponseDto": {
         "type": "object",
         "properties": {
+          "rpIdentity": {
+            "nullable": true,
+            "description": "仅帖内上下文返回；账号字段不变，展示优先使用此身份",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RpIdentityResponseDto"
+              }
+            ]
+          },
           "avatarDisplay": {
             "nullable": true,
             "description": "头像完整 WebP 展示资源；avatar 保留来源身份",
@@ -22555,6 +22935,16 @@
       "MentionCandidateDto": {
         "type": "object",
         "properties": {
+          "rpIdentity": {
+            "nullable": true,
+            "description": "仅帖内上下文返回；账号字段不变，展示优先使用此身份",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RpIdentityResponseDto"
+              }
+            ]
+          },
           "avatarDisplay": {
             "nullable": true,
             "description": "头像完整 WebP 展示资源；avatar 保留来源身份",
@@ -22579,7 +22969,9 @@
             "type": "string",
             "enum": [
               "FOLLOWING",
-              "PLAYER"
+              "PLAYER",
+              "OWNER",
+              "COLLABORATOR"
             ]
           }
         },
@@ -23996,6 +24388,16 @@
       "NotificationPayloadResponseDto": {
         "type": "object",
         "properties": {
+          "rpIdentity": {
+            "nullable": true,
+            "description": "有权限查看的帖内历史身份；通知账号名称不变",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RpIdentityResponseDto"
+              }
+            ]
+          },
           "schemaVersion": {
             "type": "number",
             "enum": [
@@ -25145,6 +25547,32 @@
           "denialReason"
         ]
       },
+      "MentionIdentityDisplayDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "description": "正文 canonical mention 的原始标签（不含 @），与 userId 共同作为映射键"
+          },
+          "displayName": {
+            "type": "string",
+            "description": "此次阅读应显示的名字；关闭时为账号用户名"
+          },
+          "identityId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "userId",
+          "label",
+          "displayName",
+          "identityId"
+        ]
+      },
       "DiceRollResponseDto": {
         "type": "object",
         "properties": {
@@ -25217,6 +25645,16 @@
       "ThreadBodyPostResponseDto": {
         "type": "object",
         "properties": {
+          "author": {
+            "$ref": "#/components/schemas/PostAuthorResponseDto"
+          },
+          "mentionIdentities": {
+            "description": "渲染 canonical mention 的按 userId + 原始 label 映射，编辑继续保存原正文",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MentionIdentityDisplayDto"
+            }
+          },
           "mediaDisplays": {
             "description": "仅此次已授权正文中的精确来源映射；编辑保存继续使用 sourceUrl",
             "type": "array",
@@ -25404,6 +25842,10 @@
       "ThreadDetailResponseDto": {
         "type": "object",
         "properties": {
+          "rpIdentityEnabled": {
+            "type": "boolean",
+            "default": false
+          },
           "id": {
             "type": "string"
           },
@@ -25665,6 +26107,10 @@
       "SaveThreadAggregateDto": {
         "type": "object",
         "properties": {
+          "identityToken": {
+            "type": "string",
+            "description": "GET 帖内身份返回的确认 token；新建正文或发言时使用。身份变化返回 409/40011，保留草稿并重新确认"
+          },
           "title": {
             "type": "string",
             "minLength": 1,
@@ -26019,6 +26465,162 @@
         },
         "required": [
           "name"
+        ]
+      },
+      "ThreadIdentityProfileDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "nickname": {
+            "type": "string",
+            "nullable": true
+          },
+          "avatarMediaId": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "nickname",
+          "avatarMediaId",
+          "version"
+        ]
+      },
+      "ThreadIdentityAccountDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "avatar": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "avatar"
+        ]
+      },
+      "ThreadIdentityStateDto": {
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "eligible": {
+            "type": "boolean",
+            "description": "当前是否具有楼主、协作者或玩家资格；不代表发言权限"
+          },
+          "canEdit": {
+            "type": "boolean",
+            "description": "当前访问者能否编辑此身份"
+          },
+          "identity": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ThreadIdentityProfileDto"
+              }
+            ]
+          },
+          "display": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RpIdentityResponseDto"
+              }
+            ]
+          },
+          "account": {
+            "$ref": "#/components/schemas/ThreadIdentityAccountDto"
+          },
+          "identityToken": {
+            "type": "string",
+            "nullable": true,
+            "description": "仅本人读取返回。新发言传 identityToken；409 后保留草稿并重新读取确认"
+          }
+        },
+        "required": [
+          "threadId",
+          "userId",
+          "enabled",
+          "eligible",
+          "canEdit",
+          "identity",
+          "display",
+          "account",
+          "identityToken"
+        ]
+      },
+      "UpdateThreadIdentityDto": {
+        "type": "object",
+        "properties": {
+          "clearNickname": {
+            "type": "boolean",
+            "description": "显式清除昵称，供省略 null 的客户端使用；不能与非空 nickname 同时提供"
+          },
+          "clearAvatar": {
+            "type": "boolean",
+            "description": "显式清除头像；不能与非空 avatarMediaId 同时提供"
+          },
+          "nickname": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 24,
+            "description": "允许重名、空格及标点；去除首尾空白，空字符串清除。不允许反斜线、方括号、HTML括号或控制字符"
+          },
+          "avatarMediaId": {
+            "type": "string",
+            "nullable": true,
+            "description": "本人已完成的 AVATAR 媒体；null 清除，不接受任意 URL"
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1,
+            "description": "已有身份的乐观锁版本；省略兼容首次保存"
+          }
+        }
+      },
+      "SetThreadIdentityEnabledDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ]
+      },
+      "ThreadIdentitySettingsDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
         ]
       },
       "TagResponseDto": {
@@ -27278,6 +27880,10 @@
       "CreateSubthreadDto": {
         "type": "object",
         "properties": {
+          "identityToken": {
+            "type": "string",
+            "description": "GET 帖内身份返回的确认 token；新建正文或发言时使用。身份变化返回 409/40011，保留草稿并重新确认"
+          },
           "clientRequestId": {
             "type": "string",
             "format": "uuid",
@@ -27454,6 +28060,13 @@
       "ReplyResponseDto": {
         "type": "object",
         "properties": {
+          "mentionIdentities": {
+            "description": "渲染 canonical mention 的按 userId + 原始 label 映射，编辑继续保存原正文",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MentionIdentityDisplayDto"
+            }
+          },
           "mediaDisplays": {
             "description": "仅此次已授权正文中的精确来源映射；编辑保存继续使用 sourceUrl",
             "type": "array",
@@ -27581,6 +28194,13 @@
       "FloorResponseDto": {
         "type": "object",
         "properties": {
+          "mentionIdentities": {
+            "description": "渲染 canonical mention 的按 userId + 原始 label 映射，编辑继续保存原正文",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MentionIdentityDisplayDto"
+            }
+          },
           "mediaDisplays": {
             "description": "仅此次已授权正文中的精确来源映射；编辑保存继续使用 sourceUrl",
             "type": "array",
@@ -27850,6 +28470,16 @@
       "DiscussionAuthorResponseDto": {
         "type": "object",
         "properties": {
+          "rpIdentity": {
+            "nullable": true,
+            "description": "仅帖内上下文返回；账号字段不变，展示优先使用此身份",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RpIdentityResponseDto"
+              }
+            ]
+          },
           "avatarDisplay": {
             "nullable": true,
             "description": "头像完整 WebP 展示资源；avatar 保留来源身份",
@@ -27900,6 +28530,10 @@
       "UpsertBodyDto": {
         "type": "object",
         "properties": {
+          "identityToken": {
+            "type": "string",
+            "description": "GET 帖内身份返回的确认 token；新建正文或发言时使用。身份变化返回 409/40011，保留草稿并重新确认"
+          },
           "content": {
             "type": "string",
             "example": "这里是子贴正文…",
@@ -27920,6 +28554,13 @@
       "PostResponseDto": {
         "type": "object",
         "properties": {
+          "mentionIdentities": {
+            "description": "渲染 canonical mention 的按 userId + 原始 label 映射，编辑继续保存原正文",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MentionIdentityDisplayDto"
+            }
+          },
           "mediaDisplays": {
             "description": "仅此次已授权正文中的精确来源映射；编辑保存继续使用 sourceUrl",
             "type": "array",
@@ -28037,6 +28678,10 @@
       "CreatePostDto": {
         "type": "object",
         "properties": {
+          "identityToken": {
+            "type": "string",
+            "description": "GET 帖内身份返回的确认 token；新建正文或发言时使用。身份变化返回 409/40011，保留草稿并重新确认"
+          },
           "content": {
             "type": "string",
             "example": "这是一段正文内容，支持 Markdown 格式。",
@@ -28112,6 +28757,13 @@
       "PostDetailResponseDto": {
         "type": "object",
         "properties": {
+          "mentionIdentities": {
+            "description": "渲染 canonical mention 的按 userId + 原始 label 映射，编辑继续保存原正文",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MentionIdentityDisplayDto"
+            }
+          },
           "mediaDisplays": {
             "description": "仅此次已授权正文中的精确来源映射；编辑保存继续使用 sourceUrl",
             "type": "array",
@@ -31449,6 +32101,15 @@
       "SearchAuthorResponseDto": {
         "type": "object",
         "properties": {
+          "rpIdentity": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RpIdentityResponseDto"
+              }
+            ]
+          },
           "id": {
             "type": "string",
             "description": "用户 ID"
@@ -31500,6 +32161,12 @@
       "SearchPostResponseDto": {
         "type": "object",
         "properties": {
+          "mentionIdentities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MentionIdentityDisplayDto"
+            }
+          },
           "mediaDisplays": {
             "description": "已授权正文的精确来源映射",
             "type": "array",
@@ -34624,6 +35291,96 @@
           }
         ]
       },
+      "ThreadIdentitiesMine200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/ThreadIdentityStateDto"
+              }
+            }
+          }
+        ]
+      },
+      "ThreadIdentitiesUpdate200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/ThreadIdentityStateDto"
+              }
+            }
+          }
+        ]
+      },
+      "ThreadIdentitiesClear200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/ThreadIdentityStateDto"
+              }
+            }
+          }
+        ]
+      },
+      "ThreadIdentitiesFindUser200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/ThreadIdentityStateDto"
+              }
+            }
+          }
+        ]
+      },
+      "ThreadIdentitiesSetEnabled200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/ThreadIdentitySettingsDto"
+              }
+            }
+          }
+        ]
+      },
       "TagsSearch200Response": {
         "allOf": [
           {
@@ -37597,6 +38354,8 @@
           40008,
           40009,
           40010,
+          40011,
+          40012,
           40100,
           40101,
           40102,
@@ -37692,6 +38451,8 @@
           "INVALID_WENYOU_AMOUNT",
           "UNSUPPORTED_MARKDOWN_FORMAT",
           "DISCUSSION_TARGET_FILTERED",
+          "RP_IDENTITY_CHANGED",
+          "RP_MENTION_CHANGED",
           "UNAUTHORIZED",
           "TOKEN_EXPIRED",
           "TOKEN_INVALID",

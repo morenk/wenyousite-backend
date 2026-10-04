@@ -27,6 +27,10 @@ export const ErrorCode = {
   UNSUPPORTED_MARKDOWN_FORMAT: 40009,
   /** 定位目标可访问，但被当前作者筛选排除；客户端可清筛选重试 */
   DISCUSSION_TARGET_FILTERED: 40010,
+  /** 发言身份与编辑器确认状态不一致 */
+  RP_IDENTITY_CHANGED: 40011,
+  /** 结构化提及标签不属于目标账号的帖内身份 */
+  RP_MENTION_CHANGED: 40012,
 
   // ── 认证 401xx ──
   /** 未认证 */
