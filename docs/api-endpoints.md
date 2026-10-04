@@ -119,6 +119,11 @@
 | GET | `/threads/{threadId}/tags` | optional | 获取主题帖关联的标签列表 |
 | POST | `/threads/{threadId}/tags` | authenticated | 为主题帖添加标签（仅 OWNER/COLLABORATOR） |
 | DELETE | `/threads/{threadId}/tags/{tagId}` | authenticated | 移除主题帖的标签（仅 OWNER/COLLABORATOR） |
+| GET | `/threads/{threadId}/identity` | authenticated | 读取自己的帖内身份与发言确认 token |
+| PUT | `/threads/{threadId}/identity` | authenticated | 设置自己的帖内身份；仅影响之后的新发言 |
+| DELETE | `/threads/{threadId}/identity` | authenticated | 清除自己的当前帖内资料；保留历史发言身份 |
+| GET | `/threads/{threadId}/identities/{userId}` | optional | 读取可访问主题内的当前身份卡与真实账号 |
+| PATCH | `/threads/{threadId}/identity-settings` | authenticated | 楼主开启或关闭全帖身份展示；不删除历史资料 |
 
 ## Tags
 

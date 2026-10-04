@@ -1,3 +1,5 @@
+import { HttpStatus } from '@nestjs/common';
+import { CreatePostDto } from './dto/create-post.dto';
 import { Prisma } from '@prisma/client';
 import { PostingPolicyService } from '../access/posting-policy.service';
 import { ThreadAccessService } from '../access/thread-access.service';
@@ -100,4 +102,31 @@ export async function lockAndValidatePostCreate(
   }
 
   return { subthread, member, replyTarget };
+}
+
+export function assertSamePostCreateRequest(
+  post: {
+    subthreadId: string;
+    content: string;
+    parentPostId: string | null;
+    replyToPostId: string | null;
+    identityCreateMode?: string | null;
+  },
+  subthreadId: string,
+  dto: CreatePostDto,
+  content: string,
+) {
+  if (
+    post.subthreadId !== subthreadId ||
+    post.content !== content ||
+    (post.identityCreateMode ?? null) !== (dto.identityMode ?? null) ||
+    post.parentPostId !== (dto.parentPostId ?? null) ||
+    post.replyToPostId !== (dto.replyToPostId ?? null)
+  ) {
+    throw new BusinessException(
+      ErrorCode.CONFLICT,
+      'clientRequestId 已用于另一条发帖请求',
+      HttpStatus.CONFLICT,
+    );
+  }
 }

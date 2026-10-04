@@ -21,6 +21,7 @@ export function validateHistoricalMap(map: Record<string, string>, origin: strin
 export function readSnapshot(directory: string, requireToday = true): { metadata: Snapshot; media: Record<string,string>; dump: string } {
   const root = privateDirectory(resolve(directory));
   const info = JSON.parse(readFileSync(privateFile(join(root, 'snapshot.json')), 'utf8')) as Snapshot;
+  assert(!info.sourceKind || ['synthetic-downloads', 'synthetic-thread-identities'].includes(info.sourceKind), '快照来源标记非法');
   assert(info.version === 1 && /^[a-f0-9]{64}$/.test(info.sha256) && /^[a-f0-9]{40}$/.test(info.sourceSha) && info.migrationVersion, '快照登记非法');
   assert(Number.isFinite(Date.parse(info.capturedAt)) && businessDate(new Date(info.capturedAt)) === info.businessDate, '快照时间不符');
   assert(!requireToday || info.businessDate === businessDate(), '新会话仅接受北京时间当天快照');
@@ -33,7 +34,7 @@ export function readSnapshot(directory: string, requireToday = true): { metadata
 }
 
 /** 必须与 dump 共用 PG 导出快照，避免对象映射来自另一事务时点。 */
-export async function captureSnapshot(options: { output: string; sourceUrl: string; sourceSha: string; mediaOrigin: string; pgBin: string }) {
+export async function captureSnapshot(options: { output: string; sourceUrl: string; sourceSha: string; mediaOrigin: string; pgBin: string; sourceKind?: 'synthetic-thread-identities' }) {
   assert(/^[a-f0-9]{40}$/.test(options.sourceSha), '需精确源 SHA');
   validateOrigin(options.mediaOrigin);
   const parent = privateDirectory(resolve(options.output), true);
@@ -86,7 +87,7 @@ export async function captureSnapshot(options: { output: string; sourceUrl: stri
     chmodSync(join(staging, 'database.dump'), 0o600);
     writePrivate(join(staging, 'media.json'), data.media);
     execFileSync(join(options.pgBin,'pg_restore'), ['--list',join(staging,'database.dump')], { env: environment(), stdio:'pipe' });
-    const metadata: Snapshot = { version:1, capturedAt, businessDate:date, sha256:hash(readFileSync(join(staging,'database.dump'))), sourceSha:options.sourceSha, migrationVersion:data.migrationVersion, mediaSha256:hash(readFileSync(join(staging,'media.json'))), mediaOrigin:options.mediaOrigin };
+    const metadata: Snapshot = { ...(options.sourceKind ? {sourceKind:options.sourceKind} : {}), version:1, capturedAt, businessDate:date, sha256:hash(readFileSync(join(staging,'database.dump'))), sourceSha:options.sourceSha, migrationVersion:data.migrationVersion, mediaSha256:hash(readFileSync(join(staging,'media.json'))), mediaOrigin:options.mediaOrigin };
     writePrivate(join(staging,'snapshot.json'),metadata);
     renameSync(staging,target);
     return metadata;

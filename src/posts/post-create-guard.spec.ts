@@ -2,7 +2,7 @@ import type { Prisma } from '@prisma/client';
 import type { PostingPolicyService } from '../access/posting-policy.service';
 import type { ThreadAccessService } from '../access/thread-access.service';
 import { ErrorCode } from '../common/exceptions/error-codes';
-import { lockAndValidatePostCreate } from './post-create-guard';
+import { assertSamePostCreateRequest, lockAndValidatePostCreate } from './post-create-guard';
 
 function buildContext() {
   const tx = {
@@ -123,5 +123,19 @@ describe('lockAndValidatePostCreate 回复父级不变量', () => {
       authorId: 'reply-author',
       author: { username: '回复作者' },
     });
+  });
+});
+
+
+describe('创建请求身份模式幂等性', () => {
+  const post = { subthreadId: 'sub', content: '正文', parentPostId: null, replyToPostId: null };
+  it('旧记录继续接受缺省 mode，显式 ACCOUNT 与缺省不能复用幂等键', () => {
+    expect(() => assertSamePostCreateRequest(post, 'sub', { content: '正文' }, '正文')).not.toThrow();
+    expect(() => assertSamePostCreateRequest(post, 'sub', { content: '正文', identityMode: 'ACCOUNT' }, '正文')).toThrow();
+  });
+  it('重复请求 mode 固定，token 更新不影响已成功创建记录', () => {
+    const rpPost = { ...post, identityCreateMode: 'RP' };
+    expect(() => assertSamePostCreateRequest(rpPost, 'sub', { content: '正文', identityMode: 'RP', identityToken: 'old' }, '正文')).not.toThrow();
+    expect(() => assertSamePostCreateRequest(rpPost, 'sub', { content: '正文', identityMode: 'ACCOUNT' }, '正文')).toThrow();
   });
 });

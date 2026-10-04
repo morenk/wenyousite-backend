@@ -41,6 +41,11 @@ test('快照哈希损坏与过期拒绝，时间绑定同一北京时间业务�
     const metadata={version:1,capturedAt:new Date().toISOString(),businessDate:businessDate(),sha256:hash('fake dump'),sourceSha:'a'.repeat(40),migrationVersion:'migration',mediaSha256:hash(readFileSync(join(root,'media.json'))),mediaOrigin:'https://media.example.com'};
     writePrivate(join(root,'snapshot.json'),metadata);
     assert.equal(readSnapshot(root).metadata.sha256,metadata.sha256);
+    writePrivate(join(root,'snapshot.json'),{...metadata,sourceKind:'synthetic-thread-identities'});
+    assert.equal(readSnapshot(root).metadata.sourceKind,'synthetic-thread-identities');
+    writePrivate(join(root,'snapshot.json'),{...metadata,sourceKind:'unknown'});
+    assert.throws(()=>readSnapshot(root));
+    writePrivate(join(root,'snapshot.json'),metadata);
     writeFileSync(join(root,'database.dump'),'tampered');
     assert.throws(()=>readSnapshot(root));
     writeFileSync(join(root,'database.dump'),'fake dump');
@@ -56,6 +61,11 @@ test('实际消费者样例通过 JSON schema 且没有 secret/db 字段',()=>{
   assert(validate(c),JSON.stringify(validate.errors));
   assert(!JSON.stringify(c).includes('secrets'));
   assert(validate(consumer({...s,sample:'downloads'})),JSON.stringify(validate.errors));
+  const rp=consumer({...s,snapshot:{...s.snapshot,sourceKind:'synthetic-thread-identities'}});
+  assert(validate(rp),JSON.stringify(validate.errors));
+  assert.equal(rp.snapshot.sourceKind,'synthetic-thread-identities');
+  assert.equal(rp.sample,undefined);
+  assert(!anonymousSampleRead({},'GET','/api/v1/auth/login'));
   c.web.port=3001;assert.equal(validate(c),false);
 });
 

@@ -59,7 +59,7 @@ export class MediaDisplayProjectionService {
         }
       }
       for (const [key, child] of Object.entries(node)) {
-        if (['display', 'avatarDisplay', 'mediaDisplays', 'displayAsset'].includes(key)) continue;
+        if (['display', 'avatarDisplay', 'mediaDisplays', 'displayAsset', 'rpIdentity', 'mentionIdentities'].includes(key)) continue;
         visit(child, key, node, userId);
       }
     };

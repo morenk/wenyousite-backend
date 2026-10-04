@@ -303,13 +303,14 @@ model User {
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
 
-  ownedThreads  Thread[]       @relation("ThreadOwner")
-  threads       ThreadMember[]
-  posts         Post[]
-  drafts        Draft[]
-  likedThreads  ThreadLike[]
-  mentions      PostMention[]  @relation("mentionedUser")
-  notifications Notification[]
+  ownedThreads     Thread[]         @relation("ThreadOwner")
+  threads          ThreadMember[]
+  posts            Post[]
+  drafts           Draft[]
+  likedThreads     ThreadLike[]
+  threadIdentities ThreadIdentity[]
+  mentions         PostMention[]    @relation("mentionedUser")
+  notifications    Notification[]
 
   userBlocks                    UserBlock[]                     @relation("Blocker")
   blockedBy                     UserBlock[]                     @relation("Blocked")
@@ -536,6 +537,36 @@ model ThreadCategoryDefinition {
   @@map("thread_category_definitions")
 }
 
+model ThreadIdentity {
+  id            String                @id @default(cuid())
+  threadId      String                @map("thread_id")
+  userId        String                @map("user_id")
+  nickname      String?               @db.VarChar(24)
+  avatarMediaId String?               @map("avatar_media_id")
+  version       Int                   @default(1)
+  createdAt     DateTime              @default(now()) @map("created_at")
+  updatedAt     DateTime              @updatedAt @map("updated_at")
+  thread        Thread                @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  avatarMedia   Media?                @relation("ThreadIdentityAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
+  aliases       ThreadIdentityAlias[]
+
+  @@unique([threadId, userId])
+  @@index([avatarMediaId])
+  @@index([userId])
+  @@map("thread_identities")
+}
+
+model ThreadIdentityAlias {
+  id         String         @id @default(cuid())
+  identityId String         @map("identity_id")
+  nickname   String         @db.VarChar(24)
+  identity   ThreadIdentity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+
+  @@unique([identityId, nickname])
+  @@map("thread_identity_aliases")
+}
+
 model Thread {
   id      String  @id @default(cuid())
   title   String?
@@ -569,16 +600,19 @@ model Thread {
   removedById   String?               @map("removed_by_id")
   removalReason String?               @map("removal_reason")
 
-  members         ThreadMember[]
-  subthreads      Subthread[]         @relation("ThreadSubthreads")
-  posts           Post[]
-  topicTags       ThreadTopicTag[]
-  subscriptions   Subscription[]
-  notifications   Notification[]
-  invites         ThreadInvite[]
-  bookmarks       UserBookmark[]
-  likes           ThreadLike[]
-  tipTransactions WalletTransaction[]
+  rpIdentityEnabled Boolean             @default(false) @map("rp_identity_enabled")
+  rpIdentityVersion Int                 @default(1) @map("rp_identity_version")
+  identities        ThreadIdentity[]
+  members           ThreadMember[]
+  subthreads        Subthread[]         @relation("ThreadSubthreads")
+  posts             Post[]
+  topicTags         ThreadTopicTag[]
+  subscriptions     Subscription[]
+  notifications     Notification[]
+  invites           ThreadInvite[]
+  bookmarks         UserBookmark[]
+  likes             ThreadLike[]
+  tipTransactions   WalletTransaction[]
 
   @@unique([ownerId, clientRequestId])
   @@index([published, visibility, deletedAt, pinned(sort: Desc), createdAt(sort: Desc)], map: "threads_public_created_idx")
@@ -894,18 +928,20 @@ model Media {
   orphanedAt          DateTime?    @map("orphaned_at")
   deletionClaimedAt   DateTime?    @map("deletion_claimed_at")
 
-  user                   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  avatarUser             User?           @relation("UserAvatar")
+  user                   User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  avatarUser             User?                 @relation("UserAvatar")
   directMessage          DirectMessage?
   previewAttempts        MediaPreviewAttempt[]
   stickerImports         StickerImport[]
   momentImages           MomentImage[]
-  momentCovers           Moment[]        @relation("MomentCover")
+  momentCovers           Moment[]              @relation("MomentCover")
   momentComment          MomentComment?
-  profileCoverUser       User?           @relation("UserProfileCover")
-  profileCoverMobileUser User?           @relation("UserProfileCoverMobile")
+  profileCoverUser       User?                 @relation("UserProfileCover")
+  profileCoverMobileUser User?                 @relation("UserProfileCoverMobile")
   postAttachments        PostMedia[]
   draftAttachments       DraftMedia[]
+  threadIdentityAvatars  ThreadIdentity[]      @relation("ThreadIdentityAvatar")
+  postIdentityAvatars    Post[]                @relation("PostIdentityAvatar")
 
   @@index([url])
   @@index([status, createdAt])
@@ -922,15 +958,15 @@ enum MediaPreviewAttemptStatus {
 }
 
 model MediaPreviewAttempt {
-  id             String                    @id
-  mediaId        String                    @map("media_id")
-  keys           String[]
-  status         MediaPreviewAttemptStatus @default(PENDING)
-  expiresAt      DateTime                  @map("expires_at")
-  nextCleanupAt  DateTime                  @map("next_cleanup_at")
-  cleanupPasses  Int                       @default(0) @map("cleanup_passes")
-  createdAt      DateTime                  @default(now()) @map("created_at")
-  media          Media                     @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  id            String                    @id
+  mediaId       String                    @map("media_id")
+  keys          String[]
+  status        MediaPreviewAttemptStatus @default(PENDING)
+  expiresAt     DateTime                  @map("expires_at")
+  nextCleanupAt DateTime                  @map("next_cleanup_at")
+  cleanupPasses Int                       @default(0) @map("cleanup_passes")
+  createdAt     DateTime                  @default(now()) @map("created_at")
+  media         Media                     @relation(fields: [mediaId], references: [id], onDelete: Cascade)
 
   @@index([status, nextCleanupAt])
   @@index([mediaId])
@@ -938,7 +974,7 @@ model MediaPreviewAttempt {
 }
 
 model StickerAsset {
-  displayAsset Json? @map("display_asset")
+  displayAsset Json?    @map("display_asset")
   id           String   @id @default(cuid())
   url          String   @unique
   key          String   @unique
@@ -1079,46 +1115,52 @@ model DirectMessage {
 }
 
 model Post {
-  id              String                @id @default(cuid())
-  threadId        String                @map("thread_id")
-  subthreadId     String                @map("subthread_id")
-  authorId        String                @map("author_id")
-  kind            PostKind              @default(FLOOR) @map("kind")
-  floorNumber     Int?                  @map("floor_number")
-  replyNumber     Int?                  @map("reply_number")
-  parentPostId    String?               @map("parent_post_id")
-  replyToPostId   String?               @map("reply_to_post_id")
-  clientRequestId String?               @map("client_request_id") @db.Uuid
-  content         String
-  version         Int                   @default(1) @map("lock_version")
-  createdAt       DateTime              @default(now()) @map("created_at")
-  updatedAt       DateTime              @updatedAt @map("updated_at")
-  editedAt        DateTime?             @map("edited_at")
-  pinnedAt        DateTime?             @map("pinned_at")
-  deletedAt       DateTime?             @map("deleted_at")
-  removalSource   ContentRemovalSource? @map("removal_source")
-  removedById     String?               @map("removed_by_id")
-  removalReason   String?               @map("removal_reason")
+  identityCreateMode       String?               @map("identity_create_mode") @db.VarChar(7)
+  authorIdentitySnapshot   Json?                 @map("author_identity_snapshot")
+  mentionIdentitySnapshots Json?                 @map("mention_identity_snapshots")
+  identityAvatarMediaId    String?               @map("identity_avatar_media_id")
+  identityAvatarMedia      Media?                @relation("PostIdentityAvatar", fields: [identityAvatarMediaId], references: [id], onDelete: SetNull)
+  id                       String                @id @default(cuid())
+  threadId                 String                @map("thread_id")
+  subthreadId              String                @map("subthread_id")
+  authorId                 String                @map("author_id")
+  kind                     PostKind              @default(FLOOR) @map("kind")
+  floorNumber              Int?                  @map("floor_number")
+  replyNumber              Int?                  @map("reply_number")
+  parentPostId             String?               @map("parent_post_id")
+  replyToPostId            String?               @map("reply_to_post_id")
+  clientRequestId          String?               @map("client_request_id") @db.Uuid
+  content                  String
+  version                  Int                   @default(1) @map("lock_version")
+  createdAt                DateTime              @default(now()) @map("created_at")
+  updatedAt                DateTime              @updatedAt @map("updated_at")
+  editedAt                 DateTime?             @map("edited_at")
+  pinnedAt                 DateTime?             @map("pinned_at")
+  deletedAt                DateTime?             @map("deleted_at")
+  removalSource            ContentRemovalSource? @map("removal_source")
+  removedById              String?               @map("removed_by_id")
+  removalReason            String?               @map("removal_reason")
 
-  thread           Thread         @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  subthread        Subthread      @relation(fields: [subthreadId], references: [id], onDelete: Cascade)
-  author           User           @relation(fields: [authorId], references: [id])
-  parentPost       Post?          @relation("PostReplies", fields: [parentPostId], references: [id], onDelete: Cascade)
-  replyToPost      Post?          @relation("ReplyTo", fields: [replyToPostId], references: [id])
-  replies          Post[]         @relation("PostReplies")
-  repliedBy        Post[]         @relation("ReplyTo")
+  thread           Thread                @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  subthread        Subthread             @relation(fields: [subthreadId], references: [id], onDelete: Cascade)
+  author           User                  @relation(fields: [authorId], references: [id])
+  parentPost       Post?                 @relation("PostReplies", fields: [parentPostId], references: [id], onDelete: Cascade)
+  replyToPost      Post?                 @relation("ReplyTo", fields: [replyToPostId], references: [id])
+  replies          Post[]                @relation("PostReplies")
+  repliedBy        Post[]                @relation("ReplyTo")
   mentions         PostMention[]
   notifications    Notification[]
   diceRolls        DiceRoll[]
   mediaAttachments PostMedia[]
-  galleryImages PostImageOccurrence[]
-  galleryIndex PostGalleryIndex?
+  galleryImages    PostImageOccurrence[]
+  galleryIndex     PostGalleryIndex?
 
+  @@index([identityAvatarMediaId])
   @@unique([subthreadId, floorNumber])
   @@unique([parentPostId, replyNumber])
-  @@index([parentPostId, deletedAt, replyNumber], map: "posts_reply_window_idx")
   @@unique([authorId, clientRequestId])
   @@unique([id, subthreadId], map: "posts_id_subthread_id_key")
+  @@index([parentPostId, deletedAt, replyNumber], map: "posts_reply_window_idx")
   @@index([subthreadId, kind, deletedAt, floorNumber], map: "posts_floor_page_idx")
   @@index([subthreadId, kind])
   @@index([subthreadId, createdAt])
@@ -1612,76 +1654,81 @@ model UserDailyActivity {
 }
 
 model PostImageOccurrence {
-  postId String @map("post_id")
-  imageIndex Int @map("image_index")
-  imageCount Int @map("image_count")
-  url String
-  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId     String @map("post_id")
+  imageIndex Int    @map("image_index")
+  imageCount Int    @map("image_count")
+  url        String
+  post       Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
   @@id([postId, imageIndex])
   @@map("post_image_occurrences")
 }
 
 model PostGalleryIndex {
-  postId String @id @map("post_id")
+  postId             String @id @map("post_id")
   contentTransaction BigInt @map("content_transaction")
-  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  post               Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
   @@map("post_gallery_indexes")
 }
 
 // 编辑稿、确认快照与公开快照分离；发布锁在进程故障后保留，由受限通道恢复。
 model MobileRelease {
-  id String @id @default(cuid())
-  platform String
-  versionName String @map("version_name")
-  buildNumber Int @map("build_number")
-  summary String
-  items String[]
-  revision Int @default(1)
-  confirmedRevision Int? @map("confirmed_revision")
-  confirmedSummary String? @map("confirmed_summary")
-  confirmedItems String[] @map("confirmed_items")
-  confirmedAt DateTime? @map("confirmed_at")
-  publishedRevision Int? @map("published_revision")
-  publishedSummary String? @map("published_summary")
-  publishedItems String[] @map("published_items")
-  publishedAt DateTime? @map("published_at")
-  promotionId String? @unique @map("promotion_id")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  promotions MobileReleasePromotion[]
-  downloadArtifact MobileDownloadArtifact?
+  id                String                   @id @default(cuid())
+  platform          String
+  versionName       String                   @map("version_name")
+  buildNumber       Int                      @map("build_number")
+  summary           String
+  items             String[]
+  revision          Int                      @default(1)
+  confirmedRevision Int?                     @map("confirmed_revision")
+  confirmedSummary  String?                  @map("confirmed_summary")
+  confirmedItems    String[]                 @map("confirmed_items")
+  confirmedAt       DateTime?                @map("confirmed_at")
+  publishedRevision Int?                     @map("published_revision")
+  publishedSummary  String?                  @map("published_summary")
+  publishedItems    String[]                 @map("published_items")
+  publishedAt       DateTime?                @map("published_at")
+  promotionId       String?                  @unique @map("promotion_id")
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  updatedAt         DateTime                 @updatedAt @map("updated_at")
+  promotions        MobileReleasePromotion[]
+  downloadArtifact  MobileDownloadArtifact?
+
   @@unique([platform, buildNumber])
   @@index([platform, publishedAt, buildNumber])
   @@map("mobile_releases")
 }
 
 model MobileReleasePromotion {
-  id String @id
-  releaseId String @map("release_id")
-  revision Int
-  status String @default("PREPARED")
-  apkSha256 String @map("apk_sha256")
-  apkSize String @map("apk_size")
-  updateUrl String @map("update_url")
-  previousPublishedRevision Int? @map("previous_published_revision")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  release MobileRelease @relation(fields: [releaseId], references: [id], onDelete: Restrict)
+  id                        String        @id
+  releaseId                 String        @map("release_id")
+  revision                  Int
+  status                    String        @default("PREPARED")
+  apkSha256                 String        @map("apk_sha256")
+  apkSize                   String        @map("apk_size")
+  updateUrl                 String        @map("update_url")
+  previousPublishedRevision Int?          @map("previous_published_revision")
+  createdAt                 DateTime      @default(now()) @map("created_at")
+  updatedAt                 DateTime      @updatedAt @map("updated_at")
+  release                   MobileRelease @relation(fields: [releaseId], references: [id], onDelete: Restrict)
+
   @@index([releaseId, status])
   @@map("mobile_release_promotions")
 }
 
 // 下载地址演进单独登记；禁止重写旧 promotion.updateUrl 或 TSV 制品审计事实。
 model MobileDownloadArtifact {
-  releaseId String @id @map("release_id")
-  applicationId String @map("application_id")
-  apkSha256 String @map("apk_sha256")
-  apkSize String @map("apk_size")
-  storageBucket String @map("storage_bucket")
-  storageKey String @map("storage_key")
-  publicUrl String @map("public_url")
-  createdAt DateTime @default(now()) @map("created_at")
-  release MobileRelease @relation(fields: [releaseId], references: [id], onDelete: Restrict)
+  releaseId     String        @id @map("release_id")
+  applicationId String        @map("application_id")
+  apkSha256     String        @map("apk_sha256")
+  apkSize       String        @map("apk_size")
+  storageBucket String        @map("storage_bucket")
+  storageKey    String        @map("storage_key")
+  publicUrl     String        @map("public_url")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  release       MobileRelease @relation(fields: [releaseId], references: [id], onDelete: Restrict)
+
   @@unique([storageBucket, storageKey])
   @@map("mobile_download_artifacts")
 }

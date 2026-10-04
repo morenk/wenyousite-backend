@@ -1,3 +1,4 @@
+import { ThreadIdentitiesService } from '../thread-identities/thread-identities.service';
 import 'reflect-metadata';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -44,7 +45,8 @@ async function setup<T>(target: Type<T>) {
     [EventEmitter2, events], [RedisService, redis],
   ]);
   const dependencies = Reflect.getMetadata('design:paramtypes', target) as Type<unknown>[];
-  const module = await Test.createTestingModule({ providers: [target,
+  const module = await Test.createTestingModule({ providers: [
+        { provide: ThreadIdentitiesService, useValue: { prepareAuthor: jest.fn().mockResolvedValue({}), prepareMentions: jest.fn().mockResolvedValue([]) } },target,
     ...dependencies.map((provide) => ({ provide, useValue: fixed.get(provide) ?? mockDeep<object>() })),
   ] }).compile();
   return { service: module.get(target), module, prisma, persisted, roll, outbox, media, stickers, events, redis };

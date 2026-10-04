@@ -147,6 +147,7 @@ describe('renderExportContent', () => {
       undefined as never,
       undefined as never,
       undefined as never,
+      undefined as never,
     );
     const archive = (format: ThreadExportFormat) =>
       (
@@ -205,6 +206,7 @@ describe('ThreadExportService 资源边界', () => {
       { $transaction: (callback: (value: typeof tx) => unknown) => callback(tx) } as never,
       { assertAccessible: jest.fn().mockResolvedValue(undefined), assertCanManage: jest.fn().mockResolvedValue(undefined) } as never,
       storage as never, stickers as never, { get: () => 'https://wenyou.site' } as never,
+      { project: jest.fn().mockImplementation(async (value) => value) } as never,
     );
     return { service, tx, storage, stickers };
   }

@@ -1,3 +1,4 @@
+import { ThreadIdentitiesService } from '../thread-identities/thread-identities.service';
 import { postContentEditData, rethrowPostEditConflict } from './post-content-edit';
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -19,7 +20,7 @@ import { StickerContentService } from '../stickers/sticker-content.service';
 import { ReplyOrder } from '../common/dto/reply-query.dto';
 import { MediaReferenceService } from '../media/media-reference.service';
 import { PostMentionEventsService } from './post-mention-events.service';
-import { lockAndValidatePostCreate } from './post-create-guard';
+import { lockAndValidatePostCreate, assertSamePostCreateRequest } from './post-create-guard';
 import { PostPinService } from './post-pin.service';
 
 @Injectable()
@@ -36,6 +37,7 @@ export class PostsService {
     private stickerContent: StickerContentService,
     private mediaReferences: MediaReferenceService,
     private postPins: PostPinService,
+    private readonly identities: ThreadIdentitiesService,
   ) {}
   async findAllBySubthread(
     subthreadId: string,
@@ -90,7 +92,7 @@ export class PostsService {
     if (dto.clientRequestId) {
       const existingRequest = await this.findByClientRequestId(userId, dto.clientRequestId);
       if (existingRequest) {
-        this.assertSameCreateRequest(existingRequest, subthreadId, dto, content);
+        assertSamePostCreateRequest(existingRequest, subthreadId, dto, content);
         return existingRequest;
       }
     }
@@ -156,6 +158,8 @@ export class PostsService {
             threadId: subthread.threadId,
             subthreadId,
             authorId: userId,
+            ...(await this.identities.prepareAuthor(tx, subthread.threadId, userId, dto.identityToken, dto.identityMode)),
+            mentionIdentitySnapshots: await this.identities.prepareMentions(tx, subthread.threadId, content),
             kind: 'FLOOR',
             floorNumber,
             replyNumber,
@@ -234,7 +238,7 @@ export class PostsService {
       if (dto.clientRequestId && (error as { code?: string })?.code === 'P2002') {
         const existingRequest = await this.findByClientRequestId(userId, dto.clientRequestId);
         if (existingRequest) {
-          this.assertSameCreateRequest(existingRequest, subthreadId, dto, content);
+          assertSamePostCreateRequest(existingRequest, subthreadId, dto, content);
           post = existingRequest;
           duplicateRequest = true;
         } else {
@@ -266,37 +270,14 @@ export class PostsService {
     });
   }
 
-  private assertSameCreateRequest(
-    post: {
-      subthreadId: string;
-      content: string;
-      parentPostId: string | null;
-      replyToPostId: string | null;
-    },
-    subthreadId: string,
-    dto: CreatePostDto,
-    content: string,
-  ) {
-    if (
-      post.subthreadId !== subthreadId ||
-      post.content !== content ||
-      post.parentPostId !== (dto.parentPostId ?? null) ||
-      post.replyToPostId !== (dto.replyToPostId ?? null)
-    ) {
-      throw new BusinessException(
-        ErrorCode.CONFLICT,
-        'clientRequestId 已用于另一条发帖请求',
-        HttpStatus.CONFLICT,
-      );
-    }
-  }
-
   /** 写入子贴正文；未发布节点保持待掷，已发布节点在同一事务内增删结果。 */
   async upsertBody(
     subthreadId: string,
     content: string,
     version: number | undefined,
     userId: string,
+    identityToken?: string,
+    identityMode?: 'ACCOUNT' | 'RP',
   ) {
     const parsedContent = this.diceService.parseContent(prepareMarkdownContent(content));
     const normalizedContent = parsedContent.content;
@@ -347,6 +328,8 @@ export class PostsService {
               threadId: subthread.threadId,
               subthreadId,
               authorId: userId,
+              ...(await this.identities.prepareAuthor(tx, subthread.threadId, userId, identityToken, identityMode)),
+              mentionIdentitySnapshots: await this.identities.prepareMentions(tx, subthread.threadId, normalizedContent),
               kind: 'BODY',
               content: normalizedContent,
             },
@@ -433,9 +416,11 @@ export class PostsService {
     const updated = await this.prisma
       .$transaction(async (tx) => {
         await this.mentionEvents.lockContentInteraction(tx, subthread.threadId, userId, normalizedContent, [existing.id]);
+        await tx.$queryRaw`SELECT id FROM threads WHERE id = ${subthread.threadId} FOR UPDATE`;
         const post = await tx.post.update({
           where: { id: existing.id, version, ...notDeleted },
-          data: postContentEditData(oldContent, normalizedContent),
+          data: { ...postContentEditData(oldContent, normalizedContent),
+            mentionIdentitySnapshots: await this.identities.prepareMentions(tx, subthread.threadId, normalizedContent, existing.mentionIdentitySnapshots, existing.content) },
         });
         await this.mediaReferences.syncPostContent(tx, post.id, normalizedContent);
         if (subthread.thread.published) {
@@ -489,6 +474,7 @@ export class PostsService {
         authorId: true,
         threadId: true,
         content: true,
+        mentionIdentitySnapshots: true,
         version: true,
         thread: { select: { published: true } },
         diceRolls: { select: { id: true, nodeId: true, notation: true } },
@@ -520,9 +506,11 @@ export class PostsService {
     const updated = await this.prisma
       .$transaction(async (tx) => {
         await this.mentionEvents.lockContentInteraction(tx, postLight.threadId, userId, content);
+        await tx.$queryRaw`SELECT id FROM threads WHERE id = ${postLight.threadId} FOR UPDATE`;
         const post = await tx.post.update({
           where: { id, version: dto.version, content: oldContent, ...notDeleted },
-          data: postContentEditData(oldContent, content),
+          data: { ...postContentEditData(oldContent, content),
+            mentionIdentitySnapshots: await this.identities.prepareMentions(tx, postLight.threadId, content, postLight.mentionIdentitySnapshots, postLight.content) },
         });
         await this.mediaReferences.syncPostContent(tx, post.id, content);
         if (threadPublished) {

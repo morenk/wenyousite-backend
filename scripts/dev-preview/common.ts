@@ -11,14 +11,14 @@ export const REPO = realpathSync(resolve(__dirname, '../..'));
 export const HEADER = 'X-Wenyou-Preview-Run';
 export const KIND = 'wenyou-dev-preview';
 export interface Snapshot {
-  sourceKind?: 'synthetic-downloads';
+  sourceKind?: 'synthetic-downloads' | 'synthetic-thread-identities';
   version: 1; capturedAt: string; businessDate: string; sha256: string; sourceSha: string;
   migrationVersion: string; mediaSha256: string; mediaOrigin: string;
 }
 export interface Consumer {
   version: 1; kind: typeof KIND; sessionId: string; runId: string; state: 'ready';
   sample?: 'downloads';
-  snapshot: Pick<Snapshot, 'capturedAt' | 'businessDate' | 'sha256' | 'sourceSha' | 'migrationVersion'>;
+  snapshot: Pick<Snapshot, 'sourceKind' | 'capturedAt' | 'businessDate' | 'sha256' | 'sourceSha' | 'migrationVersion'>;
   source: { backendSha: string; worktree: string };
   backend: { port: number; origin: string; apiBase: string; identityUrl: string };
   media: { port: number; origin: string; identityUrl: string };
@@ -88,10 +88,10 @@ export function databaseUrl(s: Session, owner = false) {
   return 'postgresql://' + (owner ? 'preview_owner:' + s.secrets.owner : 'wenyousite_app:' + s.secrets.app) + '@127.0.0.1:' + s.ports.postgres + '/postgres?schema=public';
 }
 export function consumer(s: Session): Consumer {
-  const { capturedAt, businessDate, sha256, sourceSha, migrationVersion } = s.snapshot;
+  const { sourceKind, capturedAt, businessDate, sha256, sourceSha, migrationVersion } = s.snapshot;
   const origin = (port: number) => 'http://127.0.0.1:' + port;
   return { version: 1, kind: KIND, ...(s.sample ? {sample:s.sample} : {}), sessionId: s.sessionId, runId: s.runId, state: 'ready',
-    snapshot: { capturedAt, businessDate, sha256, sourceSha, migrationVersion },
+    snapshot: { ...(sourceKind ? {sourceKind} : {}), capturedAt, businessDate, sha256, sourceSha, migrationVersion },
     source: { backendSha: s.backendSha, worktree: s.worktree },
     backend: { port: s.ports.backend, origin: origin(s.ports.backend), apiBase: origin(s.ports.backend) + '/api/v1', identityUrl: origin(s.ports.backend) + '/__preview/identity' },
     media: { port: s.ports.media, origin: origin(s.ports.media), identityUrl: origin(s.ports.media) + '/__preview/identity' },

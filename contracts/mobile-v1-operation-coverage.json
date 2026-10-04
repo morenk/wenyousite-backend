@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "5.32.0-dev.20261003.1",
+  "contractVersion": "5.33.0-dev.20261005.1",
   "counts": {
-    "total": 238,
-    "v1": 110,
+    "total": 243,
+    "v1": 115,
     "deferred": 66,
     "notApplicable": 58,
     "infrastructure": 4
@@ -661,6 +661,46 @@
       "module": "threads",
       "disposition": "deferred",
       "status": "deferred"
+    },
+    {
+      "operationId": "threadIdentitiesMine",
+      "method": "GET",
+      "path": "/api/v1/threads/{threadId}/identity",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "threadIdentitiesUpdate",
+      "method": "PUT",
+      "path": "/api/v1/threads/{threadId}/identity",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "threadIdentitiesClear",
+      "method": "DELETE",
+      "path": "/api/v1/threads/{threadId}/identity",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "threadIdentitiesFindUser",
+      "method": "GET",
+      "path": "/api/v1/threads/{threadId}/identities/{userId}",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "threadIdentitiesSetEnabled",
+      "method": "PATCH",
+      "path": "/api/v1/threads/{threadId}/identity-settings",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
     },
     {
       "operationId": "tagsSearch",

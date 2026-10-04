@@ -16,6 +16,8 @@
 | `INVALID_WENYOU_AMOUNT` | 40008 | 温油金额不是受支持的整数升 |
 | `UNSUPPORTED_MARKDOWN_FORMAT` | 40009 | 正文包含工具栏能力白名单之外的 Markdown 结构 |
 | `DISCUSSION_TARGET_FILTERED` | 40010 | 定位目标可访问，但被当前作者筛选排除；客户端可清筛选重试 |
+| `RP_IDENTITY_CHANGED` | 40011 | 发言身份与编辑器确认状态不一致 |
+| `RP_MENTION_CHANGED` | 40012 | 结构化提及标签不属于目标账号的帖内身份 |
 | `UNAUTHORIZED` | 40100 | 未认证 |
 | `TOKEN_EXPIRED` | 40101 | Token 过期（access token） |
 | `TOKEN_INVALID` | 40102 | Token 无效 |

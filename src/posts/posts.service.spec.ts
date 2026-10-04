@@ -1,3 +1,5 @@
+import { IdentityProjectionService } from '../thread-identities/identity-projection.service';
+import { ThreadIdentitiesService } from '../thread-identities/thread-identities.service';
 import { visiblePostWhere } from '../access/block-visibility.where';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -90,6 +92,8 @@ describe('PostsService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: IdentityProjectionService, useValue: { project: jest.fn().mockImplementation(async (value) => value), projectCurrent: jest.fn() } },
+        { provide: ThreadIdentitiesService, useValue: { prepareAuthor: jest.fn().mockResolvedValue({}), prepareMentions: jest.fn().mockResolvedValue([]) } },
         PostsService,
         PostPinService,
         PostQueryService,
@@ -753,7 +757,7 @@ describe('PostsService', () => {
       expect(result.editedAt).toEqual(previous);
       expect(mockPrisma.post.update).toHaveBeenCalledWith({
         where: { id: 'p1', version: 3, content, deletedAt: null },
-        data: { content, version: { increment: 1 } },
+        data: { content, version: { increment: 1 }, mentionIdentitySnapshots: [] },
       });
     });
 
@@ -1341,6 +1345,7 @@ describe('PostsService', () => {
   });
 
   it('findReplies 不向作者筛选开放普通候选参与人', async () => {
+    mockPrisma.post.findFirst.mockResolvedValue(null);
     mockPrisma.post.findUnique.mockResolvedValue({
       id: 'p1',
       threadId: 't1',

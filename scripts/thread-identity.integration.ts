@@ -1,0 +1,154 @@
+import { assertIsolatedEnvironment, verifyIsolatedEnvironment } from './e2e-guard';
+assertIsolatedEnvironment();
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { PrismaClient } from '@prisma/client';
+import { JwtService } from '@nestjs/jwt';
+
+const db = new PrismaClient();
+async function main() {
+  await verifyIsolatedEnvironment();
+  assert.equal(process.env.THREAD_IDENTITY_TEST_ENV, 'test');
+  const user = () => db.user.create({ data: { username: 'rp_' + randomUUID().slice(0, 12), email: randomUUID() + '@rp.invalid', password: 'unused' } });
+  const [owner, player, reader, collab] = await Promise.all([user(), user(), user(), user()]);
+  const category = await db.threadCategoryDefinition.findFirstOrThrow({ where: { isActive: true } });
+  const thread = await db.thread.create({ data: { ownerId: owner.id, title: '身份隔离样本', category: category.slug, published: true, publishedAt: new Date(), members: { create: [
+    { userId: owner.id, role: 'OWNER' }, { userId: player.id, playerMarked: true }, { userId: collab.id, role: 'COLLABORATOR' },
+  ] } } });
+  const sub = await db.subthread.create({ data: { threadId: thread.id, title: '正文' } });
+  await db.thread.update({ where: { id: thread.id }, data: { defaultSubthreadId: sub.id } });
+  const jwt = new JwtService({ secret: process.env.JWT_ACCESS_SECRET });
+  type Data = Record<string, any>;
+  const request = async (path: string, userId?: string, method = 'GET', body?: unknown, status = 200): Promise<Data> => {
+    await new Promise(resolve => setTimeout(resolve, 130));
+    const response = await fetch(process.env.API_BASE + path, { method, headers: {
+      ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...(userId ? { authorization: 'Bearer ' + jwt.sign({ sub: userId, jti: randomUUID() }, { expiresIn: '10m' }) } : {}),
+    }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(10000) });
+    const result = await response.json() as Data;
+    assert.equal(response.status, status, method + ' ' + path.split('/').filter((x) => x.length < 20).join('/') + ' status=' + response.status + ' code=' + result.code);
+    return status >= 400 ? result : result.data;
+  };
+  const base = '/threads/' + thread.id;
+  const own = (id: string) => request(base + '/identity', id);
+  const save = (id: string, body: unknown) => request(base + '/identity', id, 'PUT', body);
+  const create = (id: string, content: string, token?: string, uuid = randomUUID(), status = 201, identityMode?: 'ACCOUNT' | 'RP') => request('/subthreads/' + sub.id + '/posts', id, 'POST', { content, identityToken: token, identityMode, clientRequestId: uuid }, status);
+  await request(base + '/identity-settings', undefined, 'PATCH', { enabled: true }, 401);
+  await request(base + '/identity-settings', collab.id, 'PATCH', { enabled: true }, 403);
+  const before = await create(owner.id, '启用之前');
+  await request(base + '/identity-settings', owner.id, 'PATCH', { enabled: true });
+  await request(base + '/identity', reader.id, 'PUT', { nickname: '不允许' }, 403);
+  await save(owner.id, { nickname: '主持人' });
+  await save(collab.id, { nickname: '协作角色' });
+  const firstState = await save(player.id, { nickname: '白 鸦！' });
+  assert(firstState.identityToken && firstState.display.nickname === '白 鸦！');
+  assert.equal((await create(player.id, '缺少确认', undefined, randomUUID(), 409)).code, 40011);
+  const accountMode = await create(player.id, '同账号切为站内身份', 'stale', randomUUID(), 201, 'ACCOUNT');
+  assert.equal(accountMode.author.rpIdentity, null);
+  assert.equal((await create(player.id, '显式RP缺确认', undefined, randomUUID(), 409, 'RP')).code, 40011);
+  const uuid = randomUUID();
+  const first = await create(player.id, '第一段', firstState.identityToken, uuid);
+  const explicitRpUuid = randomUUID();
+  const explicitRp = await create(player.id, '显式角色发言', firstState.identityToken, explicitRpUuid, 201, 'RP');
+  await create(player.id, '显式角色发言', firstState.identityToken, explicitRpUuid, 409, 'ACCOUNT');
+  const editable = await create(player.id, '编辑之前', firstState.identityToken);
+  assert.equal(first.author.username, player.username); assert.equal(first.author.rpIdentity.nickname, '白 鸦！');
+  const media = await db.media.create({ data: { userId: player.id, url: 'https://rp.invalid/avatar.png', key: randomUUID(), purpose: 'AVATAR', status: 'COMPLETED' } });
+  await save(player.id, { nickname: '夜渡', avatarMediaId: media.id });
+  const newState = await own(player.id);
+  assert.equal(newState.identity.id, firstState.identity.id);
+  assert.equal((await create(player.id, '身份已变化', firstState.identityToken, randomUUID(), 409)).code, 40011);
+  const second = await create(player.id, '第二段', newState.identityToken);
+  assert.equal(second.author.rpIdentity.avatar, media.url);
+  const ownerState = await own(owner.id);
+  const mentionText = `[@白 鸦！](/users/${player.id}) 和 [@夜渡](/users/${player.id})`;
+  const mention = await create(owner.id, mentionText, ownerState.identityToken);
+  assert.deepEqual(mention.mentionIdentities.map((x: Data) => x.displayName), ['白 鸦！', '夜渡']);
+  assert.equal((await create(owner.id, `[@冒牌身份](/users/${player.id})`, ownerState.identityToken, randomUUID(), 409)).code, 40012);
+  await request('/posts/' + editable.id, player.id, 'PATCH', { content: '编辑旧段', version: editable.version });
+  assert.equal((await request('/posts/' + first.id)).author.rpIdentity.nickname, '白 鸦！');
+  const body = await request('/subthreads/' + sub.id + '/body', owner.id, 'PUT', { content: '首次正文', identityToken: ownerState.identityToken });
+  assert.equal(body.author.rpIdentity.nickname, '主持人');
+  const editedBody = await request('/subthreads/' + sub.id + '/body', owner.id, 'PUT', { content: '修改正文但不能切身份', version: body.version, identityMode: 'ACCOUNT', identityToken: 'stale' });
+  assert.equal(editedBody.author.rpIdentity.nickname, '主持人');
+  const subUuid = randomUUID();
+  const subInput = { title: '明确账号正文', content: '新子贴正文', identityMode: 'ACCOUNT', identityToken: 'stale', clientRequestId: subUuid };
+  const createdSub = await request(base + '/subthreads', owner.id, 'POST', subInput, 201);
+  const accountBody = await db.post.findFirstOrThrow({ where: { subthreadId: createdSub.id, kind: 'BODY' } });
+  assert.equal(accountBody.authorIdentitySnapshot, null); assert.equal(accountBody.identityCreateMode, 'ACCOUNT');
+  assert.equal((await request(base + '/subthreads', owner.id, 'POST', { ...subInput, identityMode: 'RP', identityToken: ownerState.identityToken }, 409)).code, 40912);
+  const rpSub = await request(base + '/subthreads', owner.id, 'POST', { title: '明确角色正文', content: '角色正文', identityMode: 'RP', identityToken: ownerState.identityToken }, 201);
+  assert.equal((await db.post.findFirstOrThrow({ where: { subthreadId: rpSub.id, kind: 'BODY' } })).identityCreateMode, 'RP');
+  const candidates = await request('/users/mention-candidates?threadId=' + thread.id + '&q=' + encodeURIComponent('主持人'), player.id);
+  assert((candidates.users as Data[]).some(x => x.id === owner.id && x.relation === 'OWNER'));
+
+  const card = await request(base + '/identities/' + player.id);
+  assert.equal(card.identity, null); assert.equal(card.identityToken, null); assert.equal(card.account.id, player.id);
+  await save(player.id, { clearAvatar: true });
+  assert.equal((await own(player.id)).display.nickname, '夜渡');
+  assert.equal((await request('/posts/' + second.id)).author.rpIdentity.avatar, media.url);
+  assert.equal((await db.media.findUniqueOrThrow({ where: { id: media.id } })).orphanedAt, null);
+  await request(base + '/identity', player.id, 'DELETE');
+  assert.equal((await own(player.id)).display, null);
+  const normal = await create(player.id, '清除后的账号'); assert.equal(normal.author.rpIdentity, null);
+  await request(base + '/identity-settings', owner.id, 'PATCH', { enabled: false });
+  assert.equal((await request('/posts/' + first.id)).author.rpIdentity, null);
+  assert.deepEqual((await request('/posts/' + mention.id)).mentionIdentities.map((x: Data) => x.displayName), [player.username, player.username]);
+  // 返回同一条历史请求，不能由于后续开关/改名而重复写入。
+  assert.equal((await create(player.id, '第一段', firstState.identityToken, uuid)).id, first.id);
+  assert.equal((await create(player.id, '显式角色发言', firstState.identityToken, explicitRpUuid, 201, 'RP')).id, explicitRp.id);
+  assert.equal((await create(player.id, '关闭后RP不可用', firstState.identityToken, randomUUID(), 409, 'RP')).code, 40011);
+  assert.equal((await create(player.id, '关闭后明确账号', firstState.identityToken, randomUUID(), 201, 'ACCOUNT')).author.rpIdentity, null);
+  const during = await create(owner.id, '关闭期间');
+  await request(base + '/identity-settings', owner.id, 'PATCH', { enabled: true });
+  assert.equal((await request('/posts/' + first.id)).author.rpIdentity.nickname, '白 鸦！');
+  for (const id of [before.id, during.id, normal.id, accountMode.id]) assert.equal((await request('/posts/' + id)).author.rpIdentity, null);
+  await save(player.id, { nickname: '新身份' });
+  const revokedToken = (await own(player.id)).identityToken;
+  await request(base + '/members/' + player.id, owner.id, 'PATCH', { playerMarked: false });
+  assert.equal((await create(player.id, '撤权冲突', revokedToken, randomUUID(), 409)).code, 40011);
+  assert.equal((await create(player.id, '撤权后普通发言')).author.rpIdentity, null);
+  const readerPost = await create(reader.id, '从未使用RP的普通读者发言', undefined, randomUUID(), 201, 'ACCOUNT');
+  await db.threadMember.delete({ where: { threadId_userId: { threadId: thread.id, userId: reader.id } } });
+  const readerPosts = await request('/subthreads/' + sub.id + '/posts?authorId=' + reader.id);
+  assert((readerPosts as unknown as Data[]).some(x => x.id === readerPost.id));
+  const authorRows = await request('/subthreads/' + sub.id + '/posts/authors');
+  assert((authorRows as unknown as Data[]).some((x) => x.id === player.id));
+  assert((authorRows as unknown as Data[]).some((x) => x.id === reader.id));
+  const other = await db.thread.create({ data: { ownerId: owner.id, title: '另一主题', category: category.slug, published: true, members: { create: { userId: owner.id, role: 'OWNER' } } } });
+  assert.equal((await request('/threads/' + other.id + '/identities/' + player.id)).display, null);
+  const otherSub = await db.subthread.create({ data: { threadId: other.id, title: '默认子贴' } });
+  await db.thread.update({ where: { id: other.id }, data: { defaultSubthreadId: otherSub.id } });
+  await request('/threads/' + other.id + '/identity-settings', owner.id, 'PATCH', { enabled: true });
+  await request('/threads/' + other.id + '/identity', owner.id, 'PUT', { nickname: '另一个主持角色' });
+  const otherVersion = (await db.thread.findUniqueOrThrow({ where: { id: other.id } })).version;
+  await request('/threads/' + other.id + '/aggregate', owner.id, 'PATCH', { content: '聚合首次正文选择账号', tagNames: [], version: otherVersion, defaultSubthreadVersion: otherSub.version, identityMode: 'ACCOUNT', identityToken: 'stale' });
+  assert.equal((await db.post.findFirstOrThrow({ where: { subthreadId: otherSub.id, kind: 'BODY' } })).authorIdentitySnapshot, null);
+  const privateThread = await db.thread.create({ data: { ownerId: owner.id, title: '私帖', visibility: 'PRIVATE', published: true, members: { create: { userId: owner.id, role: 'OWNER' } } } });
+  await request('/threads/' + privateThread.id + '/identities/' + owner.id, reader.id, 'GET', undefined, 404);
+  // 控制排队顺序，证明关闭先取得主题锁时，等待中的旧 RP 请求不能写入快照。
+  const concurrentToken = (await own(owner.id)).identityToken;
+  let closing!: Promise<Data>; let pending!: Promise<Data>;
+  await db.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM threads WHERE id = ${thread.id} FOR UPDATE`;
+    closing = request(base + '/identity-settings', owner.id, 'PATCH', { enabled: false });
+    await new Promise(resolve => setTimeout(resolve, 350));
+    pending = create(owner.id, '排队中的旧角色请求', concurrentToken, randomUUID(), 409, 'RP');
+    await new Promise(resolve => setTimeout(resolve, 350));
+  });
+  await closing; assert.equal((await pending).code, 40011);
+  await request(base + '/identity-settings', owner.id, 'PATCH', { enabled: true });
+  // 头像单独自定义时昵称继承账号；连续站内改名仍接受候选曾使用的中间名称。
+  const inheritedMedia = await db.media.create({ data: { userId: collab.id, url: 'https://rp.invalid/inherited.png', key: randomUUID(), purpose: 'AVATAR', status: 'COMPLETED' } });
+  await save(collab.id, { clearNickname: true, avatarMediaId: inheritedMedia.id });
+  const middleName = 'middle' + randomUUID().replaceAll('-', '').slice(0, 10);
+  await request('/users/me', collab.id, 'PATCH', { username: middleName });
+  await db.user.update({ where: { id: collab.id }, data: { lastUsernameChange: new Date(Date.now() - 8 * 86400000) } });
+  await request('/users/me', collab.id, 'PATCH', { username: 'latest' + randomUUID().replaceAll('-', '').slice(0, 10) });
+  const inheritedMention = await create(owner.id, `[@${middleName}](/users/${collab.id})`, undefined, randomUUID(), 201, 'ACCOUNT');
+  assert.equal(inheritedMention.mentionIdentities[0].displayName, middleName);
+  // 引用来自迁移前正文且没有身份数组，账号改名之后仍允许正常编辑。
+  const legacy = await db.post.create({ data: { threadId: thread.id, subthreadId: sub.id, authorId: owner.id, content: `[@原账号名](/users/${player.id})`, floorNumber: 50 } });
+  await request('/posts/' + legacy.id, owner.id, 'PATCH', { content: legacy.content + '补充', version: legacy.version });
+  console.log('通过：RP权限、历史/关闭重开、正文/提及、显式清除、头像引用、幂等重试、撤权与跨帖/私帖边界');
+}
+void main().catch((error: unknown) => { console.error(error instanceof assert.AssertionError ? error.message : 'RP隔离回归失败（内部上下文已隐藏）'); process.exitCode = 1; }).finally(async () => { await db.$disconnect(); });

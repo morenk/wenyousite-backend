@@ -120,7 +120,7 @@ async function main() {
     prisma, new EventEmitter2(), { assertAccessible: async () => {} },
     { lockContentInteraction: async () => {
       await db.post.update({ where: { id: concurrent.id }, data: { content: '并发已提交', version: { increment: 1 }, editedAt: concurrentAt } });
-    } }, new DiceService(), {}, {}, {}, { assertContentAllowed: async () => [] }, {}, {},
+    } }, new DiceService(), {}, {}, {}, { assertContentAllowed: async () => [] }, {}, {}, { prepareMentions: async () => [] },
   ] as unknown as ConstructorParameters<typeof PostsService>));
   await assert.rejects(() => racing.update(concurrent.id, { version: concurrent.version + 1, content: '并发之前' }, viewer));
   const afterRace = await db.post.findUniqueOrThrow({ where: { id: concurrent.id } });

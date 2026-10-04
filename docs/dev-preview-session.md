@@ -14,7 +14,7 @@
 
 JSON schema 在 `contracts/dev-preview-session.schema.json`。字段：
 - `version: 1`、`kind: "wenyou-dev-preview"`、`sessionId`（批次名）、`runId`（`preview_` + 24位hex）、`state: "ready"`。
-- `snapshot: { capturedAt, businessDate, sha256, sourceSha, migrationVersion }`。
+- `snapshot: { capturedAt, businessDate, sha256, sourceSha, migrationVersion, sourceKind? }`。`sourceKind` 为 `synthetic-downloads` 或 `synthetic-thread-identities` 时必须显示“隔离合成样本”，不能称为真实用户快照；缺省保持原快照语义。该标记不改变资源身份核验或写入隔离要求。
 - `source: { backendSha, worktree }`；消费者另外记录自身 SHA/脏源码摘要，不把 Backend SHA 当成自身版本。
 - `backend: { port, origin, apiBase, identityUrl }` 与 `media: { port, origin, identityUrl }`，均固定 `http://127.0.0.1:<port>`；`apiBase` 为 origin + `/api/v1`，identityUrl 为 origin + `/__preview/identity`。
 - `web: { port, origin }` 指定同批次 Web 的 loopback 端口。

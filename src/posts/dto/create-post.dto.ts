@@ -1,9 +1,18 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, MaxLength, IsUUID } from 'class-validator';
+import { IsIn, IsString, IsOptional, MaxLength, IsUUID } from 'class-validator';
 import { IsCuid } from '../../common/decorators/is-cuid.decorator';
 
 /** 创建帖子 DTO */
 export class CreatePostDto {
+  @ApiPropertyOptional({ type: String, description: 'GET 帖内身份返回的确认 token；新建正文或发言时使用。身份变化返回 409/40011，保留草稿并重新确认' })
+  @IsOptional() @IsString() @MaxLength(64)
+  identityToken?: string;
+
+  @ApiPropertyOptional({ enum: ['ACCOUNT', 'RP'], description: '本次新发言身份；ACCOUNT 明确使用站内账号且不校验 RP token，RP 要求有效帖内身份和 identityToken。省略沿用旧确认规则；编辑已有正文忽略此字段' })
+  @IsOptional()
+  @IsIn(['ACCOUNT', 'RP'])
+  identityMode?: 'ACCOUNT' | 'RP';
+
   @ApiProperty({
     example: '这是一段正文内容，支持 Markdown 格式。',
     description: '帖子正文；骰子使用 [[dice:v1:<UUID>:<NdM±K>]] 内联节点',

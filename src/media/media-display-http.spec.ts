@@ -1,3 +1,4 @@
+import { IdentityProjectionService } from '../thread-identities/identity-projection.service';
 import { Controller, Get, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -21,7 +22,7 @@ describe('完整展示HTTP响应边界', () => {
   beforeAll(async () => {
     const module = await Test.createTestingModule({ controllers: [FixtureController] }).compile();
     app = module.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
-    app.useGlobalInterceptors(new TransformInterceptor(), new MediaDisplayInterceptor(new MediaDisplayProjectionService(database as unknown as PrismaService)));
+    app.useGlobalInterceptors(new TransformInterceptor(), new MediaDisplayInterceptor(new MediaDisplayProjectionService(database as unknown as PrismaService), { project: jest.fn().mockImplementation(async (value) => value) } as unknown as IdentityProjectionService));
     await app.init(); await app.getHttpAdapter().getInstance().ready();
   });
   afterAll(async () => { await app.close(); });

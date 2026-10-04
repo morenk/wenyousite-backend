@@ -1,3 +1,4 @@
+import { RpIdentityResponseDto } from '../../thread-identities/thread-identity.dto';
 import { MediaDisplayResponseDto } from '../../media/dto/media-display.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -27,6 +28,8 @@ export class NotificationLikerResponseDto {
 
 /** 所有通知共用的结构化展示字段；未知新增字段由客户端忽略。 */
 export class NotificationPayloadResponseDto {
+  @ApiPropertyOptional({ type: RpIdentityResponseDto, nullable: true, description: '有权限查看的帖内历史身份；通知账号名称不变' })
+  rpIdentity?: RpIdentityResponseDto | null;
   @ApiProperty({ enum: [1] })
   schemaVersion!: 1;
 

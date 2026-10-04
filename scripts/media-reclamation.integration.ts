@@ -79,6 +79,21 @@ async function main() {
     assert.equal((await references.claimUnreferenced([previewOnly.id], { status: 'COMPLETED' })).length, 1,
       '预览清理账本不构成内容绑定，不能阻止无引用媒体回收');
 
+    const category = await db.threadCategoryDefinition.findFirstOrThrow({ where: { isActive: true } });
+    const thread = await db.thread.create({ data: { ownerId: user.id, title: 'RP 媒体绑定保护', category: category.slug } });
+    const subthread = await db.subthread.create({ data: { threadId: thread.id, title: '默认子贴' } });
+    const rpMedia = await db.media.create({ data: { userId: user.id, key: 'rp-avatar', url: 'https://media.example.invalid/rp-avatar', status: 'COMPLETED', purpose: 'AVATAR' } });
+    const identity = await db.threadIdentity.create({ data: { threadId: thread.id, userId: user.id, avatarMediaId: rpMedia.id } });
+    assert.deepEqual(await references.claimUnreferenced([rpMedia.id], { status: 'COMPLETED' }), [], '当前帖内头像不能回收');
+    const post = await db.post.create({ data: { threadId: thread.id, subthreadId: subthread.id, authorId: user.id, floorNumber: 1, content: '保留历史头像', identityAvatarMediaId: rpMedia.id, authorIdentitySnapshot: { id: identity.id, nickname: '历史角色', avatar: rpMedia.url, avatarMediaId: rpMedia.id } } });
+    await db.threadIdentity.update({ where: { id: identity.id }, data: { avatarMediaId: null } });
+    await db.post.update({ where: { id: post.id }, data: { deletedAt: new Date() } });
+    assert.deepEqual(await references.claimUnreferenced([rpMedia.id], { status: 'COMPLETED' }), [], '可恢复的历史发言头像仍需保留');
+    for (const bind of [
+      () => db.threadIdentity.update({ where: { id: identity.id }, data: { avatarMediaId: media[1].id } }),
+      () => db.post.update({ where: { id: post.id }, data: { identityAvatarMediaId: media[1].id } }),
+    ]) await assert.rejects(bind, (error: unknown) => error instanceof Error && error.message.includes('media_deletion_claimed'));
+
     const coverage = await db.$queryRaw<Array<{ missing: bigint }>>`
       SELECT count(*) AS missing FROM pg_constraint c
       JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]

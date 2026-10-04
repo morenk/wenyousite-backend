@@ -27,6 +27,15 @@ import { TAG_NAME_PATTERN } from '../../tags/tag-name';
 
 /** 原子保存主题帖编辑器中的元数据、默认正文与标签。 */
 export class SaveThreadAggregateDto {
+  @ApiPropertyOptional({ type: String, description: 'GET 帖内身份返回的确认 token；新建正文或发言时使用。身份变化返回 409/40011，保留草稿并重新确认' })
+  @IsOptional() @IsString() @MaxLength(64)
+  identityToken?: string;
+
+  @ApiPropertyOptional({ enum: ['ACCOUNT', 'RP'], description: '本次新发言身份；ACCOUNT 明确使用站内账号且不校验 RP token，RP 要求有效帖内身份和 identityToken。省略沿用旧确认规则；编辑已有正文忽略此字段' })
+  @IsOptional()
+  @IsIn(['ACCOUNT', 'RP'])
+  identityMode?: 'ACCOUNT' | 'RP';
+
   @ApiPropertyOptional({ minLength: 1, maxLength: 100 })
   @IsOptional()
   @IsString()

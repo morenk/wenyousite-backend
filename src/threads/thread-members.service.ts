@@ -87,6 +87,7 @@ export class ThreadMembersService {
 
     return this.prisma.$transaction(async (tx) => {
       await this.threadAccess.lockInteraction(tx, threadId, actorId, [targetUserId]);
+      await tx.$queryRaw`SELECT id FROM threads WHERE id = ${threadId} FOR UPDATE`;
       await tx.$queryRaw`SELECT "id" FROM "thread_members" WHERE "thread_id" = ${threadId} AND "user_id" = ${targetUserId} FOR UPDATE`;
       const member = await tx.threadMember.findUnique({
         where: { threadId_userId: { threadId, userId: targetUserId } },
@@ -157,6 +158,7 @@ export class ThreadMembersService {
     if (member.role === 'OWNER') throw forbidden('楼主不能退出', ErrorCode.CANNOT_MODERATE_OWNER);
 
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM threads WHERE id = ${threadId} FOR UPDATE`;
       const updated = await tx.threadMember.update({
         where: { threadId_userId: { threadId, userId } },
         data: { playerMarked: false },

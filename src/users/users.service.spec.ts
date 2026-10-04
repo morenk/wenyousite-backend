@@ -24,6 +24,8 @@ const mockPrisma = {
   media: {
     findUnique: jest.fn(),
   },
+  threadIdentity: { findMany: jest.fn() },
+  threadIdentityAlias: { createMany: jest.fn() },
   $queryRaw: jest.fn(),
   $transaction: jest.fn(),
 };
@@ -75,6 +77,8 @@ describe('UsersService', () => {
     }).compile();
     service = module.get<UsersService>(UsersService);
     jest.clearAllMocks();
+    mockPrisma.threadIdentity.findMany.mockResolvedValue([]);
+    mockPrisma.threadIdentityAlias.createMany.mockResolvedValue({ count: 0 });
     mockPrisma.user.findUniqueOrThrow.mockResolvedValue({ ...userFixture });
     mockPrisma.$transaction.mockImplementation(
       (input: ((tx: typeof mockPrisma) => unknown) | Iterable<unknown>) =>
@@ -163,8 +167,11 @@ describe('UsersService', () => {
       username: 'newname',
       lastUsernameChange: new Date(),
     });
+    mockPrisma.threadIdentity.findMany.mockResolvedValue([{ id: 'avatar-only-role' }]);
     const result = await service.update('u1', { username: 'newname' });
     expect(result.username).toBe('newname');
+    expect(mockPrisma.threadIdentity.findMany).toHaveBeenCalledWith({ where: { userId: 'u1', nickname: null }, select: { id: true } });
+    expect(mockPrisma.threadIdentityAlias.createMany).toHaveBeenCalledWith({ data: [{ identityId: 'avatar-only-role', nickname: 'oldname' }], skipDuplicates: true });
   });
 
   it('P2002 用户名唯一冲突应捕获并返回 409', async () => {

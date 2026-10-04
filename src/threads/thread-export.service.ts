@@ -1,3 +1,4 @@
+import { IdentityProjectionService } from '../thread-identities/identity-projection.service';
 import { visiblePostWhere, visibleThreadOwnerWhere, unblockedUserSql } from '../access/block-visibility.where';
 import { Injectable, HttpException, HttpStatus, PayloadTooLargeException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -277,8 +278,8 @@ function plainText(markdown: string): string {
     .trim();
 }
 
-function displayName(user: { username: string; deletedAt: Date | null }): string {
-  return user.deletedAt ? DEACTIVATED_USER_NAME : user.username;
+function displayName(user: { username: string; deletedAt: Date | null; rpIdentity?: { nickname: string } | null }): string {
+  return user.deletedAt ? DEACTIVATED_USER_NAME : user.rpIdentity?.nickname ?? user.username;
 }
 
 function postHeading(
@@ -394,6 +395,7 @@ export class ThreadExportService {
     private readonly storage: ObjectStorageService,
     private readonly stickers: StickerContentService,
     private readonly config: ConfigService,
+    private readonly identities: IdentityProjectionService,
   ) {}
 
   async createArchive(threadId: string, userId: string, input: ThreadExportDto) {
@@ -432,6 +434,7 @@ export class ThreadExportService {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '仅可导出已发布主题帖');
 
+    await this.identities.project(thread, { viewerId: userId });
     const options = normalizeOptions(input);
     const warnings = new Set<string>();
     const assets = await this.prepareAssets(thread, options, warnings);
@@ -442,7 +445,7 @@ export class ThreadExportService {
         if (post.kind !== 'BODY' && post.kind !== 'FLOOR') continue;
         rendered.set(post.id, {
           post,
-          markdown: renderExportContent(post.content, {
+          markdown: renderExportContent(exportMentionContent(post), {
             options,
             assets,
             warnings,
@@ -569,4 +572,14 @@ function normalizeOptions(input: ThreadExportDto): ThreadExportOptions {
     includeSourceLinks: input.includeSourceLinks === true,
     includeMedia: input.includeMedia !== false,
   };
+}
+
+function exportMentionContent(post: ExportPost): string {
+  const mapped = post as ExportPost & { mentionIdentities?: { userId: string; label: string; displayName: string }[] };
+  let content = post.content;
+  for (const entry of mapped.mentionIdentities ?? []) {
+    const source = `[@${entry.label}](/users/${entry.userId})`;
+    content = replaceVisible(content, new RegExp(source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), () => `[@${entry.displayName}](/users/${entry.userId})`);
+  }
+  return content;
 }

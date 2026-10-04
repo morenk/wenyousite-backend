@@ -1,3 +1,5 @@
+import { IdentityProjectionService } from '../thread-identities/identity-projection.service';
+import { ThreadIdentitiesService } from '../thread-identities/thread-identities.service';
 import { MentionsService } from '../mentions/mentions.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -76,6 +78,8 @@ describe('SubthreadsService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: IdentityProjectionService, useValue: { project: jest.fn().mockImplementation(async (value) => value), projectCurrent: jest.fn() } },
+        { provide: ThreadIdentitiesService, useValue: { prepareAuthor: jest.fn().mockResolvedValue({}), prepareMentions: jest.fn().mockResolvedValue([]) } },
         { provide: MentionsService, useValue: { lockContentInteraction: jest.fn().mockResolvedValue(undefined) } },
         SubthreadsService,
         DiceService,

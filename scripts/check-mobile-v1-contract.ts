@@ -6,7 +6,7 @@ const coverage = JSON.parse(fs.readFileSync(coveragePath, 'utf8')) as Record<str
 const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as Record<string, any>;
 const failures: string[] = [];
 
-const expectedCounts = { total: 238, v1: 110, deferred: 66, notApplicable: 58, infrastructure: 4 };
+const expectedCounts = { total: 243, v1: 115, deferred: 66, notApplicable: 58, infrastructure: 4 };
 for (const [name, expected] of Object.entries(expectedCounts)) {
   if (coverage.counts?.[name] !== expected) {
     failures.push(
@@ -40,6 +40,16 @@ for (const [operationId, path] of [
   if (operation?.disposition !== 'v1' || operation?.method !== 'GET' || operation?.path !== path) {
     failures.push(operationId + ': 讨论直接定位必须纳入移动端 V1 有界读取');
   }
+}
+for (const [operationId, method, path] of [
+  ['threadIdentitiesMine', 'GET', '/api/v1/threads/{threadId}/identity'],
+  ['threadIdentitiesUpdate', 'PUT', '/api/v1/threads/{threadId}/identity'],
+  ['threadIdentitiesClear', 'DELETE', '/api/v1/threads/{threadId}/identity'],
+  ['threadIdentitiesFindUser', 'GET', '/api/v1/threads/{threadId}/identities/{userId}'],
+  ['threadIdentitiesSetEnabled', 'PATCH', '/api/v1/threads/{threadId}/identity-settings'],
+]) {
+  const operation = rows.find((row: Record<string, unknown>) => row.operationId === operationId);
+  if (operation?.disposition !== 'v1' || operation?.module !== 'threads' || operation?.method !== method || operation?.path !== path) failures.push(operationId + ': 帖内身份必须纳入移动端 V1');
 }
 const seen = new Set<string>();
 for (const row of rows) {

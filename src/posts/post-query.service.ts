@@ -200,7 +200,7 @@ export class PostQueryService {
     });
   }
 
-  /** 当前子贴中确实发布过主楼层的角色作者候选。 */
+  /** 当前子贴中确实发布过主楼层的账号作者候选。 */
   async findFloorAuthors(subthreadId: string, userId?: string) {
     const subthread = await this.findSubthreadContext(subthreadId, userId);
     return this.findEligibleContentAuthors({
@@ -292,17 +292,13 @@ export class PostQueryService {
     return rows
       .map((row) => {
         const member = memberByUserId.get(row.authorId);
-        const role = row.authorId === ownerId ? 'OWNER' : member?.role;
-        if (!role || (role === 'PARTICIPANT' && !member?.playerMarked)) {
-          return null;
-        }
+        const role = row.authorId === ownerId ? 'OWNER' : member?.role ?? 'PARTICIPANT';
         return {
           ...row.author,
           role,
           playerMarked: member?.playerMarked ?? false,
         };
       })
-      .filter((author): author is NonNullable<typeof author> => author !== null)
       .sort(
         (first, second) =>
           rank[first.role] - rank[second.role] ||
@@ -322,9 +318,8 @@ export class PostQueryService {
       where: { threadId_userId: { threadId, userId: authorId } },
       select: { role: true, playerMarked: true },
     });
-    return Boolean(
-      member?.playerMarked || member?.role === 'OWNER' || member?.role === 'COLLABORATOR',
-    );
+    if (member?.playerMarked || member?.role === 'OWNER' || member?.role === 'COLLABORATOR') return true;
+    return Boolean(await client.post.findFirst({ where: { threadId, authorId, ...notDeleted }, select: { id: true } }));
   }
 
   /** 获取单条帖子 + 导航上下文。已软删子贴返回 404 */

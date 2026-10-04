@@ -1,3 +1,4 @@
+import { IdentityProjectionService } from '../thread-identities/identity-projection.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { MentionsService } from './mentions.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -43,6 +44,7 @@ describe('MentionsService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: IdentityProjectionService, useValue: { project: jest.fn().mockImplementation(async (value) => value), projectCurrent: jest.fn() } },
         MentionsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: ThreadAccessService, useValue: mockThreadAccess },

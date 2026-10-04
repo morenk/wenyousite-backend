@@ -1,3 +1,4 @@
+import { IdentityProjectionService } from '../thread-identities/identity-projection.service';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { BlockFilterService } from '../access/block-filter.service';
@@ -26,6 +27,7 @@ describe('Markdown v4 节点跨端契约', () => {
     {} as PrismaService,
     {} as ThreadAccessService,
     {} as BlockFilterService,
+    {} as IdentityProjectionService,
   ) as unknown as {
     extractMentionTokens(content: string): {
       usernames: string[];

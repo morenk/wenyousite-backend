@@ -1,3 +1,4 @@
+import { ThreadIdentitiesService } from '../thread-identities/thread-identities.service';
 import { postContentEditData } from '../posts/post-content-edit';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -60,6 +61,7 @@ export class ThreadAggregateService {
     private readonly categories: ThreadCategoriesService,
     private readonly mediaReferences: MediaReferenceService,
     private readonly postingPolicy: PostingPolicyService,
+    private readonly identities: ThreadIdentitiesService,
   ) {}
 
   async save(threadId: string, dto: SaveThreadAggregateDto, userId: string) {
@@ -128,6 +130,7 @@ export class ThreadAggregateService {
                   select: {
                     id: true,
                     content: true,
+                    mentionIdentitySnapshots: true,
                     version: true,
                     author: { select: { username: true } },
                     diceRolls: { select: { id: true, nodeId: true, notation: true } },
@@ -204,7 +207,8 @@ export class ThreadAggregateService {
           if (existingBody.content !== content) {
             const post = await tx.post.update({
               where: { id: existingBody.id, version: dto.bodyVersion, ...notDeleted },
-              data: postContentEditData(existingBody.content, content),
+              data: { ...postContentEditData(existingBody.content, content),
+                mentionIdentitySnapshots: await this.identities.prepareMentions(tx, threadId, content, existingBody.mentionIdentitySnapshots, existingBody.content) },
             });
             await this.mediaReferences.syncPostContent(tx, post.id, content);
             if (current.published) {
@@ -240,6 +244,8 @@ export class ThreadAggregateService {
                 threadId,
                 subthreadId: defaultSubthread.id,
                 authorId: userId,
+                ...(await this.identities.prepareAuthor(tx, threadId, userId, dto.identityToken, dto.identityMode)),
+                mentionIdentitySnapshots: await this.identities.prepareMentions(tx, threadId, content),
                 kind: 'BODY',
                 content,
               },

@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "httpContractVersion": "5.33.0-dev.20261005.1",
+  "markdownVersion": 5,
+  "cases": [
+    {
+      "id": "same-user-different-labels",
+      "content": "[@白鸦](/users/u1) 和 [@夜渡](/users/u1)",
+      "enabled": true,
+      "mentionIdentities": [
+        {
+          "userId": "u1",
+          "label": "白鸦",
+          "displayName": "白鸦",
+          "identityId": "rp1"
+        },
+        {
+          "userId": "u1",
+          "label": "夜渡",
+          "displayName": "夜渡",
+          "identityId": "rp1"
+        }
+      ]
+    },
+    {
+      "id": "disabled-account-display",
+      "content": "[@白鸦](/users/u1)",
+      "enabled": false,
+      "mentionIdentities": [
+        {
+          "userId": "u1",
+          "label": "白鸦",
+          "displayName": "小明",
+          "identityId": null
+        }
+      ]
+    },
+    {
+      "id": "space-and-punctuation",
+      "content": "[@白 鸦！](/users/u1)",
+      "enabled": true,
+      "mentionIdentities": [
+        {
+          "userId": "u1",
+          "label": "白 鸦！",
+          "displayName": "白 鸦！",
+          "identityId": "rp1"
+        }
+      ]
+    }
+  ],
+  "authorModeCases": [
+    {
+      "id": "explicit-account-ignores-rp-change",
+      "identityMode": "ACCOUNT",
+      "effectiveRp": true,
+      "identityToken": "stale",
+      "accepted": true,
+      "snapshot": false
+    },
+    {
+      "id": "explicit-rp-missing-token",
+      "identityMode": "RP",
+      "effectiveRp": true,
+      "accepted": false,
+      "httpStatus": 409,
+      "errorCode": 40011
+    },
+    {
+      "id": "explicit-rp-unavailable",
+      "identityMode": "RP",
+      "effectiveRp": false,
+      "accepted": false,
+      "httpStatus": 409,
+      "errorCode": 40011
+    },
+    {
+      "id": "legacy-rp-requires-token",
+      "effectiveRp": true,
+      "accepted": false,
+      "httpStatus": 409,
+      "errorCode": 40011
+    },
+    {
+      "id": "mixed-account-rp-history",
+      "userId": "u1",
+      "posts": [
+        {
+          "identityMode": "ACCOUNT",
+          "rpIdentity": null
+        },
+        {
+          "identityMode": "RP",
+          "rpIdentity": {
+            "id": "rp1",
+            "nickname": "白鸦",
+            "avatar": null
+          }
+        }
+      ]
+    }
+  ]
+}

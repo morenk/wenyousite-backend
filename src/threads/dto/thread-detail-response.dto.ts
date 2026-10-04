@@ -1,9 +1,14 @@
+import { MentionIdentityDisplayDto } from '../../thread-identities/thread-identity.dto';
 import { MarkdownMediaDisplayResponseDto } from '../../media/dto/media-display.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { DiceRollResponseDto, PostAuthorResponseDto } from '../../posts/dto/post-response.dto';
 import { ThreadCategoryInfoDto } from '../../taxonomy/dto/thread-category-info.dto';
 
 class ThreadBodyPostResponseDto {
+  @ApiPropertyOptional({ type: PostAuthorResponseDto })
+  author?: PostAuthorResponseDto;
+  @ApiPropertyOptional({ type: [MentionIdentityDisplayDto], description: '渲染 canonical mention 的按 userId + 原始 label 映射，编辑继续保存原正文' })
+  mentionIdentities?: MentionIdentityDisplayDto[];
   @ApiPropertyOptional({ type: [MarkdownMediaDisplayResponseDto], description: '仅此次已授权正文中的精确来源映射；编辑保存继续使用 sourceUrl' })
   mediaDisplays?: MarkdownMediaDisplayResponseDto[];
 
@@ -156,6 +161,8 @@ class ThreadCapabilitiesResponseDto {
 
 /** 主题详情显式契约，供 Web 与 Flutter 获取正文骰子状态。 */
 export class ThreadDetailResponseDto {
+  @ApiPropertyOptional({ description: '帖内身份是否开启；旧响应缺失时按 false' })
+  rpIdentityEnabled?: boolean;
   @ApiProperty()
   id!: string;
 

@@ -32,6 +32,8 @@
     "image-gallery.integration.ts",
     "backfill-gallery-index.ts",
     "discussion-navigation.integration.ts",
-    "discussion-fixtures.consumer-test.ts"
+    "discussion-fixtures.consumer-test.ts",
+    "thread-identity.integration.ts",
+    "thread-identity-preview.ts"
   ]
 }

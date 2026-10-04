@@ -1,3 +1,4 @@
+import { ThreadIdentitiesModule } from '../thread-identities/thread-identities.module';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { MediaDisplayInterceptor } from './media-display.interceptor';
 import { MediaDisplayProjectionService } from './media-display-projection.service';
@@ -12,7 +13,7 @@ import { MediaProcessingService } from './media-processing.service';
 
 /** 媒体模块：预签名上传 + 上传确认 + 异步图片加工（缩略图/中图） */
 @Module({
-  imports: [BullModule.registerQueue({ name: 'image' }), MediaReferenceModule, ObjectStorageModule],
+  imports: [ThreadIdentitiesModule, BullModule.registerQueue({ name: 'image' }), MediaReferenceModule, ObjectStorageModule],
   controllers: [MediaController],
   providers: [
     MediaDisplayProjectionService,
