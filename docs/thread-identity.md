@@ -36,6 +36,8 @@ CreatePostDto、UpsertBodyDto、CreateSubthreadDto、SaveThreadAggregateDto 接�
 
 token只关联本帖身份设置、资格、开关专用版本与展示缺省字段，不受标题变更或发言更新时间影响。成功发言的同 clientRequestId 网络重试先返回原帖，后续改名/关闭不能导致重复发帖；同幂等键不同正文或 identityMode 仍按原冲突规则拒绝（帖子409/CONFLICT，子贴409/IDEMPOTENCY_KEY_REUSED=40912）。mode包含在冻结payload中；token只用于首次确认，不因成功重试时角色变化而重新校验。客户端冻结待重试 payload；明确409未写入、重新确认身份后使用新幂等键。
 
+首次 UpsertBody 没有 clientRequestId；超时重试时如果首请求已创建，省略 version 的重试返回版本冲突，不覆盖原正文或身份。客户端可回读并展示已保存正文与作者；相同正文不能严格证明是原请求，禁止自动附新 version 强行覆盖。
+
 修改和清除仅影响后续新发言，编辑旧正文不换作者。关闭时全部已保存 RP 显示恢复账号，重新开启恢复快照。开启前与关闭期间新发言不追溯套用。资格撤销保留旧历史，后续可明确选择 ACCOUNT；尚停留 RP 的草稿须确认改为 ACCOUNT 后再发。快照有真实媒体引用，换头像后旧图不被孤儿回收；治理移除仍令 URL 与变体都不可展示。账号注销不暴露历史身份。
 
 ## Markdown 提及
@@ -51,3 +53,9 @@ token只关联本帖身份设置、资格、开关专用版本与展示缺省字
 ## 验收与发布
 
 先兼容后端，再 Foundation 语义与 Web/Mobile 消费；不删除旧 username/avatar、旧 Markdown 提及或旧无RP写接口。迁移只加表和nullable/default字段。隔离测试覆盖权限、跨帖隔离、关闭重开、改名/头像历史、clear 单项、提及归属、重名、撤权竞态、幂等重试、搜索/通知/导出及媒体引用。UI 实际画面与负责人验收独立于后端自动测试。
+
+### 隔离回归与合成预览入口
+
+通过仓库隔离入口执行 `pnpm exec tsx scripts/e2e-runner.ts --source --suite=thread-identity`，每次运行登记独立 PG/Redis/上传目录，完成或失败后按该轮归属清理。`scripts/thread-identity.integration.ts` 包括实际 HTTP 四种创建路径、角色权限、混合身份、历史提及、清除资料、媒体引用、幂等模式及排队关闭竞态。
+
+无法取得当天已核验真实快照时，`pnpm exec tsx scripts/thread-identity-preview.ts` 仅创建明确标记的合成样本，沿用已提交的 sample preview 隔离资源与快照流程，禁止回落线上或旧真实快照。需先完成 build；输出只有 consumer、账号文件、内容文件的私有路径与非秘密定位。五种账号含楼主、协作者、两个同昵称玩家与读者；样本包含同账号 ACCOUNT/RP、历史昵称、回复提及及第二主题。实际密码仅保存私有文件，不能打印或提交。同一 `rp-identity-v1` 会话跨轮复用，停止与删除依照 [实时预览入口](dev-preview-session.md)。合成样本与真实快照验收分别报告。

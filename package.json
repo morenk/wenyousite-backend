@@ -82,7 +82,8 @@
     "test:preview:integration": "tsx scripts/dev-preview/integration.ts",
     "test:downloads": "tsc -p scripts/download-tests/tsconfig.json && node scripts/run-unprivileged-tests.cjs --require ts-node/register/transpile-only --test --test-concurrency=1 scripts/download-tests/*.test.ts",
     "test:integration:app-downloads": "tsx scripts/e2e-runner.ts --suite=app-downloads",
-    "test:integration:discussion-navigation": "tsx scripts/e2e-runner.ts --suite=discussion-navigation"
+    "test:integration:discussion-navigation": "tsx scripts/e2e-runner.ts --suite=discussion-navigation",
+    "test:integration:thread-identity": "tsx scripts/e2e-runner.ts --suite=thread-identity"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.800.0",
