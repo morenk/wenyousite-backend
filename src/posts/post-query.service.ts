@@ -200,7 +200,7 @@ export class PostQueryService {
     });
   }
 
-  /** 当前子贴中确实发布过主楼层的角色作者候选。 */
+  /** 当前子贴中确实发布过主楼层的账号作者候选。 */
   async findFloorAuthors(subthreadId: string, userId?: string) {
     const subthread = await this.findSubthreadContext(subthreadId, userId);
     return this.findEligibleContentAuthors({
@@ -286,25 +286,19 @@ export class PostQueryService {
       where: { threadId, userId: { in: authorIds } },
       select: { userId: true, role: true, playerMarked: true },
     });
-    const history = await this.prisma.post.findMany({ where: { ...where, authorIdentitySnapshot: { not: Prisma.DbNull } }, distinct: ['authorId'], select: { authorId: true } });
-    const historicalIds = new Set(history.map((post) => post.authorId));
     const memberByUserId = new Map(members.map((member) => [member.userId, member]));
     const rank = { OWNER: 0, COLLABORATOR: 1, PARTICIPANT: 2 } as const;
 
     return rows
       .map((row) => {
         const member = memberByUserId.get(row.authorId);
-        const role = row.authorId === ownerId ? 'OWNER' : member?.role ?? (historicalIds.has(row.authorId) ? 'PARTICIPANT' : undefined);
-        if (!role || (role === 'PARTICIPANT' && !member?.playerMarked && !historicalIds.has(row.authorId))) {
-          return null;
-        }
+        const role = row.authorId === ownerId ? 'OWNER' : member?.role ?? 'PARTICIPANT';
         return {
           ...row.author,
           role,
           playerMarked: member?.playerMarked ?? false,
         };
       })
-      .filter((author): author is NonNullable<typeof author> => author !== null)
       .sort(
         (first, second) =>
           rank[first.role] - rank[second.role] ||
@@ -325,7 +319,7 @@ export class PostQueryService {
       select: { role: true, playerMarked: true },
     });
     if (member?.playerMarked || member?.role === 'OWNER' || member?.role === 'COLLABORATOR') return true;
-    return Boolean(await client.post.findFirst({ where: { threadId, authorId, authorIdentitySnapshot: { not: Prisma.DbNull }, ...notDeleted }, select: { id: true } }));
+    return Boolean(await client.post.findFirst({ where: { threadId, authorId, ...notDeleted }, select: { id: true } }));
   }
 
   /** 获取单条帖子 + 导航上下文。已软删子贴返回 404 */

@@ -167,7 +167,7 @@ describe('PostQueryService.findAllBySubthread', () => {
     }
   });
 
-  it('普通参与者不进入可选角色范围并返回空页', async () => {
+  it('尚无发言的普通参与者筛选返回空页', async () => {
     prisma.threadMember.findUnique.mockResolvedValue({
       role: 'PARTICIPANT',
       playerMarked: false,
@@ -187,6 +187,15 @@ describe('PostQueryService.findAllBySubthread', () => {
       pagination: { cursor: null, hasMore: false },
     });
     expect(prisma.post.findMany).not.toHaveBeenCalled();
+  });
+
+  it.each([null, { role: 'PARTICIPANT', playerMarked: false }])('普通读者或退出成员已有账号发言时仍可筛选', async member => {
+    prisma.threadMember.findUnique.mockResolvedValue(member);
+    prisma.post.findFirst.mockResolvedValue({ id: 'account-post' });
+    prisma.post.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'account-post', _count: { replies: 0 } }]);
+    const result = await service.findAllBySubthread('subthread-1', undefined, 20, undefined, ReplyOrder.OLDEST, 'reader-user-id');
+    expect(result.items.map(post => post.id)).toEqual(['account-post']);
+    expect(prisma.post.findFirst).toHaveBeenCalledWith({ where: { threadId: 'thread-1', authorId: 'reader-user-id', deletedAt: null }, select: { id: true } });
   });
 
   it('作者筛选与倒序游标分页保持在同一主楼查询范围', async () => {
@@ -312,7 +321,7 @@ describe('PostQueryService.findAllBySubthread', () => {
     );
   });
 
-  it('主楼层作者候选只保留当前子贴实际发言的楼主、协作者和玩家', async () => {
+  it('主楼层作者候选包含当前子贴所有实际发言账号，普通读者也保留', async () => {
     prisma.post.findMany.mockResolvedValueOnce([
       {
         authorId: 'player-user-id',
@@ -331,7 +340,6 @@ describe('PostQueryService.findAllBySubthread', () => {
         author: { id: 'collaborator-user-id', username: '协作者', avatar: null, level: 2 },
       },
     ]);
-    prisma.post.findMany.mockResolvedValueOnce([]);
     prisma.threadMember.findMany.mockResolvedValue([
       { userId: 'player-user-id', role: 'PARTICIPANT', playerMarked: true },
       { userId: 'participant-user-id', role: 'PARTICIPANT', playerMarked: false },
@@ -379,6 +387,10 @@ describe('PostQueryService.findAllBySubthread', () => {
         level: 2,
         role: 'PARTICIPANT',
         playerMarked: true,
+      },
+      {
+        id: 'participant-user-id', username: '普通参与者', avatar: null, level: 1,
+        role: 'PARTICIPANT', playerMarked: false,
       },
     ]);
   });

@@ -63,6 +63,13 @@
         },
         "migrationVersion": {
           "type": "string"
+        },
+        "sourceKind": {
+          "enum": [
+            "synthetic-downloads",
+            "synthetic-thread-identities"
+          ],
+          "description": "存在时为显式隔离合成样本，不得标为真实用户快照；缺省保持原快照协议。"
         }
       }
     },

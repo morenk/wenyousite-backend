@@ -69,7 +69,7 @@ async function main() {
         await db.thread.update({ where: { id: other.id }, data: { defaultSubthreadId: normalSub.id } });
         await db.post.create({ data: { threadId: other.id, subthreadId: normalSub.id, authorId: owner.id, kind: 'BODY', content: '另一个主题的账号资料独立。' } });
         contentIds = { threadId: thread.id, subthreadId: sub.id, secondSubthreadId: otherSub.id, historicalFloorId: historical.id, accountFloorId: accountPost.id, replyId: reply.id, otherThreadId: other.id };
-        await captureSnapshot({ output: snapshots, sourceUrl: r.databaseUrl, sourceSha: sha(), mediaOrigin: 'https://media.example.com', pgBin: process.env.E2E_PG_BIN! });
+        await captureSnapshot({ sourceKind: 'synthetic-thread-identities', output: snapshots, sourceUrl: r.databaseUrl, sourceSha: sha(), mediaOrigin: 'https://media.example.com', pgBin: process.env.E2E_PG_BIN! });
       } finally { await db.$disconnect(); }
     });
     snapshotOwnership.sourceCleanup = 'completed';

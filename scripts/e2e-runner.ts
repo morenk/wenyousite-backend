@@ -172,6 +172,8 @@ export async function run(args = process.argv.slice(2)) {
         if (code !== 0) {
           const failureLog = `/tmp/wenyousite-e2e-failure-${r.runId}.log`;
           writeFileSync(failureLog, readFileSync(r.logPath(child)), { flag: 'wx', mode: 0o600 });
+          // 清理隔离资源前保留同轮后端诊断；仅私有文件，不把响应内部信息输出到终端。
+          writeFileSync(`/tmp/wenyousite-e2e-backend-failure-${r.runId}.log`, readFileSync(r.logPath(app)), { flag: 'wx', mode: 0o600 });
           console.error(`隔离验证失败：${script}；私有诊断 ${failureLog}`);
           throw new Error('测试失败');
         }

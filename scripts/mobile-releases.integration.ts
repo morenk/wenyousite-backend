@@ -45,13 +45,16 @@ async function verifyIncrementalMigration() {
     const wallet=await db.wallet.create({data:{kind:'USER',userId:user.id,balance:12345n}});
     const audit=await db.auditLog.create({data:{actorId:user.id,action:'SITE_SETTINGS_UPDATED',targetType:'SITE_SETTINGS',metadata:{migrationFixture:true}}});
     const category=await db.threadCategoryDefinition.findFirstOrThrow({where:{isActive:true}});
-    const thread=await db.thread.create({data:{ownerId:user.id,title:'迁移前保留的隔离内容',category:category.slug}});
+    // 该基线特意停在旧迁移，固定旧表列，避免新版 Prisma 自动读取未来新增字段。
+    const threadId=randomUUID();
+    await db.$executeRaw`INSERT INTO threads (id, owner_id, title, category, updated_at) VALUES (${threadId}, ${user.id}, '迁移前保留的隔离内容', ${category.slug}, ${new Date()})`;
+    const [thread]=await db.$queryRaw<Array<Record<string,unknown>>>`SELECT * FROM threads WHERE id=${threadId}`;
     cpSync(join(repo,'prisma/migrations',migration),join(root,'migrations',migration),{recursive:true});
     deploy();deploy();
     assert.deepEqual(await db.user.findUniqueOrThrow({where:{id:user.id}}),user);
     assert.deepEqual(await db.wallet.findUniqueOrThrow({where:{id:wallet.id}}),wallet);
     assert.deepEqual(await db.auditLog.findUniqueOrThrow({where:{id:audit.id}}),audit);
-    assert.deepEqual(await db.thread.findUniqueOrThrow({where:{id:thread.id}}),thread);
+    assert.deepEqual((await db.$queryRaw<Array<Record<string,unknown>>>`SELECT * FROM threads WHERE id=${threadId}`)[0],thread);
     assert.equal(await db.mobileRelease.count(),0);
   } finally { await db.$disconnect();await control.$executeRawUnsafe(`DROP DATABASE IF EXISTS "${name}"`);await control.$disconnect(); }
 }

@@ -107,8 +107,13 @@ async function main() {
   await request(base + '/members/' + player.id, owner.id, 'PATCH', { playerMarked: false });
   assert.equal((await create(player.id, '撤权冲突', revokedToken, randomUUID(), 409)).code, 40011);
   assert.equal((await create(player.id, '撤权后普通发言')).author.rpIdentity, null);
+  const readerPost = await create(reader.id, '从未使用RP的普通读者发言', undefined, randomUUID(), 201, 'ACCOUNT');
+  await db.threadMember.delete({ where: { threadId_userId: { threadId: thread.id, userId: reader.id } } });
+  const readerPosts = await request('/subthreads/' + sub.id + '/posts?authorId=' + reader.id);
+  assert((readerPosts as unknown as Data[]).some(x => x.id === readerPost.id));
   const authorRows = await request('/subthreads/' + sub.id + '/posts/authors');
   assert((authorRows as unknown as Data[]).some((x) => x.id === player.id));
+  assert((authorRows as unknown as Data[]).some((x) => x.id === reader.id));
   const other = await db.thread.create({ data: { ownerId: owner.id, title: '另一主题', category: category.slug, published: true, members: { create: { userId: owner.id, role: 'OWNER' } } } });
   assert.equal((await request('/threads/' + other.id + '/identities/' + player.id)).display, null);
   const otherSub = await db.subthread.create({ data: { threadId: other.id, title: '默认子贴' } });
@@ -132,6 +137,15 @@ async function main() {
   });
   await closing; assert.equal((await pending).code, 40011);
   await request(base + '/identity-settings', owner.id, 'PATCH', { enabled: true });
+  // 头像单独自定义时昵称继承账号；连续站内改名仍接受候选曾使用的中间名称。
+  const inheritedMedia = await db.media.create({ data: { userId: collab.id, url: 'https://rp.invalid/inherited.png', key: randomUUID(), purpose: 'AVATAR', status: 'COMPLETED' } });
+  await save(collab.id, { clearNickname: true, avatarMediaId: inheritedMedia.id });
+  const middleName = 'middle' + randomUUID().replaceAll('-', '').slice(0, 10);
+  await request('/users/me', collab.id, 'PATCH', { username: middleName });
+  await db.user.update({ where: { id: collab.id }, data: { lastUsernameChange: new Date(Date.now() - 8 * 86400000) } });
+  await request('/users/me', collab.id, 'PATCH', { username: 'latest' + randomUUID().replaceAll('-', '').slice(0, 10) });
+  const inheritedMention = await create(owner.id, `[@${middleName}](/users/${collab.id})`, undefined, randomUUID(), 201, 'ACCOUNT');
+  assert.equal(inheritedMention.mentionIdentities[0].displayName, middleName);
   // 引用来自迁移前正文且没有身份数组，账号改名之后仍允许正常编辑。
   const legacy = await db.post.create({ data: { threadId: thread.id, subthreadId: sub.id, authorId: owner.id, content: `[@原账号名](/users/${player.id})`, floorNumber: 50 } });
   await request('/posts/' + legacy.id, owner.id, 'PATCH', { content: legacy.content + '补充', version: legacy.version });
