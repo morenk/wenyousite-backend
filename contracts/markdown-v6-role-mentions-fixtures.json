@@ -60,13 +60,27 @@
       "id": "escaped",
       "source": "\\[@同名](/users/c111111111111111111111111?rpIdentityId=c00000000000000000000000a)",
       "expected": []
+    },
+    {
+      "id": "24-emoji-nickname",
+      "source": "[@😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀](/users/c111111111111111111111111?rpIdentityId=c00000000000000000000000a)",
+      "expected": [
+        {
+          "userId": "c111111111111111111111111",
+          "label": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+          "targetIdentityId": "c00000000000000000000000a",
+          "mode": "RP"
+        }
+      ]
     }
   ],
   "invalidSources": [
     "[@同名](/users/c111111111111111111111111?rpIdentityId=c00000000000000000000000a&identityMode=ACCOUNT)",
     "[@同名](/users/c111111111111111111111111?rpIdentityId=c00000000000000000000000a&rpIdentityId=c00000000000000000000000b)",
     "[@同名](/users/c111111111111111111111111?rpIdentityId=invalid)",
-    "[@同名](/users/c111111111111111111111111?other=x)"
+    "[@同名](/users/c111111111111111111111111?other=x)",
+    "[@错](/users/c111111111111111111111111?rpIdentityId=bad value)",
+    "[@错]( /users/c111111111111111111111111?rpIdentityId=c00000000000000000000000a)"
   ],
   "writeCases": [
     {

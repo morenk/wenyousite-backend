@@ -33,11 +33,11 @@ export function mentionSourceKey(token: Pick<MentionTarget, 'sourceHref' | 'labe
 export function parseMentionSources(content: string, strict = false): MentionTarget[] {
   const masked = maskMentionCode(content);
   const result: MentionTarget[] = [];
-  for (const match of masked.matchAll(/\[@([^\]\r\n]*)\]\((\/users\/[^\s)]*)\)/g)) {
+  for (const match of masked.matchAll(/\[@([^\]\r\n]*)\]\(([ \t]*\/users\/[^)\r\n]*)\)/g)) {
     if (isMentionEscaped(content, match.index!)) continue;
     const [, label, sourceHref] = match;
     const href = /^\/users\/([a-zA-Z0-9_-]+)(?:\?(rpIdentityId=([a-zA-Z0-9_-]+)|identityMode=ACCOUNT))?$/.exec(sourceHref);
-    const valid = href && label.length > 0 && label.length <= 32 && (!href[3] || /^c[a-z0-9]{24}$/.test(href[3]));
+    const valid = href && label.length > 0 && Array.from(label).length <= 32 && (!href[3] || /^c[a-z0-9]{24}$/.test(href[3]));
     if (!valid) {
       if (strict) throw new BusinessException(ErrorCode.RP_MENTION_CHANGED, '提及目标不合法，请保留正文并重新选择', HttpStatus.CONFLICT);
       continue;
@@ -67,6 +67,17 @@ export function accountMentionFallback(content: string, names: Map<string, strin
   for (const token of parseMentionSources(content).filter((row) => row.mode !== 'LEGACY').reverse()) {
     const label = names.get(token.userId) ?? '不可用用户';
     result = result.slice(0, token.start) + `[@${label}](/users/${token.userId})` + result.slice(token.end);
+  }
+  return result;
+}
+
+/** 展示/摘要/档案使用安全副本，源身份只在专门的保源字段中流转。 */
+export function displayMentionContent(content: string, entries: Array<{userId:string;label:string;displayName:string;sourceHref?:string}>): string {
+  let result = content;
+  for (const token of parseMentionSources(content).reverse()) {
+    const entry = entries.find(row => row.label === token.label && (row.sourceHref ?? `/users/${row.userId}`) === token.sourceHref);
+    if (!entry) continue;
+    result = result.slice(0, token.start) + `[@${entry.displayName}](/users/${token.userId})` + result.slice(token.end);
   }
   return result;
 }

@@ -134,7 +134,7 @@
       "compatibilityIdentityId": null,
       "remainingRoleId": "role-b",
       "legacyDisplay": null,
-      "defaultIdentityId": "role-b"
+      "defaultIdentityId": null
     },
     {
       "id": "empty-profile-retains-slot",

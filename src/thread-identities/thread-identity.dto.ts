@@ -21,7 +21,7 @@ export class MentionIdentityDisplayDto {
 
   @ApiProperty() userId!: string;
   @ApiProperty({
-    description: '正文 canonical mention 的原始标签（不含 @），与 userId 共同作为映射键',
+    description: '正文 canonical mention 的原始标签（不含 @），与 sourceHref 共同作为映射键；旧 bare 兼容 userId+label',
   })
   label!: string;
   @ApiProperty({ description: '此次阅读应显示的名字；关闭时为账号用户名' }) displayName!: string;

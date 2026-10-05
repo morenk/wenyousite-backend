@@ -33285,7 +33285,7 @@
           },
           "label": {
             "type": "string",
-            "description": "正文 canonical mention 的原始标签（不含 @），与 userId 共同作为映射键"
+            "description": "正文 canonical mention 的原始标签（不含 @），与 sourceHref 共同作为映射键；旧 bare 兼容 userId+label"
           },
           "displayName": {
             "type": "string",
@@ -33838,7 +33838,7 @@
         "type": "object",
         "properties": {
           "markdownContractVersion": {
-            "type": "number",
+            "type": "integer",
             "enum": [
               6
             ],
@@ -35841,7 +35841,7 @@
         "type": "object",
         "properties": {
           "markdownContractVersion": {
-            "type": "number",
+            "type": "integer",
             "enum": [
               6
             ],
@@ -36510,7 +36510,7 @@
         "type": "object",
         "properties": {
           "markdownContractVersion": {
-            "type": "number",
+            "type": "integer",
             "enum": [
               6
             ],
@@ -36677,7 +36677,7 @@
         "type": "object",
         "properties": {
           "markdownContractVersion": {
-            "type": "number",
+            "type": "integer",
             "enum": [
               6
             ],
@@ -36921,7 +36921,7 @@
         "type": "object",
         "properties": {
           "markdownContractVersion": {
-            "type": "number",
+            "type": "integer",
             "enum": [
               6
             ],
@@ -37057,7 +37057,7 @@
         "type": "object",
         "properties": {
           "markdownContractVersion": {
-            "type": "number",
+            "type": "integer",
             "enum": [
               6
             ],
@@ -37094,7 +37094,7 @@
         "type": "object",
         "properties": {
           "markdownContractVersion": {
-            "type": "number",
+            "type": "integer",
             "enum": [
               6
             ],
