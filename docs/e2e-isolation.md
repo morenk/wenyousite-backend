@@ -121,3 +121,7 @@ Linux 退出期间可能先置位 PF_EXITING，进程仍暂时显示 R，且 env
 消费者 env 与 `E2E_PRIVATE_ENV` 同时包含 `E2E_DISCUSSION_FIXTURES`，指向运行根下的 0600 `discussion-fixtures.json`：`{version:1,runId,ownerUserId,otherUserId,scenarios:[{size,threadId,subthreadId,rootPostId,pinnedPostId,editableFloorId,editableReplyId,otherAuthorFloorId,otherAuthorReplyId}]}`。不增加 manifest 字段，不交付数据库、Redis 或签名凭据。消费者读取前必须确认普通文件、UID/0600、文件位于 manifest 同一运行根且 runId 匹配；缺少或不匹配时停止，不回退到其他实例。
 
 奇数编号属于本轮登录用户，偶数属于另一个无登录凭据的样本成员；编号 `size-1` 的主楼置顶，editable ID 对应编号 3，otherAuthor ID 对应编号 2。初始没有删除空洞，浏览器可按正常业务 API 编辑、删除或新建以验证编号连续分配与空洞。`pnpm test:e2e:discussion-fixtures` 用不持有数据库凭据的消费者，验证本轮文件/环境绑定、实际 HTTP 首/中/末定位、置顶、筛选拒绝及样本 ID。全部样本和消费者后代由同一 runner 在成功、失败或中断后回收。
+
+### RP 身份资料楼层
+
+`pnpm e2e:run --suite=rp-profile` 验证 author_version 迁移前后及原 token 组成、引用更新与省略/清除、他人代贴/跨子贴/楼中楼、跨主题与不可读拒绝、原文编辑、媒体/骰子/提及读取、关闭/归档/私帖撤权/双向拉黑、乐观锁并发。已纳入 `--full`；随机迁移子库与所有数据均属于当轮核验资源并由 finally/runner 清理，禁止用公网账号替代。

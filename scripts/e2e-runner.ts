@@ -14,6 +14,7 @@ import { AuditService } from '../src/moderation/audit.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 const SUITES: Record<string, [string, string]> = {
+  'rp-profile': ['rp-profile.integration.ts', 'RP_PROFILE_TEST_ENV'],
   'role-mentions': ['role-mentions.integration.ts', 'ROLE_MENTIONS_TEST_ENV'],
   'thread-identity': ['thread-identity.integration.ts', 'THREAD_IDENTITY_TEST_ENV'],
   'app-downloads': ['app-downloads.integration.ts', 'APP_DOWNLOADS_TEST_ENV'],
@@ -186,7 +187,7 @@ export async function run(args = process.argv.slice(2)) {
       }
       const suites = options.includes('--full') ? Object.keys(SUITES).filter((key) => key !== 'search')
         : options.filter((o) => o.startsWith('--suite=')).map((o) => o.slice(8));
-      const httpSuites = ['role-mentions', 'thread-identity', 'discussion-navigation', 'private-invite-reuse', 'gallery', 'profile-follow-counts', 'post-edited-time'];
+      const httpSuites = ['rp-profile', 'role-mentions', 'thread-identity', 'discussion-navigation', 'private-invite-reuse', 'gallery', 'profile-follow-counts', 'post-edited-time'];
       for (const key of suites.filter(key => httpSuites.includes(key))) {
         const [script, flag] = SUITES[key];
         await runScript(script, { [flag]: 'test' });

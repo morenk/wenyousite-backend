@@ -114,10 +114,11 @@ export class ThreadIdentitiesService {
   private async stateResponse(
     current: Awaited<ReturnType<ThreadIdentitiesService['context']>>,
     viewerId?: string,
+    db: Db = this.prisma,
   ) {
     const { threadId, userId, enabled, eligible, identity, user, display, token } = current;
     const profilePostStatus = !display || !identity?.profilePostId ? 'NONE' as const
-      : await this.prisma.post.findFirst({
+      : await db.post.findFirst({
           where: { id: identity.profilePostId, threadId, ...visiblePostWhere(viewerId) },
           select: { id: true },
         }) ? 'AVAILABLE' as const : 'UNAVAILABLE' as const;
@@ -194,7 +195,7 @@ export class ThreadIdentitiesService {
         throw forbidden('当前不能设置帖内身份', ErrorCode.NOT_PLAYER);
       // 主身份不存在时清除为无动作，不分配新的 ID 或占用角色名额。
       if (!create && !identityId && !current.identity && !dto.nickname && !dto.avatarMediaId)
-        return this.stateResponse(current, userId);
+        return this.stateResponse(current, userId, tx);
 
       if (
         !current.identity &&
@@ -264,17 +265,18 @@ export class ThreadIdentitiesService {
       );
       const result = await this.context(threadId, userId, tx, identity.id);
       return identityId || create
-        ? this.roleResponse(result, userId)
-        : this.stateResponse(result, userId);
+        ? this.roleResponse(result, userId, tx)
+        : this.stateResponse(result, userId, tx);
     });
   }
 
   private async roleResponse(
     current: Awaited<ReturnType<ThreadIdentitiesService['context']>>,
     viewerId?: string,
+    db: Db = this.prisma,
   ) {
     return {
-      ...await this.stateResponse(current, viewerId),
+      ...await this.stateResponse(current, viewerId, db),
       identityId: current.identity!.id,
       deleted: Boolean(current.identity!.deletedAt),
       canDelete: viewerId === current.userId && !current.identity!.deletedAt,
@@ -330,7 +332,7 @@ export class ThreadIdentitiesService {
       await this.access.assertAccessible(threadId, userId, tx, true);
       const current = await this.context(threadId, userId, tx, identityId);
       if (!current.identity) throw notFound(ErrorCode.NOT_FOUND, '帖内身份不存在');
-      if (current.identity.deletedAt) return this.roleResponse(current, userId);
+      if (current.identity.deletedAt) return this.roleResponse(current, userId, tx);
       if (current.identity.version !== version)
         throw new BusinessException(
           ErrorCode.OPTIMISTIC_LOCK_CONFLICT,
@@ -342,7 +344,7 @@ export class ThreadIdentitiesService {
         where: { id: identityId },
         data: { deletedAt: new Date(), version: { increment: 1 } },
       });
-      return this.roleResponse(await this.context(threadId, userId, tx, identityId), userId);
+      return this.roleResponse(await this.context(threadId, userId, tx, identityId), userId, tx);
     });
   }
 

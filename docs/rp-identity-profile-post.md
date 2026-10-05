@@ -13,7 +13,7 @@ HTTP 事实源为 `contracts/openapi.json`（`5.36.0-dev.20261005.1`）；固定
 | profilePostId?: string \| null | 本主题内稳定 post ID；省略保持原值，null 解绑。创建省略为 null。禁止任意 URL。 |
 | clearProfilePost?: boolean | true 显式解绑，适用于生成器省略 JSON null 的客户端；不能与非空 profilePostId 同时提供。 |
 
-operationId 不变：`rpIdentitiesCreate`、`rpIdentitiesUpdate`、`threadIdentitiesUpdate`。指定角色更新仍必填 version，旧 single 可选 version 沿用原兼容行为；新客户端须使用指定角色端点。保存时在主题事务锁内同时验证 actor 资格、版本以及目标当前可读、存活、属于同主题。允许 BODY、主楼层和楼中楼，跨子贴、他人或楼主代贴均可；同一 post 可被多个角色引用。跨主题、不存在、软删除、已删父楼/子贴、双向拉黑等统一 404/POST_NOT_FOUND=40403，不泄露目标详情。非法 ID/URL、清除冲突、空修改为 400/BAD_REQUEST=40001；主题/角色访问与 403/409 原规则不变，版本冲突 409/40002。
+operationId 不变：`rpIdentitiesCreate`、`rpIdentitiesUpdate`、`threadIdentitiesUpdate`。指定角色更新仍必填 version，旧 single 可选 version 沿用原兼容行为；新客户端须使用指定角色端点。保存时在主题事务锁内同时验证 actor 资格、版本以及目标当前可读、存活、属于同主题。允许 BODY、主楼层和楼中楼，跨子贴、他人或楼主代贴均可；同一 post 可被多个角色引用。跨主题、不存在、软删除、已删父楼/子贴、双向拉黑等统一 404/POST_NOT_FOUND=40403，不泄露目标详情。非法 ID/URL 等 DTO 格式错误为 400/VALIDATION_ERROR=40000；清除冲突、空修改为 400/BAD_REQUEST=40001；主题/角色访问与 403/409 原规则不变，版本冲突 409/40002。
 
 资料是附加信息；仅绑定资料不能创建空角色，也不令昵称/头像均空的角色变为有效 RP。新建仍至少需要非空昵称或头像。旧 single DELETE 继续只清昵称/头像，省略本字段保留原绑定，绝不隐式解绑其他角色；新 UI 的“解绑资料”明确传 clearProfilePost=true。归档继续保留记录且不再展示当前资料，恢复/替换角色 ID 不在本功能范围。
 
