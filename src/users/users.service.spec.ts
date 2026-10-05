@@ -26,6 +26,7 @@ const mockPrisma = {
   },
   threadIdentity: { findMany: jest.fn() },
   threadIdentityAlias: { createMany: jest.fn() },
+  userMentionAlias: { upsert: jest.fn() },
   $queryRaw: jest.fn(),
   $transaction: jest.fn(),
 };

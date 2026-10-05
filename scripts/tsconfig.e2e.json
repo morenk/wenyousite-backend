@@ -34,6 +34,7 @@
     "discussion-navigation.integration.ts",
     "discussion-fixtures.consumer-test.ts",
     "thread-identity.integration.ts",
-    "thread-identity-preview.ts"
+    "thread-identity-preview.ts",
+    "role-mentions.integration.ts"
   ]
 }

@@ -1,3 +1,4 @@
+import { ThreadIdentitiesService } from '../thread-identities/thread-identities.service';
 import { IdentityProjectionService } from '../thread-identities/identity-projection.service';
 import { ThreadRankingService } from './thread-ranking.service';
 import { MentionsService } from '../mentions/mentions.service';
@@ -124,6 +125,7 @@ describe('ThreadsService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: ThreadIdentitiesService, useValue: { prepareMentions: jest.fn().mockResolvedValue([]) } },
         { provide: IdentityProjectionService, useValue: { project: jest.fn().mockImplementation(async (value) => value), projectCurrent: jest.fn() } },
         { provide: MentionsService, useValue: { lockContentInteraction: jest.fn().mockResolvedValue(undefined) } },
         ThreadsService,

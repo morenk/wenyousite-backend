@@ -1,4 +1,5 @@
-import { accountMentionFallback, parseMentionSources } from '../common/role-mentions';
+import { buildPostPreview } from '../common/post-preview';
+import { accountMentionFallback, parseMentionSources, displayMentionContent } from '../common/role-mentions';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { visiblePostWhere, visibleUserWhere } from '../access/block-visibility.where';
@@ -88,6 +89,7 @@ export class IdentityProjectionService {
           authorIdentitySnapshot: true,
           mentionIdentitySnapshots: true,
           content: true,
+          diceRolls: { select: { nodeId: true, notation: true, total: true } },
           author: { select: { deletedAt: true } },
           identityAvatarMedia: {
             select: { url: true, status: true, deletionClaimedAt: true, displayAsset: true },
@@ -143,9 +145,20 @@ export class IdentityProjectionService {
         for (const node of nodes.get(post.id) ?? []) {
           if (record(node.author)) node.author.rpIdentity = rpIdentity;
           if (typeof node.content === 'string') node.mentionIdentities = mentionIdentities;
+          if (typeof node.preview === 'string') node.preview = buildPostPreview(displayMentionContent(context.markdownContractVersion === 6 ? post.content : accountMentionFallback(post.content, names), mentionIdentities), post.diceRolls);
         }
-        for (const node of notifications.filter((item) => item.postId === post.id))
-          if (record(node.payload)) node.payload.rpIdentity = rpIdentity;
+        for (const node of notifications.filter((item) => item.postId === post.id)) {
+          if (!record(node.payload)) continue;
+          node.payload.rpIdentity = rpIdentity;
+          if (typeof node.payload.preview === 'string') {
+            const oldPreview = node.payload.preview;
+            const projected = context.markdownContractVersion === 6 ? post.content : accountMentionFallback(post.content, names);
+            const preview = buildPostPreview(displayMentionContent(projected, mentionIdentities), post.diceRolls);
+            if (oldPreview && typeof node.content === 'string' && node.content.endsWith(oldPreview))
+              node.content = node.content.slice(0, -oldPreview.length) + preview;
+            node.payload.preview = preview;
+          }
+        }
       }
     }
     // 账号范围的题头、成员、作者筛选不以某个角色代表整个账号。

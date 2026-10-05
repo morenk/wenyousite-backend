@@ -41,7 +41,7 @@ describe('帖内身份读取投影', () => {
     };
     return { db, service: new IdentityProjectionService(db as unknown as PrismaService) };
   }
-  it('题头当前角色不覆盖嵌套旧楼层作者；旧头像无媒体ID可保留合法历史来源', async () => {
+  it('题头保持账号，不覆盖嵌套旧楼层作者；旧头像无媒体ID可保留合法历史来源', async () => {
     const { service, db } = setup();
     const value = {
       id: 'thread',
@@ -53,12 +53,8 @@ describe('帖内身份读取投影', () => {
       },
     };
     const result = await service.project(value, { currentUsers: true, threadId: 'thread' });
-    expect(db.threadIdentity.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ compatibilityIdentity: true, deletedAt: null }),
-      }),
-    );
-    expect(result.owner).toMatchObject({ rpIdentity: { nickname: '新角色' } });
+    expect(db.threadIdentity.findMany).not.toHaveBeenCalled();
+    expect(result.owner).toMatchObject({ rpIdentity: null });
     expect(result.bodyPost.author).toMatchObject({
       username: '真实账号',
       rpIdentity: { nickname: '旧角色', avatar: 'https://legacy/avatar' },

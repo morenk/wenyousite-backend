@@ -8,11 +8,11 @@
 
 `/meta.capabilities.roleMentionsV6Supported`（缺失 false）表示本服务端接受新读取与写 DTO 能力字段；`roleMentionsV6WriteEnabled`（缺失 false）表示允许新增 v6 源。环境变量 `RP_MENTION_V6_ENABLED` 默认 false，隔离测试可显式 true。全局 Markdown 版本独立保持 5。
 
-七个 DTO 新增可选 `markdownContractVersion: 6`：CreatePostDto、UpdatePostDto、UpsertBodyDto、CreateSubthreadDto、SaveThreadAggregateDto、CreateDraftDto、UpdateDraftDto。新客户端仅在 supported=true 时始终发送能力字段，包括删光原角色节点的编辑；旧后端可能拒绝未知字段。读取 header 不能替代写 DTO。普通正文和旧 bare 节点不因声明 6 或写开关关闭被拒绝。
+八个 DTO 新增可选 `markdownContractVersion: 6`：CreateThreadDto、CreatePostDto、UpdatePostDto、UpsertBodyDto、CreateSubthreadDto、SaveThreadAggregateDto、CreateDraftDto、UpdateDraftDto。新客户端仅在 supported=true 时始终发送能力字段，包括删光原角色节点的编辑；旧后端可能拒绝未知字段。读取 header 不能替代写 DTO。普通正文和旧 bare 节点不因声明 6 或写开关关闭被拒绝。
 
-提交正文或原存正文任一包含 v6 节点而没有能力 6：HTTP409 / 40014 MARKDOWN_CAPABILITY_REQUIRED，不修改任何正文，保留客户端草稿。此规则覆盖首次/更新 BODY、聚合编辑不变正文、普通楼层 PATCH、云草稿同槽覆盖和 PATCH；原存源不能由降级副本覆盖。
+提交正文或原存正文任一包含 v6 节点而没有能力 6：HTTP409 / 40014 MARKDOWN_CAPABILITY_REQUIRED，不修改任何正文，保留客户端草稿。此规则覆盖初始新主题 content、首次/更新 BODY、聚合编辑不变正文、普通楼层 PATCH、云草稿同槽覆盖和 PATCH；原存源不能由降级副本覆盖。
 
-写开关关闭时，仅新增的 v6 源键拒绝 HTTP409 / 40015 ROLE_MENTIONS_DISABLED；有能力客户端仍能保存、重排、复制原文已有节点或删除节点。键为原 `sourceHref + label`，不是位置序号。写入身份 ID/token/mode 与原幂等规则不变；能力字段本身不是发言身份选择。
+写开关关闭时，仅新增的 v6 源键拒绝 HTTP409 / 40015 ROLE_MENTIONS_DISABLED；有能力客户端仍能保存、重排、复制原文已有节点或删除节点。键为原 `sourceHref + label`，不是位置序号。新主题尚未存在帖内角色，只能存显式 ACCOUNT，跨主题 RP 源拒绝40012。写入身份 ID/token/mode 与原幂等规则不变；能力字段本身不是发言身份选择。
 
 ## 规范源码
 
@@ -39,6 +39,8 @@ includeIdentities=true 但新写开关关闭时 users=[]；canMentionAllPlayers 
 RpIdentityCollectionDto.defaultIdentityId 固定 null，新空白编辑器默认 ACCOUNT；恢复显式草稿不改。compatibilityIdentity/compatibilityIdentityId 仅为旧 single 协议内部锚点，不是产品主角色、候选优先级或目录头像。账号范围的题头、成员、作者目录、订阅显示站内资料；历史发言/回复/通知来源仍使用发表快照。
 
 ## 读取与显示
+
+通知 payload.preview 始终是服务端安全显示的纯文本摘要，不携带原 v6 href；推送也使用安全账号摘要，通知入口返回来源帖后再读角色卡。
 
 有 header6：原 content 不变；mentionIdentities 增加 sourceHref、targetIdentityId、threadId。原 label 与 sourceHref 是匹配键；targetIdentityId 不随关闭/归档丢失，identityId 是可遮蔽的显示身份，不能作为稳定目标。显示使用 displayName。角色关闭时 displayName 回账号、identityId=null；重开恢复插入快照 label。同ID卡片查询不能指向该账号其他角色。
 

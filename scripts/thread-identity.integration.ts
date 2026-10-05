@@ -163,7 +163,7 @@ async function main() {
   assert.equal((await own(owner.id)).identityToken, a.identityToken);
   const list = await request(roles, owner.id);
   assert.equal(list.limit, 10); assert.equal(list.activeCount, 2);
-  assert.equal(list.compatibilityIdentityId, a.identity.id); assert.equal(list.defaultIdentityId, a.identity.id);
+  assert.equal(list.compatibilityIdentityId, a.identity.id); assert.equal(list.defaultIdentityId, null);
   const bKey = randomUUID();
   const bPost = await create(owner.id, '同名角色B', b.identityToken, bKey, 201, 'RP', b.identityId);
   assert.equal(bPost.author.rpIdentity.id, b.identityId);
@@ -211,7 +211,7 @@ async function main() {
   assert.equal((await own(owner.id)).identity, null);
   const c = await request(roles, owner.id, 'POST', { nickname: '角色 C' }, 201);
   assert.equal(c.compatibilityIdentity, false); assert.equal((await own(owner.id)).display, null);
-  assert.equal((await request(roles, owner.id)).defaultIdentityId, c.identityId);
+  assert.equal((await request(roles, owner.id)).defaultIdentityId, null);
   const newA = await save(owner.id, { nickname: '显式重建兼容身份' });
   assert.notEqual(newA.identity.id, currentA.identity.id);
   await request(base + '/identity', owner.id, 'DELETE');

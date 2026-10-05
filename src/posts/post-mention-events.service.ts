@@ -1,3 +1,4 @@
+import { hasRoleMentionSource } from '../common/role-mentions';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { truncateMarkdown } from '../common/markdown-truncate';
@@ -46,6 +47,7 @@ export class PostMentionEventsService {
       authorUsername: input.authorUsername,
       recipientIds: mentioned.map((user) => user.userId),
       preview: truncateMarkdown(input.content),
+      ...(hasRoleMentionSource(input.content) ? { mentionSource: input.content } : {}),
       context: input.context,
     };
     await this.outbox.enqueue(tx, {

@@ -1,6 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { assertRoleMentionWrite, parseMentionSources, mentionSourceKey } from '../common/role-mentions';
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Optional } from '@nestjs/common';
 import { Prisma, MediaPurpose } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../access/thread-access.service';
@@ -25,7 +25,7 @@ export class ThreadIdentitiesService {
     private readonly prisma: PrismaService,
     private readonly access: ThreadAccessService,
     private readonly mediaReferences: MediaReferenceService,
-    private readonly config?: ConfigService,
+    @Optional() private readonly config?: ConfigService,
   ) {}
 
   async context(threadId: string, userId: string, db: Db = this.prisma, identityId?: string) {

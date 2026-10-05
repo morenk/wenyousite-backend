@@ -1,3 +1,4 @@
+import { MarkdownCapabilityDto } from '../../common/dto/markdown-capability.dto';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
@@ -22,7 +23,7 @@ import {
 import { MAX_TAG_NAME_LENGTH, MAX_TAGS_PER_THREAD, TAG_NAME_PATTERN } from '../../tags/tag-name';
 
 /** 创建主题帖草稿 DTO：全部可选，发布时校验完整 */
-export class CreateThreadDto {
+export class CreateThreadDto extends MarkdownCapabilityDto {
   @ApiPropertyOptional({
     format: 'uuid',
     description: '客户端创建幂等键；同一次提交和网络重试必须复用',

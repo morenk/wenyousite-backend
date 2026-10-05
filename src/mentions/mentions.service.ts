@@ -5,7 +5,7 @@ import { readMediaDisplay } from '../media/media-display';
 import { IdentityProjectionService } from '../thread-identities/identity-projection.service';
 import { RpIdentityResponseDto } from '../thread-identities/thread-identity.dto';
 import { lockInteractionUsers, assertInteractionAllowed } from '../access/block-visibility.where';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../access/thread-access.service';
 import { BlockFilterService, BlockSets } from '../access/block-filter.service';
@@ -63,7 +63,7 @@ export class MentionsService {
     private threadAccess: ThreadAccessService,
     private blockFilter: BlockFilterService,
     private readonly identities: IdentityProjectionService,
-    private readonly config?: ConfigService,
+    @Optional() private readonly config?: ConfigService,
   ) {}
 
   /** 在内容锁之前一次锁定全部互动对象；全体提及自动略过拉黑对象。 */
@@ -391,7 +391,7 @@ export class MentionsService {
     const withoutCode = this.stripMarkdownCode(content);
     const userIds = parseMentionSources(content, true).map(row => row.userId);
     // 所有用户链接（包括转义或无效的 query）均遮蔽，绝不降回普通 @名字。
-    const withoutCanonical = withoutCode.replace(/\[@[^\]\r\n]*\]\(\/users\/[^\s)]*\)/g, marker => ' '.repeat(marker.length));
+    const withoutCanonical = withoutCode.replace(/\[@[^\]\r\n]*\]\([ \t]*\/users\/[^)\r\n]*\)/g, marker => ' '.repeat(marker.length));
     const mentionNames = [...withoutCanonical.matchAll(this.mentionRegex)]
       .filter((match) => {
         const atOffset = match[0].indexOf('@');

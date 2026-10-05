@@ -222,4 +222,4 @@ GET /users/me 与有效用户的 GET /users/{id} 中，`_count.following` / `_co
 
 ## 平级身份提及兼容扩展
 
-`5.35.0-dev.20261005.1` 提供 Markdown6 能力协商，激活版本仍5。七个正文/草稿 DTO、平级候选与显示投影见 [角色提及契约](markdown-v6-role-mentions.md)。
+`5.35.0-dev.20261005.1` 提供 Markdown6 能力协商，激活版本仍5。八个正文/草稿 DTO、平级候选与显示投影见 [角色提及契约](markdown-v6-role-mentions.md)。

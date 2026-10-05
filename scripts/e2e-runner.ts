@@ -14,6 +14,7 @@ import { AuditService } from '../src/moderation/audit.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 const SUITES: Record<string, [string, string]> = {
+  'role-mentions': ['role-mentions.integration.ts', 'ROLE_MENTIONS_TEST_ENV'],
   'thread-identity': ['thread-identity.integration.ts', 'THREAD_IDENTITY_TEST_ENV'],
   'app-downloads': ['app-downloads.integration.ts', 'APP_DOWNLOADS_TEST_ENV'],
   'discussion-navigation': ['discussion-navigation.integration.ts', 'DISCUSSION_NAVIGATION_TEST_ENV'],
@@ -52,7 +53,7 @@ export async function run(args = process.argv.slice(2)) {
   const boundary = args.indexOf('--');
   const options = boundary < 0 ? args : args.slice(0, boundary);
   const command = boundary < 0 ? [] : args.slice(boundary + 1);
-  ensure(options.every((o) => ['--api', '--full', '--block-search-only', '--admin-fixtures', '--mobile-release-fixtures', '--source', '--discussion-fixtures'].includes(o) || (o.startsWith('--suite=') && Object.hasOwn(SUITES, o.slice(8)))), '非法 runner 参数');
+  ensure(options.every((o) => ['--api', '--full', '--block-search-only', '--admin-fixtures', '--mobile-release-fixtures', '--source', '--discussion-fixtures', '--role-mentions-v6'].includes(o) || (o.startsWith('--suite=') && Object.hasOwn(SUITES, o.slice(8)))), '非法 runner 参数');
   ensure(command.length > 0 || options.length > 0, '使用 --api / --full 或 -- <测试命令>');
   ensure(!options.includes('--admin-fixtures') || command.length > 0, '--admin-fixtures 必须配合本轮消费者命令');
   ensure(!options.includes('--mobile-release-fixtures') || options.includes('--admin-fixtures'), '--mobile-release-fixtures 需要 --admin-fixtures');
@@ -139,6 +140,7 @@ export async function run(args = process.argv.slice(2)) {
         E2E_ADMIN_FIXTURES: adminFixturesPath ?? '',
         E2E_MOBILE_RELEASE_FIXTURES: releaseFixturesPath ?? '',
         E2E_DISCUSSION_FIXTURES: discussionFixturesPath ?? '',
+        RP_MENTION_V6_ENABLED: options.includes('--role-mentions-v6') || options.includes('--full') || options.includes('--suite=role-mentions') ? 'true' : 'false',
         PUSH_ENABLED: 'false', SENTRY_DSN: '', SES_SMTP_HOST: '', SES_SMTP_USER: '', SES_SMTP_PASS: '',
         COS_ENDPOINT: '', COS_BUCKET: '', COS_ACCESS_KEY_ID: '', COS_SECRET_ACCESS_KEY: '', GOOGLE_APPLICATION_CREDENTIALS: '',
         ENABLE_API_DOCS: 'false', LOG_LEVEL: 'info', BUILD_SHA: 'e'.repeat(40),
@@ -184,7 +186,7 @@ export async function run(args = process.argv.slice(2)) {
       }
       const suites = options.includes('--full') ? Object.keys(SUITES).filter((key) => key !== 'search')
         : options.filter((o) => o.startsWith('--suite=')).map((o) => o.slice(8));
-      const httpSuites = ['thread-identity', 'discussion-navigation', 'private-invite-reuse', 'gallery', 'profile-follow-counts', 'post-edited-time'];
+      const httpSuites = ['role-mentions', 'thread-identity', 'discussion-navigation', 'private-invite-reuse', 'gallery', 'profile-follow-counts', 'post-edited-time'];
       for (const key of suites.filter(key => httpSuites.includes(key))) {
         const [script, flag] = SUITES[key];
         await runScript(script, { [flag]: 'test' });

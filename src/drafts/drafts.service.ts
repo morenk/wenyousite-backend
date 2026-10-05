@@ -1,6 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { assertRoleMentionWrite } from '../common/role-mentions';
-import { Injectable, BadRequestException, HttpStatus } from '@nestjs/common';
+import { Injectable, Optional, BadRequestException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { prepareMarkdownContent } from '../common/markdown-content';
 import { BusinessException, notFound } from '../common/exceptions/business.exception';
@@ -32,7 +32,7 @@ export class DraftsService {
     private diceService: DiceService,
     private stickerContent: StickerContentService,
     private mediaReferences: MediaReferenceService,
-    private readonly config?: ConfigService,
+    @Optional() private readonly config?: ConfigService,
   ) {}
 
   /** 获取当前用户所有草稿 */

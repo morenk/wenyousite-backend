@@ -1,3 +1,4 @@
+import { accountMentionFallback, parseMentionSources } from '../common/role-mentions';
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { MentionsService } from '../mentions/mentions.service';
@@ -80,7 +81,7 @@ export class PostEventsListener {
       .map((s) => s.userId);
 
     const username = event.authorUsername ?? '有人';
-    const preview = buildPostPreview(event.content, event.diceRolls);
+    const preview = buildPostPreview(await this.accountMentionSource(event.content), event.diceRolls);
     const explicitMentionRecipientIds = new Set<string>();
     const threadOwnerReplyTarget =
       !event.parentPostId &&
@@ -309,11 +310,12 @@ export class PostEventsListener {
     );
     if (recipients.length === 0) return;
 
+    const preview = event.mentionSource ? buildPostPreview(await this.accountMentionSource(event.mentionSource)) : event.preview;
     const target = event.context === 'body' ? '正文' : '帖子';
     await this.notificationProducer.notify(
       'mention',
       recipients,
-      `${event.authorUsername} 在编辑后的${target}里提到了你：${event.preview}`,
+      `${event.authorUsername} 在编辑后的${target}里提到了你：${preview}`,
       {
         postId: event.postId,
         threadId: event.threadId,
@@ -322,10 +324,18 @@ export class PostEventsListener {
         payload: {
           actorName: event.authorUsername,
           action: 'mention',
-          preview: event.preview,
+          preview,
         },
       },
     );
+  }
+
+  /** 推送/持久摘要用账号名称，避免延迟队列在关闭 RP 后暴露旧称呼；API读取另投影。 */
+  private async accountMentionSource(content: string): Promise<string> {
+    const ids = [...new Set(parseMentionSources(content).filter(row => row.mode !== 'LEGACY').map(row => row.userId))];
+    if (!ids.length) return content;
+    const users = await this.prisma.user.findMany({ where: { id: { in: ids }, deletedAt: null }, select: { id: true, username: true } });
+    return accountMentionFallback(content, new Map(users.map(user => [user.id, user.username])));
   }
 
   /** 主题帖点赞后更新计数 */

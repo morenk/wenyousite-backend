@@ -1,3 +1,4 @@
+import { hasRoleMentionSource } from '../common/role-mentions';
 import { ThreadIdentitiesService } from '../thread-identities/thread-identities.service';
 import { postContentEditData } from '../posts/post-content-edit';
 import { HttpStatus, Injectable } from '@nestjs/common';
@@ -567,6 +568,7 @@ export class ThreadAggregateService {
       authorUsername: input.authorUsername,
       recipientIds: mentioned.map((user) => user.userId),
       preview: truncateMarkdown(input.content),
+      ...(hasRoleMentionSource(input.content) ? { mentionSource: input.content } : {}),
       context: 'body',
     };
     await this.outbox.enqueue(tx, {
