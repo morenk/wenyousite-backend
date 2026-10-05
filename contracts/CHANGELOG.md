@@ -1,5 +1,9 @@
 # API 合同变更
 
+## 5.35.0-dev.20261005.1
+
+新增平级角色/显式账号提及、可选header/DTO能力、独立新写开关、稳定target与安全旧读/写保护。Markdown激活仍5；账号范围不再默认投影RP，空白编辑器默认ACCOUNT。详见[Markdown6扩展](../docs/markdown-v6-role-mentions.md)。
+
 ## 5.34.0-dev.20261005.1
 
 - 新增每账号每主题最多十个 RP 身份集合 CRUD 和按稳定 identityId 的当前身份卡；已有角色迁移为兼容主身份。

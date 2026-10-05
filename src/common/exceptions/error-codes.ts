@@ -33,6 +33,10 @@ export const ErrorCode = {
   RP_MENTION_CHANGED: 40012,
   /** 每账号每主题的未删除 RP 身份达到十个 */
   RP_IDENTITY_LIMIT: 40013,
+  /** 编辑器未声明能够保留 Markdown 6 角色提及源码 */
+  MARKDOWN_CAPABILITY_REQUIRED: 40014,
+  /** 角色提及新写激活开关尚未开启 */
+  ROLE_MENTIONS_DISABLED: 40015,
 
   // ── 认证 401xx ──
   /** 未认证 */

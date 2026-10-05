@@ -1,8 +1,9 @@
+import { accountMentionFallback, parseMentionSources } from '../common/role-mentions';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { visiblePostWhere, visibleUserWhere } from '../access/block-visibility.where';
 import { readMediaDisplay } from '../media/media-display';
-import { canonicalMentions, eligibleIdentity, readIdentity, readMentions } from './identity-policy';
+import { eligibleIdentity, readIdentity, readMentions } from './identity-policy';
 
 type Row = Record<string, unknown>;
 function record(value: unknown): value is Row {
@@ -23,11 +24,13 @@ export class IdentityProjectionService {
       postId?: string;
       currentUsers?: boolean;
       viewerId?: string;
+      markdownContractVersion?: number;
     } = {},
   ): Promise<T> {
     const nodes = new Map<string, Row[]>();
     const currentUsers: Row[] = [];
     const notifications: Row[] = [];
+    const contentNodes: Row[] = [];
     let count = 0;
     const visit = (node: unknown, field = '') => {
       if (++count > 500000) return;
@@ -36,6 +39,7 @@ export class IdentityProjectionService {
         return;
       }
       if (!record(node)) return;
+      if (typeof node.content === 'string') contentNodes.push(node);
       if (
         typeof node.id === 'string' &&
         (record(node.author) ||
@@ -88,12 +92,12 @@ export class IdentityProjectionService {
           identityAvatarMedia: {
             select: { url: true, status: true, deletionClaimedAt: true, displayAsset: true },
           },
-          thread: { select: { rpIdentityEnabled: true } },
+          thread: { select: { id: true, rpIdentityEnabled: true } },
         },
       });
       const mentionedIds = [
         ...new Set(
-          posts.flatMap((post) => canonicalMentions(post.content).map((token) => token.userId)),
+          posts.flatMap((post) => parseMentionSources(post.content).map((token) => token.userId)),
         ),
       ];
       const users = mentionedIds.length
@@ -125,22 +129,16 @@ export class IdentityProjectionService {
             }
           : null;
         const saved = readMentions(post.mentionIdentitySnapshots);
-        const mentionIdentities = canonicalMentions(post.content).map(({ userId, label }) => {
-          const mention = saved.find((row) => row.userId === userId && row.label === label);
-          const identityId =
-            post.thread.rpIdentityEnabled && names.has(userId)
-              ? (mention?.identityId ?? null)
-              : null;
-          return {
-            userId,
-            label,
-            displayName: names.has(userId)
-              ? identityId
-                ? label
-                : names.get(userId)!
-              : '不可用用户',
-            identityId,
+        const mentionIdentities = parseMentionSources(post.content).map((token) => {
+          const { userId, label, sourceHref, targetIdentityId, mode } = token;
+          const mention = saved.find(row => row.userId === userId && row.label === label && (row.sourceHref ?? `/users/${userId}`) === sourceHref);
+          const identityId = post.thread.rpIdentityEnabled && names.has(userId) ? (mention?.identityId ?? null) : null;
+          const displayName = names.has(userId) ? identityId ? label : names.get(userId)! : '不可用用户';
+          if (mode !== 'LEGACY' && context.markdownContractVersion !== 6) return {
+            userId, label: names.get(userId) ?? '不可用用户', displayName: names.get(userId) ?? '不可用用户', identityId: null,
+            sourceHref: `/users/${userId}`, targetIdentityId: null, threadId: post.thread.id,
           };
+          return { userId, label, displayName, identityId, sourceHref, targetIdentityId, threadId: post.thread.id };
         });
         for (const node of nodes.get(post.id) ?? []) {
           if (record(node.author)) node.author.rpIdentity = rpIdentity;
@@ -150,27 +148,16 @@ export class IdentityProjectionService {
           if (record(node.payload)) node.payload.rpIdentity = rpIdentity;
       }
     }
-    if (!context.threadId && context.currentUsers) {
-      if (context.subthreadId)
-        context.threadId = (
-          await this.prisma.subthread.findUnique({
-            where: { id: context.subthreadId },
-            select: { threadId: true },
-          })
-        )?.threadId;
-      else if (context.postId)
-        context.threadId = (
-          await this.prisma.post.findUnique({
-            where: { id: context.postId },
-            select: { threadId: true },
-          })
-        )?.threadId;
+    // 账号范围的题头、成员、作者筛选不以某个角色代表整个账号。
+    for (const user of currentUsers) user.rpIdentity = null;
+    if (context.markdownContractVersion !== 6) {
+      const targets = [...new Set(contentNodes.flatMap(node => parseMentionSources(node.content as string).filter(row => row.mode !== 'LEGACY').map(row => row.userId)))];
+      if (targets.length) {
+        const users = await this.prisma.user.findMany({ where: { id: { in: targets }, ...visibleUserWhere(context.viewerId) }, select: { id: true, username: true } });
+        const names = new Map(users.map(user => [user.id, user.username]));
+        for (const node of contentNodes) node.content = accountMentionFallback(node.content as string, names);
+      }
     }
-    if (context.threadId && currentUsers.length)
-      await this.projectCurrent(
-        context.threadId,
-        currentUsers as Array<{ id: string; username: string; avatar: string | null }>,
-      );
     return value;
   }
 

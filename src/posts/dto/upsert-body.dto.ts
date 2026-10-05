@@ -1,9 +1,10 @@
+import { MarkdownCapabilityDto } from '../../common/dto/markdown-capability.dto';
 import { IsCuid } from '../../common/decorators/is-cuid.decorator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsString, IsOptional, IsInt, MaxLength, Min } from 'class-validator';
 
 /** 写入子贴正文 DTO（upsert：无正文创建，有正文乐观锁更新） */
-export class UpsertBodyDto {
+export class UpsertBodyDto extends MarkdownCapabilityDto {
   @ApiPropertyOptional({
     description:
       '本次新发言选择的帖内身份 ID；新客户端 RP 模式必须与该身份 token 一起发送。省略仅兼容旧单身份客户端；ACCOUNT 忽略，编辑旧正文不改变原身份',

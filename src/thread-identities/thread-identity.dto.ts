@@ -12,6 +12,13 @@ export class RpIdentityResponseDto {
   avatarDisplay?: MediaDisplayResponseDto | null;
 }
 export class MentionIdentityDisplayDto {
+  @ApiPropertyOptional({ description: '原始目标 href；与原 label 配对匹配节点，不以 occurrence 或 userId 单独匹配' })
+  sourceHref?: string;
+  @ApiPropertyOptional({ type: String, nullable: true, description: '稳定目标角色 ID；ACCOUNT/legacy 为 null，不随关闭/归档丢失。仅声明 Markdown 6 的读取返回角色目标' })
+  targetIdentityId?: string | null;
+  @ApiPropertyOptional({ description: '角色所属主题；跨页面身份卡读取使用，不能猜当前页面主题' })
+  threadId?: string;
+
   @ApiProperty() userId!: string;
   @ApiProperty({
     description: '正文 canonical mention 的原始标签（不含 @），与 userId 共同作为映射键',
@@ -118,7 +125,7 @@ export class RpIdentityStateDto extends ThreadIdentityStateDto {
   @ApiProperty({ description: '稳定角色 ID，删除后不会复用' }) identityId!: string;
   @ApiProperty({ description: '已删除角色仅保留历史展示与账号；当前 display 为 null' })
   deleted!: boolean;
-  @ApiProperty({ description: '是否为旧 single 接口、作者目录和 @ 候选的兼容锚点' })
+  @ApiProperty({ description: '仅旧 single 协议内部锚点；不是新端的默认或候选优先级' })
   compatibilityIdentity!: boolean;
 }
 export class RpIdentityCollectionDto {
@@ -144,7 +151,7 @@ export class RpIdentityCollectionDto {
     type: String,
     nullable: true,
     description:
-      '仅新空白编辑器初始化用；可用兼容角色优先，否则创建顺序第一个可用角色；不可覆盖恢复草稿',
+      '固定 null；新空白编辑器默认 ACCOUNT，不覆盖恢复的显式草稿',
   })
   defaultIdentityId!: string | null;
   @ApiProperty({ type: [RpIdentityStateDto] }) identities!: RpIdentityStateDto[];

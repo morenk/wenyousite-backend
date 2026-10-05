@@ -64,6 +64,7 @@ export class UsersController {
   @AuthRead()
   @ApiBearerAuth()
   @ApiOperation({ summary: '获取当前主题帖可艾特候选（关注的人 + 帖内标记玩家）' })
+  @ApiQuery({ name: 'includeIdentities', required: false, type: Boolean, description: '新端平级目标候选；开关关闭时返回空候选，避免把旧 bare 语义误称显式账号。省略保持旧协议' })
   @ApiQuery({ name: 'threadId', required: true, description: '主题帖 ID' })
   @ApiQuery({ name: 'q', required: false, type: String, description: '用户名搜索关键词' })
   @ApiOkResponse({
@@ -75,8 +76,9 @@ export class UsersController {
     @Query('threadId') threadId: string,
     @Query('q') q: string | undefined,
     @CurrentUser() user: CurrentUserPayload,
+    @Query('includeIdentities') includeIdentities?: string,
   ) {
-    return this.activity.mentionCandidates(threadId, user.id, q);
+    return this.activity.mentionCandidates(threadId, user.id, q, includeIdentities === 'true');
   }
 
   @Get('me')

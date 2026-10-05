@@ -308,6 +308,7 @@ model User {
   posts            Post[]
   drafts           Draft[]
   likedThreads     ThreadLike[]
+  mentionAliases UserMentionAlias[]
   threadIdentities ThreadIdentity[]
   mentions         PostMention[]    @relation("mentionedUser")
   notifications    Notification[]
@@ -1735,4 +1736,13 @@ model MobileDownloadArtifact {
 
   @@unique([storageBucket, storageKey])
   @@map("mobile_download_artifacts")
+}
+
+// 账号提及插入后改名的可信标签归属；与帖内角色别名隔离。
+model UserMentionAlias {
+  userId String
+  username String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([userId, username])
+  @@map("user_mention_aliases")
 }

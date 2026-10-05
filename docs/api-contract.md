@@ -219,3 +219,7 @@ GET /users/me 与有效用户的 GET /users/{id} 中，`_count.following` / `_co
 ## 每帖多角色兼容扩展
 
 `5.34.0-dev.20261005.1` 新增每账号每帖十角色集合/身份卡，四创建 DTO 增加可选 identityId。旧 single 身份、账号级 @、Markdown5 与 userId 筛选继续兼容。稳定角色 ID、归档/配额、默认选择、确认 token 和幂等规则见 [帖内身份](thread-identity.md)。
+
+## 平级身份提及兼容扩展
+
+`5.35.0-dev.20261005.1` 提供 Markdown6 能力协商，激活版本仍5。七个正文/草稿 DTO、平级候选与显示投影见 [角色提及契约](markdown-v6-role-mentions.md)。

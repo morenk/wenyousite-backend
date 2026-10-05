@@ -210,6 +210,10 @@ export class EnvironmentVariables {
   @IsOptional()
   BUILD_SHA: string = '';
 
+  @Transform(({ value }) => value === 'true' ? true : value === 'false' ? false : value)
+  @IsBoolean()
+  RP_MENTION_V6_ENABLED = false;
+
   @IsBoolean()
   @IsOptional()
   @Transform(({ value }) => {

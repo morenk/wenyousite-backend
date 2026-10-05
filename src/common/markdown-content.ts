@@ -1,3 +1,4 @@
+import { assertRoleMentionWrite } from './role-mentions';
 /** Markdown v5 内容规则：规范化、工具栏能力白名单与字面文本降级。 */
 
 import { HttpStatus } from '@nestjs/common';
@@ -283,6 +284,7 @@ export function prepareMarkdownContent(
   markdown: string,
   options: MarkdownValidationOptions = {},
 ): string {
+  assertRoleMentionWrite(markdown, '', options.markdownContractVersion, true);
   const normalized = normalizeMarkdownContent(markdown);
   assertSupportedMarkdown(normalized, options);
   return normalized;

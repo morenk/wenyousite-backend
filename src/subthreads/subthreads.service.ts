@@ -77,7 +77,7 @@ export class SubthreadsService {
     });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
 
-    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content ?? ''));
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content ?? '', { markdownContractVersion: dto.markdownContractVersion }));
     const content = parsedContent.content;
     const stickerAssetIds = await this.stickerContent.assertContentAllowed(userId, content);
     const hasText = hasVisibleMarkdownContent(parsedContent.contentWithoutDice);
@@ -163,7 +163,7 @@ export class SubthreadsService {
               subthreadId: subthread.id,
               authorId: userId,
               ...(await this.identities.prepareAuthor(tx, threadId, userId, dto.identityToken, dto.identityMode, dto.identityId)),
-              mentionIdentitySnapshots: await this.identities.prepareMentions(tx, threadId, content),
+              mentionIdentitySnapshots: await this.identities.prepareMentions(tx, threadId, content, undefined, undefined, dto.markdownContractVersion),
               kind: 'BODY',
               content,
             },

@@ -1,8 +1,9 @@
+import { MarkdownCapabilityDto } from '../../common/dto/markdown-capability.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsOptional, MaxLength, IsIn, IsInt, Min, IsUUID } from 'class-validator';
 
 /** 保存草稿 DTO */
-export class CreateDraftDto {
+export class CreateDraftDto extends MarkdownCapabilityDto {
   @ApiPropertyOptional({
     format: 'uuid',
     description: '客户端创建幂等键；同一次提交和网络重试必须复用',

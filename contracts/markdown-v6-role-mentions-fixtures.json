@@ -1,0 +1,110 @@
+{
+  "contractVersion": "5.35.0-dev.20261005.1",
+  "markdownContractVersion": 6,
+  "activeMarkdownContractVersion": 5,
+  "cases": [
+    {
+      "id": "role-a",
+      "source": "[@同名](/users/c111111111111111111111111?rpIdentityId=c00000000000000000000000a)",
+      "expected": [
+        {
+          "userId": "c111111111111111111111111",
+          "label": "同名",
+          "targetIdentityId": "c00000000000000000000000a",
+          "mode": "RP"
+        }
+      ]
+    },
+    {
+      "id": "role-b",
+      "source": "[@同名](/users/c111111111111111111111111?rpIdentityId=c00000000000000000000000b)",
+      "expected": [
+        {
+          "userId": "c111111111111111111111111",
+          "label": "同名",
+          "targetIdentityId": "c00000000000000000000000b",
+          "mode": "RP"
+        }
+      ]
+    },
+    {
+      "id": "account",
+      "source": "[@同名](/users/c111111111111111111111111?identityMode=ACCOUNT)",
+      "expected": [
+        {
+          "userId": "c111111111111111111111111",
+          "label": "同名",
+          "targetIdentityId": null,
+          "mode": "ACCOUNT"
+        }
+      ]
+    },
+    {
+      "id": "legacy",
+      "source": "[@同名](/users/c111111111111111111111111)",
+      "expected": [
+        {
+          "userId": "c111111111111111111111111",
+          "label": "同名",
+          "targetIdentityId": null,
+          "mode": "LEGACY"
+        }
+      ]
+    },
+    {
+      "id": "inline-code",
+      "source": "`[@同名](/users/c111111111111111111111111?rpIdentityId=c00000000000000000000000a)`",
+      "expected": []
+    },
+    {
+      "id": "escaped",
+      "source": "\\[@同名](/users/c111111111111111111111111?rpIdentityId=c00000000000000000000000a)",
+      "expected": []
+    }
+  ],
+  "invalidSources": [
+    "[@同名](/users/c111111111111111111111111?rpIdentityId=c00000000000000000000000a&identityMode=ACCOUNT)",
+    "[@同名](/users/c111111111111111111111111?rpIdentityId=c00000000000000000000000a&rpIdentityId=c00000000000000000000000b)",
+    "[@同名](/users/c111111111111111111111111?rpIdentityId=invalid)",
+    "[@同名](/users/c111111111111111111111111?other=x)"
+  ],
+  "writeCases": [
+    {
+      "id": "capability-required",
+      "content": "[@同名](/users/c111111111111111111111111?rpIdentityId=c00000000000000000000000a)",
+      "version": null,
+      "enabled": true,
+      "expectedCode": 40014
+    },
+    {
+      "id": "gate-new",
+      "content": "[@同名](/users/c111111111111111111111111?rpIdentityId=c00000000000000000000000a)",
+      "version": 6,
+      "enabled": false,
+      "expectedCode": 40015
+    },
+    {
+      "id": "gate-plain",
+      "content": "普通发言",
+      "version": 6,
+      "enabled": false,
+      "expectedCode": null
+    },
+    {
+      "id": "gate-existing",
+      "content": "[@同名](/users/c111111111111111111111111?rpIdentityId=c00000000000000000000000a)",
+      "previous": "[@同名](/users/c111111111111111111111111?rpIdentityId=c00000000000000000000000a)",
+      "version": 6,
+      "enabled": false,
+      "expectedCode": null
+    },
+    {
+      "id": "legacy-removes-all",
+      "content": "删除提及",
+      "previous": "[@同名](/users/c111111111111111111111111?rpIdentityId=c00000000000000000000000a)",
+      "version": null,
+      "enabled": false,
+      "expectedCode": 40014
+    }
+  ]
+}

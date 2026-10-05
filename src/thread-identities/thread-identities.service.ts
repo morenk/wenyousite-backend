@@ -1,3 +1,5 @@
+import { ConfigService } from '@nestjs/config';
+import { assertRoleMentionWrite, parseMentionSources, mentionSourceKey } from '../common/role-mentions';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { Prisma, MediaPurpose } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -11,7 +13,6 @@ import { readMediaDisplay } from '../media/media-display';
 import { UpdateThreadIdentityDto } from './thread-identity.dto';
 import {
   assertIdentityToken,
-  canonicalMentions,
   eligibleIdentity,
   identityToken,
   readMentions,
@@ -24,6 +25,7 @@ export class ThreadIdentitiesService {
     private readonly prisma: PrismaService,
     private readonly access: ThreadAccessService,
     private readonly mediaReferences: MediaReferenceService,
+    private readonly config?: ConfigService,
   ) {}
 
   async context(threadId: string, userId: string, db: Db = this.prisma, identityId?: string) {
@@ -278,7 +280,6 @@ export class ThreadIdentitiesService {
         this.roleResponse(await this.context(threadId, userId, this.prisma, row.id), userId),
       ),
     );
-    const available = rows.filter((row) => row.display !== null);
     return {
       threadId,
       userId,
@@ -288,10 +289,7 @@ export class ThreadIdentitiesService {
       activeCount: identities.length,
       limit: 10,
       compatibilityIdentityId: current.identity?.id ?? null,
-      defaultIdentityId:
-        available.find((row) => row.compatibilityIdentity)?.identityId ??
-        available[0]?.identityId ??
-        null,
+      defaultIdentityId: null,
       account: this.stateResponse(current, userId).account,
       identities: rows,
     };
@@ -380,54 +378,59 @@ export class ThreadIdentitiesService {
     };
   }
 
+  assertMentionWrite(content: string, previous = '', version?: number) {
+    assertRoleMentionWrite(content, previous, version, this.config?.get<boolean>('app.roleMentionsV6Enabled') ?? false);
+  }
+
   async prepareMentions(
     tx: Prisma.TransactionClient,
     threadId: string,
     content: string,
     previous?: unknown,
     previousContent?: string,
+    markdownContractVersion?: number,
   ): Promise<Prisma.InputJsonArray> {
-    const tokens = canonicalMentions(content);
+    this.assertMentionWrite(content, previousContent, markdownContractVersion);
+    const tokens = parseMentionSources(content, true);
     if (!tokens.length) return [];
     const thread = await tx.thread.findUniqueOrThrow({
-      where: { id: threadId },
-      select: { rpIdentityEnabled: true },
+      where: { id: threadId }, select: { ownerId: true, rpIdentityEnabled: true },
     });
     const old = readMentions(previous);
-    for (const token of canonicalMentions(previousContent ?? ''))
-      if (!old.some((row) => row.userId === token.userId && row.label === token.label))
-        old.push({ ...token, identityId: null });
+    // 只有原正文中真实存在的节点才可复用快照，不信任任意传入的标签。
+    const previousTokens = parseMentionSources(previousContent ?? '');
     const users = await tx.user.findMany({
       where: { id: { in: [...new Set(tokens.map((token) => token.userId))] }, deletedAt: null },
       select: {
-        id: true,
-        username: true,
-        threadIdentities: {
-          where: { threadId, compatibilityIdentity: true, deletedAt: null },
-          include: { aliases: true },
-        },
+        id: true, username: true, mentionAliases: true,
+        threadIdentities: { where: { threadId }, include: { aliases: true } },
       },
     });
-    return tokens.map(({ userId, label }) => {
-      const existing = old.find((row) => row.userId === userId && row.label === label);
-      if (existing) return existing;
-      const user = users.find((row) => row.id === userId);
-      const identity = user?.threadIdentities[0];
-      const belongsToIdentity =
-        identity &&
-        (identity.nickname === label || identity.aliases.some((alias) => alias.nickname === label));
-      if (thread.rpIdentityEnabled && user && label !== user.username && !belongsToIdentity) {
-        throw new BusinessException(
-          ErrorCode.RP_MENTION_CHANGED,
-          '提及名字已变化或不属于此账号，请重新选择该用户',
-          HttpStatus.CONFLICT,
-        );
+    const needsRoles = tokens.some((token) => token.mode === 'RP');
+    const members = needsRoles ? await tx.threadMember.findMany({ where: { threadId, userId: { in: tokens.map(token => token.userId) } } }) : [];
+    return tokens.map((token) => {
+      const { userId, label, sourceHref, targetIdentityId, mode } = token;
+      const prior = previousTokens.find(row => mentionSourceKey(row) === mentionSourceKey(token));
+      const existing = old.find(row => row.userId === userId && row.label === label &&
+        (row.sourceHref ?? `/users/${row.userId}`) === sourceHref);
+      if (prior) return existing ?? { userId, label, identityId: null, sourceHref, targetIdentityId };
+      const user = users.find(row => row.id === userId);
+      const identity = user?.threadIdentities.find(row => mode === 'RP' ? row.id === targetIdentityId : row.compatibilityIdentity && !row.deletedAt);
+      const belongsToIdentity = identity && (identity.nickname === label || identity.aliases.some(alias => alias.nickname === label) || (!identity.nickname && user?.username === label));
+      const reject = () => { throw new BusinessException(ErrorCode.RP_MENTION_CHANGED, '提及目标或名字已变化，请保留正文并重新选择', HttpStatus.CONFLICT); };
+      if (mode === 'RP') {
+        if (!user || !identity || identity.deletedAt || !thread.rpIdentityEnabled ||
+          (!identity.nickname && !identity.avatarMediaId) || !belongsToIdentity ||
+          !eligibleIdentity(thread.ownerId, userId, members.find(row => row.userId === userId) ?? null)) reject();
+        return { userId, label, identityId: identity!.id, sourceHref, targetIdentityId };
       }
-      return {
-        userId,
-        label,
-        identityId: thread.rpIdentityEnabled && belongsToIdentity ? identity.id : null,
-      };
+      if (mode === 'ACCOUNT') {
+        if (!user || (label !== user.username && !user.mentionAliases.some(alias => alias.username === label))) reject();
+        return { userId, label, identityId: null, sourceHref, targetIdentityId: null };
+      }
+      // 老 bare 链接保持既有账号/兼容锚点语义，不把其他角色猜作目标。
+      if (thread.rpIdentityEnabled && user && label !== user.username && !belongsToIdentity) reject();
+      return { userId, label, identityId: thread.rpIdentityEnabled && belongsToIdentity ? identity!.id : null };
     });
   }
 }

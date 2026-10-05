@@ -1,3 +1,5 @@
+import { ConfigService } from '@nestjs/config';
+import { assertRoleMentionWrite } from '../common/role-mentions';
 import { Injectable, BadRequestException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { prepareMarkdownContent } from '../common/markdown-content';
@@ -30,6 +32,7 @@ export class DraftsService {
     private diceService: DiceService,
     private stickerContent: StickerContentService,
     private mediaReferences: MediaReferenceService,
+    private readonly config?: ConfigService,
   ) {}
 
   /** 获取当前用户所有草稿 */
@@ -53,7 +56,7 @@ export class DraftsService {
 
   /** 保存草稿：指定 slot 则覆盖，不指定自动选空闲位 */
   async create(dto: CreateDraftDto, userId: string) {
-    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content));
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content, { markdownContractVersion: dto.markdownContractVersion }));
     this.assertSnapshotNotEmpty(parsedContent.contentWithoutDice, parsedContent.nodes.length);
     const requestHash = hashIdempotencyPayload({
       content: parsedContent.content,
@@ -63,6 +66,7 @@ export class DraftsService {
     if (replay) return replay;
 
     if (dto.slot === undefined) {
+      assertRoleMentionWrite(parsedContent.content, '', dto.markdownContractVersion, this.config?.get<boolean>('app.roleMentionsV6Enabled') ?? false);
       await this.stickerContent.assertContentAllowed(userId, parsedContent.content, '');
       for (let attempt = 0; attempt < 5; attempt += 1) {
         try {
@@ -113,6 +117,7 @@ export class DraftsService {
       parsedContent.content,
       existing?.content ?? '',
     );
+    assertRoleMentionWrite(parsedContent.content, existing?.content ?? '', dto.markdownContractVersion, this.config?.get<boolean>('app.roleMentionsV6Enabled') ?? false);
     if (existing) {
       if (dto.version === undefined || dto.version !== existing.version) {
         throw this.optimisticLockConflict();
@@ -168,10 +173,11 @@ export class DraftsService {
   }
 
   /** 更新草稿内容 */
-  async update(id: string, content: string, version: number, userId: string) {
+  async update(id: string, content: string, version: number, userId: string, markdownContractVersion?: number) {
     const draft = await this.findById(id, userId);
+    assertRoleMentionWrite(content, draft.content, markdownContractVersion, this.config?.get<boolean>('app.roleMentionsV6Enabled') ?? false);
     if (version !== draft.version) throw this.optimisticLockConflict();
-    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(content));
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(content, { markdownContractVersion }));
     this.assertSnapshotNotEmpty(parsedContent.contentWithoutDice, parsedContent.nodes.length);
     await this.stickerContent.assertContentAllowed(userId, parsedContent.content, draft.content);
     return this.prisma

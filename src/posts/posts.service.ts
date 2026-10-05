@@ -69,7 +69,7 @@ export class PostsService {
     return this.queries.findLatestInThread(threadId, userId);
   }
   async create(subthreadId: string, dto: CreatePostDto, userId: string) {
-    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content));
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content, { markdownContractVersion: dto.markdownContractVersion }));
     const content = parsedContent.content;
     if (
       !hasVisibleMarkdownContent(parsedContent.contentWithoutDice) &&
@@ -159,7 +159,7 @@ export class PostsService {
             subthreadId,
             authorId: userId,
             ...(await this.identities.prepareAuthor(tx, subthread.threadId, userId, dto.identityToken, dto.identityMode, dto.identityId)),
-            mentionIdentitySnapshots: await this.identities.prepareMentions(tx, subthread.threadId, content),
+            mentionIdentitySnapshots: await this.identities.prepareMentions(tx, subthread.threadId, content, undefined, undefined, dto.markdownContractVersion),
             kind: 'FLOOR',
             floorNumber,
             replyNumber,
@@ -279,8 +279,9 @@ export class PostsService {
     identityToken?: string,
     identityMode?: 'ACCOUNT' | 'RP',
     identityId?: string,
+    markdownContractVersion?: number,
   ) {
-    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(content));
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(content, { markdownContractVersion }));
     const normalizedContent = parsedContent.content;
     const subthread = await this.prisma.subthread.findUnique({
       where: { id: subthreadId, ...notDeleted },
@@ -330,7 +331,7 @@ export class PostsService {
               subthreadId,
               authorId: userId,
               ...(await this.identities.prepareAuthor(tx, subthread.threadId, userId, identityToken, identityMode, identityId)),
-              mentionIdentitySnapshots: await this.identities.prepareMentions(tx, subthread.threadId, normalizedContent),
+              mentionIdentitySnapshots: await this.identities.prepareMentions(tx, subthread.threadId, normalizedContent, undefined, undefined, markdownContractVersion),
               kind: 'BODY',
               content: normalizedContent,
             },
@@ -421,7 +422,7 @@ export class PostsService {
         const post = await tx.post.update({
           where: { id: existing.id, version, ...notDeleted },
           data: { ...postContentEditData(oldContent, normalizedContent),
-            mentionIdentitySnapshots: await this.identities.prepareMentions(tx, subthread.threadId, normalizedContent, existing.mentionIdentitySnapshots, existing.content) },
+            mentionIdentitySnapshots: await this.identities.prepareMentions(tx, subthread.threadId, normalizedContent, existing.mentionIdentitySnapshots, existing.content, markdownContractVersion) },
         });
         await this.mediaReferences.syncPostContent(tx, post.id, normalizedContent);
         if (subthread.thread.published) {
@@ -466,7 +467,7 @@ export class PostsService {
 
   /** 编辑帖子 */
   async update(id: string, dto: UpdatePostDto, userId: string) {
-    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content));
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content, { markdownContractVersion: dto.markdownContractVersion }));
     const content = parsedContent.content;
     const postLight = await this.prisma.post.findUnique({
       where: { id, ...notDeleted },
@@ -511,7 +512,7 @@ export class PostsService {
         const post = await tx.post.update({
           where: { id, version: dto.version, content: oldContent, ...notDeleted },
           data: { ...postContentEditData(oldContent, content),
-            mentionIdentitySnapshots: await this.identities.prepareMentions(tx, postLight.threadId, content, postLight.mentionIdentitySnapshots, postLight.content) },
+            mentionIdentitySnapshots: await this.identities.prepareMentions(tx, postLight.threadId, content, postLight.mentionIdentitySnapshots, postLight.content, dto.markdownContractVersion) },
         });
         await this.mediaReferences.syncPostContent(tx, post.id, content);
         if (threadPublished) {

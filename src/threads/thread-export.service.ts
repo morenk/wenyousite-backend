@@ -398,13 +398,13 @@ export class ThreadExportService {
     private readonly identities: IdentityProjectionService,
   ) {}
 
-  async createArchive(threadId: string, userId: string, input: ThreadExportDto) {
+  async createArchive(threadId: string, userId: string, input: ThreadExportDto, markdownContractVersion?: number) {
     await this.threadAccess.assertAccessible(threadId, userId);
     await this.threadAccess.assertCanManage(threadId, userId);
     if (this.exporting) throw new HttpException('已有档案正在导出，请稍后再试', HttpStatus.TOO_MANY_REQUESTS);
     this.exporting = true;
     try {
-      const result = await this.prepareArchive(threadId, input, userId);
+      const result = await this.prepareArchive(threadId, input, userId, markdownContractVersion);
       const release = () => { this.exporting = false; };
       result.stream.once('end', release).once('close', release).once('error', release);
       return result;
@@ -414,7 +414,7 @@ export class ThreadExportService {
     }
   }
 
-  private async prepareArchive(threadId: string, input: ThreadExportDto, userId: string) {
+  private async prepareArchive(threadId: string, input: ThreadExportDto, userId: string, markdownContractVersion?: number) {
     const thread = await this.prisma.$transaction(async (tx) => {
       const [size] = await tx.$queryRaw<Array<{ posts: bigint; bytes: bigint }>>(Prisma.sql`
         SELECT count(*) AS posts, COALESCE(sum(octet_length(p.content)), 0)::bigint AS bytes
@@ -434,7 +434,15 @@ export class ThreadExportService {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '仅可导出已发布主题帖');
 
-    await this.identities.project(thread, { viewerId: userId });
+    await this.identities.project(thread, { viewerId: userId, markdownContractVersion });
+    const sources = markdownContractVersion === 6 ? JSON.stringify({
+      markdownContractVersion: 6, threadId,
+      warning: '此清单保存原始源码与插入快照，即使帖内身份关闭仍包含历史称呼；普通 md/txt 为安全显示副本，不能替代此源回写。',
+      posts: thread.subthreads.flatMap(subthread => subthread.posts.map(post => ({
+        postId: post.id, content: post.content,
+        mentionIdentities: (post as ExportPost & { mentionIdentities?: unknown }).mentionIdentities ?? [],
+      }))),
+    }, null, 2) : undefined;
     const options = normalizeOptions(input);
     const warnings = new Set<string>();
     const assets = await this.prepareAssets(thread, options, warnings);
@@ -465,6 +473,7 @@ export class ThreadExportService {
       warnings,
       options.format,
       filenameStem,
+      sources,
     );
     return {
       stream,
@@ -537,6 +546,7 @@ export class ThreadExportService {
     warnings: ReadonlySet<string>,
     format: ThreadExportFormat,
     filenameStem: string,
+    sources?: string,
   ) {
     const archive = (archiver as unknown as (format: string) => Archiver)('zip');
     const stream = new PassThrough();
@@ -548,6 +558,7 @@ export class ThreadExportService {
         archive.append(Buffer.from(markdown, 'utf8'), { name: `${filenameStem}.md` });
       if (format === ThreadExportFormat.TXT || format === ThreadExportFormat.BOTH)
         archive.append(Buffer.from(text, 'utf8'), { name: `${filenameStem}.txt` });
+      if (sources) archive.append(Buffer.from(sources, 'utf8'), { name: 'identity-sources.json' });
       for (const asset of assets.values()) archive.append(asset.buffer, { name: asset.path });
       if (warnings.size > 0)
         archive.append(
@@ -575,10 +586,10 @@ function normalizeOptions(input: ThreadExportDto): ThreadExportOptions {
 }
 
 function exportMentionContent(post: ExportPost): string {
-  const mapped = post as ExportPost & { mentionIdentities?: { userId: string; label: string; displayName: string }[] };
+  const mapped = post as ExportPost & { mentionIdentities?: { userId: string; label: string; displayName: string; sourceHref?: string }[] };
   let content = post.content;
   for (const entry of mapped.mentionIdentities ?? []) {
-    const source = `[@${entry.label}](/users/${entry.userId})`;
+    const source = `[@${entry.label}](${entry.sourceHref ?? `/users/${entry.userId}`})`;
     content = replaceVisible(content, new RegExp(source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), () => `[@${entry.displayName}](/users/${entry.userId})`);
   }
   return content;
