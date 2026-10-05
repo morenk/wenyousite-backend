@@ -4,11 +4,13 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import { JwtService } from '@nestjs/jwt';
+import { verifyThreadIdentityMigration } from './thread-identity-migration';
 
 const db = new PrismaClient();
 async function main() {
   await verifyIsolatedEnvironment();
   assert.equal(process.env.THREAD_IDENTITY_TEST_ENV, 'test');
+  await verifyThreadIdentityMigration(db);
   const user = () => db.user.create({ data: { username: 'rp_' + randomUUID().slice(0, 12), email: randomUUID() + '@rp.invalid', password: 'unused' } });
   const [owner, player, reader, collab] = await Promise.all([user(), user(), user(), user()]);
   const category = await db.threadCategoryDefinition.findFirstOrThrow({ where: { isActive: true } });
@@ -173,7 +175,24 @@ async function main() {
   await request(roles + '/' + b.identityId, owner.id, 'PUT', { nickname: '缺版本' }, 400);
   await request(roles + '/' + b.identityId, player.id, 'PUT', { nickname: '窃用', version: b2.identity.version }, 404);
   assert.equal((await request(roles + '/' + b.identityId)).display.nickname, 'B 改名');
+  assert.equal((await create(owner.id, `[@B 改名](/users/${owner.id})`, undefined, randomUUID(), 409, 'ACCOUNT')).code, 40012);
+  assert.equal((await request('/users/mention-candidates?threadId=' + thread.id + '&q=' + encodeURIComponent('B 改名'), player.id)).users.length, 0);
   assert.equal((await request(roles + '/' + b.identityId)).identity, null);
+  // 三个首次 BODY 入口必须采用指定角色，旧正文编辑仍冻结作者。
+  const roleSubInput = { title: '指定角色的子贴', content: '角色 B 正文', identityMode: 'RP', identityId: b.identityId, identityToken: b2.identityToken, clientRequestId: randomUUID() };
+  const roleSub = await request(base + '/subthreads', owner.id, 'POST', roleSubInput, 201);
+  assert.equal(((await db.post.findFirstOrThrow({ where: { subthreadId: roleSub.id, kind: 'BODY' } })).authorIdentitySnapshot as Data).id, b.identityId);
+  await request(base + '/subthreads', owner.id, 'POST', { ...roleSubInput, identityId: a.identity.id }, 409);
+  const emptySub = await request(base + '/subthreads', owner.id, 'POST', { title: '已有空子贴', identityMode: 'ACCOUNT' }, 201);
+  const roleBody = await request('/subthreads/' + emptySub.id + '/body', owner.id, 'PUT', { content: '首次 BODY 角色B', identityMode: 'RP', identityId: b.identityId, identityToken: b2.identityToken });
+  assert.equal(roleBody.author.rpIdentity.id, b.identityId);
+  const aggregateThread = await db.thread.create({ data: { ownerId: owner.id, title: '多角色聚合正文', category: category.slug, published: true, rpIdentityEnabled: true, members: { create: { userId: owner.id, role: 'OWNER' } } } });
+  const aggregateSub = await db.subthread.create({ data: { threadId: aggregateThread.id, title: '默认正文' } });
+  await db.thread.update({ where: { id: aggregateThread.id }, data: { defaultSubthreadId: aggregateSub.id } });
+  const aggregateRole = await request('/threads/' + aggregateThread.id + '/rp-identities', owner.id, 'POST', { nickname: '聚合指定角色' }, 201);
+  await request('/threads/' + aggregateThread.id + '/aggregate', owner.id, 'PATCH', { content: '聚合首次正文指定角色', tagNames: [], version: aggregateThread.version, defaultSubthreadVersion: aggregateSub.version, identityMode: 'RP', identityId: aggregateRole.identityId, identityToken: aggregateRole.identityToken });
+  assert.equal(((await db.post.findFirstOrThrow({ where: { subthreadId: aggregateSub.id, kind: 'BODY' } })).authorIdentitySnapshot as Data).id, aggregateRole.identityId);
+
   await create(owner.id, '跨账号角色', firstState.identityToken, randomUUID(), 409, 'RP', firstState.identity.id);
   await request('/threads/' + other.id + '/rp-identities/' + b.identityId, owner.id, 'GET', undefined, 404);
   await request(base + '/identity-settings', owner.id, 'PATCH', { enabled: false });
@@ -183,9 +202,13 @@ async function main() {
   await request(base + '/identity-settings', owner.id, 'PATCH', { enabled: true });
   assert.equal((await request('/posts/' + bPost.id)).author.rpIdentity.id, b.identityId);
   assert.equal((await create(owner.id, '同名角色B', b.identityToken, bKey, 201, 'RP', b.identityId)).id, bPost.id);
+  assert.equal((await request(base + '/subthreads', owner.id, 'POST', roleSubInput, 201)).id, roleSub.id);
   await create(owner.id, '已删除角色不可新发言', b.identityToken, randomUUID(), 409, 'RP', b.identityId);
   const currentA = await own(owner.id);
   await request(roles + '/' + currentA.identity.id, owner.id, 'DELETE', { version: currentA.identity.version });
+  await request(base + '/identity', owner.id, 'DELETE');
+  assert.equal((await request(roles, owner.id)).activeCount, 0);
+  assert.equal((await own(owner.id)).identity, null);
   const c = await request(roles, owner.id, 'POST', { nickname: '角色 C' }, 201);
   assert.equal(c.compatibilityIdentity, false); assert.equal((await own(owner.id)).display, null);
   assert.equal((await request(roles, owner.id)).defaultIdentityId, c.identityId);

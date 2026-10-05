@@ -179,6 +179,12 @@ export class ThreadIdentitiesService {
       }
       if (create && !dto.nickname && !dto.avatarMediaId)
         throw new BusinessException(ErrorCode.BAD_REQUEST, '新身份至少需要昵称或头像');
+      if (!current.enabled || !current.eligible)
+        throw forbidden('当前不能设置帖内身份', ErrorCode.NOT_PLAYER);
+      // 主身份不存在时清除为无动作，不分配新的 ID 或占用角色名额。
+      if (!create && !identityId && !current.identity && !dto.nickname && !dto.avatarMediaId)
+        return this.stateResponse(current, userId);
+
       if (
         !current.identity &&
         (await tx.threadIdentity.count({ where: { threadId, userId, deletedAt: null } })) >= 10
@@ -188,8 +194,7 @@ export class ThreadIdentitiesService {
           '每个账号在本主题最多保留十个身份',
           HttpStatus.CONFLICT,
         );
-      if (!current.enabled || !current.eligible)
-        throw forbidden('当前不能设置帖内身份', ErrorCode.NOT_PLAYER);
+
       if (dto.version !== undefined && dto.version !== current.identity?.version)
         throw new BusinessException(
           ErrorCode.OPTIMISTIC_LOCK_CONFLICT,
