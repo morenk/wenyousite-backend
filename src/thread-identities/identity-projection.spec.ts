@@ -14,6 +14,7 @@ describe('帖内身份读取投影', () => {
           {
             id: 'post',
             authorIdentitySnapshot: snapshot,
+            authorId: 'u',
             mentionIdentitySnapshots: [{ userId: 'u', label: '旧角色', identityId: 'identity' }],
             content: '[@旧角色](/users/u)',
             author: { deletedAt: null },
@@ -92,6 +93,15 @@ describe('帖内身份读取投影', () => {
     ]);
     const result = await service.project({ id: 'post', author: { id: 'u', username: '真实账号' } });
     expect(result.author).toMatchObject({ rpIdentity: { avatar: null, avatarDisplay: null } });
+  });
+  it('点赞/打赏来源不能借用被点赞楼层作者的RP身份，发言通知才使用作者快照', async () => {
+    const { service } = setup();
+    for (const type of ['like','tip','mention']) {
+      const result = await service.project({id:'notification',type,postId:'post',fromUser:{id:'u'},payload:{} as Record<string,unknown>});
+      expect(result.payload.rpIdentity).toEqual(type === 'mention' ? expect.objectContaining({id:'identity'}) : null);
+    }
+    const other = await service.project({id:'notification',type:'mention',postId:'post',fromUser:{id:'other'},payload:{} as Record<string,unknown>});
+    expect(other.payload.rpIdentity).toBeNull();
   });
   it('离开帖子上下文不改全站用户资料', async () => {
     const { service, db } = setup();

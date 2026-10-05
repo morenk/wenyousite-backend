@@ -21,7 +21,7 @@ export class MediaDisplayInterceptor implements NestInterceptor {
       if (!vary.some(value => value.toLowerCase() === MARKDOWN_CAPABILITY_HEADER.toLowerCase())) vary.push(MARKDOWN_CAPABILITY_HEADER);
       reply.header('Vary', vary.join(', '));
       // 缓存保存领域原值；每个能力请求仅投影自己的副本。
-      raw = raw instanceof PaginatedResult ? new PaginatedResult(structuredClone(raw.items), raw.pagination) : structuredClone(raw);
+      raw = raw instanceof PaginatedResult ? new PaginatedResult(sanitizePublicUserSummaries(raw.items), raw.pagination) : sanitizePublicUserSummaries(raw);
       const params = req.params as Record<string, string> | undefined;
       const query = req.query as Record<string, string> | undefined;
       const route = req.routeOptions?.url ?? '';

@@ -57,7 +57,7 @@ export class IdentityProjectionService {
         typeof node.username === 'string'
       )
         currentUsers.push(node);
-      if (typeof node.postId === 'string' && record(node.fromUser) && record(node.payload))
+      if (typeof node.postId === 'string' && record(node.payload))
         notifications.push(node);
       delete node.authorIdentitySnapshot;
       delete node.mentionIdentitySnapshots;
@@ -87,6 +87,7 @@ export class IdentityProjectionService {
         select: {
           id: true,
           authorIdentitySnapshot: true,
+          authorId: true,
           mentionIdentitySnapshots: true,
           content: true,
           diceRolls: { select: { nodeId: true, notation: true, total: true } },
@@ -149,7 +150,7 @@ export class IdentityProjectionService {
         }
         for (const node of notifications.filter((item) => item.postId === post.id)) {
           if (!record(node.payload)) continue;
-          node.payload.rpIdentity = rpIdentity;
+          node.payload.rpIdentity = record(node.fromUser) && node.fromUser.id === post.authorId && ['reply', 'mention', 'new_post', 'new_floor', 'subthread_created'].includes(String(node.type)) ? rpIdentity : null;
           if (typeof node.payload.preview === 'string') {
             const oldPreview = node.payload.preview;
             const projected = context.markdownContractVersion === 6 ? post.content : accountMentionFallback(post.content, names);

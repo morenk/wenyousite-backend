@@ -65,7 +65,7 @@ describe('UserActivityService', () => {
       users: [{ id: 'user-2' }],
       canMentionAllPlayers: true,
     });
-    expect(mentions.findCandidates).toHaveBeenCalledWith('thread-1', 'user-1', 'al');
+    expect(mentions.findCandidates).toHaveBeenCalledWith('thread-1', 'user-1', 'al', false);
     expect(mentions.canMentionAllPlayers).toHaveBeenCalledWith('thread-1', 'user-1');
   });
 

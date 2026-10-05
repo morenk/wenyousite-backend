@@ -24,10 +24,19 @@ describe('角色提及 HTTP 能力投影和缓存隔离',()=>{
     };
     const module=await Test.createTestingModule({controllers:[ReadController]}).compile();
     app=module.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
+    app.enableCors({origin:['https://client.example'],credentials:true,methods:['GET','HEAD','POST','PUT','PATCH','DELETE','OPTIONS']});
     app.useGlobalInterceptors(new MediaDisplayInterceptor({project:async(value:unknown)=>value} as never,new IdentityProjectionService(db as unknown as PrismaService)));
     await app.init(); await app.getHttpAdapter().getInstance().ready();
   });
   afterAll(async()=>app.close());
+  it('跨域预检允许能力请求头并保留精确Origin限制', async () => {
+    const reply = await app.inject({method:'OPTIONS',url:'/posts/post',headers:{origin:'https://client.example','access-control-request-method':'POST','access-control-request-headers':'content-type,x-markdown-contract-version'}});
+    expect(reply.statusCode).toBe(204);
+    expect(reply.headers['access-control-allow-origin']).toBe('https://client.example');
+    expect(reply.headers['access-control-allow-headers']).toContain('x-markdown-contract-version');
+    const denied=await app.inject({method:'OPTIONS',url:'/posts/post',headers:{origin:'https://other.example','access-control-request-method':'GET','access-control-request-headers':'x-markdown-contract-version'}});
+    expect(denied.headers['access-control-allow-origin']).toBeUndefined();
+  });
   it('新→旧→新读不污染缓存，Vary合并既有值；关闭稳定target仍保留',async()=>{
     for (const state of [true,false,true]) {
       enabled=state;

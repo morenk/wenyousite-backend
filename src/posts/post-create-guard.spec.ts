@@ -134,6 +134,11 @@ describe('创建请求身份模式幂等性', () => {
     expect(() => assertSamePostCreateRequest(post, 'sub', { content: '正文' }, '正文')).not.toThrow();
     expect(() => assertSamePostCreateRequest(post, 'sub', { content: '正文', identityMode: 'ACCOUNT' }, '正文')).toThrow();
   });
+  it('服务升级后补能力6不改变旧普通正文的幂等回放', () => {
+    expect(() => assertSamePostCreateRequest(post, 'sub', {content:'正文',markdownContractVersion:6}, '正文')).not.toThrow();
+    const account = {...post,identityCreateMode:'ACCOUNT',identityRequestHash:identityToken([null,null])};
+    expect(() => assertSamePostCreateRequest(account, 'sub', {content:'正文',identityMode:'ACCOUNT',markdownContractVersion:6}, '正文')).not.toThrow();
+  });
   it('重复请求 mode 固定，token 更新不影响已成功创建记录', () => {
     const rpPost = { ...post, identityCreateMode: 'RP' };
     expect(() => assertSamePostCreateRequest(rpPost, 'sub', { content: '正文', identityMode: 'RP', identityToken: 'old' }, '正文')).not.toThrow();

@@ -97,8 +97,17 @@ async function main() {
   // 导出需实际流式解压，数据只进入本轮内存，不落公网或共享目录。
   const { inflateRawSync }=await import('node:zlib');
   for (const version of [null,6]) {
-    const response=await fetch(process.env.API_BASE+base+'/export',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+jwt.sign({sub:owner.id,jti:randomUUID()},{expiresIn:'10m'}),...(version?{'X-Markdown-Contract-Version':'6'}:{})},body:JSON.stringify({includeMedia:false})});
-    assert.equal(response.status,200);
+    let response: Response | undefined;
+    for (let attempt=0; attempt<3; attempt++) {
+      response=await fetch(process.env.API_BASE+base+'/export',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+jwt.sign({sub:owner.id,jti:randomUUID()},{expiresIn:'10m'}),...(version?{'X-Markdown-Contract-Version':'6'}:{})},body:JSON.stringify({includeMedia:false}),signal:AbortSignal.timeout(15000)});
+      if (response.status !== 429 || attempt === 2) break;
+      // full 旅程共享隔离 IP，尊重既有导出限流，不清空 Redis 或放宽服务器门禁。
+      const retryAfter=Number(response.headers.get('retry-after') ?? 60);
+      await response.arrayBuffer();
+      await new Promise(resolve=>setTimeout(resolve,(Number.isFinite(retryAfter)?Math.min(60,Math.max(1,retryAfter)):60)*1000+100));
+    }
+    assert(response); assert.equal(response.status,200);
+    assert(response.headers.get('vary')?.toLowerCase().includes('x-markdown-contract-version'));
     const bytes=Buffer.from(await response.arrayBuffer()); const entries=new Map<string,string>();
     for(let i=0;i+46<bytes.length;i++) if(bytes.readUInt32LE(i)===0x02014b50){
       const method=bytes.readUInt16LE(i+10), size=bytes.readUInt32LE(i+20),nameLen=bytes.readUInt16LE(i+28),local=bytes.readUInt32LE(i+42);
