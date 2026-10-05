@@ -58,6 +58,7 @@ export class IdentityProjectionService {
       delete node.mentionIdentitySnapshots;
       delete node.identityAvatarMediaId;
       delete node.identityCreateMode;
+      delete node.identityRequestHash;
       delete node.rpIdentityVersion;
       for (const [key, child] of Object.entries(node))
         if (
@@ -190,7 +191,7 @@ export class IdentityProjectionService {
         select: { ownerId: true, rpIdentityEnabled: true },
       }),
       this.prisma.threadIdentity.findMany({
-        where: { threadId, userId: { in: ids } },
+        where: { threadId, userId: { in: ids }, compatibilityIdentity: true, deletedAt: null },
         include: { avatarMedia: true },
       }),
       this.prisma.threadMember.findMany({ where: { threadId, userId: { in: ids } } }),

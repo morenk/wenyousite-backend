@@ -7836,6 +7836,370 @@
         "x-auth-mode": "authenticated"
       }
     },
+    "/api/v1/threads/{threadId}/rp-identities": {
+      "get": {
+        "operationId": "rpIdentitiesList",
+        "parameters": [
+          {
+            "name": "threadId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RpIdentitiesList200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "列出自己的帖内角色及各角色发表确认 token（最多十个）",
+        "tags": [
+          "Threads"
+        ],
+        "x-auth-mode": "authenticated"
+      },
+      "post": {
+        "operationId": "rpIdentitiesCreate",
+        "parameters": [
+          {
+            "name": "threadId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRpIdentityDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RpIdentitiesCreate201Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "新增一个帖内角色；首次建立兼容锚点，归档后不自动替换",
+        "tags": [
+          "Threads"
+        ],
+        "x-auth-mode": "authenticated"
+      }
+    },
+    "/api/v1/threads/{threadId}/rp-identities/{identityId}": {
+      "get": {
+        "operationId": "rpIdentitiesFind",
+        "parameters": [
+          {
+            "name": "threadId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "identityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RpIdentitiesFind200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "按稳定角色 ID 读取身份卡；删除后只返回账号及删除状态",
+        "tags": [
+          "Threads"
+        ],
+        "x-auth-mode": "optional",
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ]
+      },
+      "put": {
+        "operationId": "rpIdentitiesUpdate",
+        "parameters": [
+          {
+            "name": "threadId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "identityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRpIdentityDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RpIdentitiesUpdate200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "修改自己的指定角色；只影响此角色之后的新发言",
+        "tags": [
+          "Threads"
+        ],
+        "x-auth-mode": "authenticated"
+      },
+      "delete": {
+        "operationId": "rpIdentitiesRemove",
+        "parameters": [
+          {
+            "name": "threadId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "identityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteRpIdentityDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RpIdentitiesRemove200Response"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "删除自己的指定角色并释放名额；历史身份和媒体保留",
+        "tags": [
+          "Threads"
+        ],
+        "x-auth-mode": "authenticated"
+      }
+    },
     "/api/v1/tags": {
       "get": {
         "operationId": "tagsSearch",
@@ -22155,7 +22519,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.33.0-dev.20261005.1",
+    "version": "5.34.0-dev.20261005.1",
     "contact": {}
   },
   "tags": [
@@ -26107,6 +26471,10 @@
       "SaveThreadAggregateDto": {
         "type": "object",
         "properties": {
+          "identityId": {
+            "type": "string",
+            "description": "本次新发言选择的帖内身份 ID；新客户端 RP 模式必须与该身份 token 一起发送。省略仅兼容旧单身份客户端；ACCOUNT 忽略，编辑旧正文不改变原身份"
+          },
           "identityToken": {
             "type": "string",
             "description": "GET 帖内身份返回的确认 token；新建正文或发言时使用。身份变化返回 409/40011，保留草稿并重新确认"
@@ -26629,6 +26997,217 @@
         },
         "required": [
           "enabled"
+        ]
+      },
+      "RpIdentityStateDto": {
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "eligible": {
+            "type": "boolean",
+            "description": "当前是否具有楼主、协作者或玩家资格；不代表发言权限"
+          },
+          "canEdit": {
+            "type": "boolean",
+            "description": "当前访问者能否编辑此身份"
+          },
+          "identity": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ThreadIdentityProfileDto"
+              }
+            ]
+          },
+          "display": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RpIdentityResponseDto"
+              }
+            ]
+          },
+          "account": {
+            "$ref": "#/components/schemas/ThreadIdentityAccountDto"
+          },
+          "identityToken": {
+            "type": "string",
+            "nullable": true,
+            "description": "仅本人读取返回。新发言传 identityToken；409 后保留草稿并重新读取确认"
+          },
+          "canDelete": {
+            "type": "boolean",
+            "description": "本人可删除未归档角色，关闭功能或撤资格后也可删除"
+          },
+          "identityId": {
+            "type": "string",
+            "description": "稳定角色 ID，删除后不会复用"
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "已删除角色仅保留历史展示与账号；当前 display 为 null"
+          },
+          "compatibilityIdentity": {
+            "type": "boolean",
+            "description": "是否为旧 single 接口、作者目录和 @ 候选的兼容锚点"
+          }
+        },
+        "required": [
+          "threadId",
+          "userId",
+          "enabled",
+          "eligible",
+          "canEdit",
+          "identity",
+          "display",
+          "account",
+          "identityToken",
+          "canDelete",
+          "identityId",
+          "deleted",
+          "compatibilityIdentity"
+        ]
+      },
+      "RpIdentityCollectionDto": {
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "eligible": {
+            "type": "boolean"
+          },
+          "canEdit": {
+            "type": "boolean"
+          },
+          "activeCount": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10,
+            "description": "未删除身份数；清空资料仍占一个名额，删除释放名额"
+          },
+          "limit": {
+            "type": "number",
+            "enum": [
+              10
+            ]
+          },
+          "compatibilityIdentityId": {
+            "type": "string",
+            "nullable": true,
+            "description": "旧 single 接口的明确锚点；首次角色绑定，删除后不自动接管"
+          },
+          "defaultIdentityId": {
+            "type": "string",
+            "nullable": true,
+            "description": "仅新空白编辑器初始化用；可用兼容角色优先，否则创建顺序第一个可用角色；不可覆盖恢复草稿"
+          },
+          "identities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RpIdentityStateDto"
+            }
+          },
+          "account": {
+            "$ref": "#/components/schemas/ThreadIdentityAccountDto"
+          }
+        },
+        "required": [
+          "threadId",
+          "userId",
+          "enabled",
+          "eligible",
+          "canEdit",
+          "activeCount",
+          "limit",
+          "compatibilityIdentityId",
+          "defaultIdentityId",
+          "identities",
+          "account"
+        ]
+      },
+      "CreateRpIdentityDto": {
+        "type": "object",
+        "properties": {
+          "clearNickname": {
+            "type": "boolean",
+            "description": "显式清除昵称，供省略 null 的客户端使用；不能与非空 nickname 同时提供"
+          },
+          "clearAvatar": {
+            "type": "boolean",
+            "description": "显式清除头像；不能与非空 avatarMediaId 同时提供"
+          },
+          "nickname": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 24,
+            "description": "允许重名、空格及标点；去除首尾空白，空字符串清除。不允许反斜线、方括号、HTML括号或控制字符"
+          },
+          "avatarMediaId": {
+            "type": "string",
+            "nullable": true,
+            "description": "本人已完成的 AVATAR 媒体；null 清除，不接受任意 URL"
+          }
+        }
+      },
+      "UpdateRpIdentityDto": {
+        "type": "object",
+        "properties": {
+          "clearNickname": {
+            "type": "boolean",
+            "description": "显式清除昵称，供省略 null 的客户端使用；不能与非空 nickname 同时提供"
+          },
+          "clearAvatar": {
+            "type": "boolean",
+            "description": "显式清除头像；不能与非空 avatarMediaId 同时提供"
+          },
+          "nickname": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 24,
+            "description": "允许重名、空格及标点；去除首尾空白，空字符串清除。不允许反斜线、方括号、HTML括号或控制字符"
+          },
+          "avatarMediaId": {
+            "type": "string",
+            "nullable": true,
+            "description": "本人已完成的 AVATAR 媒体；null 清除，不接受任意 URL"
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1,
+            "description": "所选角色版本；409/40002 时重新读取，不能覆盖另一角色"
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "DeleteRpIdentityDto": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "version"
         ]
       },
       "TagResponseDto": {
@@ -27888,6 +28467,10 @@
       "CreateSubthreadDto": {
         "type": "object",
         "properties": {
+          "identityId": {
+            "type": "string",
+            "description": "本次新发言选择的帖内身份 ID；新客户端 RP 模式必须与该身份 token 一起发送。省略仅兼容旧单身份客户端；ACCOUNT 忽略，编辑旧正文不改变原身份"
+          },
           "identityToken": {
             "type": "string",
             "description": "GET 帖内身份返回的确认 token；新建正文或发言时使用。身份变化返回 409/40011，保留草稿并重新确认"
@@ -28546,6 +29129,10 @@
       "UpsertBodyDto": {
         "type": "object",
         "properties": {
+          "identityId": {
+            "type": "string",
+            "description": "本次新发言选择的帖内身份 ID；新客户端 RP 模式必须与该身份 token 一起发送。省略仅兼容旧单身份客户端；ACCOUNT 忽略，编辑旧正文不改变原身份"
+          },
           "identityToken": {
             "type": "string",
             "description": "GET 帖内身份返回的确认 token；新建正文或发言时使用。身份变化返回 409/40011，保留草稿并重新确认"
@@ -28702,6 +29289,10 @@
       "CreatePostDto": {
         "type": "object",
         "properties": {
+          "identityId": {
+            "type": "string",
+            "description": "本次新发言选择的帖内身份 ID；新客户端 RP 模式必须与该身份 token 一起发送。省略仅兼容旧单身份客户端；ACCOUNT 忽略，编辑旧正文不改变原身份"
+          },
           "identityToken": {
             "type": "string",
             "description": "GET 帖内身份返回的确认 token；新建正文或发言时使用。身份变化返回 409/40011，保留草稿并重新确认"
@@ -35413,6 +36004,96 @@
           }
         ]
       },
+      "RpIdentitiesList200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/RpIdentityCollectionDto"
+              }
+            }
+          }
+        ]
+      },
+      "RpIdentitiesCreate201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/RpIdentityStateDto"
+              }
+            }
+          }
+        ]
+      },
+      "RpIdentitiesFind200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/RpIdentityStateDto"
+              }
+            }
+          }
+        ]
+      },
+      "RpIdentitiesUpdate200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/RpIdentityStateDto"
+              }
+            }
+          }
+        ]
+      },
+      "RpIdentitiesRemove200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/RpIdentityStateDto"
+              }
+            }
+          }
+        ]
+      },
       "TagsSearch200Response": {
         "allOf": [
           {
@@ -38388,6 +39069,7 @@
           40010,
           40011,
           40012,
+          40013,
           40100,
           40101,
           40102,
@@ -38485,6 +39167,7 @@
           "DISCUSSION_TARGET_FILTERED",
           "RP_IDENTITY_CHANGED",
           "RP_MENTION_CHANGED",
+          "RP_IDENTITY_LIMIT",
           "UNAUTHORIZED",
           "TOKEN_EXPIRED",
           "TOKEN_INVALID",

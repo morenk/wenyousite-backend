@@ -164,7 +164,7 @@ export class PostsController {
     @Req() req: FastifyRequest,
   ) {
     const user = req['user'] as { id: string };
-    return this.postsService.upsertBody(subthreadId, dto.content, dto.version, user.id, dto.identityToken, dto.identityMode);
+    return this.postsService.upsertBody(subthreadId, dto.content, dto.version, user.id, dto.identityToken, dto.identityMode, dto.identityId);
   }
 
   @Post('subthreads/:subthreadId/posts')

@@ -26,7 +26,7 @@ export class ThreadIdentitiesService {
     private readonly mediaReferences: MediaReferenceService,
   ) {}
 
-  async context(threadId: string, userId: string, db: Db = this.prisma) {
+  async context(threadId: string, userId: string, db: Db = this.prisma, identityId?: string) {
     const [thread, user, member, identity] = await Promise.all([
       db.thread.findUnique({
         where: { id: threadId, deletedAt: null },
@@ -37,8 +37,12 @@ export class ThreadIdentitiesService {
         select: { id: true, username: true, avatar: true, avatarMediaId: true },
       }),
       db.threadMember.findUnique({ where: { threadId_userId: { threadId, userId } } }),
-      db.threadIdentity.findUnique({
-        where: { threadId_userId: { threadId, userId } },
+      db.threadIdentity.findFirst({
+        where: {
+          threadId,
+          userId,
+          ...(identityId ? { id: identityId } : { compatibilityIdentity: true, deletedAt: null }),
+        },
         include: { avatarMedia: true },
       }),
     ]);
@@ -47,7 +51,11 @@ export class ThreadIdentitiesService {
     const eligible = eligibleIdentity(thread.ownerId, userId, member);
     const enabled = thread.rpIdentityEnabled;
     const usingIdentity = Boolean(
-      enabled && eligible && identity && (identity.nickname || identity.avatarMediaId),
+      enabled &&
+      eligible &&
+      identity &&
+      !identity.deletedAt &&
+      (identity.nickname || identity.avatarMediaId),
     );
     const media = identity?.avatarMedia;
     const avatar = identity?.avatarMediaId
@@ -81,10 +89,11 @@ export class ThreadIdentitiesService {
         enabled,
         thread.rpIdentityVersion,
         eligible,
+        identity?.id ?? null,
         identity?.version ?? 0,
         display,
-        user.username,
-        user.avatar,
+        identity?.nickname ? null : user.username,
+        identity?.avatarMediaId ? null : user.avatar,
       ]),
     };
   }
@@ -110,9 +119,9 @@ export class ThreadIdentitiesService {
       userId,
       enabled,
       eligible,
-      canEdit: viewerId === userId && enabled && eligible,
+      canEdit: viewerId === userId && enabled && eligible && !identity?.deletedAt,
       identity:
-        identity && viewerId === userId
+        identity && !identity.deletedAt && viewerId === userId
           ? {
               id: identity.id,
               nickname: identity.nickname,
@@ -122,7 +131,7 @@ export class ThreadIdentitiesService {
           : null,
       display,
       account: { id: user.id, username: user.username, avatar: user.avatar },
-      identityToken: viewerId === userId ? token : null,
+      identityToken: viewerId === userId && !identity?.deletedAt ? token : null,
     };
   }
 
@@ -142,7 +151,13 @@ export class ThreadIdentitiesService {
     });
   }
 
-  async update(threadId: string, userId: string, dto: UpdateThreadIdentityDto) {
+  async update(
+    threadId: string,
+    userId: string,
+    dto: UpdateThreadIdentityDto,
+    identityId?: string,
+    create = false,
+  ) {
     if ((dto.clearNickname && dto.nickname) || (dto.clearAvatar && dto.avatarMediaId))
       throw new BusinessException(ErrorCode.BAD_REQUEST, '同一项不能同时设置和清除');
     dto = {
@@ -155,7 +170,24 @@ export class ThreadIdentitiesService {
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM threads WHERE id = ${threadId} FOR UPDATE`;
       await this.access.assertAccessible(threadId, userId, tx, true);
-      const current = await this.context(threadId, userId, tx);
+      const current = await this.context(threadId, userId, tx, identityId);
+      if (identityId && (!current.identity || current.identity.deletedAt))
+        throw notFound(ErrorCode.NOT_FOUND, '帖内身份不存在');
+      if (create) {
+        current.identity = null;
+        current.display = null;
+      }
+      if (create && !dto.nickname && !dto.avatarMediaId)
+        throw new BusinessException(ErrorCode.BAD_REQUEST, '新身份至少需要昵称或头像');
+      if (
+        !current.identity &&
+        (await tx.threadIdentity.count({ where: { threadId, userId, deletedAt: null } })) >= 10
+      )
+        throw new BusinessException(
+          ErrorCode.RP_IDENTITY_LIMIT,
+          '每个账号在本主题最多保留十个身份',
+          HttpStatus.CONFLICT,
+        );
       if (!current.enabled || !current.eligible)
         throw forbidden('当前不能设置帖内身份', ErrorCode.NOT_PLAYER);
       if (dto.version !== undefined && dto.version !== current.identity?.version)
@@ -177,15 +209,21 @@ export class ThreadIdentitiesService {
           throw new BusinessException(ErrorCode.BAD_REQUEST, '只能使用本人已完成处理的头像图片');
         }
       }
-      const identity = await tx.threadIdentity.upsert({
-        where: { threadId_userId: { threadId, userId } },
-        create: { threadId, userId, nickname: dto.nickname, avatarMediaId: dto.avatarMediaId },
-        update: {
-          nickname: dto.nickname,
-          avatarMediaId: dto.avatarMediaId,
-          version: { increment: 1 },
-        },
-      });
+      const compatibilityIdentity =
+        !create ||
+        !(await tx.threadIdentity.findFirst({
+          where: { threadId, userId, compatibilityIdentity: true },
+          select: { id: true },
+        }));
+      const fields = { nickname: dto.nickname, avatarMediaId: dto.avatarMediaId };
+      const identity = current.identity
+        ? await tx.threadIdentity.update({
+            where: { id: current.identity.id },
+            data: { ...fields, version: { increment: 1 } },
+          })
+        : await tx.threadIdentity.create({
+            data: { threadId, userId, compatibilityIdentity, ...fields },
+          });
       // 留存已选过的昵称，保证插入候选之后对方改名仍能验证旧标签归属。
       const names = [current.display?.nickname, identity.nickname ?? current.user.username].filter(
         (name): name is string => Boolean(name),
@@ -202,7 +240,91 @@ export class ThreadIdentitiesService {
           Boolean(id),
         ),
       );
-      return this.stateResponse(await this.context(threadId, userId, tx), userId);
+      const result = await this.context(threadId, userId, tx, identity.id);
+      return identityId || create
+        ? this.roleResponse(result, userId)
+        : this.stateResponse(result, userId);
+    });
+  }
+
+  private roleResponse(
+    current: Awaited<ReturnType<ThreadIdentitiesService['context']>>,
+    viewerId?: string,
+  ) {
+    return {
+      ...this.stateResponse(current, viewerId),
+      identityId: current.identity!.id,
+      deleted: Boolean(current.identity!.deletedAt),
+      canDelete: viewerId === current.userId && !current.identity!.deletedAt,
+      compatibilityIdentity: current.identity!.compatibilityIdentity,
+    };
+  }
+
+  async list(threadId: string, userId: string) {
+    await this.access.assertAccessible(threadId, userId);
+    const current = await this.context(threadId, userId);
+    const identities = await this.prisma.threadIdentity.findMany({
+      where: { threadId, userId, deletedAt: null },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      select: { id: true },
+    });
+    const rows = await Promise.all(
+      identities.map(async (row) =>
+        this.roleResponse(await this.context(threadId, userId, this.prisma, row.id), userId),
+      ),
+    );
+    const available = rows.filter((row) => row.display !== null);
+    return {
+      threadId,
+      userId,
+      enabled: current.enabled,
+      eligible: current.eligible,
+      canEdit: current.enabled && current.eligible,
+      activeCount: identities.length,
+      limit: 10,
+      compatibilityIdentityId: current.identity?.id ?? null,
+      defaultIdentityId:
+        available.find((row) => row.compatibilityIdentity)?.identityId ??
+        available[0]?.identityId ??
+        null,
+      account: this.stateResponse(current, userId).account,
+      identities: rows,
+    };
+  }
+
+  async role(threadId: string, identityId: string, viewerId?: string) {
+    await this.access.assertAccessible(threadId, viewerId);
+    // 已删除角色允许读取卡片状态，但绝不暴露当前资料或令牌。
+    const identity = await this.prisma.threadIdentity.findFirst({
+      where: { id: identityId, threadId, user: visibleUserWhere(viewerId) },
+      select: { userId: true },
+    });
+    if (!identity) throw notFound(ErrorCode.NOT_FOUND, '帖内身份不存在');
+    return this.roleResponse(
+      await this.context(threadId, identity.userId, this.prisma, identityId),
+      viewerId,
+    );
+  }
+
+  async remove(threadId: string, userId: string, identityId: string, version: number) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM threads WHERE id = ${threadId} FOR UPDATE`;
+      await this.access.assertAccessible(threadId, userId, tx, true);
+      const current = await this.context(threadId, userId, tx, identityId);
+      if (!current.identity) throw notFound(ErrorCode.NOT_FOUND, '帖内身份不存在');
+      if (current.identity.deletedAt) return this.roleResponse(current, userId);
+      if (current.identity.version !== version)
+        throw new BusinessException(
+          ErrorCode.OPTIMISTIC_LOCK_CONFLICT,
+          '帖内身份已修改，请刷新',
+          HttpStatus.CONFLICT,
+        );
+      // 失去 RP 资格或关闭后仍可主动删除自己已存在的资料；不改变历史作者和媒体引用。
+      await tx.threadIdentity.update({
+        where: { id: identityId },
+        data: { deletedAt: new Date(), version: { increment: 1 } },
+      });
+      return this.roleResponse(await this.context(threadId, userId, tx, identityId), userId);
     });
   }
 
@@ -212,11 +334,14 @@ export class ThreadIdentitiesService {
     userId: string,
     expected?: string,
     mode?: 'ACCOUNT' | 'RP',
+    identityId?: string,
   ) {
-    if (mode === 'ACCOUNT') return { identityCreateMode: mode };
-    const current = await this.context(threadId, userId, tx);
+    const identityRequestHash = identityToken([identityId ?? null, expected ?? null]);
+    if (mode === 'ACCOUNT') return { identityCreateMode: mode, identityRequestHash };
+    const current = await this.context(threadId, userId, tx, identityId);
+    if (identityId && !current.display) assertIdentityToken(expected, current.token, false, 'RP');
     assertIdentityToken(expected, current.token, Boolean(current.display), mode);
-    if (!current.display) return {};
+    if (!current.display) return { identityRequestHash };
     const mediaId = current.identity?.avatarMediaId ?? current.user.avatarMediaId;
     if (mediaId) {
       await tx.$queryRaw`SELECT id FROM media WHERE id = ${mediaId} FOR UPDATE`;
@@ -239,6 +364,7 @@ export class ThreadIdentitiesService {
     if (mediaId) await tx.media.update({ where: { id: mediaId }, data: { orphanedAt: null } });
     return {
       identityCreateMode: mode ?? null,
+      identityRequestHash,
       authorIdentitySnapshot: {
         id: current.display.id,
         nickname: current.display.nickname,
@@ -271,7 +397,10 @@ export class ThreadIdentitiesService {
       select: {
         id: true,
         username: true,
-        threadIdentities: { where: { threadId }, include: { aliases: true } },
+        threadIdentities: {
+          where: { threadId, compatibilityIdentity: true, deletedAt: null },
+          include: { aliases: true },
+        },
       },
     });
     return tokens.map(({ userId, label }) => {

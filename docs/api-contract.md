@@ -215,3 +215,7 @@ GET /users/me 与有效用户的 GET /users/{id} 中，`_count.following` / `_co
 ## 帖内身份逐条选择
 
 `5.33.0-dev.20261005.1` 为新发言与首次 BODY 增加可选 identityMode=ACCOUNT/RP；账号模式独立于 RP 确认状态，RP 模式必须有效 token，成功请求幂等比对包含 mode。已有正文编辑保留发表身份，缺省 mode 继续兼容。完整权限、错误与历史规则见 [帖内身份契约](thread-identity.md)。
+
+## 每帖多角色兼容扩展
+
+`5.34.0-dev.20261005.1` 新增每账号每帖十角色集合/身份卡，四创建 DTO 增加可选 identityId。旧 single 身份、账号级 @、Markdown5 与 userId 筛选继续兼容。稳定角色 ID、归档/配额、默认选择、确认 token 和幂等规则见 [帖内身份](thread-identity.md)。

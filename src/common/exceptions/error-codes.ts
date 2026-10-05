@@ -31,6 +31,8 @@ export const ErrorCode = {
   RP_IDENTITY_CHANGED: 40011,
   /** 结构化提及标签不属于目标账号的帖内身份 */
   RP_MENTION_CHANGED: 40012,
+  /** 每账号每主题的未删除 RP 身份达到十个 */
+  RP_IDENTITY_LIMIT: 40013,
 
   // ── 认证 401xx ──
   /** 未认证 */

@@ -19,19 +19,19 @@ async function main() {
   await db.thread.update({ where: { id: thread.id }, data: { defaultSubthreadId: sub.id } });
   const jwt = new JwtService({ secret: process.env.JWT_ACCESS_SECRET });
   type Data = Record<string, any>;
-  const request = async (path: string, userId?: string, method = 'GET', body?: unknown, status = 200): Promise<Data> => {
+  const request = async (path: string, userId?: string, method = 'GET', body?: unknown, status: number | number[] = 200): Promise<Data> => {
     await new Promise(resolve => setTimeout(resolve, 130));
     const response = await fetch(process.env.API_BASE + path, { method, headers: {
       ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...(userId ? { authorization: 'Bearer ' + jwt.sign({ sub: userId, jti: randomUUID() }, { expiresIn: '10m' }) } : {}),
     }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(10000) });
     const result = await response.json() as Data;
-    assert.equal(response.status, status, method + ' ' + path.split('/').filter((x) => x.length < 20).join('/') + ' status=' + response.status + ' code=' + result.code);
-    return status >= 400 ? result : result.data;
+    assert.equal(Array.isArray(status) ? status.includes(response.status) : response.status === status, true, method + ' ' + path.split('/').filter((x) => x.length < 20).join('/') + ' status=' + response.status + ' code=' + result.code);
+    return response.status >= 400 ? result : result.data;
   };
   const base = '/threads/' + thread.id;
   const own = (id: string) => request(base + '/identity', id);
   const save = (id: string, body: unknown) => request(base + '/identity', id, 'PUT', body);
-  const create = (id: string, content: string, token?: string, uuid = randomUUID(), status = 201, identityMode?: 'ACCOUNT' | 'RP') => request('/subthreads/' + sub.id + '/posts', id, 'POST', { content, identityToken: token, identityMode, clientRequestId: uuid }, status);
+  const create = (id: string, content: string, token?: string, uuid = randomUUID(), status = 201, identityMode?: 'ACCOUNT' | 'RP', identityId?: string) => request('/subthreads/' + sub.id + '/posts', id, 'POST', { content, identityToken: token, identityMode, identityId, clientRequestId: uuid }, status);
   await request(base + '/identity-settings', undefined, 'PATCH', { enabled: true }, 401);
   await request(base + '/identity-settings', collab.id, 'PATCH', { enabled: true }, 403);
   const before = await create(owner.id, '启用之前');
@@ -149,6 +149,71 @@ async function main() {
   // 引用来自迁移前正文且没有身份数组，账号改名之后仍允许正常编辑。
   const legacy = await db.post.create({ data: { threadId: thread.id, subthreadId: sub.id, authorId: owner.id, content: `[@原账号名](/users/${player.id})`, floorNumber: 50 } });
   await request('/posts/' + legacy.id, owner.id, 'PATCH', { content: legacy.content + '补充', version: legacy.version });
+  // 多身份：同账号同昵称不串角色；B 更新不改变 A 的确认令牌。
+  const roles = base + '/rp-identities';
+  await request(roles, undefined, 'GET', undefined, 401);
+  await request(roles, reader.id, 'POST', { nickname: '无资格' }, 403);
+  await request(roles, owner.id, 'POST', {}, 400);
+  const a = await own(owner.id);
+  const b = await request(roles, owner.id, 'POST', { nickname: '主持人' }, 201);
+  assert.notEqual(b.identityId, a.identity.id);
+  assert.equal(b.compatibilityIdentity, false);
+  assert.equal((await own(owner.id)).identityToken, a.identityToken);
+  const list = await request(roles, owner.id);
+  assert.equal(list.limit, 10); assert.equal(list.activeCount, 2);
+  assert.equal(list.compatibilityIdentityId, a.identity.id); assert.equal(list.defaultIdentityId, a.identity.id);
+  const bKey = randomUUID();
+  const bPost = await create(owner.id, '同名角色B', b.identityToken, bKey, 201, 'RP', b.identityId);
+  assert.equal(bPost.author.rpIdentity.id, b.identityId);
+  await create(owner.id, '同名角色B', a.identityToken, bKey, 409, 'RP', a.identity.id);
+  const b2 = await request(roles + '/' + b.identityId, owner.id, 'PUT', { nickname: 'B 改名', version: b.identity.version });
+  assert.equal((await own(owner.id)).identityToken, a.identityToken);
+  await create(owner.id, '同名角色B', b2.identityToken, bKey, 409, 'RP', b.identityId);
+  await request(roles + '/' + b.identityId, owner.id, 'PUT', { nickname: '旧版本', version: b.identity.version }, 409);
+  await request(roles + '/' + b.identityId, owner.id, 'PUT', { nickname: '缺版本' }, 400);
+  await request(roles + '/' + b.identityId, player.id, 'PUT', { nickname: '窃用', version: b2.identity.version }, 404);
+  assert.equal((await request(roles + '/' + b.identityId)).display.nickname, 'B 改名');
+  assert.equal((await request(roles + '/' + b.identityId)).identity, null);
+  await create(owner.id, '跨账号角色', firstState.identityToken, randomUUID(), 409, 'RP', firstState.identity.id);
+  await request('/threads/' + other.id + '/rp-identities/' + b.identityId, owner.id, 'GET', undefined, 404);
+  await request(base + '/identity-settings', owner.id, 'PATCH', { enabled: false });
+  assert.equal((await request(roles + '/' + b.identityId)).display, null);
+  const archived = await request(roles + '/' + b.identityId, owner.id, 'DELETE', { version: b2.identity.version });
+  assert.equal(archived.deleted, true); assert.equal(archived.identity, null); assert.equal(archived.identityToken, null);
+  await request(base + '/identity-settings', owner.id, 'PATCH', { enabled: true });
+  assert.equal((await request('/posts/' + bPost.id)).author.rpIdentity.id, b.identityId);
+  assert.equal((await create(owner.id, '同名角色B', b.identityToken, bKey, 201, 'RP', b.identityId)).id, bPost.id);
+  await create(owner.id, '已删除角色不可新发言', b.identityToken, randomUUID(), 409, 'RP', b.identityId);
+  const currentA = await own(owner.id);
+  await request(roles + '/' + currentA.identity.id, owner.id, 'DELETE', { version: currentA.identity.version });
+  const c = await request(roles, owner.id, 'POST', { nickname: '角色 C' }, 201);
+  assert.equal(c.compatibilityIdentity, false); assert.equal((await own(owner.id)).display, null);
+  assert.equal((await request(roles, owner.id)).defaultIdentityId, c.identityId);
+  const newA = await save(owner.id, { nickname: '显式重建兼容身份' });
+  assert.notEqual(newA.identity.id, currentA.identity.id);
+  await request(base + '/identity', owner.id, 'DELETE');
+  assert.equal((await request(roles + '/' + c.identityId, owner.id)).display.nickname, '角色 C');
+  assert.equal((await own(owner.id)).display, null);
+  const cClear = await request(roles + '/' + c.identityId, owner.id, 'PUT', { clearNickname: true, version: c.identity.version });
+  assert.equal(cClear.display, null); assert.equal((await request(roles, owner.id)).defaultIdentityId, null);
+  assert.equal((await request(roles, owner.id)).activeCount, 2);
+  // 九个身份时同时新建两次，主题锁保证仅一个成功；归档后允许新建但不复用 ID。
+  for (let i = 0; i < 7; i++) await request(roles, owner.id, 'POST', { nickname: '配额角色' + i }, 201);
+  const competing = await Promise.all([0, 1].map(i => request(roles, owner.id, 'POST', { nickname: '竞争角色' + i }, [201, 409])));
+  assert.equal(competing.filter(x => x.identityId).length, 1);
+  assert.equal(competing.find(x => x.code)?.code, 40013);
+  assert.equal((await request(roles, owner.id)).activeCount, 10);
+  const removed = await request(roles + '/' + c.identityId, owner.id, 'DELETE', { version: cClear.identity.version });
+  assert.equal(removed.deleted, true);
+  const replacement = await request(roles, owner.id, 'POST', { nickname: '配额释放后' }, 201);
+  assert.notEqual(replacement.identityId, c.identityId);
+  // 新集合首次创建建立兼容锚点，默认选择不会选空资料。
+  const fresh = await user();
+  await db.threadMember.create({ data: { threadId: thread.id, userId: fresh.id, playerMarked: true } });
+  const freshRole = await request(roles, fresh.id, 'POST', { nickname: '首次角色' }, 201);
+  assert.equal(freshRole.compatibilityIdentity, true);
+  assert.equal((await own(fresh.id)).identity.id, freshRole.identityId);
+  console.log('通过：十角色上限并发、稳定ID与兼容锚点、同名角色独立token、归档历史卡、空资料、跨账号/跨帖拒绝与原请求重试');
   console.log('通过：RP权限、历史/关闭重开、正文/提及、显式清除、头像引用、幂等重试、撤权与跨帖/私帖边界');
 }
 void main().catch((error: unknown) => { console.error(error instanceof assert.AssertionError ? error.message : 'RP隔离回归失败（内部上下文已隐藏）'); process.exitCode = 1; }).finally(async () => { await db.$disconnect(); });

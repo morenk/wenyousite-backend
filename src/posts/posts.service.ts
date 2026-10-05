@@ -158,7 +158,7 @@ export class PostsService {
             threadId: subthread.threadId,
             subthreadId,
             authorId: userId,
-            ...(await this.identities.prepareAuthor(tx, subthread.threadId, userId, dto.identityToken, dto.identityMode)),
+            ...(await this.identities.prepareAuthor(tx, subthread.threadId, userId, dto.identityToken, dto.identityMode, dto.identityId)),
             mentionIdentitySnapshots: await this.identities.prepareMentions(tx, subthread.threadId, content),
             kind: 'FLOOR',
             floorNumber,
@@ -278,6 +278,7 @@ export class PostsService {
     userId: string,
     identityToken?: string,
     identityMode?: 'ACCOUNT' | 'RP',
+    identityId?: string,
   ) {
     const parsedContent = this.diceService.parseContent(prepareMarkdownContent(content));
     const normalizedContent = parsedContent.content;
@@ -328,7 +329,7 @@ export class PostsService {
               threadId: subthread.threadId,
               subthreadId,
               authorId: userId,
-              ...(await this.identities.prepareAuthor(tx, subthread.threadId, userId, identityToken, identityMode)),
+              ...(await this.identities.prepareAuthor(tx, subthread.threadId, userId, identityToken, identityMode, identityId)),
               mentionIdentitySnapshots: await this.identities.prepareMentions(tx, subthread.threadId, normalizedContent),
               kind: 'BODY',
               content: normalizedContent,

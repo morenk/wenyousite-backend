@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "5.33.0-dev.20261005.1",
+  "contractVersion": "5.34.0-dev.20261005.1",
   "counts": {
-    "total": 243,
-    "v1": 115,
+    "total": 248,
+    "v1": 120,
     "deferred": 66,
     "notApplicable": 58,
     "infrastructure": 4
@@ -698,6 +698,46 @@
       "operationId": "threadIdentitiesSetEnabled",
       "method": "PATCH",
       "path": "/api/v1/threads/{threadId}/identity-settings",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "rpIdentitiesList",
+      "method": "GET",
+      "path": "/api/v1/threads/{threadId}/rp-identities",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "rpIdentitiesCreate",
+      "method": "POST",
+      "path": "/api/v1/threads/{threadId}/rp-identities",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "rpIdentitiesFind",
+      "method": "GET",
+      "path": "/api/v1/threads/{threadId}/rp-identities/{identityId}",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "rpIdentitiesUpdate",
+      "method": "PUT",
+      "path": "/api/v1/threads/{threadId}/rp-identities/{identityId}",
+      "module": "threads",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "rpIdentitiesRemove",
+      "method": "DELETE",
+      "path": "/api/v1/threads/{threadId}/rp-identities/{identityId}",
       "module": "threads",
       "disposition": "v1",
       "status": "planned"

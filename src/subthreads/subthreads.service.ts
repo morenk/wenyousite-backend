@@ -1,3 +1,4 @@
+import { identityToken } from '../thread-identities/identity-policy';
 import { ThreadIdentitiesService } from '../thread-identities/thread-identities.service';
 import { MentionsService } from '../mentions/mentions.service';
 import { Injectable, HttpStatus } from '@nestjs/common';
@@ -86,6 +87,7 @@ export class SubthreadsService {
     const hasBody = hasText || parsedContent.nodes.length > 0;
     const generatedDice = thread.published ? this.diceService.rollNodes(parsedContent.nodes) : [];
     const postingPolicy = dto.postingPolicy ?? PostingPolicy.PARTICIPANTS;
+    const identityRequestHash = identityToken([dto.identityId ?? null, dto.identityToken ?? null]);
     const requestHash = hashIdempotencyPayload({
       actorId: userId,
       title: dto.title,
@@ -97,10 +99,10 @@ export class SubthreadsService {
     if (dto.clientRequestId) {
       const existing = await this.prisma.subthread.findFirst({
         where: { threadId, clientRequestId: dto.clientRequestId },
-        select: { id: true, createRequestHash: true },
+        select: { id: true, createRequestHash: true, identityRequestHash: true },
       });
       if (existing) {
-        if (existing.createRequestHash !== requestHash) {
+        if (existing.createRequestHash !== requestHash || (existing.identityRequestHash != null ? existing.identityRequestHash !== identityRequestHash : dto.identityId !== undefined)) {
           throw new BusinessException(
             ErrorCode.IDEMPOTENCY_KEY_REUSED,
             'clientRequestId 已用于不同的子贴创建请求',
@@ -149,6 +151,7 @@ export class SubthreadsService {
             postingPolicy,
             clientRequestId: dto.clientRequestId,
             createRequestHash: dto.clientRequestId ? requestHash : undefined,
+            identityRequestHash,
           },
         });
 
@@ -159,7 +162,7 @@ export class SubthreadsService {
               threadId,
               subthreadId: subthread.id,
               authorId: userId,
-              ...(await this.identities.prepareAuthor(tx, threadId, userId, dto.identityToken, dto.identityMode)),
+              ...(await this.identities.prepareAuthor(tx, threadId, userId, dto.identityToken, dto.identityMode, dto.identityId)),
               mentionIdentitySnapshots: await this.identities.prepareMentions(tx, threadId, content),
               kind: 'BODY',
               content,
@@ -232,7 +235,7 @@ export class SubthreadsService {
                 include: countNonDeletedPosts(userId),
               })
               .then((existing) => {
-                if (existing?.createRequestHash === requestHash) {
+                if (existing?.createRequestHash === requestHash && (existing.identityRequestHash != null ? existing.identityRequestHash === identityRequestHash : dto.identityId === undefined)) {
                   return { subthread: existing, bodyPost: null, replayed: true };
                 }
                 if (existing) {

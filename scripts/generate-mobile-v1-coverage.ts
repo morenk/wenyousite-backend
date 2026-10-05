@@ -113,7 +113,7 @@ function moduleFor(operation: Operation, disposition: Disposition): string {
   if (disposition === 'infrastructure') return 'infrastructure';
   if (disposition === 'not_applicable') return 'admin';
   const id = operation.operationId;
-  if (id.startsWith('threadIdentities')) return 'threads';
+  if (id.startsWith('threadIdentities') || id.startsWith('rpIdentities')) return 'threads';
   if (id.startsWith('auth')) return 'auth';
   if (id.startsWith('notifications')) return 'notifications';
   if (id.startsWith('users')) return 'users';

@@ -296,7 +296,7 @@ export class UsersService {
               if (existing && existing.id !== id) throw new ConflictException('用户名已被占用');
               // 只设头像的帖内身份继承站内昵称；候选插入后改名仍须验证旧标签归属。
               const inherited = await tx.threadIdentity.findMany({
-                where: { userId: id, nickname: null }, select: { id: true },
+                where: { userId: id, nickname: null, deletedAt: null }, select: { id: true },
               });
               if (inherited.length) await tx.threadIdentityAlias.createMany({
                 data: inherited.map(identity => ({ identityId: identity.id, nickname: current.username })),
