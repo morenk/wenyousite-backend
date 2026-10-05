@@ -82,6 +82,7 @@ export default function configuration() {
 
     // 应用基础信息
     app: {
+      roleMentionsV6Enabled: env.RP_MENTION_V6_ENABLED,
       url: env.APP_URL,
       nodeEnv: env.NODE_ENV,
       apiDocsEnabled: env.ENABLE_API_DOCS,

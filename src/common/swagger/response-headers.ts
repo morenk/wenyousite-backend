@@ -17,11 +17,13 @@ function isReferenceObject(value: object): value is ReferenceObject {
 }
 
 function applyOperationResponseHeaders(operation: OperationObject): void {
+  operation.parameters = [...(operation.parameters ?? []), { name: 'X-Markdown-Contract-Version', in: 'header', required: false, description: '声明 6 以读取原始角色提及源和稳定目标投影；省略/低版本安全降级响应副本，不能回写 v6 正文。服务端全局 Markdown 仍为 5', schema: { type: 'integer', enum: [6] } }];
   for (const [status, response] of Object.entries(operation.responses)) {
     if (!response || isReferenceObject(response)) continue;
     const responseObject = response as ResponseObject;
     responseObject.headers = {
       ...(responseObject.headers ?? {}),
+      Vary: { description: '追加 X-Markdown-Contract-Version，保留已有 Origin/Accept 等；缓存不得混用能力响应或会话', schema: { type: 'string' } },
       'X-Request-ID': { $ref: REQUEST_ID_HEADER_REF },
       'X-API-Contract-Version': { $ref: CONTRACT_VERSION_HEADER_REF },
       ...(/^429$/.test(status) ? { 'Retry-After': { $ref: RETRY_AFTER_HEADER_REF } } : {}),

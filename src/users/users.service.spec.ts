@@ -26,6 +26,7 @@ const mockPrisma = {
   },
   threadIdentity: { findMany: jest.fn() },
   threadIdentityAlias: { createMany: jest.fn() },
+  userMentionAlias: { upsert: jest.fn() },
   $queryRaw: jest.fn(),
   $transaction: jest.fn(),
 };
@@ -170,7 +171,7 @@ describe('UsersService', () => {
     mockPrisma.threadIdentity.findMany.mockResolvedValue([{ id: 'avatar-only-role' }]);
     const result = await service.update('u1', { username: 'newname' });
     expect(result.username).toBe('newname');
-    expect(mockPrisma.threadIdentity.findMany).toHaveBeenCalledWith({ where: { userId: 'u1', nickname: null }, select: { id: true } });
+    expect(mockPrisma.threadIdentity.findMany).toHaveBeenCalledWith({ where: { userId: 'u1', nickname: null, deletedAt: null }, select: { id: true } });
     expect(mockPrisma.threadIdentityAlias.createMany).toHaveBeenCalledWith({ data: [{ identityId: 'avatar-only-role', nickname: 'oldname' }], skipDuplicates: true });
   });
 

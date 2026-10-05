@@ -1,5 +1,6 @@
+import { MARKDOWN_CAPABILITY_HEADER } from '../common/role-mentions';
 import { IdentityProjectionService } from '../thread-identities/identity-projection.service';
-import { FastifyRequest } from 'fastify';
+import { FastifyReply, FastifyRequest } from 'fastify';
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import { mergeMap } from 'rxjs/operators';
 import { MediaDisplayProjectionService } from './media-display-projection.service';
@@ -14,13 +15,20 @@ export class MediaDisplayInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler) {
     return next.handle().pipe(mergeMap(async (raw: unknown) => {
       const req = context.switchToHttp().getRequest<FastifyRequest>();
+      const reply = context.switchToHttp().getResponse<FastifyReply>();
+      if (reply.sent) return raw;
+      const vary = String(reply.getHeader('Vary') ?? '').split(',').map(value => value.trim()).filter(Boolean);
+      if (!vary.some(value => value.toLowerCase() === MARKDOWN_CAPABILITY_HEADER.toLowerCase())) vary.push(MARKDOWN_CAPABILITY_HEADER);
+      reply.header('Vary', vary.join(', '));
+      // 缓存保存领域原值；每个能力请求仅投影自己的副本。
+      raw = raw instanceof PaginatedResult ? new PaginatedResult(sanitizePublicUserSummaries(raw.items), raw.pagination) : sanitizePublicUserSummaries(raw);
       const params = req.params as Record<string, string> | undefined;
       const query = req.query as Record<string, string> | undefined;
       const route = req.routeOptions?.url ?? '';
       const threadDetail = /threads\/:id$/.test(route);
       const identityContext = { threadId: params?.threadId ?? (threadDetail ? params?.id : query?.threadId),
         subthreadId: params?.subthreadId, postId: params?.postId ?? params?.id,
-        currentUsers: threadDetail || /members|authors|mention-candidates/.test(route), viewerId: req.user?.id };
+        currentUsers: threadDetail || /members|authors/.test(route), viewerId: req.user?.id, markdownContractVersion: req.headers['x-markdown-contract-version'] === '6' ? 6 : undefined };
       await this.identities.project(raw instanceof PaginatedResult ? raw.items : raw, identityContext);
       if (raw instanceof PaginatedResult) {
         return new PaginatedResult(await this.projection.project(sanitizePublicUserSummaries(raw.items)), raw.pagination);

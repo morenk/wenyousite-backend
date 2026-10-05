@@ -124,6 +124,11 @@
 | DELETE | `/threads/{threadId}/identity` | authenticated | 清除自己的当前帖内资料；保留历史发言身份 |
 | GET | `/threads/{threadId}/identities/{userId}` | optional | 读取可访问主题内的当前身份卡与真实账号 |
 | PATCH | `/threads/{threadId}/identity-settings` | authenticated | 楼主开启或关闭全帖身份展示；不删除历史资料 |
+| GET | `/threads/{threadId}/rp-identities` | authenticated | 列出自己的帖内角色及各角色发表确认 token（最多十个） |
+| POST | `/threads/{threadId}/rp-identities` | authenticated | 新增一个帖内角色；首次建立兼容锚点，归档后不自动替换 |
+| GET | `/threads/{threadId}/rp-identities/{identityId}` | optional | 按稳定角色 ID 读取身份卡；删除后只返回账号及删除状态 |
+| PUT | `/threads/{threadId}/rp-identities/{identityId}` | authenticated | 修改自己的指定角色；只影响此角色之后的新发言 |
+| DELETE | `/threads/{threadId}/rp-identities/{identityId}` | authenticated | 删除自己的指定角色并释放名额；历史身份和媒体保留 |
 
 ## Tags
 

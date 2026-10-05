@@ -1,8 +1,9 @@
+import { MarkdownCapabilityDto } from '../../common/dto/markdown-capability.dto';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, MaxLength, IsInt, Min } from 'class-validator';
 
 /** 更新草稿 DTO */
-export class UpdateDraftDto {
+export class UpdateDraftDto extends MarkdownCapabilityDto {
   @ApiProperty({
     example: '更新后的草稿内容...',
     description: '更新后的草稿正文',

@@ -38,7 +38,7 @@ export function assertIdentityToken(
   }
 }
 export type IdentitySnapshot = { id: string; nickname: string; avatar: string | null };
-export type MentionSnapshot = { userId: string; label: string; identityId: string | null };
+export type MentionSnapshot = { userId: string; label: string; identityId: string | null; sourceHref?: string; targetIdentityId?: string | null };
 export function readIdentity(value: unknown): IdentitySnapshot | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;

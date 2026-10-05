@@ -1,7 +1,11 @@
+import { ConfigService } from '@nestjs/config';
+import { parseMentionSources } from '../common/role-mentions';
+import { eligibleIdentity } from '../thread-identities/identity-policy';
+import { readMediaDisplay } from '../media/media-display';
 import { IdentityProjectionService } from '../thread-identities/identity-projection.service';
 import { RpIdentityResponseDto } from '../thread-identities/thread-identity.dto';
 import { lockInteractionUsers, assertInteractionAllowed } from '../access/block-visibility.where';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../access/thread-access.service';
 import { BlockFilterService, BlockSets } from '../access/block-filter.service';
@@ -24,6 +28,10 @@ export interface MentionCandidate {
   avatar: string | null;
   relation: 'FOLLOWING' | 'PLAYER' | 'OWNER' | 'COLLABORATOR';
   rpIdentity?: RpIdentityResponseDto | null;
+  candidateKey?: string;
+  targetIdentityId?: string | null;
+  mentionLabel?: string;
+  mentionHref?: string;
 }
 
 interface MentionTokens {
@@ -49,13 +57,13 @@ type MentionClient = {
 @Injectable()
 export class MentionsService {
   private readonly mentionRegex = /(?:^|[^a-zA-Z0-9_\u4e00-\u9fff])@([a-zA-Z0-9_\u4e00-\u9fff]{1,24})/gu;
-  private readonly canonicalMentionRegex = /\[@[^\]]{1,32}\]\(\/users\/([a-zA-Z0-9_-]+)\)/g;
 
   constructor(
     private prisma: PrismaService,
     private threadAccess: ThreadAccessService,
     private blockFilter: BlockFilterService,
     private readonly identities: IdentityProjectionService,
+    @Optional() private readonly config?: ConfigService,
   ) {}
 
   /** 在内容锁之前一次锁定全部互动对象；全体提及自动略过拉黑对象。 */
@@ -215,7 +223,7 @@ export class MentionsService {
   }
 
   /** 编辑器候选：关注列表与帖内 playerMarked=true 的用户并集。 */
-  async findCandidates(threadId: string, userId: string, query?: string) {
+  async findCandidates(threadId: string, userId: string, query?: string, includeIdentities = false) {
     await this.threadAccess.assertAccessible(threadId, userId);
     const blockSets = await this.blockFilter.loadBlockSets(userId);
     const normalizedQuery = query?.trim();
@@ -244,7 +252,7 @@ export class MentionsService {
     }
     const thread = await this.prisma.thread.findUnique({
       where: { id: threadId, deletedAt: null },
-      select: { visibility: true },
+      select: { visibility: true, ownerId: true, rpIdentityEnabled: true },
     });
     if (thread?.visibility === 'PRIVATE' && candidates.size > 0) {
       const members = await this.prisma.threadMember.findMany({
@@ -259,6 +267,31 @@ export class MentionsService {
     const visibleIds = new Set(
       this.blockFilter.filterRecipients([...candidates.keys()], blockSets),
     );
+    if (includeIdentities) {
+      const enabled = this.config?.get<boolean>('app.roleMentionsV6Enabled') ?? false;
+      if (!enabled) return [];
+      const accounts = [...candidates.values()].filter(row => row.id !== userId && visibleIds.has(row.id));
+      const [roles, members] = enabled && thread?.rpIdentityEnabled ? await Promise.all([
+        this.prisma.threadIdentity.findMany({ where: { threadId, userId: { in: accounts.map(row => row.id) }, deletedAt: null }, include: { avatarMedia: true } }),
+        this.prisma.threadMember.findMany({ where: { threadId, userId: { in: accounts.map(row => row.id) } } }),
+      ]) : [[], []];
+      const expanded: MentionCandidate[] = [];
+      for (const account of accounts) {
+        expanded.push({ ...account, rpIdentity: null, candidateKey: `ACCOUNT:${account.id}`, targetIdentityId: null,
+          mentionLabel: account.username, mentionHref: `/users/${account.id}${enabled ? '?identityMode=ACCOUNT' : ''}` });
+        for (const role of roles.filter(row => row.userId === account.id)) {
+          if ((!role.nickname && !role.avatarMediaId) || !eligibleIdentity(thread!.ownerId, account.id, members.find(row => row.userId === account.id) ?? null)) continue;
+          const media = role.avatarMedia;
+          expanded.push({ ...account, candidateKey: `RP:${role.id}`, targetIdentityId: role.id,
+            mentionLabel: role.nickname ?? account.username, mentionHref: `/users/${account.id}?rpIdentityId=${role.id}`,
+            rpIdentity: { id: role.id, nickname: role.nickname ?? account.username,
+              avatar: role.avatarMediaId ? media?.status === 'COMPLETED' && !media.deletionClaimedAt ? media.url : null : account.avatar,
+              avatarDisplay: media?.status === 'COMPLETED' && !media.deletionClaimedAt ? readMediaDisplay(media.displayAsset) : null } });
+        }
+      }
+      return expanded.filter(row => !normalizedQuery || [row.username, row.mentionLabel].some(name => name?.toLocaleLowerCase().includes(normalizedQuery.toLocaleLowerCase())))
+        .sort((a, b) => a.username.localeCompare(b.username) || a.mentionLabel!.localeCompare(b.mentionLabel!) || a.candidateKey!.localeCompare(b.candidateKey!)).slice(0, 20);
+    }
     await this.identities.projectCurrent(threadId, [...candidates.values()]);
     return [...candidates.values()]
       .filter((candidate) => !normalizedQuery || [candidate.username, candidate.rpIdentity?.nickname].some((name) => name?.toLocaleLowerCase().includes(normalizedQuery.toLocaleLowerCase())))
@@ -311,7 +344,7 @@ export class MentionsService {
     const [thread, followingResult, markedMembersResult, memberResult] = await Promise.all([
       client.thread.findUnique({
         where: { id: threadId, deletedAt: null },
-        select: { visibility: true },
+        select: { visibility: true, ownerId: true, rpIdentityEnabled: true },
       }),
       client.userFollow.findMany({
         where: { followerId: userId, followingId: { in: ids } },
@@ -356,15 +389,9 @@ export class MentionsService {
 
   private extractMentionTokens(content: string): MentionTokens {
     const withoutCode = this.stripMarkdownCode(content);
-    const userIds: string[] = [];
-    const withoutCanonical = withoutCode.replace(
-      this.canonicalMentionRegex,
-      (marker: string, userId: string, offset: number) => {
-        if (!this.isEscaped(withoutCode, offset)) userIds.push(userId);
-        // 转义的稳定链接也必须从后续历史 @用户名解析中遮蔽。
-        return ' '.repeat(marker.length);
-      },
-    );
+    const userIds = parseMentionSources(content, true).map(row => row.userId);
+    // 所有用户链接（包括转义或无效的 query）均遮蔽，绝不降回普通 @名字。
+    const withoutCanonical = withoutCode.replace(/\[@[^\]\r\n]*\]\([ \t]*\/users\/[^)\r\n]*\)/g, marker => ' '.repeat(marker.length));
     const mentionNames = [...withoutCanonical.matchAll(this.mentionRegex)]
       .filter((match) => {
         const atOffset = match[0].indexOf('@');

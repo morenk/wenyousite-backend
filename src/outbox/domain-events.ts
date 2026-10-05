@@ -44,6 +44,7 @@ export interface PostMentionsUpdatedEvent {
   authorUsername: string;
   recipientIds: string[];
   preview: string;
+  mentionSource?: string;
   context: 'body' | 'post';
 }
 
@@ -190,6 +191,7 @@ export const DOMAIN_EVENT_SCHEMAS = {
     authorUsername: z.string(),
     recipientIds: z.array(id),
     preview: z.string(),
+    mentionSource: z.string().optional(),
     context: z.enum(['body', 'post']),
   }),
   [DOMAIN_EVENTS.THREAD_PUBLISHED]: z.object({

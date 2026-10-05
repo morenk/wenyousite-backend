@@ -12,6 +12,8 @@ describe('MetaController', () => {
       buildSha: null,
       markdownContractVersion: 5,
       capabilities: {
+        roleMentionsV6Supported: true,
+        roleMentionsV6WriteEnabled: false,
         stickers: true,
         directMessages: true,
         pushNotifications: false,

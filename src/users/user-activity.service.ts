@@ -30,10 +30,10 @@ export class UserActivityService {
     });
   }
 
-  async mentionCandidates(threadId: string | undefined, userId: string, query?: string) {
+  async mentionCandidates(threadId: string | undefined, userId: string, query?: string, includeIdentities = false) {
     if (!threadId) return { users: [], canMentionAllPlayers: false };
     const [users, canMentionAllPlayers] = await Promise.all([
-      this.mentions.findCandidates(threadId, userId, query),
+      this.mentions.findCandidates(threadId, userId, query, includeIdentities),
       this.mentions.canMentionAllPlayers(threadId, userId),
     ]);
     return { users, canMentionAllPlayers };

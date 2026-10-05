@@ -1,3 +1,4 @@
+import { ThreadIdentitiesService } from '../thread-identities/thread-identities.service';
 import { MentionsService } from '../mentions/mentions.service';
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -56,10 +57,11 @@ export class ThreadsService {
     private invites: ThreadInviteService,
     private postingPolicy: PostingPolicyService,
     private mentions: MentionsService,
+    private identities: ThreadIdentitiesService,
   ) {}
   /** 创建主题帖草稿：事务内创建 Thread + Owner + 默认子贴 + 可选子贴正文，一次请求完成 */
   async create(dto: CreateThreadDto, userId: string) {
-    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content ?? ''));
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content ?? '', { markdownContractVersion: dto.markdownContractVersion }));
     const { title, subthreadTitle, category, visibility, requestHash } =
       this.createIdempotency.prepare(dto, parsedContent.content);
     if (category) await this.categories.assertSelectable(category);
@@ -114,6 +116,7 @@ export class ThreadsService {
               authorId: userId,
               kind: 'BODY',
               content: parsedContent.content,
+              mentionIdentitySnapshots: await this.identities.prepareMentions(tx, thread.id, parsedContent.content, undefined, undefined, dto.markdownContractVersion),
             },
           });
           await this.mediaReferences.syncPostContent(tx, body.id, body.content);

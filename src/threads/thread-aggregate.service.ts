@@ -1,3 +1,4 @@
+import { hasRoleMentionSource } from '../common/role-mentions';
 import { ThreadIdentitiesService } from '../thread-identities/thread-identities.service';
 import { postContentEditData } from '../posts/post-content-edit';
 import { HttpStatus, Injectable } from '@nestjs/common';
@@ -84,7 +85,7 @@ export class ThreadAggregateService {
     if (tagNames.some((name) => !name)) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '标签名称不能为空');
     }
-    const parsedContent = this.dice.parseContent(prepareMarkdownContent(dto.content));
+    const parsedContent = this.dice.parseContent(prepareMarkdownContent(dto.content, { markdownContractVersion: dto.markdownContractVersion }));
     const content = parsedContent.content;
     const previousBody = await this.prisma.post.findFirst({
       where: {
@@ -203,12 +204,13 @@ export class ThreadAggregateService {
             }
           | undefined;
         if (existingBody) {
+          this.identities.assertMentionWrite(content, existingBody.content, dto.markdownContractVersion);
           if (dto.bodyVersion !== existingBody.version) this.optimisticLockConflict('默认正文');
           if (existingBody.content !== content) {
             const post = await tx.post.update({
               where: { id: existingBody.id, version: dto.bodyVersion, ...notDeleted },
               data: { ...postContentEditData(existingBody.content, content),
-                mentionIdentitySnapshots: await this.identities.prepareMentions(tx, threadId, content, existingBody.mentionIdentitySnapshots, existingBody.content) },
+                mentionIdentitySnapshots: await this.identities.prepareMentions(tx, threadId, content, existingBody.mentionIdentitySnapshots, existingBody.content, dto.markdownContractVersion) },
             });
             await this.mediaReferences.syncPostContent(tx, post.id, content);
             if (current.published) {
@@ -244,8 +246,8 @@ export class ThreadAggregateService {
                 threadId,
                 subthreadId: defaultSubthread.id,
                 authorId: userId,
-                ...(await this.identities.prepareAuthor(tx, threadId, userId, dto.identityToken, dto.identityMode)),
-                mentionIdentitySnapshots: await this.identities.prepareMentions(tx, threadId, content),
+                ...(await this.identities.prepareAuthor(tx, threadId, userId, dto.identityToken, dto.identityMode, dto.identityId)),
+                mentionIdentitySnapshots: await this.identities.prepareMentions(tx, threadId, content, undefined, undefined, dto.markdownContractVersion),
                 kind: 'BODY',
                 content,
               },
@@ -566,6 +568,7 @@ export class ThreadAggregateService {
       authorUsername: input.authorUsername,
       recipientIds: mentioned.map((user) => user.userId),
       preview: truncateMarkdown(input.content),
+      ...(hasRoleMentionSource(input.content) ? { mentionSource: input.content } : {}),
       context: 'body',
     };
     await this.outbox.enqueue(tx, {

@@ -1,5 +1,6 @@
 /** Markdown 安全截断：保证不在标记内部截断，尽量在句子或段落边界处 */
 import removeMd from 'remove-markdown';
+import { parseMentionSources } from './role-mentions';
 import { protectPreviewCode } from './markdown-preview-code';
 import { stripMarkdownAlignmentMetadata } from './markdown-block-boundaries';
 import { stripVisibleMarkdownImages } from './markdown-cover-images';
@@ -27,8 +28,17 @@ function restorePlaceholders(s: string): string {
 function markdownToPlainText(md: string, omitImages = false, decode = false): string {
   if (!md) return '';
 
+  // 规范提及的昵称是原子文字，内含反引号/星号/实体样式字符时也不能按格式清理。
+  const mentions = parseMentionSources(md);
+  let mentionMarker = '\uE080';
+  while (md.includes(mentionMarker)) mentionMarker += '\uE080';
+  let mentionSource = md;
+  for (let index = mentions.length - 1; index >= 0; index--) {
+    const token = mentions[index];
+    mentionSource = mentionSource.slice(0, token.start) + `${mentionMarker}${index}END` + mentionSource.slice(token.end);
+  }
   // Markdown v4 对齐引用定义是块元数据，不得泄漏到通知、搜索摘要或列表卡片。
-  const code = protectPreviewCode(stripMarkdownAlignmentMetadata(md));
+  const code = protectPreviewCode(stripMarkdownAlignmentMetadata(mentionSource));
   const withoutAlignmentMarkers = code.source;
   // 必须先在原文上判定对齐；提前移除图片会制造孤立标记或让非法图文混排变成合法段落。
   const previewContent = omitImages
@@ -54,7 +64,8 @@ function markdownToPlainText(md: string, omitImages = false, decode = false): st
     .replace(/</g, LT_PLACEHOLDER);
   const plain = restorePlaceholders(removeMd(protectedContent)).replace(/\\\n/g, '\n').trim();
   // 只解码普通正文；代码中的实体和 Markdown 标点是用户字面内容。
-  return code.restore(plain, decode ? decodeEntities : undefined);
+  const restored = code.restore(plain, decode ? decodeEntities : undefined);
+  return restored.replace(new RegExp(`${mentionMarker}(\\d+)END`, 'gu'), (_, index: string) => `@${mentions[Number(index)].label}`);
 }
 
 function truncatePlainText(plain: string, maxLen: number, minLen: number): string {

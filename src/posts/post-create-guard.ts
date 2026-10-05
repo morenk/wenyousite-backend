@@ -1,3 +1,4 @@
+import { identityToken } from '../thread-identities/identity-policy';
 import { HttpStatus } from '@nestjs/common';
 import { CreatePostDto } from './dto/create-post.dto';
 import { Prisma } from '@prisma/client';
@@ -111,6 +112,7 @@ export function assertSamePostCreateRequest(
     parentPostId: string | null;
     replyToPostId: string | null;
     identityCreateMode?: string | null;
+    identityRequestHash?: string | null;
   },
   subthreadId: string,
   dto: CreatePostDto,
@@ -119,6 +121,10 @@ export function assertSamePostCreateRequest(
   if (
     post.subthreadId !== subthreadId ||
     post.content !== content ||
+    (post.identityRequestHash != null &&
+      post.identityRequestHash !==
+        identityToken([dto.identityId ?? null, dto.identityToken ?? null])) ||
+    (post.identityRequestHash == null && dto.identityId !== undefined) ||
     (post.identityCreateMode ?? null) !== (dto.identityMode ?? null) ||
     post.parentPostId !== (dto.parentPostId ?? null) ||
     post.replyToPostId !== (dto.replyToPostId ?? null)

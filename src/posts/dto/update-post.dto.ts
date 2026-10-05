@@ -1,8 +1,9 @@
+import { MarkdownCapabilityDto } from '../../common/dto/markdown-capability.dto';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsInt, MaxLength, Min } from 'class-validator';
 
 /** 编辑帖子 DTO */
-export class UpdatePostDto {
+export class UpdatePostDto extends MarkdownCapabilityDto {
   @ApiProperty({
     example: '编辑后的内容...',
     description: '新正文；骰子节点随正文移动或删除，新增节点由服务端结算',

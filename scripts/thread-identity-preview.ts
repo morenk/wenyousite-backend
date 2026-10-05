@@ -51,7 +51,7 @@ async function main() {
         await db.thread.update({ where: { id: thread.id }, data: { defaultSubthreadId: sub.id } });
         const identities: Array<{ id: string; nickname: string | null }> = [];
         for (const [index, nickname] of ['主持人', '协作主持', '白鸦', '白鸦'].entries()) {
-          identities.push(await db.threadIdentity.create({ data: { threadId: thread.id, userId: users[index].id, nickname, aliases: { create: [{ nickname }, ...(index === 2 ? [{ nickname: '夜渡' }] : [])] } } }));
+          identities.push(await db.threadIdentity.create({ data: { threadId: thread.id, userId: users[index].id, compatibilityIdentity: true, nickname, aliases: { create: [{ nickname }, ...(index === 2 ? [{ nickname: '夜渡' }] : [])] } } }));
         }
         const snapshot = (index: number, nickname?: string) => ({ authorIdentitySnapshot: { id: identities[index].id, nickname: nickname ?? identities[index].nickname!, avatar: null, avatarMediaId: null }, identityCreateMode: 'RP' });
         const base = { threadId: thread.id, subthreadId: sub.id, createdAt: new Date(Date.now() - 86_400_000) };

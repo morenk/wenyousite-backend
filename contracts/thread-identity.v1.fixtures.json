@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "httpContractVersion": "5.33.0-dev.20261005.1",
+  "httpContractVersion": "5.35.0-dev.20261005.1",
   "markdownVersion": 5,
   "cases": [
     {
@@ -98,6 +98,63 @@
           }
         }
       ]
+    }
+  ],
+  "multipleIdentityCases": [
+    {
+      "id": "two-roles-one-account",
+      "userId": "u1",
+      "posts": [
+        {
+          "identityMode": "RP",
+          "rpIdentity": {
+            "id": "role-a",
+            "nickname": "同名",
+            "avatar": null
+          }
+        },
+        {
+          "identityMode": "RP",
+          "rpIdentity": {
+            "id": "role-b",
+            "nickname": "同名",
+            "avatar": null
+          }
+        },
+        {
+          "identityMode": "ACCOUNT",
+          "rpIdentity": null
+        }
+      ],
+      "filterUserId": "u1",
+      "mentionTarget": "/users/u1"
+    },
+    {
+      "id": "archived-primary-does-not-switch",
+      "compatibilityIdentityId": null,
+      "remainingRoleId": "role-b",
+      "legacyDisplay": null,
+      "defaultIdentityId": null
+    },
+    {
+      "id": "empty-profile-retains-slot",
+      "activeCount": 1,
+      "display": null,
+      "defaultIdentityId": null,
+      "canPublishRp": false
+    },
+    {
+      "id": "max-ten-race",
+      "activeCount": 9,
+      "parallelCreates": 2,
+      "successCount": 1,
+      "rejectedCode": 40013
+    },
+    {
+      "id": "role-b-edit-keeps-a-token",
+      "selectedIdentityId": "role-a",
+      "editedIdentityId": "role-b",
+      "selectedTokenChanged": false
     }
   ]
 }

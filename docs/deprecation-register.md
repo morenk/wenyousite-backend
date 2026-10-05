@@ -99,3 +99,7 @@ Android APK 源站 URL：保留历史 promotion/TSV 原文与旧 APP HEAD metada
 RP 采用 additive 字段；原 username/avatar、按 userId 互动和 Markdown mention 保留。无 RP 的旧客户端写入不变；有效 RP 需身份确认。无旧协议清理授权。
 
 - `5.33.0-dev.20261005.1`：可选 identityMode 允许逐条 ACCOUNT/RP，省略仍沿用旧确认语义；无字段旧请求与账号读字段继续兼容，本期不清理。
+
+- `5.34.0-dev.20261005.1`：单身份五端点继续保留，明确锚定 compatibilityIdentity。新集合最多十个角色；旧 clear 只清锚点。无 identityId 的旧请求仅操作兼容角色，不按昵称推测其他角色；Markdown5、账号提及和筛选不变。部分唯一索引及多行数据与旧 Backend 唯一键 upsert 不兼容，回滚须保留新后端查询/媒体逻辑或前滚修复，不能自动删角色恢复旧索引。本期无协议删除日期。
+
+- `5.35.0-dev.20261005.1`：新增可选 Markdown6 能力与角色提及源，新写默认关闭，meta全局仍5。旧bare和single协议保留；兼容锚点不再作为新端默认或账号目录表示。已存v6必须保留旧读安全降级/旧写保护，回滚先关新写，不删除字段或源码。见[扩展协议](markdown-v6-role-mentions.md)。

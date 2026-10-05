@@ -1,3 +1,4 @@
+import { identityToken } from '../thread-identities/identity-policy';
 import type { Prisma } from '@prisma/client';
 import type { PostingPolicyService } from '../access/posting-policy.service';
 import type { ThreadAccessService } from '../access/thread-access.service';
@@ -133,9 +134,47 @@ describe('创建请求身份模式幂等性', () => {
     expect(() => assertSamePostCreateRequest(post, 'sub', { content: '正文' }, '正文')).not.toThrow();
     expect(() => assertSamePostCreateRequest(post, 'sub', { content: '正文', identityMode: 'ACCOUNT' }, '正文')).toThrow();
   });
+  it('服务升级后补能力6不改变旧普通正文的幂等回放', () => {
+    expect(() => assertSamePostCreateRequest(post, 'sub', {content:'正文',markdownContractVersion:6}, '正文')).not.toThrow();
+    const account = {...post,identityCreateMode:'ACCOUNT',identityRequestHash:identityToken([null,null])};
+    expect(() => assertSamePostCreateRequest(account, 'sub', {content:'正文',identityMode:'ACCOUNT',markdownContractVersion:6}, '正文')).not.toThrow();
+  });
   it('重复请求 mode 固定，token 更新不影响已成功创建记录', () => {
     const rpPost = { ...post, identityCreateMode: 'RP' };
     expect(() => assertSamePostCreateRequest(rpPost, 'sub', { content: '正文', identityMode: 'RP', identityToken: 'old' }, '正文')).not.toThrow();
     expect(() => assertSamePostCreateRequest(rpPost, 'sub', { content: '正文', identityMode: 'ACCOUNT' }, '正文')).toThrow();
+  });
+});
+
+describe('角色选择的幂等载荷', () => {
+  const post = {
+    subthreadId: 's',
+    content: '正文',
+    parentPostId: null,
+    replyToPostId: null,
+    identityCreateMode: 'RP',
+    identityRequestHash: identityToken(['a', 'token-a']),
+  };
+  const dto = {
+    content: '正文',
+    identityMode: 'RP' as const,
+    identityId: 'a',
+    identityToken: 'token-a',
+  };
+  it('原 ID/token 的超时重试保持同一发言', () =>
+    expect(() => assertSamePostCreateRequest(post, 's', dto, '正文')).not.toThrow());
+  it.each([
+    { identityId: 'b' },
+    { identityToken: 'new-token' },
+    { identityMode: 'ACCOUNT' as const },
+  ])('更换身份选择不能复用请求键 %s', (change) => {
+    expect(() => assertSamePostCreateRequest(post, 's', { ...dto, ...change }, '正文')).toThrow();
+  });
+  it('迁移前无指纹旧记录仅允许无角色ID的旧重试', () => {
+    const old = { ...post, identityRequestHash: null };
+    expect(() =>
+      assertSamePostCreateRequest(old, 's', { content: '正文', identityMode: 'RP' }, '正文'),
+    ).not.toThrow();
+    expect(() => assertSamePostCreateRequest(old, 's', dto, '正文')).toThrow();
   });
 });

@@ -126,7 +126,7 @@ describe('ThreadAggregateService', () => {
     categories as never,
     mediaReferences as never,
     postingPolicy as never,
-    { prepareAuthor: jest.fn().mockResolvedValue({}), prepareMentions: jest.fn().mockResolvedValue([]) } as never,
+    { assertMentionWrite: jest.fn(), prepareAuthor: jest.fn().mockResolvedValue({}), prepareMentions: jest.fn().mockResolvedValue([]) } as never,
   );
 
   beforeEach(() => {

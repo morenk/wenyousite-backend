@@ -23,6 +23,13 @@ describe('buildPostPreview', () => {
     expect(buildPostPreview(content)).toBe('前 1d6 = ? 中 1d8 = ? 后');
   });
 
+  it('提及标签是原子文字，昵称里的格式标点不丢失', () => {
+    for (const label of ['反`号`', '*白鸦*', '星*号', '&amp;']) {
+      expect(buildPostPreview(`**[@${label}](/users/user?rpIdentityId=c00000000000000000000000a)**`)).toBe(`@${label}`);
+      expect(buildPostPreview(`[@${label}](/users/user)`)).toBe(`@${label}`);
+    }
+  });
+
   it('表情图片在摘要中显示为表情而不是普通图片', () => {
     expect(buildPostPreview(
       '开场 ![表情](https://cdn.example.com/stickers/a.webp "wenyousite-sticker:v1:cm1234567890123456789012")',

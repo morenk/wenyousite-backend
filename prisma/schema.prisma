@@ -308,6 +308,7 @@ model User {
   posts            Post[]
   drafts           Draft[]
   likedThreads     ThreadLike[]
+  mentionAliases UserMentionAlias[]
   threadIdentities ThreadIdentity[]
   mentions         PostMention[]    @relation("mentionedUser")
   notifications    Notification[]
@@ -543,6 +544,8 @@ model ThreadIdentity {
   userId        String                @map("user_id")
   nickname      String?               @db.VarChar(24)
   avatarMediaId String?               @map("avatar_media_id")
+  compatibilityIdentity Boolean @default(false) @map("compatibility_identity")
+  deletedAt DateTime? @map("deleted_at")
   version       Int                   @default(1)
   createdAt     DateTime              @default(now()) @map("created_at")
   updatedAt     DateTime              @updatedAt @map("updated_at")
@@ -551,7 +554,7 @@ model ThreadIdentity {
   avatarMedia   Media?                @relation("ThreadIdentityAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
   aliases       ThreadIdentityAlias[]
 
-  @@unique([threadId, userId])
+  @@index([threadId, userId, deletedAt])
   @@index([avatarMediaId])
   @@index([userId])
   @@map("thread_identities")
@@ -663,6 +666,7 @@ model Subthread {
   deletedAt         DateTime?     @map("deleted_at")
   createdAt         DateTime      @default(now()) @map("created_at")
   clientRequestId   String?       @map("client_request_id") @db.Uuid
+  identityRequestHash String? @map("identity_request_hash") @db.VarChar(64)
   createRequestHash String?       @map("create_request_hash")
 
   thread           Thread  @relation("ThreadSubthreads", fields: [threadId], references: [id], onDelete: Cascade)
@@ -1115,6 +1119,7 @@ model DirectMessage {
 }
 
 model Post {
+  identityRequestHash String? @map("identity_request_hash") @db.VarChar(64)
   identityCreateMode       String?               @map("identity_create_mode") @db.VarChar(7)
   authorIdentitySnapshot   Json?                 @map("author_identity_snapshot")
   mentionIdentitySnapshots Json?                 @map("mention_identity_snapshots")
@@ -1731,4 +1736,13 @@ model MobileDownloadArtifact {
 
   @@unique([storageBucket, storageKey])
   @@map("mobile_download_artifacts")
+}
+
+// 账号提及插入后改名的可信标签归属；与帖内角色别名隔离。
+model UserMentionAlias {
+  userId String
+  username String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([userId, username])
+  @@map("user_mention_aliases")
 }
