@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Req } from '@nestjs/common';
+import { Controller, Header, Get, Post, Put, Patch, Delete, Body, Param, Query, Req } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -190,6 +190,7 @@ export class PostsController {
     return this.postsService.create(subthreadId, dto, user.id);
   }
 
+  @Header('Cache-Control', 'private, no-store')
   @Get('posts/:id')
   @OptionalAuth()
   @ApiOperation({ summary: '获取帖子详情' })

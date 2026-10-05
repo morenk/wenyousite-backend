@@ -33,12 +33,18 @@ export class ThreadIdentityAccountDto {
   @ApiProperty({ type: String, nullable: true }) avatar!: string | null;
 }
 export class ThreadIdentityProfileDto {
+  @ApiPropertyOptional({ type: String, nullable: true, description: '本人保存的资料楼层绑定；不代表当前可读取。资料正文必须另经 postsFindById 授权读取' })
+  profilePostId?: string | null;
   @ApiProperty() id!: string;
   @ApiProperty({ type: String, nullable: true }) nickname!: string | null;
   @ApiProperty({ type: String, nullable: true }) avatarMediaId!: string | null;
   @ApiProperty({ minimum: 1 }) version!: number;
 }
 export class ThreadIdentityStateDto {
+  @ApiPropertyOptional({ enum: ['NONE', 'AVAILABLE', 'UNAVAILABLE'], description: 'NONE：无可展示绑定（含身份关闭/归档/资格失效/空身份）；AVAILABLE：可读取当前资料；UNAVAILABLE：有效角色的绑定当前不可读。不可用不提供原因或目标 ID' })
+  profilePostStatus?: 'NONE' | 'AVAILABLE' | 'UNAVAILABLE';
+  @ApiPropertyOptional({ type: String, nullable: true, description: '同一角色当前可读的资料楼层 ID；关闭、失去资格、空身份、归档、目标不可读时为 null。每次打开卡片重新读取，再调用 postsFindById，禁止缓存正文绕过授权' })
+  profilePostId?: string | null;
   @ApiProperty() threadId!: string;
   @ApiProperty() userId!: string;
   @ApiProperty() enabled!: boolean;
@@ -64,6 +70,16 @@ export class ThreadIdentitySettingsDto {
   @ApiProperty() enabled!: boolean;
 }
 export class UpdateThreadIdentityDto {
+  @ApiPropertyOptional({ type: String, nullable: true, description: '本主题内当前可读且可用的楼层、楼中楼或子贴正文 ID，可引用他人发言；省略保留，null 清除；不接受 URL' })
+  @IsOptional()
+  @IsString()
+  @IsCuid()
+  profilePostId?: string | null;
+  @ApiPropertyOptional({ description: '显式解除资料绑定，供省略 null 的客户端使用；不能与非空 profilePostId 同时提供' })
+  @IsOptional()
+  @IsBoolean()
+  clearProfilePost?: boolean;
+
   @ApiPropertyOptional({
     description: '显式清除昵称，供省略 null 的客户端使用；不能与非空 nickname 同时提供',
   })

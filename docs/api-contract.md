@@ -223,3 +223,7 @@ GET /users/me 与有效用户的 GET /users/{id} 中，`_count.following` / `_co
 ## 平级身份提及兼容扩展
 
 `5.35.0-dev.20261005.1` 提供 Markdown6 能力协商，激活版本仍5。八个正文/草稿 DTO、平级候选与显示投影见 [角色提及契约](markdown-v6-role-mentions.md)。
+
+## RP 身份资料楼层引用
+
+可选能力、profilePostId/clearProfilePost、当前可读状态与原文读取规则见 [资料楼层契约](rp-identity-profile-post.md)；不改变原帖权限或 Markdown 源。

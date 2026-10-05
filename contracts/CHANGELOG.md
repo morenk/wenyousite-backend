@@ -1,5 +1,9 @@
 # API 合同变更
 
+## 5.36.0-dev.20261005.1
+
+RP 身份新增同主题资料楼层引用，可显式设置/解绑，原省略字段保持；当前可读引用与本人原绑定分离，不修改历史快照。新增 rpIdentityProfileSupported 能力、profilePostStatus 状态与独立作者版本；角色和帖子详情禁止缓存复用权限。接口、错误码和 Markdown 版本保持兼容，详见 [资料引用契约](../docs/rp-identity-profile-post.md)。
+
 ## 5.35.0-dev.20261005.1
 
 新增平级角色/显式账号提及、可选header/DTO能力、独立新写开关、稳定target与安全旧读/写保护。Markdown激活仍5；账号范围不再默认投影RP，空白编辑器默认ACCOUNT。详见[Markdown6扩展](../docs/markdown-v6-role-mentions.md)。

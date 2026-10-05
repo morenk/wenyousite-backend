@@ -1,6 +1,6 @@
 # 帖内 RP 身份
 
-HTTP 事实源为 `contracts/openapi.json`，版本 `5.34.0-dev.20261005.1`。本功能不改变 Markdown v5 的存储语法；Foundation 同步本页和 `contracts/thread-identity.v1.fixtures.json`，无需变更 token 包版本。
+HTTP 事实源为 `contracts/openapi.json`，版本 `5.36.0-dev.20261005.1`。资料绑定见 [RP 身份资料楼层引用](rp-identity-profile-post.md)。本功能不改变 Markdown v5 的存储语法；Foundation 同步本页和 `contracts/thread-identity.v1.fixtures.json`，无需变更 token 包版本。
 
 ## 范围与权限
 
