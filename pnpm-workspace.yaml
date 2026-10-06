@@ -15,6 +15,8 @@ overrides:
   brace-expansion@2.1.2: 2.1.7
   brace-expansion@5.0.8: 5.0.12
   deepmerge-ts@7.1.5: 8.0.0
+  # pino-pretty 的深层拷贝依赖修复 GHSA-jggr-w7fw-pc2j。
+  fast-copy@4.0.4: 4.1.0
   fast-uri@3.1.4: 3.1.8
   fast-uri@4.1.1: 4.1.5
   fastify@5.11.3: 5.12.5
