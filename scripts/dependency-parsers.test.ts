@@ -119,3 +119,32 @@ it('Firebase 实际 multipart 依赖在限时子进程处理超长边界与原�
   });
   assert.equal(output, 'passed');
 });
+
+it('日志格式化器实际拷贝依赖限制恶意嵌套深度并保留正常循环引用', () => {
+  const copyPath = resolveDependency(['pino-pretty', 'fast-copy']);
+  const script = `
+    const assert = require('node:assert/strict');
+    const { copy, copyStrict, MaxDepthExceededError } = require(${JSON.stringify(copyPath)});
+    const normal = { nested: { value: 'fixture' } };
+    normal.self = normal;
+    const copied = copy(normal);
+    assert.notEqual(copied, normal);
+    assert.deepEqual(copied.nested, normal.nested);
+    assert.equal(copied.self, copied);
+    let deep = { value: 'fixture' };
+    for (let index = 0; index < 5000; index += 1) deep = { child: deep };
+    for (const clone of [copy, copyStrict]) {
+      assert.throws(() => clone(deep), (error) =>
+        error instanceof MaxDepthExceededError && error instanceof RangeError);
+    }
+    process.stdout.write('passed');
+  `;
+  const output = execFileSync(process.execPath, ['--max-old-space-size=128', '-e', script], {
+    env: { PATH: process.env.PATH },
+    timeout: 5000,
+    killSignal: 'SIGKILL',
+    maxBuffer: 4096,
+    encoding: 'utf8',
+  });
+  assert.equal(output, 'passed');
+});
