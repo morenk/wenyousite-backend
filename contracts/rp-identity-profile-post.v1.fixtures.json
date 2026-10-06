@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "contractVersion": "5.36.0-dev.20261005.1",
+  "capability": "rpIdentityProfileSupported",
+  "cases": [
+    {
+      "id": "bind-other-author-reply",
+      "input": {
+        "profilePostId": "c000000000000000000000001",
+        "version": 2
+      },
+      "state": {
+        "profilePostStatus": "AVAILABLE",
+        "profilePostId": "c000000000000000000000001"
+      },
+      "authorToken": "unchanged"
+    },
+    {
+      "id": "omit-preserves",
+      "input": {
+        "nickname": "新名字",
+        "version": 2
+      },
+      "storedProfilePostId": "c000000000000000000000001",
+      "authorToken": "changed"
+    },
+    {
+      "id": "clear-flag",
+      "input": {
+        "clearProfilePost": true,
+        "version": 2
+      },
+      "state": {
+        "profilePostStatus": "NONE",
+        "profilePostId": null
+      },
+      "authorToken": "unchanged"
+    },
+    {
+      "id": "clear-null",
+      "input": {
+        "profilePostId": null,
+        "version": 2
+      },
+      "state": {
+        "profilePostStatus": "NONE",
+        "profilePostId": null
+      }
+    },
+    {
+      "id": "unreadable",
+      "state": {
+        "profilePostStatus": "UNAVAILABLE",
+        "profilePostId": null
+      },
+      "privateOriginalBinding": "retained"
+    },
+    {
+      "id": "disabled",
+      "state": {
+        "profilePostStatus": "NONE",
+        "profilePostId": null
+      },
+      "privateOriginalBinding": "retained"
+    },
+    {
+      "id": "wrong-thread-or-hidden",
+      "status": 404,
+      "code": 40403
+    },
+    {
+      "id": "concurrent-edit",
+      "status": 409,
+      "code": 40002
+    },
+    {
+      "id": "profile-only-create",
+      "status": 400,
+      "code": 40001
+    },
+    {
+      "id": "legacy-clear",
+      "storedProfilePostId": "c000000000000000000000001",
+      "state": {
+        "profilePostStatus": "NONE",
+        "profilePostId": null
+      }
+    }
+  ]
+}

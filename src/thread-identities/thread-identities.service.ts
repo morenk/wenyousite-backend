@@ -4,7 +4,7 @@ import { HttpStatus, Injectable, Optional } from '@nestjs/common';
 import { Prisma, MediaPurpose } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThreadAccessService } from '../access/thread-access.service';
-import { visibleUserWhere } from '../access/block-visibility.where';
+import { visiblePostWhere, visibleUserWhere } from '../access/block-visibility.where';
 import { BusinessException, forbidden, notFound } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { MediaReferenceService } from '../media/media-reference.service';
@@ -92,7 +92,7 @@ export class ThreadIdentitiesService {
         thread.rpIdentityVersion,
         eligible,
         identity?.id ?? null,
-        identity?.version ?? 0,
+        identity?.authorVersion ?? 0,
         display,
         identity?.nickname ? null : user.username,
         identity?.avatarMediaId ? null : user.avatar,
@@ -111,23 +111,32 @@ export class ThreadIdentitiesService {
     return this.stateResponse(current, viewerId);
   }
 
-  private stateResponse(
+  private async stateResponse(
     current: Awaited<ReturnType<ThreadIdentitiesService['context']>>,
     viewerId?: string,
+    db: Db = this.prisma,
   ) {
     const { threadId, userId, enabled, eligible, identity, user, display, token } = current;
+    const profilePostStatus = !display || !identity?.profilePostId ? 'NONE' as const
+      : await db.post.findFirst({
+          where: { id: identity.profilePostId, threadId, ...visiblePostWhere(viewerId) },
+          select: { id: true },
+        }) ? 'AVAILABLE' as const : 'UNAVAILABLE' as const;
     return {
       threadId,
       userId,
       enabled,
       eligible,
       canEdit: viewerId === userId && enabled && eligible && !identity?.deletedAt,
+      profilePostStatus,
+      profilePostId: profilePostStatus === 'AVAILABLE' ? identity!.profilePostId : null,
       identity:
         identity && !identity.deletedAt && viewerId === userId
           ? {
               id: identity.id,
               nickname: identity.nickname,
               avatarMediaId: identity.avatarMediaId,
+              profilePostId: identity.profilePostId,
               version: identity.version,
             }
           : null,
@@ -160,15 +169,16 @@ export class ThreadIdentitiesService {
     identityId?: string,
     create = false,
   ) {
-    if ((dto.clearNickname && dto.nickname) || (dto.clearAvatar && dto.avatarMediaId))
+    if ((dto.clearNickname && dto.nickname) || (dto.clearAvatar && dto.avatarMediaId) || (dto.clearProfilePost && dto.profilePostId))
       throw new BusinessException(ErrorCode.BAD_REQUEST, '同一项不能同时设置和清除');
     dto = {
       ...dto,
       ...(dto.clearNickname ? { nickname: null } : {}),
       ...(dto.clearAvatar ? { avatarMediaId: null } : {}),
+      ...(dto.clearProfilePost ? { profilePostId: null } : {}),
     };
-    if (dto.nickname === undefined && dto.avatarMediaId === undefined)
-      throw new BusinessException(ErrorCode.BAD_REQUEST, '请提供昵称或头像');
+    if (dto.nickname === undefined && dto.avatarMediaId === undefined && dto.profilePostId === undefined)
+      throw new BusinessException(ErrorCode.BAD_REQUEST, '请提供昵称、头像或资料引用');
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM threads WHERE id = ${threadId} FOR UPDATE`;
       await this.access.assertAccessible(threadId, userId, tx, true);
@@ -179,13 +189,13 @@ export class ThreadIdentitiesService {
         current.identity = null;
         current.display = null;
       }
-      if (create && !dto.nickname && !dto.avatarMediaId)
+      if ((create || (!current.identity && dto.profilePostId)) && !dto.nickname && !dto.avatarMediaId)
         throw new BusinessException(ErrorCode.BAD_REQUEST, '新身份至少需要昵称或头像');
       if (!current.enabled || !current.eligible)
         throw forbidden('当前不能设置帖内身份', ErrorCode.NOT_PLAYER);
       // 主身份不存在时清除为无动作，不分配新的 ID 或占用角色名额。
       if (!create && !identityId && !current.identity && !dto.nickname && !dto.avatarMediaId)
-        return this.stateResponse(current, userId);
+        return this.stateResponse(current, userId, tx);
 
       if (
         !current.identity &&
@@ -216,17 +226,23 @@ export class ThreadIdentitiesService {
           throw new BusinessException(ErrorCode.BAD_REQUEST, '只能使用本人已完成处理的头像图片');
         }
       }
+      if (dto.profilePostId && !(await tx.post.findFirst({
+        where: { id: dto.profilePostId, threadId, ...visiblePostWhere(userId) },
+        select: { id: true },
+      }))) throw notFound(ErrorCode.POST_NOT_FOUND, '资料楼层不存在或不可用');
+      const authorChanged = (dto.nickname !== undefined && dto.nickname !== current.identity?.nickname)
+        || (dto.avatarMediaId !== undefined && dto.avatarMediaId !== current.identity?.avatarMediaId);
       const compatibilityIdentity =
         !create ||
         !(await tx.threadIdentity.findFirst({
           where: { threadId, userId, compatibilityIdentity: true },
           select: { id: true },
         }));
-      const fields = { nickname: dto.nickname, avatarMediaId: dto.avatarMediaId };
+      const fields = { nickname: dto.nickname, avatarMediaId: dto.avatarMediaId, profilePostId: dto.profilePostId };
       const identity = current.identity
         ? await tx.threadIdentity.update({
             where: { id: current.identity.id },
-            data: { ...fields, version: { increment: 1 } },
+            data: { ...fields, version: { increment: 1 }, ...(authorChanged ? { authorVersion: { increment: 1 } } : {}) },
           })
         : await tx.threadIdentity.create({
             data: { threadId, userId, compatibilityIdentity, ...fields },
@@ -249,17 +265,18 @@ export class ThreadIdentitiesService {
       );
       const result = await this.context(threadId, userId, tx, identity.id);
       return identityId || create
-        ? this.roleResponse(result, userId)
-        : this.stateResponse(result, userId);
+        ? this.roleResponse(result, userId, tx)
+        : this.stateResponse(result, userId, tx);
     });
   }
 
-  private roleResponse(
+  private async roleResponse(
     current: Awaited<ReturnType<ThreadIdentitiesService['context']>>,
     viewerId?: string,
+    db: Db = this.prisma,
   ) {
     return {
-      ...this.stateResponse(current, viewerId),
+      ...await this.stateResponse(current, viewerId, db),
       identityId: current.identity!.id,
       deleted: Boolean(current.identity!.deletedAt),
       canDelete: viewerId === current.userId && !current.identity!.deletedAt,
@@ -290,7 +307,7 @@ export class ThreadIdentitiesService {
       limit: 10,
       compatibilityIdentityId: current.identity?.id ?? null,
       defaultIdentityId: null,
-      account: this.stateResponse(current, userId).account,
+      account: (await this.stateResponse(current, userId)).account,
       identities: rows,
     };
   }
@@ -315,7 +332,7 @@ export class ThreadIdentitiesService {
       await this.access.assertAccessible(threadId, userId, tx, true);
       const current = await this.context(threadId, userId, tx, identityId);
       if (!current.identity) throw notFound(ErrorCode.NOT_FOUND, '帖内身份不存在');
-      if (current.identity.deletedAt) return this.roleResponse(current, userId);
+      if (current.identity.deletedAt) return this.roleResponse(current, userId, tx);
       if (current.identity.version !== version)
         throw new BusinessException(
           ErrorCode.OPTIMISTIC_LOCK_CONFLICT,
@@ -327,7 +344,7 @@ export class ThreadIdentitiesService {
         where: { id: identityId },
         data: { deletedAt: new Date(), version: { increment: 1 } },
       });
-      return this.roleResponse(await this.context(threadId, userId, tx, identityId), userId);
+      return this.roleResponse(await this.context(threadId, userId, tx, identityId), userId, tx);
     });
   }
 

@@ -544,6 +544,8 @@ model ThreadIdentity {
   userId        String                @map("user_id")
   nickname      String?               @db.VarChar(24)
   avatarMediaId String?               @map("avatar_media_id")
+  profilePostId String?               @map("profile_post_id")
+  authorVersion Int                  @default(1) @map("author_version")
   compatibilityIdentity Boolean @default(false) @map("compatibility_identity")
   deletedAt DateTime? @map("deleted_at")
   version       Int                   @default(1)
@@ -552,8 +554,10 @@ model ThreadIdentity {
   thread        Thread                @relation(fields: [threadId], references: [id], onDelete: Cascade)
   user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   avatarMedia   Media?                @relation("ThreadIdentityAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
+  profilePost   Post?                 @relation("ThreadIdentityProfilePost", fields: [profilePostId], references: [id], onDelete: SetNull)
   aliases       ThreadIdentityAlias[]
 
+  @@index([profilePostId])
   @@index([threadId, userId, deletedAt])
   @@index([avatarMediaId])
   @@index([userId])
@@ -1159,6 +1163,7 @@ model Post {
   mediaAttachments PostMedia[]
   galleryImages    PostImageOccurrence[]
   galleryIndex     PostGalleryIndex?
+  identityProfiles ThreadIdentity[] @relation("ThreadIdentityProfilePost")
 
   @@index([identityAvatarMediaId])
   @@unique([subthreadId, floorNumber])

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Req } from '@nestjs/common';
+import { Body, Controller, Header, Delete, Get, Param, Post, Put, Req } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -21,6 +21,7 @@ import {
 @Controller('threads/:threadId/rp-identities')
 export class RpIdentitiesController {
   constructor(private readonly identities: ThreadIdentitiesService) {}
+  @Header('Cache-Control', 'private, no-store')
   @Get()
   @AuthRead()
   @ApiBearerAuth()
@@ -41,6 +42,7 @@ export class RpIdentitiesController {
   ) {
     return this.identities.update(threadId, req.user!.id, dto, undefined, true);
   }
+  @Header('Cache-Control', 'private, no-store')
   @Get(':identityId')
   @OptionalAuth()
   @ApiOperation({ summary: '按稳定角色 ID 读取身份卡；删除后只返回账号及删除状态' })

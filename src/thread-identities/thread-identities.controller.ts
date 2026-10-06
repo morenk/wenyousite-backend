@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Put, Req } from '@nestjs/common';
+import { Body, Controller, Header, Delete, Get, Param, Patch, Put, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { FastifyRequest } from 'fastify';
 import { Auth, AuthRead, OptionalAuth } from '../auth/decorators/auth.decorator';
@@ -13,6 +13,7 @@ import {
 @Controller('threads/:threadId')
 export class ThreadIdentitiesController {
   constructor(private readonly identities: ThreadIdentitiesService) {}
+  @Header('Cache-Control', 'private, no-store')
   @Get('identity')
   @AuthRead()
   @ApiBearerAuth()
@@ -21,6 +22,7 @@ export class ThreadIdentitiesController {
   mine(@Param('threadId') threadId: string, @Req() req: FastifyRequest) {
     return this.identities.state(threadId, req.user!.id, req.user!.id);
   }
+  @Header('Cache-Control', 'private, no-store')
   @Get('identities/:userId')
   @OptionalAuth()
   @ApiOperation({ summary: '读取可访问主题内的当前身份卡与真实账号' })

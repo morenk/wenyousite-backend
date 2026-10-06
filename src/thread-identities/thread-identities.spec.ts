@@ -16,6 +16,8 @@ describe('多角色身份边界', () => {
         avatarMediaId: null,
         avatarMedia: null,
         version: 1,
+        authorVersion: 1,
+        profilePostId: null as string | null,
       },
       {
         id: 'b',
@@ -27,6 +29,8 @@ describe('多角色身份边界', () => {
         avatarMediaId: null,
         avatarMedia: null,
         version: 1,
+        authorVersion: 1,
+        profilePostId: null as string | null,
       },
     ];
     const find = jest.fn(({ where }: { where: Record<string, unknown> }) =>
@@ -63,9 +67,17 @@ describe('多角色身份边界', () => {
     const b = await service.context('t', 'u', undefined, 'b');
     expect(a.token).not.toBe(b.token);
     rows[1].version++;
+    rows[1].authorVersion++;
     rows[1].nickname = 'B改名';
     expect((await service.context('t', 'u', undefined, 'a')).token).toBe(a.token);
     expect((await service.context('t', 'u', undefined, 'b')).token).not.toBe(b.token);
+  });
+  it('只修改资料与资料版本不改变已签发作者 token', async () => {
+    const { service, rows } = setup();
+    const before = await service.context('t', 'u', undefined, 'a');
+    rows[0].version++;
+    rows[0].profilePostId = 'post';
+    expect((await service.context('t', 'u', undefined, 'a')).token).toBe(before.token);
   });
   it('旧 single 只查兼容角色；归档后不选择剩余角色', async () => {
     const { service, rows } = setup();

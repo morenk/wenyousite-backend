@@ -12,6 +12,7 @@ describe('MetaController', () => {
       buildSha: null,
       markdownContractVersion: 5,
       capabilities: {
+        rpIdentityProfileSupported: true,
         roleMentionsV6Supported: true,
         roleMentionsV6WriteEnabled: false,
         stickers: true,
