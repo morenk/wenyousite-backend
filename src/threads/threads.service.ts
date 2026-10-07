@@ -201,7 +201,7 @@ export class ThreadsService {
 
   /** 修改主题帖（仅 OWNER/COLLABORATOR）。published=true 触发发布 */
   async update(id: string, dto: UpdateThreadDto, userId: string) {
-    const manager = await this.threadAccess.assertCanManage(id, userId);
+    let manager = await this.threadAccess.assertCanManage(id, userId);
     if (dto.category !== undefined) {
       dto.category = await this.categories.assertSelectable(dto.category);
     }
@@ -228,6 +228,7 @@ export class ThreadsService {
         ? this.publishThreadTransaction(id, version, data, userId)
         : this.prisma.$transaction(async (tx) => {
             await this.threadAccess.lockInteraction(tx, id, userId);
+            manager = await this.threadAccess.lockManagement(tx, id, userId);
             return tx.thread.update({
             where: { id, version, ...notDeleted },
             data: updateData,
@@ -342,7 +343,7 @@ export class ThreadsService {
     return this.prisma.$transaction(async (tx) => {
       const content = await tx.post.findMany({ where: { threadId: id, deletedAt: null }, select: { content: true } });
       await this.mentions.lockContentInteraction(tx, id, userId, content.map((post) => post.content).join('\n'));
-      await tx.$queryRaw`SELECT id FROM threads WHERE id = ${id} FOR UPDATE`;
+      await this.threadAccess.lockManagement(tx, id, userId);
       const thread = await tx.thread.findUnique({
         where: { id, ...notDeleted },
         select: {
@@ -471,6 +472,8 @@ export class ThreadsService {
         },
       });
 
+      const assetIds = posts.flatMap((post) => this.stickerContent.extract(post.content).flatMap((token) => token.stickerAssetId ? [token.stickerAssetId] : []));
+      await this.stickerContent.recordUsage(userId, assetIds, tx);
       return updated;
     });
   }

@@ -296,6 +296,7 @@ describe('发帖全流程集成测试', () => {
         {
           provide: StickerContentService,
           useValue: {
+            extract: jest.fn().mockReturnValue([]),
             assertContentAllowed: jest.fn().mockResolvedValue([]),
             recordUsage: jest.fn().mockResolvedValue(undefined),
           },
@@ -813,6 +814,7 @@ describe('发帖全流程集成测试', () => {
           $queryRaw: jest.fn(),
           userBlock: { findFirst: jest.fn().mockResolvedValue(null) },
           thread: { findUnique: jest.fn().mockResolvedValue({ ownerId: 'u1', published: true, visibility: 'PUBLIC', defaultSubthreadId: 'a' }) },
+          threadMember: prisma.threadMember,
           subthread: {
             findMany: prisma.subthread.findMany,
             update: jest.fn(),

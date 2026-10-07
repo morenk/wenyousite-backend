@@ -66,7 +66,7 @@ export class ThreadAggregateService {
   ) {}
 
   async save(threadId: string, dto: SaveThreadAggregateDto, userId: string) {
-    const manager = await this.access.assertCanManage(threadId, userId);
+    let manager = await this.access.assertCanManage(threadId, userId);
     if (
       manager.role === 'COLLABORATOR' &&
       (dto.visibility !== undefined || dto.published !== undefined)
@@ -106,7 +106,7 @@ export class ThreadAggregateService {
     const result = await this.prisma
       .$transaction(async (tx) => {
         await this.mentions.lockContentInteraction(tx, threadId, userId, content, previousBody ? [previousBody.id] : []);
-        await tx.$queryRaw`SELECT id FROM threads WHERE id = ${threadId} FOR UPDATE`;
+        manager = await this.access.lockManagement(tx, threadId, userId);
         const current = await tx.thread.findUnique({
           where: { id: threadId, ...notDeleted },
           select: {
@@ -377,6 +377,7 @@ export class ThreadAggregateService {
           });
         }
 
+        if (updated.published && !publishing) await this.stickerContent.recordUsage(userId, stickerAssetIds, tx);
         return {
           updated,
           publishing,
@@ -412,22 +413,6 @@ export class ThreadAggregateService {
         threadId,
         parentPostId: null,
       });
-    }
-    if (updated.published) {
-      await this.stickerContent.recordUsage(userId, stickerAssetIds);
-      if (result.publishing) {
-        const publishedPosts = await this.prisma.post.findMany({
-          where: { threadId, deletedAt: null },
-          select: { content: true },
-        });
-        const allAssetIds = publishedPosts.flatMap((post) =>
-          this.stickerContent
-            .extract(post.content)
-            .map((token) => token.stickerAssetId)
-            .filter((id): id is string => Boolean(id)),
-        );
-        await this.stickerContent.recordUsage(userId, allAssetIds);
-      }
     }
     return this.postingPolicy.attachToThread(updated, userId, manager);
   }
@@ -519,6 +504,8 @@ export class ThreadAggregateService {
         },
       });
     }
+    const assetIds = posts.flatMap((post) => this.stickerContent.extract(post.content).flatMap((token) => token.stickerAssetId ? [token.stickerAssetId] : []));
+    await this.stickerContent.recordUsage(threadOwnerId, assetIds, tx);
   }
 
   private initializePublishedThreadCache(thread: PublishedThreadCacheData) {

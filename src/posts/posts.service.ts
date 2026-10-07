@@ -109,7 +109,6 @@ export class PostsService {
     });
 
     // 事务内统一复核父楼、回复目标与权限，再分配楼层号并写入事件。
-    let duplicateRequest = false;
     let post;
     try {
       post = await this.prisma.$transaction(async (tx) => {
@@ -232,6 +231,7 @@ export class PostsService {
             },
           });
         }
+        if (lockedSubthread.thread.published) await this.stickerContent.recordUsage(userId, stickerAssetIds, tx);
         return createdPost;
       });
     } catch (error) {
@@ -240,19 +240,12 @@ export class PostsService {
         if (existingRequest) {
           assertSamePostCreateRequest(existingRequest, subthreadId, dto, content);
           post = existingRequest;
-          duplicateRequest = true;
         } else {
           throw error;
         }
       } else {
         throw error;
       }
-    }
-
-    if (duplicateRequest) return post;
-
-    if (subthread.thread.published) {
-      await this.stickerContent.recordUsage(userId, stickerAssetIds);
     }
 
     return post;
@@ -288,7 +281,7 @@ export class PostsService {
       include: { thread: { select: { id: true, published: true, title: true } } },
     });
     if (!subthread) throw notFound(ErrorCode.SUBTHREAD_NOT_FOUND, '子贴不存在');
-    const manager = await this.threadAccess.assertCanManage(subthread.threadId, userId);
+    await this.threadAccess.assertCanManage(subthread.threadId, userId);
     if (
       subthread.thread.published &&
       !hasVisibleMarkdownContent(parsedContent.contentWithoutDice)
@@ -312,7 +305,7 @@ export class PostsService {
         .$transaction(async (tx) => {
           await this.mentionEvents.lockContentInteraction(tx, subthread.threadId, userId, normalizedContent);
           // 与聚合编辑共用主题锁，锁后复核正文创建竞态。
-          await tx.$queryRaw`SELECT id FROM threads WHERE id = ${subthread.threadId} FOR UPDATE`;
+          const manager = await this.threadAccess.lockManagement(tx, subthread.threadId, userId);
           const concurrentlyCreated = await tx.post.findFirst({
             where: { subthreadId, kind: 'BODY', ...notDeleted },
             select: { id: true },
@@ -383,6 +376,7 @@ export class PostsService {
               },
             });
           }
+          if (subthread.thread.published) await this.stickerContent.recordUsage(userId, stickerAssetIds, tx);
           return post;
         })
         .catch(async (err) => {
@@ -401,9 +395,6 @@ export class PostsService {
             HttpStatus.CONFLICT,
           );
         });
-      if (subthread.thread.published) {
-        await this.stickerContent.recordUsage(userId, stickerAssetIds);
-      }
       return post;
     }
 
@@ -418,7 +409,7 @@ export class PostsService {
     const updated = await this.prisma
       .$transaction(async (tx) => {
         await this.mentionEvents.lockContentInteraction(tx, subthread.threadId, userId, normalizedContent, [existing.id]);
-        await tx.$queryRaw`SELECT id FROM threads WHERE id = ${subthread.threadId} FOR UPDATE`;
+        await this.threadAccess.lockManagement(tx, subthread.threadId, userId);
         const post = await tx.post.update({
           where: { id: existing.id, version, ...notDeleted },
           data: { ...postContentEditData(oldContent, normalizedContent),
@@ -450,6 +441,7 @@ export class PostsService {
             context: 'body',
           });
         }
+        if (subthread.thread.published) await this.stickerContent.recordUsage(userId, stickerAssetIds, tx);
         return updatedPost;
       })
       .catch((err: unknown) => rethrowPostEditConflict(err, '正文已被修改，请刷新后重试'));
@@ -459,9 +451,6 @@ export class PostsService {
       threadId: subthread.threadId,
       parentPostId: updated.parentPostId,
     });
-    if (subthread.thread.published) {
-      await this.stickerContent.recordUsage(userId, stickerAssetIds);
-    }
     return updated;
   }
 
@@ -540,6 +529,7 @@ export class PostsService {
             context: 'post',
           });
         }
+        if (threadPublished) await this.stickerContent.recordUsage(userId, stickerAssetIds, tx);
         return updatedPost;
       })
       .catch((err: unknown) => rethrowPostEditConflict(err, '帖子已被编辑，请刷新后重试'));
@@ -550,10 +540,6 @@ export class PostsService {
       threadId: postLight.threadId,
       parentPostId: updated.parentPostId,
     });
-
-    if (threadPublished) {
-      await this.stickerContent.recordUsage(userId, stickerAssetIds);
-    }
 
     return updated;
   }
@@ -594,7 +580,12 @@ export class PostsService {
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM threads WHERE id = ${postLight.threadId} FOR UPDATE`;
+      if (postLight.authorId !== userId) {
+        await this.threadAccess.lockInteraction(tx, postLight.threadId, userId);
+        await this.threadAccess.lockManagement(tx, postLight.threadId, userId);
+      } else {
+        await tx.$queryRaw`SELECT id FROM threads WHERE id = ${postLight.threadId} FOR UPDATE`;
+      }
       const removed = await tx.post.update({
         where: { id, ...notDeleted },
         data: {

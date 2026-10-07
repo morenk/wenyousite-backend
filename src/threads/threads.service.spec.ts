@@ -86,6 +86,10 @@ const mockTags = {
   invalidateCache: jest.fn().mockResolvedValue(undefined),
 };
 const mockThreadAccess = {
+  lockManagement: jest.fn(async (tx: { $queryRaw: (...args: unknown[]) => Promise<unknown> }, threadId: string, userId: string): Promise<unknown> => {
+    await tx.$queryRaw`SELECT id FROM threads WHERE id = ${threadId} FOR UPDATE`;
+    return mockThreadAccess.assertCanManage(threadId, userId);
+  }),
   lockInteraction: jest.fn().mockResolvedValue(undefined), assertAccessible: jest.fn(),
   assertCanManage: jest.fn().mockResolvedValue({ role: 'OWNER' }),
   assertOwner: jest.fn().mockResolvedValue({ ownerId: 'u1' }),
@@ -155,7 +159,7 @@ describe('ThreadsService', () => {
         },
         {
           provide: StickerContentService,
-          useValue: { assertContentAllowed: jest.fn().mockResolvedValue([]) },
+          useValue: { assertContentAllowed: jest.fn().mockResolvedValue([]), extract: jest.fn().mockReturnValue([]), recordUsage: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();
