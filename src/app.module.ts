@@ -49,6 +49,7 @@ import { TaxonomyModule } from './taxonomy/taxonomy.module';
 import { MomentsModule } from './moments/moments.module';
 import { SentryModule } from '@sentry/nestjs/setup';
 import { redisConnectionOptions } from './redis/redis-connection';
+import { configureRedisQueues } from './redis/redis-queue';
 
 /** 构建 Pino 传输配置：开发环境 colorized 控制台，生产环境支持可选文件日志 */
 interface SerializedPinoRequest {
@@ -91,6 +92,8 @@ function buildPinoTransport(logLevel: PinoLogLevel, nodeEnv: string, logFileDir?
 }
 
 /** 根模块：注册所有特性模块和全局功能 */
+configureRedisQueues();
+
 @Module({
   imports: [
     AppDownloadsModule,
@@ -153,7 +156,9 @@ function buildPinoTransport(logLevel: PinoLogLevel, nodeEnv: string, logFileDir?
       inject: [ThrottlerRedisStorage, ConfigService],
       useFactory: (storage: ThrottlerStorage, config: ConfigService) => ({
         storage,
-        throttlers: [{ ttl: 1000, limit: config.get<number>('throttling.globalRatePerSecond') ?? 10 }],
+        throttlers: [
+          { ttl: 1000, limit: config.get<number>('throttling.globalRatePerSecond') ?? 10 },
+        ],
       }),
     }),
     // 事件发射器：模块间解耦（发帖 → 通知/提及/订阅等）

@@ -9,9 +9,7 @@ describe('RedisService', () => {
     };
     const service = new RedisService(redis as unknown as Redis);
 
-    await expect(
-      service.hincrbyAtLeast('thread:t1:stats', 'views', 40, 1),
-    ).resolves.toBe(42);
+    await expect(service.hincrbyAtLeast('thread:t1:stats', 'views', 40, 1)).resolves.toBe(42);
     expect(redis.eval).toHaveBeenCalledWith(
       expect.stringContaining("redis.call('HINCRBY'"),
       1,
@@ -42,13 +40,7 @@ describe('RedisService', () => {
     await expect(
       service.zaddMultiWithExpiry('moments:snapshot:1', 900, 0, 'moment-1', 1, 'moment-2'),
     ).resolves.toBe(2);
-    expect(chain.zadd).toHaveBeenCalledWith(
-      'moments:snapshot:1',
-      0,
-      'moment-1',
-      1,
-      'moment-2',
-    );
+    expect(chain.zadd).toHaveBeenCalledWith('moments:snapshot:1', 0, 'moment-1', 1, 'moment-2');
     expect(chain.expire).toHaveBeenCalledWith('moments:snapshot:1', 900);
     expect(redis.del).not.toHaveBeenCalled();
   });
@@ -74,5 +66,11 @@ describe('RedisService', () => {
       service.zaddMultiWithExpiry('moments:snapshot:broken', 900, 0, 'moment-1'),
     ).rejects.toThrow('Redis ZSET snapshot transaction failed');
     expect(redis.del).toHaveBeenCalledWith('moments:snapshot:broken');
+  });
+  it('应用关停直接断开自有连接，不发送可能挂起的 QUIT', () => {
+    const redis = { disconnect: jest.fn(), quit: jest.fn() };
+    new RedisService(redis as unknown as Redis).onApplicationShutdown();
+    expect(redis.disconnect).toHaveBeenCalledTimes(1);
+    expect(redis.quit).not.toHaveBeenCalled();
   });
 });

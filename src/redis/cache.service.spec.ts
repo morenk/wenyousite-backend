@@ -84,9 +84,9 @@ describe('CacheService', () => {
     await expect(service.set('key', 'value')).resolves.toBeUndefined();
     await expect(service.del('key')).resolves.toBeUndefined();
     expect(warn.mock.calls.map(([message]) => message)).toEqual([
-      '缓存读取失败 key=key reason=Error: redis read failed',
-      '缓存写入失败 key=key reason=Error: redis write failed',
-      '缓存删除失败 key=key reason=Error: redis delete failed',
+      '缓存读取失败 reason=cache_unavailable',
+      '缓存写入失败 reason=cache_unavailable',
+      '缓存删除失败 reason=cache_unavailable',
     ]);
   });
 
@@ -130,6 +130,41 @@ describe('CacheService', () => {
     ];
     await expect(service.delByPattern('pattern')).resolves.toBeUndefined();
     expect(cache.del).not.toHaveBeenCalled();
-    expect(warn).toHaveBeenCalledWith('批量缓存删除失败 pattern=pattern reason=Error: scan failed');
+    expect(warn).toHaveBeenCalledWith('批量缓存删除失败 reason=cache_unavailable');
+  });
+  it('故障日志不记录凭据、动态缓存键或任意异常正文', async () => {
+    cache.get.mockRejectedValue(new Error('redis://password-private-marker@host'));
+    cache.set.mockRejectedValue({ message: 'private-marker' });
+    await service.get('private-marker');
+    await service.set('private-marker', 'private-marker');
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('private-marker');
+  });
+
+  it('批量删除出现快失败时仍等待同批其它删除结束', async () => {
+    cache.stores = [
+      {
+        iterator: async function* () {
+          yield ['a', 1];
+          yield ['b', 2];
+        },
+      },
+    ];
+    let release!: () => void;
+    cache.del.mockImplementation((key: string) =>
+      key === 'a'
+        ? Promise.reject(new Error('failure'))
+        : new Promise<void>((resolve) => {
+            release = resolve;
+          }),
+    );
+    let finished = false;
+    const result = service.delByPattern('*').then(() => {
+      finished = true;
+    });
+    while (!release) await Promise.resolve();
+    expect(finished).toBe(false);
+    release();
+    await result;
+    expect(warn).toHaveBeenCalledWith('批量缓存删除失败 reason=cache_unavailable');
   });
 });

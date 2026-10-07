@@ -3,8 +3,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 
 function cacheFailureReason(error: unknown): string {
-  const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-  return message.replace(/\s+/g, ' ').slice(0, 300);
+  return error instanceof TypeError ? 'serialization_failed' : 'cache_unavailable';
 }
 
 function cacheKeyPattern(pattern: string): RegExp {
@@ -57,7 +56,7 @@ export class CacheService {
     try {
       return await this.cacheManager.get<T>(key);
     } catch (err) {
-      this.logger.warn(`缓存读取失败 key=${key} reason=${cacheFailureReason(err)}`);
+      this.logger.warn(`缓存读取失败 reason=${cacheFailureReason(err)}`);
       return undefined;
     }
   }
@@ -67,7 +66,7 @@ export class CacheService {
     try {
       await this.cacheManager.set(key, cacheSafe(data), ttlMs);
     } catch (err) {
-      this.logger.warn(`缓存写入失败 key=${key} reason=${cacheFailureReason(err)}`);
+      this.logger.warn(`缓存写入失败 reason=${cacheFailureReason(err)}`);
     }
   }
 
@@ -76,7 +75,7 @@ export class CacheService {
     try {
       await this.cacheManager.del(key);
     } catch (err) {
-      this.logger.warn(`缓存删除失败 key=${key} reason=${cacheFailureReason(err)}`);
+      this.logger.warn(`缓存删除失败 reason=${cacheFailureReason(err)}`);
     }
   }
 
@@ -94,11 +93,15 @@ export class CacheService {
         }
       }
       if (allKeys.size > 0) {
-        await Promise.all([...allKeys].map((key) => this.cacheManager.del(key)));
-        this.logger.debug(`批量删除缓存 pattern=${pattern} count=${allKeys.size}`);
+        const results = await Promise.allSettled(
+          [...allKeys].map((key) => this.cacheManager.del(key)),
+        );
+        if (results.some((result) => result.status === 'rejected'))
+          throw new Error('cache_unavailable');
+        this.logger.debug(`批量删除缓存 count=${allKeys.size}`);
       }
     } catch (err) {
-      this.logger.warn(`批量缓存删除失败 pattern=${pattern} reason=${cacheFailureReason(err)}`);
+      this.logger.warn(`批量缓存删除失败 reason=${cacheFailureReason(err)}`);
     }
   }
 }
