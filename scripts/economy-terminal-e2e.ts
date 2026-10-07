@@ -73,7 +73,7 @@ function isolatedDatabaseUrl(databaseUrl: string, database: string) {
 }
 
 function deployMigrations(databaseUrl: string) {
-  execFileSync('pnpm', ['exec', 'prisma', 'migrate', 'deploy'], {
+  execFileSync(process.execPath, [require.resolve('prisma/build/index.js'), 'migrate', 'deploy'], {
     cwd: process.cwd(),
     env: {
       ...process.env,

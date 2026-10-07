@@ -31,7 +31,7 @@ async function main() {
   const client = new PrismaClient({ datasourceUrl: url.toString() });
   try {
     await control.$executeRawUnsafe(`CREATE DATABASE "${name}"`);
-    execFileSync('pnpm', ['exec', 'prisma', 'migrate', 'deploy'], {
+    execFileSync(process.execPath, [require.resolve('prisma/build/index.js'), 'migrate', 'deploy'], {
       env: { ...process.env, DATABASE_URL: url.toString(), DIRECT_DATABASE_URL: url.toString() },
       stdio: ['ignore', 'pipe', 'pipe'],
     });

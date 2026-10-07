@@ -88,7 +88,7 @@ async function prepareMigrationWorkspace(schema: string) {
 }
 
 function deployMigrations(schemaPath: string, databaseUrl: string) {
-  execFileSync('pnpm', ['exec', 'prisma', 'migrate', 'deploy', '--schema', schemaPath], {
+  execFileSync(process.execPath, [require.resolve('prisma/build/index.js'), 'migrate', 'deploy', '--schema', schemaPath], {
     cwd: process.cwd(),
     env: {
       ...process.env,

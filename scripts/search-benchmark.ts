@@ -22,7 +22,7 @@ async function main() {
   let created = false;
   try {
     await admin.$executeRawUnsafe(`CREATE DATABASE "${database}"`); created = true;
-    execFileSync('pnpm', ['exec', 'prisma', 'migrate', 'deploy'], {
+    execFileSync(process.execPath, [require.resolve('prisma/build/index.js'), 'migrate', 'deploy'], {
       env: { ...process.env, DATABASE_URL: testUrl.toString(), DIRECT_DATABASE_URL: testUrl.toString() }, stdio: 'pipe',
     });
     await db.user.createMany({ data: ['owner', 'player', 'viewer', 'blocked'].map((id) => ({ id, username: id, email: `${id}@example.invalid`, password: 'unused' })) });
