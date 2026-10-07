@@ -34,7 +34,7 @@ it('真实 Nest 监听器的失败传回 Outbox，重试成功前不得确认', 
     expect(grants).toHaveBeenCalledTimes(1);
     expect(prisma.domainOutbox.updateMany).toHaveBeenLastCalledWith({
       where: { id: 'event-1', processedAt: null },
-      data: { lastError: 'grant failed', availableAt: expect.any(Date) },
+      data: { lastError: JSON.stringify({ stage: 'delivery', errorType: 'Error', errorCode: 'operation_failed' }), availableAt: expect.any(Date) },
     });
     await dispatcher.dispatch();
     expect(grants).toHaveBeenCalledTimes(2);

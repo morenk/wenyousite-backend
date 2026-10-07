@@ -67,7 +67,7 @@ describe('OutboxDispatcher', () => {
     expect(prisma.domainOutbox.updateMany).toHaveBeenCalledWith({
       where: { id: 'o1', processedAt: null },
       data: {
-        lastError: 'listener failed',
+        lastError: JSON.stringify({ stage: 'delivery', errorType: 'Error', errorCode: 'operation_failed' }),
         availableAt: expect.any(Date),
       },
     });
@@ -90,7 +90,7 @@ describe('OutboxDispatcher', () => {
     expect(prisma.domainOutbox.updateMany).toHaveBeenCalledWith({
       where: { id: 'o1', processedAt: null },
       data: {
-        lastError: 'No listener registered for domain event: thread.unliked',
+        lastError: JSON.stringify({ stage: 'listener', errorType: 'Error', errorCode: 'operation_failed' }),
         availableAt: expect.any(Date),
       },
     });
@@ -107,10 +107,37 @@ describe('OutboxDispatcher', () => {
     expect(prisma.domainOutbox.updateMany).toHaveBeenCalledWith({
       where: { id: 'o1', processedAt: null },
       data: {
-        lastError: expect.stringContaining('Invalid payload for thread.unliked'),
+        lastError: JSON.stringify({ stage: 'payload', errorType: 'Error', errorCode: 'operation_failed' }),
         availableAt: expect.any(Date),
       },
     });
+  });
+
+  it.each([
+    new Error('private-body token=private-marker'),
+    new AggregateError([new Error('private-marker')], 'private-marker'),
+    { message: 'private-marker', stack: 'private-marker', code: 'private-marker' },
+    'private-marker',
+    Object.assign(new Error('private-marker'), { code: 'P1001' }),
+  ])('投递失败不在持久字段和日志记录原始异常', async (error) => {
+    prisma.$queryRaw.mockResolvedValue([{ id: 'o1', eventType: 'thread.unliked',
+      payload: { eventId: 'e1', threadId: 't1' }, attempts: 1 }]);
+    events.emitAsync.mockRejectedValue(error);
+    await dispatcher.dispatch();
+    const logger = (dispatcher as unknown as { logger: { error: jest.Mock } }).logger;
+    expect(JSON.stringify(prisma.domainOutbox.updateMany.mock.calls)).not.toContain('private-marker');
+    expect(JSON.stringify(logger.error.mock.calls)).not.toContain('private-marker');
+    expect(prisma.domainOutbox.updateMany.mock.calls[0][0].data.processedAt).toBeUndefined();
+    expect(logger.error).toHaveBeenCalledWith(expect.objectContaining({ stage: 'delivery', outboxId: 'o1', attempt: 1 }));
+  });
+
+  it('初始化领取失败也使用相同脱敏诊断', async () => {
+    prisma.$queryRaw.mockRejectedValue(Object.assign(new Error('private-marker'), { code: 'private-marker' }));
+    dispatcher.onModuleInit();
+    await new Promise(resolve => setImmediate(resolve));
+    const logger = (dispatcher as unknown as { logger: { error: jest.Mock } }).logger;
+    expect(JSON.stringify(logger.error.mock.calls)).not.toContain('private-marker');
+    expect(logger.error).toHaveBeenCalledWith({ stage: 'initial', errorType: 'Error', errorCode: 'operation_failed' });
   });
 
   it('同一实例已有分发任务时跳过重入', async () => {
@@ -172,4 +199,18 @@ describe('OutboxDispatcher', () => {
     expect(serialized).toContain('P1001');
     expect(serialized).not.toContain('private database detail');
   });
+  it.each(['claim', 'retry-update'])('定时入口截断 %s 原始异常，不交给调度器打印', async (boundary) => {
+    const failure = Object.assign(new Error('private-marker'), { code: 'P1001' });
+    if (boundary === 'claim') prisma.$queryRaw.mockRejectedValue(failure);
+    else {
+      prisma.$queryRaw.mockResolvedValue([{ id: 'o1', eventType: 'thread.unliked', payload: { eventId: 'e1', threadId: 't1' }, attempts: 1 }]);
+      events.emitAsync.mockRejectedValue(new Error('private-marker'));
+      prisma.domainOutbox.updateMany.mockRejectedValue(failure);
+    }
+    await expect(dispatcher.scheduledDispatch()).resolves.toBeUndefined();
+    const logger = (dispatcher as unknown as { logger: { error: jest.Mock } }).logger;
+    expect(logger.error).toHaveBeenCalledWith({ stage: 'scheduled', errorType: 'Error', errorCode: 'P1001' });
+    expect(JSON.stringify(logger.error.mock.calls)).not.toContain('private-marker');
+  });
+
 });
