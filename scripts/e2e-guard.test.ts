@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { assertIsolatedEnvironment } from './e2e-guard';
 import { cleanEnvironment } from './e2e-resources';
+import { resourceDiagnostic, suiteFailureDiagnostic } from './e2e-runner-diagnostics';
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'e2e-guard-test-'));
   const runId = `e2e_${'a'.repeat(24)}`;
@@ -78,4 +79,103 @@ test('管理员会话原始入口拒绝旧手工环境，先于数据库和迁�
   assert.equal(result.status, 1);
   assert.match(result.stderr, /runner/);
   assert.doesNotMatch(result.stderr, /PrismaClientInitializationError|Can't reach database/);
+});
+
+test('子进程失败只公开有限错误码与本轮受控脚本行号', () => {
+  const script = 'auth-terminal-e2e.ts';
+  const privateLog = `Error: Command failed: pnpm exec prisma migrate deploy
+PrismaClientKnownRequestError: P3018 Database error code: 42501
+postgresql://private-user:private-password@private-host/private-db
+at deployMigrations (/private-root/scripts/${script}:95:15)
+at unrelated (/secret/secret-file.ts:123:45)
+Authorization Bearer private-token
+ERR_PNPM_PRIVATE_SECRET`;
+  const result = suiteFailureDiagnostic(
+    'e2e_' + 'a'.repeat(24),
+    script,
+    1,
+    privateLog,
+    new Set([script]),
+  );
+  assert.deepEqual(result.codes, ['P3018', '42501']);
+  assert.deepEqual(result.source, [{ line: 95, column: 15 }]);
+  assert.equal(result.errorType, 'PrismaClientKnownRequestError');
+  assert.equal(result.category, 'package-manager');
+  assert.equal(result.script, script);
+  for (const secret of [
+    'private-user',
+    'private-password',
+    'private-host',
+    'private-db',
+    'private-root',
+    'private-token',
+    'PRIVATE_SECRET',
+    'secret-file',
+    'postgresql://',
+  ])
+    assert(!JSON.stringify(result).includes(secret));
+});
+
+test('任意异常名、未登记脚本、连接错误正文都不能进入公开摘要', () => {
+  const result = suiteFailureDiagnostic(
+    'private-run-secret',
+    '/private-script.ts',
+    999999,
+    'PrivateSecretError: ERR_PNPM_PRIVATE_SECRET P9999 postgresql://secret ERR_TOKEN_SECRET at /private-script.ts:1:1',
+    new Set(['auth-terminal-e2e.ts']),
+  );
+  assert.equal(result.runId, 'unknown');
+  assert.equal(result.script, 'unknown');
+  assert.equal(result.exitCode, null);
+  assert.equal(result.errorType, 'UnknownError');
+  assert.deepEqual(result.codes, []);
+  assert.deepEqual(result.source, []);
+  assert(!JSON.stringify(result).includes('secret'));
+});
+
+test('启动失败和合法 pnpm 错误可分类，超长私有日志只检查有限尾部', () => {
+  const script = 'auth-terminal-e2e.ts',
+    allowed = new Set([script]),
+    runId = 'e2e_' + 'a'.repeat(24);
+  assert.equal(
+    suiteFailureDiagnostic(runId, script, 1, 'Error: spawnSync pnpm ENOENT', allowed).category,
+    'process-start',
+  );
+  assert.deepEqual(
+    suiteFailureDiagnostic(runId, script, 1, 'ERR_PNPM_BAD_PM_VERSION', allowed).codes,
+    ['ERR_PNPM_BAD_PM_VERSION'],
+  );
+  const result = suiteFailureDiagnostic(
+    runId,
+    script,
+    1,
+    'P1000' + 'x'.repeat(140000) + '\nTypeError: hidden',
+    allowed,
+  );
+  assert.equal(result.errorType, 'TypeError');
+  assert.deepEqual(result.codes, []);
+});
+
+test('资源审计事件仅选择身份字段，不序列化凭据或额外数据', () => {
+  const identity = {
+    runId: 'e2e_' + 'a'.repeat(24),
+    uid: 1002,
+    root: '/tmp/owned-fixture',
+    password: 'root-secret',
+  };
+  const verified = {
+    pgPort: 40001,
+    redisPort: 40002,
+    redisInstance: 'b'.repeat(40),
+    redisPassword: 'redis-secret',
+    databaseUrl: 'postgresql://secret',
+  };
+  const started = resourceDiagnostic('resources-verified', identity, verified);
+  const cleaned = resourceDiagnostic('resources-cleaned', identity, verified);
+  assert.equal(started.event, 'resources-verified');
+  assert.equal(started.pgPort, 40001);
+  assert.equal(cleaned.resourcesCleaned, true);
+  assert.equal(cleaned.resourcesVerified, true);
+  assert.equal(resourceDiagnostic('resources-cleaned', identity).resourcesVerified, false);
+  assert(!JSON.stringify([started, cleaned]).includes('secret'));
 });
