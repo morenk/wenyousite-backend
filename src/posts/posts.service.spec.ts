@@ -46,6 +46,10 @@ const mockPrisma = {
 
 const mockEventEmitter = { emit: jest.fn() };
 const mockThreadAccess = {
+  lockManagement: jest.fn(async (tx: { $queryRaw: (...args: unknown[]) => Promise<unknown> }, threadId: string, userId: string): Promise<unknown> => {
+    await tx.$queryRaw`SELECT id FROM threads WHERE id = ${threadId} FOR UPDATE`;
+    return mockThreadAccess.assertCanManage(threadId, userId);
+  }),
   assertAccessible: jest.fn(),
   lockInteraction: jest.fn().mockResolvedValue(undefined), assertCanManage: jest.fn().mockResolvedValue({ role: 'OWNER' }),
 };

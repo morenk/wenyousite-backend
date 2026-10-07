@@ -32,7 +32,7 @@ async function main() {
   try {
     await admin.$executeRawUnsafe(`CREATE DATABASE "${database}"`);
     created = true;
-    execFileSync('pnpm', ['exec', 'prisma', 'migrate', 'deploy'], {
+    execFileSync(process.execPath, [require.resolve('prisma/build/index.js'), 'migrate', 'deploy'], {
       env: { ...process.env, DATABASE_URL: base.toString(), DIRECT_DATABASE_URL: base.toString() }, stdio: 'pipe',
     });
     await db.$executeRawUnsafe('GRANT USAGE ON SCHEMA public TO wenyousite_app');

@@ -68,7 +68,7 @@ export class SubthreadsService {
 
   /** 创建子贴（仅 OWNER/COLLABORATOR）。sortOrder 计算和冲突检查在事务内 FOR UPDATE 锁后执行 */
   async create(threadId: string, dto: CreateSubthreadDto, userId: string) {
-    const manager = await this.threadAccess.assertCanManage(threadId, userId);
+    await this.threadAccess.assertCanManage(threadId, userId);
 
     // 检查线程是否已发布（用于决定是否发射事件）
     const thread = await this.prisma.thread.findUnique({
@@ -120,7 +120,7 @@ export class SubthreadsService {
       .$transaction(async (tx) => {
         await this.mentions.lockContentInteraction(tx, threadId, userId, content);
         // 锁主题帖行，防止并发创建子贴时 sortOrder 竞态
-        await tx.$queryRaw`SELECT id FROM threads WHERE id = ${threadId} FOR UPDATE`;
+        const manager = await this.threadAccess.lockManagement(tx, threadId, userId);
 
         // 事务内计算 sortOrder
         let sortOrder = dto.sortOrder;
@@ -223,6 +223,7 @@ export class SubthreadsService {
           });
         }
 
+        if (thread.published) await this.stickerContent.recordUsage(userId, stickerAssetIds, tx);
         return { subthread: full, bodyPost, replayed: false };
       })
       .catch((err) => {
@@ -269,9 +270,6 @@ export class SubthreadsService {
         subthreadId: result.subthread.id,
       });
     }
-    if (thread.published && !result.replayed) {
-      await this.stickerContent.recordUsage(userId, stickerAssetIds);
-    }
 
     return result.subthread!;
   }
@@ -291,7 +289,7 @@ export class SubthreadsService {
       await this.prisma.$transaction(async (tx) => {
         await this.threadAccess.lockInteraction(tx, threadId, userId);
         // 与创建子贴共用主题帖行锁，完整集合校验和两轮更新不可被并发插入打断。
-        await tx.$queryRaw`SELECT id FROM threads WHERE id = ${threadId} FOR UPDATE`;
+        await this.threadAccess.lockManagement(tx, threadId, userId);
         const thread = await tx.thread.findUnique({
           where: { id: threadId, ...notDeleted },
           select: { defaultSubthreadId: true },
@@ -387,6 +385,7 @@ export class SubthreadsService {
 
     const updated = await this.prisma.$transaction(async (tx) => {
       await this.threadAccess.lockInteraction(tx, subthread.threadId, userId);
+      await this.threadAccess.lockManagement(tx, subthread.threadId, userId);
       return tx.subthread.update({
         where: { id, version, ...notDeleted },
         data: updateData,
@@ -439,7 +438,7 @@ export class SubthreadsService {
 
     const result = await this.prisma.$transaction(async (tx) => {
       await this.threadAccess.lockInteraction(tx, subthread.threadId, userId);
-      await tx.$queryRaw`SELECT id FROM threads WHERE id = ${subthread.threadId} FOR UPDATE`;
+      await this.threadAccess.lockManagement(tx, subthread.threadId, userId);
       const current = await tx.subthread.findUnique({
         where: { id, ...notDeleted },
         select: { id: true },

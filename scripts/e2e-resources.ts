@@ -11,6 +11,7 @@ import { ensure } from './webe2e-cleanup';
 import { registry } from './e2e-registry';
 import { processStart, stopOwnedGroup } from './e2e-processes';
 import { cleanupDiagnostic } from './e2e-cleanup-diagnostics';
+import { resourceDiagnostic } from './e2e-runner-diagnostics';
 const childOwners = new WeakMap<ChildProcess, { runId: string; root: string; started?: string }>();
 
 export function cleanEnvironment(): NodeJS.ProcessEnv {
@@ -22,6 +23,16 @@ export async function unusedPort() {
   const port = (server.address() as { port: number }).port;
   await new Promise<void>((ok, fail) => server.close((error) => error ? fail(error) : ok()));
   return port;
+}
+// 必须在 spawn 后立即登记；主进程 exit 后回收同组后代，再等待 stdout/stderr 收齐。
+export function waitForChildClose(child: ChildProcess) {
+  const closed = new Promise<number | null>((ok, fail) => {
+    child.once('error', fail); child.once('close', ok);
+  });
+  const exited = new Promise<void>((ok, fail) => {
+    child.once('error', fail); child.once('exit', () => ok());
+  });
+  return Promise.all([closed, exited.then(() => stopChild(child))]).then(([code]) => code);
 }
 export async function stopChild(child: ChildProcess) {
   if (!child.pid) return;
@@ -59,6 +70,7 @@ export async function withResources<T>(use: (resources: Resources) => Promise<T>
   const logPaths = new WeakMap<ChildProcess, string>();
   let closing = false;
   let interrupted = false;
+  let verifiedResources: { pgPort: number; redisPort: number; redisInstance: string } | undefined;
   const processRegistry: Array<{ group: number; started: string | undefined }> = [];
   writeFileSync(join(root, 'processes.json'), JSON.stringify({ runId, root, supervisorPid: process.pid, supervisorStart: processStart(process.pid), processes: processRegistry }), { mode: 0o600 });
   const unregister = registration.add(root, runId);
@@ -132,6 +144,8 @@ export async function withResources<T>(use: (resources: Resources) => Promise<T>
     };
     await verify();
     writeFileSync(join(root, 'resources.json'), JSON.stringify({ ...ownership, postgresPid: postgres.pid, redisPid: redisChild.pid, pgPort, redisPort, redisInstance }), { flag: 'wx', mode: 0o600 });
+    verifiedResources = { pgPort, redisPort, redisInstance };
+    console.log(JSON.stringify(resourceDiagnostic('resources-verified', ownership, verifiedResources)));
     return await Promise.race([use({ runId, root, databaseUrl, redisPort, redisPassword, env, spawn: launch, verify, logPath: (child) => logPaths.get(child)! }), signalPromise]);
   } finally {
     closing = true;
@@ -162,5 +176,6 @@ export async function withResources<T>(use: (resources: Resources) => Promise<T>
       throw error;
     }
     unregister();
+    console.log(JSON.stringify(resourceDiagnostic('resources-cleaned', ownership, verifiedResources)));
   }
 }

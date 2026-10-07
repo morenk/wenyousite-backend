@@ -44,8 +44,8 @@ async function main() {
   let created = false;
   const deploy = (schema?: string) =>
     execFileSync(
-      'pnpm',
-      ['exec', 'prisma', 'migrate', 'deploy', ...(schema ? ['--schema', schema] : [])],
+      process.execPath,
+      [require.resolve('prisma/build/index.js'), 'migrate', 'deploy', ...(schema ? ['--schema', schema] : [])],
       {
         env: { ...process.env, DATABASE_URL: url.toString(), DIRECT_DATABASE_URL: url.toString() },
         stdio: ['ignore', 'pipe', 'pipe'],

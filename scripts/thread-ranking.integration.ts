@@ -31,7 +31,7 @@ async function main() {
     // full 链中的 HTTP 实例已停止；本套件只重建自己的排行榜投影，保留身份键及无关数据。
     await connection.del(SMART_SCORE_ZSET, SMART_SCORE_READY);
     await admin.$executeRawUnsafe(`CREATE DATABASE "${database}"`); created = true;
-    execFileSync('pnpm', ['exec', 'prisma', 'migrate', 'deploy'], {
+    execFileSync(process.execPath, [require.resolve('prisma/build/index.js'), 'migrate', 'deploy'], {
       env: { ...process.env, DATABASE_URL: testUrl.toString(), DIRECT_DATABASE_URL: testUrl.toString() }, stdio: 'pipe',
     });
     const owner = await db.user.create({ data: { email: 'owner@example.invalid', username: '楼主', password: 'unused' } });

@@ -66,6 +66,14 @@ OutboxDispatcher（FOR UPDATE SKIP LOCKED）
 
 当前可靠事件包括 `post.created`、`post.mentions.updated`、`thread.published`、`thread.liked`、`thread.unliked`、`thread.collaborator-role.changed`、`user.followed`、`user.level_up`、`moment.created`、`moment.comment.created`、`direct-message.created` 与 `tip.completed`。缓存失效等可重建的本地事件仍可直接使用进程内事件。
 
+互动/拉黑共用用户 `FOR NO KEY UPDATE` 锁，保持相互排斥、用户删除和关键字段更新的等待，但允许通知等外键的 `KEY SHARE`，避免通知与发帖的用户锁环。禁止因需要互斥就无条件升级到 `FOR UPDATE`；涉及用户主键变更时需单独评估锁顺序。
+
+管理写入统一在有序用户/互动锁之后调用 `ThreadAccessService.lockManagement`，获取主题行锁并在同一事务重新验证当前可访问性和成员角色。成员任免也遵循“用户 → 主题 → 成员”顺序；子贴、正文、标签、置顶和聚合编辑不得复用事务外角色作为最终写入授权。只读导出继续使用无写锁的访问校验。
+
+正文表情的 `lastUsedAt` 与内容、媒体引用及 Outbox 同一事务提交，属于原子写入，不是提交后的必达补偿。数据库故障时整笔回滚；幂等创建在成功后重放不会再次写使用时间。草稿不记录使用，发布入口对本次发布的有效正文统一记录到发布者收藏夹。
+
+Outbox 的 `lastError` 仅保存固定阶段、受控错误类别和有限错误码，不持久化异常正文、堆栈、cause 或聚合子错误。初始化、定时领取/投递和停机等待使用同一脱敏诊断；定时包装截断原始异常，避免 Nest 调度器再次打印。
+
 ## API 与类型契约
 
 运行时成功响应统一为 `{ code, message, data, meta? }`，错误响应统一为 `{ code, message, data: null }`。Swagger 构建阶段使用同一 envelope 包装 2xx JSON schema，并为所有操作补充 `ApiErrorEnvelope` 兜底响应；命令型空结果使用 `MessageResponseDto`。

@@ -1,4 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { ErrorCode } from '../common/exceptions/error-codes';
@@ -80,10 +81,11 @@ export class StickerContentService {
     return stickers.map((token) => token.stickerAssetId!);
   }
 
-  async recordUsage(userId: string, assetIds: string[]) {
+  /** 使用时间与内容原子提交；调用者必须传入内容写入事务。 */
+  async recordUsage(userId: string, assetIds: string[], tx: Prisma.TransactionClient) {
     const ids = [...new Set(assetIds)];
     if (ids.length === 0) return;
-    await this.prisma.userSticker.updateMany({
+    await tx.userSticker.updateMany({
       where: { userId, assetId: { in: ids } },
       data: { lastUsedAt: new Date() },
     });

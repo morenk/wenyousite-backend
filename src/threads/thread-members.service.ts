@@ -77,17 +77,17 @@ export class ThreadMembersService {
     dto: UpdateMemberDto,
     actorId: string,
   ) {
-    const actor = await this.threadAccess.assertCanManage(threadId, actorId);
+    await this.threadAccess.assertCanManage(threadId, actorId);
     if (dto.role === undefined && dto.playerMarked === undefined) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '请至少提供一项要修改的成员信息');
-    }
-    if (dto.role !== undefined && actor.role !== 'OWNER') {
-      throw forbidden('仅楼主可任免协作者', ErrorCode.NOT_THREAD_OWNER);
     }
 
     return this.prisma.$transaction(async (tx) => {
       await this.threadAccess.lockInteraction(tx, threadId, actorId, [targetUserId]);
-      await tx.$queryRaw`SELECT id FROM threads WHERE id = ${threadId} FOR UPDATE`;
+      const actor = await this.threadAccess.lockManagement(tx, threadId, actorId);
+      if (dto.role !== undefined && actor.role !== 'OWNER') {
+        throw forbidden('仅楼主可任免协作者', ErrorCode.NOT_THREAD_OWNER);
+      }
       await tx.$queryRaw`SELECT "id" FROM "thread_members" WHERE "thread_id" = ${threadId} AND "user_id" = ${targetUserId} FOR UPDATE`;
       const member = await tx.threadMember.findUnique({
         where: { threadId_userId: { threadId, userId: targetUserId } },

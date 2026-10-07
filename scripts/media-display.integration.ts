@@ -37,7 +37,7 @@ async function main() {
   try {
     await admin.$executeRawUnsafe(`CREATE DATABASE "${database}"`);
     databaseCreated = true;
-    execFileSync('pnpm', ['exec', 'prisma', 'migrate', 'deploy'], { env: { ...process.env,
+    execFileSync(process.execPath, [require.resolve('prisma/build/index.js'), 'migrate', 'deploy'], { env: { ...process.env,
       DATABASE_URL: ownerUrl.toString(), DIRECT_DATABASE_URL: ownerUrl.toString() }, stdio: 'pipe' });
     await admin.$executeRawUnsafe(`CREATE ROLE "${role}" LOGIN PASSWORD '${password}' NOSUPERUSER NOCREATEDB NOCREATEROLE`);
     roleCreated = true;

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# 正常启动样本不继承门禁进程的迁移凭据；拒绝样本在下方显式注入。
+unset DIRECT_DATABASE_URL
+
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 START_SCRIPT="$SCRIPT_DIR/wenyousite-image-worker-start.sh"
 TEST_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/wenyousite-image-worker-start-test.XXXXXX")

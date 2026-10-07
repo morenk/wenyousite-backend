@@ -95,15 +95,24 @@ export class ThreadAccessService {
   }
 
   /** 校验管理权限：OWNER 或 COLLABORATOR，否则 403 */
-  async assertCanManage(threadId: string, userId: string) {
-    await this.assertAccessible(threadId, userId, this.prisma, true);
-    const member = await this.prisma.threadMember.findUnique({
+  async assertCanManage(threadId: string, userId: string, client: Prisma.TransactionClient = this.prisma) {
+    await this.assertAccessible(threadId, userId, client, true);
+    const member = await client.threadMember.findUnique({
       where: { threadId_userId: { threadId, userId } },
     });
     if (!member || (member.role !== 'OWNER' && member.role !== 'COLLABORATOR')) {
       throw forbidden('无管理权限');
     }
     return member;
+  }
+
+  /**
+   * 管理写入与任免协作者共用主题锁；必须先完成所有有序用户/互动锁。
+   * 锁后用同一事务复核权限，返回的角色与玩家标记才能用于写入或事件快照。
+   */
+  async lockManagement(tx: Prisma.TransactionClient, threadId: string, userId: string) {
+    await tx.$queryRaw`SELECT id FROM threads WHERE id = ${threadId} FOR UPDATE`;
+    return this.assertCanManage(threadId, userId, tx);
   }
 
   /** 校验楼主专属权限，并隐藏已删除或不可访问的主题帖。 */

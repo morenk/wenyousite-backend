@@ -4,6 +4,7 @@ import { Interval } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { assertDomainEventPayload } from './domain-events';
+import { outboxErrorDetails } from './outbox-error';
 
 interface ClaimedOutboxEvent {
   id: string;
@@ -40,6 +41,11 @@ export class OutboxDispatcher implements OnModuleInit, BeforeApplicationShutdown
   }
 
   @Interval(1000)
+  async scheduledDispatch(): Promise<void> {
+    try { await this.dispatch(); }
+    catch (error: unknown) { this.logDispatchFailure('scheduled', error); }
+  }
+
   async dispatch(): Promise<void> {
     if (this.stopping || this.currentDispatch) return;
     const current = this.dispatchBatch();
@@ -56,21 +62,8 @@ export class OutboxDispatcher implements OnModuleInit, BeforeApplicationShutdown
     for (const row of rows) await this.deliver(row);
   }
 
-  private logDispatchFailure(stage: 'initial' | 'shutdown', error: unknown) {
-    const errorCode =
-      error && typeof error === 'object' && 'code' in error
-        ? String(error.code)
-        : 'dispatch_failed';
-    const stackFrames =
-      error instanceof Error ? error.stack?.split('\n').slice(1).join('\n') : undefined;
-    this.logger.error(
-      {
-        stage,
-        errorCode,
-        errorType: error instanceof Error ? error.constructor.name : 'UnknownError',
-      },
-      stackFrames,
-    );
+  private logDispatchFailure(stage: 'initial' | 'scheduled' | 'shutdown', error: unknown) {
+    this.logger.error({ stage, ...outboxErrorDetails(error) });
   }
 
   private claim(limit: number) {
@@ -100,30 +93,31 @@ export class OutboxDispatcher implements OnModuleInit, BeforeApplicationShutdown
   }
 
   private async deliver(row: ClaimedOutboxEvent): Promise<void> {
+    let stage: 'payload' | 'listener' | 'delivery' | 'acknowledgement' = 'payload';
     try {
       assertDomainEventPayload(row.eventType, row.payload);
+      stage = 'listener';
       if (this.events.listenerCount(row.eventType) === 0) {
         throw new Error(`No listener registered for domain event: ${row.eventType}`);
       }
+      stage = 'delivery';
       await this.events.emitAsync(row.eventType, row.payload);
+      stage = 'acknowledgement';
       await this.prisma.domainOutbox.updateMany({
         where: { id: row.id, processedAt: null },
         data: { processedAt: new Date(), lastError: null },
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const details = { stage, ...outboxErrorDetails(error) };
       const retrySeconds = Math.min(300, Math.max(5, row.attempts * 10));
       await this.prisma.domainOutbox.updateMany({
         where: { id: row.id, processedAt: null },
         data: {
-          lastError: message.slice(0, 2000),
+          lastError: JSON.stringify(details),
           availableAt: new Date(Date.now() + retrySeconds * 1000),
         },
       });
-      this.logger.error(
-        `Outbox delivery failed id=${row.id} type=${row.eventType} attempt=${row.attempts}`,
-        error instanceof Error ? error.stack : undefined,
-      );
+      this.logger.error({ outboxId: row.id, attempt: row.attempts, ...details });
     }
   }
 }

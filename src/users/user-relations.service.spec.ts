@@ -102,7 +102,7 @@ describe('UserRelationsService', () => {
     const removalLock = prisma.$queryRaw.mock.calls[0][0];
     expect(removalLock.values).toEqual(followLock.values);
     expect(removalLock.sql).toEqual(followLock.sql);
-    expect(removalLock.sql).toContain('ORDER BY id FOR UPDATE');
+    expect(removalLock.sql).toContain('ORDER BY id FOR NO KEY UPDATE');
   });
 
   it('本人关注列表批量返回单向和互关状态，公开本人入口相同', async () => {

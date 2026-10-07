@@ -60,6 +60,10 @@ function makeUpdated() {
 
 describe('ThreadAggregateService', () => {
   const access = {
+  lockManagement: jest.fn(async (tx: { $queryRaw: (...args: unknown[]) => Promise<unknown> }, threadId: string, userId: string): Promise<unknown> => {
+    await tx.$queryRaw`SELECT id FROM threads WHERE id = ${threadId} FOR UPDATE`;
+    return access.assertCanManage(threadId, userId);
+  }),
     assertCanManage: jest.fn().mockResolvedValue({ role: 'OWNER', playerMarked: true }),
   };
   const outbox = { enqueue: jest.fn().mockResolvedValue(undefined) };

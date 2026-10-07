@@ -24,6 +24,7 @@ export class ThreadTagsService {
     await this.access.assertCanManage(threadId, userId);
     const tag = await this.prisma.$transaction(async (tx) => {
       await this.access.lockInteraction(tx, threadId, userId);
+      await this.access.lockManagement(tx, threadId, userId);
       const [tag] = await this.tags.findOrCreate([name], tx);
       await tx.threadTopicTag.upsert({
       where: { threadId_tagId: { threadId, tagId: tag.id } },
@@ -40,6 +41,7 @@ export class ThreadTagsService {
     await this.access.assertCanManage(threadId, userId);
     await this.prisma.$transaction(async (tx) => {
       await this.access.lockInteraction(tx, threadId, userId);
+      await this.access.lockManagement(tx, threadId, userId);
       await tx.threadTopicTag.deleteMany({ where: { threadId, tagId } });
     });
     return { message: '标签已移除' };

@@ -122,4 +122,20 @@ describe('ThreadAccessService', () => {
     prisma.thread.findUnique.mockResolvedValue({ visibility: 'PRIVATE', ownerId: 'owner' });
     await expect(service.assertOwner('t1', 'outsider')).rejects.toMatchObject({ status: 404 });
   });
+  it.each(['OWNER', 'COLLABORATOR', 'PARTICIPANT', null])('管理写入读取锁后事务成员 %s，不复用根连接的旧权限', async (role) => {
+    const order: string[] = [];
+    prisma.threadMember.findUnique.mockResolvedValue({ role: 'OWNER' });
+    const tx = {
+      $queryRaw: jest.fn(async () => { order.push('lock'); return []; }),
+      thread: { findUnique: jest.fn(async () => { order.push('thread'); return { visibility: 'PUBLIC', published: true, ownerId: 'owner' }; }) },
+      userBlock: { findFirst: jest.fn().mockResolvedValue(null) },
+      threadMember: { findUnique: jest.fn(async () => { order.push('member'); return role ? { role, playerMarked: false } : null; }) },
+    };
+    const result = service.lockManagement(tx as never, 't1', 'actor');
+    if (role === 'OWNER' || role === 'COLLABORATOR') await expect(result).resolves.toMatchObject({ role, playerMarked: false });
+    else await expect(result).rejects.toMatchObject({ status: 403 });
+    expect(order).toEqual(['lock', 'thread', 'member']);
+    expect(prisma.threadMember.findUnique).not.toHaveBeenCalled();
+  });
+
 });

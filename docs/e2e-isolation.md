@@ -38,6 +38,8 @@
 
 清理工具验证：`pnpm test:cleanup:unit`；真实事务/并发/FK/共享媒体/缓存重试验证：配置上述只读二进制后执行 `pnpm test:cleanup:integration`。所有数据写入均发生于本次新启动的进程。
 
+CI 的 integration job 在固定 Ubuntu 24.04 runner 准备 PostgreSQL 16 与 Redis 可执行文件，显式校验并传递 `E2E_PG_BIN` / `E2E_REDIS_BIN`。`pnpm test:e2e:full` 复用同一份完整 suite 清单，随后 `pnpm test:e2e` 单独验证默认契约开关；两次运行分别创建并清理资源，不使用前面的迁移权限测试 service 数据库。缺少二进制或隔离身份验证失败时立即失败，不回退到 CI service 或公网实例。
+
 ## Web 接入协议（v1）
 
 完成后端 `pnpm check`（含构建）并配置上述只读二进制后，使用后端已提交 checkout 运行：
@@ -125,3 +127,7 @@ Linux 退出期间可能先置位 PF_EXITING，进程仍暂时显示 R，且 env
 ### RP 身份资料楼层
 
 `pnpm e2e:run --suite=rp-profile` 验证 author_version 迁移前后及原 token 组成、引用更新与省略/清除、他人代贴/跨子贴/楼中楼、跨主题与不可读拒绝、原文编辑、媒体/骰子/提及读取、关闭/归档/私帖撤权/双向拉黑、乐观锁并发。已纳入 `--full`；随机迁移子库与所有数据均属于当轮核验资源并由 finally/runner 清理，禁止用公网账号替代。
+
+### 管理撤权与内容事务一致性
+
+`pnpm e2e:run --suite=content-write-consistency` 已纳入 `test:e2e:full`。在本轮身份核验后停止背景 API，使用 `wenyousite_app` 创建服务实例，验证公开/私密主题中管理写入与撤销协作者两种提交顺序；使用 PostgreSQL 锁等待证据控制交错，核对拒绝后内容、媒体、提及、标签和 Outbox 无残留。非空表情使用时间更新后注入故障，覆盖内容创建、编辑与发布的整体回滚，再以原请求和幂等键重试。全部账号、数据和故障注入只属于本轮独立资源，结束由同一 runner 核验并清理。

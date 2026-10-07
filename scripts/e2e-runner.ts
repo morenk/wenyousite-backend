@@ -4,8 +4,9 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { PrismaClient } from '@prisma/client';
 import * as argon2 from 'argon2';
-import { withResources, unusedPort, stopChild } from './e2e-resources';
+import { withResources, unusedPort, stopChild, waitForChildClose } from './e2e-resources';
 import { ensure } from './webe2e-cleanup';
+import { suiteFailureDiagnostic } from './e2e-runner-diagnostics';
 import { createDiscussionFixtures } from './discussion-fixtures';
 import type { E2EManifest } from './e2e-guard';
 import { MobileReleasePublication } from '../src/mobile-releases/mobile-release-publication';
@@ -14,6 +15,7 @@ import { AuditService } from '../src/moderation/audit.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 const SUITES: Record<string, [string, string]> = {
+  'content-write-consistency': ['content-write-consistency.integration.ts', 'CONTENT_WRITE_CONSISTENCY_TEST_ENV'],
   'rp-profile': ['rp-profile.integration.ts', 'RP_PROFILE_TEST_ENV'],
   'role-mentions': ['role-mentions.integration.ts', 'ROLE_MENTIONS_TEST_ENV'],
   'thread-identity': ['thread-identity.integration.ts', 'THREAD_IDENTITY_TEST_ENV'],
@@ -35,13 +37,9 @@ const SUITES: Record<string, [string, string]> = {
   'bookmark-count': ['bookmark-visible-count.integration.ts', 'BOOKMARK_COUNT_TEST_ENV'],
   search: ['search-benchmark.ts', 'SEARCH_BENCHMARK_ENV'],
 };
+const API_SCRIPTS = ['api-e2e-test.ts', 'block-search.e2e.ts', 'main-post-policy.e2e.ts'];
+const ALLOWED_SCRIPTS = new Set([...API_SCRIPTS, ...Object.values(SUITES).map(([script]) => script)]);
 const REPOSITORY = resolve(__dirname, '..');
-function exited(child: ChildProcess) {
-  return new Promise<number | null>((ok, fail) => {
-    if (child.exitCode !== null || child.signalCode !== null) return ok(child.exitCode);
-    child.once('error', fail); child.once('exit', ok);
-  });
-}
 async function health(url: string, child: ChildProcess) {
   for (let attempt = 0; attempt < 120; attempt++) {
     ensure(child.exitCode === null && child.signalCode === null, '隔离后端提前退出');
@@ -171,10 +169,12 @@ export async function run(args = process.argv.slice(2)) {
         await r.verify();
         console.log(`验证：${script}`);
         const child = r.spawn(process.execPath, ['--require', require.resolve('ts-node/register/transpile-only'), join(REPOSITORY, 'scripts', script)], { ...backendTestEnv, ...extra, TS_NODE_PROJECT: join(REPOSITORY, 'tsconfig.json') }, REPOSITORY);
-        const code = await exited(child);
+        const code = await waitForChildClose(child);
         if (code !== 0) {
           const failureLog = `/tmp/wenyousite-e2e-failure-${r.runId}.log`;
-          writeFileSync(failureLog, readFileSync(r.logPath(child)), { flag: 'wx', mode: 0o600 });
+          const privateLog = readFileSync(r.logPath(child), 'utf8');
+          writeFileSync(failureLog, privateLog, { flag: 'wx', mode: 0o600 });
+          console.error(JSON.stringify(suiteFailureDiagnostic(r.runId, script, code, privateLog, ALLOWED_SCRIPTS)));
           // 清理隔离资源前保留同轮后端诊断；仅私有文件，不把响应内部信息输出到终端。
           writeFileSync(`/tmp/wenyousite-e2e-backend-failure-${r.runId}.log`, readFileSync(r.logPath(app)), { flag: 'wx', mode: 0o600 });
           console.error(`隔离验证失败：${script}；私有诊断 ${failureLog}`);
@@ -183,7 +183,7 @@ export async function run(args = process.argv.slice(2)) {
         console.log(`通过：${script}`);
       };
       if (options.includes('--api') || options.includes('--full') || options.includes('--block-search-only')) {
-        for (const script of options.includes('--block-search-only') ? ['block-search.e2e.ts'] : ['api-e2e-test.ts', 'block-search.e2e.ts', 'main-post-policy.e2e.ts']) await runScript(script);
+        for (const script of options.includes('--block-search-only') ? ['block-search.e2e.ts'] : API_SCRIPTS) await runScript(script);
       }
       const suites = options.includes('--full') ? Object.keys(SUITES).filter((key) => key !== 'search')
         : options.filter((o) => o.startsWith('--suite=')).map((o) => o.slice(8));
@@ -201,7 +201,7 @@ export async function run(args = process.argv.slice(2)) {
         await r.verify();
         // 外部消费者只获得网页账号及 manifest，不获得数据库 owner 或应用密钥。
         const child = r.spawn(command[0], command.slice(1), { ...r.env, ...webEnv }, REPOSITORY);
-        ensure(await exited(child) === 0, '消费者测试命令失败');
+        ensure(await waitForChildClose(child) === 0, '消费者测试命令失败');
       }
       await stopChild(app);
       const lifecycleObserved = readFileSync(r.logPath(app), 'utf8').includes('Application shutdown completed');

@@ -111,4 +111,45 @@ describe('MomentAccessService', () => {
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
     expect(tx.moment.findFirst).not.toHaveBeenCalled();
   });
+
+  it('目标不存在时在申请用户锁前拒绝写入', async () => {
+    const { tx, service } = createContext();
+    tx.moment.findUnique.mockResolvedValue(null);
+
+    await expect(service.lockVisible(tx as never, 'missing', 'viewer-1')).rejects.toMatchObject({
+      errorCode: ErrorCode.MOMENT_NOT_FOUND,
+    });
+    expect(tx.$queryRaw).not.toHaveBeenCalled();
+    expect(tx.moment.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('撤回已有互动仍锁定双方并校验账号，但不因新拉黑关系阻止撤回', async () => {
+    const { tx, service } = createContext();
+
+    await expect(
+      service.lockVisible(tx as never, 'moment-1', 'viewer-1', [], false),
+    ).resolves.toEqual(visibleMoment());
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(tx.user.findUnique).toHaveBeenCalledWith({
+      where: { id: 'viewer-1' },
+      select: { deletedAt: true },
+    });
+    expect(tx.userBlock.findFirst).not.toHaveBeenCalled();
+    expect(tx.moment.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'moment-1', deletedAt: null },
+      }),
+    );
+  });
+
+  it('已不存在的操作者不能发布，活跃操作者可以发布与互动', async () => {
+    const { tx, service } = createContext();
+    tx.user.findUnique.mockResolvedValueOnce(null);
+
+    await expect(service.lockActiveUser(tx as never, 'missing')).rejects.toMatchObject({
+      errorCode: ErrorCode.ACCOUNT_DEACTIVATED,
+    });
+    await expect(service.lockActiveUser(tx as never, 'viewer-1')).resolves.toBeUndefined();
+    expect(() => service.assertCanAddInteraction(visibleMoment())).not.toThrow();
+  });
 });

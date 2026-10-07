@@ -47,7 +47,7 @@ export class PostPinService {
 
     await this.prisma.$transaction(async (tx) => {
       await this.threadAccess.lockInteraction(tx, postLight.threadId, userId, pinned ? [postLight.authorId] : []);
-      await tx.$queryRaw`SELECT id FROM threads WHERE id = ${postLight.threadId} FOR UPDATE`;
+      await this.threadAccess.lockManagement(tx, postLight.threadId, userId);
       await tx.$queryRaw`SELECT id FROM subthreads WHERE id = ${postLight.subthreadId} FOR UPDATE`;
       const thread = await tx.thread.findUnique({
         where: { id: postLight.threadId, ...notDeleted },

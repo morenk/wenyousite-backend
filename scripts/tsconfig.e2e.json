@@ -15,6 +15,7 @@
     "e2e-resources.ts",
     "e2e-guard.ts",
     "e2e-runner.ts",
+    "content-write-consistency.integration.ts",
     "private-invite-reuse.integration.ts",
     "private-invite-reuse-preview.ts",
     "profile-follow-counts.integration.ts",

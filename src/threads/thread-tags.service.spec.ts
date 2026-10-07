@@ -5,6 +5,7 @@ import { ThreadTagsService } from './thread-tags.service';
 
 describe('ThreadTagsService', () => {
   const prisma = {
+    $queryRaw: jest.fn(),
     $transaction: jest.fn(),
     threadTopicTag: {
       findMany: jest.fn(),
@@ -13,7 +14,11 @@ describe('ThreadTagsService', () => {
     },
   };
   const tags = { findOrCreate: jest.fn(), invalidateCache: jest.fn() };
-  const access = { lockInteraction: jest.fn(), assertAccessible: jest.fn(), assertCanManage: jest.fn() };
+  const access = {
+  lockManagement: jest.fn(async (tx: { $queryRaw: (...args: unknown[]) => Promise<unknown> }, threadId: string, userId: string): Promise<unknown> => {
+    await tx.$queryRaw`SELECT id FROM threads WHERE id = ${threadId} FOR UPDATE`;
+    return access.assertCanManage(threadId, userId);
+  }), lockInteraction: jest.fn(), assertAccessible: jest.fn(), assertCanManage: jest.fn() };
   let service: ThreadTagsService;
 
   beforeEach(() => {
