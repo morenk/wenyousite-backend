@@ -69,6 +69,7 @@
     "test:cleanup:unit": "tsc -p scripts/tsconfig.e2e.json && tsx --test scripts/webe2e-cleanup.test.ts scripts/e2e-guard.test.ts scripts/e2e-processes.test.ts",
     "test:cleanup:integration": "tsx scripts/webe2e-cleanup.integration.ts",
     "e2e:run": "tsx scripts/e2e-runner.ts",
+    "test:integration:redis-failure": "tsx scripts/e2e-runner.ts --suite=redis-failure",
     "test:e2e:full": "tsx scripts/e2e-runner.ts --full",
     "test:e2e:discussion-fixtures": "tsx scripts/e2e-runner.ts --discussion-fixtures -- node --import tsx scripts/discussion-fixtures.consumer-test.ts",
     "e2e:reap": "tsx scripts/e2e-reap.ts",

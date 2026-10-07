@@ -42,8 +42,11 @@ export class OutboxDispatcher implements OnModuleInit, BeforeApplicationShutdown
 
   @Interval(1000)
   async scheduledDispatch(): Promise<void> {
-    try { await this.dispatch(); }
-    catch (error: unknown) { this.logDispatchFailure('scheduled', error); }
+    try {
+      await this.dispatch();
+    } catch (error: unknown) {
+      this.logDispatchFailure('scheduled', error);
+    }
   }
 
   async dispatch(): Promise<void> {
@@ -58,8 +61,11 @@ export class OutboxDispatcher implements OnModuleInit, BeforeApplicationShutdown
   }
 
   private async dispatchBatch() {
-    const rows = await this.claim(50);
-    for (const row of rows) await this.deliver(row);
+    for (let count = 0; count < 50 && !this.stopping; count++) {
+      const [row] = await this.claim(1);
+      if (!row) return;
+      await this.deliver(row);
+    }
   }
 
   private logDispatchFailure(stage: 'initial' | 'scheduled' | 'shutdown', error: unknown) {
@@ -97,21 +103,33 @@ export class OutboxDispatcher implements OnModuleInit, BeforeApplicationShutdown
     try {
       assertDomainEventPayload(row.eventType, row.payload);
       stage = 'listener';
-      if (this.events.listenerCount(row.eventType) === 0) {
+      const listeners = this.events.listeners(row.eventType);
+      if (listeners.length === 0) {
         throw new Error(`No listener registered for domain event: ${row.eventType}`);
       }
       stage = 'delivery';
-      await this.events.emitAsync(row.eventType, row.payload);
+      // emitAsync 内部 Promise.all 会提前拒绝；等待同次投递的全部副作用再安排重试。
+      const context: EventEmitter2 & { event?: string } = this.events;
+      const results = await Promise.allSettled(
+        listeners.map((listener) =>
+          Promise.resolve().then(() => {
+            context.event = row.eventType;
+            return listener.call(this.events, row.payload);
+          }),
+        ),
+      );
+      const failure = results.find((result) => result.status === 'rejected');
+      if (failure?.status === 'rejected') throw failure.reason;
       stage = 'acknowledgement';
       await this.prisma.domainOutbox.updateMany({
-        where: { id: row.id, processedAt: null },
+        where: { id: row.id, processedAt: null, attempts: row.attempts },
         data: { processedAt: new Date(), lastError: null },
       });
     } catch (error) {
       const details = { stage, ...outboxErrorDetails(error) };
       const retrySeconds = Math.min(300, Math.max(5, row.attempts * 10));
       await this.prisma.domainOutbox.updateMany({
-        where: { id: row.id, processedAt: null },
+        where: { id: row.id, processedAt: null, attempts: row.attempts },
         data: {
           lastError: JSON.stringify(details),
           availableAt: new Date(Date.now() + retrySeconds * 1000),

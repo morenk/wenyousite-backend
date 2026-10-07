@@ -48,7 +48,7 @@ Android APK 下载使用独立进程、只读缓存和持久化预算账本；�
        └─ 写 domain_outbox（event_key 唯一）
               ↓ commit
 OutboxDispatcher（FOR UPDATE SKIP LOCKED）
-  └─ EventEmitter2.emitAsync
+  └─ 已注册领域 listeners（Promise.allSettled）
        ├─ 通知 / 提及
        └─ Redis 查询投影
               ↓ 全部成功
@@ -60,9 +60,9 @@ OutboxDispatcher（FOR UPDATE SKIP LOCKED）
 - 移动推送仅是通知落库后的尽力提示通道；入队失败不会回滚权威通知，客户端始终以通知 API 和未读数为准。
 - 点赞和回复计数不执行重复 `INCR`，而是读取数据库权威计数后覆盖 Redis。
 - 事件名与载荷由 `outbox/domain-events.ts` 统一建模并在分发前校验；非法载荷或没有消费者的事件保持未确认。
-- 失败事件按退避时间重试；60 秒领取租约允许实例崩溃后重新领取。
+- 每轮最多依次投递 50 条事件，每次只领取下一条，避免后面的事件在等待前一条时耗尽租约。失败按退避时间重试；60 秒领取租约允许实例崩溃后重新领取。确认与失败回写同时匹配 `id / processedAt=null / attempts`，旧领取不能改写后续尝试。
 - 已处理事件保留 7 天供审计，未处理事件永不由清理任务删除。
-- 进程收到 `SIGTERM` / `SIGINT` 后停止领取新 Outbox，等待当前批次结束，再由 NestJS 完成资源关闭。
+- 进程收到 `SIGTERM` / `SIGINT` 后，Outbox 在 `beforeApplicationShutdown` 停止领取并等待当前投递结束；Prisma 和普通 Redis 在 `onApplicationShutdown` 才断开。Keyv/Bull 使用自己的模块关闭钩子，可能更早关闭；此时缓存尽力失败、入队拒绝，权威通知仍依赖可用的 PostgreSQL 完成。
 
 当前可靠事件包括 `post.created`、`post.mentions.updated`、`thread.published`、`thread.liked`、`thread.unliked`、`thread.collaborator-role.changed`、`user.followed`、`user.level_up`、`moment.created`、`moment.comment.created`、`direct-message.created` 与 `tip.completed`。缓存失效等可重建的本地事件仍可直接使用进程内事件。
 
@@ -73,6 +73,20 @@ OutboxDispatcher（FOR UPDATE SKIP LOCKED）
 正文表情的 `lastUsedAt` 与内容、媒体引用及 Outbox 同一事务提交，属于原子写入，不是提交后的必达补偿。数据库故障时整笔回滚；幂等创建在成功后重放不会再次写使用时间。草稿不记录使用，发布入口对本次发布的有效正文统一记录到发布者收藏夹。
 
 Outbox 的 `lastError` 仅保存固定阶段、受控错误类别和有限错误码，不持久化异常正文、堆栈、cause 或聚合子错误。初始化、定时领取/投递和停机等待使用同一脱敏诊断；定时包装截断原始异常，避免 Nest 调度器再次打印。
+
+## Redis 故障边界
+
+Redis 使用三套独立客户端：普通 `REDIS_CLIENT` 服务 HTTP 限流与 RedisService，Keyv/node-redis 服务可重建缓存，BullMQ 服务任务生产和持久消费。连接参数仍统一来自 `redisConnectionOptions`，键名、namespace 与 DB 编号不变。
+
+普通命令与缓存命令的底层等待预算为 1000ms，禁用离线排队；普通 ioredis 还禁用未完成命令自动重发，并将请求重试次数设为 0。连接可以后台恢复，但故障期间的旧写入不会在恢复后自动执行。敏感 HTTP 限流错误继续走既有错误 envelope 并拒绝进入处理器；缓存 get 返回 miss，写入/删除失败按尽力策略处理，只记录固定失败类别。缓存批量删除等待全部已启动删除结束；最终关闭后禁止再次连接。这个预算针对单次命令，不是包含多次顺序命令、数据库或外部服务调用的整个 HTTP SLA。
+
+命令超时不证明 Redis 未执行该命令：响应丢失时写入结果未知，调用者必须依赖幂等任务 ID、数据库权威状态或显式补偿，不能盲目重放计数增量。Outbox 的计数投影采用权威值覆盖，通知仍由 PostgreSQL 的稳定 `eventKey` 去重。
+
+BullMQ 生产者在初始化或离线时立即拒绝业务调用，就绪后应用同一命令预算。初始化失败只回收和重建连接、执行 INFO/version 检查及幂等元数据，不重发 add 等业务操作；Scripts 每次取当前连接，避免锁定版本的构造期 Promise 快照永久缓存失败。已取得的 Job 对象不跨连接重建复用，恢复轮次重新 getJob。消费者的主连接与阻塞副本保留持续重连，不给 BZPOPMIN 施加生产者的一秒预算。
+
+Worker 关闭先停止领取任务，在关闭期间对实际非阻塞主连接串行执行有界只读 PING，覆盖等待处理器时才发生的断连。仅主连接未就绪或探测失败时先关闭 BullMQ 主连接状态以停止无效 ACK 重试，再断开本 Worker 登记的连接及阻塞副本，随后仍等待 BullMQ 标准 close 和活动处理器；健康慢处理器仍完成并确认任务。任意图片处理器或外部依赖自行挂起不在本次有界保证内，Redis 故障时尚未确认的任务由后续正常 stalled/retry 机制处理。
+
+Outbox 对当前已注册领域 listeners 等待全部 settled 后才重试，避免单个快速失败导致同一次投递的其它副作用仍在运行时开始重投。当前 EventEmitterModule 未使用 wildcard/onAny，这不是对任意 EventEmitter2 扩展语义的替代。此处不使用放弃原操作的外层超时；数据库、外部依赖或多次操作仍可能超过 60 秒租约，attempt 条件仅保护领取状态回写，不能消除所有跨实例迟到副作用，因此监听器的幂等约束仍然必要。
 
 ## API 与类型契约
 

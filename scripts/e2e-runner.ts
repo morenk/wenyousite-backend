@@ -15,6 +15,7 @@ import { AuditService } from '../src/moderation/audit.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 const SUITES: Record<string, [string, string]> = {
+  'redis-failure': ['redis-failure.integration.ts', 'REDIS_FAILURE_TEST_ENV'],
   'content-write-consistency': ['content-write-consistency.integration.ts', 'CONTENT_WRITE_CONSISTENCY_TEST_ENV'],
   'rp-profile': ['rp-profile.integration.ts', 'RP_PROFILE_TEST_ENV'],
   'role-mentions': ['role-mentions.integration.ts', 'ROLE_MENTIONS_TEST_ENV'],

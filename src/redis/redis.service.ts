@@ -1,14 +1,14 @@
-import { Inject, Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Inject, Injectable, OnApplicationShutdown } from '@nestjs/common';
 import Redis from 'ioredis';
 import { randomUUID } from 'node:crypto';
 
 /** Redis 底层服务：计数器(Hash)、有序集合(ZSET)、键操作 */
 @Injectable()
-export class RedisService implements OnModuleDestroy {
+export class RedisService implements OnApplicationShutdown {
   constructor(@Inject('REDIS_CLIENT') private readonly redis: Redis) {}
 
-  async onModuleDestroy() {
-    await this.redis.quit();
+  onApplicationShutdown() {
+    this.redis.disconnect();
   }
 
   /** 验证 Redis 连接可用，供 readiness 健康检查使用 */
@@ -196,18 +196,21 @@ export class RedisService implements OnModuleDestroy {
     try {
       for (let index = 0; index < ids.length; index += 500) {
         const chunk = ids.slice(index, index + 500);
-        await this.zaddMultiWithExpiry(staging, 600,
-          ...chunk.flatMap((id, offset) => [ids.length - index - offset, id]));
+        await this.zaddMultiWithExpiry(
+          staging,
+          600,
+          ...chunk.flatMap((id, offset) => [ids.length - index - offset, id]),
+        );
       }
       const transaction = this.redis.multi();
       if (ids.length) transaction.rename(staging, key).persist(key);
       else transaction.del(key);
       transaction.set(readyKey, String(ids.length), 'EX', 3600);
       const result = await transaction.exec();
-      if (!result || result.some(([error]) => error)) throw new Error('Redis ranking switch failed');
+      if (!result || result.some(([error]) => error))
+        throw new Error('Redis ranking switch failed');
     } finally {
       await this.redis.del(staging);
     }
   }
-
 }
