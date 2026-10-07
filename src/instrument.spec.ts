@@ -88,7 +88,9 @@ describe('Sentry event scrubbing', () => {
     const envelopes: unknown[] = [];
     Sentry.init({
       dsn: 'https://public@example.invalid/1',
-      integrations: [],
+      // CI 会从 GITHUB_SHA 自动推断 release；固定夹具并关闭默认 session 集成。
+      release: 'scrubbing-fixture',
+      defaultIntegrations: false,
       beforeSend: scrubSentryEvent,
       transport: () => ({
         send: async (envelope) => {
