@@ -44,11 +44,14 @@ export function unblockedUserSql(viewerId: string | undefined, userIdColumn: Pri
   )` : Prisma.empty;
 }
 
-/** 写入与拉黑共用有序的用户行锁；调用者须在获取内容或会话锁之前调用。 */
+/**
+ * 写入与拉黑共用有序用户互斥锁；须在内容或会话锁之前调用。
+ * 不修改用户键，使用 NO KEY UPDATE 保留互斥与删除保护，同时允许通知等外键取得 KEY SHARE。
+ */
 export async function lockInteractionUsers(tx: Pick<Prisma.TransactionClient, '$queryRaw'>, userIds: string[]) {
   const ids = [...new Set(userIds)].sort();
   if (!ids.length) return;
-  await tx.$queryRaw(Prisma.sql`SELECT id FROM users WHERE id IN (${Prisma.join(ids)}) ORDER BY id FOR UPDATE`);
+  await tx.$queryRaw(Prisma.sql`SELECT id FROM users WHERE id IN (${Prisma.join(ids)}) ORDER BY id FOR NO KEY UPDATE`);
 }
 
 export async function assertInteractionAllowed(tx: Prisma.TransactionClient, actorId: string, targetIds: string[]) {

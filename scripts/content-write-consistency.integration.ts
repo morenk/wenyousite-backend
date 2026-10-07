@@ -5,6 +5,8 @@ import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { lockInteractionUsers, assertInteractionAllowed } from '../src/access/block-visibility.where';
+import { NotificationDeliveryService } from '../src/notifications/notification-delivery.service';
 import { ThreadAccessService } from '../src/access/thread-access.service';
 import { PostingPolicyService } from '../src/access/posting-policy.service';
 import { BlockFilterService } from '../src/access/block-filter.service';
@@ -242,10 +244,108 @@ async function usageRollback(kind: string) {
     assert.deepEqual((await favorite()).lastUsedAt, lastUsedAt);
   }
 }
+async function waitForUserLock(pid: number) {
+  await bounded((async () => {
+    const deadline = Date.now() + 3500;
+    while (Date.now() < deadline) {
+      const [row] = await db.$queryRaw<Array<{ waiting: boolean }>>`SELECT cardinality(pg_blocking_pids(${pid}::integer)) > 0 AS waiting`;
+      if (row.waiting) return;
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    throw new Error('用户写入没有按预期等待互动锁');
+  })());
+}
+
+/** 通知外键只需 KEY SHARE，不能与互动的用户互斥锁组成反向锁环。 */
+async function notificationForeignKeyCompatibility() {
+  const f = await fixture();
+  const [sender, recipient] = [f.owner.id, f.actor.id].sort();
+  const foreignKeyHeld = deferred(), insertNotification = deferred(), usersHeld = deferred(), commitContent = deferred();
+  const eventKey = 'lock-compatibility:' + randomUUID();
+  const notification = db.$transaction(async tx => {
+    // 固定通知检查两个用户外键之间的时序，不依赖随机 ID 或负载碰巧触发死锁。
+    await tx.$queryRaw`SELECT id FROM users WHERE id = ${recipient} FOR KEY SHARE`;
+    foreignKeyHeld.resolve(); await insertNotification.promise;
+    const delivery = new NotificationDeliveryService(tx as PrismaService, { enqueue: async () => undefined } as never,
+      { filterRecipients: async () => [recipient] } as never);
+    await delivery.deliver({ type: 'reply', recipients: [recipient], fromUserId: sender,
+      threadId: f.thread.id, postId: f.floor.id, content: '隔离锁兼容通知', eventKey });
+  }, { timeout: 15000 });
+  let content: Promise<unknown> | undefined;
+  try {
+    await bounded(foreignKeyHeld.promise);
+    content = db.$transaction(async tx => {
+      await lockInteractionUsers(tx, [recipient, sender]);
+      await tx.post.create({ data: { threadId: f.thread.id, subthreadId: f.sub.id, authorId: sender,
+        kind: 'FLOOR', floorNumber: 2, content: '隔离锁兼容正文' } });
+      usersHeld.resolve(); await commitContent.promise;
+    }, { timeout: 15000 });
+    await bounded(usersHeld.promise);
+    insertNotification.resolve();
+    // 通知真实 INSERT 必须在互动仍持锁时完成；不是先释放互动锁让测试通过。
+    await bounded(notification);
+    commitContent.resolve(); await content;
+    assert.equal(await db.notification.count({ where: { eventKey: eventKey + ':' + recipient } }), 1);
+  } finally {
+    insertNotification.resolve(); commitContent.resolve();
+    await Promise.allSettled([notification, ...(content ? [content] : [])]);
+  }
+}
+
+/** 减弱到不修改主键的锁后，拉黑互斥和账号删除/键更新的保护必须保留。 */
+async function interactionLockExclusion() {
+  const f = await fixture();
+  const locked = deferred(), resume = deferred(), waiterPid = deferred<number>();
+  const blocking = db.$transaction(async tx => {
+    await lockInteractionUsers(tx, [f.owner.id, f.actor.id]);
+    await tx.userBlock.create({ data: { blockerId: f.owner.id, blockedId: f.actor.id } });
+    locked.resolve(); await resume.promise;
+  }, { timeout: 15000 });
+  let interaction: Promise<unknown> | undefined;
+  try {
+    await bounded(locked.promise);
+    interaction = db.$transaction(async tx => {
+      const [row] = await tx.$queryRaw<Array<{ pid: number }>>`SELECT pg_backend_pid() AS pid`;
+      waiterPid.resolve(row.pid);
+      await assertInteractionAllowed(tx, f.actor.id, [f.owner.id]);
+    }, { timeout: 15000 });
+    await waitForUserLock(await bounded(waiterPid.promise));
+    resume.resolve(); await blocking;
+    await assert.rejects(interaction, (error: { status?: number }) => error.status === 403);
+  } finally { resume.resolve(); await Promise.allSettled([blocking, ...(interaction ? [interaction] : [])]); }
+
+  for (const kind of ['delete', 'key-update'] as const) {
+    const suffix = randomBytes(8).toString('hex');
+    const user = await db.user.create({ data: { username: 'lock' + suffix, email: suffix + '@e2e.invalid', password: 'isolated' } });
+    const held = deferred(), release = deferred(), pid = deferred<number>();
+    const holder = db.$transaction(async tx => {
+      await lockInteractionUsers(tx, [user.id]); held.resolve(); await release.promise;
+    }, { timeout: 15000 });
+    let mutation: Promise<unknown> | undefined;
+    try {
+      await bounded(held.promise);
+      mutation = db.$transaction(async tx => {
+        const [row] = await tx.$queryRaw<Array<{ pid: number }>>`SELECT pg_backend_pid() AS pid`;
+        pid.resolve(row.pid);
+        return kind === 'delete' ? tx.user.delete({ where: { id: user.id } })
+          : tx.user.update({ where: { id: user.id }, data: { email: 'changed' + suffix + '@e2e.invalid' } });
+      }, { timeout: 15000 });
+      await waitForUserLock(await bounded(pid.promise));
+      release.resolve(); await holder; await mutation;
+      const stored = await db.user.findUnique({ where: { id: user.id } });
+      if (kind === 'delete') assert.equal(stored, null);
+      else assert.equal(stored?.email, 'changed' + suffix + '@e2e.invalid');
+    } finally { release.resolve(); await Promise.allSettled([holder, ...(mutation ? [mutation] : [])]); }
+  }
+}
+
 async function main() {
   await verifyIsolatedEnvironment();
   assert.equal(process.env.CONTENT_WRITE_CONSISTENCY_TEST_ENV, 'test');
   assert.equal((await db.$queryRaw<Array<{ role: string }>>`SELECT current_user AS role`)[0].role, 'wenyousite_app');
+  await notificationForeignKeyCompatibility();
+  await interactionLockExclusion();
+  console.log('通知外键兼容、互动互斥及账号删除/键更新等待通过');
   for (const visibility of ['PUBLIC', 'PRIVATE'] as const) {
     for (const [name, operation] of Object.entries(operations)) {
       const first = await fixture(visibility);
