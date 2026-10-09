@@ -22,7 +22,7 @@ const probe = `
   assert.equal(require('node:os').tmpdir(), root);
   assert.equal(fs.statSync(root).uid, process.getuid());
   assert.equal(fs.statSync(root).mode & 0o777, 0o700);
-  for (const key of ['DATABASE_URL','REDIS_PASSWORD','AWS_ACCESS_KEY_ID','PREVIEW_STATE_ROOT','NODE_OPTIONS','NODE_PATH']) {
+  for (const key of ['DATABASE_URL','REDIS_PASSWORD','AWS_ACCESS_KEY_ID','UNTRUSTED_TEST_SETTING','NODE_OPTIONS','NODE_PATH']) {
     assert.equal(process.env[key], undefined);
   }
   const child = spawnSync(process.execPath, ['-p','process.getuid()'], {encoding:'utf8'});
@@ -40,7 +40,7 @@ function run(script) {
       DATABASE_URL: 'synthetic-must-not-inherit',
       REDIS_PASSWORD: 'synthetic-must-not-inherit',
       AWS_ACCESS_KEY_ID: 'synthetic-must-not-inherit',
-      PREVIEW_STATE_ROOT: '/synthetic-must-not-inherit',
+      UNTRUSTED_TEST_SETTING: '/synthetic-must-not-inherit',
       E2E_RESOURCE_ROOT: '/synthetic-must-not-inherit',
       NODE_OPTIONS: '--max-old-space-size=128',
       NODE_PATH: '/synthetic-must-not-inherit',
@@ -150,23 +150,4 @@ test('测试失败和信号退出传回门禁且回收本轮目录', () => {
     assert(!fs.existsSync(JSON.parse(result.stdout).root));
     assert.match(result.stderr, /isolated-tests-cleaned/);
   }
-});
-
-test('管理身份运行时预览入口仍拒绝 root，降权不修改业务 guard', () => {
-  const script =
-    process.getuid() === 0
-      ? `const assert=require('node:assert/strict');const {start,rebindWebPort}=require('./scripts/dev-preview/lifecycle');
-      (async()=>{assert.equal(process.getuid(),0);await assert.rejects(()=>start('root-denied',{}),/禁止 root/);await assert.rejects(()=>rebindWebPort('root-denied',{}),/禁止 root/);})().catch(()=>{process.exitCode=1;});`
-      : `require('node:assert/strict').ok(process.getuid()>0);`;
-  const result = spawnSync(
-    process.execPath,
-    ['--require', 'ts-node/register/transpile-only', '-e', script],
-    {
-      cwd: repo,
-      env: { PATH: process.env.PATH },
-      encoding: 'utf8',
-      timeout: 15000,
-    },
-  );
-  assert.equal(result.status, 0, result.stderr);
 });

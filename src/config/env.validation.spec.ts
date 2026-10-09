@@ -15,6 +15,29 @@ describe('环境变量校验', () => {
     CORS_ORIGINS: 'https://web.example.com',
   };
 
+  it.each(['WENYOU_PREVIEW_SESSION', 'WENYOU_PREVIEW_RUN_ID', 'PREVIEW_STATE_ROOT', 'PREVIEW_SNAPSHOT_ROOT', 'DOWNLOAD_PREVIEW_RUN_ID'])(
+    '拒绝已退役的开发预览配置 %s，且不输出配置值',
+    (key) => {
+      for (const value of ['', 'private-value-must-not-appear']) {
+        expect(() => validate({ [key]: value })).toThrow('隔离开发预览已退役，请移除配置：' + key);
+        try { validate({ [key]: value }); } catch (error) {
+          expect(String(error)).not.toContain('private-value-must-not-appear');
+        }
+      }
+    },
+  );
+
+  it('拒绝旧持续预览的进程身份，保留一次性 E2E 身份', () => {
+    expect(() => validate({ NODE_ENV: 'test', E2E_RUN_ID: 'preview_' + 'a'.repeat(24) })).toThrow(
+      '隔离开发预览已退役，请移除配置：E2E_RUN_ID',
+    );
+    expect(() => validate({ NODE_ENV: 'test', E2E_RUN_ID: 'e2e_' + 'a'.repeat(24) })).not.toThrow();
+  });
+
+  it('保留写入 E2E 的本地测试收件箱', () => {
+    expect(validate({ NODE_ENV: 'test', PREVIEW_MAILBOX_DIR: '/tmp/e2e-mailbox' }).PREVIEW_MAILBOX_DIR).toBe('/tmp/e2e-mailbox');
+  });
+
   it('开发环境使用与运行配置一致的数据库默认值', () => {
     expect(validate({}).DATABASE_URL).toBe(
       'postgresql://wenyou:wenyou@127.0.0.1:5432/wenyousite?schema=public',

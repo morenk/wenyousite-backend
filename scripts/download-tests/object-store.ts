@@ -6,7 +6,7 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { StreamingApkOrigin } from '../../src/app-downloads/download-origin';
 import { fileName, Artifact } from '../../src/app-downloads/download-model';
 import { APK_MEDIA_TYPE } from '../../src/app-downloads/app-download.contract';
-import { verifyS3Signature } from '../dev-preview/signature';
+import { verifyS3Signature } from './signature';
 
 const S3rver = require('s3rver') as new (options: Record<string, unknown>) => { configureBuckets(): Promise<void>; callback(): (req: IncomingMessage, res: ServerResponse) => void };
 export async function privateObjectStore(root: string) {

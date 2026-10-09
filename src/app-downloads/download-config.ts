@@ -16,10 +16,6 @@ const configSchema = z
     DOWNLOAD_DEVICE_DAY_COUNT: z.coerce.number().int().min(1).max(1_000_000).optional(),
     DOWNLOAD_IP_DAY_COUNT: z.coerce.number().int().min(1).max(1_000_000).optional(),
     DOWNLOAD_COUNT_MAX_SUBJECTS: z.coerce.number().int().min(2).max(200_000).optional(),
-    DOWNLOAD_PREVIEW_RUN_ID: z
-      .string()
-      .regex(/^preview_[a-f0-9]{24}$/)
-      .optional(),
     DOWNLOAD_DAY_BYTES: z.coerce
       .number()
       .int()
