@@ -91,6 +91,6 @@ unit 限制 AF_UNIX、PrivateNetwork、MemoryMax=256M、MemoryHigh=192M、CPUQuo
 
 `pnpm test:downloads` 执行类型检查、真实 UDS、私有对象存储、持久预算、并发/限速、失败恢复与模板拒绝测试；测试目录独立且清理。`pnpm test:integration:app-downloads` 由标准 E2E runner 创建并核验独立 PostgreSQL/Redis，再验证新增 migration 重入、旧用户/钱包/制品审计保留、真实注册并发和私有预热。已纳入完整门禁。首次定向验证可使用 `pnpm e2e:run --suite=app-downloads --source` 启动本任务源码（仍使用同一隔离身份校验），正式完整门禁使用构建产物。测试对象存储拒绝未签名 GET/HEAD，完全使用合成 APK，不访问 RainS3。
 
-日常 Web 调试按各仓库普通开发入口按需启动。持续隔离预览及其 HTTP Cookie 模式正在退役；自动化下载和写入验证继续使用上述独立测试入口。
+日常 Web 调试按各仓库普通开发入口按需启动。持续隔离预览及其 HTTP Cookie 模式已退役，下载网关始终签发带 Secure 的 Cookie，旧配置会被拒绝；自动化下载和写入验证继续使用上述独立测试入口。
 
 持久性依据 [SQLite synchronous](https://sqlite.org/pragma.html#pragma_synchronous)，二进制清单格式依据 [Android ResourceTypes](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/libs/androidfw/include/androidfw/ResourceTypes.h)。这些实现证据不代替真实 RainS3 鉴权读取验证、有效 systemd/Caddy 部署或旧 APP 真机验收；关闭公共读仍须独立评审。
