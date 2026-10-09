@@ -352,8 +352,20 @@ export class EnvironmentVariables {
   ENABLE_API_DOCS: boolean | 'true' | 'false' = false;
 }
 
+/** 已退役的持续预览配置必须显式移除，避免旧启动环境静默改用普通服务。 */
+export function isRetiredPreviewSetting(key: string) {
+  return /^(?:WENYOU_PREVIEW_|PREVIEW_(?:STATE_ROOT|SNAPSHOT_ROOT)$|DOWNLOAD_PREVIEW_RUN_ID$)/.test(key);
+}
+
 /** 校验函数：在 ConfigModule.forRoot 中调用，启动时验证环境变量完整性 */
 export function validate(config: Record<string, unknown>) {
+  const retiredSettings = Object.keys(config).filter(isRetiredPreviewSetting);
+  if (typeof config.E2E_RUN_ID === 'string' && config.E2E_RUN_ID.startsWith('preview_')) {
+    retiredSettings.push('E2E_RUN_ID');
+  }
+  if (retiredSettings.length) {
+    throw new Error('隔离开发预览已退役，请移除配置：' + retiredSettings.join(', '));
+  }
   const validatedConfig = plainToInstance(EnvironmentVariables, config, {
     enableImplicitConversion: true,
   });

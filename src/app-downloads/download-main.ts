@@ -34,7 +34,7 @@ export async function startDownloadGateway(config: DownloadConfig) {
     gateway = new DownloadGateway(
       budget,
       new DownloadCache(config.DOWNLOAD_CACHE_DIR, config.DOWNLOAD_CATALOG_DIR),
-      new DownloadDevice(budget.deviceKeys(), config.DOWNLOAD_PREVIEW_RUN_ID),
+      new DownloadDevice(budget.deviceKeys()),
     );
     const instance = gateway;
     @Module({

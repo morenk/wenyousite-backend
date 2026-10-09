@@ -1,4 +1,4 @@
-import { Environment, parseCorsOrigins, validate } from './env.validation';
+import { Environment, isRetiredPreviewSetting, parseCorsOrigins, validate } from './env.validation';
 
 /** 应用配置：从环境变量读取配置，提供类型安全访问 */
 export default function configuration() {
@@ -143,7 +143,7 @@ export function isolatedChildIdentity(): NodeJS.ProcessEnv {
   if (
     process.env.NODE_ENV !== 'test' ||
     !runId ||
-    !/^(e2e|preview)_[a-f0-9]{24}$/.test(runId) ||
+    !/^e2e_[a-f0-9]{24}$/.test(runId) ||
     !root?.startsWith('/')
   )
     return {};
@@ -152,6 +152,9 @@ export function isolatedChildIdentity(): NodeJS.ProcessEnv {
 
 /** 独立下载公开进程不得继承任何数据面/云凭据；只允许专用无密钥配置文件。 */
 export function gatewayEnvironmentSafe(env: NodeJS.ProcessEnv = process.env) {
+  if (Object.keys(env).some(isRetiredPreviewSetting) || env.E2E_RUN_ID?.startsWith('preview_')) {
+    return false;
+  }
   return !Object.entries(env).some(
     ([key, value]) =>
       value &&

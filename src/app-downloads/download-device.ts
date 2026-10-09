@@ -20,20 +20,11 @@ export function freshSigningKey() {
 export function freshDeviceKeys(): DeviceKeys {
   return { hashKey: randomBytes(32).toString('hex'), active: freshSigningKey(), previous: null };
 }
-export function deviceCookieName(previewRunId?: string) {
-  assertDownload(!previewRunId || /^preview_[a-f0-9]{24}$/.test(previewRunId));
-  return previewRunId ? `preview-${previewRunId}-download-device` : '__Host-wenyou-download-device';
-}
-
 /** 签名只证明随机浏览器标识由本服务签发，不证明硬件唯一，也不替代 IP 配额。 */
 export class DownloadDevice {
-  readonly cookieName: string;
-  constructor(
-    private readonly keys: DeviceKeys,
-    private readonly previewRunId?: string,
-  ) {
+  readonly cookieName = '__Host-wenyou-download-device';
+  constructor(private readonly keys: DeviceKeys) {
     deviceKeysSchema.parse(keys);
-    this.cookieName = deviceCookieName(previewRunId);
   }
   private signature(value: string, key: string) {
     return createHmac('sha256', Buffer.from(key, 'hex'))
@@ -74,7 +65,7 @@ export class DownloadDevice {
     let setCookie: string | undefined;
     if (refresh) {
       const token = `v1.${this.keys.active.id}.${device}.${seconds + DEVICE_COOKIE_SECONDS}`;
-      setCookie = `${this.cookieName}=${token}.${this.signature(token, this.keys.active.key)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${DEVICE_COOKIE_SECONDS}${this.previewRunId ? '' : '; Secure'}`;
+      setCookie = `${this.cookieName}=${token}.${this.signature(token, this.keys.active.key)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${DEVICE_COOKIE_SECONDS}; Secure`;
     }
     return { device, recognized, setCookie };
   }

@@ -19,7 +19,7 @@ function state(path:string) {
 }
 function rejects(reason:string) {return (e:unknown)=>e instanceof DownloadFailure && e.reason===reason;}
 
-test('签名随机 Cookie 稳定、防篡改，生产与预览隔离；非法/缺失 Cookie 不冒充已有设备',()=>{
+test('签名随机 Cookie 稳定、防篡改且始终要求 Secure；非法/缺失 Cookie 不冒充已有设备',()=>{
   const keys=freshDeviceKeys(), service=new DownloadDevice(keys), now=Date.now();
   const first=service.resolve(undefined,now), cookie=first.setCookie!.split(';')[0];
   assert(!first.recognized);assert(first.setCookie!.includes('; HttpOnly; SameSite=Lax;'));
@@ -29,9 +29,6 @@ test('签名随机 Cookie 稳定、防篡改，生产与预览隔离；非法/�
     const result=service.resolve(invalid,now);assert(!result.recognized);assert(result.device!==first.device);
   }
   assert(!service.resolve(cookie,now+DEVICE_COOKIE_SECONDS*1000).recognized);
-  const preview=new DownloadDevice(keys,'preview_'+'a'.repeat(24)), local=preview.resolve(undefined,now);
-  assert(!local.setCookie!.includes('; Secure'));assert(local.setCookie!.includes('; HttpOnly; SameSite=Lax;'));
-  assert(!preview.resolve(cookie.replace(service.cookieName,preview.cookieName),now).recognized);
 });
 
 test('次数与字节同一事务：设备、IP、日/月字节、记录容量拒绝均不误扣其他额度',async()=>{

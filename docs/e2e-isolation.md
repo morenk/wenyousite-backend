@@ -90,9 +90,9 @@ Linux 退出期间可能先置位 PF_EXITING，进程仍暂时显示 R，且 env
 
 管理员会话策略回归使用 `pnpm test:integration:admin-session`，由同一 runner 创建和核验随机资源；已纳入 `pnpm test:e2e:full`。原始脚本拒绝仅设置旧环境标记或 loopback 连接的执行。迁移前后验证使用该隔离 PostgreSQL 实例中的随机子库，迁移工作目录置于运行私有目录，正常完成主动移除；异常退出由 runner 一并回收实例及运行目录。
 
-## 持续交互预览
+## 日常开发与一次性 E2E
 
-需要跨多轮视觉反馈保留数据时，使用 [交互式开发预览](dev-preview.md)，其登记、停止与清理独立于本页一次性 runner。不得把长期预览传给 E2E reaper，也不能把预览实例当作全量 E2E 的共享数据源。
+日常开发按需使用[普通调试入口](development.md)，不依赖每日快照或持续预览会话。写入 E2E 仍必须使用本页一次性 runner，不得使用日常开发数据库；旧预览遗留数据不属于 E2E reaper 的清理范围。
 
 ### 管理界面真实 API 联验
 

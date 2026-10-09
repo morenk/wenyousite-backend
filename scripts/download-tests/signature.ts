@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
-import { timingSafeEqual } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { SignatureV4 } from '@smithy/signature-v4';
 import { HttpRequest } from '@smithy/protocol-http';
 import { Sha256 } from '@aws-crypto/sha256-js';
 import { IncomingMessage } from 'node:http';
-import { hash } from './common';
 
 /** s3rver 的 V4 校验未实现；网关验证 AWS SigV4 canonical request，保持预签名 Host/端口语义。 */
 export async function verifyS3Signature(req:Pick<IncomingMessage,'method'|'headers'|'url'>,origin:string,now=Date.now()) {
@@ -46,7 +45,7 @@ export async function verifyS3Signature(req:Pick<IncomingMessage,'method'|'heade
     assert(/^[a-z0-9-]+$/.test(name)&&req.headers[name]!==undefined,'签名头缺失');
     const value=req.headers[name];assert(typeof value==='string','签名头不可重复');selected[name]=value;
   }
-  selected['x-amz-content-sha256']=presigned?'UNSIGNED-PAYLOAD':String(req.headers['x-amz-content-sha256']||hash(''));
+  selected['x-amz-content-sha256']=presigned?'UNSIGNED-PAYLOAD':String(req.headers['x-amz-content-sha256']||createHash('sha256').update('').digest('hex'));
   // 用同一官方签名器重建 canonical request；query 的 signature 字段由其规范化逻辑排除。
   const signer=new SignatureV4({service:'s3',region:'us-east-1',credentials:{accessKeyId:'S3RVER',secretAccessKey:'S3RVER'},sha256:Sha256,uriEscapePath:false,applyChecksum:false});
   const unsigned=new Set(['x-amz-date','x-amz-content-sha256'].filter(name=>!headers.includes(name)));

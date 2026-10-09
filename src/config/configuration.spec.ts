@@ -1,4 +1,4 @@
-import configuration from './configuration';
+import configuration, { isolatedChildIdentity } from './configuration';
 
 describe('configuration', () => {
   beforeEach(() => {
@@ -7,6 +7,21 @@ describe('configuration', () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  it('图片子进程仅接收当前一次性 E2E 身份，不再传递持续预览身份', () => {
+    process['env'].NODE_ENV = 'test';
+    process['env'].E2E_RESOURCE_ROOT = '/tmp/e2e-current';
+    process['env'].E2E_RUN_ID = 'e2e_' + 'a'.repeat(24);
+    expect(isolatedChildIdentity()).toEqual({
+      E2E_RUN_ID: 'e2e_' + 'a'.repeat(24),
+      E2E_RESOURCE_ROOT: '/tmp/e2e-current',
+    });
+    process['env'].E2E_RUN_ID = 'preview_' + 'a'.repeat(24);
+    expect(isolatedChildIdentity()).toEqual({});
+    process['env'].E2E_RUN_ID = 'e2e_' + 'a'.repeat(24);
+    process['env'].NODE_ENV = 'production';
+    expect(isolatedChildIdentity()).toEqual({});
   });
 
   it('提供本地开发所需的稳定默认值', () => {

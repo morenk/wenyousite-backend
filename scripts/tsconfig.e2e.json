@@ -18,13 +18,10 @@
     "content-write-consistency.integration.ts",
     "redis-failure.integration.ts",
     "private-invite-reuse.integration.ts",
-    "private-invite-reuse-preview.ts",
     "profile-follow-counts.integration.ts",
     "post-edited-time.integration.ts",
-    "post-edited-time-preview.ts",
     "mobile-releases.integration.ts",
     "app-downloads.integration.ts",
-    "mobile-release-preview.ts",
     "e2e-admin-fixtures.integration.ts",
     "e2e-guard.test.ts",
     "e2e-processes.test.ts",
@@ -37,7 +34,6 @@
     "discussion-fixtures.consumer-test.ts",
     "thread-identity.integration.ts",
     "rp-profile.integration.ts",
-    "thread-identity-preview.ts",
     "role-mentions.integration.ts"
   ]
 }

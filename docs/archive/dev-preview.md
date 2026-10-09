@@ -1,10 +1,12 @@
+> 历史记录：本方案及工具已于 2026-10-10 按负责人要求退役，以下命令和协议不再作为当前开发入口。现行方式见[日常开发与自动化验证](../development.md)。已有状态、快照和备份未由本次代码变更删除。
+
 # 实时开发预览运行说明
 
 预览是持续反馈环境，与一次性 E2E 隔离 runner 分开登记。源码修改与交付仍通过 Git，实际数据只留在 VPS 私有目录。不要部署、合并或替换正式服务来查看样式。
 
 ## 开发启动
 
-已配置 E2E 只读二进制（参见 [E2E 隔离](e2e-isolation.md)）并生成 Prisma Client 后，在 Backend 任务 Worktree：
+已配置 E2E 只读二进制（参见 [E2E 隔离](../e2e-isolation.md)）并生成 Prisma Client 后，在 Backend 任务 Worktree：
 
 ```bash
 pnpm dev:preview start --session page-layout --web-port 43881
@@ -139,4 +141,4 @@ Web/Mobile 共用 `consumer.json`，先核验后端及媒体真实运行身份�
 
 ## 下载入口合成样本
 
-无需真实快照的 ThemeMenu「下载 APP」入口反馈可使用 `--sample downloads`，验证一次显式点击内的版本/状态查询、HEAD 校验与浏览器原生 GET 下载，隔离边界、consumer 标记和运行命令见 [下载网关](app-download-gateway.md#隔离验证与-web-样本预览)。同时验证 Android/iOS 移动设备会话首次访问自动提示、可关闭且同会话不重复；提示明确仅提供 Android 安装包并允许 iOS 继续网页，展示时不触发 APK HEAD/GET。该模式不替代真实数据或安装包验收。
+无需真实快照的 ThemeMenu「下载 APP」入口反馈可使用 `--sample downloads`，验证一次显式点击内的版本/状态查询、HEAD 校验与浏览器原生 GET 下载，隔离边界、consumer 标记和运行命令见 [下载网关](../app-download-gateway.md#隔离验证)。同时验证 Android/iOS 移动设备会话首次访问自动提示、可关闭且同会话不重复；提示明确仅提供 Android 安装包并允许 iOS 继续网页，展示时不触发 APK HEAD/GET。该模式不替代真实数据或安装包验收。

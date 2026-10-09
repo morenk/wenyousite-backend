@@ -13,6 +13,7 @@
 | [前端接入指南](./frontend-guide.md)                                  | 认证流程、分页约定、核心业务示例、生成错误码入口        |
 | [API 端点表](./api-endpoints.md)                                     | API 方法、路径、守卫和参数说明                          |
 | [API 参数校验规范](./api-validation.md)                              | 全局校验管道、DTO 编写规范、参数类型约束细则            |
+| [日常开发与自动化验证](./development.md) | 普通调试入口、自动化数据边界与旧预览退役 |
 | [后端架构与模块边界](./architecture.md)                              | 分层规则、事务 Outbox、API 契约和自动门禁               |
 | [宿主机健康巡检与延迟排查](./host-health-operations.md)              | I/O、API、事务超时的本机采样、诊断与事故证据             |
 | [数据库安全、备份与恢复](./database-operations.md)                  | 最小权限、PITR、异地备份、告警、恢复切换与季度演练       |
