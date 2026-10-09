@@ -32,8 +32,6 @@ HEAD 对同一访客预检次数与所请求范围的字节预算，但不预留
 
 Cookie 可清除、浏览器可拒绝保存，不能保证物理设备唯一。没有有效 Cookie 的客户端仍受同一可信 IP 的总次数限制；直接 GET 新签发的随机标识也记本次尝试，但客户端不保存就无法在后续请求识别为同一设备。旧 Android APP 不必增加 info、Cookie 或改变 URL，可直接先 HEAD 再 GET，保持原 metadata；共享 Wi-Fi/NAT 的客户端共用 IP 10 次。IP 只取 Caddy 覆写且已规范化的 X-Real-IP，客户端自报转发头不参与身份。次数表只存按日及类别隔离的 HMAC 伪名，不存原 IP 或 Cookie，日志与公开指标不输出标识/密钥。
 
-HTTP 隔离预览通过本批次 `DOWNLOAD_PREVIEW_RUN_ID` 使用 `preview-<runId>-download-device`，保留 HttpOnly/SameSite=Lax，仅该显式预览模式省略 Secure；签名绑定 Cookie 名且各批次密钥独立。预览代理保留当前批次 Cookie 与 Set-Cookie，不接受其他批次标识。生产安装检查拒绝预览模式。Cookie 前缀与同源行为参考 [MDN Set-Cookie](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie)；用户主动关闭 Cookie 后只能保证 IP 限制。
-
 默认配置可由管理身份通过 `DOWNLOAD_DEVICE_DAY_COUNT=3`、`DOWNLOAD_IP_DAY_COUNT=10` 调整，不接受请求参数覆盖。`DOWNLOAD_COUNT_MAX_SUBJECTS=100000` 限制同一天设备/IP 伪名总行数；到上限时拒绝新主体（503），不逐出当日有效计数，既有主体仍按自身余额判定。下一北京时间日首次成功的正文计量事务删除过期次数/主体行；空闲时最多保留上次活动日，不随 Cookie 签发或 HEAD 增长。SQLite 数据文件强制 4 KiB 页、最大 16384 页（64 MiB），WAL 每 256 页尝试 checkpoint、回收后保留上限 1 MiB；长事务可临时延迟 WAL 回收，不能通过清空账本释放额度。文件或存储耗尽时拒绝服务。数据文件上限依据 [SQLite max_page_count](https://www.sqlite.org/pragma.html#pragma_max_page_count)。
 
 ### 账本升级、签名持久化与轮换
@@ -42,7 +40,7 @@ HTTP 隔离预览通过本批次 `DOWNLOAD_PREVIEW_RUN_ID` 使用 `preview-<runI
 
 签名密钥与用于计数伪名的独立 HMAC 密钥由显式初始化/升级生成，保存在私有 0600 出站 SQLite 和 0700 目录内，随账本持久化/备份；不放公共配置、环境、命令参数或日志，重启不重新生成。离线 `rotate-device-key --env <专用配置>` 同样取得网关锁，保留旧签名密钥最多 30 天验证宽限；浏览器下次请求以原随机 ID 换发新签名，计数伪名密钥不变，当前次数不重置。只保留当前/上一代两把签名密钥，上一代宽限未结束时拒绝再次轮换，避免静默使有效 Cookie 失效；当前程序须重启读取新密钥。
 
-升级前可回滚尚未提交的 SQLite 事务；升级后旧 v1 程序按版本校验拒绝 v2，不能通过删表、删库、恢复旧快照或降版本放开已用额度。优先前滚修复或回滚到支持 v2 及同一次数语义的实现，并保留当前账本；灾难恢复仍遵循独立新卷、备份验证与显式切换门禁，不能自动覆盖活动账本。持续预览也只在源码已提交后停止本任务、用相同 CLI 升级、再 resume；保留 runId、原数据与所有旧预算，不 reset。
+升级前可回滚尚未提交的 SQLite 事务；升级后旧 v1 程序按版本校验拒绝 v2，不能通过删表、删库、恢复旧快照或降版本放开已用额度。优先前滚修复或回滚到支持 v2 及同一次数语义的实现，并保留当前账本；灾难恢复仍遵循独立新卷、备份验证与显式切换门禁，不能自动覆盖活动账本。
 
 `/meta.mobileCompatibility.android.updateUrl` 迁移后为 `https://wenyou.site/api/v1/app-downloads/android/{buildNumber}/file`；iOS 不变。旧数据库 promotion.updateUrl 与历史 TSV 原文保留，通过独立制品记录存储 bucket/key/publicUrl，不重写旧审计事实。
 
@@ -89,20 +87,10 @@ SQLite 使用 `BEGIN IMMEDIATE`、WAL 和 `synchronous=FULL`，每次正文发�
 
 unit 限制 AF_UNIX、PrivateNetwork、MemoryMax=256M、MemoryHigh=192M、CPUQuota=50%、TasksMax=32、只读缓存/目录，明确隐藏 backend/migration/origin 配置与私有回源目录。`node --import tsx scripts/validate-download-security.ts` 验证模板；管理安装后加 `--installed` 校验安装模板及公共配置权限，仍需现场核验有效 unit、身份/组、目录权限和 Caddy 覆写 IP。`GET /__health` 与 `GET /__metrics` 仅供本机 UDS 管理探针；Caddy 不转发它们。健康探针不读账本或消耗预算；内部指标包含聚合请求/拒绝原因/完成/中断/活动数、缓存命中/失败数与只读出站预算累计；回源量由 publisher 的 status 只读查询独立账本。不含 IP、对象路径或凭据；预算指标不得暴露给公开下载信息接口或健康探针。
 
-## 隔离验证与 Web 样本预览
+## 隔离验证
 
 `pnpm test:downloads` 执行类型检查、真实 UDS、私有对象存储、持久预算、并发/限速、失败恢复与模板拒绝测试；测试目录独立且清理。`pnpm test:integration:app-downloads` 由标准 E2E runner 创建并核验独立 PostgreSQL/Redis，再验证新增 migration 重入、旧用户/钱包/制品审计保留、真实注册并发和私有预热。已纳入完整门禁。首次定向验证可使用 `pnpm e2e:run --suite=app-downloads --source` 启动本任务源码（仍使用同一隔离身份校验），正式完整门禁使用构建产物。测试对象存储拒绝未签名 GET/HEAD，完全使用合成 APK，不访问 RainS3。
 
-ThemeMenu「下载 APP」入口交互可用合成持续预览（相关安全门禁通过且源码已提交后启动）：
-
-```bash
-pnpm dev:preview start --session app-downloads --sample downloads --web-port 4310
-pnpm dev:preview status --session app-downloads
-pnpm dev:preview stop --session app-downloads
-```
-
-该模式使用新建并核验的 PostgreSQL/Redis、独立目录/账本与合成 APK，不要求真实快照或云凭据；`consumer.json` 明确 `sample=downloads`，不得称为真实数据/可安装正式包。Web 使用 consumer 的身份与 backend origin 接口；预览代理仅对 JSON 中的下载/说明 URL 改写为同一隔离 origin，禁止点击样本后跳去公网。浏览器导航仅允许这些精确路径的 GET/HEAD 省略自定义身份头，仍核验本次数据进程、API/下载进程与请求 Origin；其他 API 和写入仍要求身份头。其 stop 保留数据，不使用 E2E reaper；清理仍须明确指定预览批次。`pnpm exec tsx scripts/dev-preview/downloads.integration.ts` 验证匿名文件导航、元数据/正文哈希、说明、拒绝路径与恢复不清预算，最终清理自有样本。账号登录旅程及真机安装仍须单独验收。
-
-消费端若限定下载 URL 为生产域，应仅在已核验的合成预览会话中接受 `consumer.backend.origin`，继续校验构建号对应的精确路径；不要全局放开任意 localhost/外部 URL。Web 可将这个已核验地址转换为同源 API 路径并经既有预览代理下载；直接跟随完整样本 URL 的浏览器/移动端须同端口转发 consumer 的 backend 端口。正式运行仍只接受 `https://wenyou.site`。
+日常 Web 调试按各仓库普通开发入口按需启动。持续隔离预览及其 HTTP Cookie 模式正在退役；自动化下载和写入验证继续使用上述独立测试入口。
 
 持久性依据 [SQLite synchronous](https://sqlite.org/pragma.html#pragma_synchronous)，二进制清单格式依据 [Android ResourceTypes](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/libs/androidfw/include/androidfw/ResourceTypes.h)。这些实现证据不代替真实 RainS3 鉴权读取验证、有效 systemd/Caddy 部署或旧 APP 真机验收；关闭公共读仍须独立评审。
