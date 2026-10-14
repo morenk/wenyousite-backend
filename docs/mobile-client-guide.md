@@ -1,6 +1,6 @@
 # Flutter / 原生移动端接入
 
-Android `/meta.updateUrl` 将兼容迁移到本站固定构建 APK 路由，保留旧 APP HEAD 校验 metadata；不指向 HTML 下载页。Windows 迁移、发布 CLI 与灰度顺序见 [下载网关契约](app-download-gateway.md)，VPS 不代表移动端门禁已执行。
+Android /meta.updateUrl 恢复为固定构建的 RainS3 APK 直连地址，保留 HEAD 身份校验与下载后 SHA-256/包身份核验；不指向 HTML 页面。切换、兼容及发布说明见 [存储桶直连契约](android-direct-download.md)，VPS 不代表移动端检查已执行。
 
 下载次数兼容：默认同一有效浏览器标识每天 3 次、单 IP 总计每天 10 次，按北京时间重置并跨构建累计。现有 APP 无需增加 info 调用、Cookie 或改变文件 URL，可继续直接 HEAD/GET；没有有效 Cookie 时只能按 IP 总次数约束，不等于验证设备唯一。HEAD 可能提前返回 429，GET 仍会最终判定；按 `Retry-After` 等待，`X-Download-Limit-Reason` 可区分 `device_daily_limit`、`ip_daily_limit` 与既有预算/频率限制。获准后中断、Range 和主动重试都计尝试，不能自动无限重试。Windows Flutter 消费端需基于固定契约同步；此文档不代表已执行真机门禁。
 

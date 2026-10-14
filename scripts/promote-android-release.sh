@@ -57,7 +57,8 @@ usage() {
     --sha256 <64 hex> \
     --notes-revision <预检返回的 confirmedRevision>
 
-本站网关迁移/晋级：在原参数前加 --gateway；--url 保留原始对象地址，
+默认直连 RainS3，支持同构建从旧网关恢复原始对象地址；先校验公开对象身份。
+历史兼容网关晋级：在原参数前加 --gateway；--url 保留原始对象地址，
 鉴权预热通过后 meta 自动使用本站固定构建文件地址，不重写旧审计。
 网关撤回：promote-android-release.sh --gateway --withdraw
 
@@ -396,7 +397,9 @@ if [ "$MODE" = promote ]; then
       exit 2
     fi
     if ((BUILD_NUMBER == CURRENT_RECOMMENDED)); then
-      if [ "$CURRENT_URL" != "$UPDATE_URL" ] && [ "$CURRENT_URL" != "$PUBLIC_UPDATE_URL" ]; then
+      LEGACY_GATEWAY_URL="https://wenyou.site/api/v1/app-downloads/android/$BUILD_NUMBER/file"
+      if [ "$CURRENT_URL" != "$UPDATE_URL" ] && [ "$CURRENT_URL" != "$PUBLIC_UPDATE_URL" ] &&
+         { [ "$GATEWAY" = true ] || [ "$CURRENT_URL" != "$LEGACY_GATEWAY_URL" ]; }; then
         echo "同一构建号不能关联不同 URL" >&2
         exit 2
       fi

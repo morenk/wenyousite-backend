@@ -33,7 +33,7 @@ Prisma / Redis / BullMQ / Object Storage
 
 图片元数据只能由 `common/image-inspection.ts` 读取；该技术层固定首帧读取，向领域层提供 `frameWidth`、`frameHeight`、`frameCount`、`totalFramePixels` 和时长，不暴露 sharp 在全帧模式下表示垂直堆叠尺寸的 `height`。输入及转码输出共用此入口；APNG 的动画声明按 PNG chunk 边界和校验检查；当前明确不支持 APNG，即使只声明一帧也拒绝，防止把独立默认图当成动画内容。未来解码库支持 APNG 时仍须独立评审政策和回归，不随库能力变化自动接受。`media-image-inspection.ts` 保留媒体自身的格式、MIME 与 GIF 预算，表情模块保留独立的静态/动画像素、帧数、时长及转码政策，不共用产品预算。真实编码的多帧、边界、输出尺寸和损坏文件回归验证这项约束。
 
-Android APK 下载使用独立进程、只读缓存和持久化预算账本；仅私有发布 CLI 的 `StreamingApkOrigin` 从专用配置读取存储凭据并流式读取 APK，不复用图片 Buffer 适配器。允许复用已有凭据，代码只调用固定 APK 路径的读取操作，不代表凭据在云端只读或仅限 APK。隔离边界见 [下载网关](app-download-gateway.md)。
+Android APK 新入口按 [存储桶直连契约](android-direct-download.md) 提供已发布推荐制品信息，正文由桶直接提供。历史兼容下载网关使用独立进程、只读缓存和持久化预算账本；仅私有发布 CLI 的 `StreamingApkOrigin` 从专用配置读取存储凭据并流式读取 APK，不复用图片 Buffer 适配器。允许复用已有凭据，代码只调用固定 APK 路径的读取操作，不代表凭据在云端只读或仅限 APK。隔离边界见 [下载网关](app-download-gateway.md)。
 
 这些规则由 `pnpm arch:check` 自动检查。当前还限制单个 service 不超过 650 行；达到阈值前应优先按职责拆分。
 

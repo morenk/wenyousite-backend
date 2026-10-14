@@ -1,6 +1,8 @@
 # 兼容协议登记
 
-Android APK 源站 URL：保留历史 promotion/TSV 原文与旧 APP HEAD metadata。新公开文件 URL 独立记录；关闭 APK 公共读需完成预热、本站 meta/Web、旧 APP 验收后独立评审，不修改图片桶或实例开关。见 [下载网关契约](app-download-gateway.md)。
+Android 自研 APK 网关：新消费者迁移至 [存储桶直连契约](android-direct-download.md)，/app-downloads/*、--gateway、downloadArtifact 历史记录与账本暂保留，不再作为新入口。删除必须另有无消费者、数据迁移、回归和回滚四项证据；本次无清理。原桶公开 URL 恢复为默认发布目标，不执行关闭 APK 公共读的旧迁移计划。
+
+Android APK 源站 URL（历史网关迁移记录）：保留历史 promotion/TSV 原文与旧 APP HEAD metadata。新公开文件 URL 独立记录；关闭 APK 公共读需完成预热、本站 meta/Web、旧 APP 验收后独立评审，不修改图片桶或实例开关。见 [下载网关契约](app-download-gateway.md)。
 
 | 协议 | 状态 | 消费者与退出条件 |
 | --- | --- | --- |

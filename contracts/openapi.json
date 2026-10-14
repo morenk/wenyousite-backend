@@ -28773,6 +28773,106 @@
         "x-auth-mode": "admin"
       }
     },
+    "/api/v1/mobile-releases/android/download": {
+      "get": {
+        "description": "仅返回受限发布完成的当前推荐制品。无推荐为 no_release；策略尚未切回存储桶、记录缺失或身份不匹配为 unavailable。该入口不访问对象存储、不代理 APK、不签发网关 Cookie。客户端显式点击后直连桶校验 HEAD，再原生 GET；限额及缓存遵循存储桶响应。",
+        "operationId": "mobileReleasesAndroidDownload",
+        "parameters": [
+          {
+            "name": "X-Markdown-Contract-Version",
+            "in": "header",
+            "required": false,
+            "description": "声明 6 以读取原始角色提及源和稳定目标投影；省略/低版本安全降级响应副本，不能回写 v6 正文。服务端全局 Markdown 仍为 5",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                6
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MobileReleasesAndroidDownload200Response"
+                }
+              }
+            },
+            "headers": {
+              "Vary": {
+                "description": "追加 X-Markdown-Contract-Version，保留已有 Origin/Accept 等；缓存不得混用能力响应或会话",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "发布记录暂不可读，不回退旧网关或任意 URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "Vary": {
+                "description": "追加 X-Markdown-Contract-Version，保留已有 Origin/Accept 等；缓存不得混用能力响应或会话",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "Vary": {
+                "description": "追加 X-Markdown-Contract-Version，保留已有 Origin/Accept 等；缓存不得混用能力响应或会话",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "summary": "读取 Android 推荐版本及存储桶直连地址",
+        "tags": [
+          "Mobile Releases"
+        ],
+        "x-auth-mode": "public",
+        "security": []
+      }
+    },
     "/api/v1/wallet": {
       "get": {
         "operationId": "economyGetWallet",
@@ -29855,7 +29955,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.36.0-dev.20261005.1",
+    "version": "5.37.0-dev.20261015.1",
     "contact": {}
   },
   "tags": [
@@ -30051,7 +30151,8 @@
           },
           "downloadUrl": {
             "type": "string",
-            "example": "https://wenyou.site/api/v1/app-downloads/android/42/file"
+            "example": "https://wenyou-apk.cn-nb1.rains3.com/mobile/android/wenyou-0.3.0-dev.36-42.apk",
+            "description": "新入口返回固定 HTTPS 存储桶地址；历史 app-downloads 入口仍返回本站兼容地址"
           },
           "releaseNotesUrl": {
             "type": "string",
@@ -46412,6 +46513,24 @@
             "properties": {
               "data": {
                 "$ref": "#/components/schemas/AdminMobileReleaseDto"
+              }
+            }
+          }
+        ]
+      },
+      "MobileReleasesAndroidDownload200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AndroidDownloadInfoDto"
               }
             }
           }

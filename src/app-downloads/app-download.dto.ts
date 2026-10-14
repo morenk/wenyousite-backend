@@ -9,7 +9,10 @@ export class AndroidDownloadReleaseDto {
   @ApiProperty({ pattern: '^[0-9a-f]{64}$' }) sha256!: string;
   @ApiProperty({ example: 'wenyou-0.3.0-dev.36-42.apk' }) fileName!: string;
   @ApiProperty({ format: 'date-time' }) publishedAt!: string;
-  @ApiProperty({ example: 'https://wenyou.site/api/v1/app-downloads/android/42/file' })
+  @ApiProperty({
+    example: 'https://wenyou-apk.cn-nb1.rains3.com/mobile/android/wenyou-0.3.0-dev.36-42.apk',
+    description: '新入口返回固定 HTTPS 存储桶地址；历史 app-downloads 入口仍返回本站兼容地址',
+  })
   downloadUrl!: string;
   @ApiProperty({ example: 'https://wenyou.site/api/v1/mobile-releases/android/42' })
   releaseNotesUrl!: string;
