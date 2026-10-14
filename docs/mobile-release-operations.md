@@ -1,5 +1,7 @@
 # 移动端私有发布运维
 
+新发布默认恢复 RainS3 直连，按 [存储桶直连切换步骤](android-direct-download.md) 执行；下文旧网关迁移/预热步骤仅为历史兼容，不能再作为新发布默认。
+
 Flutter 检查、正式签名、APK 验收与 RainS3 上传始终在 Windows 开发机完成。VPS 不接收 APK 或对象存储密钥，只在公开对象及已确认说明通过复核后更新 `GET /api/v1/meta` 的 Android 推荐构建号与下载地址。
 
 ## 安全边界

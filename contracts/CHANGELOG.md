@@ -1,5 +1,11 @@
 # API 合同变更
 
+## 5.37.0-dev.20261015.1
+
+- 兼容新增匿名 mobileReleasesAndroidDownload，返回当前推荐已完成发布的 RainS3 直连 APK 身份；沿用 AndroidDownloadInfoDto，不代理正文、不预热或签发网关 Cookie。
+- 受限发布允许同构建从精确的旧网关 URL 恢复原桶地址，公开 HEAD/校验文件与历史身份校验仍必需；旧路由/协议、发布模式与审计记录保持。
+- Web 使用新 JSON 后直连桶 HEAD/GET；Mobile 仍消费 /meta.updateUrl。客户端、CORS、缓存及合并后切换见 [存储桶直连契约](../docs/android-direct-download.md)。本次不迁移数据库、不改变线上策略。
+
 ## 5.36.0-dev.20261005.1
 
 RP 身份新增同主题资料楼层引用，可显式设置/解绑，原省略字段保持；当前可读引用与本人原绑定分离，不修改历史快照。新增 rpIdentityProfileSupported 能力、profilePostStatus 状态与独立作者版本；角色和帖子详情禁止缓存复用权限。接口、错误码和 Markdown 版本保持兼容，详见 [资料引用契约](../docs/rp-identity-profile-post.md)。

@@ -416,6 +416,7 @@
 |---|---|---|---|
 | GET | `/mobile-releases` | public | 已发布版本历史，按构建号倒序；仅返回公开快照 |
 | GET | `/mobile-releases/{platform}/{buildNumber}` | public | 读取已发布版本说明；不存在或未发布均为 404 |
+| GET | `/mobile-releases/android/download` | public | 读取 Android 推荐版本及存储桶直连地址 |
 
 ## Admin Mobile Releases
 

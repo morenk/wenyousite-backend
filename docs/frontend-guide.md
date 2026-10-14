@@ -1,5 +1,7 @@
 # 温油站 — 前端接入指南
 
+Android 下载入口读取 [存储桶直连契约](android-direct-download.md)，用户显式点击后请求新 JSON，并以无凭证跨域 HEAD 校验后原生 GET。
+
 > 面向前端 / Flutter / React 开发者的 API 对接文档。
 > Swagger 文档：开发环境 `http://localhost:3000/api/docs`，按端点查阅请求/响应 Schema。
 > 本文档提供 Swagger 不易表达的认证流程、分页约定、关键业务规则和生成错误码入口。

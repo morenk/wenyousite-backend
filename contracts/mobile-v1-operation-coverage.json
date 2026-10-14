@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "5.36.0-dev.20261005.1",
+  "contractVersion": "5.37.0-dev.20261015.1",
   "counts": {
-    "total": 248,
+    "total": 249,
     "v1": 120,
     "deferred": 66,
     "notApplicable": 58,
-    "infrastructure": 4
+    "infrastructure": 5
   },
   "operations": [
     {
@@ -1964,6 +1964,14 @@
       "path": "/api/v1/admin/mobile-releases/{id}/confirm",
       "module": "admin",
       "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "mobileReleasesAndroidDownload",
+      "method": "GET",
+      "path": "/api/v1/mobile-releases/android/download",
+      "module": "infrastructure",
+      "disposition": "infrastructure",
       "status": "not_applicable"
     },
     {

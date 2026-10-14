@@ -145,7 +145,8 @@ function moduleFor(operation: Operation, disposition: Disposition): string {
 
 function dispositionFor(operation: Operation): Disposition {
   const primaryTag = operation.tags[0] ?? '';
-  if (operation.operationId === 'healthCheck' || operation.tags.includes('App Downloads')) return 'infrastructure';
+  // Web 直连下载信息不替代 Mobile 既有 /meta 更新入口。
+  if (operation.operationId === 'healthCheck' || operation.operationId === 'mobileReleasesAndroidDownload' || operation.tags.includes('App Downloads')) return 'infrastructure';
   if (adminTags.has(primaryTag)) return 'not_applicable';
   if (v1Operations.has(operation.operationId)) return 'v1';
   if (deferredTags.has(primaryTag) || deferredOperations.has(operation.operationId)) {

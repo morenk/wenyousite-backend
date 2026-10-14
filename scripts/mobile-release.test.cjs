@@ -166,3 +166,23 @@ test('已迁移 meta 的旧撤回入口也关闭文件，空 meta 不跳过显�
  const f=gatewayFixture(t);assert.equal(f.runGateway().status,0);assert.equal(f.run(['--withdraw']).status,0);assert.equal(JSON.parse(fs.readFileSync(f.catalog)).state,'withdrawn');
  fs.writeFileSync(f.catalog,JSON.stringify({state:'available'}));assert.equal(f.run(['--gateway','--withdraw']).status,0);assert.equal(JSON.parse(fs.readFileSync(f.catalog)).state,'withdrawn');
 });
+
+test('同构建网关恢复桶直连先校验公开对象，保留历史与旧网关 catalog',t=>{
+ const f=gatewayFixture(t);assert.equal(f.runGateway().status,0);
+ const oldHistory=fs.readFileSync(f.history,'utf8'), oldCatalog=fs.readFileSync(f.catalog,'utf8');
+ const oldCalls=fs.readFileSync(path.join(f.root,'download.log'),'utf8');
+ const result=f.run();assert.equal(result.status,0,result.stderr);
+ assert(fs.readFileSync(f.envFile,'utf8').includes('MOBILE_ANDROID_UPDATE_URL='+url));
+ assert.equal(fs.readFileSync(f.history,'utf8'),oldHistory);
+ assert.equal(fs.readFileSync(f.catalog,'utf8'),oldCatalog);
+ assert.equal(fs.readFileSync(path.join(f.root,'download.log'),'utf8'),oldCalls);
+});
+test('旧网关切回源站失败时保留网关策略，同 build 错误地址仍拒绝',t=>{
+ const f=gatewayFixture(t);assert.equal(f.runGateway().status,0);
+ const oldEnv=fs.readFileSync(f.envFile,'utf8');
+ const bad=[...args];bad[bad.indexOf('--sha256')+1]='b'.repeat(64);
+ assert.notEqual(f.run(bad).status,0);
+ assert.equal(fs.readFileSync(f.envFile,'utf8'),oldEnv);
+ fs.writeFileSync(f.envFile,oldEnv.replace('/android/42/file','/android/41/file'));
+ assert.notEqual(f.run().status,0);
+});
