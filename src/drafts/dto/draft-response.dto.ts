@@ -1,3 +1,4 @@
+import { AudioMediaDto } from '../../media/dto/audio-media.dto';
 import { MarkdownMediaDisplayResponseDto } from '../../media/dto/media-display.dto';
 /** 草稿响应 DTO：供 Web/Flutter 生成草稿池强类型客户端 */
 
@@ -7,6 +8,9 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export class DraftResponseDto {
   @ApiPropertyOptional({ type: [MarkdownMediaDisplayResponseDto], description: '仅此次已授权正文中的精确来源映射；编辑保存继续使用 sourceUrl' })
   mediaDisplays?: MarkdownMediaDisplayResponseDto[];
+
+  @ApiPropertyOptional({ type: [AudioMediaDto], description: '本次已授权正文内的音频引用；缺失时链接按旧端规则呈现' })
+  mediaAudios?: AudioMediaDto[];
 
   @ApiProperty()
   id!: string;

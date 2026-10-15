@@ -118,6 +118,7 @@ enum MediaPurpose {
   MOMENT
   MOMENT_COMMENT
   RICH_CONTENT
+  RICH_CONTENT_AUDIO
   STICKER_SOURCE
   LEGACY
 }
@@ -931,6 +932,8 @@ model Media {
   height              Int?
   animated            Boolean      @default(false)
   status              MediaStatus  @default(UPLOADING)
+  durationMs          Int?         @map("duration_ms")
+  failureCode         String?      @map("failure_code")
   processingStartedAt DateTime?    @map("processing_started_at")
   createdAt           DateTime     @default(now()) @map("created_at")
   orphanedAt          DateTime?    @map("orphaned_at")

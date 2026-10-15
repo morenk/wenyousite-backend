@@ -104,3 +104,7 @@ UPLOADING ──(元数据不合法)──────────────�
 标准输出为 JSONL，候选只包含 mediaId 与旧/新 width、height、animated，不含对象键、URL 或用户信息。媒体 GIF 的 animated 沿用现有格式标记语义（包括单帧 GIF），表情的 animated 则表示是否多帧，两者不能互相套用。将计划保存为受控审查文件；本入口不提供 `--apply`，不修改数据库或对象，也不能把历史 animated 默认值问题全部归因于某次上传改动。
 
 历史写入修复仍需独立明确授权。执行前重读对象及当前记录，按计划旧值与 `status=COMPLETED`、`deletionClaimedAt=null` 做乐观条件更新；条件不符则跳过并重新审查，禁止盲写。保留原计划用于回滚；回滚同样只允许在记录仍匹配计划新值时恢复旧值。这个计划是审核材料，不是已执行的迁移或线上修复。
+
+## 正文音频兼容扩展（5.37.0-dev.20261016.1）
+
+新增可选 audioUpload 能力、RICH_CONTENT_AUDIO 用途、durationMs/failureCode 与正文 mediaAudios；普通无 title 链接保留旧端兼容，旧图片/列表/正文不迁移、不删除。详见[正文音频 v1](../audio-upload.md)。

@@ -146,3 +146,7 @@ Web 和后端消费 v7；已审查 Flutter 副本尚未消费，Windows 修复�
 行内组合 `textMatrix.whitespacePolicy` 保留 v7 空白规则：无代码样式时首尾 Unicode White_Space 外置为普通区间，仅中间文字有格式；纯空白成为普通区间。有代码样式时全部文字（含纯空格）及外层 marks 原样保留。客户端应按这项独立规则构造预期，不能为过测自行 trim 或丢弃空白。
 
 摘要在真实 code span 源码边界内保留字面星号、反引号、实体、图片源码和站内 URL，移除代码外层语法定界符；跨行代码按 CommonMark 将内部 LF 变为空格，纯空格代码不误删 padding。紧凑卡片仍按既有规则折叠所有连续空白，普通摘要保留代码可见空格；代码实体不参与普通正文的单遍实体解码。
+
+## 正文音频兼容扩展（5.37.0-dev.20261016.1）
+
+新增可选 audioUpload 能力、RICH_CONTENT_AUDIO 用途、durationMs/failureCode 与正文 mediaAudios；普通无 title 链接保留旧端兼容，旧图片/列表/正文不迁移、不删除。详见[正文音频 v1](../audio-upload.md)。

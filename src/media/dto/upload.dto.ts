@@ -12,11 +12,12 @@ import {
   IsOptional,
 } from 'class-validator';
 import { MEDIA_PURPOSES } from '../media-policy';
+import { AUDIO_CONTENT_TYPES, AUDIO_MAX_BYTES } from '../audio-policy';
 
 /** 允许上传的图片 MIME 类型 */
 const ALLOWED_MIME = [
   'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-  'image/avif',
+  'image/avif', ...AUDIO_CONTENT_TYPES,
 ] as const;
 
 /** 获取预签名上传 URL 的请求参数 */
@@ -32,10 +33,10 @@ export class CreateUploadUrlDto {
   @IsIn(ALLOWED_MIME as unknown as string[])
   contentType: string;
 
-  @ApiProperty({ example: 204800, description: '文件大小（字节），上限 10MB' })
+  @ApiProperty({ example: 204800, description: '文件大小（字节），图片上限 10MiB；RICH_CONTENT_AUDIO 音频上限 30MiB' })
   @IsNumber()
   @Min(1)
-  @Max(10 * 1024 * 1024)
+  @Max(AUDIO_MAX_BYTES)
   size: number;
 
   @ApiPropertyOptional({

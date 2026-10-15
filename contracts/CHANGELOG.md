@@ -567,3 +567,7 @@ RP 身份新增同主题资料楼层引用，可显式设置/解绑，原省略�
 ## 5.33.0-dev.20261004.1
 
 新增帖内 RP 身份 v1、独立身份设置和角色卡、历史发言和提及快照、409 身份确认及兼容头像引用；见 [接口语义](../docs/thread-identity.md)。
+
+## 正文音频兼容扩展（5.37.0-dev.20261016.1）
+
+新增可选 audioUpload 能力、RICH_CONTENT_AUDIO 用途、durationMs/failureCode 与正文 mediaAudios；普通无 title 链接保留旧端兼容，旧图片/列表/正文不迁移、不删除。详见[正文音频 v1](../docs/audio-upload.md)。

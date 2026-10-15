@@ -1,3 +1,4 @@
+import { AudioUploadCapabilityDto } from '../media/dto/audio-media.dto';
 import { Controller, Get } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiOkResponse, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
@@ -43,6 +44,9 @@ class MobileCompatibilityDto {
 }
 
 class ApiMetaResponseDto {
+  @ApiPropertyOptional({ type: AudioUploadCapabilityDto, description: '仅明确启用且转码运行依赖就绪时返回；缺失时隐藏上传入口' })
+  audioUpload?: AudioUploadCapabilityDto;
+
   @ApiProperty()
   contractVersion!: string;
 
