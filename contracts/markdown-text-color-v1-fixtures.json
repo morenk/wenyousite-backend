@@ -73,6 +73,36 @@
       "source": "\\<span data-wenyou-color-v1=\"#D14343\">字面\\</span>",
       "canonical": "\\<span data-wenyou-color-v1=\"#D14343\">字面\\</span>",
       "fallback": "\\<span data-wenyou-color-v1=\"#D14343\">字面\\</span>"
+    },
+    {
+      "id": "heading-literal",
+      "source": "<span data-wenyou-color-v1=\"#D14343\"># 标题</span>",
+      "canonical": "<span data-wenyou-color-v1=\"#D14343\"># 标题</span>",
+      "fallback": "\\# 标题"
+    },
+    {
+      "id": "quote-literal",
+      "source": "<span data-wenyou-color-v1=\"#D14343\">> 引用</span>",
+      "canonical": "<span data-wenyou-color-v1=\"#D14343\">> 引用</span>",
+      "fallback": "\\> 引用"
+    },
+    {
+      "id": "list-literal",
+      "source": "<span data-wenyou-color-v1=\"#D14343\">- 列表</span>",
+      "canonical": "<span data-wenyou-color-v1=\"#D14343\">- 列表</span>",
+      "fallback": "\\- 列表"
+    },
+    {
+      "id": "ordered-literal",
+      "source": "<span data-wenyou-color-v1=\"#D14343\">1. 序号</span>",
+      "canonical": "<span data-wenyou-color-v1=\"#D14343\">1. 序号</span>",
+      "fallback": "1\\. 序号"
+    },
+    {
+      "id": "delimiter-literal",
+      "source": "<span data-wenyou-color-v1=\"#D14343\">***</span>",
+      "canonical": "<span data-wenyou-color-v1=\"#D14343\">***</span>",
+      "fallback": "\\*\\*\\*"
     }
   ],
   "invalidSources": [
@@ -90,7 +120,11 @@
     "<span data-wenyou-color-v2=\"#112233\">文字</span>",
     "<span data-wenyou-color-v1=\"#D14343\">未闭合",
     "<span data-wenyou-color-v1=\"#D14343\"><b>HTML</b></span>",
-    "<span data-wenyou-color-v1=\"#D14343\">[内链](/threads/c111111111111111111111111)</span>"
+    "<span data-wenyou-color-v1=\"#D14343\">[内链](/threads/c111111111111111111111111)</span>",
+    "**<span data-wenyou-color-v1=\"#D14343\">颜色必须外层</span>**",
+    "<span data-wenyou-color-v1=\"#D14343\">**未闭合</span>**",
+    "<span data-wenyou-color-v1=\"#D14343\">[邀请](/join/abcdefghijklmnop)</span>",
+    "<span data-wenyou-color-v1=\"#D14343\">[站内](https://wenyou.site/threads/c111111111111111111111111)</span>"
   ],
   "writeCases": [
     {
