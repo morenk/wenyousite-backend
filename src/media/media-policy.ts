@@ -7,6 +7,7 @@ export const MEDIA_PURPOSES = [
   MediaPurpose.MOMENT,
   MediaPurpose.MOMENT_COMMENT,
   MediaPurpose.RICH_CONTENT,
+  MediaPurpose.RICH_CONTENT_AUDIO,
   MediaPurpose.STICKER_SOURCE,
   MediaPurpose.LEGACY,
 ] as const;
@@ -19,6 +20,7 @@ const PURPOSE_VARIANTS: Record<MediaPurpose, readonly MediaVariantName[]> = {
   [MediaPurpose.DIRECT_MESSAGE]: ['thumbnail', 'medium'],
   [MediaPurpose.MOMENT]: ['thumbnail', 'feed', 'medium'],
   [MediaPurpose.MOMENT_COMMENT]: ['thumbnail', 'medium'],
+  [MediaPurpose.RICH_CONTENT_AUDIO]: [],
   [MediaPurpose.RICH_CONTENT]: ['thumbnail', 'feed', 'medium', 'poster'],
   [MediaPurpose.STICKER_SOURCE]: [],
   [MediaPurpose.LEGACY]: ['thumbnail', 'feed', 'medium', 'poster'],

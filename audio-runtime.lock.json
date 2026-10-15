@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "platform": "linux",
+  "arch": "x64",
+  "minimumGlibc": "2.28",
+  "release": "autobuild-2026-09-30-13-08",
+  "ffmpegVersion": "n8.1.3-9-g29e619e767",
+  "license": "LGPL-2.1-or-later",
+  "source": "https://github.com/FFmpeg/FFmpeg/tree/29e619e767",
+  "buildSource": "https://github.com/BtbN/FFmpeg-Builds/tree/6c9aec5",
+  "archiveUrl": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-30-13-08/ffmpeg-n8.1.3-9-g29e619e767-linux64-lgpl-8.1.tar.xz",
+  "archiveRoot": "ffmpeg-n8.1.3-9-g29e619e767-linux64-lgpl-8.1",
+  "archiveSha256": "dfa863a00ca81f1bdf58a372b18cff4820f0017e55de32778de8ecd8ed92a02e",
+  "files": {
+    "bin/ffmpeg": "d107dfbdf23395f8d15e7033bc2457c36af45d742a34df0f359cc21e3727ce87",
+    "bin/ffprobe": "0d67946a7281fc4a169705c49dbbde2da0d76e654b1a289eabc82f786c4fba41",
+    "LICENSE.txt": "da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768"
+  }
+}

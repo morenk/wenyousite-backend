@@ -169,7 +169,7 @@ export class SubthreadsService {
             },
             include: subthreadBodyPostInclude,
           });
-          await this.mediaReferences.syncPostContent(tx, bodyPost.id, content);
+          await this.mediaReferences.syncPostContent(tx, bodyPost.id, content, userId);
           if (generatedDice.length > 0) {
             await tx.diceRoll.createMany({
               data: this.diceService.buildCreateData(bodyPost.id, generatedDice),

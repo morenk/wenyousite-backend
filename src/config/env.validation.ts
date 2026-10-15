@@ -210,7 +210,7 @@ export class EnvironmentVariables {
   @IsOptional()
   BUILD_SHA: string = '';
 
-  @Transform(({ value }) => value === 'true' ? true : value === 'false' ? false : value)
+  @Transform(({ value }) => (value === 'true' ? true : value === 'false' ? false : value))
   @IsBoolean()
   RP_MENTION_V6_ENABLED = false;
 
@@ -297,6 +297,15 @@ export class EnvironmentVariables {
   })
   MEDIA_COMPLETED_ORPHAN_CLEANUP_ENABLED: boolean | 'true' | 'false' = false;
 
+  @IsBoolean()
+  @IsOptional()
+  @Transform(({ value }) => (value === 'true' ? true : value === 'false' ? false : value))
+  AUDIO_UPLOAD_ENABLED: boolean = false;
+
+  @IsString()
+  @IsOptional()
+  AUDIO_RUNTIME_DIR: string = '';
+
   @IsNumber()
   @IsOptional()
   @Min(1)
@@ -354,7 +363,9 @@ export class EnvironmentVariables {
 
 /** 已退役的持续预览配置必须显式移除，避免旧启动环境静默改用普通服务。 */
 export function isRetiredPreviewSetting(key: string) {
-  return /^(?:WENYOU_PREVIEW_|PREVIEW_(?:STATE_ROOT|SNAPSHOT_ROOT)$|DOWNLOAD_PREVIEW_RUN_ID$)/.test(key);
+  return /^(?:WENYOU_PREVIEW_|PREVIEW_(?:STATE_ROOT|SNAPSHOT_ROOT)$|DOWNLOAD_PREVIEW_RUN_ID$)/.test(
+    key,
+  );
 }
 
 /** 校验函数：在 ConfigModule.forRoot 中调用，启动时验证环境变量完整性 */

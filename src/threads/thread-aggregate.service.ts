@@ -212,7 +212,7 @@ export class ThreadAggregateService {
               data: { ...postContentEditData(existingBody.content, content),
                 mentionIdentitySnapshots: await this.identities.prepareMentions(tx, threadId, content, existingBody.mentionIdentitySnapshots, existingBody.content, dto.markdownContractVersion) },
             });
-            await this.mediaReferences.syncPostContent(tx, post.id, content);
+            await this.mediaReferences.syncPostContent(tx, post.id, content, userId);
             if (current.published) {
               await reconcilePublishedDice(
                 tx,
@@ -253,7 +253,7 @@ export class ThreadAggregateService {
               },
               include: { author: { select: { username: true } } },
             });
-            await this.mediaReferences.syncPostContent(tx, created.id, content);
+            await this.mediaReferences.syncPostContent(tx, created.id, content, userId);
             if (current.published) {
               await reconcilePublishedDice(tx, this.dice, created.id, parsedContent.nodes);
               createdPublishedBody = await tx.post.findUniqueOrThrow({

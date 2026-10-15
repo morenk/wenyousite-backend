@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "version",
+    "markdownContractVersion",
+    "policy",
+    "rules",
+    "cases"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "markdownContractVersion": {
+      "const": 5
+    },
+    "policy": {
+      "type": "object"
+    },
+    "rules": {
+      "type": "object"
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 14,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "markdown",
+          "mediaAudios",
+          "player",
+          "labels"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "markdown": {
+            "type": "string"
+          },
+          "mediaAudios": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "sourceUrl",
+                "mediaId",
+                "contentType",
+                "size",
+                "durationMs"
+              ],
+              "properties": {
+                "sourceUrl": {
+                  "type": "string"
+                },
+                "mediaId": {
+                  "type": "string"
+                },
+                "contentType": {
+                  "const": "audio/mpeg"
+                },
+                "size": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "durationMs": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 600000
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "player": {
+            "type": "boolean"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "invalidProjectionCases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "markdown",
+          "projection",
+          "player"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "markdown": {
+            "type": "string"
+          },
+          "projection": {
+            "type": "object"
+          },
+          "player": {
+            "const": false
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

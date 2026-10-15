@@ -171,7 +171,7 @@ export class PostsService {
             author: { select: authorSelect },
           },
         });
-        await this.mediaReferences.syncPostContent(tx, p.id, content);
+        await this.mediaReferences.syncPostContent(tx, p.id, content, userId);
 
         const generatedDice = lockedSubthread.thread.published
           ? this.diceService.rollNodes(parsedContent.nodes)
@@ -330,7 +330,7 @@ export class PostsService {
             },
             include: { author: { select: authorSelect } },
           });
-          await this.mediaReferences.syncPostContent(tx, created.id, normalizedContent);
+          await this.mediaReferences.syncPostContent(tx, created.id, normalizedContent, userId);
           if (subthread.thread.published) {
             await reconcilePublishedDice(tx, this.diceService, created.id, parsedContent.nodes, []);
           }
@@ -415,7 +415,7 @@ export class PostsService {
           data: { ...postContentEditData(oldContent, normalizedContent),
             mentionIdentitySnapshots: await this.identities.prepareMentions(tx, subthread.threadId, normalizedContent, existing.mentionIdentitySnapshots, existing.content, markdownContractVersion) },
         });
-        await this.mediaReferences.syncPostContent(tx, post.id, normalizedContent);
+        await this.mediaReferences.syncPostContent(tx, post.id, normalizedContent, userId);
         if (subthread.thread.published) {
           await reconcilePublishedDice(
             tx,
@@ -503,7 +503,7 @@ export class PostsService {
           data: { ...postContentEditData(oldContent, content),
             mentionIdentitySnapshots: await this.identities.prepareMentions(tx, postLight.threadId, content, postLight.mentionIdentitySnapshots, postLight.content, dto.markdownContractVersion) },
         });
-        await this.mediaReferences.syncPostContent(tx, post.id, content);
+        await this.mediaReferences.syncPostContent(tx, post.id, content, userId);
         if (threadPublished) {
           await reconcilePublishedDice(
             tx,

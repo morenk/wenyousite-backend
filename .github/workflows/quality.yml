@@ -23,6 +23,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm prisma:generate
+      - run: python3 scripts/prepare-audio-runtime.py
       - run: pnpm check
 
   security-audit:
@@ -60,6 +61,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm prisma:generate
+      - run: python3 scripts/prepare-audio-runtime.py
       - run: pnpm test:coverage
 
   integration:
@@ -104,6 +106,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm prisma:generate
+      - run: python3 scripts/prepare-audio-runtime.py
       - run: pnpm exec prisma migrate deploy
       - run: pnpm exec prisma migrate status
       - run: pnpm test:data-security:integration

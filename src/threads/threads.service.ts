@@ -119,7 +119,7 @@ export class ThreadsService {
               mentionIdentitySnapshots: await this.identities.prepareMentions(tx, thread.id, parsedContent.content, undefined, undefined, dto.markdownContractVersion),
             },
           });
-          await this.mediaReferences.syncPostContent(tx, body.id, body.content);
+          await this.mediaReferences.syncPostContent(tx, body.id, body.content, userId);
         }
         await tx.thread.update({
           where: { id: thread.id },

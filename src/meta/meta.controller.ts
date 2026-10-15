@@ -1,3 +1,5 @@
+import { AudioRuntimeService } from '../media/audio-runtime.service';
+import { AudioUploadCapabilityDto } from '../media/dto/audio-media.dto';
 import { Controller, Get } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiOkResponse, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
@@ -6,11 +8,19 @@ import { ACTIVE_MARKDOWN_CONTRACT_VERSION } from '../common/markdown-content';
 import { API_CONTRACT_VERSION } from '../common/swagger/openapi-document';
 
 class ApiCapabilitiesResponseDto {
-  @ApiPropertyOptional({ description: '支持 RP 身份绑定本主题资料楼层及按查看者授权读取；缺失按 false，客户端不得发送 profilePostId/clearProfilePost' })
+  @ApiPropertyOptional({
+    description:
+      '支持 RP 身份绑定本主题资料楼层及按查看者授权读取；缺失按 false，客户端不得发送 profilePostId/clearProfilePost',
+  })
   rpIdentityProfileSupported?: boolean;
-  @ApiPropertyOptional({ description: '支持 header/DTO Markdown 6 能力协商、保源和旧读安全降级；缺失按 false' })
+  @ApiPropertyOptional({
+    description: '支持 header/DTO Markdown 6 能力协商、保源和旧读安全降级；缺失按 false',
+  })
   roleMentionsV6Supported?: boolean;
-  @ApiPropertyOptional({ description: '允许创建新的显式 ACCOUNT / RP 提及节点；与全局 Markdown 激活版本独立，缺失按 false' })
+  @ApiPropertyOptional({
+    description:
+      '允许创建新的显式 ACCOUNT / RP 提及节点；与全局 Markdown 激活版本独立，缺失按 false',
+  })
   roleMentionsV6WriteEnabled?: boolean;
 
   @ApiProperty()
@@ -43,6 +53,12 @@ class MobileCompatibilityDto {
 }
 
 class ApiMetaResponseDto {
+  @ApiPropertyOptional({
+    type: AudioUploadCapabilityDto,
+    description: '仅明确启用且转码运行依赖就绪时返回；缺失时隐藏上传入口',
+  })
+  audioUpload?: AudioUploadCapabilityDto;
+
   @ApiProperty()
   contractVersion!: string;
 
@@ -63,7 +79,10 @@ class ApiMetaResponseDto {
 @ApiTags('Meta')
 @Controller('meta')
 export class MetaController {
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly audio?: AudioRuntimeService,
+  ) {}
 
   @Get()
   @Public()
@@ -71,6 +90,7 @@ export class MetaController {
   getMeta(): ApiMetaResponseDto {
     return {
       contractVersion: API_CONTRACT_VERSION,
+      ...(this.audio?.capability() ? { audioUpload: this.audio.capability() } : {}),
       buildSha: this.config.get<string>('app.buildSha') ?? null,
       markdownContractVersion: ACTIVE_MARKDOWN_CONTRACT_VERSION,
       capabilities: {

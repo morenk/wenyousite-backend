@@ -1,3 +1,4 @@
+import { AUDIO_FAILURE_CODES } from '../audio-policy';
 import { MediaDisplayResponseDto } from './media-display.dto';
 /** 媒体响应 DTO：供 Web/Flutter 生成上传链路的强类型客户端 */
 
@@ -24,6 +25,11 @@ export class UploadUrlResponseDto {
 
 /** 媒体记录响应 */
 export class MediaResponseDto {
+  @ApiPropertyOptional({ type: Number, nullable: true, description: '完成音频的实际时长（毫秒）；图片或未完成时为 null' })
+  durationMs?: number | null;
+  @ApiPropertyOptional({ enum: AUDIO_FAILURE_CODES, nullable: true, description: '音频最终失败的受控原因；其它状态为 null' })
+  failureCode?: (typeof AUDIO_FAILURE_CODES)[number] | null;
+
   @ApiPropertyOptional({ type: MediaDisplayResponseDto, nullable: true, description: '完整 WebP 展示资源；缺少或为空时为兼容历史媒体' })
   display?: MediaDisplayResponseDto | null;
 

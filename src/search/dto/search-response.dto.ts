@@ -1,3 +1,4 @@
+import { AudioMediaDto } from '../../media/dto/audio-media.dto';
 import { RpIdentityResponseDto, MentionIdentityDisplayDto } from '../../thread-identities/thread-identity.dto';
 import { MediaDisplayResponseDto, MarkdownMediaDisplayResponseDto } from '../../media/dto/media-display.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -59,6 +60,9 @@ export class SearchPostResponseDto {
   mentionIdentities?: MentionIdentityDisplayDto[];
   @ApiPropertyOptional({ type: [MarkdownMediaDisplayResponseDto], description: '已授权正文的精确来源映射' })
   mediaDisplays?: MarkdownMediaDisplayResponseDto[];
+
+  @ApiPropertyOptional({ type: [AudioMediaDto], description: '本次已授权正文内的音频引用；缺失时链接按旧端规则呈现' })
+  mediaAudios?: AudioMediaDto[];
 
   @ApiProperty({ enum: ['BODY', 'FLOOR'], description: 'BODY 为正文，FLOOR 为主楼层或楼中楼' })
   kind: 'BODY' | 'FLOOR';

@@ -1,5 +1,9 @@
 # API 合同变更
 
+## 5.37.0-dev.20261016.1
+
+新增可选 audioUpload 能力、RICH_CONTENT_AUDIO 用途、durationMs/failureCode 与正文 mediaAudios；普通无 title 链接保留旧端兼容，旧图片/列表/正文不迁移、不删除。详见[正文音频 v1](../docs/audio-upload.md)。
+
 ## 5.36.0-dev.20261005.1
 
 RP 身份新增同主题资料楼层引用，可显式设置/解绑，原省略字段保持；当前可读引用与本人原绑定分离，不修改历史快照。新增 rpIdentityProfileSupported 能力、profilePostStatus 状态与独立作者版本；角色和帖子详情禁止缓存复用权限。接口、错误码和 Markdown 版本保持兼容，详见 [资料引用契约](../docs/rp-identity-profile-post.md)。

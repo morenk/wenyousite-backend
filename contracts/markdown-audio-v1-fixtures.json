@@ -1,0 +1,324 @@
+{
+  "version": 1,
+  "markdownContractVersion": 5,
+  "policy": {
+    "maxBytes": 31457280,
+    "maxDurationMs": 600000,
+    "contentTypes": [
+      "audio/mpeg",
+      "audio/mp4",
+      "audio/wav",
+      "audio/ogg",
+      "audio/flac"
+    ],
+    "outputContentType": "audio/mpeg"
+  },
+  "rules": {
+    "canonical": "普通无 title 的安全链接；顶层独立段落且精确投影命中才显示播放器",
+    "legacy": "旧客户端按普通链接读取与编辑往返；不得删除、改URL或将链接转义成源码文字",
+    "label": "默认音频；保留用户文字及行内样式，可作为可访问名称",
+    "references": "代码与转义不引用；按sourceUrl去重，inline/list/quote也保留引用",
+    "storage": "与图片一致为公开对象；帖子访问控制不撤销已知URL",
+    "invalidProjection": "消费端验证 MIME、正整数字节/时长、时长上限及非空mediaId；非法描述视为缺失，不发请求。"
+  },
+  "cases": [
+    {
+      "id": "standalone",
+      "markdown": "[音频](https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3)",
+      "mediaAudios": [
+        {
+          "sourceUrl": "https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3",
+          "mediaId": "cm1111111111111111111111111",
+          "contentType": "audio/mpeg",
+          "size": 16000,
+          "durationMs": 1000
+        }
+      ],
+      "player": true,
+      "labels": [
+        "音频"
+      ]
+    },
+    {
+      "id": "renamed",
+      "markdown": "[雨夜片段](https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3)",
+      "mediaAudios": [
+        {
+          "sourceUrl": "https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3",
+          "mediaId": "cm1111111111111111111111111",
+          "contentType": "audio/mpeg",
+          "size": 16000,
+          "durationMs": 1000
+        }
+      ],
+      "player": true,
+      "labels": [
+        "雨夜片段"
+      ]
+    },
+    {
+      "id": "surrounded",
+      "markdown": "前文\n\n[音频](https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3)\n\n后文",
+      "mediaAudios": [
+        {
+          "sourceUrl": "https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3",
+          "mediaId": "cm1111111111111111111111111",
+          "contentType": "audio/mpeg",
+          "size": 16000,
+          "durationMs": 1000
+        }
+      ],
+      "player": true,
+      "labels": [
+        "音频"
+      ]
+    },
+    {
+      "id": "soft-break",
+      "markdown": "前文\n[音频](https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3)",
+      "mediaAudios": [
+        {
+          "sourceUrl": "https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3",
+          "mediaId": "cm1111111111111111111111111",
+          "contentType": "audio/mpeg",
+          "size": 16000,
+          "durationMs": 1000
+        }
+      ],
+      "player": false,
+      "labels": [
+        "音频"
+      ]
+    },
+    {
+      "id": "inline",
+      "markdown": "请听[片段](https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3)。",
+      "mediaAudios": [
+        {
+          "sourceUrl": "https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3",
+          "mediaId": "cm1111111111111111111111111",
+          "contentType": "audio/mpeg",
+          "size": 16000,
+          "durationMs": 1000
+        }
+      ],
+      "player": false,
+      "labels": [
+        "片段"
+      ]
+    },
+    {
+      "id": "quote",
+      "markdown": "> [音频](https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3)",
+      "mediaAudios": [
+        {
+          "sourceUrl": "https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3",
+          "mediaId": "cm1111111111111111111111111",
+          "contentType": "audio/mpeg",
+          "size": 16000,
+          "durationMs": 1000
+        }
+      ],
+      "player": false,
+      "labels": [
+        "音频"
+      ]
+    },
+    {
+      "id": "list",
+      "markdown": "- [音频](https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3)",
+      "mediaAudios": [
+        {
+          "sourceUrl": "https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3",
+          "mediaId": "cm1111111111111111111111111",
+          "contentType": "audio/mpeg",
+          "size": 16000,
+          "durationMs": 1000
+        }
+      ],
+      "player": false,
+      "labels": [
+        "音频"
+      ]
+    },
+    {
+      "id": "code",
+      "markdown": "`[音频](https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3)`",
+      "mediaAudios": [],
+      "player": false,
+      "labels": []
+    },
+    {
+      "id": "escaped",
+      "markdown": "\\[音频](https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3)",
+      "mediaAudios": [],
+      "player": false,
+      "labels": []
+    },
+    {
+      "id": "duplicate",
+      "markdown": "[甲](https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3)\n\n[乙](https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3)",
+      "mediaAudios": [
+        {
+          "sourceUrl": "https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3",
+          "mediaId": "cm1111111111111111111111111",
+          "contentType": "audio/mpeg",
+          "size": 16000,
+          "durationMs": 1000
+        }
+      ],
+      "player": true,
+      "labels": [
+        "甲",
+        "乙"
+      ]
+    },
+    {
+      "id": "adjacent",
+      "markdown": "[甲](https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3)[乙](https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3)",
+      "mediaAudios": [
+        {
+          "sourceUrl": "https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3",
+          "mediaId": "cm1111111111111111111111111",
+          "contentType": "audio/mpeg",
+          "size": 16000,
+          "durationMs": 1000
+        }
+      ],
+      "player": false,
+      "labels": [
+        "甲",
+        "乙"
+      ]
+    },
+    {
+      "id": "external",
+      "markdown": "[音频](https://example.com/track.mp3)",
+      "mediaAudios": [],
+      "player": false,
+      "labels": []
+    },
+    {
+      "id": "missing-projection",
+      "markdown": "[音频](https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3)",
+      "mediaAudios": [],
+      "player": false,
+      "labels": [
+        "音频"
+      ]
+    },
+    {
+      "id": "label-escape",
+      "markdown": "[雨\\[夜\\]](https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3)",
+      "mediaAudios": [
+        {
+          "sourceUrl": "https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3",
+          "mediaId": "cm1111111111111111111111111",
+          "contentType": "audio/mpeg",
+          "size": 16000,
+          "durationMs": 1000
+        }
+      ],
+      "player": true,
+      "labels": [
+        "雨[夜]"
+      ]
+    },
+    {
+      "id": "marked-label",
+      "markdown": "[**雨夜**与*片段*](https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3)",
+      "mediaAudios": [
+        {
+          "sourceUrl": "https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3",
+          "mediaId": "cm1111111111111111111111111",
+          "contentType": "audio/mpeg",
+          "size": 16000,
+          "durationMs": 1000
+        }
+      ],
+      "player": true,
+      "labels": [
+        "雨夜与片段"
+      ]
+    },
+    {
+      "id": "mismatched-source",
+      "markdown": "[音频](https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3)",
+      "mediaAudios": [
+        {
+          "sourceUrl": "https://storage.example/wenyou/media/audio/other.mp3",
+          "mediaId": "cm1111111111111111111111111",
+          "contentType": "audio/mpeg",
+          "size": 16000,
+          "durationMs": 1000
+        }
+      ],
+      "player": false,
+      "labels": [
+        "音频"
+      ]
+    }
+  ],
+  "invalidProjectionCases": [
+    {
+      "id": "wrong-mime",
+      "markdown": "[音频](https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3)",
+      "projection": {
+        "sourceUrl": "https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3",
+        "mediaId": "cm1111111111111111111111111",
+        "contentType": "text/html",
+        "size": 16000,
+        "durationMs": 1000
+      },
+      "player": false
+    },
+    {
+      "id": "zero-size",
+      "markdown": "[音频](https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3)",
+      "projection": {
+        "sourceUrl": "https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3",
+        "mediaId": "cm1111111111111111111111111",
+        "contentType": "audio/mpeg",
+        "size": 0,
+        "durationMs": 1000
+      },
+      "player": false
+    },
+    {
+      "id": "negative-duration",
+      "markdown": "[音频](https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3)",
+      "projection": {
+        "sourceUrl": "https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3",
+        "mediaId": "cm1111111111111111111111111",
+        "contentType": "audio/mpeg",
+        "size": 16000,
+        "durationMs": -1
+      },
+      "player": false
+    },
+    {
+      "id": "too-long",
+      "markdown": "[音频](https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3)",
+      "projection": {
+        "sourceUrl": "https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3",
+        "mediaId": "cm1111111111111111111111111",
+        "contentType": "audio/mpeg",
+        "size": 16000,
+        "durationMs": 600001
+      },
+      "player": false
+    },
+    {
+      "id": "empty-media-id",
+      "markdown": "[音频](https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3)",
+      "projection": {
+        "sourceUrl": "https://storage.example/wenyou/media/audio/2026/10/16/user/asset.mp3",
+        "mediaId": "",
+        "contentType": "audio/mpeg",
+        "size": 16000,
+        "durationMs": 1000
+      },
+      "player": false
+    }
+  ]
+}

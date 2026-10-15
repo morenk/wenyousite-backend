@@ -15,6 +15,7 @@ import { AuditService } from '../src/moderation/audit.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 const SUITES: Record<string, [string, string]> = {
+  audio: ['audio.integration.ts', 'AUDIO_TEST_ENV'],
   'redis-failure': ['redis-failure.integration.ts', 'REDIS_FAILURE_TEST_ENV'],
   'content-write-consistency': ['content-write-consistency.integration.ts', 'CONTENT_WRITE_CONSISTENCY_TEST_ENV'],
   'rp-profile': ['rp-profile.integration.ts', 'RP_PROFILE_TEST_ENV'],
@@ -165,7 +166,7 @@ export async function run(args = process.argv.slice(2)) {
       };
       writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), { flag: 'wx', mode: 0o600 });
       console.log(JSON.stringify({ event: 'ready', runId: r.runId, manifestPath, backendURL }));
-      const backendTestEnv = { ...env, DATABASE_URL: ownerUrl.toString(), DIRECT_DATABASE_URL: ownerUrl.toString(), BOOKMARK_COUNT_TEST_APP_URL: appUrl.toString(), BOOKMARK_MANAGEMENT_TEST_APP_URL: appUrl.toString() };
+      const backendTestEnv = { ...env, DATABASE_URL: ownerUrl.toString(), DIRECT_DATABASE_URL: ownerUrl.toString(), AUDIO_TEST_APP_URL: appUrl.toString(), BOOKMARK_COUNT_TEST_APP_URL: appUrl.toString(), BOOKMARK_MANAGEMENT_TEST_APP_URL: appUrl.toString() };
       const runScript = async (script: string, extra: NodeJS.ProcessEnv = {}) => {
         await r.verify();
         console.log(`验证：${script}`);
@@ -188,7 +189,7 @@ export async function run(args = process.argv.slice(2)) {
       }
       const suites = options.includes('--full') ? Object.keys(SUITES).filter((key) => key !== 'search')
         : options.filter((o) => o.startsWith('--suite=')).map((o) => o.slice(8));
-      const httpSuites = ['rp-profile', 'role-mentions', 'thread-identity', 'discussion-navigation', 'private-invite-reuse', 'gallery', 'profile-follow-counts', 'post-edited-time'];
+      const httpSuites = ['audio', 'rp-profile', 'role-mentions', 'thread-identity', 'discussion-navigation', 'private-invite-reuse', 'gallery', 'profile-follow-counts', 'post-edited-time'];
       for (const key of suites.filter(key => httpSuites.includes(key))) {
         const [script, flag] = SUITES[key];
         await runScript(script, { [flag]: 'test' });

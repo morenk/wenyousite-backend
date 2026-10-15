@@ -1,3 +1,4 @@
+import { AudioMediaDto } from '../../media/dto/audio-media.dto';
 import { MentionIdentityDisplayDto } from '../../thread-identities/thread-identity.dto';
 import { MarkdownMediaDisplayResponseDto } from '../../media/dto/media-display.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -11,6 +12,9 @@ class ThreadBodyPostResponseDto {
   mentionIdentities?: MentionIdentityDisplayDto[];
   @ApiPropertyOptional({ type: [MarkdownMediaDisplayResponseDto], description: '仅此次已授权正文中的精确来源映射；编辑保存继续使用 sourceUrl' })
   mediaDisplays?: MarkdownMediaDisplayResponseDto[];
+
+  @ApiPropertyOptional({ type: [AudioMediaDto], description: '本次已授权正文内的音频引用；缺失时链接按旧端规则呈现' })
+  mediaAudios?: AudioMediaDto[];
 
   @ApiProperty()
   id!: string;

@@ -1,3 +1,6 @@
+import { AudioRuntimeService } from './audio-runtime.service';
+import { AudioProcessingService } from './audio-processing.service';
+import { AUDIO_CONTENT_TYPES, AUDIO_MAX_BYTES } from './audio-policy';
 import { mediaDisplayCleanupProtection } from './media-display-reclamation';
 import {
   Injectable,
@@ -6,6 +9,7 @@ import {
   ForbiddenException,
   HttpException,
   HttpStatus,
+  ServiceUnavailableException,
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -45,7 +49,19 @@ export interface ImageProcessJob {
 }
 
 /** 允许的文件扩展名（与 MIME 白名单对应） */
-const ALLOWED_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif']);
+const ALLOWED_EXTENSIONS = new Set([
+  'jpg',
+  'jpeg',
+  'png',
+  'gif',
+  'webp',
+  'avif',
+  'mp3',
+  'm4a',
+  'wav',
+  'ogg',
+  'flac',
+]);
 
 /** 媒体服务：S3 预签名上传 URL 生成、上传确认、图片处理、孤儿回收 */
 @Injectable()
@@ -63,6 +79,8 @@ export class MediaService {
     private readonly storage: ObjectStorageService,
     private readonly processing: MediaProcessingService,
     @InjectQueue('image') private imageQueue: Queue,
+    private readonly audioRuntime?: AudioRuntimeService,
+    private readonly audioProcessing?: AudioProcessingService,
   ) {
     this.uploadRatePerHour = this.config.get<number>('upload.ratePerHour') ?? 60;
     this.completedOrphanCleanupEnabled =
@@ -77,11 +95,23 @@ export class MediaService {
     userId: string;
     purpose?: MediaPurpose;
   }) {
-    if (!ALLOWED_MIME.includes(opts.contentType)) {
+    const isAudio = opts.purpose === MediaPurpose.RICH_CONTENT_AUDIO;
+    if (isAudio) {
+      if (!this.audioRuntime) throw new ServiceUnavailableException('音频上传暂不可用');
+      this.audioRuntime.requireReady();
+    }
+    const allowed: readonly string[] = isAudio ? AUDIO_CONTENT_TYPES : ALLOWED_MIME;
+    if (!allowed.includes(opts.contentType)) {
       throw new BadRequestException('不支持的文件类型');
     }
-    if (opts.size > MAX_SIZE) {
-      throw new BadRequestException('文件大小超过 10MB 限制');
+    if (
+      !Number.isSafeInteger(opts.size) ||
+      opts.size < 1 ||
+      opts.size > (isAudio ? AUDIO_MAX_BYTES : MAX_SIZE)
+    ) {
+      throw new BadRequestException(
+        isAudio ? '音频文件大小超过 30MiB 限制' : '文件大小超过 10MB 限制',
+      );
     }
 
     await this.assertUploadRate(opts.userId);
@@ -91,7 +121,9 @@ export class MediaService {
     const randomId = randomBytes(8).toString('hex');
     const basename = `${Date.now()}-${randomId}`;
     const stagingKey = `staging/${date}/${opts.userId}/${basename}.${ext}`;
-    const objectKey = `media/${date}/${opts.userId}/${basename}.${opts.contentType === 'image/gif' ? 'gif' : 'webp'}`;
+    const objectKey = isAudio
+      ? `media/audio/${date}/${opts.userId}/${basename}.mp3`
+      : `media/${date}/${opts.userId}/${basename}.${opts.contentType === 'image/gif' ? 'gif' : 'webp'}`;
 
     const bucket = this.storage.bucket;
     const publicUrl = this.storage.publicUrl(objectKey);
@@ -126,11 +158,17 @@ export class MediaService {
 
   /** 为同一 UPLOADING 媒体重新签发 PUT 地址，不创建新记录也不重复占用上传配额。 */
   async reissueUploadUrl(mediaId: string, userId: string) {
-    const media = await this.prisma.media.findUnique({ where: { id: mediaId, deletionClaimedAt: null } });
+    const media = await this.prisma.media.findUnique({
+      where: { id: mediaId, deletionClaimedAt: null },
+    });
     if (!media) throw new NotFoundException('媒体记录不存在');
     if (media.userId !== userId) throw new ForbiddenException('无权操作');
     if (media.status !== 'UPLOADING' || !media.contentType || !media.size) {
       throw new BadRequestException('当前媒体状态不能重新上传');
+    }
+    if (media.purpose === MediaPurpose.RICH_CONTENT_AUDIO) {
+      if (!this.audioRuntime) throw new ServiceUnavailableException('音频上传暂不可用');
+      this.audioRuntime.requireReady();
     }
     const uploadKey = media.stagingKey ?? media.key;
     const bucket = this.storage.bucket;
@@ -149,7 +187,9 @@ export class MediaService {
 
   /** 客户端上传完成确认：核对对象元数据，幂等转 UPLOADING → PROCESSING 并入队 */
   async confirmUpload(mediaId: string, userId: string) {
-    const media = await this.prisma.media.findUnique({ where: { id: mediaId, deletionClaimedAt: null } });
+    const media = await this.prisma.media.findUnique({
+      where: { id: mediaId, deletionClaimedAt: null },
+    });
     if (!media) {
       throw new NotFoundException('媒体记录不存在');
     }
@@ -164,6 +204,10 @@ export class MediaService {
     }
 
     const bucket = this.storage.bucket;
+    if (media.purpose === MediaPurpose.RICH_CONTENT_AUDIO) {
+      if (!this.audioRuntime) throw new ServiceUnavailableException('音频上传暂不可用');
+      this.audioRuntime.requireReady();
+    }
     const uploadKey = media.stagingKey ?? media.key;
     let head;
 
@@ -192,19 +236,21 @@ export class MediaService {
 
     const actualSize = head.ContentLength;
     const actualContentType = this.normalizeContentType(head.ContentType);
+    const isAudio = media.purpose === MediaPurpose.RICH_CONTENT_AUDIO;
+    const allowedTypes: readonly string[] = isAudio ? AUDIO_CONTENT_TYPES : ALLOWED_MIME;
     const metadataInvalid =
       !Number.isSafeInteger(actualSize) ||
       actualSize! <= 0 ||
-      actualSize! > MAX_SIZE ||
+      actualSize! > (isAudio ? AUDIO_MAX_BYTES : MAX_SIZE) ||
       !actualContentType ||
-      !ALLOWED_MIME.includes(actualContentType) ||
+      !allowedTypes.includes(actualContentType) ||
       (media.size !== null && media.size !== actualSize) ||
       (media.contentType !== null && media.contentType !== actualContentType);
 
     if (metadataInvalid) {
       await this.prisma.media.updateMany({
         where: { id: mediaId, status: 'UPLOADING', deletionClaimedAt: null },
-        data: { status: 'FAILED' },
+        data: { status: 'FAILED', ...(isAudio ? { failureCode: 'AUDIO_INVALID' } : {}) },
       });
       if (media.stagingKey) {
         await this.processing.discardStagingObject(mediaId, media.stagingKey);
@@ -226,7 +272,9 @@ export class MediaService {
       });
     } catch (error: unknown) {
       if (!hasErrorCode(error, 'P2025')) throw error;
-      const current = await this.prisma.media.findUnique({ where: { id: mediaId, deletionClaimedAt: null } });
+      const current = await this.prisma.media.findUnique({
+        where: { id: mediaId, deletionClaimedAt: null },
+      });
       if (
         current?.userId === userId &&
         (current.status === 'PROCESSING' || current.status === 'COMPLETED')
@@ -252,7 +300,7 @@ export class MediaService {
 
   /** 根据 ID 查询单条媒体记录，校验所属用户 */
   async getMedia(id: string, userId: string) {
-    const media = await this.prisma.media.findUnique({ where: { id } });
+    const media = await this.prisma.media.findUnique({ where: { id, deletionClaimedAt: null } });
     if (!media) {
       throw new NotFoundException('媒体记录不存在');
     }
@@ -264,7 +312,13 @@ export class MediaService {
 
   /** 标记图片处理失败（由 ImageProcessor 在末次重试时调用） */
   async markFailed(mediaId: string) {
-    await this.processing.markFailed(mediaId);
+    const media = await this.prisma.media.findUnique({
+      where: { id: mediaId },
+      select: { purpose: true },
+    });
+    if (media?.purpose === MediaPurpose.RICH_CONTENT_AUDIO)
+      await this.audioProcessing!.markFailed(mediaId);
+    else await this.processing.markFailed(mediaId);
   }
 
   async enqueueProcessing(mediaId: string) {
@@ -327,15 +381,19 @@ export class MediaService {
     const stale = await this.prisma.media.findMany({ where: eligibility, select: { id: true } });
     const victims = [];
     for (let i = 0; i < stale.length; i += 500) {
-      victims.push(...await this.mediaReferences.claimUnreferenced(
-        stale.slice(i, i + 500).map((item) => item.id), eligibility,
-      ));
+      victims.push(
+        ...(await this.mediaReferences.claimUnreferenced(
+          stale.slice(i, i + 500).map((item) => item.id),
+          eligibility,
+        )),
+      );
     }
     if (victims.length === 0) return;
 
     // 领取事务已提交，数据库拒绝新增引用；任何对象删除失败都保留记录重试。
     const attempts = await this.prisma.mediaPreviewAttempt.findMany({
-      where: { mediaId: { in: victims.map((media) => media.id) } }, select: { mediaId: true, keys: true },
+      where: { mediaId: { in: victims.map((media) => media.id) } },
+      select: { mediaId: true, keys: true },
     });
     const bucket = this.storage.bucket;
     const deletedIds = new Set<string>();
@@ -390,22 +448,30 @@ export class MediaService {
     if (!media) return false;
     if (media.status === 'COMPLETED' || media.status === 'PROCESSING') return false;
     const claimed = await this.mediaReferences.claimUnreferenced([media.id], {
-      status: { in: ['UPLOADING', 'FAILED'] }, ...mediaDisplayCleanupProtection(),
+      status: { in: ['UPLOADING', 'FAILED'] },
+      ...mediaDisplayCleanupProtection(),
     });
     if (claimed.length === 0) return false;
 
     const keys = [claimed[0].key, ...(claimed[0].stagingKey ? [claimed[0].stagingKey] : [])];
     if (!claimed[0].key.toLowerCase().endsWith('.svg')) {
-      keys.push(...mediaVariantsFor(media.purpose, media.animated).map((variant) => derivativeKey(claimed[0].key, variant)));
+      keys.push(
+        ...mediaVariantsFor(media.purpose, media.animated).map((variant) =>
+          derivativeKey(claimed[0].key, variant),
+        ),
+      );
     }
     const attempts = await this.prisma.mediaPreviewAttempt.findMany({
-      where: { mediaId: media.id }, select: { keys: true },
+      where: { mediaId: media.id },
+      select: { keys: true },
     });
     keys.push(...attempts.flatMap((attempt) => attempt.keys));
     const failedKeys = await this.storage.removeMany(keys);
     if (failedKeys.size > 0) return false;
 
-    await this.prisma.media.deleteMany({ where: { id: media.id, deletionClaimedAt: { not: null } } });
+    await this.prisma.media.deleteMany({
+      where: { id: media.id, deletionClaimedAt: { not: null } },
+    });
     this.logger.log(`注销头像已回收 mediaId=${media.id}`);
     return true;
   }

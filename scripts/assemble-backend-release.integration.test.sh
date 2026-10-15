@@ -47,6 +47,12 @@ fi
   printf "module.exports = require('pino-pretty');\n" > "$repo/dist/app.module.js"
   cp "$repo/dist/app.module.js" "$repo/dist/media/image-worker.module.js"
   printf '{}\n' > "$repo/package.json"
+  mkdir -p "$repo/.cache/audio-runtime/bin"
+  printf '{}\n' > "$repo/audio-runtime.lock.json"
+  printf 'exports.verifyAudioRuntime = () => {};\n' > "$repo/dist/media/audio-runtime.service.js"
+  printf 'fixture runtime\n' > "$repo/.cache/audio-runtime/bin/ffmpeg"
+  cp "$repo/.cache/audio-runtime/bin/ffmpeg" "$repo/.cache/audio-runtime/bin/ffprobe"
+  chmod 0755 "$repo/.cache/audio-runtime/bin/ffmpeg" "$repo/.cache/audio-runtime/bin/ffprobe"
   touch "$repo/docker-compose.yml" "$repo/pnpm-lock.yaml" "$repo/pnpm-workspace.yaml"
   printf 'test secret, outside release\n' > "$TEST_ROOT/private.env"
 )

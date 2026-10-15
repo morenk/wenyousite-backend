@@ -114,3 +114,7 @@ RP 采用 additive 字段；原 username/avatar、按 userId 互动和 Markdown 
 按负责人明确要求，退役私有 dev-preview-session v1 开发协议、快照与持续会话工具、功能专用样本脚本，以及下载网关仅供该方案使用的 HTTP Cookie 模式。Web / Mobile / 治理对应接入同步退役后，日常开发使用普通调试入口；合并协调由治理记录各仓库消费者移除证据。本项是开发工具退役，不删除业务 API、持久数据、数据库迁移或已发布客户端兼容协议，不要求 OpenAPI 变更；Foundation 预览专用说明随消费端同步退役。
 
 既存状态、快照与备份保留且不自动迁移或清理；运行回收另行核验归属。一次性写入 E2E、测试收件箱和下载测试共享签名器继续维护。回滚可以恢复退役前 Git 提交及对应消费工具；不会覆盖已有预览数据。现行入口和历史链接见[开发说明](development.md)。
+
+## 正文音频兼容扩展（5.37.0-dev.20261016.1）
+
+新增可选 audioUpload 能力、RICH_CONTENT_AUDIO 用途、durationMs/failureCode 与正文 mediaAudios；普通无 title 链接保留旧端兼容，旧图片/列表/正文不迁移、不删除。详见[正文音频 v1](audio-upload.md)。

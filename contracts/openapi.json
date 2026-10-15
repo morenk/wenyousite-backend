@@ -29855,7 +29855,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.36.0-dev.20261005.1",
+    "version": "5.37.0-dev.20261016.1",
     "contact": {}
   },
   "tags": [
@@ -31812,6 +31812,41 @@
           "display"
         ]
       },
+      "AudioMediaDto": {
+        "type": "object",
+        "properties": {
+          "sourceUrl": {
+            "type": "string",
+            "description": "正文普通链接的精确固定 URL；保存继续保留此 URL"
+          },
+          "mediaId": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string",
+            "enum": [
+              "audio/mpeg"
+            ]
+          },
+          "size": {
+            "type": "number",
+            "minimum": 1,
+            "description": "规范播放副本字节数"
+          },
+          "durationMs": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 600000
+          }
+        },
+        "required": [
+          "sourceUrl",
+          "mediaId",
+          "contentType",
+          "size",
+          "durationMs"
+        ]
+      },
       "RecentReplyThreadResponseDto": {
         "type": "object",
         "properties": {
@@ -31862,6 +31897,13 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/MarkdownMediaDisplayResponseDto"
+            }
+          },
+          "mediaAudios": {
+            "description": "本次已授权正文内的音频引用；缺失时链接按旧端规则呈现",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AudioMediaDto"
             }
           },
           "id": {
@@ -33397,6 +33439,13 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/MarkdownMediaDisplayResponseDto"
+            }
+          },
+          "mediaAudios": {
+            "description": "本次已授权正文内的音频引用；缺失时链接按旧端规则呈现",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AudioMediaDto"
             }
           },
           "id": {
@@ -36120,6 +36169,13 @@
               "$ref": "#/components/schemas/MarkdownMediaDisplayResponseDto"
             }
           },
+          "mediaAudios": {
+            "description": "本次已授权正文内的音频引用；缺失时链接按旧端规则呈现",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AudioMediaDto"
+            }
+          },
           "id": {
             "type": "string"
           },
@@ -36252,6 +36308,13 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/MarkdownMediaDisplayResponseDto"
+            }
+          },
+          "mediaAudios": {
+            "description": "本次已授权正文内的音频引用；缺失时链接按旧端规则呈现",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AudioMediaDto"
             }
           },
           "id": {
@@ -36633,6 +36696,13 @@
               "$ref": "#/components/schemas/MarkdownMediaDisplayResponseDto"
             }
           },
+          "mediaAudios": {
+            "description": "本次已授权正文内的音频引用；缺失时链接按旧端规则呈现",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AudioMediaDto"
+            }
+          },
           "id": {
             "type": "string"
           },
@@ -36855,6 +36925,13 @@
               "$ref": "#/components/schemas/MarkdownMediaDisplayResponseDto"
             }
           },
+          "mediaAudios": {
+            "description": "本次已授权正文内的音频引用；缺失时链接按旧端规则呈现",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AudioMediaDto"
+            }
+          },
           "id": {
             "type": "string"
           },
@@ -37020,6 +37097,13 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/MarkdownMediaDisplayResponseDto"
+            }
+          },
+          "mediaAudios": {
+            "description": "本次已授权正文内的音频引用；缺失时链接按旧端规则呈现",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AudioMediaDto"
             }
           },
           "id": {
@@ -40279,6 +40363,13 @@
               "$ref": "#/components/schemas/MarkdownMediaDisplayResponseDto"
             }
           },
+          "mediaAudios": {
+            "description": "本次已授权正文内的音频引用；缺失时链接按旧端规则呈现",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AudioMediaDto"
+            }
+          },
           "kind": {
             "type": "string",
             "enum": [
@@ -40394,14 +40485,19 @@
               "image/png",
               "image/gif",
               "image/webp",
-              "image/avif"
+              "image/avif",
+              "audio/mpeg",
+              "audio/mp4",
+              "audio/wav",
+              "audio/ogg",
+              "audio/flac"
             ],
             "description": "文件 MIME 类型"
           },
           "size": {
             "type": "number",
             "example": 204800,
-            "description": "文件大小（字节），上限 10MB"
+            "description": "文件大小（字节），图片上限 10MiB；RICH_CONTENT_AUDIO 音频上限 30MiB"
           },
           "purpose": {
             "type": "string",
@@ -40412,6 +40508,7 @@
               "MOMENT",
               "MOMENT_COMMENT",
               "RICH_CONTENT",
+              "RICH_CONTENT_AUDIO",
               "STICKER_SOURCE",
               "LEGACY"
             ],
@@ -40468,6 +40565,21 @@
       "MediaResponseDto": {
         "type": "object",
         "properties": {
+          "durationMs": {
+            "type": "number",
+            "nullable": true,
+            "description": "完成音频的实际时长（毫秒）；图片或未完成时为 null"
+          },
+          "failureCode": {
+            "type": "string",
+            "enum": [
+              "AUDIO_INVALID",
+              "AUDIO_TOO_LONG",
+              "AUDIO_PROCESSING_FAILED"
+            ],
+            "nullable": true,
+            "description": "音频最终失败的受控原因；其它状态为 null"
+          },
           "display": {
             "nullable": true,
             "description": "完整 WebP 展示资源；缺少或为空时为兼容历史媒体",
@@ -40534,6 +40646,7 @@
               "MOMENT",
               "MOMENT_COMMENT",
               "RICH_CONTENT",
+              "RICH_CONTENT_AUDIO",
               "STICKER_SOURCE",
               "LEGACY"
             ]
@@ -41100,6 +41213,51 @@
           "conversationCanceled"
         ]
       },
+      "AudioUploadCapabilityDto": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "number",
+            "enum": [
+              1
+            ]
+          },
+          "maxBytes": {
+            "type": "number",
+            "example": 31457280
+          },
+          "maxDurationMs": {
+            "type": "number",
+            "example": 600000
+          },
+          "contentTypes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "audio/mpeg",
+                "audio/mp4",
+                "audio/wav",
+                "audio/ogg",
+                "audio/flac"
+              ]
+            }
+          },
+          "outputContentType": {
+            "type": "string",
+            "enum": [
+              "audio/mpeg"
+            ]
+          }
+        },
+        "required": [
+          "version",
+          "maxBytes",
+          "maxDurationMs",
+          "contentTypes",
+          "outputContentType"
+        ]
+      },
       "ApiCapabilitiesResponseDto": {
         "type": "object",
         "properties": {
@@ -41174,6 +41332,14 @@
       "ApiMetaResponseDto": {
         "type": "object",
         "properties": {
+          "audioUpload": {
+            "description": "仅明确启用且转码运行依赖就绪时返回；缺失时隐藏上传入口",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AudioUploadCapabilityDto"
+              }
+            ]
+          },
           "contractVersion": {
             "type": "string"
           },
