@@ -1,3 +1,6 @@
+import { ConfigService } from '@nestjs/config';
+import { Optional } from '@nestjs/common';
+import { assertTextColorWrite } from '../common/text-colors';
 import { ThreadIdentitiesService } from '../thread-identities/thread-identities.service';
 import { postContentEditData, rethrowPostEditConflict } from './post-content-edit';
 import { Injectable, HttpStatus } from '@nestjs/common';
@@ -38,6 +41,7 @@ export class PostsService {
     private mediaReferences: MediaReferenceService,
     private postPins: PostPinService,
     private readonly identities: ThreadIdentitiesService,
+    @Optional() private readonly config?: ConfigService,
   ) {}
   async findAllBySubthread(
     subthreadId: string,
@@ -69,7 +73,7 @@ export class PostsService {
     return this.queries.findLatestInThread(threadId, userId);
   }
   async create(subthreadId: string, dto: CreatePostDto, userId: string) {
-    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content, { markdownContractVersion: dto.markdownContractVersion }));
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content, { markdownContractVersion: dto.markdownContractVersion, textColorVersion: dto.textColorVersion }));
     const content = parsedContent.content;
     if (
       !hasVisibleMarkdownContent(parsedContent.contentWithoutDice) &&
@@ -96,6 +100,7 @@ export class PostsService {
         return existingRequest;
       }
     }
+    assertTextColorWrite(content, '', dto.textColorVersion, this.config?.get<boolean>('app.textColorV1Enabled') ?? false);
     const stickerAssetIds = await this.stickerContent.assertContentAllowed(userId, content);
 
     const member = await this.prisma.threadMember.findUnique({
@@ -273,8 +278,9 @@ export class PostsService {
     identityMode?: 'ACCOUNT' | 'RP',
     identityId?: string,
     markdownContractVersion?: number,
+    textColorVersion?: number,
   ) {
-    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(content, { markdownContractVersion }));
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(content, { markdownContractVersion, textColorVersion }));
     const normalizedContent = parsedContent.content;
     const subthread = await this.prisma.subthread.findUnique({
       where: { id: subthreadId, ...notDeleted },
@@ -300,6 +306,7 @@ export class PostsService {
       existing?.content ?? '',
     );
 
+    assertTextColorWrite(normalizedContent, existing?.content ?? '', textColorVersion, this.config?.get<boolean>('app.textColorV1Enabled') ?? false);
     if (!existing) {
       const post = await this.prisma
         .$transaction(async (tx) => {
@@ -456,7 +463,7 @@ export class PostsService {
 
   /** 编辑帖子 */
   async update(id: string, dto: UpdatePostDto, userId: string) {
-    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content, { markdownContractVersion: dto.markdownContractVersion }));
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content, { markdownContractVersion: dto.markdownContractVersion, textColorVersion: dto.textColorVersion }));
     const content = parsedContent.content;
     const postLight = await this.prisma.post.findUnique({
       where: { id, ...notDeleted },
@@ -489,6 +496,7 @@ export class PostsService {
     }
 
     const oldContent = postLight.content;
+    assertTextColorWrite(content, oldContent, dto.textColorVersion, this.config?.get<boolean>('app.textColorV1Enabled') ?? false);
     const stickerAssetIds = await this.stickerContent.assertContentAllowed(
       userId,
       content,

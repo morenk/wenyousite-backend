@@ -338,7 +338,9 @@
       "kind": "invalid-envelope",
       "html": "<div data-wenyou-clipboard=\"2\" data-wenyou-clipboard-source=\"editor\"><span style=\"color:rgb(255,0,0)\">文字</span></div>",
       "expectedMode": "literal-text",
-      "expectedPlainText": "文字"
+      "expectedPlainText": "文字",
+      "plainText": "文字",
+      "expectedText": "文字"
     }
   ],
   "textColorRule": {

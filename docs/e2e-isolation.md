@@ -131,3 +131,7 @@ Linux 退出期间可能先置位 PF_EXITING，进程仍暂时显示 R，且 env
 ### 管理撤权与内容事务一致性
 
 `pnpm e2e:run --suite=content-write-consistency` 已纳入 `test:e2e:full`。在本轮身份核验后停止背景 API，使用 `wenyousite_app` 创建服务实例，验证公开/私密主题中管理写入与撤销协作者两种提交顺序；使用 PostgreSQL 锁等待证据控制交错，核对拒绝后内容、媒体、提及、标签和 Outbox 无残留。非空表情使用时间更新后注入故障，覆盖内容创建、编辑与发布的整体回滚，再以原请求和幂等键重试。全部账号、数据和故障注入只属于本轮独立资源，结束由同一 runner 核验并清理。
+
+### 文本颜色 v1
+
+`pnpm e2e:run --suite=text-color` 验证默认关闭新写；加入 `--text-color-v1` 验证启用新写，`--full` 包含启用旅程。两者均由本轮核验的独立 PostgreSQL/Redis/上传目录和随机账号覆盖草稿、BODY、聚合、旧端覆盖拒绝、格式拒绝、交替能力缓存和内存 ZIP 导出；无线上写入。

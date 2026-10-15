@@ -8,6 +8,11 @@ import { ACTIVE_MARKDOWN_CONTRACT_VERSION } from '../common/markdown-content';
 import { API_CONTRACT_VERSION } from '../common/swagger/openapi-document';
 
 class ApiCapabilitiesResponseDto {
+  @ApiPropertyOptional({ description: '支持独立文本颜色 v1 保源/旧端降级；缺失按 false' })
+  textColorV1Supported?: boolean;
+  @ApiPropertyOptional({ description: '允许新增/修改颜色范围；关闭仍允许保留或移除已有颜色，缺失按 false' })
+  textColorV1WriteEnabled?: boolean;
+
   @ApiPropertyOptional({
     description:
       '支持 RP 身份绑定本主题资料楼层及按查看者授权读取；缺失按 false，客户端不得发送 profilePostId/clearProfilePost',
@@ -94,6 +99,8 @@ export class MetaController {
       buildSha: this.config.get<string>('app.buildSha') ?? null,
       markdownContractVersion: ACTIVE_MARKDOWN_CONTRACT_VERSION,
       capabilities: {
+        textColorV1Supported: true,
+        textColorV1WriteEnabled: this.config.get<boolean>('app.textColorV1Enabled') ?? false,
         rpIdentityProfileSupported: true,
         roleMentionsV6Supported: true,
         roleMentionsV6WriteEnabled: this.config.get<boolean>('app.roleMentionsV6Enabled') ?? false,

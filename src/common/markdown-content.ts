@@ -1,3 +1,4 @@
+import { assertTextColorWrite, normalizeTextColors, maskTextColorTags } from './text-colors';
 import { assertRoleMentionWrite } from './role-mentions';
 /** Markdown v5 内容规则：规范化、工具栏能力白名单与字面文本降级。 */
 
@@ -27,6 +28,7 @@ export const IMAGE_ALIGNMENT_MARKDOWN_CONTRACT_VERSION = 5;
 
 export interface MarkdownValidationOptions {
   markdownContractVersion?: number;
+  textColorVersion?: number;
 }
 
 /** 仅用于可见性判断；保留原文，避免破坏 ZWJ Emoji 和变体选择符。 */
@@ -133,7 +135,7 @@ export function findUnsupportedMarkdownFormats(
 ): UnsupportedMarkdownIssue[] {
   const markdownContractVersion =
     options.markdownContractVersion ?? ACTIVE_MARKDOWN_CONTRACT_VERSION;
-  const normalized = normalizeMarkdownContent(markdown);
+  const normalized = maskTextColorTags(normalizeMarkdownContent(markdown));
   const lines = normalized.split('\n');
   const analysis = analyzeMarkdownBlockBoundaries(normalized, markdownContractVersion);
   const { tokens } = analysis;
@@ -285,7 +287,8 @@ export function prepareMarkdownContent(
   options: MarkdownValidationOptions = {},
 ): string {
   assertRoleMentionWrite(markdown, '', options.markdownContractVersion, true);
-  const normalized = normalizeMarkdownContent(markdown);
+  assertTextColorWrite(markdown, '', options.textColorVersion, true);
+  const normalized = normalizeTextColors(normalizeMarkdownContent(markdown));
   assertSupportedMarkdown(normalized, options);
   return normalized;
 }
