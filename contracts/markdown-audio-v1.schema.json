@@ -86,6 +86,33 @@
         },
         "additionalProperties": false
       }
+    },
+    "invalidProjectionCases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "markdown",
+          "projection",
+          "player"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "markdown": {
+            "type": "string"
+          },
+          "projection": {
+            "type": "object"
+          },
+          "player": {
+            "const": false
+          }
+        },
+        "additionalProperties": false
+      }
     }
   },
   "additionalProperties": false
