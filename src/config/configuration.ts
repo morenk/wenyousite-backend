@@ -58,6 +58,11 @@ export default function configuration() {
       completedOrphanCleanupEnabled: env.MEDIA_COMPLETED_ORPHAN_CLEANUP_ENABLED,
     },
 
+    audio: {
+      enabled: env.AUDIO_UPLOAD_ENABLED,
+      runtimeDirectory: env.AUDIO_RUNTIME_DIR || undefined,
+    },
+
     // 私聊防滥用：总发送频率与陌生请求每日配额
     directMessages: {
       sendRatePerMinute: env.DIRECT_MESSAGE_RATE_PER_MINUTE,

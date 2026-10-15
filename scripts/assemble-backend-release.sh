@@ -47,6 +47,7 @@ try {
   load.resolve('pino-roll');
   load('./dist/app.module.js');
   load('./dist/media/image-worker.module.js');
+  load('./dist/media/audio-runtime.service.js').verifyAudioRuntime(`${tree}/tools/audio-runtime`, `${tree}/audio-runtime.lock.json`);
 } catch {
   console.error('服务身份无法读取 release 入口、revision 或加载 API/Worker 模块');
   process.exit(1);
@@ -67,7 +68,7 @@ id "$APP_USER" >/dev/null 2>&1 || { echo "缺少非 root 运行用户 $APP_USER"
 command -v runuser >/dev/null || { echo "缺少 runuser，无法验证服务身份" >&2; exit 1; }
 getent group "$RUNTIME_GROUP" >/dev/null || { echo "缺少共享只读运行组 $RUNTIME_GROUP" >&2; exit 1; }
 [ -x "$NODE_SOURCE" ] || { echo "Node 运行时不可执行: $NODE_SOURCE" >&2; exit 1; }
-for path in dist/main.js dist/image-worker.js docker docker-compose.yml node_modules package.json pnpm-lock.yaml pnpm-workspace.yaml prisma scripts; do
+for path in audio-runtime.lock.json .cache/audio-runtime dist/main.js dist/image-worker.js docker docker-compose.yml node_modules package.json pnpm-lock.yaml pnpm-workspace.yaml prisma scripts; do
   [ -e "$BACKEND_DIR/$path" ] || { echo "release 输入缺失: $path" >&2; exit 1; }
 done
 
@@ -90,6 +91,10 @@ if [ ! -d "$release_dir" ]; then
     "$BACKEND_DIR/prisma" "$BACKEND_DIR/scripts" \
     "$BACKEND_DIR/package.json" "$BACKEND_DIR/pnpm-lock.yaml" "$BACKEND_DIR/pnpm-workspace.yaml" \
     "$staging_dir/"
+  # 准备阶段已按提交的清单下载；不可变 release 离线复制并由服务身份重新核验。
+  install -d -m 0755 "$staging_dir/tools"
+  cp -a -- "$BACKEND_DIR/.cache/audio-runtime" "$staging_dir/tools/audio-runtime"
+  cp -- "$BACKEND_DIR/audio-runtime.lock.json" "$staging_dir/audio-runtime.lock.json"
   DATABASE_URL=postgresql://release:release@example.invalid/wenyousite \
     DIRECT_DATABASE_URL=postgresql://release:release@example.invalid/wenyousite \
     SCARF_ANALYTICS=false DO_NOT_TRACK=1 \
@@ -110,11 +115,11 @@ if [ ! -d "$release_dir" ]; then
   validate_release_tree "$staging_dir"
   # cp -a also preserves 0700/0600 build inputs. Only copied application assets
   # need group read/traverse repair; dependencies are installed with umask 022.
-  for path in dist docker prisma scripts; do
+  for path in dist docker prisma scripts tools; do
     find "$staging_dir/$path" -type d -exec chmod g+rx {} +
     find "$staging_dir/$path" -type f -exec chmod g+r {} +
   done
-  chmod g+r "$staging_dir"/{docker-compose.yml,package.json,pnpm-lock.yaml,pnpm-workspace.yaml}
+  chmod g+r "$staging_dir"/{docker-compose.yml,package.json,pnpm-lock.yaml,pnpm-workspace.yaml,audio-runtime.lock.json}
   mv -- "$staging_dir" "$release_dir"
   find "$staging_root" -depth -delete
   staging_dir=""

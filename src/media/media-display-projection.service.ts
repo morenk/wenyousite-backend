@@ -1,3 +1,4 @@
+import { AudioProjectionService } from './audio-projection.service';
 import { extractStickerTokens } from '../stickers/sticker-content.service';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -19,9 +20,10 @@ function record(value: unknown): value is RecordValue {
 /** 只增强已经通过领域权限过滤的返回对象；正文必须另有对应引用账本，不接受请求中的任意 URL。 */
 @Injectable()
 export class MediaDisplayProjectionService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly audio?: AudioProjectionService) {}
 
   async project<T>(value: T): Promise<T> {
+    await this.audio?.project(value);
     const targets: Target[] = [];
     const bodies: Body[] = [];
     let count = 0;

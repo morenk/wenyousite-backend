@@ -88,7 +88,7 @@ export class DraftsService {
               },
               select: DRAFT_PUBLIC_SELECT,
             });
-            await this.mediaReferences.syncDraftContent(tx, draft.id, draft.content);
+            await this.mediaReferences.syncDraftContent(tx, draft.id, draft.content, userId);
             return draft;
           }, DRAFT_TRANSACTION_OPTIONS);
         } catch (error) {
@@ -129,7 +129,7 @@ export class DraftsService {
             data: { content: parsedContent.content, version: { increment: 1 } },
             select: DRAFT_PUBLIC_SELECT,
           });
-          await this.mediaReferences.syncDraftContent(tx, draft.id, draft.content);
+          await this.mediaReferences.syncDraftContent(tx, draft.id, draft.content, userId);
           return draft;
         }, DRAFT_TRANSACTION_OPTIONS)
         .catch((error) => {
@@ -159,7 +159,7 @@ export class DraftsService {
           },
           select: DRAFT_PUBLIC_SELECT,
         });
-        await this.mediaReferences.syncDraftContent(tx, draft.id, draft.content);
+        await this.mediaReferences.syncDraftContent(tx, draft.id, draft.content, userId);
         return draft;
       }, DRAFT_TRANSACTION_OPTIONS);
     } catch (error) {
@@ -190,7 +190,7 @@ export class DraftsService {
           },
           select: DRAFT_PUBLIC_SELECT,
         });
-        await this.mediaReferences.syncDraftContent(tx, updated.id, updated.content);
+        await this.mediaReferences.syncDraftContent(tx, updated.id, updated.content, userId);
         return updated;
       }, DRAFT_TRANSACTION_OPTIONS)
       .catch((error) => {

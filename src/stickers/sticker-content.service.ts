@@ -57,7 +57,7 @@ export class StickerContentService {
     )];
     if (regularUrls.length > 0) {
       const media = await this.prisma.media.findMany({
-        where: { userId, status: 'COMPLETED', url: { in: regularUrls } },
+        where: { userId, status: 'COMPLETED', deletionClaimedAt: null, purpose: { not: 'RICH_CONTENT_AUDIO' }, url: { in: regularUrls } },
         select: { url: true },
       });
       const allowed = new Set(media.map((item) => item.url));

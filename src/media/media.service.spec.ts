@@ -1,3 +1,5 @@
+import { AudioRuntimeService } from './audio-runtime.service';
+import { AudioProcessingService } from './audio-processing.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -116,6 +118,8 @@ describe('MediaService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MediaService,
+        { provide: AudioRuntimeService, useValue: { requireReady: jest.fn() } },
+        { provide: AudioProcessingService, useValue: { markFailed: jest.fn() } },
         { provide: ConfigService, useValue: mockConfig },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: RedisService, useValue: mockRedis },
@@ -132,13 +136,11 @@ describe('MediaService', () => {
     mockProcessing.cleanupCompletedStagingObjects.mockReset().mockResolvedValue(0);
     mockProcessing.discardStagingObject.mockReset().mockResolvedValue(undefined);
     mockMediaReferences.reconcileAllMarkers.mockReset().mockResolvedValue(0);
-    mockMediaReferences.claimUnreferenced
-      .mockReset()
-      .mockImplementation(async (ids: string[]) => {
-        const rows = await mockPrisma.media.findMany.mock.results.at(-1)?.value ?? [];
-        const single = await mockPrisma.media.findFirst.mock.results.at(-1)?.value;
-        return [...rows, ...(single ? [single] : [])].filter((row) => ids.includes(row.id));
-      });
+    mockMediaReferences.claimUnreferenced.mockReset().mockImplementation(async (ids: string[]) => {
+      const rows = (await mockPrisma.media.findMany.mock.results.at(-1)?.value) ?? [];
+      const single = await mockPrisma.media.findFirst.mock.results.at(-1)?.value;
+      return [...rows, ...(single ? [single] : [])].filter((row) => ids.includes(row.id));
+    });
     jest
       .spyOn(
         (service as unknown as { logger: { error: (...args: unknown[]) => void } }).logger,
@@ -156,6 +158,47 @@ describe('MediaService', () => {
   });
 
   afterEach(() => jest.restoreAllMocks());
+
+  it('音频独立30MiB预算，图片预算保持10MiB', async () => {
+    mockPrisma.media.create.mockResolvedValue(makeMedia({ purpose: 'RICH_CONTENT_AUDIO' }));
+    await service.getUploadUrl({
+      userId: 'u1',
+      filename: 'sound.wav',
+      contentType: 'audio/wav',
+      size: 30 * 1024 * 1024,
+      purpose: 'RICH_CONTENT_AUDIO',
+    });
+    expect(mockPrisma.media.create.mock.calls.at(-1)?.[0].data.key).toMatch(
+      /^media\/audio\/.*\.mp3$/,
+    );
+    await expect(
+      service.getUploadUrl({
+        userId: 'u1',
+        filename: 'sound.mp3',
+        contentType: 'audio/mpeg',
+        size: 30 * 1024 * 1024 + 1,
+        purpose: 'RICH_CONTENT_AUDIO',
+      }),
+    ).rejects.toThrow('30MiB');
+    await expect(
+      service.getUploadUrl({
+        userId: 'u1',
+        filename: 'image.png',
+        contentType: 'image/png',
+        size: 10 * 1024 * 1024 + 1,
+        purpose: 'RICH_CONTENT',
+      }),
+    ).rejects.toThrow('10MB');
+    await expect(
+      service.getUploadUrl({
+        userId: 'u1',
+        filename: 'sound.mp3',
+        contentType: 'audio/mpeg',
+        size: 1,
+        purpose: 'RICH_CONTENT',
+      }),
+    ).rejects.toThrow('不支持');
+  });
 
   // ── getUploadUrl ──
 
@@ -677,16 +720,24 @@ describe('MediaService', () => {
 
   it('cleanupOrphanMedia poster 删除失败保留记录，失败前产物也可重试回收', async () => {
     const key = 'media/2099/01/01/u1/photo.gif';
-    mockPrisma.media.findMany.mockResolvedValue([{
-      id: 'm-poster', key, url: 'https://test.cos.com/test-bucket/' + key,
-      status: 'FAILED', purpose: 'RICH_CONTENT', animated: false,
-    }]);
+    mockPrisma.media.findMany.mockResolvedValue([
+      {
+        id: 'm-poster',
+        key,
+        url: 'https://test.cos.com/test-bucket/' + key,
+        status: 'FAILED',
+        purpose: 'RICH_CONTENT',
+        animated: false,
+      },
+    ]);
     mockS3.send.mockImplementation(async (command: { Key: string }) => {
       if (command.Key.endsWith('_poster.webp')) throw new Error('delete poster failed');
       return {};
     });
     await service.cleanupOrphanMedia();
-    expect(mockS3.send.mock.calls.some(([command]) => command.Key.endsWith('_poster.webp'))).toBe(true);
+    expect(mockS3.send.mock.calls.some(([command]) => command.Key.endsWith('_poster.webp'))).toBe(
+      true,
+    );
     expect(mockPrisma.media.deleteMany).not.toHaveBeenCalled();
     mockS3.send.mockResolvedValue({});
     await service.cleanupOrphanMedia();
@@ -696,9 +747,14 @@ describe('MediaService', () => {
   });
 
   it('预览尝试中的任何对象删除失败都保留媒体及账目；重试包含所有独立 key', async () => {
-    const key = 'media/master.gif', preview = 'media/master_preview_v1_old_480.webp';
-    mockPrisma.media.findMany.mockResolvedValue([{ id: 'm-preview', key, status: 'FAILED', purpose: 'RICH_CONTENT', animated: true }]);
-    mockPrisma.mediaPreviewAttempt.findMany.mockResolvedValueOnce([{ mediaId: 'm-preview', keys: [preview] }]);
+    const key = 'media/master.gif',
+      preview = 'media/master_preview_v1_old_480.webp';
+    mockPrisma.media.findMany.mockResolvedValue([
+      { id: 'm-preview', key, status: 'FAILED', purpose: 'RICH_CONTENT', animated: true },
+    ]);
+    mockPrisma.mediaPreviewAttempt.findMany.mockResolvedValueOnce([
+      { mediaId: 'm-preview', keys: [preview] },
+    ]);
     mockS3.send.mockImplementation(async (command: { Key: string }) => {
       if (command.Key === preview) throw new Error('preview delete failure');
       return {};

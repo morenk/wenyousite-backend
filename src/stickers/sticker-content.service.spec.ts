@@ -64,7 +64,7 @@ describe('StickerContentService', () => {
     prisma.media.findMany.mockResolvedValue([{ url: ownUrl }]);
     await expect(service.assertContentAllowed('u1', `![图](${ownUrl})`)).resolves.toEqual([]);
     expect(prisma.media.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { userId: 'u1', status: 'COMPLETED', url: { in: [ownUrl] } },
+      where: { userId: 'u1', status: 'COMPLETED', deletionClaimedAt: null, purpose: { not: 'RICH_CONTENT_AUDIO' }, url: { in: [ownUrl] } },
     }));
   });
 });

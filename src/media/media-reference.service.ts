@@ -1,3 +1,4 @@
+import { extractMarkdownAudioLinks } from './audio-links';
 import { syncGalleryIndex } from '../image-gallery/gallery-index';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { MediaPurpose, MediaStatus, Prisma } from '@prisma/client';
@@ -11,20 +12,30 @@ const RECONCILE_BATCH_SIZE = 500;
 
 /**
  * 规范化媒体引用，并维护 Media.orphanedAt。
- * Markdown 继续保存 URL；账本只记录能精确匹配站内 Media 的图片。
+ * Markdown 继续保存 URL；账本只记录能精确匹配站内 Media 的图片与音频。
  */
 @Injectable()
 export class MediaReferenceService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async syncPostContent(tx: Prisma.TransactionClient, postId: string, content: string) {
-    const mediaIds = await this.resolveCompletedMarkdownMedia(tx, content);
+  async syncPostContent(
+    tx: Prisma.TransactionClient,
+    postId: string,
+    content: string,
+    actorUserId?: string,
+  ) {
     await syncGalleryIndex(tx, postId, content);
     const previous = await tx.postMedia.findMany({
       where: { postId },
       select: { mediaId: true },
     });
 
+    const mediaIds = await this.resolveCompletedMarkdownMedia(
+      tx,
+      content,
+      actorUserId,
+      previous.map((item) => item.mediaId),
+    );
     await tx.postMedia.deleteMany({ where: { postId } });
     if (mediaIds.length > 0) {
       await tx.postMedia.createMany({
@@ -34,13 +45,23 @@ export class MediaReferenceService {
     await this.reconcileMediaIds(tx, [...previous.map((item) => item.mediaId), ...mediaIds]);
   }
 
-  async syncDraftContent(tx: Prisma.TransactionClient, draftId: string, content: string) {
-    const mediaIds = await this.resolveCompletedMarkdownMedia(tx, content);
+  async syncDraftContent(
+    tx: Prisma.TransactionClient,
+    draftId: string,
+    content: string,
+    actorUserId?: string,
+  ) {
     const previous = await tx.draftMedia.findMany({
       where: { draftId },
       select: { mediaId: true },
     });
 
+    const mediaIds = await this.resolveCompletedMarkdownMedia(
+      tx,
+      content,
+      actorUserId,
+      previous.map((item) => item.mediaId),
+    );
     await tx.draftMedia.deleteMany({ where: { draftId } });
     if (mediaIds.length > 0) {
       await tx.draftMedia.createMany({
@@ -178,7 +199,9 @@ export class MediaReferenceService {
         ORDER BY id FOR UPDATE
       `);
       const candidates = await tx.media.findMany({
-        where: { AND: [eligibility, { id: { in: mediaIds } }, { NOT: { OR: this.referenceWhere() } }] },
+        where: {
+          AND: [eligibility, { id: { in: mediaIds } }, { NOT: { OR: this.referenceWhere() } }],
+        },
       });
       if (candidates.length > 0) {
         await tx.media.updateMany({
@@ -190,13 +213,32 @@ export class MediaReferenceService {
     });
   }
 
-  private async resolveCompletedMarkdownMedia(tx: DbClient, content: string) {
-    const urls = extractMarkdownImageUrls(content);
+  private async resolveCompletedMarkdownMedia(
+    tx: DbClient,
+    content: string,
+    actorUserId?: string,
+    previousIds: string[] = [],
+  ) {
+    const imageUrls = new Set(extractMarkdownImageUrls(content));
+    const audioUrls = new Set(extractMarkdownAudioLinks(content));
+    const urls = [...new Set([...imageUrls, ...audioUrls])];
     if (urls.length === 0) return [];
 
+    // 与回收领取使用同一行锁，防止验证后、插入引用前被并发领取。
+    if (audioUrls.size) await tx.$queryRaw(Prisma.sql`
+      SELECT id FROM media WHERE url IN (${Prisma.join([...audioUrls].sort())})
+      AND purpose = 'RICH_CONTENT_AUDIO' ORDER BY id FOR UPDATE
+    `);
     const rows = await tx.media.findMany({
       where: { url: { in: urls } },
-      select: { id: true, url: true, status: true, purpose: true, deletionClaimedAt: true },
+      select: {
+        id: true,
+        url: true,
+        userId: true,
+        status: true,
+        purpose: true,
+        deletionClaimedAt: true,
+      },
       orderBy: { createdAt: 'desc' },
     });
     const byUrl = new Map<string, (typeof rows)[number]>();
@@ -204,14 +246,29 @@ export class MediaReferenceService {
       if (!byUrl.has(row.url)) byUrl.set(row.url, row);
     }
 
+    const ambiguousAudio = new Set(
+      rows
+        .filter(
+          (row) =>
+            audioUrls.has(row.url) && rows.filter((other) => other.url === row.url).length > 1,
+        )
+        .map((row) => row.url),
+    );
     const resolved: string[] = [];
     for (const url of urls) {
       const media = byUrl.get(url);
       if (!media) continue;
-      if (media.deletionClaimedAt || media.status !== MediaStatus.COMPLETED) {
-        throw new BadRequestException(`正文图片尚未处理完成（mediaId: ${media.id}）`);
+      if (ambiguousAudio.has(url)) throw new BadRequestException('音频资源地址不唯一');
+      const audio = audioUrls.has(url) && media.purpose === MediaPurpose.RICH_CONTENT_AUDIO;
+      if (!imageUrls.has(url) && !audio) continue;
+      if (audio && imageUrls.has(url)) throw new BadRequestException('音频不能作为图片插入');
+      if (audio && media.userId !== actorUserId && !previousIds.includes(media.id)) {
+        throw new BadRequestException('新增正文音频必须先由当前账号上传');
       }
-      if (!mediaPurposeAllowed(media.purpose, MediaPurpose.RICH_CONTENT)) {
+      if (media.deletionClaimedAt || media.status !== MediaStatus.COMPLETED) {
+        throw new BadRequestException(`正文媒体尚未处理完成（mediaId: ${media.id}）`);
+      }
+      if (!audio && !mediaPurposeAllowed(media.purpose, MediaPurpose.RICH_CONTENT)) {
         throw new BadRequestException(`正文图片用途不匹配（mediaId: ${media.id}）`);
       }
       resolved.push(media.id);

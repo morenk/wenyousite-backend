@@ -12,6 +12,7 @@ describe('MediaReferenceService', () => {
   const tx = {
     postImageOccurrence: { deleteMany: jest.fn(), createMany: jest.fn() },
     $executeRaw: jest.fn(),
+    $queryRaw: jest.fn(),
     media: prisma.media,
     postMedia: {
       findMany: jest.fn(),
@@ -75,11 +76,17 @@ describe('MediaReferenceService', () => {
 
   it('已领取回收的正文图片拒绝绑定，即使处理状态仍为 COMPLETED', async () => {
     const url = 'https://cdn.example.com/claimed.webp';
-    prisma.media.findMany.mockResolvedValue([{
-      id: 'claimed', url, status: 'COMPLETED', deletionClaimedAt: new Date(),
-    }]);
-    await expect(service.syncDraftContent(tx as never, 'd1', `![图](${url})`))
-      .rejects.toThrow(BadRequestException);
+    prisma.media.findMany.mockResolvedValue([
+      {
+        id: 'claimed',
+        url,
+        status: 'COMPLETED',
+        deletionClaimedAt: new Date(),
+      },
+    ]);
+    await expect(service.syncDraftContent(tx as never, 'd1', `![图](${url})`)).rejects.toThrow(
+      BadRequestException,
+    );
     expect(tx.draftMedia.createMany).not.toHaveBeenCalled();
   });
 
@@ -94,5 +101,62 @@ describe('MediaReferenceService', () => {
       where: { id: { in: ['m1'] }, status: 'COMPLETED' },
       data: { orphanedAt: expect.any(Date) },
     });
+  });
+  it('自己的音频与已有他人音频可保真重排，新绑定其他账号音频拒绝', async () => {
+    const url = 'https://audio.example/media/audio/a.mp3';
+    const row = {
+      id: 'audio',
+      url,
+      userId: 'owner',
+      status: 'COMPLETED',
+      purpose: 'RICH_CONTENT_AUDIO',
+      deletionClaimedAt: null,
+    };
+    prisma.media.findMany.mockResolvedValue([row]);
+    await service.syncDraftContent(tx as never, 'd1', `[**甲**](${url})\n\n[乙](${url})`, 'owner');
+    expect(tx.draftMedia.createMany).toHaveBeenLastCalledWith({
+      data: [{ draftId: 'd1', mediaId: 'audio', sortOrder: 0 }],
+    });
+    tx.draftMedia.deleteMany.mockClear();
+    await expect(
+      service.syncDraftContent(tx as never, 'd2', `[复制](${url})`, 'other'),
+    ).rejects.toThrow('当前账号上传');
+    expect(tx.draftMedia.deleteMany).not.toHaveBeenCalled();
+    tx.draftMedia.findMany.mockResolvedValue([{ mediaId: 'audio' }]);
+    await expect(
+      service.syncDraftContent(tx as never, 'd1', `[改名](${url})`, 'other'),
+    ).resolves.toBeUndefined();
+  });
+  it.each([{ status: 'PROCESSING' }, { deletionClaimedAt: new Date() }])(
+    '拒绝未就绪或正在回收的音频',
+    async (patch) => {
+      const url = 'https://audio.example/media/audio/a.mp3';
+      prisma.media.findMany.mockResolvedValue([
+        {
+          id: 'audio',
+          url,
+          userId: 'owner',
+          status: 'COMPLETED',
+          purpose: 'RICH_CONTENT_AUDIO',
+          ...patch,
+        },
+      ]);
+      await expect(
+        service.syncDraftContent(tx as never, 'd1', `[音频](${url})`, 'owner'),
+      ).rejects.toThrow(BadRequestException);
+      expect(tx.draftMedia.deleteMany).not.toHaveBeenCalled();
+    },
+  );
+  it('音频不能冒充图片，外链和代码不能登记引用', async () => {
+    const url = 'https://audio.example/media/audio/a.mp3';
+    prisma.media.findMany.mockResolvedValue([
+      { id: 'audio', url, userId: 'owner', status: 'COMPLETED', purpose: 'RICH_CONTENT_AUDIO' },
+    ]);
+    await expect(
+      service.syncDraftContent(tx as never, 'd1', `![音频](${url})`, 'owner'),
+    ).rejects.toThrow(BadRequestException);
+    prisma.media.findMany.mockClear();
+    await service.syncDraftContent(tx as never, 'd1', '`[音频](' + url + ')`', 'owner');
+    expect(tx.draftMedia.createMany).not.toHaveBeenCalled();
   });
 });
