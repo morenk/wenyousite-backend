@@ -140,12 +140,21 @@ const markdownMediaDisplaySchema = z.object({
   display: mediaDisplaySchema.nullable(),
 }).strict();
 
+const markdownAudioMediaSchema = z.object({
+  sourceUrl: z.string().url(),
+  mediaId: z.string().min(1),
+  contentType: z.literal('audio/mpeg'),
+  size: z.number().int().positive(),
+  durationMs: z.number().int().positive().max(600000),
+}).strict();
+
 const draftSchema = z
   .object({
     id: z.string(),
     userId: z.string(),
     slot: z.number().int().min(1).max(5),
     mediaDisplays: z.array(markdownMediaDisplaySchema).optional(),
+    mediaAudios: z.array(markdownAudioMediaSchema).optional(),
     content: z.string(),
     version: z.number().int().positive(),
     createdAt: z.string().datetime(),

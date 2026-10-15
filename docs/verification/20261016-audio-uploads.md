@@ -43,3 +43,40 @@ Auto-review 默认偏好已传递；宿主无受支持的设置/核验入口，�
 - `.cache/audio-integration-claim.log` SHA-256 `745c31365fc50fd538a900c9fb51db3598965f6f7f727e3633e11af93511e241`。
 
 - `.cache/audio-encoder-final.log` SHA-256 `40c1b09297addce98ffe8a7f3cd9cb4dcafdba01bddc18247446b5fa3f83b400`（补充真实视频/双音轨拒绝后，编码器单 suite 全部通过）。
+
+## 明确授权合并后的完整门禁
+
+负责人随后明确批准合并 PR #51 并部署兼容后端。本节记录该授权后的完整门禁；不以之前候选阶段的定向检查代替合并验证。实现源码仍为 `7c944216d90e39476f0b8bb839de13431f095dec`，本轮仅修正文档标题、E2E 响应 schema 及追加本证据，未修改应用运行源码。
+
+`pnpm check:full` 按原顺序分段完成全部检查，保留两次失败和续跑证据，不声明首次一条命令即全部成功：
+
+1. 安全审计无已知生产依赖漏洞、无业务 RawUnsafe；全量 lint、类型、架构及 OpenAPI 内容/产物一致性通过。版本纪律检查发现 CHANGELOG 标题未以版本号直接开头，修正标题为 `## 5.37.0-dev.20261016.1` 后该项通过；未修改检查器。
+2. 按 package.json 从失败项后继续，OpenAPI runner、全量 Jest **206 suite / 2661 tests**、HTTP 安全、cleanup 单元、rich-text、mobile-release、downloads、host-health、部署源/运行入口、数据安全、全部 docs 契约和 Nest build 均通过。downloads 30 项的隔离 runId `231f945f-3d5f-43f8-afd8-d8fd96f37eb1` 输出 `isolated-tests-cleaned`。
+3. cleanup 集成与生命周期全部通过。首轮 full E2E 的严格草稿响应 schema 漏了新增 `mediaAudios`，成功响应被误判并引发后续草稿用例连锁失败；只增加精确五字段、正整数/时长界限与 MIME 的严格 schema，保留 `.strict()`，没有使用 passthrough 或弱化断言。该文件 ESLint 通过。同类搜索确认没有另一处 strict 正文 schema 遗漏。
+4. 只重跑失败 full E2E，最终全部 25 个脚本通过，包括音频、HTTP、权限、并发写入、媒体回收、管理员、经济与收藏；不机械重复已过的单元、静态或构建阶段。
+
+治理主任务在管理 SSH 下执行 `scripts/assemble-backend-release.integration.test.sh`，报告 exit 0：077/0700/0600 输入权限、真实服务身份、重复 release 和失败保留当前版本均通过，临时 fixture 由 trap 清理。未在开发身份重复运行该 root 检查。
+
+### 隔离身份和清理复核
+
+本轮实际 PG cluster_name、Redis instanceId/ownership 均由官方 runner 核验；业务写入继续使用独立数据库/Redis/上传路径，禁止真实桶和线上业务写验收。下表包含失败轮，全部输出 `resourcesCleaned=true`、`resourcesVerified=true`：
+
+| runId | 根目录 | PG / Redis | 用途 |
+| --- | --- | --- | --- |
+| `e2e_c549d0f4313c3b315169a8a5` | `/tmp/wenyousite-e2e-MoSwrf` | 36511 / 45101 | 清理集成 |
+| `e2e_33c7190255a115c8657ec9fa` | `/tmp/wenyousite-e2e-AR4oPg` | 35785 / 33865 | 生命周期 |
+| `e2e_b23cfee2b0b51dd706b06b2f` | `/tmp/wenyousite-e2e-U13qXR` | 46427 / 42221 | 生命周期 |
+| `e2e_58c75d0722c60e8b5f8a6689` | `/tmp/wenyousite-e2e-awVEV5` | 44861 / 37925 | 生命周期 |
+| `e2e_0d9ec1f02f415859fcf0bbe4` | `/tmp/wenyousite-e2e-1FrvmF` | 38057 / 41671 | 生命周期 |
+| `e2e_48d4efaa3c9313dd93a0c470` | `/tmp/wenyousite-e2e-KS62A0` | 40123 / 42387 | full E2E 失败轮 |
+| `e2e_05bc6302efee1f55c96b93c6` | `/tmp/wenyousite-e2e-6GIklB` | 35625 / 35765 | full E2E 最终通过 |
+
+最终 E2E API 为 `127.0.0.1:36647`，Redis instanceId 为 `a5c5ed71a6d7989d44e1ce675d58d7670fd9573e`。独立复核上述 7 个根目录均不存在，16 个 PG/Redis/API 端口关闭，本 checkout 私有 registry 为空。没有保留测试服务或接管其他任务进程。
+
+### 完整日志
+
+- `.cache/audio-merge-check-full.log` SHA-256 `490695b3716bd7b47456634f05480cb883ad790dfad00bfe898b773d96dbe710`。
+- `.cache/audio-merge-check-resume.log` SHA-256 `9101e5a68eacc8dfc88f0b7950bbe42897202c6607f538a5191a0070681e119a`。
+- `.cache/audio-merge-e2e-final.log` SHA-256 `c87edba48b7176c32b08563795ad4b49afcea898f0250da630b2b0dee49ee861`。
+
+首轮失败的私有诊断为 `/tmp/wenyousite-e2e-failure-e2e_48d4efaa3c9313dd93a0c470.log` 及同 runId 的 `wenyousite-e2e-backend-failure-…log`，不提交可能含测试运行数据的日志正文。最终交付提交不含 skip-ci 标记（不改写既有提交），恢复授权合并阶段正常 CI；CI 结果及实际合并/部署 SHA 由治理发布记录补充。

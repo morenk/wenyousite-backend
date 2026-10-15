@@ -1,6 +1,6 @@
 # API 合同变更
 
-## 正文音频兼容扩展（5.37.0-dev.20261016.1）
+## 5.37.0-dev.20261016.1
 
 新增可选 audioUpload 能力、RICH_CONTENT_AUDIO 用途、durationMs/failureCode 与正文 mediaAudios；普通无 title 链接保留旧端兼容，旧图片/列表/正文不迁移、不删除。详见[正文音频 v1](../docs/audio-upload.md)。
 
