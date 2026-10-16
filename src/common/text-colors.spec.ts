@@ -1,3 +1,4 @@
+import { analyzeMarkdownBlockBoundaries } from './markdown-block-boundaries';
 import MarkdownIt from 'markdown-it';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -5,6 +6,7 @@ import {
   assertTextColorWrite,
   normalizeTextColors,
   parseTextColors,
+  maskTextColorTags,
   projectTextColors,
   isTextColorResponseRoute,
   stripTextColors,
@@ -182,4 +184,36 @@ it('去色保留同段表情标题协议', () => {
 it.each(['**a**', '***a***'])('三段attention边界 %s', (left) => {
   const source = left + color('*斜体*') + '***a***';
   expect(semantics(stripTextColors(source))).toEqual(semantics(source));
+});
+
+
+describe('旧端去色保留对齐协议块边界', () => {
+  it.each(['center', 'right'].flatMap((alignment) => ['', '## ', '### '].map((prefix) => [alignment, prefix])))(
+    '%s 对齐 %s 保留紧接前段的协议行与 32 种内联格式', (alignment, prefix) => {
+      for (let marks = 0; marks < 32; marks++) {
+        let content = '如何呢👩‍💻e\u0301';
+        if (marks & 16) content = '`' + content + '`';
+        if (marks & 4) content = '~~' + content + '~~';
+        if (marks & 2) content = '*' + content + '*';
+        if (marks & 1) content = '**' + content + '**';
+        if (marks & 8) content = '[' + content + '](https://example.com/path "链接标题")';
+        const source = `前段\n[wenyousite-align-v1-${alignment}]: #\n${prefix}${color(content)}\n\n后段`;
+        const fallback = stripTextColors(source);
+        expect(prepareMarkdownContent(source, { textColorVersion: 1 })).toBe(source);
+        expect(fallback).toContain(`[wenyousite-align-v1-${alignment}]: #\n${prefix}`);
+        expect(prepareMarkdownContent(fallback)).toBe(fallback);
+        expect(truncateMarkdown(source, 500)).not.toContain('wenyousite-align');
+        expect(semantics(fallback)).toEqual(semantics(source));
+        const before = analyzeMarkdownBlockBoundaries(maskTextColorTags(source));
+        const after = analyzeMarkdownBlockBoundaries(fallback);
+        expect(before.invalidMarkerLines).toEqual([]);
+        expect(after.invalidMarkerLines).toEqual([]);
+        expect(after.boundaries).toEqual(before.boundaries);
+      }
+    },
+  );
+  it('连续对齐段落不需要空行且各自保留颜色外的格式', () => {
+    const source = `前段\n[wenyousite-align-v1-center]: #\n${color('**居中**')}\n[wenyousite-align-v1-right]: #\n${color('*靠右*')}`;
+    expect(stripTextColors(source)).toBe('前段\n[wenyousite-align-v1-center]: #\n**居中**\n[wenyousite-align-v1-right]: #\n*靠右*');
+  });
 });

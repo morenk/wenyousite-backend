@@ -1,3 +1,4 @@
+import { analyzeMarkdownBlockBoundaries } from './markdown-block-boundaries';
 import MarkdownIt from 'markdown-it';
 import type Token from 'markdown-it/lib/token.mjs';
 import { HttpStatus } from '@nestjs/common';
@@ -298,7 +299,8 @@ export function stripTextColors(source: string): string {
     cursor += line.length + 1;
   }
   const edits: Array<{ start: number; end: number; value: string }> = [];
-  for (const block of parser.parse(source, {})) {
+  // 对齐协议行会终止前一个段落；按同一块边界去色，避免把它序列化成字面标点。
+  for (const block of analyzeMarkdownBlockBoundaries(source).tokens) {
     if (block.type !== 'inline' || !block.map) continue;
     const start = offsets[block.map[0]],
       end = offsets[block.map[1]] ?? source.length;

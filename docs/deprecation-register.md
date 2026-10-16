@@ -126,3 +126,7 @@ RP 采用 additive 字段；原 username/avatar、按 userId 互动和 Markdown 
 ## 文本颜色 v1
 
 独立扩展见 [文本颜色契约](markdown-text-color-v1.md)。本次不弃用 Markdown 5、角色提及 6 或旧端读取；颜色降级及覆盖拒绝在无消费者、迁移、回归和回滚证据齐全前保持。
+
+### 文本颜色与对齐的兼容回归
+
+去色修复保留无空行相邻的 center/right 对齐边界，补充共享黄金语料；不新增或弃用协议、不改变能力协商，不需要 Foundation 发版。现有旧端去色与覆盖拒绝继续保留，不能将此修复视为清理授权。

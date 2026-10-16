@@ -127,6 +127,30 @@
       "source": "<span data-wenyou-color-v1=\"#D14343\"> x </span>",
       "canonical": "<span data-wenyou-color-v1=\"#D14343\"> x </span>",
       "fallback": "&#32;x&#32;"
+    },
+    {
+      "id": "aligned-center-first-paragraph",
+      "source": "[wenyousite-align-v1-center]: #\n<span data-wenyou-color-v1=\"#D14343\">**如何呢**</span>\n\n后段",
+      "canonical": "[wenyousite-align-v1-center]: #\n<span data-wenyou-color-v1=\"#D14343\">**如何呢**</span>\n\n后段",
+      "fallback": "[wenyousite-align-v1-center]: #\n**如何呢**\n\n后段"
+    },
+    {
+      "id": "aligned-center-after-paragraph",
+      "source": "前段\n[wenyousite-align-v1-center]: #\n<span data-wenyou-color-v1=\"#D14343\">**如何呢**</span>\n\n后段",
+      "canonical": "前段\n[wenyousite-align-v1-center]: #\n<span data-wenyou-color-v1=\"#D14343\">**如何呢**</span>\n\n后段",
+      "fallback": "前段\n[wenyousite-align-v1-center]: #\n**如何呢**\n\n后段"
+    },
+    {
+      "id": "aligned-right-first-paragraph",
+      "source": "[wenyousite-align-v1-right]: #\n<span data-wenyou-color-v1=\"#D14343\">**如何呢**</span>\n\n后段",
+      "canonical": "[wenyousite-align-v1-right]: #\n<span data-wenyou-color-v1=\"#D14343\">**如何呢**</span>\n\n后段",
+      "fallback": "[wenyousite-align-v1-right]: #\n**如何呢**\n\n后段"
+    },
+    {
+      "id": "aligned-right-after-paragraph",
+      "source": "前段\n[wenyousite-align-v1-right]: #\n<span data-wenyou-color-v1=\"#D14343\">**如何呢**</span>\n\n后段",
+      "canonical": "前段\n[wenyousite-align-v1-right]: #\n<span data-wenyou-color-v1=\"#D14343\">**如何呢**</span>\n\n后段",
+      "fallback": "前段\n[wenyousite-align-v1-right]: #\n**如何呢**\n\n后段"
     }
   ],
   "invalidSources": [

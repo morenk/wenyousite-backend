@@ -28,18 +28,19 @@ async function main() {
   const thread=await db.thread.create({data:{ownerId:user.id,title:'文本颜色隔离样本',category:category.slug,published:true,members:{create:{userId:user.id,role:'OWNER'}}}});
   const sub=await db.subthread.create({data:{threadId:thread.id,title:'颜色子帖'}});
   await db.thread.update({where:{id:thread.id},data:{defaultSubthreadId:sub.id}});
-  const raw=color('**彩色正文**')+' 普通文字';
+  const raw='前段\n[wenyousite-align-v1-center]: #\n'+color('**彩色正文**')+' 普通文字\n[wenyousite-align-v1-right]: #\n'+color('*靠右正文*');
+  const legacy='前段\n[wenyousite-align-v1-center]: #\n**彩色正文** 普通文字\n[wenyousite-align-v1-right]: #\n*靠右正文*';
   const floor=await request('/subthreads/'+sub.id+'/posts','POST',{content:'初始无色楼层'},201);
   await db.post.update({where:{id:floor.id},data:{content:raw}});
   const body=await db.post.create({data:{threadId:thread.id,subthreadId:sub.id,authorId:user.id,kind:'BODY',content:raw}});
   const draft=await db.draft.create({data:{userId:user.id,slot:1,content:raw}});
   for(const capable of [false,true,false,true]) {
     const got=await request('/posts/'+floor.id,'GET',undefined,200,capable);
-    assert.equal(got.content,capable?raw:'**彩色正文** 普通文字');
+    assert.equal(got.content,capable?raw:legacy);
     const threadGot=await request('/threads/'+thread.id,'GET',undefined,200,capable);
-    assert.equal(threadGot.subthreads[0].bodyPost.content,capable?raw:'**彩色正文** 普通文字');
+    assert.equal(threadGot.subthreads[0].bodyPost.content,capable?raw:legacy);
     const drafts=await request('/drafts/state','GET',undefined,200,capable);
-    assert.equal(drafts.drafts[0].content,capable?raw:'**彩色正文** 普通文字');
+    assert.equal(drafts.drafts[0].content,capable?raw:legacy);
   }
   const oldWrite={content:'去掉全部颜色',version:floor.version};
   assert.equal((await request('/posts/'+floor.id,'PATCH',oldWrite,409,false)).code,40016);
@@ -77,7 +78,7 @@ async function main() {
   const freshBody=await db.post.findUniqueOrThrow({where:{id:body.id}});
   await request('/threads/'+thread.id+'/aggregate','PATCH',{...aggregate,content:raw+' 聚合追加',bodyVersion:freshBody.version,textColorVersion:1});
   assert.equal((await db.post.findUniqueOrThrow({where:{id:body.id}})).content,raw+' 聚合追加');
-  // ZIP 始终在内存解压，不落共享目录；分别验证原色 Markdown 和纯文本出口。
+  // ZIP 沿用既有规则移除对齐标记；去色不能先将标记转义而泄漏到正文。全程仅内存解压。
   for(const capable of [true,false]) {
     let response!:Response;
     for(let attempt=0;attempt<3;attempt++) {
@@ -92,7 +93,7 @@ async function main() {
       const method=bytes.readUInt16LE(i+10),size=bytes.readUInt32LE(i+20),nameLength=bytes.readUInt16LE(i+28),local=bytes.readUInt32LE(i+42);
       const name=bytes.subarray(i+46,i+46+nameLength).toString(),start=local+30+bytes.readUInt16LE(local+26)+bytes.readUInt16LE(local+28);
       const data=bytes.subarray(start,start+size),text=(method===8?inflateRawSync(data):data).toString();
-      if(name.endsWith('.md')) { markdownFound=true; assert.equal(text.includes('data-wenyou-color-v1'),capable); }
+      if(name.endsWith('.md')) { markdownFound=true; assert.equal(text.includes('data-wenyou-color-v1'),capable); assert(!text.includes('wenyousite-align')); assert(!text.includes('wenyousite\\-align')); assert(text.includes('靠右正文')); }
       if(name.endsWith('.txt')) assert(!text.includes('data-wenyou-color-v1'));
     }
     assert(markdownFound);
