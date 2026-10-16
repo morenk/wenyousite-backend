@@ -4,6 +4,7 @@ import {
   IsBoolean,
   IsEnum,
   IsNumber,
+  IsInt,
   IsOptional,
   IsString,
   IsUrl,
@@ -309,6 +310,18 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   AUDIO_RUNTIME_DIR: string = '';
+
+  @IsInt()
+  @IsOptional()
+  @Min(1)
+  @Max(100)
+  AUDIO_MAX_ACTIVE_UPLOADS: number = 2;
+
+  @IsInt()
+  @IsOptional()
+  @Min(1)
+  @Max(Number.MAX_SAFE_INTEGER)
+  AUDIO_DAILY_INPUT_BYTES: number = 300 * 1024 * 1024;
 
   @IsNumber()
   @IsOptional()

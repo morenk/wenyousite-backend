@@ -28676,7 +28676,7 @@
             }
           },
           "429": {
-            "description": "每用户小时上传配额超限（默认 60 次）",
+            "description": "小时配额超限42900；音频活动名额已满42901；UTC当日新签发输入预留超限42902",
             "content": {
               "application/json": {
                 "schema": {
@@ -28875,6 +28875,33 @@
               }
             }
           },
+          "429": {
+            "description": "过期音频确认需重新取得活动名额，已满返回42901；保留mediaId稍后重试",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "Vary": {
+                "description": "追加 X-Markdown-Contract-Version 与 X-Text-Color-Version，保留已有 Origin/Accept 等；缓存不得混用能力响应或会话",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
           "default": {
             "description": "未在此操作中单独列出的错误响应",
             "content": {
@@ -29043,6 +29070,33 @@
               },
               "X-API-Contract-Version": {
                 "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "429": {
+            "description": "音频活动名额已满42901；同mediaId不重复扣每日签发预留",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "Vary": {
+                "description": "追加 X-Markdown-Contract-Version 与 X-Text-Color-Version，保留已有 Origin/Accept 等；缓存不得混用能力响应或会话",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
               }
             }
           },
@@ -32831,7 +32885,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.38.0-dev.20261016.1",
+    "version": "5.39.0-dev.20261017.1",
     "contact": {}
   },
   "tags": [
@@ -49854,6 +49908,8 @@
           40924,
           40925,
           42900,
+          42901,
+          42902,
           50000
         ],
         "description": "稳定业务错误码；名称和值来源于 ErrorCode",
@@ -49957,6 +50013,8 @@
           "REGISTRATION_PAUSED",
           "CONTENT_WRITES_PAUSED",
           "RATE_LIMITED",
+          "AUDIO_ACTIVE_LIMIT",
+          "AUDIO_DAILY_BYTES_LIMIT",
           "INTERNAL_ERROR"
         ]
       },

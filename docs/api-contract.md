@@ -232,6 +232,10 @@ GET /users/me 与有效用户的 GET /users/{id} 中，`_count.following` / `_co
 
 新增可选 audioUpload 能力、RICH_CONTENT_AUDIO 用途、durationMs/failureCode 与正文 mediaAudios；普通无 title 链接保留旧端兼容，旧图片/列表/正文不迁移、不删除。详见[正文音频 v1](audio-upload.md)。
 
+音频准入兼容扩展5.38.0-dev.20261017.1：签发新增HTTP429业务码42901活动名额/42902 UTC日输入预留；重签、晚确认可返回42901，同mediaId不重复扣费。成功DTO与Markdown不变，详见[音频预算](audio-upload.md)。
+
 ## 文本颜色 v1
 
 主题正文/楼层/回复与草稿独立声明 `textColorVersion: 1`；读取头 `X-Text-Color-Version: 1` 与原 Markdown 6 头并行，响应 Vary 包含两者。能力、关闭新写、格式白名单、错误码及旧端覆盖保护见 [文本颜色 v1](markdown-text-color-v1.md)。
+
+合并版本5.39.0-dev.20261017.1同时包含文本颜色v1和音频准入预算，兼容保留双方能力、成功字段及错误码。

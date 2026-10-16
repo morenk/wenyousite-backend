@@ -4,7 +4,7 @@
 
 ## 上传与能力
 
-`GET /meta` 仅在明确开启配置且固定转码运行依赖经校验就绪时返回 `audioUpload`（version、maxBytes、maxDurationMs、contentTypes、outputContentType）；字段缺失时隐藏上传入口。服务端未就绪也拒绝音频上传，不仅依赖界面。使用既有 `/media/upload-url`、同 ID 重签、`/media/upload-done` 和 `/media/:id`；purpose 为 `RICH_CONTENT_AUDIO`。输入 MIME 为 audio/mpeg、audio/mp4、audio/wav、audio/ogg、audio/flac；别名由客户端规范到以上值，服务端核验真实内容。音频上限 30MiB、10 分钟，图片保持 10MiB；沿用每小时配额和 10000 字正文限制，不新增每篇音频个数限制。
+`GET /meta` 仅在明确开启配置且固定转码运行依赖经校验就绪时返回 `audioUpload`（version、maxBytes、maxDurationMs、contentTypes、outputContentType）；字段缺失时隐藏上传入口。服务端未就绪也拒绝音频上传，不仅依赖界面。使用既有 `/media/upload-url`、同 ID 重签、`/media/upload-done` 和 `/media/:id`；purpose 为 `RICH_CONTENT_AUDIO`。输入 MIME 为 audio/mpeg、audio/mp4、audio/wav、audio/ogg、audio/flac；别名由客户端规范到以上值，服务端核验真实内容。音频上限 30MiB、10 分钟，图片保持 10MiB；沿用每小时配额和 10000 字正文限制，并受下文音频准入预算约束，不新增每篇音频个数限制。
 
 上传状态仍为 UPLOADING → PROCESSING → COMPLETED/FAILED。未完成只在本地显示可取消占位，不写入持久正文。完成的 url、contentType、size 指向剥离标签与封面的 MP3 128kbps 播放副本；新增 durationMs。失败新增受控 failureCode：AUDIO_INVALID、AUDIO_TOO_LONG、AUDIO_PROCESSING_FAILED，不暴露工具 stderr。成功或最终失败清理 staging，不永久双存原件。
 
@@ -29,3 +29,11 @@
 Worker 子进程仅允许本地 file/pipe 与5种容器，真实探测要求恰好一个音轨；可附封面但拒绝活动视频/字幕/数据流。编码只映射音轨，移除附图、章节和标签。输入30MiB、输出10MiB、时长10分钟，探测10秒、编码90秒、音频并发1；任何失败不暴露 stderr。临时工作目录 finally 清理；输出成功后仅发布MP3副本并删除staging。失败/重试/队列丢失沿用稳定mediaId和条件更新。
 
 转码进程单并发，探测 10 秒、转码 90 秒超时，单次分配上限 64 MiB，输出限制 10 MiB。单次分配限制不是总 RSS 硬上限；本实现没有设置进程总 RSS 硬上限，部署方可通过现有 Worker 的 systemd 资源策略另行约束；本任务不修改 unit。
+
+## 音频准入预算（5.38.0-dev.20261017.1）
+
+保持30MiB输入、600秒、128kbps MP3和10MiB输出不变。默认每用户活动2份、UTC日新签发输入预留300MiB，分别配置 `AUDIO_MAX_ACTIVE_UPLOADS` / `AUDIO_DAILY_INPUT_BYTES`。日额度只在新mediaId准入时按声明输入大小预留一次，不按转码后的size累计；失败、过期不返还日额度，同mediaId重签/确认/队列重试不重复收费。日界按UTC；这是新音频的准入预算，不是对象存储实际PUT流量计量，无法阻止同一有效签名重复上传。
+
+活动包含PROCESSING和有效UPLOADING租约。UPLOADING租约15分钟（签名10分钟加5分钟确认宽限），过期释放名额但不删除对象；同mediaId晚确认/重签需原子重新取得名额。完成/失败释放名额，PROCESSING不凭时间释放，仍由队列恢复处理。签发HTTP429的业务码：42901 AUDIO_ACTIVE_LIMIT（保留媒体稍后恢复）；42902 AUDIO_DAILY_BYTES_LIMIT（UTC次日可新建）。原42900小时配额保持。旧端保留通用429提示，新端可展示服务端简短message；429不得直接丢弃已上传文件或创建新mediaId自动重试。成功响应及Markdown协议不变。
+
+预算与记录写入使用同一PostgreSQL事务和用户行锁；租约续签/确认与回收复用Media行锁。历史缺省字段兼容：旧UPLOADING/PROCESSING输入可从原始size计量，已转码记录无法还原输入，不伪造历史累计；上线前已完成音频不追溯计费。24小时旧上传回收必须同时确认租约过期；7日失败/完成孤儿宽限和完成回收开关保持。

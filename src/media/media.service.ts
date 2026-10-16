@@ -1,3 +1,4 @@
+import { AudioBudgetService } from './audio-budget.service';
 import { AudioRuntimeService } from './audio-runtime.service';
 import { AudioProcessingService } from './audio-processing.service';
 import { AUDIO_CONTENT_TYPES, AUDIO_MAX_BYTES } from './audio-policy';
@@ -81,6 +82,7 @@ export class MediaService {
     @InjectQueue('image') private imageQueue: Queue,
     private readonly audioRuntime?: AudioRuntimeService,
     private readonly audioProcessing?: AudioProcessingService,
+    private readonly audioBudget: AudioBudgetService = new AudioBudgetService(prisma, config),
   ) {
     this.uploadRatePerHour = this.config.get<number>('upload.ratePerHour') ?? 60;
     this.completedOrphanCleanupEnabled =
@@ -129,8 +131,9 @@ export class MediaService {
     const publicUrl = this.storage.publicUrl(objectKey);
     const purpose = opts.purpose ?? MediaPurpose.LEGACY;
 
-    const media = await this.prisma.media.create({
-      data: {
+    // 签名为本地计算；先成功再准入，签名失败不留下客户端拿不到 ID 的额度。
+    const uploadUrl = await this.signUploadUrl({ bucket, key: stagingKey, contentType: opts.contentType, size: opts.size });
+    const data = {
         userId: opts.userId,
         url: publicUrl,
         key: objectKey,
@@ -138,15 +141,10 @@ export class MediaService {
         purpose,
         contentType: opts.contentType,
         size: opts.size,
-      },
-    });
-
-    const uploadUrl = await this.signUploadUrl({
-      bucket,
-      key: stagingKey,
-      contentType: opts.contentType,
-      size: opts.size,
-    });
+    };
+    const media = isAudio
+      ? await this.audioBudget.create(data, opts.size)
+      : await this.prisma.media.create({ data });
 
     return {
       uploadUrl,
@@ -169,6 +167,7 @@ export class MediaService {
     if (media.purpose === MediaPurpose.RICH_CONTENT_AUDIO) {
       if (!this.audioRuntime) throw new ServiceUnavailableException('音频上传暂不可用');
       this.audioRuntime.requireReady();
+      await this.audioBudget.renew(mediaId, userId);
     }
     const uploadKey = media.stagingKey ?? media.key;
     const bucket = this.storage.bucket;
@@ -261,7 +260,11 @@ export class MediaService {
     let processing;
     try {
       // 条件更新取得唯一入队权，避免两个确认请求各自创建任务。
-      processing = await this.prisma.media.update({
+      if (isAudio) {
+        const admission = await this.audioBudget.startProcessing(mediaId, userId, actualSize!, actualContentType!);
+        if (!admission.claimed) return { media: withMediaVariants(admission.media), processing: admission.media.status === 'PROCESSING' };
+        processing = admission.media;
+      } else processing = await this.prisma.media.update({
         where: { id: mediaId, status: 'UPLOADING', deletionClaimedAt: null },
         data: {
           status: 'PROCESSING',
@@ -371,7 +374,7 @@ export class MediaService {
     const eligibility: Prisma.MediaWhereInput = {
       OR: [
         { deletionClaimedAt: { not: null } },
-        { status: 'UPLOADING', createdAt: { lt: uploadingCutoff } },
+        { status: 'UPLOADING', createdAt: { lt: uploadingCutoff }, OR: [{ purpose: { not: 'RICH_CONTENT_AUDIO' } }, { audioUploadLeaseUntil: null }, { audioUploadLeaseUntil: { lte: new Date(now) } }] },
         { status: 'FAILED', createdAt: { lt: orphanCutoff } },
         ...completedCandidate,
       ],

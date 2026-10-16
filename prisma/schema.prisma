@@ -932,6 +932,8 @@ model Media {
   height              Int?
   animated            Boolean      @default(false)
   status              MediaStatus  @default(UPLOADING)
+  audioInputBytes     Int?         @map("audio_input_bytes")
+  audioUploadLeaseUntil DateTime?  @map("audio_upload_lease_until")
   durationMs          Int?         @map("duration_ms")
   failureCode         String?      @map("failure_code")
   processingStartedAt DateTime?    @map("processing_started_at")
@@ -957,6 +959,7 @@ model Media {
   @@index([url])
   @@index([status, createdAt])
   @@index([status, processingStartedAt])
+  @@index([userId, purpose, createdAt], map: "media_audio_admission_idx")
   @@index([status, orphanedAt])
   @@index([deletionClaimedAt])
   @@map("media")

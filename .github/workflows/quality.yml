@@ -122,4 +122,5 @@ jobs:
           test -x "$redis_bin"
           printf 'E2E_PG_BIN=%s\nE2E_REDIS_BIN=%s\n' "$pg_bin" "$redis_bin" >> "$GITHUB_ENV"
       - run: pnpm test:e2e:full
+      - run: pnpm test:integration:audio-budget
       - run: pnpm test:e2e

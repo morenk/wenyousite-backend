@@ -1,3 +1,4 @@
+import { AudioBudgetService } from './audio-budget.service';
 import { AudioRuntimeModule } from './audio-runtime.service';
 import { AudioProcessingService } from './audio-processing.service';
 import { AudioProjectionService } from './audio-projection.service';
@@ -26,6 +27,7 @@ import { MediaProcessingService } from './media-processing.service';
   controllers: [MediaController],
   providers: [
     AudioProcessingService,
+    AudioBudgetService,
     AudioProjectionService,
     MediaDisplayProjectionService,
     { provide: APP_INTERCEPTOR, useClass: MediaDisplayInterceptor },
