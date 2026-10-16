@@ -205,6 +205,10 @@ export const ErrorCode = {
   // ── 限流 429xx ──
   /** 请求过于频繁 */
   RATE_LIMITED: 42900,
+  /** 音频活动上传/处理中名额已满，可保留 mediaId 稍后恢复 */
+  AUDIO_ACTIVE_LIMIT: 42901,
+  /** UTC 当日新音频签发输入预留达到上限 */
+  AUDIO_DAILY_BYTES_LIMIT: 42902,
 
   // ── 服务端 500xx ──
   /** 服务器内部错误 */

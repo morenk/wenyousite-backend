@@ -118,3 +118,7 @@ RP 采用 additive 字段；原 username/avatar、按 userId 互动和 Markdown 
 ## 正文音频兼容扩展（5.37.0-dev.20261016.1）
 
 新增可选 audioUpload 能力、RICH_CONTENT_AUDIO 用途、durationMs/failureCode 与正文 mediaAudios；普通无 title 链接保留旧端兼容，旧图片/列表/正文不迁移、不删除。详见[正文音频 v1](audio-upload.md)。
+
+### 音频准入预算（5.38.0-dev.20261017.1）
+
+新增42901/42902可识别限流语义，旧端仍按HTTP429提示，成功DTO/无title普通链接/mediaAudios保持兼容。不删除旧协议、不要求Foundation发布，客户端不得把预算拒绝视为媒体已丢失。

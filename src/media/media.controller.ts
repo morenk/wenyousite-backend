@@ -37,7 +37,7 @@ export class MediaController {
   })
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   @ApiBadRequestResponse({ description: '文件类型不支持或超过大小限制' })
-  @ApiTooManyRequestsResponse({ description: '每用户小时上传配额超限（默认 60 次）' })
+  @ApiTooManyRequestsResponse({ description: '小时配额超限42900；音频活动名额已满42901；UTC当日新签发输入预留超限42902' })
   async getUploadUrl(@Req() req: FastifyRequest, @Body() dto: CreateUploadUrlDto) {
     const user = req['user'] as { id: string };
     return this.mediaService.getUploadUrl({ ...dto, userId: user.id });
@@ -52,6 +52,7 @@ export class MediaController {
   @ApiNotFoundResponse({
     description: '对象尚不存在或上传未完成（MEDIA_OBJECT_MISSING）',
   })
+  @ApiTooManyRequestsResponse({ description: '过期音频确认需重新取得活动名额，已满返回42901；保留mediaId稍后重试' })
   async confirmUpload(@Req() req: FastifyRequest, @Body() dto: ConfirmUploadDto) {
     const user = req['user'] as { id: string };
     return this.mediaService.confirmUpload(dto.mediaId, user.id);
@@ -64,6 +65,7 @@ export class MediaController {
   @ApiUnauthorizedResponse({ description: '未登录或 Token 无效' })
   @ApiBadRequestResponse({ description: '媒体状态不允许重新上传' })
   @ApiNotFoundResponse({ description: '媒体记录不存在' })
+  @ApiTooManyRequestsResponse({ description: '音频活动名额已满42901；同mediaId不重复扣每日签发预留' })
   async reissueUploadUrl(@Req() req: FastifyRequest, @Param('id') id: string) {
     const user = req['user'] as { id: string };
     return this.mediaService.reissueUploadUrl(id, user.id);
