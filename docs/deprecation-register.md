@@ -118,3 +118,7 @@ RP 采用 additive 字段；原 username/avatar、按 userId 互动和 Markdown 
 ## 正文音频兼容扩展（5.37.0-dev.20261016.1）
 
 新增可选 audioUpload 能力、RICH_CONTENT_AUDIO 用途、durationMs/failureCode 与正文 mediaAudios；普通无 title 链接保留旧端兼容，旧图片/列表/正文不迁移、不删除。详见[正文音频 v1](audio-upload.md)。
+
+## 文本颜色 v1
+
+独立扩展见 [文本颜色契约](markdown-text-color-v1.md)。本次不弃用 Markdown 5、角色提及 6 或旧端读取；颜色降级及覆盖拒绝在无消费者、迁移、回归和回滚证据齐全前保持。

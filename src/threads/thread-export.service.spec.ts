@@ -1,5 +1,6 @@
 import {
   renderExportContent,
+  renderExportPlainText,
   formatExportTime,
   getExportMediaExtension,
   getExportFilenameStem,
@@ -244,5 +245,22 @@ describe('ThreadExportService 资源边界', () => {
     storage.download.mockRejectedValue(new RangeError('OBJECT_DOWNLOAD_LIMIT_EXCEEDED'));
     await expect(service.createArchive('thread-1', 'owner', options)).rejects.toMatchObject({ status: 413 });
     expect(storage.download).toHaveBeenCalledWith('image', 'archive', 64 * 1024 * 1024);
+  });
+});
+
+
+describe('renderExportPlainText 颜色降级', () => {
+  const color = (text: string) => `<span data-wenyou-color-v1="#112233">${text}</span>`;
+  it.each([
+    ['**a**' + color('*斜体*') + '***a***', 'a斜体a'],
+    ['***a***' + color('*斜体*') + '***a***', 'a斜体a'],
+    [color('# 标题符号'), '# 标题符号'],
+    [color(' x '), ' x '],
+    [color('😀'), '😀'],
+  ])('保留去色后的字面文字 %#', (source, expected) => {
+    expect(renderExportPlainText(source)).toBe(expected);
+  });
+  it('保留现有段落、链接和图片的文本导出规则', () => {
+    expect(renderExportPlainText('**章节**\n\n[网站](https://example.com)\n\n![地图](map.png)')).toBe('章节\n\n网站\n\n[图片]');
   });
 });

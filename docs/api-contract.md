@@ -231,3 +231,7 @@ GET /users/me 与有效用户的 GET /users/{id} 中，`_count.following` / `_co
 ## 正文音频兼容扩展（5.37.0-dev.20261016.1）
 
 新增可选 audioUpload 能力、RICH_CONTENT_AUDIO 用途、durationMs/failureCode 与正文 mediaAudios；普通无 title 链接保留旧端兼容，旧图片/列表/正文不迁移、不删除。详见[正文音频 v1](audio-upload.md)。
+
+## 文本颜色 v1
+
+主题正文/楼层/回复与草稿独立声明 `textColorVersion: 1`；读取头 `X-Text-Color-Version: 1` 与原 Markdown 6 头并行，响应 Vary 包含两者。能力、关闭新写、格式白名单、错误码及旧端覆盖保护见 [文本颜色 v1](markdown-text-color-v1.md)。

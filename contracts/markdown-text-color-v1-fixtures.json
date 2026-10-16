@@ -1,0 +1,266 @@
+{
+  "version": 1,
+  "syntax": "<span data-wenyou-color-v1=\"#RRGGBB\">…</span>",
+  "validCases": [
+    {
+      "id": "plain",
+      "source": "普通正文",
+      "canonical": "普通正文",
+      "fallback": "普通正文"
+    },
+    {
+      "id": "rgb-case",
+      "source": "<span data-wenyou-color-v1=\"#a1b2c3\">中文😀</span>",
+      "canonical": "<span data-wenyou-color-v1=\"#A1B2C3\">中文😀</span>",
+      "fallback": "中文😀"
+    },
+    {
+      "id": "bold",
+      "source": "<span data-wenyou-color-v1=\"#D14343\">**粗体**</span>",
+      "canonical": "<span data-wenyou-color-v1=\"#D14343\">**粗体**</span>",
+      "fallback": "**粗体**"
+    },
+    {
+      "id": "italic",
+      "source": "<span data-wenyou-color-v1=\"#D14343\">*斜体*</span>",
+      "canonical": "<span data-wenyou-color-v1=\"#D14343\">*斜体*</span>",
+      "fallback": "*斜体*"
+    },
+    {
+      "id": "strike",
+      "source": "<span data-wenyou-color-v1=\"#D14343\">~~删除~~</span>",
+      "canonical": "<span data-wenyou-color-v1=\"#D14343\">~~删除~~</span>",
+      "fallback": "~~删除~~"
+    },
+    {
+      "id": "link",
+      "source": "<span data-wenyou-color-v1=\"#D14343\">[网站](https://example.com)</span>",
+      "canonical": "<span data-wenyou-color-v1=\"#D14343\">[网站](https://example.com)</span>",
+      "fallback": "[网站](https://example.com)"
+    },
+    {
+      "id": "code",
+      "source": "<span data-wenyou-color-v1=\"#D14343\">`<字面>`</span>",
+      "canonical": "<span data-wenyou-color-v1=\"#D14343\">`<字面>`</span>",
+      "fallback": "`<字面>`"
+    },
+    {
+      "id": "combined",
+      "source": "<span data-wenyou-color-v1=\"#D14343\">**粗体与*斜体***</span>",
+      "canonical": "<span data-wenyou-color-v1=\"#D14343\">**粗体与*斜体***</span>",
+      "fallback": "**粗体与*斜体***"
+    },
+    {
+      "id": "boundary-rgb",
+      "source": "<span data-wenyou-color-v1=\"#000000\">黑白</span>",
+      "canonical": "<span data-wenyou-color-v1=\"#000000\">黑白</span>",
+      "fallback": "黑白"
+    },
+    {
+      "id": "separate-paragraphs",
+      "source": "<span data-wenyou-color-v1=\"#D14343\">第一段</span>\n\n<span data-wenyou-color-v1=\"#FFFFFF\">第二段</span>",
+      "canonical": "<span data-wenyou-color-v1=\"#D14343\">第一段</span>\n\n<span data-wenyou-color-v1=\"#FFFFFF\">第二段</span>",
+      "fallback": "第一段\n\n第二段"
+    },
+    {
+      "id": "code-literal",
+      "source": "`<span data-wenyou-color-v1=\"#D14343\">字面</span>`",
+      "canonical": "`<span data-wenyou-color-v1=\"#D14343\">字面</span>`",
+      "fallback": "`<span data-wenyou-color-v1=\"#D14343\">字面</span>`"
+    },
+    {
+      "id": "escaped-literal",
+      "source": "\\<span data-wenyou-color-v1=\"#D14343\">字面\\</span>",
+      "canonical": "\\<span data-wenyou-color-v1=\"#D14343\">字面\\</span>",
+      "fallback": "\\<span data-wenyou-color-v1=\"#D14343\">字面\\</span>"
+    },
+    {
+      "id": "heading-literal",
+      "source": "<span data-wenyou-color-v1=\"#D14343\"># 标题</span>",
+      "canonical": "<span data-wenyou-color-v1=\"#D14343\"># 标题</span>",
+      "fallback": "\\# 标题"
+    },
+    {
+      "id": "quote-literal",
+      "source": "<span data-wenyou-color-v1=\"#D14343\">> 引用</span>",
+      "canonical": "<span data-wenyou-color-v1=\"#D14343\">> 引用</span>",
+      "fallback": "\\> 引用"
+    },
+    {
+      "id": "list-literal",
+      "source": "<span data-wenyou-color-v1=\"#D14343\">- 列表</span>",
+      "canonical": "<span data-wenyou-color-v1=\"#D14343\">- 列表</span>",
+      "fallback": "\\- 列表"
+    },
+    {
+      "id": "ordered-literal",
+      "source": "<span data-wenyou-color-v1=\"#D14343\">1. 序号</span>",
+      "canonical": "<span data-wenyou-color-v1=\"#D14343\">1. 序号</span>",
+      "fallback": "1\\. 序号"
+    },
+    {
+      "id": "delimiter-literal",
+      "source": "<span data-wenyou-color-v1=\"#D14343\">***</span>",
+      "canonical": "<span data-wenyou-color-v1=\"#D14343\">***</span>",
+      "fallback": "\\*\\*\\*"
+    },
+    {
+      "id": "adjacent-em",
+      "source": "<span data-wenyou-color-v1=\"#D14343\">*x*</span>*y*",
+      "canonical": "<span data-wenyou-color-v1=\"#D14343\">*x*</span>*y*",
+      "fallback": "*xy*"
+    },
+    {
+      "id": "adjacent-strong",
+      "source": "**y**<span data-wenyou-color-v1=\"#D14343\">**x**</span>",
+      "canonical": "**y**<span data-wenyou-color-v1=\"#D14343\">**x**</span>",
+      "fallback": "**yx**"
+    },
+    {
+      "id": "adjacent-code",
+      "source": "<span data-wenyou-color-v1=\"#D14343\">`x`</span>`y`",
+      "canonical": "<span data-wenyou-color-v1=\"#D14343\">`x`</span>`y`",
+      "fallback": "`xy`"
+    },
+    {
+      "id": "edge-spaces",
+      "source": "<span data-wenyou-color-v1=\"#D14343\"> x </span>",
+      "canonical": "<span data-wenyou-color-v1=\"#D14343\"> x </span>",
+      "fallback": "&#32;x&#32;"
+    }
+  ],
+  "invalidSources": [
+    "<span data-wenyou-color-v1=\"#123\">文字</span>",
+    "<span data-wenyou-color-v1=\"#11223344\">文字</span>",
+    "<span data-wenyou-color-v1=\"rgb(1,2,3)\">文字</span>",
+    "<span data-wenyou-color-v1=\"#112233\" onclick=\"x\">文字</span>",
+    "<span data-wenyou-color-v1=\"#D14343\">a\nb</span>",
+    "<span data-wenyou-color-v1=\"#D14343\">a\n\nb</span>",
+    "<span data-wenyou-color-v1=\"#D14343\"><span data-wenyou-color-v1=\"#D14343\">嵌套</span></span>",
+    "<span data-wenyou-color-v1=\"#D14343\"></span>",
+    "<span data-wenyou-color-v1=\"#D14343\">![图](/media/a)</span>",
+    "<span data-wenyou-color-v1=\"#D14343\">[@用户](/users/c111111111111111111111111)</span>",
+    "<span data-wenyou-color-v1=\"#D14343\">[[dice:v1:x:1d6]]</span>",
+    "<span data-wenyou-color-v2=\"#112233\">文字</span>",
+    "<span data-wenyou-color-v1=\"#D14343\">未闭合",
+    "<span data-wenyou-color-v1=\"#D14343\"><b>HTML</b></span>",
+    "<span data-wenyou-color-v1=\"#D14343\">[内链](/threads/c111111111111111111111111)</span>",
+    "**<span data-wenyou-color-v1=\"#D14343\">颜色必须外层</span>**",
+    "<span data-wenyou-color-v1=\"#D14343\">**未闭合</span>**",
+    "<span data-wenyou-color-v1=\"#D14343\">[邀请](/join/abcdefghijklmnop)</span>",
+    "<span data-wenyou-color-v1=\"#D14343\">[站内](https://wenyou.site/threads/c111111111111111111111111)</span>",
+    "<span data-wenyou-color-v1=\"#D14343\">/threads/c111111111111111111111111</span>"
+  ],
+  "writeCases": [
+    {
+      "id": "capability-required",
+      "content": "<span data-wenyou-color-v1=\"#D14343\">文字</span>",
+      "previous": "",
+      "enabled": true,
+      "expectedCode": 40016
+    },
+    {
+      "id": "legacy-removes-all",
+      "content": "文字",
+      "previous": "<span data-wenyou-color-v1=\"#D14343\">文字</span>",
+      "enabled": true,
+      "expectedCode": 40016
+    },
+    {
+      "id": "new-disabled",
+      "content": "<span data-wenyou-color-v1=\"#D14343\">文字</span>",
+      "previous": "",
+      "version": 1,
+      "enabled": false,
+      "expectedCode": 40017
+    },
+    {
+      "id": "preserve-disabled",
+      "content": "<span data-wenyou-color-v1=\"#D14343\">文字</span>",
+      "previous": "<span data-wenyou-color-v1=\"#D14343\">文字</span>",
+      "version": 1,
+      "enabled": false,
+      "expectedCode": null
+    },
+    {
+      "id": "remove-disabled",
+      "content": "文字",
+      "previous": "<span data-wenyou-color-v1=\"#D14343\">文字</span>",
+      "version": 1,
+      "enabled": false,
+      "expectedCode": null
+    },
+    {
+      "id": "recolor-disabled",
+      "content": "<span data-wenyou-color-v1=\"#FFFFFF\">文字</span>",
+      "previous": "<span data-wenyou-color-v1=\"#D14343\">文字</span>",
+      "version": 1,
+      "enabled": false,
+      "expectedCode": 40017
+    },
+    {
+      "id": "edit-colored-text-disabled",
+      "content": "<span data-wenyou-color-v1=\"#D14343\">新文字</span>",
+      "previous": "<span data-wenyou-color-v1=\"#D14343\">文字</span>",
+      "version": 1,
+      "enabled": false,
+      "expectedCode": 40017
+    },
+    {
+      "id": "equivalent-delimiter",
+      "content": "<span data-wenyou-color-v1=\"#D14343\">__粗体__</span>",
+      "previous": "<span data-wenyou-color-v1=\"#D14343\">**粗体**</span>",
+      "version": 1,
+      "enabled": false,
+      "expectedCode": null
+    },
+    {
+      "id": "equivalent-entity",
+      "content": "<span data-wenyou-color-v1=\"#D14343\">A\\&B</span>",
+      "previous": "<span data-wenyou-color-v1=\"#D14343\">A&amp;B</span>",
+      "version": 1,
+      "enabled": false,
+      "expectedCode": null
+    },
+    {
+      "id": "split-contiguous-range",
+      "content": "<span data-wenyou-color-v1=\"#D14343\">甲</span><span data-wenyou-color-v1=\"#D14343\">乙</span>",
+      "previous": "<span data-wenyou-color-v1=\"#D14343\">甲乙</span>",
+      "version": 1,
+      "enabled": false,
+      "expectedCode": null
+    },
+    {
+      "id": "merge-contiguous-range",
+      "content": "<span data-wenyou-color-v1=\"#D14343\">甲乙</span>",
+      "previous": "<span data-wenyou-color-v1=\"#D14343\">甲</span><span data-wenyou-color-v1=\"#D14343\">乙</span>",
+      "version": 1,
+      "enabled": false,
+      "expectedCode": null
+    },
+    {
+      "id": "changed-format",
+      "content": "<span data-wenyou-color-v1=\"#D14343\">*甲*</span>",
+      "previous": "<span data-wenyou-color-v1=\"#D14343\">**甲**</span>",
+      "version": 1,
+      "enabled": false,
+      "expectedCode": 40017
+    },
+    {
+      "id": "split-noncontiguous",
+      "content": "<span data-wenyou-color-v1=\"#D14343\">甲</span>中间<span data-wenyou-color-v1=\"#D14343\">乙</span>",
+      "previous": "<span data-wenyou-color-v1=\"#D14343\">甲乙</span>",
+      "version": 1,
+      "enabled": false,
+      "expectedCode": 40017
+    },
+    {
+      "id": "copied-range",
+      "content": "<span data-wenyou-color-v1=\"#D14343\">甲</span> <span data-wenyou-color-v1=\"#D14343\">甲</span>",
+      "previous": "<span data-wenyou-color-v1=\"#D14343\">甲</span>",
+      "version": 1,
+      "enabled": false,
+      "expectedCode": 40017
+    }
+  ]
+}

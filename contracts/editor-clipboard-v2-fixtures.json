@@ -5,11 +5,20 @@
   "webEnvelope": {
     "versionAttribute": "data-wenyou-clipboard",
     "versionValue": "2",
-    "acceptedVersionValues": ["1", "2"],
+    "acceptedVersionValues": [
+      "1",
+      "2"
+    ],
     "sourceAttribute": "data-wenyou-clipboard-source",
     "blockAlignmentAttribute": "data-wenyou-align",
-    "blockAlignmentValues": ["center", "right"],
-    "sources": ["reader", "editor"],
+    "blockAlignmentValues": [
+      "center",
+      "right"
+    ],
+    "sources": [
+      "reader",
+      "editor"
+    ],
     "validation": "strict-allowlist",
     "authentication": "none"
   },
@@ -17,7 +26,12 @@
     "structuredCarrier": "in-process-delta",
     "systemClipboardPayload": "visible-text",
     "systemClipboardMarker": "random-per-capture",
-    "requiredMatch": ["visible-text", "marker", "authenticated-session", "maximum-age"],
+    "requiredMatch": [
+      "visible-text",
+      "marker",
+      "authenticated-session",
+      "maximum-age"
+    ],
     "maximumAgeSeconds": 600,
     "interoperability": "plain-text-only"
   },
@@ -29,33 +43,137 @@
     "atomicTargetsAndHiddenIds": "omit"
   },
   "entryPoints": [
-    { "id": "web-reader-selection", "platform": "web", "surface": "reader-selection", "copyMode": "structured", "scope": "single-markdown-root" },
-    { "id": "web-reader-menu", "platform": "web", "surface": "reader-menu", "copyMode": "structured", "scope": "whole-content" },
-    { "id": "web-editor", "platform": "web", "surface": "editor", "copyMode": "structured", "scope": "editor-selection" },
-    { "id": "mobile-reader-selection", "platform": "mobile", "surface": "reader-selection", "copyMode": "visible-text", "scope": "system-selection" },
-    { "id": "mobile-reader-menu", "platform": "mobile", "surface": "reader-menu", "copyMode": "structured", "scope": "whole-content" },
-    { "id": "mobile-editor", "platform": "mobile", "surface": "editor", "copyMode": "structured", "scope": "editor-selection" }
+    {
+      "id": "web-reader-selection",
+      "platform": "web",
+      "surface": "reader-selection",
+      "copyMode": "structured",
+      "scope": "single-markdown-root"
+    },
+    {
+      "id": "web-reader-menu",
+      "platform": "web",
+      "surface": "reader-menu",
+      "copyMode": "structured",
+      "scope": "whole-content"
+    },
+    {
+      "id": "web-editor",
+      "platform": "web",
+      "surface": "editor",
+      "copyMode": "structured",
+      "scope": "editor-selection"
+    },
+    {
+      "id": "mobile-reader-selection",
+      "platform": "mobile",
+      "surface": "reader-selection",
+      "copyMode": "visible-text",
+      "scope": "system-selection"
+    },
+    {
+      "id": "mobile-reader-menu",
+      "platform": "mobile",
+      "surface": "reader-menu",
+      "copyMode": "structured",
+      "scope": "whole-content"
+    },
+    {
+      "id": "mobile-editor",
+      "platform": "mobile",
+      "surface": "editor",
+      "copyMode": "structured",
+      "scope": "editor-selection"
+    }
   ],
   "pasteRules": [
-    { "source": "site-fragment-v1", "result": "structured-without-alignment" },
-    { "source": "site-fragment-v2", "result": "structured" },
-    { "source": "single-valid-internal-url", "result": "internal-reference" },
-    { "source": "external-text-or-html", "result": "literal-text" },
-    { "source": "external-drop", "result": "literal-text" },
-    { "source": "external-file", "result": "ignore" },
-    { "source": "missing-invalid-or-expired-marker", "result": "visible-text" }
+    {
+      "source": "site-fragment-v1",
+      "result": "structured-without-alignment"
+    },
+    {
+      "source": "site-fragment-v2",
+      "result": "structured"
+    },
+    {
+      "source": "single-valid-internal-url",
+      "result": "internal-reference"
+    },
+    {
+      "source": "external-text-or-html",
+      "result": "literal-text"
+    },
+    {
+      "source": "external-drop",
+      "result": "literal-text"
+    },
+    {
+      "source": "external-file",
+      "result": "ignore"
+    },
+    {
+      "source": "missing-invalid-or-expired-marker",
+      "result": "visible-text"
+    }
   ],
   "nodeRules": [
-    { "nodeType": "internal_reference", "readerCopy": "preserve", "editorCopy": "preserve", "paste": "preserve-target-and-label", "plainText": "label" },
-    { "nodeType": "mention", "readerCopy": "preserve", "editorCopy": "preserve", "paste": "preserve-user-id-and-label", "plainText": "label" },
-    { "nodeType": "mention_all_players", "readerCopy": "preserve", "editorCopy": "preserve", "paste": "preserve-group-semantics", "plainText": "label" },
-    { "nodeType": "dice", "readerCopy": "preserve-notation", "editorCopy": "preserve", "paste": "regenerate-node-id-unrolled", "cutPaste": "preserve-node-id", "plainText": "visible-label" },
-    { "nodeType": "image", "readerCopy": "label", "editorCopy": "preserve", "paste": "reader-label-editor-node", "plainText": "[图片]" },
-    { "nodeType": "sticker", "readerCopy": "label", "editorCopy": "preserve", "paste": "reader-label-editor-node", "plainText": "[表情]" }
+    {
+      "nodeType": "internal_reference",
+      "readerCopy": "preserve",
+      "editorCopy": "preserve",
+      "paste": "preserve-target-and-label",
+      "plainText": "label"
+    },
+    {
+      "nodeType": "mention",
+      "readerCopy": "preserve",
+      "editorCopy": "preserve",
+      "paste": "preserve-user-id-and-label",
+      "plainText": "label"
+    },
+    {
+      "nodeType": "mention_all_players",
+      "readerCopy": "preserve",
+      "editorCopy": "preserve",
+      "paste": "preserve-group-semantics",
+      "plainText": "label"
+    },
+    {
+      "nodeType": "dice",
+      "readerCopy": "preserve-notation",
+      "editorCopy": "preserve",
+      "paste": "regenerate-node-id-unrolled",
+      "cutPaste": "preserve-node-id",
+      "plainText": "visible-label"
+    },
+    {
+      "nodeType": "image",
+      "readerCopy": "label",
+      "editorCopy": "preserve",
+      "paste": "reader-label-editor-node",
+      "plainText": "[图片]"
+    },
+    {
+      "nodeType": "sticker",
+      "readerCopy": "label",
+      "editorCopy": "preserve",
+      "paste": "reader-label-editor-node",
+      "plainText": "[表情]"
+    }
   ],
   "alignmentRule": {
-    "eligibleBlocks": ["paragraph", "heading-2", "heading-3"],
-    "excludedBlocks": ["bullet-list", "ordered-list", "blockquote", "image", "horizontal-rule"],
+    "eligibleBlocks": [
+      "paragraph",
+      "heading-2",
+      "heading-3"
+    ],
+    "excludedBlocks": [
+      "bullet-list",
+      "ordered-list",
+      "blockquote",
+      "image",
+      "horizontal-rule"
+    ],
     "readerCopy": "preserve",
     "editorCopy": "preserve",
     "sitePaste": "preserve",
@@ -68,8 +186,19 @@
       "kind": "reader-copy",
       "markdown": "## 标题\n\n**粗体**、*斜体*、~~删除~~、`代码`\n\n> 引用\n\n- 甲\n- 乙\n\n---",
       "expectedPlainText": "标题\n\n粗体、斜体、删除、代码\n\n引用\n\n• 甲\n• 乙",
-      "expectedBlockSemantics": ["heading-2", "paragraph", "blockquote", "bullet-list", "horizontal-rule"],
-      "expectedInlineSemantics": ["strong", "emphasis", "strikethrough", "inline-code"],
+      "expectedBlockSemantics": [
+        "heading-2",
+        "paragraph",
+        "blockquote",
+        "bullet-list",
+        "horizontal-rule"
+      ],
+      "expectedInlineSemantics": [
+        "strong",
+        "emphasis",
+        "strikethrough",
+        "inline-code"
+      ],
       "expectedAtoms": []
     },
     {
@@ -77,8 +206,14 @@
       "kind": "reader-copy",
       "markdown": "[wenyousite-align-v1-center]: #\n## 居中标题\n\n[wenyousite-align-v1-right]: #\n居右正文",
       "expectedPlainText": "居中标题\n\n居右正文",
-      "expectedBlockSemantics": ["heading-2", "paragraph"],
-      "expectedBlockAlignments": ["center", "right"],
+      "expectedBlockSemantics": [
+        "heading-2",
+        "paragraph"
+      ],
+      "expectedBlockAlignments": [
+        "center",
+        "right"
+      ],
       "expectedInlineSemantics": [],
       "expectedAtoms": []
     },
@@ -87,13 +222,36 @@
       "kind": "reader-copy",
       "markdown": "[传送门](/threads/cmsewdo0h000x7qv6aa77ll1v) [@张三](/users/user-zhang) @全体玩家 [[dice:v1:550e8400-e29b-41d4-a716-446655440000:1d20+2]] ![表情](https://cdn.example.com/stickers/a.webp \"wenyousite-sticker:v1:cm1234567890123456789012\") ![图片](https://cdn.example.com/images/a.png)",
       "expectedPlainText": "传送门 @张三 @全体玩家 1d20+2 = ? [表情] [图片]",
-      "expectedBlockSemantics": ["paragraph"],
-      "expectedInlineSemantics": ["link", "mention", "mention-all", "dice"],
+      "expectedBlockSemantics": [
+        "paragraph"
+      ],
+      "expectedInlineSemantics": [
+        "link",
+        "mention",
+        "mention-all",
+        "dice"
+      ],
       "expectedAtoms": [
-        { "type": "internal_reference", "href": "/threads/cmsewdo0h000x7qv6aa77ll1v", "label": "传送门" },
-        { "type": "mention", "userId": "user-zhang", "label": "@张三" },
-        { "type": "mention_all_players", "label": "@全体玩家" },
-        { "type": "dice", "notation": "1d20+2", "nodeId": "regenerate", "rollState": "pending" }
+        {
+          "type": "internal_reference",
+          "href": "/threads/cmsewdo0h000x7qv6aa77ll1v",
+          "label": "传送门"
+        },
+        {
+          "type": "mention",
+          "userId": "user-zhang",
+          "label": "@张三"
+        },
+        {
+          "type": "mention_all_players",
+          "label": "@全体玩家"
+        },
+        {
+          "type": "dice",
+          "notation": "1d20+2",
+          "nodeId": "regenerate",
+          "rollState": "pending"
+        }
       ]
     },
     {
@@ -104,16 +262,28 @@
         {
           "nodeId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
           "notation": "2d6+1",
-          "results": [4, 6],
+          "results": [
+            4,
+            6
+          ],
           "modifier": 1,
           "total": 11
         }
       ],
       "expectedPlainText": "结果 2d6+1 = 11",
-      "expectedBlockSemantics": ["paragraph"],
-      "expectedInlineSemantics": ["dice"],
+      "expectedBlockSemantics": [
+        "paragraph"
+      ],
+      "expectedInlineSemantics": [
+        "dice"
+      ],
       "expectedAtoms": [
-        { "type": "dice", "notation": "2d6+1", "nodeId": "regenerate", "rollState": "discard-result-on-paste" }
+        {
+          "type": "dice",
+          "notation": "2d6+1",
+          "nodeId": "regenerate",
+          "rollState": "discard-result-on-paste"
+        }
       ]
     },
     {
@@ -148,6 +318,51 @@
       "expectedMode": "visible-text",
       "expectedText": "可见内容",
       "feedback": "silent"
+    },
+    {
+      "id": "reader-text-color-v1",
+      "kind": "reader-copy",
+      "markdown": "<span data-wenyou-color-v1=\"#D14343\">**彩色粗体**</span>",
+      "expectedPlainText": "彩色粗体",
+      "expectedBlockSemantics": [
+        "paragraph"
+      ],
+      "expectedInlineSemantics": [
+        "text-color-v1",
+        "strong"
+      ],
+      "expectedAtoms": []
+    },
+    {
+      "id": "text-color-style-not-allowed",
+      "kind": "invalid-envelope",
+      "html": "<div data-wenyou-clipboard=\"2\" data-wenyou-clipboard-source=\"editor\"><span style=\"color:rgb(255,0,0)\">文字</span></div>",
+      "expectedMode": "literal-text",
+      "expectedPlainText": "文字",
+      "plainText": "文字",
+      "expectedText": "文字"
     }
-  ]
+  ],
+  "textColorRule": {
+    "version": 1,
+    "element": "span",
+    "attribute": "data-wenyou-color-v1",
+    "colorPattern": "^#[0-9A-F]{6}$",
+    "alpha": false,
+    "nesting": "outermost-inline",
+    "readerCopy": "preserve",
+    "editorCopy": "preserve",
+    "sitePaste": "preserve",
+    "externalPaste": "literal-text",
+    "plainText": "omit-color-keep-visible-text",
+    "excludedNodes": [
+      "image",
+      "audio",
+      "sticker",
+      "dice",
+      "mention",
+      "mention_all_players",
+      "internal_reference"
+    ]
+  }
 }

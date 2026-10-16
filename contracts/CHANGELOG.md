@@ -1,5 +1,10 @@
 # API 合同变更
 
+## 5.38.0-dev.20261016.1
+
+- 新增独立文本颜色 v1 能力、读取头和写 DTO；默认关闭新写，旧端安全去色并拒绝覆盖彩色原文。
+- 同步受控 Markdown/剪贴板语料及 40016–40018 业务错误码；不改变 Markdown 5 和角色提及 6。
+
 ## 5.37.0-dev.20261016.1
 
 新增可选 audioUpload 能力、RICH_CONTENT_AUDIO 用途、durationMs/failureCode 与正文 mediaAudios；普通无 title 链接保留旧端兼容，旧图片/列表/正文不迁移、不删除。详见[正文音频 v1](../docs/audio-upload.md)。

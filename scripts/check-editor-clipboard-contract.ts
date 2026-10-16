@@ -165,6 +165,12 @@ for (const kind of ['reader-copy', 'external-paste', 'internal-url-paste', 'inva
   if (!coveredKinds.has(kind)) failures.push(`黄金用例缺少 ${kind}`);
 }
 for (const item of goldenCases) {
+  if (item.kind !== 'reader-copy' && typeof item.plainText !== 'string') {
+    failures.push(`${String(item.id)}: 粘贴用例必须提供 plainText`);
+  }
+  if (['literal-text', 'visible-text'].includes(String(item.expectedMode)) && typeof item.expectedText !== 'string') {
+    failures.push(`${String(item.id)}: 文本回退用例必须提供 expectedText`);
+  }
   if (typeof item.expectedMode !== 'string' && typeof item.expectedPlainText !== 'string') {
     failures.push(`${String(item.id)}: 必须声明 expectedMode 或 expectedPlainText`);
   }

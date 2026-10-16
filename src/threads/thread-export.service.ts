@@ -1,3 +1,4 @@
+import { projectTextColors, stripTextColors } from '../common/text-colors';
 import { IdentityProjectionService } from '../thread-identities/identity-projection.service';
 import { visiblePostWhere, visibleThreadOwnerWhere, unblockedUserSql } from '../access/block-visibility.where';
 import { Injectable, HttpException, HttpStatus, PayloadTooLargeException } from '@nestjs/common';
@@ -265,8 +266,20 @@ function isEscaped(content: string, index: number): boolean {
   return slashes % 2 === 1;
 }
 
-function plainText(markdown: string): string {
-  return markdown
+export function renderExportPlainText(markdown: string): string {
+  let marker = '\uE091';
+  while (markdown.includes(marker)) marker += '\uE091';
+  const literals: string[] = [];
+  // 去色会安全转义字面标点；先保护它们，再沿用档案原有的结构清理。
+  const projected = stripTextColors(markdown).replace(/&#(\d+);/gu, (entity, digits: string) => {
+    const point = Number(digits);
+    if (point < 1 || point > 0x10ffff || (point >= 0xd800 && point <= 0xdfff)) return entity;
+    literals.push(String.fromCodePoint(point)); return `${marker}${literals.length - 1}END`;
+  }).replace(/\\([!-/:-@[-`{-~])/gu, (_match, literal: string) => {
+    literals.push(literal);
+    return `${marker}${literals.length - 1}END`;
+  });
+  let text = projected
     .replace(/^\s*\[wenyousite-align-v\d+-[a-z][a-z-]*\]: #[\t ]*$/gmu, '')
     .replace(/!\[[^\]]*\]\([^)]*\)/gu, '[图片]')
     .replace(/<br\s*\/?>(?=\s*$)/gimu, '\n')
@@ -276,6 +289,8 @@ function plainText(markdown: string): string {
     .replace(/^\s*[-+]\s+/gmu, '')
     .replace(/\n{3,}/gu, '\n\n')
     .trim();
+  literals.forEach((literal, index) => { text = text.replace(`${marker}${index}END`, literal); });
+  return text;
 }
 
 function displayName(user: { username: string; deletedAt: Date | null; rpIdentity?: { nickname: string } | null }): string {
@@ -398,13 +413,13 @@ export class ThreadExportService {
     private readonly identities: IdentityProjectionService,
   ) {}
 
-  async createArchive(threadId: string, userId: string, input: ThreadExportDto, markdownContractVersion?: number) {
+  async createArchive(threadId: string, userId: string, input: ThreadExportDto, markdownContractVersion?: number, textColorVersion?: number) {
     await this.threadAccess.assertAccessible(threadId, userId);
     await this.threadAccess.assertCanManage(threadId, userId);
     if (this.exporting) throw new HttpException('已有档案正在导出，请稍后再试', HttpStatus.TOO_MANY_REQUESTS);
     this.exporting = true;
     try {
-      const result = await this.prepareArchive(threadId, input, userId, markdownContractVersion);
+      const result = await this.prepareArchive(threadId, input, userId, markdownContractVersion, textColorVersion);
       const release = () => { this.exporting = false; };
       result.stream.once('end', release).once('close', release).once('error', release);
       return result;
@@ -414,7 +429,7 @@ export class ThreadExportService {
     }
   }
 
-  private async prepareArchive(threadId: string, input: ThreadExportDto, userId: string, markdownContractVersion?: number) {
+  private async prepareArchive(threadId: string, input: ThreadExportDto, userId: string, markdownContractVersion?: number, textColorVersion?: number) {
     const thread = await this.prisma.$transaction(async (tx) => {
       const [size] = await tx.$queryRaw<Array<{ posts: bigint; bytes: bigint }>>(Prisma.sql`
         SELECT count(*) AS posts, COALESCE(sum(octet_length(p.content)), 0)::bigint AS bytes
@@ -435,6 +450,7 @@ export class ThreadExportService {
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '仅可导出已发布主题帖');
 
     await this.identities.project(thread, { viewerId: userId, markdownContractVersion });
+    projectTextColors(thread, textColorVersion);
     const sources = markdownContractVersion === 6 ? JSON.stringify({
       markdownContractVersion: 6, threadId,
       warning: '此清单保存原始源码与插入快照，即使帖内身份关闭仍包含历史称呼；普通 md/txt 为安全显示副本，不能替代此源回写。',
@@ -464,7 +480,7 @@ export class ThreadExportService {
       }
     }
     const markdown = buildMarkdown(thread, rendered, options, webUrl);
-    const text = plainText(markdown);
+    const text = renderExportPlainText(markdown);
     const filenameStem = getExportFilenameStem(thread.title);
     const stream = this.startArchive(
       markdown,

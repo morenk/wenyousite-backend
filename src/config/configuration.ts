@@ -87,6 +87,7 @@ export default function configuration() {
 
     // 应用基础信息
     app: {
+      textColorV1Enabled: env.TEXT_COLOR_V1_ENABLED,
       roleMentionsV6Enabled: env.RP_MENTION_V6_ENABLED,
       url: env.APP_URL,
       nodeEnv: env.NODE_ENV,

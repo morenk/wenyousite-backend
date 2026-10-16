@@ -34,6 +34,7 @@
     "discussion-fixtures.consumer-test.ts",
     "thread-identity.integration.ts",
     "rp-profile.integration.ts",
-    "role-mentions.integration.ts"
+    "role-mentions.integration.ts",
+    "text-color.integration.ts"
   ]
 }
