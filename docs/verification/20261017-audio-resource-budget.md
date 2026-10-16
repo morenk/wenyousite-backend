@@ -13,7 +13,7 @@
 
 ## 定向检查
 
-按本轮用户要求，未运行全量测试、全量分析、完整构建或门禁。
+开发反馈阶段按用户要求，未运行全量测试、全量分析、完整构建或门禁。后续用户授权合并后的门禁记录见下文。
 
 - OpenAPI从源生成，248操作结构校验与版本校验通过；相关fixture同版本元数据同步5.38.0-dev.20261017.1。错误码文档生成通过。
 - `jest --runInBand` 仅 `audio-budget.service.spec.ts`、`media.service.spec.ts`、`media-processing.service.spec.ts`、`media-processing-recovery.service.spec.ts`、`configuration.spec.ts`：5套70项通过。覆盖预算拒绝、重复确认、内部字段不透出、配置整数限制及原有失败staging/恢复路径。
@@ -41,4 +41,15 @@
 
 ## 交付边界
 
-提交含 `[skip ci]`，Draft PR仅交付候选，不合并、不部署、不在线迁移或修改开关。正式合并阶段再按届时授权执行必要门禁。保留任务日志和Worktree待评审。
+开发候选提交含 `[skip ci]`，仅交付评审。用户随后明确授权合并与任务清理，进入正常门禁阶段；不包含部署、线上迁移、开关或业务资源清理。
+
+
+## 授权合并门禁
+
+本次应用源码固定为 `5b10e725184684d7a4e651ff9c54ec5893c5a261`，基线仍为上述 `origin/dev`。追加本记录的提交只修改文档，恢复 PR 的正常 quality CI，不改写已共享历史。
+
+在任务 Worktree 运行 `pnpm check:full`，仅该进程取消失效的本机代理环境变量；固定哈希音频运行依赖准备到任务缓存，没有系统安装或共享 PATH 变更。隔离工具为 `/opt/wenyousite/e2e-tools/usr/lib/postgresql/16/bin`、`/opt/wenyousite/e2e-tools/usr/bin/redis-server` 和对应私有依赖库目录。
+
+提交本记录时：安全审计、lint、类型、架构、契约、207套/2666项 Jest、入口/发布脚本夹具、文档、构建、真实清理集成与隔离生命周期均已通过；完整 API E2E 和最后的音频预算隔离集成仍在运行。最终结果、runId、清理核验及日志 SHA256 在 PR 合并记录中补充，未完成前不得合并。完整日志保留于 `.cache/audio-budget-merge-check-full.log`，清理 Worktree 前归档到外部私有证据目录。
+
+已检查 workflow 及仓库 hooks：dev 推送触发 quality 检查，未发现自动部署入口；最终合并前再次 fetch 并核对目标基线与 head，required checks 通过后才合并。Web 本轮还需此已构建 checkout 运行独立 E2E，收到其清理完成/释放通知后才移除 Worktree。
