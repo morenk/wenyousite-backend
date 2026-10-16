@@ -150,3 +150,7 @@ Web 和后端消费 v7；已审查 Flutter 副本尚未消费，Windows 修复�
 ## 正文音频兼容扩展（5.37.0-dev.20261016.1）
 
 新增可选 audioUpload 能力、RICH_CONTENT_AUDIO 用途、durationMs/failureCode 与正文 mediaAudios；普通无 title 链接保留旧端兼容，旧图片/列表/正文不迁移、不删除。详见[正文音频 v1](../audio-upload.md)。
+
+## 主题文本颜色
+
+主题/子帖正文、楼层、回复和全局草稿支持独立 [文本颜色 v1](../markdown-text-color-v1.md)。只允许严格白名单 span；普通 HTML/CSS 仍拒绝。读取能力与新写开关分离，旧端仅获得去色副本，不能覆盖彩色原文。

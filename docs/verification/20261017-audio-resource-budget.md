@@ -53,3 +53,23 @@
 提交本记录时：安全审计、lint、类型、架构、契约、207套/2666项 Jest、入口/发布脚本夹具、文档、构建、真实清理集成与隔离生命周期均已通过；完整 API E2E 和最后的音频预算隔离集成仍在运行。最终结果、runId、清理核验及日志 SHA256 在 PR 合并记录中补充，未完成前不得合并。完整日志保留于 `.cache/audio-budget-merge-check-full.log`，清理 Worktree 前归档到外部私有证据目录。
 
 已检查 workflow 及仓库 hooks：dev 推送触发 quality 检查，未发现自动部署入口；最终合并前再次 fetch 并核对目标基线与 head，required checks 通过后才合并。Web 本轮还需此已构建 checkout 运行独立 E2E，收到其清理完成/释放通知后才移除 Worktree。
+
+
+## 并发基线整合
+
+最终 fetch 发现文本颜色 PR52 已合入 `origin/dev=d3577839dc537e21c546ee385a4c97091b58a8f7`。因此没有将旧基线上的绿灯直接用于合并；正常合并新 dev，保留双方配置、错误码、DTO 和文档，从源重新生成统一契约 `5.39.0-dev.20261017.1`。旧5.38并行版本仅为历史验收记录，消费者必须同步这次已提交5.39。
+
+旧树 `570b86216bcb6e51b1fd3961fa861ecbfe3cd5d2` 的本地 `check:full` 一次退出0，207套2666项、25组完整E2E与预算集成均通过；7组资源根目录不存在、14端口关闭的独立复核以及日志摘要已记录在 [PR证据](https://github.com/morenk/wenyousite-backend/pull/53#issuecomment-6222988792)。
+
+合并后的最终树分别验证，不声称旧树结果就是最终树全量结果：
+
+| check:full 步骤 | 最终合并门禁覆盖来源 |
+| --- | --- |
+| security:audit | 最终HEAD正常CI security-audit |
+| check（含lint/类型/契约/Jest/脚本夹具/文档/build） | 最终HEAD正常CI check；本地补契约生成、docs、类型与交叉单元测试 |
+| test:cleanup:integration | 旧树本地成功；基线整合未改该入口、资源模块及清理实现 |
+| test:e2e:lifecycle | 旧树本地成功；基线整合未改该入口及资源/进程模块 |
+| test:e2e:full | 最终HEAD正常CI integration，包含新文本颜色路径；本地补音频/文本颜色交叉隔离组 |
+| test:integration:audio-budget | 最终HEAD正常CI integration；原子准入实现和迁移在基线整合中未改 |
+
+此外正常CI coverage与data-security集成保持启用。最终HEAD的CI及本地交叉结果继续写入PR；全部要求通过后才合并，不以记录提交代表检查通过。

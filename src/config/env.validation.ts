@@ -215,6 +215,10 @@ export class EnvironmentVariables {
   @IsBoolean()
   RP_MENTION_V6_ENABLED = false;
 
+  @Transform(({ value }) => (value === 'true' ? true : value === 'false' ? false : value))
+  @IsBoolean()
+  TEXT_COLOR_V1_ENABLED = false;
+
   @IsBoolean()
   @IsOptional()
   @Transform(({ value }) => {

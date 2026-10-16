@@ -1,3 +1,6 @@
+import { ConfigService } from '@nestjs/config';
+import { Optional } from '@nestjs/common';
+import { assertTextColorWrite } from '../common/text-colors';
 import { ThreadIdentitiesService } from '../thread-identities/thread-identities.service';
 import { MentionsService } from '../mentions/mentions.service';
 import { Injectable, HttpStatus } from '@nestjs/common';
@@ -58,10 +61,11 @@ export class ThreadsService {
     private postingPolicy: PostingPolicyService,
     private mentions: MentionsService,
     private identities: ThreadIdentitiesService,
+    @Optional() private readonly config?: ConfigService,
   ) {}
   /** 创建主题帖草稿：事务内创建 Thread + Owner + 默认子贴 + 可选子贴正文，一次请求完成 */
   async create(dto: CreateThreadDto, userId: string) {
-    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content ?? '', { markdownContractVersion: dto.markdownContractVersion }));
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content ?? '', { markdownContractVersion: dto.markdownContractVersion, textColorVersion: dto.textColorVersion }));
     const { title, subthreadTitle, category, visibility, requestHash } =
       this.createIdempotency.prepare(dto, parsedContent.content);
     if (category) await this.categories.assertSelectable(category);
@@ -71,6 +75,7 @@ export class ThreadsService {
       requestHash,
     );
     if (replay) return replay;
+    assertTextColorWrite(parsedContent.content, '', dto.textColorVersion, this.config?.get<boolean>('app.textColorV1Enabled') ?? false);
     const hasBody =
       hasVisibleMarkdownContent(parsedContent.contentWithoutDice) || parsedContent.nodes.length > 0;
     await this.stickerContent.assertContentAllowed(userId, parsedContent.content);

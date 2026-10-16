@@ -1,3 +1,6 @@
+import { ConfigService } from '@nestjs/config';
+import { Optional } from '@nestjs/common';
+import { assertTextColorWrite } from '../common/text-colors';
 import { hasRoleMentionSource } from '../common/role-mentions';
 import { ThreadIdentitiesService } from '../thread-identities/thread-identities.service';
 import { postContentEditData } from '../posts/post-content-edit';
@@ -63,6 +66,7 @@ export class ThreadAggregateService {
     private readonly mediaReferences: MediaReferenceService,
     private readonly postingPolicy: PostingPolicyService,
     private readonly identities: ThreadIdentitiesService,
+    @Optional() private readonly config?: ConfigService,
   ) {}
 
   async save(threadId: string, dto: SaveThreadAggregateDto, userId: string) {
@@ -85,7 +89,7 @@ export class ThreadAggregateService {
     if (tagNames.some((name) => !name)) {
       throw new BusinessException(ErrorCode.BAD_REQUEST, '标签名称不能为空');
     }
-    const parsedContent = this.dice.parseContent(prepareMarkdownContent(dto.content, { markdownContractVersion: dto.markdownContractVersion }));
+    const parsedContent = this.dice.parseContent(prepareMarkdownContent(dto.content, { markdownContractVersion: dto.markdownContractVersion, textColorVersion: dto.textColorVersion }));
     const content = parsedContent.content;
     const previousBody = await this.prisma.post.findFirst({
       where: {
@@ -195,6 +199,7 @@ export class ThreadAggregateService {
         }
 
         const existingBody = defaultSubthread.posts[0];
+        assertTextColorWrite(content, existingBody?.content ?? '', dto.textColorVersion, this.config?.get<boolean>('app.textColorV1Enabled') ?? false);
         let updatedBody: UpdatedBodySideEffect | undefined;
         let createdPublishedBody:
           | {

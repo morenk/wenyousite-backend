@@ -122,3 +122,7 @@ RP 采用 additive 字段；原 username/avatar、按 userId 互动和 Markdown 
 ### 音频准入预算（5.38.0-dev.20261017.1）
 
 新增42901/42902可识别限流语义，旧端仍按HTTP429提示，成功DTO/无title普通链接/mediaAudios保持兼容。不删除旧协议、不要求Foundation发布，客户端不得把预算拒绝视为媒体已丢失。
+
+## 文本颜色 v1
+
+独立扩展见 [文本颜色契约](markdown-text-color-v1.md)。本次不弃用 Markdown 5、角色提及 6 或旧端读取；颜色降级及覆盖拒绝在无消费者、迁移、回归和回滚证据齐全前保持。

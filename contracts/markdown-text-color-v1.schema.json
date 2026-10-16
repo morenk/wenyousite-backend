@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wenyou.site/contracts/markdown-text-color-v1.schema.json",
+  "title": "温油站文本颜色 v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "color",
+    "content"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "color": {
+      "type": "string",
+      "pattern": "^#[0-9A-F]{6}$"
+    },
+    "content": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^\\r\\n]+$"
+    }
+  }
+}

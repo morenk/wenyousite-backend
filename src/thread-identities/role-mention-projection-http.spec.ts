@@ -41,7 +41,7 @@ describe('角色提及 HTTP 能力投影和缓存隔离',()=>{
     for (const state of [true,false,true]) {
       enabled=state;
       const next=await app.inject({method:'GET',url:'/posts/post',headers:{'X-Markdown-Contract-Version':'6'}});
-      expect(next.statusCode).toBe(200); expect(next.headers.vary).toBe('Origin, Accept, X-Markdown-Contract-Version');
+      expect(next.statusCode).toBe(200); expect(next.headers.vary).toBe('Origin, Accept, X-Markdown-Contract-Version, X-Text-Color-Version');
       const body=next.json(); expect(body.content).toBe(content);
       expect(body.mentionIdentities.map((row:{targetIdentityId:string|null})=>row.targetIdentityId)).toEqual([a,b,null]);
       expect(body.mentionIdentities.map((row:{displayName:string})=>row.displayName)).toEqual(state?['同名','同名','账号当前名']:['账号当前名','账号当前名','账号当前名']);

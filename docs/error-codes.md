@@ -21,6 +21,9 @@
 | `RP_IDENTITY_LIMIT` | 40013 | 每账号每主题的未删除 RP 身份达到十个 |
 | `MARKDOWN_CAPABILITY_REQUIRED` | 40014 | 编辑器未声明能够保留 Markdown 6 角色提及源码 |
 | `ROLE_MENTIONS_DISABLED` | 40015 | 角色提及新写激活开关尚未开启 |
+| `TEXT_COLOR_CAPABILITY_REQUIRED` | 40016 | 编辑器未声明能够保留文本颜色 v1 |
+| `TEXT_COLOR_DISABLED` | 40017 | 文本颜色新写激活开关尚未开启 |
+| `INVALID_TEXT_COLOR` | 40018 | 文本颜色受控标记不合法 |
 | `UNAUTHORIZED` | 40100 | 未认证 |
 | `TOKEN_EXPIRED` | 40101 | Token 过期（access token） |
 | `TOKEN_INVALID` | 40102 | Token 无效 |

@@ -37,6 +37,12 @@ export const ErrorCode = {
   MARKDOWN_CAPABILITY_REQUIRED: 40014,
   /** 角色提及新写激活开关尚未开启 */
   ROLE_MENTIONS_DISABLED: 40015,
+  /** 编辑器未声明能够保留文本颜色 v1 */
+  TEXT_COLOR_CAPABILITY_REQUIRED: 40016,
+  /** 文本颜色新写激活开关尚未开启 */
+  TEXT_COLOR_DISABLED: 40017,
+  /** 文本颜色受控标记不合法 */
+  INVALID_TEXT_COLOR: 40018,
 
   // ── 认证 401xx ──
   /** 未认证 */

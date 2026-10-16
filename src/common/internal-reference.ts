@@ -167,7 +167,7 @@ export function serializeInternalReference(label: string, href: string): string 
  */
 export function formatInternalReferencePreview(
   value: string,
-  options: { redactInvites?: boolean } = {},
+  options: { redactInvites?: boolean; onReference?: (source: string, offset: number) => void } = {},
 ): string {
   const { redactInvites = false } = options;
   const preview = value.replace(
@@ -193,6 +193,7 @@ export function formatInternalReferencePreview(
       const trailing = markdownHref ? '' : (candidate.match(TRAILING_PUNCTUATION_RE)?.[0] ?? '');
       const reference = parseInternalReference(trailing ? href.slice(0, -trailing.length) : href);
       if (!reference) return candidate;
+      options.onReference?.(candidate, offset);
       const label = rawLabel
         ? decodeInternalReferenceLabel(rawLabel).trim()
         : INTERNAL_REFERENCE_DEFAULT_LABEL;
