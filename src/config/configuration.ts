@@ -60,6 +60,8 @@ export default function configuration() {
 
     audio: {
       enabled: env.AUDIO_UPLOAD_ENABLED,
+      maxActiveUploads: env.AUDIO_MAX_ACTIVE_UPLOADS,
+      dailyInputBytes: env.AUDIO_DAILY_INPUT_BYTES,
       runtimeDirectory: env.AUDIO_RUNTIME_DIR || undefined,
     },
 

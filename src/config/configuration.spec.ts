@@ -9,6 +9,20 @@ describe('configuration', () => {
     jest.restoreAllMocks();
   });
 
+  it('音频准入预算默认与显式配置为正整数', () => {
+    expect(configuration().audio.maxActiveUploads).toBe(2);
+    expect(configuration().audio.dailyInputBytes).toBe(314572800);
+    process['env'].AUDIO_MAX_ACTIVE_UPLOADS = '3';
+    process['env'].AUDIO_DAILY_INPUT_BYTES = '1048576';
+    expect(configuration().audio.maxActiveUploads).toBe(3);
+    expect(configuration().audio.dailyInputBytes).toBe(1048576);
+    process['env'].AUDIO_MAX_ACTIVE_UPLOADS = '1.5';
+    expect(() => configuration()).toThrow('AUDIO_MAX_ACTIVE_UPLOADS');
+    process['env'].AUDIO_MAX_ACTIVE_UPLOADS = '2';
+    process['env'].AUDIO_DAILY_INPUT_BYTES = '0';
+    expect(() => configuration()).toThrow('AUDIO_DAILY_INPUT_BYTES');
+  });
+
   it('图片子进程仅接收当前一次性 E2E 身份，不再传递持续预览身份', () => {
     process['env'].NODE_ENV = 'test';
     process['env'].E2E_RESOURCE_ROOT = '/tmp/e2e-current';

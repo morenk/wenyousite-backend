@@ -1,3 +1,4 @@
+import { AudioBudgetService } from './audio-budget.service';
 import { AudioRuntimeService } from './audio-runtime.service';
 import { AudioProcessingService } from './audio-processing.service';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -92,8 +93,12 @@ const makeMedia = (overrides = {}) => ({
 });
 
 const mockPrisma = {
+  $queryRaw: jest.fn().mockResolvedValue([{ id: "u1" }]),
+  $transaction: jest.fn(async (callback: (tx: unknown) => unknown): Promise<unknown> => callback(mockPrisma)),
   mediaPreviewAttempt: { findMany: jest.fn().mockResolvedValue([]) },
   media: {
+    count: jest.fn().mockResolvedValue(0),
+    aggregate: jest.fn().mockResolvedValue({ _sum: { audioInputBytes: 0 } }),
     create: jest.fn(),
     update: jest.fn(),
     updateMany: jest.fn(),
@@ -118,6 +123,7 @@ describe('MediaService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MediaService,
+        AudioBudgetService,
         { provide: AudioRuntimeService, useValue: { requireReady: jest.fn() } },
         { provide: AudioProcessingService, useValue: { markFailed: jest.fn() } },
         { provide: ConfigService, useValue: mockConfig },

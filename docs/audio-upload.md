@@ -4,7 +4,7 @@
 
 ## 上传与能力
 
-`GET /meta` 仅在明确开启配置且固定转码运行依赖经校验就绪时返回 `audioUpload`（version、maxBytes、maxDurationMs、contentTypes、outputContentType）；字段缺失时隐藏上传入口。服务端未就绪也拒绝音频上传，不仅依赖界面。使用既有 `/media/upload-url`、同 ID 重签、`/media/upload-done` 和 `/media/:id`；purpose 为 `RICH_CONTENT_AUDIO`。输入 MIME 为 audio/mpeg、audio/mp4、audio/wav、audio/ogg、audio/flac；别名由客户端规范到以上值，服务端核验真实内容。音频上限 30MiB、10 分钟，图片保持 10MiB；沿用每小时配额和 10000 字正文限制，不新增每篇音频个数限制。
+`GET /meta` 仅在明确开启配置且固定转码运行依赖经校验就绪时返回 `audioUpload`（version、maxBytes、maxDurationMs、contentTypes、outputContentType）；字段缺失时隐藏上传入口。服务端未就绪也拒绝音频上传，不仅依赖界面。使用既有 `/media/upload-url`、同 ID 重签、`/media/upload-done` 和 `/media/:id`；purpose 为 `RICH_CONTENT_AUDIO`。输入 MIME 为 audio/mpeg、audio/mp4、audio/wav、audio/ogg、audio/flac；别名由客户端规范到以上值，服务端核验真实内容。音频上限 30MiB、10 分钟，图片保持 10MiB；沿用每小时配额和 10000 字正文限制，并受下文音频准入预算约束，不新增每篇音频个数限制。
 
 上传状态仍为 UPLOADING → PROCESSING → COMPLETED/FAILED。未完成只在本地显示可取消占位，不写入持久正文。完成的 url、contentType、size 指向剥离标签与封面的 MP3 128kbps 播放副本；新增 durationMs。失败新增受控 failureCode：AUDIO_INVALID、AUDIO_TOO_LONG、AUDIO_PROCESSING_FAILED，不暴露工具 stderr。成功或最终失败清理 staging，不永久双存原件。
 
