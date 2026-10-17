@@ -42,6 +42,20 @@ async function main() {
     const drafts=await request('/drafts/state','GET',undefined,200,capable);
     assert.equal(drafts.drafts[0].content,capable?raw:legacy);
   }
+
+  // 合法空段与紧邻彩色标题：真实 PATCH/读取/旧端降级，并验证关闭新写时保源。
+  const emptyHeading='<br />\n## '+color('彩色正文');
+  const adjacentHeadings='### '+color('小标题')+'\n## '+color('彩色正文');
+  const emptyFloor=await db.post.create({data:{threadId:thread.id,subthreadId:sub.id,authorId:user.id,kind:'FLOOR',floorNumber:99,content:adjacentHeadings}});
+  const emptyUpdated=await request('/posts/'+emptyFloor.id,'PATCH',{content:emptyHeading,version:emptyFloor.version,textColorVersion:1});
+  assert.equal(emptyUpdated.content,emptyHeading);
+  assert.equal((await request('/posts/'+emptyFloor.id,'GET')).content,emptyHeading);
+  assert.equal((await request('/posts/'+emptyFloor.id,'GET',undefined,200,false)).content,'<br />\n## 彩色正文');
+  assert.equal((await request('/posts/'+emptyFloor.id,'PATCH',{content:'旧端覆盖',version:emptyUpdated.version},409,false)).code,40016);
+  assert.equal((await request('/posts/'+emptyFloor.id,'PATCH',{content:'<br />\n<div>'+color('恶意')+'</div>',version:emptyUpdated.version,textColorVersion:1},400)).code,40018);
+  const emptyDraft=await db.draft.create({data:{userId:user.id,slot:2,content:adjacentHeadings}});
+  assert.equal((await request('/drafts/'+emptyDraft.id,'PATCH',{content:emptyHeading,version:emptyDraft.version,textColorVersion:1})).content,emptyHeading);
+
   const oldWrite={content:'去掉全部颜色',version:floor.version};
   assert.equal((await request('/posts/'+floor.id,'PATCH',oldWrite,409,false)).code,40016);
   assert.equal((await request('/drafts/'+draft.id,'PATCH',{content:'旧端草稿覆盖',version:draft.version},409,false)).code,40016);

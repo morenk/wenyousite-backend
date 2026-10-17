@@ -130,3 +130,7 @@ RP 采用 additive 字段；原 username/avatar、按 userId 互动和 Markdown 
 ### 文本颜色与对齐的兼容回归
 
 去色修复保留无空行相邻的 center/right 对齐边界，补充共享黄金语料；不新增或弃用协议、不改变能力协商，不需要 Foundation 发版。现有旧端去色与覆盖拒绝继续保留，不能将此修复视为清理授权。
+
+### 文本颜色与安全空段兼容回归
+
+颜色解析统一使用既有空段/对齐块边界，修复 `<br />` 紧邻彩色标题被误判非法 HTML 的写入拒绝；新增共享 fixtures 和实际 PATCH/草稿/旧端回归。不删除兼容协议，不扩展 HTML 白名单，不变更 OpenAPI 或 Foundation 常量。

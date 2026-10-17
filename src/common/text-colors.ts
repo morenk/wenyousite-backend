@@ -87,7 +87,8 @@ export function parseTextColors(source: string, strict = false): TextColorRange[
   const fail = () => {
     if (strict) invalid();
   };
-  for (const block of parser.parse(source, {})) {
+  // 与正文验证共享受控空段/对齐边界，避免 <br /> 吞并紧邻彩色块。
+  for (const block of analyzeMarkdownBlockBoundaries(source).tokens) {
     if (block.type === 'html_block' && /data-wenyou-color/iu.test(block.content)) {
       fail();
       continue;

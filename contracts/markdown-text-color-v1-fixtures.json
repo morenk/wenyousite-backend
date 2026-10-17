@@ -151,6 +151,54 @@
       "source": "前段\n[wenyousite-align-v1-right]: #\n<span data-wenyou-color-v1=\"#D14343\">**如何呢**</span>\n\n后段",
       "canonical": "前段\n[wenyousite-align-v1-right]: #\n<span data-wenyou-color-v1=\"#D14343\">**如何呢**</span>\n\n后段",
       "fallback": "前段\n[wenyousite-align-v1-right]: #\n**如何呢**\n\n后段"
+    },
+    {
+      "id": "empty-before-h2",
+      "source": "<br />\n## <span data-wenyou-color-v1=\"#D14343\">**正文**</span>",
+      "canonical": "<br />\n## <span data-wenyou-color-v1=\"#D14343\">**正文**</span>",
+      "fallback": "<br />\n## **正文**"
+    },
+    {
+      "id": "empty-before-h3",
+      "source": "<br />\n### <span data-wenyou-color-v1=\"#D14343\">**正文**</span>",
+      "canonical": "<br />\n### <span data-wenyou-color-v1=\"#D14343\">**正文**</span>",
+      "fallback": "<br />\n### **正文**"
+    },
+    {
+      "id": "empty-before-list",
+      "source": "<br />\n- <span data-wenyou-color-v1=\"#D14343\">**正文**</span>",
+      "canonical": "<br />\n- <span data-wenyou-color-v1=\"#D14343\">**正文**</span>",
+      "fallback": "<br />\n- **正文**"
+    },
+    {
+      "id": "empty-before-ordered-list",
+      "source": "<br />\n1. <span data-wenyou-color-v1=\"#D14343\">**正文**</span>",
+      "canonical": "<br />\n1. <span data-wenyou-color-v1=\"#D14343\">**正文**</span>",
+      "fallback": "<br />\n1. **正文**"
+    },
+    {
+      "id": "empty-before-quote",
+      "source": "<br />\n> <span data-wenyou-color-v1=\"#D14343\">**正文**</span>",
+      "canonical": "<br />\n> <span data-wenyou-color-v1=\"#D14343\">**正文**</span>",
+      "fallback": "<br />\n> **正文**"
+    },
+    {
+      "id": "quoted-empty-before-color",
+      "source": "> <br />\n> <span data-wenyou-color-v1=\"#D14343\">**正文**</span>",
+      "canonical": "> <br />\n> <span data-wenyou-color-v1=\"#D14343\">**正文**</span>",
+      "fallback": "> <br />\n> **正文**"
+    },
+    {
+      "id": "empty-before-center",
+      "source": "<br />\n[wenyousite-align-v1-center]: #\n<span data-wenyou-color-v1=\"#D14343\">**正文**</span>",
+      "canonical": "<br />\n[wenyousite-align-v1-center]: #\n<span data-wenyou-color-v1=\"#D14343\">**正文**</span>",
+      "fallback": "<br />\n[wenyousite-align-v1-center]: #\n**正文**"
+    },
+    {
+      "id": "empty-before-right-h2",
+      "source": "<br />\n[wenyousite-align-v1-right]: #\n## <span data-wenyou-color-v1=\"#D14343\">**正文**</span>",
+      "canonical": "<br />\n[wenyousite-align-v1-right]: #\n## <span data-wenyou-color-v1=\"#D14343\">**正文**</span>",
+      "fallback": "<br />\n[wenyousite-align-v1-right]: #\n## **正文**"
     }
   ],
   "invalidSources": [

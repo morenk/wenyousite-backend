@@ -241,3 +241,5 @@ GET /users/me 与有效用户的 GET /users/{id} 中，`_count.following` / `_co
 合并版本5.39.0-dev.20261017.1同时包含文本颜色v1和音频准入预算，兼容保留双方能力、成功字段及错误码。
 
 文本颜色旧端展示副本的对齐边界兼容修复见[颜色契约](markdown-text-color-v1.md)：DTO、header、meta 和 OpenAPI 均不变；新增回归语料不构成新写能力扩展。
+
+文本颜色与安全空段兼容修复复用既有块边界，保留合法空段后的彩色标题、列表、引用与对齐内容；DTO、能力、错误码及 OpenAPI 均不变。具体语料与拒绝边界见[颜色契约](markdown-text-color-v1.md)。
