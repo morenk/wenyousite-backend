@@ -10,13 +10,14 @@ const ordinaryParser = new MarkdownIt(parserOptions);
 const boundaryParser = new MarkdownIt(parserOptions);
 
 // 只记录真实 inline 规则消费的代码起点。URL/title 中的反引号不会生成 code_inline。
-for (const parser of [rawParser, ordinaryParser]) {
+for (const parser of [rawParser, ordinaryParser, boundaryParser]) {
   const tokenizeInline = parser.inline.tokenize;
   parser.inline.tokenize = function (state) {
     const push = state.push;
     state.push = function (type, tag, nesting) {
       const token = push.call(this, type, tag, nesting);
-      if (type === 'code_inline') token.meta = { sourceStart: this.pos };
+      if (type === 'code_inline' || type === 'html_inline')
+        token.meta = { ...token.meta, sourceStart: this.pos };
       return token;
     };
     try {
