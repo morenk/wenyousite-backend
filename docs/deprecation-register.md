@@ -134,3 +134,7 @@ RP 采用 additive 字段；原 username/avatar、按 userId 互动和 Markdown 
 ### 文本颜色与安全空段兼容回归
 
 颜色解析统一使用既有空段/对齐块边界，修复 `<br />` 紧邻彩色标题被误判非法 HTML 的写入拒绝；新增共享 fixtures 和实际 PATCH/草稿/旧端回归。不删除兼容协议，不扩展 HTML 白名单，不变更 OpenAPI 或 Foundation 常量。
+
+## 主题互动总数 5.40
+
+新增可选 `bookmarkCount` / `subscriberCount`；新后端始终返回真实值，旧后端缺字段不等于 0，Web / Mobile 必须保留未知状态。保留所有旧个人互动和详情字段，不清理 Markdown / Foundation 协议，无新 Foundation Tag。索引迁移仅增加查询索引；收紧字段前仍需独立四项证据评审。见[互动总数契约](thread-action-counts.md)。

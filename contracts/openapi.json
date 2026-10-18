@@ -32885,7 +32885,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.39.0-dev.20261017.1",
+    "version": "5.40.0-dev.20261018.1",
     "contact": {}
   },
   "tags": [
@@ -36735,6 +36735,16 @@
           },
           "likeCount": {
             "type": "number"
+          },
+          "bookmarkCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "未注销账号的真实收藏人数；新后端始终返回，旧响应缺失表示不支持，不能当作 0"
+          },
+          "subscriberCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "未注销账号显式订阅官方更新的人数，仅 THREAD 且 targetUserId=null；不含 USER 订阅或管理者自动通知；旧响应缺失表示不支持"
           },
           "tipTotal": {
             "type": "string",

@@ -37,6 +37,7 @@ const SUITES: Record<string, [string, string]> = {
   'admin-session': ['admin-session.integration.ts', 'ADMIN_SESSION_TEST_ENV'],
   display: ['media-display.integration.ts', 'MEDIA_DISPLAY_TEST_ENV'],
   bookmarks: ['bookmark-folder-management.integration.ts', 'BOOKMARK_MANAGEMENT_TEST_ENV'],
+  'thread-action-counts': ['thread-action-counts.integration.ts', 'THREAD_ACTION_COUNTS_TEST_ENV'],
   'bookmark-count': ['bookmark-visible-count.integration.ts', 'BOOKMARK_COUNT_TEST_ENV'],
   search: ['search-benchmark.ts', 'SEARCH_BENCHMARK_ENV'],
 };
@@ -191,7 +192,7 @@ export async function run(args = process.argv.slice(2)) {
       }
       const suites = options.includes('--full') ? Object.keys(SUITES).filter((key) => key !== 'search')
         : options.filter((o) => o.startsWith('--suite=')).map((o) => o.slice(8));
-      const httpSuites = ['text-color', 'audio', 'rp-profile', 'role-mentions', 'thread-identity', 'discussion-navigation', 'private-invite-reuse', 'gallery', 'profile-follow-counts', 'post-edited-time'];
+      const httpSuites = ['thread-action-counts', 'text-color', 'audio', 'rp-profile', 'role-mentions', 'thread-identity', 'discussion-navigation', 'private-invite-reuse', 'gallery', 'profile-follow-counts', 'post-edited-time'];
       for (const key of suites.filter(key => httpSuites.includes(key))) {
         const [script, flag] = SUITES[key];
         await runScript(script, { [flag]: 'test' });

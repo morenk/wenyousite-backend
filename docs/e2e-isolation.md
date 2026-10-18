@@ -135,3 +135,7 @@ Linux 退出期间可能先置位 PF_EXITING，进程仍暂时显示 R，且 env
 ### 文本颜色 v1
 
 `pnpm e2e:run --suite=text-color` 验证默认关闭新写；加入 `--text-color-v1` 验证启用新写，`--full` 包含启用旅程。两者均由本轮核验的独立 PostgreSQL/Redis/上传目录和随机账号覆盖草稿、BODY、聚合、旧端覆盖拒绝、格式拒绝、交替能力缓存和内存 ZIP 导出；无线上写入。
+
+### 主题底栏互动总数
+
+`pnpm test:integration:thread-action-counts` 使用本轮核验的独立 PostgreSQL、Redis、上传路径与随机账号；覆盖零值、HTTP 收藏／取消／订阅／取消、THREAD 与 USER 去重边界、注销、匿名缓存、私帖／草稿／删除拒绝和索引迁移。已纳入 `test:e2e:full`，退出由 runner 核验并清理。

@@ -71,3 +71,7 @@
 Foundation 影响审查：其 README 明确 HTTP API 与错误码由 Backend 维护；本次沿用现有菜单、输入、确认弹窗和反馈模式，不新增 Token、品牌资产或跨端视觉语义，Foundation 仓库无需修改。消费者必须按内容类型隔离目录 ID 和缓存；删除当前目录后使用 `destinationFolderId` 切到默认夹，刷新目录、列表及收藏选择器，清除已删除夹的选中状态。重命名后刷新目录和选择器，不改变收藏归属。
 
 验证入口：`pnpm test bookmark-folder-management` 覆盖 HTTP/认证/DTO/Service/响应层与 OpenAPI；`pnpm test:integration:bookmark-management` 通过[隔离 runner](../e2e-isolation.md)在独立 PostgreSQL/Redis 进程验证真实迁移、回滚和并发。应用角色凭据由 runner 生成，不能用 loopback 地址替代进程身份校验。
+
+## 主题详情实时互动总数
+
+`ThreadDetailResponseDto` 新增 `bookmarkCount` / `subscriberCount`，来自未注销账号的真实收藏及官方 THREAD 订阅关系；匿名缓存命中也实时读取。个人收藏、订阅接口保持不变。范围、缺字段兼容和索引迁移见[主题底栏互动总数](../thread-action-counts.md)。

@@ -243,3 +243,7 @@ GET /users/me 与有效用户的 GET /users/{id} 中，`_count.following` / `_co
 文本颜色旧端展示副本的对齐边界兼容修复见[颜色契约](markdown-text-color-v1.md)：DTO、header、meta 和 OpenAPI 均不变；新增回归语料不构成新写能力扩展。
 
 文本颜色与安全空段兼容修复复用既有块边界，保留合法空段后的彩色标题、列表、引用与对齐内容；DTO、能力、错误码及 OpenAPI 均不变。具体语料与拒绝边界见[颜色契约](markdown-text-color-v1.md)。
+
+## 主题底栏互动总数
+
+详情新增可选 `bookmarkCount` / `subscriberCount`；新后端始终返回真实非负值，旧响应缺失必须保留为未知。写成功后重新读取详情；具体范围和升级顺序见[主题互动人数](thread-action-counts.md)。

@@ -284,3 +284,7 @@ Flutter 代码、类型生成和设备回归仅在 Windows 执行；本后端 PR
 ## 大讨论串定位
 
 固定编号、有界双向窗口、置顶去重与筛选错误语义见 [讨论定位契约](discussion-navigation.md)。
+
+## 主题底栏互动总数
+
+详情新增可选 `bookmarkCount` / `subscriberCount`；新后端始终返回真实非负值，旧响应缺失必须保留为未知。写成功后重新读取详情；具体范围和升级顺序见[主题互动人数](thread-action-counts.md)。

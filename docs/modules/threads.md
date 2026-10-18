@@ -239,3 +239,7 @@ ThreadAccessService.assertAccessible(threadId, userId)
 每次最多导出 10,000 条可见正文、楼层与回复，原始正文不超过 16 MiB，实际打包图片不超过 64 MiB。超限返回 HTTP 413；图片超限时可关闭图片打包后重试。每个 API 进程同时处理一个导出，其余请求返回 429；完成、失败或客户端断开后释放名额。
 
 未发布主题在创建超过七天后由每日清理任务硬删除，编辑不延长期限；独立云草稿不适用此规则。`CLOSED` 显示“已停招”，`FINISHED` 显示“已完结”，均不自动改变子贴发言策略。
+
+## 主题详情实时互动总数
+
+`ThreadDetailResponseDto` 新增 `bookmarkCount` / `subscriberCount`，来自未注销账号的真实收藏及官方 THREAD 订阅关系；匿名缓存命中也实时读取。个人收藏、订阅接口保持不变。范围、缺字段兼容和索引迁移见[主题底栏互动总数](../thread-action-counts.md)。

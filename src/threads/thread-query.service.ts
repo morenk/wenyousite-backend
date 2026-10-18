@@ -144,8 +144,29 @@ export class ThreadQueryService {
       }
     }
 
+    // 互动总数不进入正文聚合缓存；一个数据库快照读取真实关系，取消后立即可见。
+    const interaction = await this.prisma.thread.findFirst({
+      where: { id, ...notDeleted, ...visibleThreadOwnerWhere(userId) },
+      select: {
+        _count: {
+          select: {
+            bookmarks: { where: { user: { deletedAt: null } } },
+            subscriptions: {
+              where: { type: 'THREAD', targetUserId: null, user: { deletedAt: null } },
+            },
+          },
+        },
+      },
+    });
+    if (!interaction) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
+    const liveThread = {
+      ...thread,
+      bookmarkCount: interaction._count.bookmarks,
+      subscriberCount: interaction._count.subscriptions,
+    };
+
     // 浏览量实时写 Redis，每 10 分钟批量落盘，避免每次详情请求写数据库。
-    let responseThread = thread;
+    let responseThread = liveThread;
     if (thread.published) {
       try {
         const viewCount = await this.redis.hincrbyAtLeast(
@@ -154,9 +175,9 @@ export class ThreadQueryService {
           thread.viewCount ?? 0,
           1,
         );
-        responseThread = { ...thread, viewCount };
+        responseThread = { ...liveThread, viewCount };
       } catch {
-        responseThread = { ...thread, viewCount: (thread.viewCount ?? 0) + 1 };
+        responseThread = { ...liveThread, viewCount: (thread.viewCount ?? 0) + 1 };
       }
     }
 
