@@ -38,6 +38,7 @@
     "test:e2e:client": "tsx scripts/api-e2e-test.ts",
     "test:e2e": "API_E2E_ISOLATED_ENV=test tsx scripts/api-e2e-isolated.ts",
     "test:integration:bookmark-management": "tsx scripts/e2e-runner.ts --suite=bookmarks",
+    "test:integration:thread-action-counts": "tsx scripts/e2e-runner.ts --suite=thread-action-counts",
     "test:integration:bookmark-count": "tsx scripts/e2e-runner.ts --suite=bookmark-count",
     "test:integration:private-invite-reuse": "tsx scripts/e2e-runner.ts --suite=private-invite-reuse",
     "test:integration:profile-follow-counts": "tsx scripts/e2e-runner.ts --suite=profile-follow-counts",

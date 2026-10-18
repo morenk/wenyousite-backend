@@ -38,6 +38,7 @@ const createMockPrisma = () => ({
   $executeRaw: jest.fn().mockResolvedValue(1),
   user: { findUnique: jest.fn(), findMany: jest.fn() },
   thread: {
+    findFirst: jest.fn().mockResolvedValue({ _count: { bookmarks: 0, subscriptions: 0 } }),
     findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),

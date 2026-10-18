@@ -730,6 +730,7 @@ model Subscription {
 
   @@unique([userId, threadId, targetUserId])
   @@index([userId, type])
+  @@index([threadId, type, targetUserId], map: "subscriptions_thread_type_target_idx")
   @@map("subscriptions")
 }
 
@@ -758,6 +759,7 @@ model UserBookmark {
 
   @@unique([userId, threadId])
   @@index([folderId, createdAt(sort: Desc)])
+  @@index([threadId], map: "user_bookmarks_thread_idx")
   @@map("user_bookmarks")
 }
 

@@ -19,6 +19,7 @@
     "redis-failure.integration.ts",
     "private-invite-reuse.integration.ts",
     "profile-follow-counts.integration.ts",
+    "thread-action-counts.integration.ts",
     "post-edited-time.integration.ts",
     "mobile-releases.integration.ts",
     "app-downloads.integration.ts",

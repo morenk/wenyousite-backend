@@ -18,7 +18,7 @@ const cachedThread = {
 
 describe('ThreadQueryService.findById 当前用户权限投影', () => {
   const prisma = {
-    thread: { findUnique: jest.fn() },
+    thread: { findUnique: jest.fn(), findFirst: jest.fn() },
     userBookmark: { findUnique: jest.fn() },
     threadLike: { findUnique: jest.fn() },
     threadMember: { findUnique: jest.fn(), findMany: jest.fn(), groupBy: jest.fn() },
@@ -53,6 +53,7 @@ describe('ThreadQueryService.findById 当前用户权限投影', () => {
     access.assertAccessible.mockResolvedValue(undefined);
     cache.get.mockResolvedValue(cachedThread);
     prisma.thread.findUnique.mockResolvedValue(cachedThread);
+    prisma.thread.findFirst.mockResolvedValue({ _count: { bookmarks: 0, subscriptions: 0 } });
     redis.hincrbyAtLeast.mockResolvedValue(13);
     prisma.userBookmark.findUnique.mockResolvedValue(null);
     prisma.threadLike.findUnique.mockResolvedValue(null);
@@ -74,6 +75,33 @@ describe('ThreadQueryService.findById 当前用户权限投影', () => {
       canManageThread: false,
       canManageMembers: false,
     });
+  });
+
+  it('匿名正文缓存命中仍读取真实计数，零值保留且不污染缓存', async () => {
+    prisma.thread.findFirst.mockResolvedValueOnce({ _count: { bookmarks: 17, subscriptions: 9 } });
+    expect(await service.findById('t1')).toMatchObject({ bookmarkCount: 17, subscriberCount: 9 });
+    expect(await service.findById('t1')).toMatchObject({ bookmarkCount: 0, subscriberCount: 0 });
+    expect(prisma.thread.findFirst).toHaveBeenCalledTimes(2);
+    expect(prisma.thread.findUnique).not.toHaveBeenCalled();
+    expect(cachedThread).not.toHaveProperty('bookmarkCount');
+    expect(prisma.thread.findFirst).toHaveBeenCalledWith({
+      where: { id: 't1', deletedAt: null, ...visibleThreadOwnerWhere(undefined) },
+      select: { _count: { select: {
+        bookmarks: { where: { user: { deletedAt: null } } },
+        subscriptions: { where: { type: 'THREAD', targetUserId: null, user: { deletedAt: null } } },
+      } } },
+    });
+  });
+
+  it('不可读主题在读取互动人数之前拒绝', async () => {
+    access.assertAccessible.mockRejectedValueOnce(new Error('不可读'));
+    await expect(service.findById('t1')).rejects.toThrow('不可读');
+    expect(prisma.thread.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('聚合时主题已删除不回填虚构零值', async () => {
+    prisma.thread.findFirst.mockResolvedValueOnce(null);
+    await expect(service.findById('t1')).rejects.toMatchObject({ status: 404 });
   });
 
   it('只查询当前用户成员关系并投影协作者能力', async () => {

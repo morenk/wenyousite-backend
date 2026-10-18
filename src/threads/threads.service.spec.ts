@@ -672,6 +672,10 @@ describe('ThreadsService', () => {
   });
 
   describe('findById', () => {
+    beforeEach(() => {
+      mockPrisma.thread.findFirst.mockResolvedValue({ _count: { bookmarks: 0, subscriptions: 0 } });
+    });
+
     it('已发布公开帖只在 Redis 递增 viewCount，不同步写数据库或刷新更新时间', async () => {
       const thread = {
         id: 't1',
