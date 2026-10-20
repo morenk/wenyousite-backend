@@ -148,3 +148,27 @@ it('日志格式化器实际拷贝依赖限制恶意嵌套深度并保留正常�
   });
   assert.equal(output, 'passed');
 });
+
+it('Markdown 智能引号在限时子进程处理大量不匹配的异类引号', () => {
+  const markdownPath = resolveDependency(['markdown-it']);
+  const script = `
+    const assert = require('node:assert/strict');
+    const MarkdownIt = require(${JSON.stringify(markdownPath)});
+    const parser = new MarkdownIt({ typographer: true });
+    assert.equal(parser.renderInline('**normal**'), '<strong>normal</strong>');
+    for (const [opening, closing] of [['"', "'"], ["'", '"']]) {
+      const source = (opening + 'left ').repeat(100000) + ('right' + closing + ' ').repeat(100000);
+      assert(parser.renderInline(source).includes('left'));
+    }
+    process.stdout.write('passed');
+  `;
+  // GHSA-r7fv-28h4-cvq7：旧实现重复扫描不匹配引号栈；超时只回收当前测试子进程。
+  const output = execFileSync(process.execPath, ['--max-old-space-size=128', '-e', script], {
+    env: { PATH: process.env.PATH },
+    timeout: 5000,
+    killSignal: 'SIGKILL',
+    maxBuffer: 4096,
+    encoding: 'utf8',
+  });
+  assert.equal(output, 'passed');
+});
