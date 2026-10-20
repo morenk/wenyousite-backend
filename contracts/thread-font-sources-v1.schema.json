@@ -1,0 +1,280 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "fonts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,47}$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "locked",
+              "pendingSource"
+            ]
+          },
+          "sourceRevision": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^https://(raw\\.githubusercontent\\.com|github\\.com|booth\\.pm|lavsic\\.booth\\.pm)/"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "officialPage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^https://(raw\\.githubusercontent\\.com|github\\.com|booth\\.pm|lavsic\\.booth\\.pm)/"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "licenseUrl": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^https://(raw\\.githubusercontent\\.com|github\\.com|booth\\.pm|lavsic\\.booth\\.pm)/"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "licenseSha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "license": {
+            "enum": [
+              "OFL-1.1",
+              null,
+              "LicenseRef-ProjectAuthorization"
+            ]
+          },
+          "archiveMember": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "readmeUrl": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^https://(raw\\.githubusercontent\\.com|github\\.com|booth\\.pm|lavsic\\.booth\\.pm)/"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "readmeSha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "filename": {
+            "type": "string"
+          },
+          "sourceAcquisition": {
+            "type": "string"
+          },
+          "fontSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "fontBytes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "licenseMember": {
+            "type": "string"
+          },
+          "licenseEvidence": {
+            "type": "string"
+          },
+          "licenseFilename": {
+            "type": "string"
+          },
+          "pendingReason": {
+            "type": "string"
+          },
+          "measured": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "codepoints": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "ascii": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "fsType": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "codepoints",
+              "ascii",
+              "fsType"
+            ]
+          },
+          "expectedCoverage": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ascii": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "gb2312": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "ascii",
+              "gb2312"
+            ]
+          },
+          "referencePage": {
+            "type": "string",
+            "pattern": "^https://"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "status"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "locked"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "sourceRevision",
+                "url",
+                "sha256",
+                "bytes",
+                "license",
+                "licenseSha256"
+              ],
+              "properties": {
+                "sourceRevision": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string",
+                  "pattern": "^https://(raw\\.githubusercontent\\.com|github\\.com|booth\\.pm|lavsic\\.booth\\.pm)/"
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "license": {
+                  "const": "OFL-1.1"
+                },
+                "licenseSha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "archiveMember"
+              ],
+              "properties": {
+                "archiveMember": {
+                  "type": "string"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "fontSha256",
+                "fontBytes"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "fonts"
+  ],
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://wenyou.site/contracts/thread-font-sources-v1.schema.json"
+}

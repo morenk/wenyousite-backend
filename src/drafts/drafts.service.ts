@@ -1,4 +1,4 @@
-import { assertTextColorWrite } from '../common/text-colors';
+import { assertTextColorWrite, assertTextFontWrite } from '../common/text-colors';
 import { ConfigService } from '@nestjs/config';
 import { assertRoleMentionWrite } from '../common/role-mentions';
 import { Injectable, Optional, BadRequestException, HttpStatus } from '@nestjs/common';
@@ -57,7 +57,7 @@ export class DraftsService {
 
   /** 保存草稿：指定 slot 则覆盖，不指定自动选空闲位 */
   async create(dto: CreateDraftDto, userId: string) {
-    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content, { markdownContractVersion: dto.markdownContractVersion, textColorVersion: dto.textColorVersion }));
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content, { markdownContractVersion: dto.markdownContractVersion, textColorVersion: dto.textColorVersion, textFontVersion: dto.textFontVersion }));
     this.assertSnapshotNotEmpty(parsedContent.contentWithoutDice, parsedContent.nodes.length);
     const requestHash = hashIdempotencyPayload({
       content: parsedContent.content,
@@ -67,6 +67,7 @@ export class DraftsService {
     if (replay) return replay;
 
     if (dto.slot === undefined) {
+      assertTextFontWrite(parsedContent.content, '', dto.textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false);
       assertTextColorWrite(parsedContent.content, '', dto.textColorVersion, this.config?.get<boolean>('app.textColorV1Enabled') ?? false);
       assertRoleMentionWrite(parsedContent.content, '', dto.markdownContractVersion, this.config?.get<boolean>('app.roleMentionsV6Enabled') ?? false);
       await this.stickerContent.assertContentAllowed(userId, parsedContent.content, '');
@@ -119,6 +120,7 @@ export class DraftsService {
       parsedContent.content,
       existing?.content ?? '',
     );
+    assertTextFontWrite(parsedContent.content, existing?.content ?? '', dto.textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false);
     assertTextColorWrite(parsedContent.content, existing?.content ?? '', dto.textColorVersion, this.config?.get<boolean>('app.textColorV1Enabled') ?? false);
     assertRoleMentionWrite(parsedContent.content, existing?.content ?? '', dto.markdownContractVersion, this.config?.get<boolean>('app.roleMentionsV6Enabled') ?? false);
     if (existing) {
@@ -176,12 +178,13 @@ export class DraftsService {
   }
 
   /** 更新草稿内容 */
-  async update(id: string, content: string, version: number, userId: string, markdownContractVersion?: number, textColorVersion?: number) {
+  async update(id: string, content: string, version: number, userId: string, markdownContractVersion?: number, textColorVersion?: number, textFontVersion?: number) {
     const draft = await this.findById(id, userId);
+    assertTextFontWrite(content, draft.content, textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false);
     assertTextColorWrite(content, draft.content, textColorVersion, this.config?.get<boolean>('app.textColorV1Enabled') ?? false);
     assertRoleMentionWrite(content, draft.content, markdownContractVersion, this.config?.get<boolean>('app.roleMentionsV6Enabled') ?? false);
     if (version !== draft.version) throw this.optimisticLockConflict();
-    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(content, { markdownContractVersion, textColorVersion }));
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(content, { markdownContractVersion, textColorVersion, textFontVersion }));
     this.assertSnapshotNotEmpty(parsedContent.contentWithoutDice, parsedContent.nodes.length);
     await this.stickerContent.assertContentAllowed(userId, parsedContent.content, draft.content);
     return this.prisma

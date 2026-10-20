@@ -1,6 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { Optional } from '@nestjs/common';
-import { assertTextColorWrite } from '../common/text-colors';
+import { assertTextColorWrite, assertTextFontWrite } from '../common/text-colors';
 import { identityToken } from '../thread-identities/identity-policy';
 import { ThreadIdentitiesService } from '../thread-identities/thread-identities.service';
 import { MentionsService } from '../mentions/mentions.service';
@@ -81,7 +81,7 @@ export class SubthreadsService {
     });
     if (!thread) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
 
-    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content ?? '', { markdownContractVersion: dto.markdownContractVersion, textColorVersion: dto.textColorVersion }));
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content ?? '', { markdownContractVersion: dto.markdownContractVersion, textColorVersion: dto.textColorVersion, textFontVersion: dto.textFontVersion }));
     const content = parsedContent.content;
     const stickerAssetIds = await this.stickerContent.assertContentAllowed(userId, content);
     const hasText = hasVisibleMarkdownContent(parsedContent.contentWithoutDice);
@@ -120,6 +120,7 @@ export class SubthreadsService {
       }
     }
 
+    assertTextFontWrite(content, '', dto.textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false);
     assertTextColorWrite(content, '', dto.textColorVersion, this.config?.get<boolean>('app.textColorV1Enabled') ?? false);
     const result = await this.prisma
       .$transaction(async (tx) => {

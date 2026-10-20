@@ -156,3 +156,7 @@ Web 和后端消费 v7；已审查 Flutter 副本尚未消费，Windows 修复�
 主题/子帖正文、楼层、回复和全局草稿支持独立 [文本颜色 v1](../markdown-text-color-v1.md)。只允许严格白名单 span；普通 HTML/CSS 仍拒绝。读取能力与新写开关分离，旧端仅获得去色副本，不能覆盖彩色原文。
 
 旧端去色按 `analyzeMarkdownBlockBoundaries` 的真实对齐块处理，保留紧接前段的居中/右对齐协议行。此修复覆盖正文响应、草稿、搜索/通知预览及导出；不改变新写开关、数据库或 OpenAPI。
+
+## 文本字体 v1
+
+独立字体能力与颜色共享严格 span，不引入任意 HTML 或 CSS。标记、保存保护、四种能力投影和共享语料见[字体契约](../markdown-text-font-v1.md)。

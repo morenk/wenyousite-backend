@@ -6,7 +6,7 @@ const coverage = JSON.parse(fs.readFileSync(coveragePath, 'utf8')) as Record<str
 const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as Record<string, any>;
 const failures: string[] = [];
 
-const expectedCounts = { total: 248, v1: 120, deferred: 66, notApplicable: 58, infrastructure: 4 };
+const expectedCounts = { total: 249, v1: 121, deferred: 66, notApplicable: 58, infrastructure: 4 };
 for (const [name, expected] of Object.entries(expectedCounts)) {
   if (coverage.counts?.[name] !== expected) {
     failures.push(
@@ -16,6 +16,11 @@ for (const [name, expected] of Object.entries(expectedCounts)) {
 }
 
 const rows = Array.isArray(coverage.operations) ? coverage.operations : [];
+const textFonts = rows.find((row: Record<string, unknown>) => row.operationId === 'textFontsGetCatalog');
+if (textFonts?.disposition !== 'v1' || textFonts?.module !== 'editor'
+  || textFonts?.method !== 'GET' || textFonts?.path !== '/api/v1/meta/text-fonts') {
+  failures.push('字体目录必须纳入移动端 V1 编辑器只读接口');
+}
 for (const operationId of ['adminContentList', 'adminContentDetail', 'adminContentUpdateTaxonomy']) {
   const operation = rows.find((row: Record<string, unknown>) => row.operationId === operationId);
   if (operation?.disposition !== 'not_applicable' || operation?.module !== 'admin') {

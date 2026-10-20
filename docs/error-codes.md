@@ -24,6 +24,9 @@
 | `TEXT_COLOR_CAPABILITY_REQUIRED` | 40016 | 编辑器未声明能够保留文本颜色 v1 |
 | `TEXT_COLOR_DISABLED` | 40017 | 文本颜色新写激活开关尚未开启 |
 | `INVALID_TEXT_COLOR` | 40018 | 文本颜色受控标记不合法 |
+| `TEXT_FONT_CAPABILITY_REQUIRED` | 40019 | 编辑器未声明能够保留文本字体 v1 |
+| `TEXT_FONT_DISABLED` | 40020 | 文本字体新写激活开关尚未开启 |
+| `INVALID_TEXT_FONT` | 40021 | 字体受控标记或字体身份不合法 |
 | `UNAUTHORIZED` | 40100 | 未认证 |
 | `TOKEN_EXPIRED` | 40101 | Token 过期（access token） |
 | `TOKEN_INVALID` | 40102 | Token 无效 |

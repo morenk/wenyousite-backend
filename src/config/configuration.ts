@@ -1,3 +1,4 @@
+import { TEXT_FONT_ASSET_INDEX } from '../common/text-font-assets.generated';
 import { Environment, isRetiredPreviewSetting, parseCorsOrigins, validate } from './env.validation';
 
 /** 应用配置：从环境变量读取配置，提供类型安全访问 */
@@ -90,6 +91,9 @@ export default function configuration() {
     // 应用基础信息
     app: {
       textColorV1Enabled: env.TEXT_COLOR_V1_ENABLED,
+      textFontV1Enabled:
+        env.TEXT_FONT_V1_ENABLED && !!env.TEXT_FONT_ASSET_BASE_URL && !!TEXT_FONT_ASSET_INDEX.manifest,
+      textFontAssetBaseUrl: env.TEXT_FONT_ASSET_BASE_URL,
       roleMentionsV6Enabled: env.RP_MENTION_V6_ENABLED,
       url: env.APP_URL,
       nodeEnv: env.NODE_ENV,

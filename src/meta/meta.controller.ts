@@ -8,6 +8,11 @@ import { ACTIVE_MARKDOWN_CONTRACT_VERSION } from '../common/markdown-content';
 import { API_CONTRACT_VERSION } from '../common/swagger/openapi-document';
 
 class ApiCapabilitiesResponseDto {
+  @ApiPropertyOptional({ description: '支持字体 v1 保源和旧端降级；缺失按 false' })
+  textFontV1Supported?: boolean;
+  @ApiPropertyOptional({ description: '允许新增/修改字体；关闭仍可保留或移除已有字体，缺失按 false' })
+  textFontV1WriteEnabled?: boolean;
+
   @ApiPropertyOptional({ description: '支持独立文本颜色 v1 保源/旧端降级；缺失按 false' })
   textColorV1Supported?: boolean;
   @ApiPropertyOptional({ description: '允许新增/修改颜色范围；关闭仍允许保留或移除已有颜色，缺失按 false' })
@@ -99,6 +104,8 @@ export class MetaController {
       buildSha: this.config.get<string>('app.buildSha') ?? null,
       markdownContractVersion: ACTIVE_MARKDOWN_CONTRACT_VERSION,
       capabilities: {
+        textFontV1Supported: true,
+        textFontV1WriteEnabled: this.config.get<boolean>('app.textFontV1Enabled') ?? false,
         textColorV1Supported: true,
         textColorV1WriteEnabled: this.config.get<boolean>('app.textColorV1Enabled') ?? false,
         rpIdentityProfileSupported: true,

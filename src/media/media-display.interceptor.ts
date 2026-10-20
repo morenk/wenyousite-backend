@@ -1,4 +1,4 @@
-import { projectTextColors, TEXT_COLOR_HEADER, isTextColorResponseRoute } from '../common/text-colors';
+import { projectTextFonts, TEXT_FONT_HEADER, projectTextColors, TEXT_COLOR_HEADER, isTextColorResponseRoute } from '../common/text-colors';
 import { MARKDOWN_CAPABILITY_HEADER } from '../common/role-mentions';
 import { IdentityProjectionService } from '../thread-identities/identity-projection.service';
 import { FastifyReply, FastifyRequest } from 'fastify';
@@ -21,6 +21,7 @@ export class MediaDisplayInterceptor implements NestInterceptor {
       const vary = String(reply.getHeader('Vary') ?? '').split(',').map(value => value.trim()).filter(Boolean);
       if (!vary.some(value => value.toLowerCase() === MARKDOWN_CAPABILITY_HEADER.toLowerCase())) vary.push(MARKDOWN_CAPABILITY_HEADER);
       if (!vary.some(value => value.toLowerCase() === TEXT_COLOR_HEADER.toLowerCase())) vary.push(TEXT_COLOR_HEADER);
+      if (!vary.some(value => value.toLowerCase() === TEXT_FONT_HEADER.toLowerCase())) vary.push(TEXT_FONT_HEADER);
       reply.header('Vary', vary.join(', '));
       // 缓存保存领域原值；每个能力请求仅投影自己的副本。
       raw = raw instanceof PaginatedResult ? new PaginatedResult(sanitizePublicUserSummaries(raw.items), raw.pagination) : sanitizePublicUserSummaries(raw);
@@ -32,6 +33,7 @@ export class MediaDisplayInterceptor implements NestInterceptor {
         subthreadId: params?.subthreadId, postId: params?.postId ?? params?.id,
         currentUsers: threadDetail || /members|authors/.test(route), viewerId: req.user?.id, markdownContractVersion: req.headers['x-markdown-contract-version'] === '6' ? 6 : undefined };
       await this.identities.project(raw instanceof PaginatedResult ? raw.items : raw, identityContext);
+      if (isTextColorResponseRoute(route)) projectTextFonts(raw instanceof PaginatedResult ? raw.items : raw, req.headers['x-text-font-version'] === '1' ? 1 : undefined);
       if (isTextColorResponseRoute(route)) projectTextColors(raw instanceof PaginatedResult ? raw.items : raw, req.headers['x-text-color-version'] === '1' ? 1 : undefined);
       if (raw instanceof PaginatedResult) {
         return new PaginatedResult(await this.projection.project(sanitizePublicUserSummaries(raw.items)), raw.pagination);

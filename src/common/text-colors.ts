@@ -1,3 +1,4 @@
+import { isTextFontId, isTextFontSourceReady } from './text-font-catalog';
 import { analyzeMarkdownBlockBoundaries } from './markdown-block-boundaries';
 import MarkdownIt from 'markdown-it';
 import type Token from 'markdown-it/lib/token.mjs';
@@ -9,7 +10,35 @@ import { maskMentionCode, parseMentionSources } from './role-mentions';
 
 export const TEXT_COLOR_VERSION = 1;
 export const TEXT_COLOR_HEADER = 'X-Text-Color-Version';
-const OPEN = /^<span data-wenyou-color-v1="(#[0-9a-fA-F]{6})">$/u;
+export const TEXT_FONT_VERSION = 1;
+export const TEXT_FONT_HEADER = 'X-Text-Font-Version';
+const STYLE_ATTRIBUTE = / data-wenyou-(color|font)-v1="([^"<>]*)"/gu;
+type Style = { color?: string; fontId?: string };
+function opening(tag: string): Style | undefined {
+  if (!tag.startsWith('<span ') || !tag.endsWith('>')) return;
+  const attributes = tag.slice(5, -1);
+  const matches = [...attributes.matchAll(STYLE_ATTRIBUTE)];
+  if (!matches.length || matches.map((match) => match[0]).join('') !== attributes) return;
+  const result: Style = {};
+  for (const match of matches) {
+    if (match[1] === 'color') {
+      if (result.color || !/^#[0-9a-fA-F]{6}$/u.test(match[2])) return;
+      result.color = match[2].toUpperCase();
+    } else {
+      if (result.fontId || !/^[a-z][a-z0-9-]{0,63}$/u.test(match[2])) return;
+      result.fontId = match[2];
+    }
+  }
+  return result;
+}
+function openingTag(style: Style): string {
+  return (
+    '<span' +
+    (style.fontId ? ` data-wenyou-font-v1="${style.fontId}"` : '') +
+    (style.color ? ` data-wenyou-color-v1="${style.color}"` : '') +
+    '>'
+  );
+}
 const parser = new MarkdownIt({ html: true, linkify: false, typographer: false });
 const tokenize = parser.inline.tokenize;
 parser.inline.tokenize = function (state) {
@@ -25,18 +54,21 @@ parser.inline.tokenize = function (state) {
     state.push = push;
   }
 };
-export interface TextColorRange {
+export interface TextStyleRange {
   start: number;
   end: number;
   contentStart: number;
   contentEnd: number;
-  color: string;
+  color?: string;
+  fontId?: string;
   content: string;
 }
-function invalid(): never {
+function invalid(font = false): never {
   throw new BusinessException(
-    ErrorCode.INVALID_TEXT_COLOR,
-    '文字颜色格式不合法，请保留正文并重新选择颜色',
+    font ? ErrorCode.INVALID_TEXT_FONT : ErrorCode.INVALID_TEXT_COLOR,
+    font
+      ? '文字字体格式不合法，请保留正文并重新选择字体'
+      : '文字颜色格式不合法，请保留正文并重新选择颜色',
     HttpStatus.BAD_REQUEST,
   );
 }
@@ -73,9 +105,9 @@ function validateInner(content: string): boolean {
   }
   return true;
 }
-/** 真实 Markdown token 确定颜色边界；代码、转义、URL/title 不扫描为标签。 */
-export function parseTextColors(source: string, strict = false): TextColorRange[] {
-  if (!/data-wenyou-color/iu.test(source)) return [];
+/** 真实 Markdown token 确定文字样式边界；代码、转义、URL/title 不扫描为标签。 */
+export function parseTextStyles(source: string, strict = false): TextStyleRange[] {
+  if (!/data-wenyou-(?:color|font)/iu.test(source)) return [];
   const lines = source.split('\n'),
     offsets: number[] = [];
   let cursor = 0;
@@ -83,13 +115,13 @@ export function parseTextColors(source: string, strict = false): TextColorRange[
     offsets.push(cursor);
     cursor += line.length + 1;
   }
-  const result: TextColorRange[] = [];
+  const result: TextStyleRange[] = [];
   const fail = () => {
-    if (strict) invalid();
+    if (strict) invalid(/data-wenyou-font/iu.test(source));
   };
-  // 与正文验证共享受控空段/对齐边界，避免 <br /> 吞并紧邻彩色块。
+  // 与正文验证共享受控空段/对齐边界，避免 <br /> 吞并紧邻样式块。
   for (const block of analyzeMarkdownBlockBoundaries(source).tokens) {
-    if (block.type === 'html_block' && /data-wenyou-color/iu.test(block.content)) {
+    if (block.type === 'html_block' && /data-wenyou-(?:color|font)/iu.test(block.content)) {
       fail();
       continue;
     }
@@ -109,9 +141,9 @@ export function parseTextColors(source: string, strict = false): TextColorRange[
       while (row + 1 < relativeOffsets.length && relativeOffsets[row + 1] <= position) row++;
       return absoluteLines[row] + position - relativeOffsets[row];
     };
-    let active: { start: number; contentStart: number; color: string } | undefined;
+    let active: ({ start: number; contentStart: number } & Style) | undefined;
     for (const token of block.children ?? []) {
-      if (token.type === 'text' && /data-wenyou-color/iu.test(token.content)) {
+      if (token.type === 'text' && /data-wenyou-(?:color|font)/iu.test(token.content)) {
         // 普通字面内容只允许显式转义的标签；残缺或未知版本不得被当作成功格式保存。
         const position = block.content.indexOf(token.content);
         if (
@@ -123,9 +155,9 @@ export function parseTextColors(source: string, strict = false): TextColorRange[
       }
       if (token.type !== 'html_inline') continue;
       const position = absolute(token.meta.sourceStart as number);
-      const open = OPEN.exec(token.content);
+      const open = opening(token.content);
       if (open) {
-        if (active || token.level !== 0) {
+        if (active || token.level !== 0 || (strict && open.fontId && !isTextFontId(open.fontId))) {
           fail();
           active = undefined;
           continue;
@@ -133,7 +165,7 @@ export function parseTextColors(source: string, strict = false): TextColorRange[
         active = {
           start: position,
           contentStart: position + token.content.length,
-          color: open[1].toUpperCase(),
+          ...open,
         };
       } else if (token.content === '</span>' && active) {
         const content = source.slice(active.contentStart, position);
@@ -149,7 +181,7 @@ export function parseTextColors(source: string, strict = false): TextColorRange[
           content,
         });
         active = undefined;
-      } else if (active || /data-wenyou-color/iu.test(token.content)) {
+      } else if (active || /data-wenyou-(?:color|font)/iu.test(token.content)) {
         fail();
         active = undefined;
       }
@@ -158,14 +190,18 @@ export function parseTextColors(source: string, strict = false): TextColorRange[
   }
   return result;
 }
+export type TextColorRange = TextStyleRange & { color: string };
+export type TextFontRange = TextStyleRange & { fontId: string };
+export const parseTextColors = (source: string, strict = false): TextColorRange[] =>
+  parseTextStyles(source, strict).filter((range): range is TextColorRange => !!range.color);
+export const parseTextFonts = (source: string, strict = false): TextFontRange[] =>
+  parseTextStyles(source, strict).filter((range): range is TextFontRange => !!range.fontId);
+
 export function normalizeTextColors(source: string): string {
-  const ranges = parseTextColors(source, true);
+  const ranges = parseTextStyles(source, true);
   let output = source;
   for (const range of ranges.reverse()) {
-    output =
-      output.slice(0, range.start) +
-      `<span data-wenyou-color-v1="${range.color}">` +
-      output.slice(range.contentStart);
+    output = output.slice(0, range.start) + openingTag(range) + output.slice(range.contentStart);
   }
   return output;
 }
@@ -187,7 +223,7 @@ const escapeTitle = (value: string) =>
     )
     .join('');
 /** 将内联 token 转回安全 Markdown，避免去掉 span 后把字面 #、>、* 等激活为语法。 */
-function fallbackInline(content: string): string {
+function fallbackInline(content: string, remove: 'color' | 'font' | 'all'): string {
   let marker = '\uE090';
   while (content.includes(marker)) marker += '\uE090';
   const atoms = parseMentionSources(content).map(({ start, end }) => ({ start, end }));
@@ -209,10 +245,24 @@ function fallbackInline(content: string): string {
     protectedContent =
       protectedContent.slice(0, atom.start) + `${marker}${i}END` + protectedContent.slice(atom.end);
   }
-  const children = (parser.parseInline(protectedContent, {})[0].children ?? []).filter(
-    (token) =>
-      token.type !== 'html_inline' || (!OPEN.test(token.content) && token.content !== '</span>'),
-  );
+  let retained = false;
+  const children = (parser.parseInline(protectedContent, {})[0].children ?? []).filter((token) => {
+    if (token.type !== 'html_inline') return true;
+    const style = opening(token.content);
+    if (style) {
+      if (remove === 'color' || remove === 'all') delete style.color;
+      if (remove === 'font' || remove === 'all') delete style.fontId;
+      retained = !!(style.color || style.fontId);
+      if (retained) token.content = openingTag(style);
+      return retained;
+    }
+    if (token.content === '</span>') {
+      const keep = retained;
+      retained = false;
+      return keep;
+    }
+    return true;
+  });
   const tokens: Token[] = [];
   for (const token of children) {
     if (token.type === 'text' && !token.content) continue;
@@ -275,7 +325,11 @@ function fallbackInline(content: string): string {
         if (token.type.startsWith('em_')) return alternate ? '_' : '*';
         if (token.type.startsWith('strong_')) return '**';
         if (token.type.startsWith('s_')) return '~~';
-        return token.type === 'html_inline' ? escapeText(token.content) : token.markup;
+        return token.type === 'html_inline'
+          ? opening(token.content) || token.content === '</span>'
+            ? token.content
+            : escapeText(token.content)
+          : token.markup;
       })
       .join('')
       .replace(/^ +| +$/gmu, (spaces) => '&#32;'.repeat(spaces.length));
@@ -288,10 +342,24 @@ function fallbackInline(content: string): string {
     output = output.replace(`${marker}${i}END`, content.slice(unique[i].start, unique[i].end));
   return output;
 }
-/** 整个内联流去色后重序列化，避免 span 边界移除后合并分隔符造成格式损失。 */
-export function stripTextColors(source: string): string {
-  const ranges = parseTextColors(source);
+/** 整个内联流去除样式后重序列化，避免 span 边界移除后合并分隔符造成格式损失。 */
+export function stripTextStyles(source: string, remove: 'color' | 'font' | 'all' = 'all'): string {
+  const ranges = parseTextStyles(source).filter(
+    (range) => remove === 'all' || (remove === 'font' ? range.fontId : range.color),
+  );
   if (!ranges.length) return source;
+  // 仍保留另一种样式时边界没有消失，仅替换开标签，保持内部字面标点原样。
+  if (
+    remove !== 'all' &&
+    ranges.every((range) => (remove === 'font' ? range.color : range.fontId))
+  ) {
+    let output = source;
+    for (const range of ranges.toReversed()) {
+      const style = remove === 'font' ? { color: range.color } : { fontId: range.fontId };
+      output = output.slice(0, range.start) + openingTag(style) + output.slice(range.contentStart);
+    }
+    return output;
+  }
   const lines = source.split('\n'),
     offsets: number[] = [];
   let cursor = 0;
@@ -300,14 +368,14 @@ export function stripTextColors(source: string): string {
     cursor += line.length + 1;
   }
   const edits: Array<{ start: number; end: number; value: string }> = [];
-  // 对齐协议行会终止前一个段落；按同一块边界去色，避免把它序列化成字面标点。
+  // 对齐协议行会终止前一个段落；按同一块边界去除样式，避免把它序列化成字面标点。
   for (const block of analyzeMarkdownBlockBoundaries(source).tokens) {
     if (block.type !== 'inline' || !block.map) continue;
     const start = offsets[block.map[0]],
       end = offsets[block.map[1]] ?? source.length;
     if (!ranges.some((range) => range.start >= start && range.end <= end)) continue;
     const original = block.content.split('\n'),
-      fallback = fallbackInline(block.content).split('\n');
+      fallback = fallbackInline(block.content, remove).split('\n');
     original.forEach((line, i) => {
       const row = block.map![0] + i,
         column = lines[row].lastIndexOf(line);
@@ -326,12 +394,15 @@ export function stripTextColors(source: string): string {
 /** 校验时仅以不可见字符占位已验证的标签，禁止降级序列化吞掉旁边非法 HTML。 */
 export function maskTextColorTags(source: string): string {
   let output = source;
-  for (const range of parseTextColors(source, true).reverse()) {
+  for (const range of parseTextStyles(source, true).reverse()) {
     output =
       output.slice(0, range.start) + '\u2060' + range.content + '\u2060' + output.slice(range.end);
   }
   return output;
 }
+export const stripTextColors = (source: string): string => stripTextStyles(source, 'color');
+export const stripTextFonts = (source: string): string => stripTextStyles(source, 'font');
+
 type ColorLeaf = { text: string; marks: string[] };
 /** 只签名已验证的内联语义；语法分隔符和实体编码不改变保存能力。 */
 function colorLeaves(content: string): ColorLeaf[] {
@@ -393,6 +464,58 @@ export function assertTextColorWrite(
         HttpStatus.CONFLICT,
       );
     saved.set(key, count - 1);
+  }
+}
+function requireTextFontCapability(version?: number): void {
+  if (version !== TEXT_FONT_VERSION)
+    throw new BusinessException(
+      ErrorCode.TEXT_FONT_CAPABILITY_REQUIRED,
+      '正文包含自定义字体，请保留草稿并升级编辑器',
+      HttpStatus.CONFLICT,
+    );
+}
+export function assertTextFontCapability(content: string, version?: number): void {
+  if (parseTextFonts(content, true).length) requireTextFontCapability(version);
+}
+export function assertTextFontWrite(
+  content: string,
+  previous = '',
+  version?: number,
+  enabled = false,
+): void {
+  const next = parseTextFonts(content, true),
+    old = parseTextFonts(previous);
+  if (!next.length && !old.length) return;
+  requireTextFontCapability(version);
+  if (enabled && next.every((range) => isTextFontSourceReady(range.fontId))) return;
+  const signatures = (ranges: TextFontRange[]) =>
+    colorSignatures(ranges.map((range) => ({ ...range, color: range.fontId })));
+  const saved = new Map<string, number>();
+  for (const key of signatures(old)) saved.set(key, (saved.get(key) ?? 0) + 1);
+  for (const key of signatures(
+    next.filter((range) => !enabled || !isTextFontSourceReady(range.fontId)),
+  )) {
+    const count = saved.get(key) ?? 0;
+    if (!count)
+      throw new BusinessException(
+        ErrorCode.TEXT_FONT_DISABLED,
+        '自定义字体新写尚未启用，请保留草稿',
+        HttpStatus.CONFLICT,
+      );
+    saved.set(key, count - 1);
+  }
+}
+export function projectTextFonts(value: unknown, version?: number): void {
+  if (version === TEXT_FONT_VERSION || value === null || typeof value !== 'object') return;
+  if (Array.isArray(value)) {
+    value.forEach((item) => projectTextFonts(item, version));
+    return;
+  }
+  const record = value as Record<string, unknown>;
+  for (const [key, child] of Object.entries(record)) {
+    if (['content', 'sourceContent', 'bodyContent'].includes(key) && typeof child === 'string')
+      record[key] = stripTextFonts(child);
+    else if (child && typeof child === 'object') projectTextFonts(child, version);
   }
 }
 /** 与媒体/身份投影共用已隔离的响应副本；仅处理正文与保源字段。 */

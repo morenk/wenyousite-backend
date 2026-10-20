@@ -288,3 +288,7 @@ Flutter 代码、类型生成和设备回归仅在 Windows 执行；本后端 PR
 ## 主题底栏互动总数
 
 详情新增可选 `bookmarkCount` / `subscriberCount`；新后端始终返回真实非负值，旧响应缺失必须保留为未知。写成功后重新读取详情；具体范围和升级顺序见[主题互动人数](thread-action-counts.md)。
+
+## 主题帖字体接入
+
+使用 Backend 已提交 SHA 的[字体 v1 契约](markdown-text-font-v1.md)与资源目录，同步读取、编辑、云草稿、保存及剪贴板。字体未加载时保留原文与 fontId，回退系统字体。FontLoader 注册按进程预算限制，磁盘 LRU 不能替代驻留限制；VPS 仅提供契约与隔离入口，Flutter 检查在 Windows 完成。

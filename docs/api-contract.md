@@ -247,3 +247,7 @@ GET /users/me 与有效用户的 GET /users/{id} 中，`_count.following` / `_co
 ## 主题底栏互动总数
 
 详情新增可选 `bookmarkCount` / `subscriberCount`；新后端始终返回真实非负值，旧响应缺失必须保留为未知。写成功后重新读取详情；具体范围和升级顺序见[主题互动人数](thread-action-counts.md)。
+
+## 文本字体 v1
+
+主题正文与草稿新增独立 `textFontVersion: 1` / `X-Text-Font-Version: 1`，与颜色在同一受控 span 组合。旧端读取安全降级、覆盖历史字体正文返回 409/40019。能力、新写门控、错误码、目录和迁移顺序见[字体契约](markdown-text-font-v1.md)。

@@ -30,10 +30,12 @@ describe('角色提及 HTTP 能力投影和缓存隔离',()=>{
   });
   afterAll(async()=>app.close());
   it('跨域预检允许能力请求头并保留精确Origin限制', async () => {
-    const reply = await app.inject({method:'OPTIONS',url:'/posts/post',headers:{origin:'https://client.example','access-control-request-method':'POST','access-control-request-headers':'content-type,x-markdown-contract-version'}});
+    const reply = await app.inject({method:'OPTIONS',url:'/posts/post',headers:{origin:'https://client.example','access-control-request-method':'POST','access-control-request-headers':'content-type,x-markdown-contract-version,x-text-color-version,x-text-font-version'}});
     expect(reply.statusCode).toBe(204);
     expect(reply.headers['access-control-allow-origin']).toBe('https://client.example');
     expect(reply.headers['access-control-allow-headers']).toContain('x-markdown-contract-version');
+    expect(reply.headers['access-control-allow-headers']).toContain('x-text-color-version');
+    expect(reply.headers['access-control-allow-headers']).toContain('x-text-font-version');
     const denied=await app.inject({method:'OPTIONS',url:'/posts/post',headers:{origin:'https://other.example','access-control-request-method':'GET','access-control-request-headers':'x-markdown-contract-version'}});
     expect(denied.headers['access-control-allow-origin']).toBeUndefined();
   });
@@ -41,7 +43,7 @@ describe('角色提及 HTTP 能力投影和缓存隔离',()=>{
     for (const state of [true,false,true]) {
       enabled=state;
       const next=await app.inject({method:'GET',url:'/posts/post',headers:{'X-Markdown-Contract-Version':'6'}});
-      expect(next.statusCode).toBe(200); expect(next.headers.vary).toBe('Origin, Accept, X-Markdown-Contract-Version, X-Text-Color-Version');
+      expect(next.statusCode).toBe(200); expect(next.headers.vary).toBe('Origin, Accept, X-Markdown-Contract-Version, X-Text-Color-Version, X-Text-Font-Version');
       const body=next.json(); expect(body.content).toBe(content);
       expect(body.mentionIdentities.map((row:{targetIdentityId:string|null})=>row.targetIdentityId)).toEqual([a,b,null]);
       expect(body.mentionIdentities.map((row:{displayName:string})=>row.displayName)).toEqual(state?['同名','同名','账号当前名']:['账号当前名','账号当前名','账号当前名']);

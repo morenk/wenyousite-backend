@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "5.40.0-dev.20261018.1",
+  "contractVersion": "5.41.0-dev.20261021.1",
   "counts": {
-    "total": 248,
-    "v1": 120,
+    "total": 249,
+    "v1": 121,
     "deferred": 66,
     "notApplicable": 58,
     "infrastructure": 4
@@ -1909,6 +1909,14 @@
         "test/mobile_update_test.dart",
         "test/app_shell_test.dart"
       ]
+    },
+    {
+      "operationId": "textFontsGetCatalog",
+      "method": "GET",
+      "path": "/api/v1/meta/text-fonts",
+      "module": "editor",
+      "disposition": "v1",
+      "status": "planned"
     },
     {
       "operationId": "mobileReleasesList",

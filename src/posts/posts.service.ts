@@ -1,6 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { Optional } from '@nestjs/common';
-import { assertTextColorWrite } from '../common/text-colors';
+import { assertTextColorWrite, assertTextFontWrite } from '../common/text-colors';
 import { ThreadIdentitiesService } from '../thread-identities/thread-identities.service';
 import { postContentEditData, rethrowPostEditConflict } from './post-content-edit';
 import { Injectable, HttpStatus } from '@nestjs/common';
@@ -73,7 +73,7 @@ export class PostsService {
     return this.queries.findLatestInThread(threadId, userId);
   }
   async create(subthreadId: string, dto: CreatePostDto, userId: string) {
-    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content, { markdownContractVersion: dto.markdownContractVersion, textColorVersion: dto.textColorVersion }));
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content, { markdownContractVersion: dto.markdownContractVersion, textColorVersion: dto.textColorVersion, textFontVersion: dto.textFontVersion }));
     const content = parsedContent.content;
     if (
       !hasVisibleMarkdownContent(parsedContent.contentWithoutDice) &&
@@ -100,6 +100,7 @@ export class PostsService {
         return existingRequest;
       }
     }
+    assertTextFontWrite(content, '', dto.textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false);
     assertTextColorWrite(content, '', dto.textColorVersion, this.config?.get<boolean>('app.textColorV1Enabled') ?? false);
     const stickerAssetIds = await this.stickerContent.assertContentAllowed(userId, content);
 
@@ -279,8 +280,9 @@ export class PostsService {
     identityId?: string,
     markdownContractVersion?: number,
     textColorVersion?: number,
+    textFontVersion?: number,
   ) {
-    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(content, { markdownContractVersion, textColorVersion }));
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(content, { markdownContractVersion, textColorVersion, textFontVersion }));
     const normalizedContent = parsedContent.content;
     const subthread = await this.prisma.subthread.findUnique({
       where: { id: subthreadId, ...notDeleted },
@@ -306,6 +308,7 @@ export class PostsService {
       existing?.content ?? '',
     );
 
+    assertTextFontWrite(normalizedContent, existing?.content ?? '', textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false);
     assertTextColorWrite(normalizedContent, existing?.content ?? '', textColorVersion, this.config?.get<boolean>('app.textColorV1Enabled') ?? false);
     if (!existing) {
       const post = await this.prisma
@@ -463,7 +466,7 @@ export class PostsService {
 
   /** 编辑帖子 */
   async update(id: string, dto: UpdatePostDto, userId: string) {
-    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content, { markdownContractVersion: dto.markdownContractVersion, textColorVersion: dto.textColorVersion }));
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content, { markdownContractVersion: dto.markdownContractVersion, textColorVersion: dto.textColorVersion, textFontVersion: dto.textFontVersion }));
     const content = parsedContent.content;
     const postLight = await this.prisma.post.findUnique({
       where: { id, ...notDeleted },
@@ -496,6 +499,7 @@ export class PostsService {
     }
 
     const oldContent = postLight.content;
+    assertTextFontWrite(content, oldContent, dto.textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false);
     assertTextColorWrite(content, oldContent, dto.textColorVersion, this.config?.get<boolean>('app.textColorV1Enabled') ?? false);
     const stickerAssetIds = await this.stickerContent.assertContentAllowed(
       userId,

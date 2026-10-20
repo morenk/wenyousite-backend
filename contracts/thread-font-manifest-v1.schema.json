@@ -1,0 +1,441 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "fontVersion": {
+      "const": 1
+    },
+    "catalogVersion": {
+      "type": "string"
+    },
+    "toolchain": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "python": {
+          "type": "string"
+        },
+        "fonttools": {
+          "type": "string"
+        },
+        "brotli": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "python",
+        "fonttools",
+        "brotli"
+      ]
+    },
+    "partition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "core": {
+          "const": "gb2312-level1-ascii-punctuation-v1"
+        },
+        "extraUnicodePageSize": {
+          "const": 2048
+        }
+      },
+      "required": [
+        "core",
+        "extraUnicodePageSize"
+      ]
+    },
+    "cacheControl": {
+      "const": "public, max-age=31536000, immutable"
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxConcurrentDownloads": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxSessionFamilies": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxSessionRequests": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxWebSessionBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxMobileSessionBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxMobileRegisteredFaces": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxPersistentCacheBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "downloadTimeoutMs": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxAssetBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxSourceBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxBuildSourceBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxBundleBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxReleaseStorageBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "monthlyEgressBudgetBytes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "maxConcurrentDownloads",
+        "maxSessionFamilies",
+        "maxSessionRequests",
+        "maxWebSessionBytes",
+        "maxMobileSessionBytes",
+        "maxMobileRegisteredFaces",
+        "maxPersistentCacheBytes",
+        "downloadTimeoutMs",
+        "maxAssetBytes",
+        "maxSourceBytes",
+        "maxBuildSourceBytes",
+        "maxBundleBytes",
+        "maxReleaseStorageBytes",
+        "monthlyEgressBudgetBytes"
+      ]
+    },
+    "fonts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,47}$"
+              },
+              "name": {
+                "type": "string"
+              },
+              "availability": {
+                "const": "ready"
+              },
+              "license": {
+                "const": "OFL-1.1"
+              },
+              "sourceRevision": {
+                "type": "string"
+              },
+              "sourceSha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "fontSha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "sourceBytes": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "coverage": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "totalCodepoints": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "ascii": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "present": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "total": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "missingRanges": {
+                        "type": "array",
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^U\\+[0-9A-F]{4,6}(-[0-9A-F]{4,6})?$"
+                        }
+                      }
+                    },
+                    "required": [
+                      "present",
+                      "total",
+                      "missingRanges"
+                    ]
+                  },
+                  "gb2312": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "present": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "total": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "missingRanges": {
+                        "type": "array",
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^U\\+[0-9A-F]{4,6}(-[0-9A-F]{4,6})?$"
+                        }
+                      }
+                    },
+                    "required": [
+                      "present",
+                      "total",
+                      "missingRanges"
+                    ]
+                  },
+                  "punctuation": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "present": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "total": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "missingRanges": {
+                        "type": "array",
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^U\\+[0-9A-F]{4,6}(-[0-9A-F]{4,6})?$"
+                        }
+                      }
+                    },
+                    "required": [
+                      "present",
+                      "total",
+                      "missingRanges"
+                    ]
+                  }
+                },
+                "required": [
+                  "totalCodepoints",
+                  "ascii",
+                  "gb2312",
+                  "punctuation"
+                ]
+              },
+              "notices": {
+                "type": "array",
+                "minItems": 2,
+                "items": {
+                  "$ref": "#/$defs/asset"
+                }
+              },
+              "shards": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "$ref": "#/$defs/shard"
+                }
+              },
+              "totalWebBytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "totalMobileBytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "baseWeight": {
+                "const": 400
+              },
+              "baseStyle": {
+                "const": "normal"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "availability",
+              "license",
+              "sourceRevision",
+              "sourceSha256",
+              "fontSha256",
+              "sourceBytes",
+              "coverage",
+              "notices",
+              "shards",
+              "totalWebBytes",
+              "totalMobileBytes",
+              "baseWeight",
+              "baseStyle"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,47}$"
+              },
+              "name": {
+                "type": "string"
+              },
+              "availability": {
+                "const": "pendingSource"
+              },
+              "shards": {
+                "type": "array",
+                "maxItems": 0
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "availability",
+              "shards"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "fontVersion",
+    "catalogVersion",
+    "toolchain",
+    "partition",
+    "cacheControl",
+    "limits",
+    "fonts"
+  ],
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://wenyou.site/contracts/thread-font-manifest-v1.schema.json",
+  "$defs": {
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^fonts/v1/[a-f0-9]{64}\\.(woff2|ttf|otf|json|txt)$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "format": {
+          "enum": [
+            "woff2",
+            "ttf",
+            "otf"
+          ]
+        },
+        "contentType": {
+          "enum": [
+            "font/woff2",
+            "font/ttf",
+            "font/otf"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "license",
+            "attribution",
+            "source-notice"
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "bytes"
+      ]
+    },
+    "shard": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^(core|u[0-9a-f]{6})$"
+        },
+        "family": {
+          "type": "string",
+          "pattern": "^WYF1-[0-9a-f]{16}-(core|u[0-9a-f]{6})$",
+          "maxLength": 63
+        },
+        "codepointCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "unicodeRanges": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^U\\+[0-9A-F]{4,6}(-[0-9A-F]{4,6})?$"
+          }
+        },
+        "web": {
+          "$ref": "#/$defs/asset"
+        },
+        "mobile": {
+          "$ref": "#/$defs/asset"
+        }
+      },
+      "required": [
+        "id",
+        "family",
+        "codepointCount",
+        "unicodeRanges",
+        "web",
+        "mobile"
+      ]
+    }
+  }
+}

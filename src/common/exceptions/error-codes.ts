@@ -43,6 +43,12 @@ export const ErrorCode = {
   TEXT_COLOR_DISABLED: 40017,
   /** 文本颜色受控标记不合法 */
   INVALID_TEXT_COLOR: 40018,
+  /** 编辑器未声明能够保留文本字体 v1 */
+  TEXT_FONT_CAPABILITY_REQUIRED: 40019,
+  /** 文本字体新写激活开关尚未开启 */
+  TEXT_FONT_DISABLED: 40020,
+  /** 字体受控标记或字体身份不合法 */
+  INVALID_TEXT_FONT: 40021,
 
   // ── 认证 401xx ──
   /** 未认证 */

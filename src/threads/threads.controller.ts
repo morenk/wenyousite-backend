@@ -155,10 +155,10 @@ export class ThreadsController {
     @Res() reply: FastifyReply,
   ) {
     const user = req.user as { id: string };
-    const { stream, filename } = await this.threadExportService.createArchive(id, user.id, dto, req.headers['x-markdown-contract-version'] === '6' ? 6 : undefined, req.headers['x-text-color-version'] === '1' ? 1 : undefined);
+    const { stream, filename } = await this.threadExportService.createArchive(id, user.id, dto, req.headers['x-markdown-contract-version'] === '6' ? 6 : undefined, req.headers['x-text-color-version'] === '1' ? 1 : undefined, req.headers['x-text-font-version'] === '1' ? 1 : undefined);
     reply.raw.once('close', () => stream.destroy());
     return reply
-      .header('Vary', [...new Set([...String(reply.getHeader('Vary') ?? '').split(',').map(value => value.trim()).filter(Boolean), 'X-Markdown-Contract-Version', 'X-Text-Color-Version'])].join(', '))
+      .header('Vary', [...new Set([...String(reply.getHeader('Vary') ?? '').split(',').map(value => value.trim()).filter(Boolean), 'X-Markdown-Contract-Version', 'X-Text-Color-Version', 'X-Text-Font-Version'])].join(', '))
       .header('Content-Type', 'application/zip')
       .header('Content-Disposition', buildExportContentDisposition(filename))
       .send(stream);

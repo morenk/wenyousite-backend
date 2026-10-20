@@ -1,0 +1,51 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "fontVersion": {
+      "const": 1
+    },
+    "catalogVersion": {
+      "type": "string"
+    },
+    "fonts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,47}$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "availability": {
+            "enum": [
+              "ready",
+              "pendingSource"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "availability"
+        ]
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "fontVersion",
+    "catalogVersion",
+    "fonts"
+  ],
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://wenyou.site/contracts/thread-font-catalog-v1.schema.json"
+}

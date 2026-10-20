@@ -139,3 +139,7 @@ Linux 退出期间可能先置位 PF_EXITING，进程仍暂时显示 R，且 env
 ### 主题底栏互动总数
 
 `pnpm test:integration:thread-action-counts` 使用本轮核验的独立 PostgreSQL、Redis、上传路径与随机账号；覆盖零值、HTTP 收藏／取消／订阅／取消、THREAD 与 USER 去重边界、注销、匿名缓存、私帖／草稿／删除拒绝和索引迁移。已纳入 `test:e2e:full`，退出由 runner 核验并清理。
+
+### 文本字体 v1
+
+`pnpm e2e:run --suite=text-font` 验证默认关闭新写；加入 `--text-font-v1 --text-color-v1` 验证字体与颜色混用及幂等重放，`--full` 包含启用旅程。沿用本轮独立 PostgreSQL/Redis/上传目录与随机账号身份核验，覆盖旧端读取和覆盖拒绝、草稿、BODY、聚合、创建和导出；结束核验并清理资源，不写公网业务数据。

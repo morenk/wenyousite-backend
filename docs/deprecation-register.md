@@ -138,3 +138,7 @@ RP 采用 additive 字段；原 username/avatar、按 userId 互动和 Markdown 
 ## 主题互动总数 5.40
 
 新增可选 `bookmarkCount` / `subscriberCount`；新后端始终返回真实值，旧后端缺字段不等于 0，Web / Mobile 必须保留未知状态。保留所有旧个人互动和详情字段，不清理 Markdown / Foundation 协议，无新 Foundation Tag。索引迁移仅增加查询索引；收紧字段前仍需独立四项证据评审。见[互动总数契约](thread-action-counts.md)。
+
+## 文本字体 v1
+
+本次新增字体能力与[17 家族目录](../contracts/thread-font-catalog-v1.json)，不弃用 Markdown 5、角色提及 6、颜色 v1 或旧端读取。字体旧端投影、覆盖保护和历史 ID 兼容必须保留；移除前仍需无消费者、数据迁移、回归和回滚四项证据。发布、目录退役及旧资源清理分别评审，详见[字体契约](markdown-text-font-v1.md)。
