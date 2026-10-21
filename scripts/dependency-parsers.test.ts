@@ -172,3 +172,34 @@ it('Markdown 智能引号在限时子进程处理大量不匹配的异类引号'
   });
   assert.equal(output, 'passed');
 });
+
+it('Markdown 多行引用与未闭合 HTML 在限时子进程避免重复扫描', () => {
+  const markdownPath = resolveDependency(['markdown-it']);
+  const script = String.raw`
+    const assert = require('node:assert/strict');
+    const MarkdownIt = require(${JSON.stringify(markdownPath)});
+    const parser = new MarkdownIt({ html: true });
+    assert.equal(parser.renderInline('**normal**'), '<strong>normal</strong>');
+    assert.equal(parser.renderInline('<span data-wenyou-font-v1="wenkai">文字</span>'),
+      '<span data-wenyou-font-v1="wenkai">文字</span>');
+    // 引用缺陷发生在 block 阶段；避开无关的数十万个 inline token 分配。
+    for (const source of ['[label]: /url "' + 'x\n'.repeat(200000), '[' + 'a\n'.repeat(200000)]) {
+      const tokens = [];
+      parser.block.parse(source, parser, {}, tokens);
+      assert(tokens.length > 0);
+    }
+    for (const opener of ['<!--', '<?x', '<!A', '<![CDATA[']) {
+      assert(parser.renderInline('x ' + opener.repeat(64000)).includes('&lt;'));
+    }
+    process.stdout.write('passed');
+  `;
+  // GHSA-gfr2-rv44-r23c / GHSA-vfgh-jcmw-g37q：不访问业务服务，超时回收当前子进程。
+  const output = execFileSync(process.execPath, ['--max-old-space-size=128', '-e', script], {
+    env: { PATH: process.env.PATH },
+    timeout: 5000,
+    killSignal: 'SIGKILL',
+    maxBuffer: 4096,
+    encoding: 'utf8',
+  });
+  assert.equal(output, 'passed');
+});
