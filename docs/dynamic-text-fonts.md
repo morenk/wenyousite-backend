@@ -33,7 +33,7 @@ HTTP `5.43.0-dev.20261022.1`。正文新增 `data-wenyou-font-v2`，不替换字
 
 单版本清单见 [manifest v2 schema](../contracts/thread-font-manifest-v2.schema.json)，完整文件最大 4194304 字节；描述符预告 SHA/bytes/format，下载前按实际 bytes 预留，不套用未知元数据的 64 KiB 预留。清单是原始 JSON 资源，没有 API 信封。每个资源描述符 `{sha256,bytes,format}` 通过描述符中的本站 `assetBasePath` 加 `sha256.format` 解析；禁止任意外链或文件路径。清单不含可撤销状态。
 
-每片同时提供 WOFF2 和 SFNT（ttf 或 otf），携带真实 cmap 覆盖区间、唯一 family 与布局闭包。区间是递增、不重叠的 Unicode 标量范围；不得把缺字标记为覆盖。分片间不能重叠；shards 的覆盖并集等于 coverage，codepointCount 必须一致。web.format=woff2，mobile.format=ttf/otf，specimen.format=png，notices.format=json。解析后核验范围、大小、hash、唯一 shard id/family；总资源不应超出处理预算。字体名不直接用作 CSS family。`baseWeight=400/baseStyle=normal` 表示输出规范样式，变体源先实例化默认轴，原始授权及来源进入 notices。
+每片同时提供 WOFF2 和 SFNT（ttf 或 otf），携带真实 cmap 覆盖区间、唯一 family 与布局闭包。区间是递增、不重叠的 Unicode 标量范围；不得把缺字标记为覆盖。分片间不能重叠；shards 的覆盖并集等于 coverage，codepointCount 必须一致。web.format=woff2，mobile.format=ttf/otf，specimen.format=png，notices.format=json。解析后核验范围、大小、hash、唯一 shard id/family；总资源不应超出处理预算。字体名不直接用作 CSS family。新构建使用 `WYF2-32hex-shard`；经来源清单和资源 SHA 核验的 v1 导入保留原有 `WYF1-16hex-shard` family、SFNT/WOFF2 字节和 SHA。两种名称均是有效 v2 清单 family，不得把导入资源重新取别名。`baseWeight=400/baseStyle=normal` 表示输出规范样式，变体源先实例化默认轴，原始授权及来源进入 notices。
 
 新策略独立端点 `GET /meta/text-fonts/v2/runtime-policy`，`policyVersion=3,fontVersion=2`，见 [schema](../contracts/thread-font-runtime-policy-v3.schema.json) 与 [默认策略](../contracts/thread-font-runtime-policy-v3.json)。**旧** `/meta/text-fonts/runtime-policy` 继续是绑定固定 manifest 的 v2，不得用动态形状覆盖。
 
@@ -57,7 +57,7 @@ Web 无固定家族数限制，活动预算 64 faces/16 MiB SFNT，使用 lease/
 
 持久化边界：family 保存可编辑草稿和当前版本指针；job 保存私有源身份、配置快照、幂等处理状态；artifact 保存按 buildKey 去重且不可变的产物身份；version 将 family 绑定至不可变 artifact/配置并保存发布时间与撤回墓碑；catalog head/release/items 保存单调修订、原子发布快照；审计复用不可修改 AuditLog。不得通过清空表、覆盖历史对象实现导入或回滚。
 
-[28 款导入映射](../contracts/thread-font-v1-import-map.json) 只供一次性可重跑导入；不成为动态查询白名单。小城保持 retired；v1 正文/资源不删除、不改写成 v2。
+[28 款导入映射](../contracts/thread-font-v1-import-map.json) 固定来源 manifest SHA，仅供可重跑导入；不成为动态查询白名单。导入逐对象验证来源清单、SHA、长度及原 family，保留 `(assetSHA,family)`。v1/v2 在同一运行时共用注册账本，先读 v1 再读导入 v2 不产生新增原生注册或重复收费；不允许只按 SHA 合并不同 family，也不允许重置账本。共享零新增注册夹具是消费者必须执行的输入，不代替 Android 原生证据。小城保持 retired；v1 正文/资源不删除、不改写成 v2。
 
 ## 验收与交接
 

@@ -99,5 +99,29 @@
       "additionalKeys": 1,
       "expected": "silent-system-fallback"
     }
+  ],
+  "legacyImportRegistrationCases": [
+    {
+      "id": "v1-then-imported-v2-no-additional-native-attempt",
+      "legacyId": "great-vibes",
+      "sourceManifestSha256": "e2836703a30eec5f59dd9d4d72f6887756c2dd30c070606db5cee258ebd0efa3",
+      "events": [
+        {
+          "protocol": 1,
+          "sha256": "12f2ce7c898fa10b191359313a3cda7e43ec2e8dcad9b3f5565a777f6865d276",
+          "family": "WYF1-8d509802186f1b51-core",
+          "bytes": 59832
+        },
+        {
+          "protocol": 2,
+          "sha256": "12f2ce7c898fa10b191359313a3cda7e43ec2e8dcad9b3f5565a777f6865d276",
+          "family": "WYF1-8d509802186f1b51-core",
+          "bytes": 59832
+        }
+      ],
+      "expectedNativeAttempts": 1,
+      "expectedAdditionalAttemptsAfterImport": 0,
+      "expectedChargedBytes": 59832
+    }
   ]
 }

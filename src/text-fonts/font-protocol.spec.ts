@@ -57,3 +57,36 @@ it('28 款导入映射稳定唯一且不包含 retired 小城', () => {
   expect(new Set(mapping.fonts.map((row: { versionId: string }) => row.versionId)).size).toBe(28);
   expect(mapping.retired).toEqual(['xiaocheng-lafeng']);
 });
+
+it('v2 清单接受保留的 v1 family；先读旧资源再读导入版本不重复登记', () => {
+  const schema = read('thread-font-manifest-v2.schema.json');
+  const validateFamily = new Ajv().compile(schema.properties.shards.items.properties.family);
+  expect(validateFamily('WYF2-' + 'a'.repeat(32) + '-core')).toBe(true);
+  expect(validateFamily('WYF1-' + 'a'.repeat(16) + '-core')).toBe(true);
+  expect(validateFamily('WYF1-' + 'a'.repeat(32) + '-core')).toBe(false);
+  const old = read('thread-font-manifest-v1.json');
+  for (const row of read('thread-font-dynamic-v2-fixtures.json').legacyImportRegistrationCases) {
+    const legacy = old.fonts.find((font: { id: string }) => font.id === row.legacyId);
+    const shard = legacy.shards.find(
+      (item: { family: string }) => item.family === row.events[0].family,
+    );
+    expect(shard.mobile.sha256).toBe(row.events[0].sha256);
+    const ledger = new Set<string>();
+    let attempts = 0,
+      bytes = 0,
+      afterLegacy = 0;
+    for (const event of row.events) {
+      expect(validateFamily(event.family)).toBe(true);
+      const key = JSON.stringify([event.sha256, event.family]);
+      if (!ledger.has(key)) {
+        ledger.add(key);
+        attempts++;
+        bytes += event.bytes;
+      }
+      if (event.protocol === 1) afterLegacy = attempts;
+    }
+    expect(attempts).toBe(row.expectedNativeAttempts);
+    expect(attempts - afterLegacy).toBe(row.expectedAdditionalAttemptsAfterImport);
+    expect(bytes).toBe(row.expectedChargedBytes);
+  }
+});

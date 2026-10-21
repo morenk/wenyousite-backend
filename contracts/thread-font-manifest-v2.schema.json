@@ -78,7 +78,7 @@
           },
           "family": {
             "type": "string",
-            "pattern": "^WYF2-[a-f0-9]{32}-[a-z0-9-]{1,32}$"
+            "pattern": "^(WYF2-[a-f0-9]{32}|WYF1-[a-f0-9]{16})-[a-z0-9-]{1,32}$"
           },
           "unicodeRanges": {
             "type": "array",

@@ -2,6 +2,8 @@
 
 ## 5.43.0-dev.20261022.1
 
+- manifest v2 的 family 语法兼容经过校验导入的原 `WYF1-16hex-shard`；保留其 SHA 与 family，v1/v2 共用累计登记，避免先读旧帖再读导入版本时重复注册。增加零新增注册共享夹具，HTTP DTO/路径不变。
+
 - 新增动态字体正文 v2、v1/v2 混合能力协商、单版本描述符、按发布快照分页轻目录及管理员上传/处理/预览/发布契约。旧字体协议和固定运行策略 v2 保留。
 - 新运行策略使用独立路径 `/meta/text-fonts/v2/runtime-policy` 和 policyVersion 3；Web 不固定家族数，Mobile 使用 64 MiB/1024 键累计注册输入账本。目录完整信封按 64 KiB 截页。
 - 本切片先提交保源协议和 DTO；动态写开关关闭、运行入口 503，待 Worker/持久化/隔离旅程完成。详见[动态字体协议](../docs/dynamic-text-fonts.md)。
