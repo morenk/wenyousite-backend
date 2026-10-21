@@ -183,6 +183,24 @@ async function main() {
       ).code,
       40020,
     );
+  const kaitouText = '怪盗予告 日本語 ひらがな Hello 123';
+  const kaitouContent = font(kaitouText, 'kaitou-yokoku-gothic');
+  const kaitouPost = await request(
+    '/subthreads/' + sub.id + '/posts',
+    'POST',
+    { content: kaitouContent, textFontVersion: 1 },
+    enabled ? 201 : 409,
+  );
+  if (enabled) {
+    assert.equal(kaitouPost.content, kaitouContent);
+    assert.equal((await request('/posts/' + kaitouPost.id)).content, kaitouContent);
+    assert.equal(
+      (await request('/posts/' + kaitouPost.id, 'GET', undefined, 200, false)).content,
+      kaitouText,
+    );
+  } else {
+    assert.equal(kaitouPost.code, 40020);
+  }
   if (enabled && process.env.TEXT_COLOR_V1_ENABLED === 'true') {
     const clientRequestId = randomUUID();
     const mixed = await request(

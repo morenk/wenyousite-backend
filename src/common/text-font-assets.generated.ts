@@ -1,10 +1,10 @@
 // 此文件由 scripts/fonts/build.py 生成；不要手改哈希或资源状态。
 export const TEXT_FONT_ASSET_INDEX = {
-  "catalogVersion": "1.1.0",
+  "catalogVersion": "1.1.1",
   "manifest": {
-    "path": "fonts/v1/e793a3f4674a85840c8da2cd2a5c53f8af62c3c6256a951d269875f4cba2f1e6.json",
-    "sha256": "e793a3f4674a85840c8da2cd2a5c53f8af62c3c6256a951d269875f4cba2f1e6",
-    "bytes": 4802519
+    "path": "fonts/v1/7aab91a436933049bc8f55c1aba6085078a251d174c5b253456d3af0c91a0582.json",
+    "sha256": "7aab91a436933049bc8f55c1aba6085078a251d174c5b253456d3af0c91a0582",
+    "bytes": 5031019
   },
   "fonts": [
     {
@@ -107,7 +107,7 @@ export const TEXT_FONT_ASSET_INDEX = {
       "id": "kaitou-yokoku-gothic",
       "name": "怪盗予告黑体",
       "designLanguage": "ja",
-      "availability": "pendingSource"
+      "availability": "ready"
     },
     {
       "id": "yuji-boku",

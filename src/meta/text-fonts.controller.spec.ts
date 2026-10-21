@@ -42,4 +42,14 @@ describe('字体目录发布契约', () => {
     expect(result.manifest!.sha256).toBe(createHash('sha256').update(bytes).digest('hex'));
     expect(result.manifest!.path).not.toMatch(/(?:^\/|\.\.|:|\?|#)/u);
   });
+
+  it('怪盗原包核验后在日文分组提供可用身份', () => {
+    const result = new TextFontsController(new ConfigService()).getCatalog();
+    expect(result.fonts.find((font) => font.id === 'kaitou-yokoku-gothic')).toEqual({
+      id: 'kaitou-yokoku-gothic',
+      name: '怪盗予告黑体',
+      designLanguage: 'ja',
+      availability: 'ready',
+    });
+  });
 });

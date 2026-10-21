@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "fontVersion": 1,
-  "catalogVersion": "1.1.0",
+  "catalogVersion": "1.1.1",
   "fonts": [
     {
       "id": "source-han-sans",
@@ -103,7 +103,7 @@
       "id": "kaitou-yokoku-gothic",
       "name": "怪盗予告黑体",
       "designLanguage": "ja",
-      "availability": "pendingSource"
+      "availability": "ready"
     },
     {
       "id": "yuji-boku",

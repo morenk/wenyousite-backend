@@ -316,16 +316,31 @@
     {
       "id": "kaitou-yokoku-gothic",
       "name": "怪盗予告黑体",
-      "sourceRevision": null,
-      "url": null,
+      "status": "locked",
+      "sourceRevision": "archive-sha256:9606cb557f5f74dec4333ddfa0dc4a69a85be44f337a1599ae27bcadca3188e9",
+      "url": "https://lavsic.booth.pm/items/7920588",
       "officialPage": "https://lavsic.booth.pm/items/7920588",
-      "sha256": null,
-      "bytes": null,
-      "licenseUrl": null,
-      "licenseSha256": null,
-      "status": "pendingSource",
+      "filename": "KaitouYokokuGothic.zip",
+      "sha256": "9606cb557f5f74dec4333ddfa0dc4a69a85be44f337a1599ae27bcadca3188e9",
+      "bytes": 17220729,
+      "archiveMember": "KaitouYokokuGothic/KaitouYokokuGothic.ttf",
+      "fontSha256": "12899834d3497064f6090462030202efce484f83bfc75ee51e7a12082a80058e",
+      "fontBytes": 21897756,
       "license": "OFL-1.1",
-      "pendingReason": "awaiting-user-provided-official-archive"
+      "licenseUrl": null,
+      "licenseFilename": "kaitou-NOTICE-and-OFL.txt",
+      "licenseSha256": "caf5147ab8799546b82a19784c56d8b9a8d8121c29c6cec5242fc14c6a3c7b31",
+      "licenseEvidence": "原字体 name13/14 与作者官方发布页明确 OFL-1.1；ZIP 无独立许可文本。分发文本由治理依据原字体 name0 的 Adobe 版权/RFN 与 https://openfontlicense.org/documents/OFL.txt 正文组装，不是原包附带文件。",
+      "sourceAcquisition": "用户从作者官方入口下载的固定原ZIP；仅读取指定TTF，忽略样图与macOS辅助项。原件 Version 1.001、Heavy/900、fsType=0、无变量轴；post.stringData 尾随522字节警告由标准字体解析/子集重编译处理，原件不改。",
+      "measured": {
+        "codepoints": 44812,
+        "ascii": 95,
+        "fsType": 0
+      },
+      "expectedCoverage": {
+        "ascii": 95,
+        "gb2312": 6763
+      }
     },
     {
       "id": "yuji-boku",
