@@ -114,13 +114,30 @@ jobs:
       - name: Prepare isolated PostgreSQL and Redis binaries
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends postgresql-16 redis-server bubblewrap python3.12
+          sudo apt-get install -y --no-install-recommends postgresql-16 redis-server bubblewrap python3.12 apparmor
           pg_bin=/usr/lib/postgresql/16/bin
           redis_bin=$(command -v redis-server)
           test -x "$pg_bin/initdb"
           test -x "$pg_bin/postgres"
           test -x "$redis_bin"
           printf 'E2E_PG_BIN=%s\nE2E_REDIS_BIN=%s\n' "$pg_bin" "$redis_bin" >> "$GITHUB_ENV"
+      - name: Enable the Ubuntu bubblewrap namespace profile
+        run: |
+          # Ubuntu 24.04 的发行版 profile 默认禁用；仅允许 bwrap 创建命名空间，子进程仍禁止 capabilities。
+          test -r /etc/apparmor.d/bwrap-userns-restrict
+          sudo apparmor_parser --replace /etc/apparmor.d/bwrap-userns-restrict
+      - name: Verify unprivileged font sandbox prerequisites
+        run: |
+          test "$(id -u)" -ne 0
+          test -x /usr/bin/prlimit
+          test -x /usr/bin/python3.12
+          # 固定只读探针不加载字体、连接应用或读取凭据；完整边界验证仍由隔离 E2E 执行。
+          /usr/bin/bwrap --unshare-net --unshare-pid --unshare-ipc --unshare-uts \
+            --die-with-parent --new-session --cap-drop ALL --clearenv \
+            --ro-bind /usr /usr --symlink usr/lib /lib --symlink usr/lib64 /lib64 \
+            --proc /proc --dev /dev --remount-ro /proc --remount-ro /dev --remount-ro / \
+            /usr/bin/python3.12 -I -B -c \
+            'import os; assert os.getuid() != 0; assert "NoNewPrivs:\t1" in open("/proc/self/status").read(); print("font-sandbox-prerequisites: passed")'
       - run: pnpm text-font:prepare-toolchain
       - run: echo "TEXT_FONT_TOOLCHAIN_DIR=$GITHUB_WORKSPACE/.cache/thread-font-toolchain" >> "$GITHUB_ENV"
       - run: pnpm test:e2e:full

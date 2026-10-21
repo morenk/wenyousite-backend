@@ -176,6 +176,23 @@ test('启动失败和合法 pnpm 错误可分类，超长私有日志只检查�
   assert.deepEqual(result.codes, []);
 });
 
+test('字体沙箱诊断只公开登记探针和固定类别，忽略异常正文与伪造字段', () => {
+  const script = 'text-font-v2.integration.ts', allowed = new Set([script]);
+  const diagnostic = (log: string, name = script) => suiteFailureDiagnostic(
+    'e2e_' + 'a'.repeat(24), name, 1, log, allowed,
+  );
+  const result = diagnostic('Error: FONT_SANDBOX_PROBE_FAILURE:boundaries:sandbox-unavailable\nsecret-path secret-token\n');
+  assert.equal(result.category, 'font-sandbox');
+  assert.deepEqual(result.fontSandbox, { probe: 'boundaries', code: 'sandbox-unavailable' });
+  assert(!JSON.stringify(result).includes('secret'));
+  for (const log of [
+    'FONT_SANDBOX_PROBE_FAILURE:secret-probe:sandbox-unavailable',
+    'FONT_SANDBOX_PROBE_FAILURE:boundaries:secret-code',
+    'FONT_SANDBOX_PROBE_FAILURE:boundaries:sandbox-unavailable-secret',
+  ]) assert.equal(diagnostic(log).fontSandbox, undefined);
+  assert.equal(diagnostic('FONT_SANDBOX_PROBE_FAILURE:boundaries:sandbox-unavailable', 'unregistered.ts').fontSandbox, undefined);
+});
+
 test('资源审计事件仅选择身份字段，不序列化凭据或额外数据', () => {
   const identity = {
     runId: 'e2e_' + 'a'.repeat(24),

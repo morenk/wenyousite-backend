@@ -6,7 +6,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { verifyIsolatedEnvironment } from './e2e-guard';
 import { FontStorageService } from '../src/text-fonts/font-storage.service';
-import { FontSandboxService } from '../src/text-fonts/font-sandbox.service';
+import { FontProcessingFailure, FontSandboxService } from '../src/text-fonts/font-sandbox.service';
 import { FontWorkDirectoryService } from '../src/text-fonts/font-work-directory.service';
 import { newFontId } from '../src/text-fonts/font-domain';
 
@@ -20,7 +20,7 @@ export async function verifyFontSandbox() {
   const sandbox = new FontSandboxService(config);
   const canary = join(root, 'outside-font-sandbox-canary');
   await writeFile(canary, randomBytes(32), { mode: 0o600, flag: 'wx' });
-  const probe = async (name: string, code: string, failure?: string, wallMs?: number) => {
+  const probe = async (name: 'boundaries' | 'wall-time' | 'oversize-output', code: string, failure?: string, wallMs?: number) => {
     const ticket = await work.create(newFontId('tfj'), 1, randomBytes(16).toString('hex'), 'import');
     try {
       const input = join(ticket.root, 'input'), output = join(ticket.root, 'output');
@@ -34,6 +34,9 @@ export async function verifyFontSandbox() {
         await run;
         assert.equal(JSON.parse(await readFile(join(output, 'evidence.json'), 'utf8')).passed, true);
       }
+    } catch (error) {
+      const category = error instanceof FontProcessingFailure ? error.code : error instanceof assert.AssertionError ? 'assertion' : 'unknown';
+      throw new Error(`FONT_SANDBOX_PROBE_FAILURE:${name}:${category}`, { cause: error });
     } finally { await work.remove(ticket, true); }
   };
   try {

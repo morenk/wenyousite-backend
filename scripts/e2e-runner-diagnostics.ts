@@ -86,6 +86,12 @@ export function suiteFailureDiagnostic(
   const safeScript =
     allowedScripts.has(script) && /^[a-z0-9][a-z0-9.-]*\.ts$/.test(script) ? script : 'unknown';
   const text = privateLog.slice(-131072).replace(/\u001b\[[0-9;]*m/g, '');
+  const fontSandbox =
+    safeScript === 'text-font-v2.integration.ts'
+      ? text.match(
+          /\bFONT_SANDBOX_PROBE_FAILURE:(boundaries|wall-time|oversize-output):(invalid-font|unsupported-font|rights-required|resource-limit|sandbox-unavailable|processing-failed|assertion|unknown)(?=\r?$)/m,
+        )
+      : null;
   const candidates: string[] =
     text.match(/\b(?:ERR_[A-Z0-9_]+|MODULE_NOT_FOUND|E[A-Z]+|P\d{4})\b/g) ?? [];
   for (const match of text.matchAll(
@@ -95,18 +101,20 @@ export function suiteFailureDiagnostic(
   const codes = [...new Set(candidates.filter((code) => errorCodes.has(code)))].slice(0, 4);
   const errorType =
     errorTypes.find((name) => new RegExp(`\\b${name}\\b`).test(text)) ?? 'UnknownError';
-  const category = /\bERR_PNPM_[A-Z0-9_]+\b/.test(text)
-    ? 'package-manager'
-    : /\bspawn(?:Sync)?\b/.test(text) &&
-        codes.some((code) => ['ENOENT', 'EACCES', 'EPERM'].includes(code))
-      ? 'process-start'
-      : /\bPrismaClient\w*Error\b/.test(text) || codes.some((code) => /^P\d{4}$/.test(code))
-        ? 'prisma'
-        : /\b(?:SQLSTATE|Database error code)\b/.test(text)
-          ? 'postgresql'
-          : errorType === 'AssertionError'
-            ? 'assertion'
-            : 'unclassified';
+  const category = fontSandbox
+    ? 'font-sandbox'
+    : /\bERR_PNPM_[A-Z0-9_]+\b/.test(text)
+      ? 'package-manager'
+      : /\bspawn(?:Sync)?\b/.test(text) &&
+          codes.some((code) => ['ENOENT', 'EACCES', 'EPERM'].includes(code))
+        ? 'process-start'
+        : /\bPrismaClient\w*Error\b/.test(text) || codes.some((code) => /^P\d{4}$/.test(code))
+          ? 'prisma'
+          : /\b(?:SQLSTATE|Database error code)\b/.test(text)
+            ? 'postgresql'
+            : errorType === 'AssertionError'
+              ? 'assertion'
+              : 'unclassified';
   const source: Array<{ line: number; column: number }> = [];
   if (safeScript !== 'unknown') {
     const escaped = safeScript.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -133,6 +141,7 @@ export function suiteFailureDiagnostic(
     errorType,
     codes,
     source,
+    ...(fontSandbox ? { fontSandbox: { probe: fontSandbox[1], code: fontSandbox[2] } } : {}),
   };
 }
 
