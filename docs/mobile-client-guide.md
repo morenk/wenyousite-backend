@@ -293,8 +293,10 @@ Flutter 代码、类型生成和设备回归仅在 Windows 执行；本后端 PR
 
 使用 Backend 已提交 SHA 的[字体 v1 契约](markdown-text-font-v1.md)与资源目录，同步读取、编辑、云草稿、保存及剪贴板。字体未加载时保留原文与 fontId，回退系统字体。FontLoader 注册按进程预算限制，磁盘 LRU 不能替代驻留限制；VPS 仅提供契约与隔离入口，Flutter 检查在 Windows 完成。
 
-字体目录扩展 `5.41.0-dev.20261021.2`：同步 `designLanguage`（zh/ja/en）、29 项目录以及 manifest 的 `deliveryMode`／`budgetException`；小城仅限固定原 TTF，通用额度不变，详见[字体资源事实源](thread-font-assets.md)。未知模式／分类安全回退；假名按可见字符加载额外片。目录 1.1.1 的 29 款资产均已 ready；仍须完成独立发布、自有资源地址配置和新写启用。Web／Windows Flutter 应同步同一已提交目录与 manifest 描述符，更新 1.1.0 的 manifest 描述符；既有字体哈希可继续复用。
+历史字体目录扩展 `5.41.0-dev.20261021.2` 引入 `designLanguage` 与 manifest 的 `deliveryMode`／`budgetException`；目录 1.1.1 曾包含 29 款已核验资产。该格式与旧不可变资源继续保留，当前 28 款目录及消费者同步方式以下节为准，详见[字体资源事实源](thread-font-assets.md)。
 
 ## 字体连续浏览与恢复
 
-HTTP `5.42.0-dev.20261021.1` 新增独立 `GET /meta/text-fonts/runtime-policy`。仅在策略 v2、已验证 manifest SHA 和自有资源来源全部匹配时启用；旧目录／manifest 原样保留。Web 可回收活动集合与 Mobile 固定快照各自记账，网络恢复静默重试；Mobile 原件计入普通 24 MiB 窗口，不追加原件网络额度。字段、拒绝边界、退避与固定夹具见[字体运行策略](thread-font-runtime-policy.md)。文件输入账本不是 native/RSS 上限，Flutter 实机验收仍由 Windows／Android 完成。
+HTTP `5.42.0-dev.20261022.1` 的独立 `GET /meta/text-fonts/runtime-policy` 绑定目录 1.2.0 的 28 款全分片 manifest。Web 活动集合为 28 家族；Mobile 快照为 868 个唯一资产／注册键、184,645,488 字节。当前 v2 删除 `originalAsset`、`originalWindowBytes`、`originalSfntBytes`，不为原件开放额外槽。小城退出当前可选目录；历史 ID／正文及旧不可变资源保留，按系统字体回退。
+
+两端 `network` 必须包含 `timeoutMode: "idle-with-total-cap"`、`timeoutMs: 15000`、`maxTransferMs: 600000`：仅非空正文数据块重置 idle，实际请求开始后总传输最多 10 分钟，排队不计时。窗口、并发、元数据 64 KiB 流式上限和错误分类不变；未发布 v2 原型按同一 SHA 严格同步新形状。旧 v1 limits 及 15 秒总超时原义保持，未知策略回退旧限额。字段、拒绝边界和夹具见[运行策略](thread-font-runtime-policy.md)。文件输入账本不是 native/RSS 上限，Flutter 设备验收仍由 Windows／Android 完成。

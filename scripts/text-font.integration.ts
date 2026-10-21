@@ -73,20 +73,26 @@ async function main() {
   const policy = ((await policyResponse.json()) as Data).data;
   assert.equal(policy.policyVersion, 2);
   assert.equal(policy.manifestSha256, catalog.manifest.sha256);
+  for (const platform of [policy.web, policy.mobile]) {
+    assert.equal(platform.network.timeoutMode, 'idle-with-total-cap');
+    assert.equal(platform.network.timeoutMs, 15000);
+    assert.equal(platform.network.maxTransferMs, 600000);
+  }
   assert.deepEqual(policy.mobile.registration.snapshot, {
-    assetCount: 869, totalAssetBytes: 203056088,
-    registrationCount: 869, totalRegistrationAssetBytes: 203056088,
+    assetCount: 868, totalAssetBytes: 184645488,
+    registrationCount: 868, totalRegistrationAssetBytes: 184645488,
   });
   assert.equal(policy.web.network.maxConcurrent, 2);
   assert.equal(policy.mobile.network.maxConcurrent, 1);
-  assert.equal(policy.originalAsset.maxResidentCopies, 1);
+  assert.equal('originalAsset' in policy, false);
+  assert.equal(catalog.fonts.some((row: Data) => row.id === 'xiaocheng-lafeng'), false);
   assert.equal('runtimePolicy' in catalog, false);
-  assert.equal(catalog.fonts.length, 29);
+  assert.equal(catalog.fonts.length, 28);
   assert.deepEqual(
     ['zh', 'ja', 'en'].map(
       (language) => catalog.fonts.filter((font: Data) => font.designLanguage === language).length,
     ),
-    [13, 10, 6],
+    [12, 10, 6],
   );
   assert.equal(catalog.assetBaseUrl, 'https://fonts.e2e.invalid/');
   assert(catalog.manifest?.sha256?.match(/^[a-f0-9]{64}$/));
@@ -109,6 +115,23 @@ async function main() {
   });
   const sub = await db.subthread.create({ data: { threadId: thread.id, title: '字体子帖' } });
   await db.thread.update({ where: { id: thread.id }, data: { defaultSubthreadId: sub.id } });
+  const retiredContent = font('历史小城正文', 'xiaocheng-lafeng');
+  assert.equal((await request('/subthreads/' + sub.id + '/posts', 'POST',
+    { content: retiredContent, textFontVersion: 1 }, 409)).code, 40020);
+  const retiredPost = await db.post.create({ data: {
+    threadId: thread.id, subthreadId: sub.id, authorId: user.id,
+    kind: 'FLOOR', floorNumber: 101, content: retiredContent,
+  } });
+  assert.equal((await request('/posts/' + retiredPost.id)).content, retiredContent);
+  assert.equal((await request('/posts/' + retiredPost.id, 'GET', undefined, 200, false)).content, '历史小城正文');
+  assert.equal((await request('/posts/' + retiredPost.id, 'PATCH',
+    { content: '历史小城正文', version: retiredPost.version }, 409, false)).code, 40019);
+  const keptRetired = await request('/posts/' + retiredPost.id, 'PATCH',
+    { content: retiredContent, version: retiredPost.version, textFontVersion: 1 });
+  assert.equal((await request('/posts/' + retiredPost.id, 'PATCH',
+    { content: font('新增文字', 'xiaocheng-lafeng'), version: keptRetired.version, textFontVersion: 1 }, 409)).code, 40020);
+  assert.equal((await request('/posts/' + retiredPost.id, 'PATCH',
+    { content: '历史小城正文', version: keptRetired.version, textFontVersion: 1 })).content, '历史小城正文');
   const raw =
     '前段\n[wenyousite-align-v1-center]: #\n' +
     font('**字体样式正文**') +

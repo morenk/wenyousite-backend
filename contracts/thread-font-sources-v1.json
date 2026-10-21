@@ -263,35 +263,6 @@
       "archiveMember": null
     },
     {
-      "id": "xiaocheng-lafeng",
-      "name": "小城拉风体",
-      "status": "locked",
-      "sourceRevision": "sha256:3e19e13c7d80791ab115aae8c27f3713d6a20160b2261b91b7971fab77f24888",
-      "url": null,
-      "filename": "xiaocheng-lafeng.zip",
-      "sha256": "3e19e13c7d80791ab115aae8c27f3713d6a20160b2261b91b7971fab77f24888",
-      "bytes": 10741061,
-      "archiveMember": "小城拉风体/小城拉风体.ttf",
-      "fontSha256": "cf4a4215e562d6de6e3ee88f25fc5d47d77668d28eb3a0f2533c7290de307423",
-      "fontBytes": 18410600,
-      "license": "LicenseRef-ProjectAuthorization",
-      "licenseMember": "小城拉风体/字体授权说明.txt",
-      "licenseSha256": "d77bc7a22c1b42ec08c1d9b6dec046d7e6755c46da962a211e23867c0bdcb313",
-      "additionalLicenseMembers": [
-        {
-          "member": "字体授权说明.txt",
-          "sha256": "3c824e0c8b47590f6e7b1b7be39b96c6c1e728c553f87e18c0b4cf2ed8e0934f"
-        }
-      ],
-      "deliveryMode": "original",
-      "expectedCoverage": {
-        "ascii": 93,
-        "gb2312": 6763
-      },
-      "licenseEvidence": "负责人确认已取得本项目使用授权；保留包内两份许可原文，非OFL，不虚构授权文书；仅分发原字节，不推定修改、拆分或转换权。",
-      "referencePage": "https://www.maoken.com/freefonts/27663.html"
-    },
-    {
       "id": "jf-zsk-seal",
       "name": "敬峰中山王篆",
       "status": "locked",

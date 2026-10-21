@@ -1,28 +1,22 @@
 {
   "policyVersion": 2,
-  "manifestSha256": "7aab91a436933049bc8f55c1aba6085078a251d174c5b253456d3af0c91a0582",
-  "originalAsset": {
-    "fontId": "xiaocheng-lafeng",
-    "sha256": "cf4a4215e562d6de6e3ee88f25fc5d47d77668d28eb3a0f2533c7290de307423",
-    "bytes": 18410600,
-    "maxResidentCopies": 1
-  },
+  "manifestSha256": "e2836703a30eec5f59dd9d4d72f6887756c2dd30c070606db5cee258ebd0efa3",
   "web": {
     "network": {
       "windowMs": 60000,
       "maxRequests": 64,
       "maxBytes": 16777216,
-      "originalWindowBytes": 18410600,
       "maxConcurrent": 2,
-      "timeoutMs": 15000
+      "timeoutMode": "idle-with-total-cap",
+      "timeoutMs": 15000,
+      "maxTransferMs": 600000
     },
     "residency": {
       "mode": "lease-lru",
       "scope": "document",
-      "maxFamilies": 29,
+      "maxFamilies": 28,
       "maxFaces": 64,
-      "maxSfntBytes": 16777216,
-      "originalSfntBytes": 18410600
+      "maxSfntBytes": 16777216
     }
   },
   "mobile": {
@@ -30,9 +24,10 @@
       "windowMs": 60000,
       "maxRequests": 64,
       "maxBytes": 25165824,
-      "originalWindowBytes": 0,
       "maxConcurrent": 1,
-      "timeoutMs": 15000
+      "timeoutMode": "idle-with-total-cap",
+      "timeoutMs": 15000,
+      "maxTransferMs": 600000
     },
     "registration": {
       "mode": "fixed-manifest",
@@ -41,10 +36,10 @@
       "maxAttemptsPerKey": 1,
       "failedAttempt": "quarantine-and-retain-charge",
       "snapshot": {
-        "assetCount": 869,
-        "totalAssetBytes": 203056088,
-        "registrationCount": 869,
-        "totalRegistrationAssetBytes": 203056088
+        "assetCount": 868,
+        "totalAssetBytes": 184645488,
+        "registrationCount": 868,
+        "totalRegistrationAssetBytes": 184645488
       },
       "safetyCeiling": {
         "maxSnapshotAssets": 1024,

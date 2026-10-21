@@ -1,5 +1,12 @@
 # API 合同变更
 
+## 5.42.0-dev.20261022.1
+
+- 目录更新为 1.2.0：按用户决定从当前可选项、manifest 和发布集合移除小城，保留 28 款全分片字体（中文 12／日文 10／英文 6）。正文 v1 的小城历史身份、旧 schema／资源和授权证据保留；禁止新增，允许历史范围保留／移除。v2 删除原件专属字段，Web 活动家族为 28，Mobile 固定快照实算为 868 个资产／注册键、184,645,488 字节。
+
+- 未发布的字体运行策略 v2 显式增加 `network.timeoutMode="idle-with-total-cap"`、`timeoutMs=15000`、`maxTransferMs=600000`。Web／Mobile 仅在非空正文数据块到达时重置 idle；排队不计时，总时限不能续期。修复大原件持续慢传输却反复在 15 秒被中断的问题。
+- 两端按本次 SHA 严格同步新形状；旧 v1 manifest、limits 和 15 秒总超时语义不变。窗口、并发、元数据 64 KiB 流式上限、状态分类均不扩大；见[运行策略](../docs/thread-font-runtime-policy.md)。
+
 ## 5.42.0-dev.20261021.1
 
 - 新增公开只读 `/meta/text-fonts/runtime-policy`，运行策略 v2 绑定完整 manifest SHA，旧目录响应、manifest、累计 limits 和原件预算例外原义不变。

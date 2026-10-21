@@ -1,8 +1,8 @@
 # 主题帖文本字体 v1
 
-Backend 是字体身份、正文标记与资源目录的事实源。Web、Flutter 和 Foundation 只同步已提交 Git SHA；本文不改变全局 Markdown 5、角色提及 6 或 UI 系统字体。机器契约为 [解析结果 schema](../contracts/markdown-text-font-v1.schema.json)、[共享语料](../contracts/markdown-text-font-v1-fixtures.json) 和 [29 家族目录](../contracts/thread-font-catalog-v1.json)。资源构建见 [字体资产](thread-font-assets.md)。
+Backend 是字体身份、正文标记与资源目录的事实源。Web、Flutter 和 Foundation 只同步已提交 Git SHA；本文不改变全局 Markdown 5、角色提及 6 或 UI 系统字体。机器契约为 [解析结果 schema](../contracts/markdown-text-font-v1.schema.json)、[共享语料](../contracts/markdown-text-font-v1-fixtures.json) 和 [28 家族目录](../contracts/thread-font-catalog-v1.json)。资源构建见 [字体资产](thread-font-assets.md)。
 
-目录 1.1.1 包含中文 13、日文 10、英文 6，共 29 家族，分类使用 `designLanguage`。站酷小薇体为未发布候选，已移除。小城拉风体原 ZIP 已核验，仅以原字节分发并使用固定哈希预算例外；Special Elite 为 Apache-2.0。29 款资产已构建核验，实际状态以 manifest 为准。缺字按字符回退，不能把可用状态或语言类别当作覆盖率。怪盗予告黑体已锁定用户提供的原 ZIP，按 OFL-1.1 构建固定分片。
+目录 1.2.0 包含中文 12、日文 10、英文 6，共 28 个已核验分片家族，分类使用 `designLanguage`。站酷小薇体为未发布候选，已移除。小城因不具备拆分／转换授权，按用户决定退出本批可选目录和资源 manifest；原件、源锁与许可证据保留，见[退役审计](../contracts/archive/thread-font-xiaocheng-lafeng-v1.json)。正文 v1 仍识别包含小城在内的 29 个历史身份；小城新写或扩展范围返回 409/40020，历史范围可保留、重排或移除，旧端覆盖保护不变。客户端对当前目录外的历史 ID 保留文字与标记，使用系统字体。Special Elite 仍为 Apache-2.0；缺字回退和正文／剪贴板格式均不变。
 
 ## 正文与组合
 

@@ -97,6 +97,18 @@ describe('文本字体 v1 共享契约', () => {
       readiness.mockRestore();
     }
   });
+  it('小城退役后保留历史解析与覆盖保护，拒绝新增或扩展范围', () => {
+    const saved = font('历史文字', 'xiaocheng-lafeng');
+    expect(TEXT_FONT_IDS).toContain('xiaocheng-lafeng');
+    expect(isTextFontSourceReady('xiaocheng-lafeng')).toBe(false);
+    expect(prepareMarkdownContent(saved, { textFontVersion: 1 })).toBe(saved);
+    expect(stripTextStyles(saved)).toBe('历史文字');
+    expect(() => assertTextFontWrite(saved, '', 1, true)).toThrow(BusinessException);
+    expect(() => assertTextFontWrite(saved, saved, 1, true)).not.toThrow();
+    expect(() => assertTextFontWrite('历史文字', saved, 1, true)).not.toThrow();
+    expect(() => assertTextFontWrite(font('历史文字新增', 'xiaocheng-lafeng'), saved, 1, true)).toThrow(BusinessException);
+    expect(() => assertTextFontWrite('历史文字', saved)).toThrow(BusinessException);
+  });
   it('移除未发布的小薇候选后拒绝新写，阅读仍保留文字', () => {
     expect(TEXT_FONT_IDS).not.toContain('zcoolxiaowei');
     expect(() =>

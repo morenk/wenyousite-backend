@@ -6,7 +6,10 @@
     "writeField": "textFontVersion",
     "version": 1
   },
-  "canonicalAttributeOrder": ["data-wenyou-font-v1", "data-wenyou-color-v1"],
+  "canonicalAttributeOrder": [
+    "data-wenyou-font-v1",
+    "data-wenyou-color-v1"
+  ],
   "validCases": [
     {
       "id": "plain",
@@ -143,6 +146,14 @@
       "fontOnly": "<span data-wenyou-font-v1=\"wenkai\">中英</span>",
       "colorOnly": "<span data-wenyou-color-v1=\"#D14343\">中英</span>",
       "legacy": "中英"
+    },
+    {
+      "id": "retired-xiaocheng-history",
+      "source": "<span data-wenyou-font-v1=\"xiaocheng-lafeng\">历史小城正文</span>",
+      "canonical": "<span data-wenyou-font-v1=\"xiaocheng-lafeng\">历史小城正文</span>",
+      "fontOnly": "<span data-wenyou-font-v1=\"xiaocheng-lafeng\">历史小城正文</span>",
+      "colorOnly": "历史小城正文",
+      "legacy": "历史小城正文"
     }
   ],
   "invalidSources": [
@@ -206,6 +217,37 @@
       "version": 1,
       "enabled": false,
       "expectedCode": 40020
+    },
+    {
+      "id": "retired-xiaocheng-new",
+      "content": "<span data-wenyou-font-v1=\"xiaocheng-lafeng\">历史小城正文</span>",
+      "previous": "",
+      "version": 1,
+      "enabled": true,
+      "expectedCode": 40020
+    },
+    {
+      "id": "retired-xiaocheng-keep",
+      "content": "<span data-wenyou-font-v1=\"xiaocheng-lafeng\">历史小城正文</span>",
+      "previous": "<span data-wenyou-font-v1=\"xiaocheng-lafeng\">历史小城正文</span>",
+      "version": 1,
+      "enabled": true,
+      "expectedCode": null
+    },
+    {
+      "id": "retired-xiaocheng-remove",
+      "content": "历史小城正文",
+      "previous": "<span data-wenyou-font-v1=\"xiaocheng-lafeng\">历史小城正文</span>",
+      "version": 1,
+      "enabled": true,
+      "expectedCode": null
+    },
+    {
+      "id": "retired-xiaocheng-old-overwrite",
+      "content": "历史小城正文",
+      "previous": "<span data-wenyou-font-v1=\"xiaocheng-lafeng\">历史小城正文</span>",
+      "enabled": true,
+      "expectedCode": 40019
     }
   ]
 }

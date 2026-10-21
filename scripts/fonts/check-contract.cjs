@@ -21,7 +21,15 @@ for (const [name, value] of [['catalog', catalog], ['manifest', manifest], ['sou
 }
 // 有界例外必须拒绝换源、换身份和放大额度；分类也不能靠未知字符串绕过。
 const validateManifest = ajv.getSchema(json('contracts/thread-font-manifest-v1.schema.json').$id);
-const originalPosition = manifest.fonts.findIndex((font) => font.deliveryMode === 'original');
+const retired = json('contracts/archive/thread-font-xiaocheng-lafeng-v1.json');
+const historicalManifest = { ...manifest, catalogVersion: retired.previousManifest.catalogVersion,
+  fonts: [...manifest.fonts, retired.font] };
+assert(validateManifest(historicalManifest), 'historical original contract must remain supported');
+assert(ajv.getSchema(json('contracts/thread-font-sources-v1.schema.json').$id)({ ...sources, fonts: [retired.source] }));
+assert.equal(retired.font.id, 'xiaocheng-lafeng');
+assert.equal(retired.font.fontSha256, retired.source.fontSha256);
+assert.equal(retired.retiredAtCatalogVersion, catalog.catalogVersion);
+const originalPosition = historicalManifest.fonts.findIndex((font) => font.deliveryMode === 'original');
 if (originalPosition >= 0) {
   const invalidChanges = [
     (font) => { font.id = 'other'; },
@@ -35,11 +43,11 @@ if (originalPosition >= 0) {
     (font) => { font.designLanguage = 'unknown'; },
   ];
   for (const mutate of invalidChanges) {
-    const changed = structuredClone(manifest);
+    const changed = structuredClone(historicalManifest);
     mutate(changed.fonts[originalPosition]);
     assert(!validateManifest(changed), 'invalid original exception accepted');
   }
-  const changed = structuredClone(manifest);
+  const changed = structuredClone(historicalManifest);
   changed.fonts.find((font) => font.deliveryMode === 'subset').budgetException = changed.fonts[originalPosition].budgetException;
   assert(!validateManifest(changed), 'original allowance transferable to subsets');
 }
@@ -49,7 +57,9 @@ assert(match, 'generated index missing');
 const index = JSON.parse(match[1]);
 const ids = catalog.fonts.map((font) => font.id);
 assert.equal(new Set(ids).size, ids.length, 'duplicate font id');
-assert.deepEqual(['zh', 'ja', 'en'].map((language) => catalog.fonts.filter((font) => font.designLanguage === language).length), [13, 10, 6]);
+assert.deepEqual(['zh', 'ja', 'en'].map((language) => catalog.fonts.filter((font) => font.designLanguage === language).length), [12, 10, 6]);
+assert(!ids.includes(retired.font.id), 'retired font must not remain selectable');
+assert(manifest.fonts.every((font) => font.deliveryMode === 'subset' && !font.budgetException));
 assert(!ids.includes('zcoolxiaowei'));
 for (const id of ['shinsyoku-mincho', 'bouken-gothic', 'hakkou-mincho', 'kaitou-yokoku-gothic'])
   assert.equal(catalog.fonts.find((font) => font.id === id).designLanguage, 'ja');

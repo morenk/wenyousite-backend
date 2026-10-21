@@ -4,7 +4,6 @@
   "required": [
     "policyVersion",
     "manifestSha256",
-    "originalAsset",
     "web",
     "mobile",
     "retry"
@@ -17,34 +16,6 @@
     "manifestSha256": {
       "type": "string",
       "pattern": "^[a-f0-9]{64}$"
-    },
-    "originalAsset": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "fontId",
-        "sha256",
-        "bytes",
-        "maxResidentCopies"
-      ],
-      "properties": {
-        "fontId": {
-          "type": "string",
-          "const": "xiaocheng-lafeng"
-        },
-        "sha256": {
-          "type": "string",
-          "const": "cf4a4215e562d6de6e3ee88f25fc5d47d77668d28eb3a0f2533c7290de307423"
-        },
-        "bytes": {
-          "type": "integer",
-          "const": 18410600
-        },
-        "maxResidentCopies": {
-          "type": "integer",
-          "const": 1
-        }
-      }
     },
     "web": {
       "type": "object",
@@ -61,9 +32,10 @@
             "windowMs",
             "maxRequests",
             "maxBytes",
-            "originalWindowBytes",
             "maxConcurrent",
-            "timeoutMs"
+            "timeoutMode",
+            "timeoutMs",
+            "maxTransferMs"
           ],
           "properties": {
             "windowMs": {
@@ -78,10 +50,6 @@
               "type": "integer",
               "const": 16777216
             },
-            "originalWindowBytes": {
-              "type": "integer",
-              "const": 18410600
-            },
             "maxConcurrent": {
               "type": "integer",
               "const": 2
@@ -89,6 +57,14 @@
             "timeoutMs": {
               "type": "integer",
               "const": 15000
+            },
+            "timeoutMode": {
+              "type": "string",
+              "const": "idle-with-total-cap"
+            },
+            "maxTransferMs": {
+              "type": "integer",
+              "const": 600000
             }
           }
         },
@@ -100,8 +76,7 @@
             "scope",
             "maxFamilies",
             "maxFaces",
-            "maxSfntBytes",
-            "originalSfntBytes"
+            "maxSfntBytes"
           ],
           "properties": {
             "mode": {
@@ -114,7 +89,7 @@
             },
             "maxFamilies": {
               "type": "integer",
-              "const": 29
+              "const": 28
             },
             "maxFaces": {
               "type": "integer",
@@ -123,10 +98,6 @@
             "maxSfntBytes": {
               "type": "integer",
               "const": 16777216
-            },
-            "originalSfntBytes": {
-              "type": "integer",
-              "const": 18410600
             }
           }
         }
@@ -147,9 +118,10 @@
             "windowMs",
             "maxRequests",
             "maxBytes",
-            "originalWindowBytes",
             "maxConcurrent",
-            "timeoutMs"
+            "timeoutMode",
+            "timeoutMs",
+            "maxTransferMs"
           ],
           "properties": {
             "windowMs": {
@@ -164,10 +136,6 @@
               "type": "integer",
               "const": 25165824
             },
-            "originalWindowBytes": {
-              "type": "integer",
-              "const": 0
-            },
             "maxConcurrent": {
               "type": "integer",
               "const": 1
@@ -175,6 +143,14 @@
             "timeoutMs": {
               "type": "integer",
               "const": 15000
+            },
+            "timeoutMode": {
+              "type": "string",
+              "const": "idle-with-total-cap"
+            },
+            "maxTransferMs": {
+              "type": "integer",
+              "const": 600000
             }
           }
         },

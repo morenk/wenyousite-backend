@@ -11,12 +11,12 @@ describe('字体目录发布契约', () => {
     const result = controller.getCatalog();
     expect(result.assetBaseUrl).toBeNull();
     expect(result.fontVersion).toBe(1);
-    expect(result.fonts.map((font) => font.id).sort()).toEqual([...TEXT_FONT_IDS].sort());
+    expect(result.fonts.map((font) => font.id).sort()).toEqual(TEXT_FONT_IDS.filter(isTextFontSourceReady).sort());
     expect(
       ['zh', 'ja', 'en'].map(
         (language) => result.fonts.filter((font) => font.designLanguage === language).length,
       ),
-    ).toEqual([13, 10, 6]);
+    ).toEqual([12, 10, 6]);
     for (const font of result.fonts) {
       expect(font.availability === 'ready').toBe(isTextFontSourceReady(font.id));
     }
@@ -65,14 +65,19 @@ describe('字体目录发布契约', () => {
     )));
     expect(policy.policyVersion).toBe(2);
     expect(policy.manifestSha256).toBe(catalog.manifest!.sha256);
+    for (const platform of [policy.web, policy.mobile]) {
+      expect(platform.network).toMatchObject({
+        timeoutMode: 'idle-with-total-cap', timeoutMs: 15000, maxTransferMs: 600000,
+      });
+    }
     expect(policy.mobile.registration.snapshot).toEqual({
-      assetCount: 869, totalAssetBytes: 203056088,
-      registrationCount: 869, totalRegistrationAssetBytes: 203056088,
+      assetCount: 868, totalAssetBytes: 184645488,
+      registrationCount: 868, totalRegistrationAssetBytes: 184645488,
     });
     policy.retry.delayCeilingsMs[0] = 999;
     policy.mobile.registration.snapshot.assetCount = 1;
     expect(controller.getRuntimePolicy().retry.delayCeilingsMs[0]).toBe(1000);
-    expect(controller.getRuntimePolicy().mobile.registration.snapshot.assetCount).toBe(869);
+    expect(controller.getRuntimePolicy().mobile.registration.snapshot.assetCount).toBe(868);
     expect(catalog.assetBaseUrl).toBeNull();
   });
 });

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "fontVersion": 1,
-  "catalogVersion": "1.1.1",
+  "catalogVersion": "1.2.0",
   "fonts": [
     {
       "id": "source-han-sans",
@@ -84,12 +84,6 @@
     {
       "id": "shattered-display",
       "name": "嗷呜碎黑体",
-      "designLanguage": "zh",
-      "availability": "ready"
-    },
-    {
-      "id": "xiaocheng-lafeng",
-      "name": "小城拉风体",
       "designLanguage": "zh",
       "availability": "ready"
     },

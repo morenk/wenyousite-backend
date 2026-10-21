@@ -1,6 +1,4 @@
 const { createHash } = require('node:crypto');
-const ORIGINAL_SHA = 'cf4a4215e562d6de6e3ee88f25fc5d47d77668d28eb3a0f2533c7290de307423';
-const ORIGINAL_BYTES = 18410600;
 const SAFETY = { maxSnapshotAssets: 1024, maxSnapshotAssetBytes: 268435456 };
 
 function snapshotOf(manifest) {
@@ -29,26 +27,23 @@ function snapshotOf(manifest) {
 
 function policyOf(manifestBytes) {
   const manifest = JSON.parse(manifestBytes);
-  const original = manifest.fonts.find((font) => font.id === 'xiaocheng-lafeng');
   if (manifest.schemaVersion !== 1 || manifest.fontVersion !== 1 ||
-      original?.fontSha256 !== ORIGINAL_SHA || original.shards?.length !== 1 ||
-      original.shards[0].mobile.bytes !== ORIGINAL_BYTES)
+      manifest.fonts.some((font) => font.deliveryMode !== 'subset' || font.budgetException))
     throw new Error('runtime_policy_manifest_identity');
-  const network = (maxBytes, maxConcurrent, originalWindowBytes) => ({
-    windowMs: 60000, maxRequests: 64, maxBytes, originalWindowBytes,
-    maxConcurrent, timeoutMs: 15000,
+  const network = (maxBytes, maxConcurrent) => ({
+    windowMs: 60000, maxRequests: 64, maxBytes,
+    maxConcurrent, timeoutMode: 'idle-with-total-cap', timeoutMs: 15000, maxTransferMs: 600000,
   });
   return {
     policyVersion: 2,
     manifestSha256: createHash('sha256').update(manifestBytes).digest('hex'),
-    originalAsset: { fontId: 'xiaocheng-lafeng', sha256: ORIGINAL_SHA, bytes: ORIGINAL_BYTES, maxResidentCopies: 1 },
     web: {
-      network: network(16777216, 2, ORIGINAL_BYTES),
+      network: network(16777216, 2),
       residency: { mode: 'lease-lru', scope: 'document', maxFamilies: manifest.fonts.length, maxFaces: 64,
-        maxSfntBytes: 16777216, originalSfntBytes: ORIGINAL_BYTES },
+        maxSfntBytes: 16777216 },
     },
     mobile: {
-      network: network(25165824, 1, 0),
+      network: network(25165824, 1),
       registration: { mode: 'fixed-manifest', scope: 'engine', key: 'asset-sha256-and-family',
         maxAttemptsPerKey: 1, failedAttempt: 'quarantine-and-retain-charge',
         snapshot: snapshotOf(manifest), safetyCeiling: { ...SAFETY } },

@@ -3,27 +3,18 @@ import { ApiProperty } from '@nestjs/swagger';
 class FontNetworkWindowDto {
   @ApiProperty({ enum: [60000], description: '滚动时间窗口；续额不重置驻留或原生注册账本' })
   windowMs!: number;
-  @ApiProperty({ enum: [64], description: '包含元数据、通知文件、原件、失败和重试的请求预留次数' })
+  @ApiProperty({ enum: [64], description: '包含元数据、通知文件、失败和重试的请求预留次数' })
   maxRequests!: number;
-  @ApiProperty({ type: 'integer', minimum: 1, maximum: 25165824, description: '普通窗口预留字节；Mobile 原件计入此额度，Web 原件使用独立额度' })
+  @ApiProperty({ type: 'integer', minimum: 1, maximum: 25165824, description: '窗口预留字节；所有当前分片与通知均使用此额度' })
   maxBytes!: number;
-  @ApiProperty({ enum: [0, 18410600], description: 'Web 原件独立额度；Mobile 固定 0，原件计入普通 24 MiB。失败不即时退款，窗口到期可再尝试' })
-  originalWindowBytes!: number;
   @ApiProperty({ enum: [1, 2] })
   maxConcurrent!: number;
-  @ApiProperty({ enum: [15000] })
+  @ApiProperty({ enum: ['idle-with-total-cap'], description: '仅非空正文数据块重置 idle；响应头及空块不算进度，排队不计时' })
+  timeoutMode!: 'idle-with-total-cap';
+  @ApiProperty({ enum: [15000], description: '实际请求开始后等待首个有效字节、以及连续无有效字节进度的时限；不是总传输时限' })
   timeoutMs!: number;
-}
-
-class FontOriginalAssetDto {
-  @ApiProperty({ enum: ['xiaocheng-lafeng'] })
-  fontId!: string;
-  @ApiProperty({ pattern: '^[a-f0-9]{64}$', description: '必须匹配 manifest 中已授权原件的固定 SHA' })
-  sha256!: string;
-  @ApiProperty({ enum: [18410600] })
-  bytes!: number;
-  @ApiProperty({ enum: [1], description: '同一注册域并发预留／驻留原件至多一份，不按时间窗口续增' })
-  maxResidentCopies!: number;
+  @ApiProperty({ enum: [600000], description: '从实际请求开始到响应体结束的独立总时限，持续有进度也不得续期；元数据与字体均适用' })
+  maxTransferMs!: number;
 }
 
 class FontWebResidencyDto {
@@ -31,14 +22,12 @@ class FontWebResidencyDto {
   mode!: 'lease-lru';
   @ApiProperty({ enum: ['document'], description: '同一文档的多个阅读窗口共用一个运行时' })
   scope!: 'document';
-  @ApiProperty({ enum: [29], description: '当前目录全部家族均可参与活动集合，不是历史累计次数；原件也占一个名额' })
+  @ApiProperty({ enum: [28], description: '当前目录全部家族均可参与活动集合，不是历史累计次数' })
   maxFamilies!: number;
   @ApiProperty({ enum: [64], description: '活动与待注册 face 数；只有实际解除注册并释放引用后才归还' })
   maxFaces!: number;
   @ApiProperty({ enum: [16777216], description: '普通片按移动 SFNT 字节预占；经哈希校验后与 WOFF2.totalSfntSize 取较大值，解码前补足；不是压缩字节或引擎 RSS' })
   maxSfntBytes!: number;
-  @ApiProperty({ enum: [18410600], description: '固定原件独占的驻留输入额度，不可借给其他资源' })
-  originalSfntBytes!: number;
 }
 
 class FontWebRuntimeDto {
@@ -110,8 +99,6 @@ export class TextFontRuntimePolicyDto {
   policyVersion!: 2;
   @ApiProperty({ pattern: '^[a-f0-9]{64}$', description: '必须等于已校验目录描述符和 manifest 实际 SHA；不匹配不启用策略' })
   manifestSha256!: string;
-  @ApiProperty({ type: FontOriginalAssetDto })
-  originalAsset!: FontOriginalAssetDto;
   @ApiProperty({ type: FontWebRuntimeDto })
   web!: FontWebRuntimeDto;
   @ApiProperty({ type: FontMobileRuntimeDto })

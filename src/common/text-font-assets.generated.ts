@@ -1,10 +1,10 @@
 // 此文件由 scripts/fonts/build.py 生成；不要手改哈希或资源状态。
 export const TEXT_FONT_ASSET_INDEX = {
-  "catalogVersion": "1.1.1",
+  "catalogVersion": "1.2.0",
   "manifest": {
-    "path": "fonts/v1/7aab91a436933049bc8f55c1aba6085078a251d174c5b253456d3af0c91a0582.json",
-    "sha256": "7aab91a436933049bc8f55c1aba6085078a251d174c5b253456d3af0c91a0582",
-    "bytes": 5031019
+    "path": "fonts/v1/e2836703a30eec5f59dd9d4d72f6887756c2dd30c070606db5cee258ebd0efa3.json",
+    "sha256": "e2836703a30eec5f59dd9d4d72f6887756c2dd30c070606db5cee258ebd0efa3",
+    "bytes": 4941141
   },
   "fonts": [
     {
@@ -88,12 +88,6 @@ export const TEXT_FONT_ASSET_INDEX = {
     {
       "id": "shattered-display",
       "name": "嗷呜碎黑体",
-      "designLanguage": "zh",
-      "availability": "ready"
-    },
-    {
-      "id": "xiaocheng-lafeng",
-      "name": "小城拉风体",
       "designLanguage": "zh",
       "availability": "ready"
     },

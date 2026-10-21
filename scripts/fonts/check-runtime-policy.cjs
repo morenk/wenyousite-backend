@@ -14,7 +14,7 @@ const validate = new Ajv({ allErrors: true }).compile(read('thread-font-runtime-
 execFileSync(process.execPath, [resolve(__dirname, 'generate-runtime-policy.cjs'), '--check']);
 assert(validate(policy), JSON.stringify(validate.errors));
 assert.deepEqual(policy, policyOf(manifestBytes));
-assert.equal(policy.manifestSha256, fixture.legacyManifestSha256);
+assert.equal(policy.manifestSha256, fixture.manifestSha256);
 assert.deepEqual(manifest.limits, fixture.legacyLimits);
 for (const row of fixture.invalidPolicies) {
   const changed = structuredClone(policy), keys = row.path.split('.');
@@ -24,6 +24,13 @@ for (const row of fixture.invalidPolicies) {
   assert(!validate(changed), 'invalid policy accepted: ' + row.path);
 }
 assert(!validate({ ...policy, unreviewed: true }));
+for (const platform of ['web', 'mobile']) {
+  for (const field of ['timeoutMode', 'maxTransferMs']) {
+    const prototype = structuredClone(policy);
+    delete prototype[platform].network[field];
+    assert(!validate(prototype), 'old prototype must not silently acquire idle timeout semantics');
+  }
+}
 const count = policy.mobile.registration.snapshot;
 assert.deepEqual(snapshotOf(manifest), count);
 const repeated = structuredClone(manifest);
@@ -55,10 +62,40 @@ for (const row of fixture.sfntEstimateCases)
   assert.equal(Math.max(row.mobileBytes, row.verifiedWoff2TotalSfntSize), row.expectedBytes);
 for (const row of fixture.windowCases)
   assert.equal(row.nowMs - row.reservedAtMs >= policy.web.network.windowMs, row.expectedExpired);
-for (const row of fixture.originalCases)
-  assert.equal(!row.nativeAttempted && row.windowExpired, row.expectedNetworkEligible);
 for (const row of fixture.snapshotCases)
   assert.equal(row.uniqueAssets <= policy.mobile.registration.safetyCeiling.maxSnapshotAssets && row.totalAssetBytes <= policy.mobile.registration.safetyCeiling.maxSnapshotAssetBytes ? 'accept' : 'reject', row.expected);
 for (const row of fixture.activationCases)
   assert.equal(!row.baseConfigured ? 'system-fallback' : row.endpoint !== 'available' || !row.supported || !row.manifestMatches ? 'legacy' : 'v2', row.expected);
-console.log('字体运行策略 v2 通过：旧 manifest 原义、绑定快照、去重/别名、边界拒绝、窗口与退避固定夹具');
+
+// 共享事件轨迹的时钟参考模型；消费者仍须用实际流式读取实现运行同一组夹具。
+function transferResult(row, network) {
+  assert(row.startedAtMs >= row.queuedAtMs);
+  const events = row.events.flatMap((event) => Array.from({ length: event.repeat ?? 1 }, (_, i) => ({
+    ...event, atMs: event.atMs + i * (event.everyMs ?? 0),
+  }))).sort((a, b) => a.atMs - b.atMs);
+  const totalDeadline = row.startedAtMs + network.maxTransferMs;
+  let idleDeadline = row.startedAtMs + network.timeoutMs;
+  let acceptedBytes = 0;
+  const result = (outcome, atMs) => ({ outcome, atMs, acceptedBytes });
+  for (const event of events) {
+    assert(event.atMs >= row.startedAtMs);
+    const deadline = Math.min(idleDeadline, totalDeadline);
+    if (event.atMs >= deadline)
+      return result(totalDeadline <= idleDeadline ? 'total-timeout' : 'idle-timeout', deadline);
+    if (event.kind === 'cancel') return result('cancelled', event.atMs);
+    if (event.kind === 'end') return result('complete', event.atMs);
+    if (event.kind === 'data') {
+      assert(Number.isSafeInteger(event.bytes) && event.bytes >= 0);
+      if (event.bytes > row.byteLimit - acceptedBytes) return result('length-rejected', event.atMs);
+      acceptedBytes += event.bytes;
+      if (event.bytes > 0) idleDeadline = event.atMs + network.timeoutMs;
+    } else assert(['headers', 'tick'].includes(event.kind));
+  }
+  throw new Error('transfer fixture has no terminal event: ' + row.id);
+}
+assert.equal(new Set(fixture.transferCases.map((row) => row.id)).size, fixture.transferCases.length);
+for (const platform of ['web', 'mobile']) {
+  for (const row of fixture.transferCases)
+    assert.deepEqual(transferResult(row, policy[platform].network), row.expected, platform + ': ' + row.id);
+}
+console.log('字体运行策略 v2 通过：旧 manifest 原义、绑定快照、窗口退避、15 秒 idle / 10 分钟总限及 ' + fixture.transferCases.length + ' 个共享传输轨迹');

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import Ajv from 'ajv/dist/2020';
-import { TEXT_FONT_IDS } from '../src/common/text-font-catalog';
+import { TEXT_FONT_IDS, TEXT_FONT_RETIRED_IDS, isTextFontSourceReady } from '../src/common/text-font-catalog';
 import { parseTextFonts, stripTextStyles } from '../src/common/text-colors';
 import { prepareMarkdownContent } from '../src/common/markdown-content';
 
@@ -15,9 +15,11 @@ const validate = new Ajv({ allErrors: true }).compile(schema);
 assert.deepEqual([...TEXT_FONT_IDS].sort(), [...schema.properties.fontId.enum].sort());
 assert.deepEqual(
   [...TEXT_FONT_IDS].sort(),
-  catalog.fonts.map((font: { id: string }) => font.id).sort(),
+  [...catalog.fonts.map((font: { id: string }) => font.id), ...TEXT_FONT_RETIRED_IDS].sort(),
 );
 assert.equal(new Set(TEXT_FONT_IDS).size, 29);
+assert.equal(catalog.fonts.length, 28);
+assert(TEXT_FONT_RETIRED_IDS.every((id) => !isTextFontSourceReady(id)));
 for (const row of fixture.validCases) {
   assert.equal(
     prepareMarkdownContent(row.source, { textFontVersion: 1, textColorVersion: 1 }),
