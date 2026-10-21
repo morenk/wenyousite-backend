@@ -304,3 +304,5 @@ HTTP `5.42.0-dev.20261022.1` 的独立 `GET /meta/text-fonts/runtime-policy` 绑
 ## 动态字体 v2 兼容阶段
 
 HTTP `5.43.0-dev.20261022.1` 新增独立动态目录、版本描述符、运行策略 v3 和正文 `data-wenyou-font-v2`。声明 `textFontVersion:2` 包含 v1/v2 混合保源；旧客户端不能覆盖含 v2 的原文。旧 v1 目录、资源和固定 manifest 策略 v2 保留。迁移字段、状态、预算和契约阶段可用性见[动态字体协议](dynamic-text-fonts.md)。
+
+HTTP `5.43.0-dev.20261022.2` 明确 v1 导入撤回边界：支持 v2 的消费者须通过固定映射共用版本状态和本站网关，未知/404 不回退旧 manifest；28 款导入发布完成后才宣告 v2 支持。旧 v1 公共 URL/缓存无法立即收回，详见[兼容边界](dynamic-text-fonts.md#v1-导入后的撤回边界)。

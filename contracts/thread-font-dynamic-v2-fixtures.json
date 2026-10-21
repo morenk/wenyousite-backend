@@ -123,5 +123,175 @@
       "expectedAdditionalAttemptsAfterImport": 0,
       "expectedChargedBytes": 59832
     }
+  ],
+  "legacyRoutingRules": {
+    "activation": "textFontV2Supported=true",
+    "activationStickyWithinSession": true,
+    "mappingFile": "thread-font-v1-import-map.json",
+    "statusSource": "v2-version-descriptor",
+    "assetSource": "v2-version-gateway",
+    "allowLegacyManifestFallback": false,
+    "preserveSourceMarkup": true,
+    "unmappedRetiredLegacyRenderAllowed": false,
+    "serverSupportRequiresAllMappedVersionsPublished": true,
+    "writeEnabledRequiresSupportAndFeatureFlag": true,
+    "withdrawnTombstoneWins": true,
+    "legacyPublicBytesRevocable": false,
+    "supportIndependentOfCurrentSelectionEnabledOrWithdrawn": true,
+    "knownTombstoneOverridesCapabilityDowngrade": true
+  },
+  "legacyRoutingCases": [
+    {
+      "id": "mapped-active",
+      "legacyId": "great-vibes",
+      "versionId": "tfv_72451c7e8503cb513f4d13bbb9ddd04d",
+      "response": "published",
+      "lastTrustedStatus": null,
+      "expectedRenderAllowed": true,
+      "expectedPasteAllowed": true,
+      "expectedAssetRequest": "v2",
+      "expectedLegacyManifestRequests": 0,
+      "expectedSourceUnchanged": true
+    },
+    {
+      "id": "mapped-disabled",
+      "legacyId": "great-vibes",
+      "versionId": "tfv_72451c7e8503cb513f4d13bbb9ddd04d",
+      "response": "disabled",
+      "lastTrustedStatus": null,
+      "expectedRenderAllowed": true,
+      "expectedPasteAllowed": false,
+      "expectedAssetRequest": "v2",
+      "expectedLegacyManifestRequests": 0,
+      "expectedSourceUnchanged": true
+    },
+    {
+      "id": "mapped-withdrawn",
+      "legacyId": "great-vibes",
+      "versionId": "tfv_72451c7e8503cb513f4d13bbb9ddd04d",
+      "response": "withdrawn",
+      "lastTrustedStatus": null,
+      "expectedRenderAllowed": false,
+      "expectedPasteAllowed": false,
+      "expectedAssetRequest": "none",
+      "expectedLegacyManifestRequests": 0,
+      "expectedSourceUnchanged": true
+    },
+    {
+      "id": "mapped-unknown",
+      "legacyId": "great-vibes",
+      "versionId": "tfv_72451c7e8503cb513f4d13bbb9ddd04d",
+      "response": "unknown",
+      "lastTrustedStatus": null,
+      "expectedRenderAllowed": false,
+      "expectedPasteAllowed": false,
+      "expectedAssetRequest": "none",
+      "expectedLegacyManifestRequests": 0,
+      "expectedSourceUnchanged": true
+    },
+    {
+      "id": "mapped-404",
+      "legacyId": "great-vibes",
+      "versionId": "tfv_72451c7e8503cb513f4d13bbb9ddd04d",
+      "response": "404",
+      "lastTrustedStatus": null,
+      "expectedRenderAllowed": false,
+      "expectedPasteAllowed": false,
+      "expectedAssetRequest": "none",
+      "expectedLegacyManifestRequests": 0,
+      "expectedSourceUnchanged": true
+    },
+    {
+      "id": "offline-trusted",
+      "legacyId": "great-vibes",
+      "versionId": "tfv_72451c7e8503cb513f4d13bbb9ddd04d",
+      "response": "network-error",
+      "lastTrustedStatus": "published",
+      "expectedRenderAllowed": true,
+      "expectedPasteAllowed": true,
+      "expectedAssetRequest": "none",
+      "expectedLegacyManifestRequests": 0,
+      "expectedSourceUnchanged": true
+    },
+    {
+      "id": "404-trusted",
+      "legacyId": "great-vibes",
+      "versionId": "tfv_72451c7e8503cb513f4d13bbb9ddd04d",
+      "response": "404",
+      "lastTrustedStatus": "published",
+      "expectedRenderAllowed": true,
+      "expectedPasteAllowed": true,
+      "expectedAssetRequest": "none",
+      "expectedLegacyManifestRequests": 0,
+      "expectedSourceUnchanged": true
+    },
+    {
+      "id": "offline-tombstone",
+      "legacyId": "great-vibes",
+      "versionId": "tfv_72451c7e8503cb513f4d13bbb9ddd04d",
+      "response": "network-error",
+      "lastTrustedStatus": "withdrawn",
+      "expectedRenderAllowed": false,
+      "expectedPasteAllowed": false,
+      "expectedAssetRequest": "none",
+      "expectedLegacyManifestRequests": 0,
+      "expectedSourceUnchanged": true
+    },
+    {
+      "id": "stale-published-after-tombstone",
+      "legacyId": "great-vibes",
+      "versionId": "tfv_72451c7e8503cb513f4d13bbb9ddd04d",
+      "response": "stale-published",
+      "lastTrustedStatus": "withdrawn",
+      "expectedRenderAllowed": false,
+      "expectedPasteAllowed": false,
+      "expectedAssetRequest": "none",
+      "expectedLegacyManifestRequests": 0,
+      "expectedSourceUnchanged": true
+    }
+  ],
+  "legacyCapabilityCases": [
+    {
+      "id": "not-yet-imported",
+      "previouslyActivated": false,
+      "capability": false,
+      "knownWithdrawn": false,
+      "expectedRoute": "legacy-v1"
+    },
+    {
+      "id": "activated-then-false",
+      "previouslyActivated": true,
+      "capability": false,
+      "knownWithdrawn": false,
+      "expectedRoute": "mapped-v2"
+    },
+    {
+      "id": "activated-then-missing",
+      "previouslyActivated": true,
+      "capability": null,
+      "knownWithdrawn": false,
+      "expectedRoute": "mapped-v2"
+    },
+    {
+      "id": "activated-then-offline",
+      "previouslyActivated": true,
+      "capability": "network-error",
+      "knownWithdrawn": false,
+      "expectedRoute": "mapped-v2"
+    },
+    {
+      "id": "tombstone-then-false",
+      "previouslyActivated": true,
+      "capability": false,
+      "knownWithdrawn": true,
+      "expectedRoute": "default-font"
+    },
+    {
+      "id": "tombstone-then-missing",
+      "previouslyActivated": false,
+      "capability": null,
+      "knownWithdrawn": true,
+      "expectedRoute": "default-font"
+    }
   ]
 }

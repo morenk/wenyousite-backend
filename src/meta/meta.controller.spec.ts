@@ -4,7 +4,7 @@ import { MetaController } from './meta.controller';
 
 describe('MetaController', () => {
   it('未配置移动版本策略时返回显式 null，不阻断客户端', () => {
-    const config = { get: jest.fn((key: string) => key === 'push.enabled' ? false : undefined) };
+    const config = { get: jest.fn((key: string) => (key === 'push.enabled' ? false : undefined)) };
     const controller = new MetaController(config as unknown as ConfigService);
 
     expect(controller.getMeta()).toEqual({
@@ -12,7 +12,7 @@ describe('MetaController', () => {
       buildSha: null,
       markdownContractVersion: 5,
       capabilities: {
-        textFontV2Supported: true,
+        textFontV2Supported: false,
         textFontV2WriteEnabled: false,
         textFontV1Supported: true,
         textFontV1WriteEnabled: false,
@@ -46,7 +46,8 @@ describe('MetaController', () => {
       'push.enabled': true,
       'mobileCompatibility.android.minimumSupportedBuild': 120,
       'mobileCompatibility.android.recommendedBuild': 135,
-      'mobileCompatibility.android.updateUrl': 'https://play.google.com/store/apps/details?id=site.wenyou',
+      'mobileCompatibility.android.updateUrl':
+        'https://play.google.com/store/apps/details?id=site.wenyou',
       'mobileCompatibility.ios.minimumSupportedBuild': 80,
       'mobileCompatibility.ios.recommendedBuild': 90,
       'mobileCompatibility.ios.updateUrl': 'https://apps.apple.com/app/id123456789',
@@ -54,21 +55,23 @@ describe('MetaController', () => {
     const config = { get: jest.fn((key: string) => values[key]) };
     const controller = new MetaController(config as unknown as ConfigService);
 
-    expect(controller.getMeta()).toEqual(expect.objectContaining({
-      buildSha: 'abc123',
-      capabilities: expect.objectContaining({ pushNotifications: true }),
-      mobileCompatibility: {
-        android: {
-          minimumSupportedBuild: 120,
-          recommendedBuild: 135,
-          updateUrl: 'https://play.google.com/store/apps/details?id=site.wenyou',
+    expect(controller.getMeta()).toEqual(
+      expect.objectContaining({
+        buildSha: 'abc123',
+        capabilities: expect.objectContaining({ pushNotifications: true }),
+        mobileCompatibility: {
+          android: {
+            minimumSupportedBuild: 120,
+            recommendedBuild: 135,
+            updateUrl: 'https://play.google.com/store/apps/details?id=site.wenyou',
+          },
+          ios: {
+            minimumSupportedBuild: 80,
+            recommendedBuild: 90,
+            updateUrl: 'https://apps.apple.com/app/id123456789',
+          },
         },
-        ios: {
-          minimumSupportedBuild: 80,
-          recommendedBuild: 90,
-          updateUrl: 'https://apps.apple.com/app/id123456789',
-        },
-      },
-    }));
+      }),
+    );
   });
 });

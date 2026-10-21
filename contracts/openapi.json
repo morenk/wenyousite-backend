@@ -38354,7 +38354,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.43.0-dev.20261022.1",
+    "version": "5.43.0-dev.20261022.2",
     "contact": {}
   },
   "tags": [
@@ -50916,11 +50916,11 @@
         "properties": {
           "textFontV2Supported": {
             "type": "boolean",
-            "description": "支持正文 v2（同时包含 v1）和动态目录；缺失按 false。"
+            "description": "私有网关及固定映射28款导入发布就绪后支持动态字体；未就绪/缺失为 false。保源协议仍有效。"
           },
           "textFontV2WriteEnabled": {
             "type": "boolean",
-            "description": "允许动态版本的新范围/扩写；仍须该版本 pasteAllowed。缺失按 false。"
+            "description": "仅 v2Supported 且新写开关开启时为 true；仍须版本 pasteAllowed。缺失按 false。"
           },
           "textFontV1Supported": {
             "type": "boolean",

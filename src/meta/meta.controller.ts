@@ -8,19 +8,28 @@ import { ACTIVE_MARKDOWN_CONTRACT_VERSION } from '../common/markdown-content';
 import { API_CONTRACT_VERSION } from '../common/swagger/openapi-document';
 
 class ApiCapabilitiesResponseDto {
-  @ApiPropertyOptional({ description: '支持正文 v2（同时包含 v1）和动态目录；缺失按 false。' })
+  @ApiPropertyOptional({
+    description:
+      '私有网关及固定映射28款导入发布就绪后支持动态字体；未就绪/缺失为 false。保源协议仍有效。',
+  })
   textFontV2Supported?: boolean;
-  @ApiPropertyOptional({ description: '允许动态版本的新范围/扩写；仍须该版本 pasteAllowed。缺失按 false。' })
+  @ApiPropertyOptional({
+    description: '仅 v2Supported 且新写开关开启时为 true；仍须版本 pasteAllowed。缺失按 false。',
+  })
   textFontV2WriteEnabled?: boolean;
 
   @ApiPropertyOptional({ description: '支持字体 v1 保源和旧端降级；缺失按 false' })
   textFontV1Supported?: boolean;
-  @ApiPropertyOptional({ description: '允许新增/修改字体；关闭仍可保留或移除已有字体，缺失按 false' })
+  @ApiPropertyOptional({
+    description: '允许新增/修改字体；关闭仍可保留或移除已有字体，缺失按 false',
+  })
   textFontV1WriteEnabled?: boolean;
 
   @ApiPropertyOptional({ description: '支持独立文本颜色 v1 保源/旧端降级；缺失按 false' })
   textColorV1Supported?: boolean;
-  @ApiPropertyOptional({ description: '允许新增/修改颜色范围；关闭仍允许保留或移除已有颜色，缺失按 false' })
+  @ApiPropertyOptional({
+    description: '允许新增/修改颜色范围；关闭仍允许保留或移除已有颜色，缺失按 false',
+  })
   textColorV1WriteEnabled?: boolean;
 
   @ApiPropertyOptional({
@@ -109,7 +118,7 @@ export class MetaController {
       buildSha: this.config.get<string>('app.buildSha') ?? null,
       markdownContractVersion: ACTIVE_MARKDOWN_CONTRACT_VERSION,
       capabilities: {
-        textFontV2Supported: true,
+        textFontV2Supported: false,
         textFontV2WriteEnabled: false,
         textFontV1Supported: true,
         textFontV1WriteEnabled: this.config.get<boolean>('app.textFontV1Enabled') ?? false,
