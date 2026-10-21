@@ -294,3 +294,7 @@ Flutter 代码、类型生成和设备回归仅在 Windows 执行；本后端 PR
 使用 Backend 已提交 SHA 的[字体 v1 契约](markdown-text-font-v1.md)与资源目录，同步读取、编辑、云草稿、保存及剪贴板。字体未加载时保留原文与 fontId，回退系统字体。FontLoader 注册按进程预算限制，磁盘 LRU 不能替代驻留限制；VPS 仅提供契约与隔离入口，Flutter 检查在 Windows 完成。
 
 字体目录扩展 `5.41.0-dev.20261021.2`：同步 `designLanguage`（zh/ja/en）、29 项目录以及 manifest 的 `deliveryMode`／`budgetException`；小城仅限固定原 TTF，通用额度不变，详见[字体资源事实源](thread-font-assets.md)。未知模式／分类安全回退；假名按可见字符加载额外片。目录 1.1.1 的 29 款资产均已 ready；仍须完成独立发布、自有资源地址配置和新写启用。Web／Windows Flutter 应同步同一已提交目录与 manifest 描述符，更新 1.1.0 的 manifest 描述符；既有字体哈希可继续复用。
+
+## 字体连续浏览与恢复
+
+HTTP `5.42.0-dev.20261021.1` 新增独立 `GET /meta/text-fonts/runtime-policy`。仅在策略 v2、已验证 manifest SHA 和自有资源来源全部匹配时启用；旧目录／manifest 原样保留。Web 可回收活动集合与 Mobile 固定快照各自记账，网络恢复静默重试；Mobile 原件计入普通 24 MiB 窗口，不追加原件网络额度。字段、拒绝边界、退避与固定夹具见[字体运行策略](thread-font-runtime-policy.md)。文件输入账本不是 native/RSS 上限，Flutter 实机验收仍由 Windows／Android 完成。

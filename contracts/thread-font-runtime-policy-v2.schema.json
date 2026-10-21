@@ -1,0 +1,324 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "policyVersion",
+    "manifestSha256",
+    "originalAsset",
+    "web",
+    "mobile",
+    "retry"
+  ],
+  "properties": {
+    "policyVersion": {
+      "type": "integer",
+      "const": 2
+    },
+    "manifestSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "originalAsset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fontId",
+        "sha256",
+        "bytes",
+        "maxResidentCopies"
+      ],
+      "properties": {
+        "fontId": {
+          "type": "string",
+          "const": "xiaocheng-lafeng"
+        },
+        "sha256": {
+          "type": "string",
+          "const": "cf4a4215e562d6de6e3ee88f25fc5d47d77668d28eb3a0f2533c7290de307423"
+        },
+        "bytes": {
+          "type": "integer",
+          "const": 18410600
+        },
+        "maxResidentCopies": {
+          "type": "integer",
+          "const": 1
+        }
+      }
+    },
+    "web": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "network",
+        "residency"
+      ],
+      "properties": {
+        "network": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "windowMs",
+            "maxRequests",
+            "maxBytes",
+            "originalWindowBytes",
+            "maxConcurrent",
+            "timeoutMs"
+          ],
+          "properties": {
+            "windowMs": {
+              "type": "integer",
+              "const": 60000
+            },
+            "maxRequests": {
+              "type": "integer",
+              "const": 64
+            },
+            "maxBytes": {
+              "type": "integer",
+              "const": 16777216
+            },
+            "originalWindowBytes": {
+              "type": "integer",
+              "const": 18410600
+            },
+            "maxConcurrent": {
+              "type": "integer",
+              "const": 2
+            },
+            "timeoutMs": {
+              "type": "integer",
+              "const": 15000
+            }
+          }
+        },
+        "residency": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "scope",
+            "maxFamilies",
+            "maxFaces",
+            "maxSfntBytes",
+            "originalSfntBytes"
+          ],
+          "properties": {
+            "mode": {
+              "type": "string",
+              "const": "lease-lru"
+            },
+            "scope": {
+              "type": "string",
+              "const": "document"
+            },
+            "maxFamilies": {
+              "type": "integer",
+              "const": 29
+            },
+            "maxFaces": {
+              "type": "integer",
+              "const": 64
+            },
+            "maxSfntBytes": {
+              "type": "integer",
+              "const": 16777216
+            },
+            "originalSfntBytes": {
+              "type": "integer",
+              "const": 18410600
+            }
+          }
+        }
+      }
+    },
+    "mobile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "network",
+        "registration"
+      ],
+      "properties": {
+        "network": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "windowMs",
+            "maxRequests",
+            "maxBytes",
+            "originalWindowBytes",
+            "maxConcurrent",
+            "timeoutMs"
+          ],
+          "properties": {
+            "windowMs": {
+              "type": "integer",
+              "const": 60000
+            },
+            "maxRequests": {
+              "type": "integer",
+              "const": 64
+            },
+            "maxBytes": {
+              "type": "integer",
+              "const": 25165824
+            },
+            "originalWindowBytes": {
+              "type": "integer",
+              "const": 0
+            },
+            "maxConcurrent": {
+              "type": "integer",
+              "const": 1
+            },
+            "timeoutMs": {
+              "type": "integer",
+              "const": 15000
+            }
+          }
+        },
+        "registration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "scope",
+            "key",
+            "maxAttemptsPerKey",
+            "failedAttempt",
+            "snapshot",
+            "safetyCeiling"
+          ],
+          "properties": {
+            "mode": {
+              "type": "string",
+              "const": "fixed-manifest"
+            },
+            "scope": {
+              "type": "string",
+              "const": "engine"
+            },
+            "key": {
+              "type": "string",
+              "const": "asset-sha256-and-family"
+            },
+            "maxAttemptsPerKey": {
+              "type": "integer",
+              "const": 1
+            },
+            "failedAttempt": {
+              "type": "string",
+              "const": "quarantine-and-retain-charge"
+            },
+            "snapshot": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "assetCount",
+                "totalAssetBytes",
+                "registrationCount",
+                "totalRegistrationAssetBytes"
+              ],
+              "properties": {
+                "assetCount": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1024
+                },
+                "totalAssetBytes": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 268435456
+                },
+                "registrationCount": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1024
+                },
+                "totalRegistrationAssetBytes": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 268435456
+                }
+              }
+            },
+            "safetyCeiling": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "maxSnapshotAssets",
+                "maxSnapshotAssetBytes"
+              ],
+              "properties": {
+                "maxSnapshotAssets": {
+                  "type": "integer",
+                  "const": 1024
+                },
+                "maxSnapshotAssetBytes": {
+                  "type": "integer",
+                  "const": 268435456
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "retry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "delayCeilingsMs",
+        "jitter",
+        "retryableHttpStatuses",
+        "retryNetworkErrors",
+        "retryTimeouts",
+        "respectRetryAfter"
+      ],
+      "properties": {
+        "delayCeilingsMs": {
+          "type": "array",
+          "const": [
+            1000,
+            2000,
+            4000,
+            8000,
+            16000,
+            32000,
+            60000
+          ]
+        },
+        "jitter": {
+          "type": "string",
+          "const": "full"
+        },
+        "retryableHttpStatuses": {
+          "type": "array",
+          "const": [
+            408,
+            429,
+            500,
+            502,
+            503,
+            504
+          ]
+        },
+        "retryNetworkErrors": {
+          "type": "boolean",
+          "const": true
+        },
+        "retryTimeouts": {
+          "type": "boolean",
+          "const": true
+        },
+        "respectRetryAfter": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://wenyou.site/contracts/thread-font-runtime-policy-v2.schema.json"
+}

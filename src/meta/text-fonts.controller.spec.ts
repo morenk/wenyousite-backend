@@ -52,4 +52,27 @@ describe('字体目录发布契约', () => {
       availability: 'ready',
     });
   });
+
+  it('独立策略绑定原 manifest，旧目录形状不变且响应不共享可变引用', () => {
+    const controller = new TextFontsController(new ConfigService());
+    const catalog = controller.getCatalog();
+    expect(Object.keys(catalog).sort()).toEqual(
+      ['fontVersion', 'catalogVersion', 'assetBaseUrl', 'manifest', 'fonts'].sort(),
+    );
+    const policy = controller.getRuntimePolicy();
+    expect(policy).toEqual(JSON.parse(readFileSync(
+      join(__dirname, '../../contracts/thread-font-runtime-policy-v2.json'), 'utf8',
+    )));
+    expect(policy.policyVersion).toBe(2);
+    expect(policy.manifestSha256).toBe(catalog.manifest!.sha256);
+    expect(policy.mobile.registration.snapshot).toEqual({
+      assetCount: 869, totalAssetBytes: 203056088,
+      registrationCount: 869, totalRegistrationAssetBytes: 203056088,
+    });
+    policy.retry.delayCeilingsMs[0] = 999;
+    policy.mobile.registration.snapshot.assetCount = 1;
+    expect(controller.getRuntimePolicy().retry.delayCeilingsMs[0]).toBe(1000);
+    expect(controller.getRuntimePolicy().mobile.registration.snapshot.assetCount).toBe(869);
+    expect(catalog.assetBaseUrl).toBeNull();
+  });
 });

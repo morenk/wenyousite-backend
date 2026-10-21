@@ -64,6 +64,23 @@ async function main() {
   assert.equal(publicCatalog.status, 200);
   assert.equal(publicCatalog.headers.get('cache-control'), 'public, max-age=300');
   assert.deepEqual(((await publicCatalog.json()) as Data).data, catalog);
+  const policyResponse = await fetch(process.env.API_BASE + '/meta/text-fonts/runtime-policy', {
+    headers: { authorization: 'Bearer invalid-public-fixture' },
+    signal: AbortSignal.timeout(15000),
+  });
+  assert.equal(policyResponse.status, 200);
+  assert.equal(policyResponse.headers.get('cache-control'), 'public, max-age=300');
+  const policy = ((await policyResponse.json()) as Data).data;
+  assert.equal(policy.policyVersion, 2);
+  assert.equal(policy.manifestSha256, catalog.manifest.sha256);
+  assert.deepEqual(policy.mobile.registration.snapshot, {
+    assetCount: 869, totalAssetBytes: 203056088,
+    registrationCount: 869, totalRegistrationAssetBytes: 203056088,
+  });
+  assert.equal(policy.web.network.maxConcurrent, 2);
+  assert.equal(policy.mobile.network.maxConcurrent, 1);
+  assert.equal(policy.originalAsset.maxResidentCopies, 1);
+  assert.equal('runtimePolicy' in catalog, false);
   assert.equal(catalog.fonts.length, 29);
   assert.deepEqual(
     ['zh', 'ja', 'en'].map(

@@ -1,5 +1,10 @@
 # API 合同变更
 
+## 5.42.0-dev.20261021.1
+
+- 新增公开只读 `/meta/text-fonts/runtime-policy`，运行策略 v2 绑定完整 manifest SHA，旧目录响应、manifest、累计 limits 和原件预算例外原义不变。
+- Web 采用 lease/LRU 活动集合与可续用网络窗口；Mobile 采用固定 manifest 的有限唯一注册账本、串行窗口与资源级退避。原件 Web 独立窗口、Mobile 计入普通 24 MiB；文件字节账本不代表 native/RSS 内存上限。详见[运行策略](../docs/thread-font-runtime-policy.md)。
+
 ## 5.41.0-dev.20261021.2
 
 - 字体目录 1.1.0 调整为 29 款（中文 13／日文 10／英文 6），新增 `designLanguage`；移除未发布的小薇候选。

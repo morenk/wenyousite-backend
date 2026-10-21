@@ -144,3 +144,5 @@ RP 采用 additive 字段；原 username/avatar、按 userId 互动和 Markdown 
 本次新增字体能力与[29 家族目录](../contracts/thread-font-catalog-v1.json)，不弃用 Markdown 5、角色提及 6、颜色 v1 或旧端读取。字体旧端投影、覆盖保护和历史 ID 兼容必须保留；移除前仍需无消费者、数据迁移、回归和回滚四项证据。发布、目录退役及旧资源清理分别评审，详见[字体契约](markdown-text-font-v1.md)。
 
 字体目录 1.1.0 增加主要设计语言和原件分发策略；1.1.1 补齐怪盗源字体与资产，协议结构与兼容策略不变；移除未发布候选 `zcoolxiaowei`，无已上线目录退役或数据迁移。旧端投影与未知 ID 保留文字的回归继续保留。
+
+字体运行策略 v2（HTTP `5.42.0-dev.20261021.1`）使用独立公开 GET 和 manifest SHA 绑定，不弃用或改义原 manifest 的累计 limits／additionalSessionBytes。旧消费者与未识别策略的新消费者继续旧限额；字体身份、资产哈希、正文和旧端保护全部保留。Mobile 当前引擎固定注册全集不随目录版本无限增长；后续快照演进仍需独立接受与资源核验。详见[运行策略](thread-font-runtime-policy.md)。

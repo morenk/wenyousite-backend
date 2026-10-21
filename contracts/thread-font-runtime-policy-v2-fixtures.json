@@ -1,0 +1,245 @@
+{
+  "policyVersion": 2,
+  "activationCases": [
+    {
+      "id": "matching",
+      "endpoint": "available",
+      "supported": true,
+      "baseConfigured": true,
+      "manifestMatches": true,
+      "expected": "v2"
+    },
+    {
+      "id": "old-backend",
+      "endpoint": "404",
+      "supported": true,
+      "baseConfigured": true,
+      "manifestMatches": true,
+      "expected": "legacy"
+    },
+    {
+      "id": "unknown-version",
+      "endpoint": "available",
+      "supported": false,
+      "baseConfigured": true,
+      "manifestMatches": true,
+      "expected": "legacy"
+    },
+    {
+      "id": "unpublished",
+      "endpoint": "available",
+      "supported": true,
+      "baseConfigured": false,
+      "manifestMatches": true,
+      "expected": "system-fallback"
+    },
+    {
+      "id": "different-manifest",
+      "endpoint": "available",
+      "supported": true,
+      "baseConfigured": true,
+      "manifestMatches": false,
+      "expected": "legacy"
+    }
+  ],
+  "backoffCases": [
+    {
+      "failureCount": 1,
+      "random": 0,
+      "expectedDelayMs": 0
+    },
+    {
+      "failureCount": 1,
+      "random": 0.5,
+      "expectedDelayMs": 500
+    },
+    {
+      "failureCount": 2,
+      "random": 0.5,
+      "expectedDelayMs": 1000
+    },
+    {
+      "failureCount": 7,
+      "random": 0.5,
+      "expectedDelayMs": 30000
+    },
+    {
+      "failureCount": 100,
+      "random": 0.99999,
+      "expectedDelayMs": 60000
+    }
+  ],
+  "notBeforeCases": [
+    {
+      "id": "server-wait",
+      "nowMs": 100000,
+      "delayMs": 500,
+      "windowReadyAtMs": 100000,
+      "retryAfter": "120",
+      "expectedAtMs": 220000
+    },
+    {
+      "id": "window-wait",
+      "nowMs": 100000,
+      "delayMs": 500,
+      "windowReadyAtMs": 160000,
+      "retryAfter": "2",
+      "expectedAtMs": 160000
+    },
+    {
+      "id": "date-wait",
+      "nowMs": 100000,
+      "delayMs": 500,
+      "windowReadyAtMs": 100000,
+      "retryAfter": "Thu, 01 Jan 1970 00:03:00 GMT",
+      "expectedAtMs": 180000
+    },
+    {
+      "id": "invalid-retry-after",
+      "nowMs": 100000,
+      "delayMs": 500,
+      "windowReadyAtMs": 100000,
+      "retryAfter": "invalid",
+      "expectedAtMs": 100500
+    }
+  ],
+  "windowCases": [
+    {
+      "id": "full-before-boundary",
+      "reservedAtMs": 0,
+      "nowMs": 59999,
+      "expectedExpired": false
+    },
+    {
+      "id": "renew-at-boundary",
+      "reservedAtMs": 0,
+      "nowMs": 60000,
+      "expectedExpired": true
+    }
+  ],
+  "originalCases": [
+    {
+      "id": "failed-download-renews",
+      "nativeAttempted": false,
+      "windowExpired": true,
+      "expectedNetworkEligible": true
+    },
+    {
+      "id": "failed-download-waits",
+      "nativeAttempted": false,
+      "windowExpired": false,
+      "expectedNetworkEligible": false
+    },
+    {
+      "id": "failed-native-stays-quarantined",
+      "nativeAttempted": true,
+      "windowExpired": true,
+      "expectedNetworkEligible": false
+    }
+  ],
+  "snapshotCases": [
+    {
+      "id": "current",
+      "uniqueAssets": 869,
+      "totalAssetBytes": 203056088,
+      "expected": "accept"
+    },
+    {
+      "id": "too-many",
+      "uniqueAssets": 1025,
+      "totalAssetBytes": 203056088,
+      "expected": "reject"
+    },
+    {
+      "id": "too-large",
+      "uniqueAssets": 869,
+      "totalAssetBytes": 268435457,
+      "expected": "reject"
+    }
+  ],
+  "invalidPolicies": [
+    {
+      "path": "policyVersion",
+      "value": 3
+    },
+    {
+      "path": "manifestSha256",
+      "value": "bad"
+    },
+    {
+      "path": "web.residency.mode",
+      "value": "reset-per-page"
+    },
+    {
+      "path": "web.network.windowMs",
+      "value": 0
+    },
+    {
+      "path": "originalAsset.maxResidentCopies",
+      "value": 2
+    },
+    {
+      "path": "originalAsset.sha256",
+      "value": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "path": "mobile.registration.maxAttemptsPerKey",
+      "value": 2
+    },
+    {
+      "path": "mobile.registration.safetyCeiling.maxSnapshotAssetBytes",
+      "value": 536870912
+    },
+    {
+      "path": "mobile.registration.snapshot.assetCount",
+      "value": 1025
+    },
+    {
+      "path": "mobile.network.maxConcurrent",
+      "value": 2
+    },
+    {
+      "path": "retry.respectRetryAfter",
+      "value": false
+    },
+    {
+      "path": "mobile.network.originalWindowBytes",
+      "value": 18410600
+    },
+    {
+      "path": "web.residency.maxFamilies",
+      "value": 8
+    }
+  ],
+  "legacyManifestSha256": "7aab91a436933049bc8f55c1aba6085078a251d174c5b253456d3af0c91a0582",
+  "legacyLimits": {
+    "maxConcurrentDownloads": 2,
+    "maxSessionFamilies": 8,
+    "maxSessionRequests": 64,
+    "maxWebSessionBytes": 16777216,
+    "maxMobileSessionBytes": 25165824,
+    "maxMobileRegisteredFaces": 32,
+    "maxPersistentCacheBytes": 67108864,
+    "downloadTimeoutMs": 15000,
+    "maxAssetBytes": 6291456,
+    "maxSourceBytes": 67108864,
+    "maxBuildSourceBytes": 536870912,
+    "maxBundleBytes": 536870912,
+    "maxReleaseStorageBytes": 1073741824,
+    "monthlyEgressBudgetBytes": 536870912000
+  },
+  "sfntEstimateCases": [
+    {
+      "id": "woff2-expanded-tables",
+      "mobileBytes": 759396,
+      "verifiedWoff2TotalSfntSize": 765304,
+      "expectedBytes": 765304
+    },
+    {
+      "id": "mobile-larger",
+      "mobileBytes": 1024,
+      "verifiedWoff2TotalSfntSize": 1000,
+      "expectedBytes": 1024
+    }
+  ]
+}

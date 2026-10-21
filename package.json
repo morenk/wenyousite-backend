@@ -83,7 +83,8 @@
     "test:integration:app-downloads": "tsx scripts/e2e-runner.ts --suite=app-downloads",
     "test:integration:discussion-navigation": "tsx scripts/e2e-runner.ts --suite=discussion-navigation",
     "test:integration:thread-identity": "tsx scripts/e2e-runner.ts --suite=thread-identity",
-    "text-font:check": "tsx scripts/check-text-font-contract.ts && node scripts/fonts/check-contract.cjs"
+    "text-font:check": "tsx scripts/check-text-font-contract.ts && node scripts/fonts/check-contract.cjs && node scripts/fonts/check-runtime-policy.cjs",
+    "text-font:policy:generate": "node scripts/fonts/generate-runtime-policy.cjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.800.0",

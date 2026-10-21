@@ -2,6 +2,8 @@ import { Controller, Get, Header } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiOkResponse, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { Public } from '../auth/decorators/public.decorator';
+import { TEXT_FONT_RUNTIME_POLICY } from '../common/text-font-runtime-policy.generated';
+import { TextFontRuntimePolicyDto } from './text-font-runtime-policy.dto';
 import { TEXT_FONT_ASSET_INDEX } from '../common/text-font-assets.generated';
 
 class TextFontManifestDto {
@@ -65,6 +67,22 @@ class TextFontCatalogDto {
 @Controller('meta/text-fonts')
 export class TextFontsController {
   constructor(private readonly config: ConfigService) {}
+
+  @Get('runtime-policy')
+  @Public()
+  @Header('Cache-Control', 'public, max-age=300')
+  @ApiOkResponse({ type: TextFontRuntimePolicyDto })
+  getRuntimePolicy(): TextFontRuntimePolicyDto {
+    const copy = structuredClone(TEXT_FONT_RUNTIME_POLICY);
+    return {
+      ...copy,
+      retry: {
+        ...copy.retry,
+        delayCeilingsMs: [...copy.retry.delayCeilingsMs],
+        retryableHttpStatuses: [...copy.retry.retryableHttpStatuses],
+      },
+    };
+  }
 
   @Get()
   @Public()

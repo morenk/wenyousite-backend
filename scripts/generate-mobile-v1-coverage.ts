@@ -132,7 +132,7 @@ function moduleFor(operation: Operation, disposition: Disposition): string {
   if (id === 'metaGetMeta') return 'app-shell';
   if (id.startsWith('gallery')) return 'image-gallery';
   if (id.startsWith('tags')) return 'editor';
-  if (id === 'textFontsGetCatalog') return 'editor';
+  if (id.startsWith('textFonts')) return 'editor';
   if (id.startsWith('mobileDevice')) return 'notifications';
   if (id.startsWith('stickers')) return 'editor';
   if (id.startsWith('moments')) return 'moments';

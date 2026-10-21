@@ -409,6 +409,7 @@
 | 方法 | 路径 | 鉴权 | 说明 |
 |---|---|---|---|
 | GET | `/meta` | public |  |
+| GET | `/meta/text-fonts/runtime-policy` | public |  |
 | GET | `/meta/text-fonts` | public |  |
 
 ## Mobile Releases
