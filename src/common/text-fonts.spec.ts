@@ -79,7 +79,7 @@ describe('文本字体 v1 共享契约', () => {
     }
   });
   it('每个白名单字体可与粗斜体组合，未知字体阅读保留文字', () => {
-    expect(new Set(TEXT_FONT_IDS).size).toBe(17);
+    expect(new Set(TEXT_FONT_IDS).size).toBe(29);
     for (const id of TEXT_FONT_IDS.filter(isTextFontSourceReady))
       expect(prepareMarkdownContent(font('***中英 Hello***', id), { textFontVersion: 1 })).toBe(
         font('***中英 Hello***', id),
@@ -96,6 +96,13 @@ describe('文本字体 v1 共享契约', () => {
     } finally {
       readiness.mockRestore();
     }
+  });
+  it('移除未发布的小薇候选后拒绝新写，阅读仍保留文字', () => {
+    expect(TEXT_FONT_IDS).not.toContain('zcoolxiaowei');
+    expect(() =>
+      prepareMarkdownContent(font('保留文字', 'zcoolxiaowei'), { textFontVersion: 1 }),
+    ).toThrow(BusinessException);
+    expect(stripTextStyles(font('**保留文字**', 'zcoolxiaowei'))).toBe('**保留文字**');
   });
   it('只识别真实标签，不激活代码、转义、URL/title中的同形源码', () => {
     for (const source of [

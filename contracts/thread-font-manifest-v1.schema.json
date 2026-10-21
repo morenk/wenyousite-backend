@@ -148,7 +148,11 @@
                 "const": "ready"
               },
               "license": {
-                "const": "OFL-1.1"
+                "enum": [
+                  "OFL-1.1",
+                  "Apache-2.0",
+                  "LicenseRef-ProjectAuthorization"
+                ]
               },
               "sourceRevision": {
                 "type": "string"
@@ -289,6 +293,34 @@
               },
               "baseStyle": {
                 "const": "normal"
+              },
+              "designLanguage": {
+                "type": "string",
+                "enum": [
+                  "zh",
+                  "ja",
+                  "en"
+                ],
+                "description": "主要设计语言，仅用于分类，不表示字符覆盖。"
+              },
+              "deliveryMode": {
+                "enum": [
+                  "subset",
+                  "original"
+                ]
+              },
+              "budgetException": {
+                "const": {
+                  "kind": "original-source",
+                  "assetSha256": "cf4a4215e562d6de6e3ee88f25fc5d47d77668d28eb3a0f2533c7290de307423",
+                  "assetBytes": 18410600,
+                  "additionalSessionBytes": 18410600
+                }
+              },
+              "instance": {
+                "const": {
+                  "wght": 400
+                }
               }
             },
             "required": [
@@ -306,7 +338,153 @@
               "totalWebBytes",
               "totalMobileBytes",
               "baseWeight",
-              "baseStyle"
+              "baseStyle",
+              "designLanguage",
+              "deliveryMode"
+            ],
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "deliveryMode": {
+                      "const": "original"
+                    }
+                  },
+                  "type": "object"
+                },
+                "then": {
+                  "properties": {
+                    "id": {
+                      "const": "xiaocheng-lafeng"
+                    },
+                    "fontSha256": {
+                      "const": "cf4a4215e562d6de6e3ee88f25fc5d47d77668d28eb3a0f2533c7290de307423"
+                    },
+                    "license": {
+                      "const": "LicenseRef-ProjectAuthorization"
+                    },
+                    "shards": {
+                      "minItems": 1,
+                      "maxItems": 1,
+                      "items": {
+                        "properties": {
+                          "id": {
+                            "const": "original"
+                          },
+                          "web": {
+                            "properties": {
+                              "format": {
+                                "const": "ttf"
+                              },
+                              "sha256": {
+                                "const": "cf4a4215e562d6de6e3ee88f25fc5d47d77668d28eb3a0f2533c7290de307423"
+                              },
+                              "bytes": {
+                                "const": 18410600
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "mobile": {
+                            "properties": {
+                              "format": {
+                                "const": "ttf"
+                              },
+                              "sha256": {
+                                "const": "cf4a4215e562d6de6e3ee88f25fc5d47d77668d28eb3a0f2533c7290de307423"
+                              },
+                              "bytes": {
+                                "const": 18410600
+                              }
+                            },
+                            "type": "object"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "budgetException"
+                  ],
+                  "type": "object"
+                },
+                "else": {
+                  "not": {
+                    "required": [
+                      "budgetException"
+                    ],
+                    "type": "object"
+                  },
+                  "properties": {
+                    "license": {
+                      "enum": [
+                        "OFL-1.1",
+                        "Apache-2.0"
+                      ]
+                    },
+                    "shards": {
+                      "items": {
+                        "properties": {
+                          "id": {
+                            "pattern": "^(core|u[0-9a-f]{6})$",
+                            "type": "string"
+                          },
+                          "web": {
+                            "properties": {
+                              "format": {
+                                "const": "woff2"
+                              }
+                            },
+                            "type": "object"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "license": {
+                      "const": "Apache-2.0"
+                    }
+                  },
+                  "type": "object"
+                },
+                "then": {
+                  "properties": {
+                    "id": {
+                      "const": "special-elite"
+                    },
+                    "fontSha256": {
+                      "const": "a776fcb4ceb8bdf03e2967688ebdad42680de5b91a7e62c17e718ae212d14bc4"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              {
+                "if": {
+                  "required": [
+                    "instance"
+                  ],
+                  "type": "object"
+                },
+                "then": {
+                  "properties": {
+                    "id": {
+                      "const": "orbitron"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
             ]
           },
           {
@@ -326,13 +504,23 @@
               "shards": {
                 "type": "array",
                 "maxItems": 0
+              },
+              "designLanguage": {
+                "type": "string",
+                "enum": [
+                  "zh",
+                  "ja",
+                  "en"
+                ],
+                "description": "主要设计语言，仅用于分类，不表示字符覆盖。"
               }
             },
             "required": [
               "id",
               "name",
               "availability",
-              "shards"
+              "shards",
+              "designLanguage"
             ]
           }
         ]
@@ -402,11 +590,11 @@
       "properties": {
         "id": {
           "type": "string",
-          "pattern": "^(core|u[0-9a-f]{6})$"
+          "pattern": "^(core|original|u[0-9a-f]{6})$"
         },
         "family": {
           "type": "string",
-          "pattern": "^WYF1-[0-9a-f]{16}-(core|u[0-9a-f]{6})$",
+          "pattern": "^WYF1-[0-9a-f]{16}-(core|original|u[0-9a-f]{6})$",
           "maxLength": 63
         },
         "codepointCount": {

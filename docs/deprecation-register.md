@@ -141,4 +141,6 @@ RP 采用 additive 字段；原 username/avatar、按 userId 互动和 Markdown 
 
 ## 文本字体 v1
 
-本次新增字体能力与[17 家族目录](../contracts/thread-font-catalog-v1.json)，不弃用 Markdown 5、角色提及 6、颜色 v1 或旧端读取。字体旧端投影、覆盖保护和历史 ID 兼容必须保留；移除前仍需无消费者、数据迁移、回归和回滚四项证据。发布、目录退役及旧资源清理分别评审，详见[字体契约](markdown-text-font-v1.md)。
+本次新增字体能力与[29 家族目录](../contracts/thread-font-catalog-v1.json)，不弃用 Markdown 5、角色提及 6、颜色 v1 或旧端读取。字体旧端投影、覆盖保护和历史 ID 兼容必须保留；移除前仍需无消费者、数据迁移、回归和回滚四项证据。发布、目录退役及旧资源清理分别评审，详见[字体契约](markdown-text-font-v1.md)。
+
+字体目录 1.1.0 增加主要设计语言和原件分发策略；移除未发布候选 `zcoolxiaowei`，无已上线目录退役或数据迁移。旧端投影与未知 ID 保留文字的回归继续保留。

@@ -25,6 +25,10 @@ assert(match, 'generated index missing');
 const index = JSON.parse(match[1]);
 const ids = catalog.fonts.map((font) => font.id);
 assert.equal(new Set(ids).size, ids.length, 'duplicate font id');
+assert.deepEqual(['zh', 'ja', 'en'].map((language) => catalog.fonts.filter((font) => font.designLanguage === language).length), [13, 10, 6]);
+assert(!ids.includes('zcoolxiaowei'));
+for (const id of ['shinsyoku-mincho', 'bouken-gothic', 'hakkou-mincho', 'kaitou-yokoku-gothic'])
+  assert.equal(catalog.fonts.find((font) => font.id === id).designLanguage, 'ja');
 assert.deepEqual(manifest.fonts.map((font) => font.id), ids);
 assert.deepEqual(sources.fonts.map((font) => font.id), ids);
 assert.equal(manifest.catalogVersion, catalog.catalogVersion);
@@ -43,6 +47,8 @@ const checkAsset = (asset) => {
 for (let position = 0; position < ids.length; position += 1) {
   const font = manifest.fonts[position];
   const source = sources.fonts[position];
+  assert.equal(font.designLanguage, catalog.fonts[position].designLanguage);
+  assert(['zh', 'ja', 'en'].includes(font.designLanguage));
   assert.equal(font.availability, catalog.fonts[position].availability);
   if (font.availability !== 'ready') {
     assert.notEqual(source.status, 'locked');

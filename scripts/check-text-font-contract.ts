@@ -17,7 +17,7 @@ assert.deepEqual(
   [...TEXT_FONT_IDS].sort(),
   catalog.fonts.map((font: { id: string }) => font.id).sort(),
 );
-assert.equal(new Set(TEXT_FONT_IDS).size, 17);
+assert.equal(new Set(TEXT_FONT_IDS).size, 29);
 for (const row of fixture.validCases) {
   assert.equal(
     prepareMarkdownContent(row.source, { textFontVersion: 1, textColorVersion: 1 }),

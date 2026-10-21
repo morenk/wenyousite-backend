@@ -251,3 +251,5 @@ GET /users/me 与有效用户的 GET /users/{id} 中，`_count.following` / `_co
 ## 文本字体 v1
 
 主题正文与草稿新增独立 `textFontVersion: 1` / `X-Text-Font-Version: 1`，与颜色在同一受控 span 组合。旧端读取安全降级、覆盖历史字体正文返回 409/40019。能力、新写门控、错误码、目录和迁移顺序见[字体契约](markdown-text-font-v1.md)。
+
+字体目录扩展 `5.41.0-dev.20261021.2`：同步 `designLanguage`（zh/ja/en）、29 项目录以及 manifest 的 `deliveryMode`／`budgetException`；小城仅限固定原 TTF，通用额度不变，详见[字体资源事实源](thread-font-assets.md)。未知模式／分类安全回退；假名按可见字符加载额外片。必须等待资产为 ready 且自有资源地址配置后启用，不能把 schema 先行提交视为全部资产已交付。

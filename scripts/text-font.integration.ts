@@ -64,7 +64,7 @@ async function main() {
   assert.equal(publicCatalog.status, 200);
   assert.equal(publicCatalog.headers.get('cache-control'), 'public, max-age=300');
   assert.deepEqual(((await publicCatalog.json()) as Data).data, catalog);
-  assert.equal(catalog.fonts.length, 17);
+  assert.equal(catalog.fonts.length, 29);
   assert.equal(catalog.assetBaseUrl, 'https://fonts.e2e.invalid/');
   assert(catalog.manifest?.sha256?.match(/^[a-f0-9]{64}$/));
   assert(

@@ -17,7 +17,6 @@
       "enum": [
         "source-han-sans",
         "zcoolkuaile",
-        "zcoolxiaowei",
         "longcang",
         "liujianmaocao",
         "wenkai",
@@ -31,7 +30,20 @@
         "hakkou-mincho",
         "shattered-display",
         "xiaocheng-lafeng",
-        "jf-zsk-seal"
+        "jf-zsk-seal",
+        "kaitou-yokoku-gothic",
+        "yuji-boku",
+        "dotgothic16",
+        "hachi-maru-pop",
+        "reggae-one",
+        "train-one",
+        "rampart-one",
+        "unifraktur-cook",
+        "great-vibes",
+        "special-elite",
+        "monoton",
+        "orbitron",
+        "rye"
       ]
     },
     "color": {

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import io
 import json
@@ -344,7 +345,8 @@ def build_family(source: dict, catalog: dict, cache: Path, output: Path,
         })
     return {
         "id": source["id"], "name": catalog["name"], "availability": "ready",
-        "baseWeight": 400, "baseStyle": "normal",
+        "designLanguage": catalog["designLanguage"],
+        "baseWeight": 400, "baseStyle": "normal", "deliveryMode": "subset",
         "license": "OFL-1.1", "sourceRevision": source["sourceRevision"],
         "sourceSha256": source["sha256"], "fontSha256": sha(payload), "sourceBytes": source["bytes"],
         "coverage": {"totalCodepoints": len(points), "ascii": coverage(points, ASCII),
@@ -358,7 +360,7 @@ def build_family(source: dict, catalog: dict, cache: Path, output: Path,
 def index_bytes(manifest: dict, descriptor: dict) -> bytes:
     index = {
         "catalogVersion": manifest["catalogVersion"], "manifest": descriptor,
-        "fonts": [{key: item[key] for key in ("id", "name", "availability")} for item in manifest["fonts"]],
+        "fonts": [{key: item[key] for key in ("id", "name", "designLanguage", "availability")} for item in manifest["fonts"]],
         "limits": manifest["limits"],
     }
     return ("// 此文件由 scripts/fonts/build.py 生成；不要手改哈希或资源状态。\n"
@@ -411,6 +413,35 @@ def validate_asset_path(value: dict) -> None:
         raise ValueError("unsafe_asset_path")
 
 
+def refresh_catalog(manifest: dict, catalog: dict, sources: dict) -> dict:
+    """只更新已验证资产的目录元数据；新原件或源锁变化必须重新构建。"""
+    if manifest["toolchain"] != TOOLCHAIN or manifest["limits"] != LIMITS:
+        raise ValueError("catalog_refresh_requires_same_toolchain_and_limits")
+    previous = {font["id"]: font for font in manifest["fonts"]}
+    source_map = {source["id"]: source for source in sources["fonts"]}
+    result = copy.deepcopy(manifest)
+    result["catalogVersion"] = catalog["catalogVersion"]
+    result["fonts"] = []
+    for entry in catalog["fonts"]:
+        source = source_map[entry["id"]]
+        if source["status"] != "locked":
+            result["fonts"].append({**entry, "availability": "pendingSource", "shards": []})
+            continue
+        family = previous.get(entry["id"])
+        expected = {"sourceSha256": source["sha256"], "fontSha256": source.get("fontSha256", source["sha256"]),
+                    "sourceBytes": source["bytes"], "sourceRevision": source["sourceRevision"], "license": source["license"]}
+        if not family or family["availability"] != "ready" or any(family.get(key) != value for key, value in expected.items()):
+            raise ValueError("catalog_refresh_requires_existing_identical_source:" + entry["id"])
+        if not any(notice["kind"] == "license" and notice["sha256"] == source["licenseSha256"] for notice in family["notices"]):
+            raise ValueError("catalog_refresh_license_changed:" + entry["id"])
+        if source.get("readmeSha256") and not any(notice["kind"] == "source-notice" and notice["sha256"] == source["readmeSha256"] for notice in family["notices"]):
+            raise ValueError("catalog_refresh_notice_changed:" + entry["id"])
+        if source.get("instance") != family.get("instance") or source.get("deliveryMode", "subset") != family.get("deliveryMode", "subset"):
+            raise ValueError("catalog_refresh_recipe_changed:" + entry["id"])
+        result["fonts"].append({**copy.deepcopy(family), "deliveryMode": family.get("deliveryMode", "subset"), **entry})
+    return result
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
@@ -418,7 +449,9 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--source-dir", type=Path)
     parser.add_argument("--download", action="store_true", help="仅此参数允许读取锁源HTTPS；默认全离线")
-    parser.add_argument("--verify", action="store_true", help="只校验现有manifest和资产，不下载或改写")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--verify", action="store_true", help="只校验现有manifest和资产，不下载或改写")
+    mode.add_argument("--refresh-catalog", action="store_true", help="复验原资产，仅同步目录元数据；不接受新原件")
     args = parser.parse_args()
     actual = {"python": ".".join(map(str, sys.version_info[:2])), "fonttools": fontTools.__version__, "brotli": brotli.__version__}
     if actual != TOOLCHAIN:
@@ -452,10 +485,14 @@ def main() -> None:
                 "toolchain": TOOLCHAIN, "partition": {"core": CORE_VERSION, "extraUnicodePageSize": EXTRA_PAGE_SIZE},
                 "cacheControl": "public, max-age=31536000, immutable", "limits": LIMITS, "fonts": []}
     recipe = sha(Path(__file__).read_bytes())
-    for entry in catalog["fonts"]:
+    if args.refresh_catalog:
+        previous = json.loads(manifest_path.read_text())
+        verify_bundle(previous, args.output)
+        manifest = refresh_catalog(previous, catalog, sources)
+    for entry in ([] if args.refresh_catalog else catalog["fonts"]):
         source = source_map[entry["id"]]
         if source["status"] != "locked":
-            manifest["fonts"].append({"id": entry["id"], "name": entry["name"], "availability": "pendingSource", "shards": []})
+            manifest["fonts"].append({**entry, "availability": "pendingSource", "shards": []})
             continue
         checkpoint = checkpoints / (sha(canonical([recipe, source, entry])) + ".json")
         if checkpoint.exists():

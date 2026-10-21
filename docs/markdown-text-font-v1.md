@@ -1,8 +1,8 @@
 # 主题帖文本字体 v1
 
-Backend 是字体身份、正文标记与资源目录的事实源。Web、Flutter 和 Foundation 只同步已提交 Git SHA；本文不改变全局 Markdown 5、角色提及 6 或 UI 系统字体。机器契约为 [解析结果 schema](../contracts/markdown-text-font-v1.schema.json)、[共享语料](../contracts/markdown-text-font-v1-fixtures.json) 和 [17 家族目录](../contracts/thread-font-catalog-v1.json)。资源构建见 [字体资产](thread-font-assets.md)。
+Backend 是字体身份、正文标记与资源目录的事实源。Web、Flutter 和 Foundation 只同步已提交 Git SHA；本文不改变全局 Markdown 5、角色提及 6 或 UI 系统字体。机器契约为 [解析结果 schema](../contracts/markdown-text-font-v1.schema.json)、[共享语料](../contracts/markdown-text-font-v1-fixtures.json) 和 [29 家族目录](../contracts/thread-font-catalog-v1.json)。资源构建见 [字体资产](thread-font-assets.md)。
 
-首批目标为 17 家族：16 款源文件（含侵食明朝、冒险黑体、白光明朝原 ZIP）已取得并完成双层哈希与许可核验，实际构建状态以 manifest 为准。嗷呜碎黑体、敬峰中山王篆已固定官方提交及原字库哈希，敬峰的字符覆盖有限，需要系统字体缺字回退；小城拉风体按负责人本轮确认的项目使用授权接入，不能标为 OFL 或虚构授权文书；以原始字体分发单独核算成本，不直接套用 OFL 子集/重命名流程。缺源条目标为 `pendingSource`，不伪造哈希、大小或覆盖率，也不开放新写。完整 17 款资源交付尚未完成。
+目录 1.1.0 包含中文 13、日文 10、英文 6，共 29 家族，分类使用 `designLanguage`。站酷小薇体为未发布候选，已移除。小城拉风体原 ZIP 已核验，仅以原字节分发并使用固定哈希预算例外；Special Elite 为 Apache-2.0。此 schema 先行提交保留新增资产的 pending 状态，实际构建状态以 manifest 为准。缺字按字符回退，不能把可用状态或语言类别当作覆盖率。怪盗予告黑体仍待用户提供原 ZIP。
 
 ## 正文与组合
 

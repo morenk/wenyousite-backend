@@ -1,5 +1,6 @@
 """只使用本测试生成的字形和临时目录；不下载资源，不访问业务服务。"""
 import hashlib
+import copy
 import io
 import json
 from pathlib import Path
@@ -37,6 +38,31 @@ def fixture_font(points=None, embedding=0):
 
 
 class FontPipelineTests(unittest.TestCase):
+    def test_catalog_refresh_keeps_assets_immutable_and_checks_source_identity(self):
+        source = {'id': 'fixture', 'status': 'locked', 'sha256': 'a' * 64,
+                  'bytes': 123, 'sourceRevision': 'v1', 'license': 'OFL-1.1', 'licenseSha256': 'b' * 64}
+        family = {'id': 'fixture', 'availability': 'ready', 'sourceSha256': 'a' * 64,
+                  'fontSha256': 'a' * 64, 'sourceBytes': 123, 'sourceRevision': 'v1', 'license': 'OFL-1.1',
+                  'notices': [{'kind': 'license', 'sha256': 'b' * 64}], 'shards': [{'immutable': True}]}
+        manifest = {'toolchain': build.TOOLCHAIN, 'limits': build.LIMITS, 'fonts': [family], 'catalogVersion': '1.0.0'}
+        before = copy.deepcopy(manifest)
+        entry = {'id': 'fixture', 'name': '测试', 'designLanguage': 'ja', 'availability': 'ready'}
+        pending = {'id': 'pending', 'name': '待接入', 'designLanguage': 'zh', 'availability': 'pendingSource'}
+        catalog = {'catalogVersion': '1.1.0', 'fonts': [entry, pending]}
+        sources = {'fonts': [source, {'id': 'pending', 'status': 'pendingSource'}]}
+        result = build.refresh_catalog(manifest, catalog, sources)
+        self.assertEqual(manifest, before)
+        self.assertEqual(result['fonts'][0]['shards'], family['shards'])
+        self.assertEqual(result['fonts'][0]['designLanguage'], 'ja')
+        self.assertEqual(result['fonts'][1]['shards'], [])
+        for key, value in [('sha256', 'c' * 64), ('licenseSha256', 'c' * 64),
+                           ('readmeSha256', 'c' * 64), ('instance', {'wght': 400}), ('deliveryMode', 'original')]:
+            changed = copy.deepcopy(sources); changed['fonts'][0][key] = value
+            with self.assertRaisesRegex(ValueError, 'catalog_refresh'):
+                build.refresh_catalog(manifest, catalog, changed)
+        catalog['fonts'] = [pending]
+        self.assertEqual(len(build.refresh_catalog(manifest, catalog, sources)['fonts']), 1)
+
     def test_fixed_partition_is_disjoint_and_retains_supplementary_characters(self):
         points = build.ASCII | build.gb2312() | {0x20000, 0x2FFFD, 0x10FFFD}
         shards = build.partition(points)
@@ -174,7 +200,7 @@ class FontPipelineTests(unittest.TestCase):
             source = {'id': 'fixture', 'url': 'https://github.com/fixture/font/releases/download/v1/font.ttf',
                       'sourceRevision': 'v1', 'sha256': build.sha(payload), 'bytes': len(payload),
                       'licenseSha256': build.sha(license_bytes)}
-            family = build.build_family(source, {'name': '测试字体'}, cache, output, None, False)
+            family = build.build_family(source, {'name': '测试字体', 'designLanguage': 'zh'}, cache, output, None, False)
             self.assertEqual(family['coverage']['ascii']['present'], 0)
             self.assertEqual(family['coverage']['ascii']['missingRanges'], ['U+0020-007E'])
             build.verify_bundle({'fonts': [family]}, output)
@@ -196,7 +222,7 @@ class FontPipelineTests(unittest.TestCase):
                       'sourceRevision': 'v1', 'sha256': build.sha(payload), 'bytes': len(payload),
                       'licenseSha256': build.sha(license_bytes)}
             with self.assertRaisesRegex(ValueError, 'embedding_flags_require_review'):
-                build.build_family(source, {'name': '测试字体'}, root, root, None, False)
+                build.build_family(source, {'name': '测试字体', 'designLanguage': 'zh'}, root, root, None, False)
 
     def test_editable_and_print_embedding_flags_require_locked_ofl_to_normalize(self):
         for flags in (4, 8):
@@ -208,9 +234,9 @@ class FontPipelineTests(unittest.TestCase):
                           'sourceRevision': 'v1', 'sha256': build.sha(payload), 'bytes': len(payload),
                           'licenseSha256': build.sha(license_bytes)}
                 with self.assertRaisesRegex(ValueError, 'normalization_requires_ofl'):
-                    build.build_family(source, {'name': '测试字体'}, root, root, None, False)
+                    build.build_family(source, {'name': '测试字体', 'designLanguage': 'zh'}, root, root, None, False)
                 source['license'] = 'OFL-1.1'
-                family = build.build_family(source, {'name': '测试字体'}, root, root, None, False)
+                family = build.build_family(source, {'name': '测试字体', 'designLanguage': 'zh'}, root, root, None, False)
                 build.verify_bundle({'fonts': [family]}, root)
                 for shard in family['shards']:
                     font = TTFont(root / shard['mobile']['path'])

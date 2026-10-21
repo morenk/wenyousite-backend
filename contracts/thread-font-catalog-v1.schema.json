@@ -30,12 +30,22 @@
               "ready",
               "pendingSource"
             ]
+          },
+          "designLanguage": {
+            "type": "string",
+            "enum": [
+              "zh",
+              "ja",
+              "en"
+            ],
+            "description": "主要设计语言，仅用于分类，不表示字符覆盖。"
           }
         },
         "required": [
           "id",
           "name",
-          "availability"
+          "availability",
+          "designLanguage"
         ]
       }
     }

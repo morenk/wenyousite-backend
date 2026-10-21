@@ -97,7 +97,8 @@
             "enum": [
               "OFL-1.1",
               null,
-              "LicenseRef-ProjectAuthorization"
+              "LicenseRef-ProjectAuthorization",
+              "Apache-2.0"
             ]
           },
           "archiveMember": {
@@ -198,6 +199,37 @@
           "referencePage": {
             "type": "string",
             "pattern": "^https://"
+          },
+          "deliveryMode": {
+            "enum": [
+              "subset",
+              "original"
+            ]
+          },
+          "instance": {
+            "const": {
+              "wght": 400
+            }
+          },
+          "additionalLicenseMembers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "member": {
+                  "type": "string"
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "member",
+                "sha256"
+              ]
+            }
           }
         },
         "required": [
@@ -212,7 +244,8 @@
                 "status": {
                   "const": "locked"
                 }
-              }
+              },
+              "type": "object"
             },
             "then": {
               "required": [
@@ -228,8 +261,15 @@
                   "type": "string"
                 },
                 "url": {
-                  "type": "string",
-                  "pattern": "^https://(raw\\.githubusercontent\\.com|github\\.com|booth\\.pm|lavsic\\.booth\\.pm)/"
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^https://(raw\\.githubusercontent\\.com|github\\.com|booth\\.pm|lavsic\\.booth\\.pm)/"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "sha256": {
                   "type": "string",
@@ -240,13 +280,18 @@
                   "minimum": 1
                 },
                 "license": {
-                  "const": "OFL-1.1"
+                  "enum": [
+                    "OFL-1.1",
+                    "Apache-2.0",
+                    "LicenseRef-ProjectAuthorization"
+                  ]
                 },
                 "licenseSha256": {
                   "type": "string",
                   "pattern": "^[0-9a-f]{64}$"
                 }
-              }
+              },
+              "type": "object"
             }
           },
           {
@@ -258,13 +303,109 @@
                 "archiveMember": {
                   "type": "string"
                 }
-              }
+              },
+              "type": "object"
             },
             "then": {
               "required": [
                 "fontSha256",
                 "fontBytes"
-              ]
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "license": {
+                  "const": "LicenseRef-ProjectAuthorization"
+                },
+                "status": {
+                  "const": "locked"
+                }
+              },
+              "required": [
+                "license"
+              ],
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "id": {
+                  "const": "xiaocheng-lafeng"
+                },
+                "deliveryMode": {
+                  "const": "original"
+                },
+                "fontSha256": {
+                  "const": "cf4a4215e562d6de6e3ee88f25fc5d47d77668d28eb3a0f2533c7290de307423"
+                },
+                "fontBytes": {
+                  "const": 18410600
+                },
+                "sha256": {
+                  "const": "3e19e13c7d80791ab115aae8c27f3713d6a20160b2261b91b7971fab77f24888"
+                }
+              },
+              "required": [
+                "deliveryMode",
+                "fontSha256",
+                "fontBytes",
+                "additionalLicenseMembers"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "license": {
+                  "const": "Apache-2.0"
+                },
+                "status": {
+                  "const": "locked"
+                }
+              },
+              "required": [
+                "license"
+              ],
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "id": {
+                  "const": "special-elite"
+                },
+                "sha256": {
+                  "const": "a776fcb4ceb8bdf03e2967688ebdad42680de5b91a7e62c17e718ae212d14bc4"
+                },
+                "sourceRevision": {
+                  "const": "47d54ca1ebb14fd864695f1d39dc734f39017c33"
+                },
+                "licenseSha256": {
+                  "const": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+                }
+              },
+              "type": "object"
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "instance"
+              ],
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "id": {
+                  "const": "orbitron"
+                },
+                "sha256": {
+                  "const": "f42db2dd16e642258e35782916eceb1dcdbea06fb958d77ad71dc5963587e8fd"
+                }
+              },
+              "type": "object"
             }
           }
         ]
