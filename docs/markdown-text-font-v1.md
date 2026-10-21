@@ -2,7 +2,7 @@
 
 Backend 是字体身份、正文标记与资源目录的事实源。Web、Flutter 和 Foundation 只同步已提交 Git SHA；本文不改变全局 Markdown 5、角色提及 6 或 UI 系统字体。机器契约为 [解析结果 schema](../contracts/markdown-text-font-v1.schema.json)、[共享语料](../contracts/markdown-text-font-v1-fixtures.json) 和 [29 家族目录](../contracts/thread-font-catalog-v1.json)。资源构建见 [字体资产](thread-font-assets.md)。
 
-目录 1.1.0 包含中文 13、日文 10、英文 6，共 29 家族，分类使用 `designLanguage`。站酷小薇体为未发布候选，已移除。小城拉风体原 ZIP 已核验，仅以原字节分发并使用固定哈希预算例外；Special Elite 为 Apache-2.0。此 schema 先行提交保留新增资产的 pending 状态，实际构建状态以 manifest 为准。缺字按字符回退，不能把可用状态或语言类别当作覆盖率。怪盗予告黑体仍待用户提供原 ZIP。
+目录 1.1.0 包含中文 13、日文 10、英文 6，共 29 家族，分类使用 `designLanguage`。站酷小薇体为未发布候选，已移除。小城拉风体原 ZIP 已核验，仅以原字节分发并使用固定哈希预算例外；Special Elite 为 Apache-2.0。28 款资产已构建核验，实际状态以 manifest 为准。缺字按字符回退，不能把可用状态或语言类别当作覆盖率。怪盗予告黑体仍待用户提供原 ZIP。
 
 ## 正文与组合
 

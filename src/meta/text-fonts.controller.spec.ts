@@ -12,15 +12,20 @@ describe('字体目录发布契约', () => {
     expect(result.assetBaseUrl).toBeNull();
     expect(result.fontVersion).toBe(1);
     expect(result.fonts.map((font) => font.id).sort()).toEqual([...TEXT_FONT_IDS].sort());
+    expect(
+      ['zh', 'ja', 'en'].map(
+        (language) => result.fonts.filter((font) => font.designLanguage === language).length,
+      ),
+    ).toEqual([13, 10, 6]);
     for (const font of result.fonts) {
       expect(font.availability === 'ready').toBe(isTextFontSourceReady(font.id));
     }
     const catalog = JSON.parse(
       readFileSync(join(__dirname, '../../contracts/thread-font-catalog-v1.json'), 'utf8'),
-    ) as { fonts: Array<{ id: string; availability: string }> };
-    expect(result.fonts.map(({ id, availability }) => ({ id, availability }))).toEqual(
-      catalog.fonts.map(({ id, availability }) => ({ id, availability })),
-    );
+    ) as {
+      fonts: Array<{ id: string; name: string; designLanguage: string; availability: string }>;
+    };
+    expect(result.fonts).toEqual(catalog.fonts);
     result.fonts[0].name = '调用者副本';
     expect(controller.getCatalog().fonts[0].name).not.toBe('调用者副本');
   });

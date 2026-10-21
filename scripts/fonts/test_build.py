@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 
 from fontTools.fontBuilder import FontBuilder
@@ -38,6 +39,63 @@ def fixture_font(points=None, embedding=0):
 
 
 class FontPipelineTests(unittest.TestCase):
+    def test_original_delivery_copies_bytes_without_any_font_transformation(self):
+        payload = fixture_font(embedding=8)
+        font = TTFont(io.BytesIO(payload)); font['OS/2'].fsSelection = 1 << 6
+        encoded = io.BytesIO(); font.save(encoded); payload = encoded.getvalue()
+        author = b'Fixture project authorization: original bytes only'
+        notice = b'Fixture distributor notice'
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); archive = root / 'original.zip'
+            with zipfile.ZipFile(archive, 'w') as target:
+                target.writestr('font.ttf', payload); target.writestr('author.txt', author)
+                target.writestr('字体授权说明.txt', notice)
+            digest = build.sha(archive.read_bytes())
+            source = {'id': 'xiaocheng-lafeng', 'url': None, 'sourceRevision': 'fixture',
+                      'sha256': digest, 'bytes': archive.stat().st_size, 'filename': 'original.zip',
+                      'archiveMember': 'font.ttf', 'fontSha256': build.sha(payload), 'fontBytes': len(payload),
+                      'license': 'LicenseRef-ProjectAuthorization', 'licenseMember': 'author.txt',
+                      'licenseSha256': build.sha(author), 'deliveryMode': 'original',
+                      'additionalLicenseMembers': [{'member': '字体授权说明.txt', 'sha256': build.sha(notice)}]}
+            budget = {'kind': 'original-source', 'assetSha256': build.sha(payload),
+                      'assetBytes': len(payload), 'additionalSessionBytes': len(payload)}
+            with patch.multiple(build, ORIGINAL_SHA=build.sha(payload), ORIGINAL_BYTES=len(payload),
+                                ORIGINAL_ARCHIVE_SHA=digest, ORIGINAL_LICENSE_SHA=build.sha(author),
+                                ORIGINAL_NOTICE_SHA=build.sha(notice), ORIGINAL_BUDGET=budget), \
+                 patch.object(build, 'subset_font', side_effect=AssertionError('must not subset')), \
+                 patch.object(build, 'rename', side_effect=AssertionError('must not rename')), \
+                 patch.object(build, 'repair_layout_header', side_effect=AssertionError('must not repair')), \
+                 patch.object(TTFont, 'save', side_effect=AssertionError('must not reserialize')), \
+                 patch.dict(build.LIMITS, maxAssetBytes=8):
+                family = build.build_family(source, {'name': '原件测试', 'designLanguage': 'zh'}, root, root, root, False)
+                shard = family['shards'][0]
+                self.assertEqual(shard['web'], shard['mobile'])
+                self.assertEqual((root / shard['web']['path']).read_bytes(), payload)
+                self.assertEqual(family['budgetException'], budget)
+                self.assertEqual(len(family['notices']), 3)
+                build.verify_bundle({'fonts': [family]}, root)
+                for change in ({'id': 'other'}, {'fontBytes': len(payload) + 1}, {'license': 'OFL-1.1'}):
+                    with self.assertRaisesRegex(ValueError, 'original_source'):
+                        build.validate_source_policy({**source, **change}, payload, author, TTFont(io.BytesIO(payload)))
+                with self.assertRaisesRegex(ValueError, 'original_asset_identity'):
+                    build.asset(root, payload + b'changed', 'ttf', original=True)
+                with self.assertRaisesRegex(ValueError, 'asset_budget_exceeded'):
+                    build.asset(root, payload, 'ttf')
+                family['budgetException']['additionalSessionBytes'] += 1
+                with self.assertRaisesRegex(ValueError, 'original_manifest_identity'):
+                    build.verify_bundle({'fonts': [family]}, root)
+
+    def test_apache_and_variable_sources_require_reviewed_identities(self):
+        payload = fixture_font(); font = TTFont(io.BytesIO(payload))
+        source = {'id': 'special-elite', 'license': 'Apache-2.0', 'sourceRevision': build.GOOGLE_REVISION}
+        with self.assertRaisesRegex(ValueError, 'apache_source_requires_exact'):
+            build.validate_source_policy(source, payload, b'Apache License', font)
+        source = {'id': 'other-variable', 'license': 'OFL-1.1', 'instance': {'wght': 400}}
+        with self.assertRaisesRegex(ValueError, 'instance_requires_reviewed_source'):
+            build.validate_source_policy(source, payload, b'SIL OPEN FONT LICENSE Version 1.1', font)
+        with self.assertRaisesRegex(ValueError, 'instance_on_static_source'):
+            build.subset_font(payload, {ord('A')}, 'WYF1-fixture-core', {'wght': 400})
+
     def test_catalog_refresh_keeps_assets_immutable_and_checks_source_identity(self):
         source = {'id': 'fixture', 'status': 'locked', 'sha256': 'a' * 64,
                   'bytes': 123, 'sourceRevision': 'v1', 'license': 'OFL-1.1', 'licenseSha256': 'b' * 64}

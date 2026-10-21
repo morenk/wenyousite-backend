@@ -3,7 +3,7 @@
 ## 5.41.0-dev.20261021.2
 
 - 字体目录 1.1.0 调整为 29 款（中文 13／日文 10／英文 6），新增 `designLanguage`；移除未发布的小薇候选。
-- manifest 增加 `deliveryMode` 与仅限小城固定原 TTF 的 `budgetException`，通用预算不变；明确 Apache-2.0 与项目授权路径。此提交先同步 schema，新增资产状态随后由构建验证更新。
+- manifest 增加 `deliveryMode` 与仅限小城固定原 TTF 的 `budgetException`，通用预算不变；明确 Apache-2.0 与项目授权路径。28 款资产已构建并核验；唯一待源为怪盗予告黑体。
 
 
 ## 5.41.0-dev.20261021.1

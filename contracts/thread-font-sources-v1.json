@@ -265,11 +265,31 @@
     {
       "id": "xiaocheng-lafeng",
       "name": "小城拉风体",
-      "status": "pendingSource",
+      "status": "locked",
+      "sourceRevision": "sha256:3e19e13c7d80791ab115aae8c27f3713d6a20160b2261b91b7971fab77f24888",
+      "url": null,
+      "filename": "xiaocheng-lafeng.zip",
+      "sha256": "3e19e13c7d80791ab115aae8c27f3713d6a20160b2261b91b7971fab77f24888",
+      "bytes": 10741061,
+      "archiveMember": "小城拉风体/小城拉风体.ttf",
+      "fontSha256": "cf4a4215e562d6de6e3ee88f25fc5d47d77668d28eb3a0f2533c7290de307423",
+      "fontBytes": 18410600,
       "license": "LicenseRef-ProjectAuthorization",
-      "licenseEvidence": "负责人本轮确认已取得本项目使用授权；非OFL，未虚构独立授权文书；未明确字体修改权，保留原字库原格式，不进入OFL派生路径。",
-      "referencePage": "https://www.maoken.com/freefonts/27663.html",
-      "pendingReason": "original-font-received-distribution-pipeline-not-yet-integrated"
+      "licenseMember": "小城拉风体/字体授权说明.txt",
+      "licenseSha256": "d77bc7a22c1b42ec08c1d9b6dec046d7e6755c46da962a211e23867c0bdcb313",
+      "additionalLicenseMembers": [
+        {
+          "member": "字体授权说明.txt",
+          "sha256": "3c824e0c8b47590f6e7b1b7be39b96c6c1e728c553f87e18c0b4cf2ed8e0934f"
+        }
+      ],
+      "deliveryMode": "original",
+      "expectedCoverage": {
+        "ascii": 93,
+        "gb2312": 6763
+      },
+      "licenseEvidence": "负责人确认已取得本项目使用授权；保留包内两份许可原文，非OFL，不虚构授权文书；仅分发原字节，不推定修改、拆分或转换权。",
+      "referencePage": "https://www.maoken.com/freefonts/27663.html"
     },
     {
       "id": "jf-zsk-seal",
@@ -305,175 +325,202 @@
       "licenseSha256": null,
       "status": "pendingSource",
       "license": "OFL-1.1",
-      "pendingReason": "awaiting-fixed-build-inputs"
+      "pendingReason": "awaiting-user-provided-official-archive"
     },
     {
       "id": "yuji-boku",
       "name": "Yuji Boku",
+      "status": "locked",
       "sourceRevision": "47d54ca1ebb14fd864695f1d39dc734f39017c33",
-      "url": null,
-      "officialPage": "https://github.com/google/fonts/tree/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/yujiboku",
-      "sha256": null,
-      "bytes": null,
-      "licenseUrl": null,
-      "licenseSha256": null,
-      "status": "pendingSource",
+      "url": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/yujiboku/YujiBoku-Regular.ttf",
+      "sha256": "94fda16384f3bdac24376a000c57e99abfa314961bd89ef27badfb7410322003",
+      "bytes": 8525588,
       "license": "OFL-1.1",
-      "pendingReason": "awaiting-fixed-build-inputs"
+      "licenseUrl": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/yujiboku/OFL.txt",
+      "licenseSha256": "ef7c85c72ae94381c8bc4832ae4e6fbabdeafa2bb8a31313cd75dce95a690256",
+      "expectedCoverage": {
+        "ascii": 95,
+        "gb2312": 3396
+      }
     },
     {
       "id": "dotgothic16",
       "name": "DotGothic16",
+      "status": "locked",
       "sourceRevision": "47d54ca1ebb14fd864695f1d39dc734f39017c33",
-      "url": null,
-      "officialPage": "https://github.com/google/fonts/tree/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/dotgothic16",
-      "sha256": null,
-      "bytes": null,
-      "licenseUrl": null,
-      "licenseSha256": null,
-      "status": "pendingSource",
+      "url": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/dotgothic16/DotGothic16-Regular.ttf",
+      "sha256": "3ad9af88726d42b40f7f365f0dcac785af73cf20ea6f1d5b44e57cc21150b8f1",
+      "bytes": 2069236,
       "license": "OFL-1.1",
-      "pendingReason": "awaiting-fixed-build-inputs"
+      "licenseUrl": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/dotgothic16/OFL.txt",
+      "licenseSha256": "b6630c61ea078cacd7fabe37d14ffe557a0b45b06683374a9aa9e24262993e33",
+      "expectedCoverage": {
+        "ascii": 95,
+        "gb2312": 3385
+      }
     },
     {
       "id": "hachi-maru-pop",
       "name": "Hachi Maru Pop",
+      "status": "locked",
       "sourceRevision": "47d54ca1ebb14fd864695f1d39dc734f39017c33",
-      "url": null,
-      "officialPage": "https://github.com/google/fonts/tree/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/hachimarupop",
-      "sha256": null,
-      "bytes": null,
-      "licenseUrl": null,
-      "licenseSha256": null,
-      "status": "pendingSource",
+      "url": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/hachimarupop/HachiMaruPop-Regular.ttf",
+      "sha256": "78408910c8f1a2f174a279cbc1484b48b71780039eba3fe1be2bfcc5d4df3f98",
+      "bytes": 4385624,
       "license": "OFL-1.1",
-      "pendingReason": "awaiting-fixed-build-inputs"
+      "licenseUrl": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/hachimarupop/OFL.txt",
+      "licenseSha256": "8d3c434650e84f42ddb33e9b5929089ea51c39b231b798dacb33087d5f05d9f1",
+      "expectedCoverage": {
+        "ascii": 95,
+        "gb2312": 3378
+      }
     },
     {
       "id": "reggae-one",
       "name": "Reggae One",
+      "status": "locked",
       "sourceRevision": "47d54ca1ebb14fd864695f1d39dc734f39017c33",
-      "url": null,
-      "officialPage": "https://github.com/google/fonts/tree/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/reggaeone",
-      "sha256": null,
-      "bytes": null,
-      "licenseUrl": null,
-      "licenseSha256": null,
-      "status": "pendingSource",
+      "url": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/reggaeone/ReggaeOne-Regular.ttf",
+      "sha256": "aebe62598732d76036f30ec11bb0ec5f68938e373a06d1b4ceb6b9cf1abf3db2",
+      "bytes": 2153256,
       "license": "OFL-1.1",
-      "pendingReason": "awaiting-fixed-build-inputs"
+      "licenseUrl": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/reggaeone/OFL.txt",
+      "licenseSha256": "2756c3dcd85ad997b742330f91332fb478afad302708d4149f7bcd4600543ce2",
+      "expectedCoverage": {
+        "ascii": 95,
+        "gb2312": 3385
+      }
     },
     {
       "id": "train-one",
       "name": "Train One",
+      "status": "locked",
       "sourceRevision": "47d54ca1ebb14fd864695f1d39dc734f39017c33",
-      "url": null,
-      "officialPage": "https://github.com/google/fonts/tree/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/trainone",
-      "sha256": null,
-      "bytes": null,
-      "licenseUrl": null,
-      "licenseSha256": null,
-      "status": "pendingSource",
+      "url": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/trainone/TrainOne-Regular.ttf",
+      "sha256": "07d67ad14231a4a41f0ee501b14bd6f9c7a9beada5ee6af2924114863a034623",
+      "bytes": 2152516,
       "license": "OFL-1.1",
-      "pendingReason": "awaiting-fixed-build-inputs"
+      "licenseUrl": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/trainone/OFL.txt",
+      "licenseSha256": "709f9689eabbab61e913ddc288187e7e3d09550339f7df894a909548f90af814",
+      "expectedCoverage": {
+        "ascii": 95,
+        "gb2312": 1881
+      }
     },
     {
       "id": "rampart-one",
       "name": "Rampart One",
+      "status": "locked",
       "sourceRevision": "47d54ca1ebb14fd864695f1d39dc734f39017c33",
-      "url": null,
-      "officialPage": "https://github.com/google/fonts/tree/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/rampartone",
-      "sha256": null,
-      "bytes": null,
-      "licenseUrl": null,
-      "licenseSha256": null,
-      "status": "pendingSource",
+      "url": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/rampartone/RampartOne-Regular.ttf",
+      "sha256": "a4c60ee835175fa147eb483fac0dd8ff9007c37884ef77af86b0a868fa554d49",
+      "bytes": 3722352,
       "license": "OFL-1.1",
-      "pendingReason": "awaiting-fixed-build-inputs"
+      "licenseUrl": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/rampartone/OFL.txt",
+      "licenseSha256": "1286896706738557c1fb98f0f66006d4ca675e475d681ca85976fd0da9daa353",
+      "expectedCoverage": {
+        "ascii": 95,
+        "gb2312": 3385
+      }
     },
     {
       "id": "unifraktur-cook",
       "name": "UnifrakturCook",
+      "status": "locked",
       "sourceRevision": "47d54ca1ebb14fd864695f1d39dc734f39017c33",
-      "url": null,
-      "officialPage": "https://github.com/google/fonts/tree/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/unifrakturcook",
-      "sha256": null,
-      "bytes": null,
-      "licenseUrl": null,
-      "licenseSha256": null,
-      "status": "pendingSource",
+      "url": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/unifrakturcook/UnifrakturCook-Bold.ttf",
+      "sha256": "ea002fa9c65f1a612af100e00d87ab65f16381f450020ec3d021f3dbf79a6dcd",
+      "bytes": 42688,
       "license": "OFL-1.1",
-      "pendingReason": "awaiting-fixed-build-inputs"
+      "licenseUrl": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/unifrakturcook/OFL.txt",
+      "licenseSha256": "99d2f30e282d6174af8ff68597f58bb53c0dcb2b104a4c1b8d19da49021d00d3",
+      "expectedCoverage": {
+        "ascii": 95,
+        "gb2312": 0
+      }
     },
     {
       "id": "great-vibes",
       "name": "Great Vibes",
+      "status": "locked",
       "sourceRevision": "47d54ca1ebb14fd864695f1d39dc734f39017c33",
-      "url": null,
-      "officialPage": "https://github.com/google/fonts/tree/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/greatvibes",
-      "sha256": null,
-      "bytes": null,
-      "licenseUrl": null,
-      "licenseSha256": null,
-      "status": "pendingSource",
+      "url": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/greatvibes/GreatVibes-Regular.ttf",
+      "sha256": "8d509802186f1b51572531ecf313e8098f9a5bfdfaca93f0c9b34467f9982d15",
+      "bytes": 457588,
       "license": "OFL-1.1",
-      "pendingReason": "awaiting-fixed-build-inputs"
+      "licenseUrl": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/greatvibes/OFL.txt",
+      "licenseSha256": "61093a21f5e63dedf54222b3c09997e54c0fe43e3851d21386e02ddcbc246d49",
+      "expectedCoverage": {
+        "ascii": 95,
+        "gb2312": 0
+      }
     },
     {
       "id": "special-elite",
       "name": "Special Elite",
+      "status": "locked",
       "sourceRevision": "47d54ca1ebb14fd864695f1d39dc734f39017c33",
-      "url": null,
-      "officialPage": "https://github.com/google/fonts/tree/47d54ca1ebb14fd864695f1d39dc734f39017c33/apache/specialelite",
-      "sha256": null,
-      "bytes": null,
-      "licenseUrl": null,
-      "licenseSha256": null,
-      "status": "pendingSource",
+      "url": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/apache/specialelite/SpecialElite-Regular.ttf",
+      "sha256": "a776fcb4ceb8bdf03e2967688ebdad42680de5b91a7e62c17e718ae212d14bc4",
+      "bytes": 166180,
       "license": "Apache-2.0",
-      "pendingReason": "awaiting-fixed-build-inputs"
+      "licenseUrl": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/apache/specialelite/LICENSE.txt",
+      "licenseSha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "expectedCoverage": {
+        "ascii": 95,
+        "gb2312": 0
+      }
     },
     {
       "id": "monoton",
       "name": "Monoton",
+      "status": "locked",
       "sourceRevision": "47d54ca1ebb14fd864695f1d39dc734f39017c33",
-      "url": null,
-      "officialPage": "https://github.com/google/fonts/tree/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/monoton",
-      "sha256": null,
-      "bytes": null,
-      "licenseUrl": null,
-      "licenseSha256": null,
-      "status": "pendingSource",
+      "url": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/monoton/Monoton-Regular.ttf",
+      "sha256": "951c4cea65ffede784a7c9672feec5d329a7e1e12216c42d53ecf36c90d04dea",
+      "bytes": 51604,
       "license": "OFL-1.1",
-      "pendingReason": "awaiting-fixed-build-inputs"
+      "licenseUrl": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/monoton/OFL.txt",
+      "licenseSha256": "585c6d2da8bcd8ffa651e0016f2e992a6891b625143a46a1dacf00699a817d9a",
+      "expectedCoverage": {
+        "ascii": 95,
+        "gb2312": 0
+      }
     },
     {
       "id": "orbitron",
       "name": "Orbitron",
+      "status": "locked",
       "sourceRevision": "47d54ca1ebb14fd864695f1d39dc734f39017c33",
-      "url": null,
-      "officialPage": "https://github.com/google/fonts/tree/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/orbitron",
-      "sha256": null,
-      "bytes": null,
-      "licenseUrl": null,
-      "licenseSha256": null,
-      "status": "pendingSource",
+      "url": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/orbitron/Orbitron%5Bwght%5D.ttf",
+      "sha256": "f42db2dd16e642258e35782916eceb1dcdbea06fb958d77ad71dc5963587e8fd",
+      "bytes": 38576,
       "license": "OFL-1.1",
-      "pendingReason": "awaiting-fixed-build-inputs"
+      "licenseUrl": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/orbitron/OFL.txt",
+      "licenseSha256": "ab609b0e110d622435ff337cdf233288556e011bbf9bd0550be98846c0630819",
+      "expectedCoverage": {
+        "ascii": 94,
+        "gb2312": 0
+      },
+      "instance": {
+        "wght": 400
+      }
     },
     {
       "id": "rye",
       "name": "Rye",
+      "status": "locked",
       "sourceRevision": "47d54ca1ebb14fd864695f1d39dc734f39017c33",
-      "url": null,
-      "officialPage": "https://github.com/google/fonts/tree/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/rye",
-      "sha256": null,
-      "bytes": null,
-      "licenseUrl": null,
-      "licenseSha256": null,
-      "status": "pendingSource",
+      "url": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/rye/Rye-Regular.ttf",
+      "sha256": "b7edee5e615ae1b6b07e9d030c1309152bf3672a0e8a2a46293e273730f5adba",
+      "bytes": 183244,
       "license": "OFL-1.1",
-      "pendingReason": "awaiting-fixed-build-inputs"
+      "licenseUrl": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/rye/OFL.txt",
+      "licenseSha256": "399b33eb38cdfc76b8665defa5f81d52e8193d630ad5858c893db6bc20031bc9",
+      "expectedCoverage": {
+        "ascii": 95,
+        "gb2312": 0
+      }
     }
   ]
 }

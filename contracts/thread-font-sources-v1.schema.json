@@ -407,6 +407,55 @@
               },
               "type": "object"
             }
+          },
+          {
+            "if": {
+              "required": [
+                "deliveryMode"
+              ],
+              "properties": {
+                "deliveryMode": {
+                  "const": "original"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "license"
+              ],
+              "properties": {
+                "license": {
+                  "const": "LicenseRef-ProjectAuthorization"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "locked"
+                }
+              },
+              "not": {
+                "required": [
+                  "deliveryMode"
+                ],
+                "properties": {
+                  "deliveryMode": {
+                    "const": "original"
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https://"
+                }
+              }
+            }
           }
         ]
       }

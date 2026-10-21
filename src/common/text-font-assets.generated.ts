@@ -2,9 +2,9 @@
 export const TEXT_FONT_ASSET_INDEX = {
   "catalogVersion": "1.1.0",
   "manifest": {
-    "path": "fonts/v1/bfccb45122a4d74994879507e8867958be5c83fb78b044fa371ee69f53058f20.json",
-    "sha256": "bfccb45122a4d74994879507e8867958be5c83fb78b044fa371ee69f53058f20",
-    "bytes": 3080123
+    "path": "fonts/v1/e793a3f4674a85840c8da2cd2a5c53f8af62c3c6256a951d269875f4cba2f1e6.json",
+    "sha256": "e793a3f4674a85840c8da2cd2a5c53f8af62c3c6256a951d269875f4cba2f1e6",
+    "bytes": 4802519
   },
   "fonts": [
     {
@@ -95,7 +95,7 @@ export const TEXT_FONT_ASSET_INDEX = {
       "id": "xiaocheng-lafeng",
       "name": "小城拉风体",
       "designLanguage": "zh",
-      "availability": "pendingSource"
+      "availability": "ready"
     },
     {
       "id": "jf-zsk-seal",
@@ -113,73 +113,73 @@ export const TEXT_FONT_ASSET_INDEX = {
       "id": "yuji-boku",
       "name": "Yuji Boku",
       "designLanguage": "ja",
-      "availability": "pendingSource"
+      "availability": "ready"
     },
     {
       "id": "dotgothic16",
       "name": "DotGothic16",
       "designLanguage": "ja",
-      "availability": "pendingSource"
+      "availability": "ready"
     },
     {
       "id": "hachi-maru-pop",
       "name": "Hachi Maru Pop",
       "designLanguage": "ja",
-      "availability": "pendingSource"
+      "availability": "ready"
     },
     {
       "id": "reggae-one",
       "name": "Reggae One",
       "designLanguage": "ja",
-      "availability": "pendingSource"
+      "availability": "ready"
     },
     {
       "id": "train-one",
       "name": "Train One",
       "designLanguage": "ja",
-      "availability": "pendingSource"
+      "availability": "ready"
     },
     {
       "id": "rampart-one",
       "name": "Rampart One",
       "designLanguage": "ja",
-      "availability": "pendingSource"
+      "availability": "ready"
     },
     {
       "id": "unifraktur-cook",
-      "name": "UnifrakturCook",
+      "name": "古典哥特",
       "designLanguage": "en",
-      "availability": "pendingSource"
+      "availability": "ready"
     },
     {
       "id": "great-vibes",
       "name": "Great Vibes",
       "designLanguage": "en",
-      "availability": "pendingSource"
+      "availability": "ready"
     },
     {
       "id": "special-elite",
       "name": "Special Elite",
       "designLanguage": "en",
-      "availability": "pendingSource"
+      "availability": "ready"
     },
     {
       "id": "monoton",
-      "name": "Monoton",
+      "name": "复古线体",
       "designLanguage": "en",
-      "availability": "pendingSource"
+      "availability": "ready"
     },
     {
       "id": "orbitron",
-      "name": "Orbitron",
+      "name": "星际几何",
       "designLanguage": "en",
-      "availability": "pendingSource"
+      "availability": "ready"
     },
     {
       "id": "rye",
-      "name": "Rye",
+      "name": "西部衬线",
       "designLanguage": "en",
-      "availability": "pendingSource"
+      "availability": "ready"
     }
   ],
   "limits": {

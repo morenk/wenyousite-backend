@@ -19,6 +19,30 @@ for (const [name, value] of [['catalog', catalog], ['manifest', manifest], ['sou
   const validate = ajv.compile(json(`contracts/thread-font-${name}-v1.schema.json`));
   assert(validate(value), `${name}: ${ajv.errorsText(validate.errors)}`);
 }
+// 有界例外必须拒绝换源、换身份和放大额度；分类也不能靠未知字符串绕过。
+const validateManifest = ajv.getSchema(json('contracts/thread-font-manifest-v1.schema.json').$id);
+const originalPosition = manifest.fonts.findIndex((font) => font.deliveryMode === 'original');
+if (originalPosition >= 0) {
+  const invalidChanges = [
+    (font) => { font.id = 'other'; },
+    (font) => { font.budgetException.assetSha256 = '0'.repeat(64); },
+    (font) => { font.budgetException.additionalSessionBytes += 1; },
+    (font) => { font.shards[0].web.bytes += 1; },
+    (font) => { font.shards[0].web.format = 'woff2'; },
+    (font) => { delete font.budgetException; },
+    (font) => { font.license = 'OFL-1.1'; },
+    (font) => { font.deliveryMode = 'unknown'; },
+    (font) => { font.designLanguage = 'unknown'; },
+  ];
+  for (const mutate of invalidChanges) {
+    const changed = structuredClone(manifest);
+    mutate(changed.fonts[originalPosition]);
+    assert(!validateManifest(changed), 'invalid original exception accepted');
+  }
+  const changed = structuredClone(manifest);
+  changed.fonts.find((font) => font.deliveryMode === 'subset').budgetException = changed.fonts[originalPosition].budgetException;
+  assert(!validateManifest(changed), 'original allowance transferable to subsets');
+}
 const generated = read('src/common/text-font-assets.generated.ts').toString();
 const match = generated.match(/export const TEXT_FONT_ASSET_INDEX\s*=\s*([\s\S]+?)\s+as const;/);
 assert(match, 'generated index missing');
@@ -62,6 +86,17 @@ for (let position = 0; position < ids.length; position += 1) {
   assert.equal(font.baseWeight, 400);
   assert.equal(font.baseStyle, 'normal');
   assert.equal(font.fontSha256, source.fontSha256 || source.sha256);
+  assert.equal(font.license, source.license);
+  assert.equal(font.deliveryMode, source.deliveryMode || 'subset');
+  assert.deepEqual(font.instance, source.instance);
+  const original = font.deliveryMode === 'original';
+  if (original) {
+    assert.equal(font.id, 'xiaocheng-lafeng');
+    assert.equal(font.shards.length, 1);
+    assert.deepEqual(font.shards[0].web, font.shards[0].mobile);
+    assert.equal(font.budgetException.assetSha256, font.fontSha256);
+    assert.equal(font.budgetException.assetBytes, source.fontBytes);
+  } else assert.equal(font.budgetException, undefined);
   assert(font.coverage.ascii.present <= 95);
   assert.equal(font.coverage.ascii.total, 95);
   assert.equal(font.coverage.gb2312.total, 6763);
@@ -79,16 +114,22 @@ for (let position = 0; position < ids.length; position += 1) {
       }
     }
     assert.equal(count, shard.codepointCount);
-    assert.equal(shard.web.format, 'woff2');
+    assert.equal(shard.web.format, original ? 'ttf' : 'woff2');
     assert(['ttf', 'otf'].includes(shard.mobile.format));
     for (const asset of [shard.web, shard.mobile]) {
-      checkAsset(asset); assert(asset.bytes <= manifest.limits.maxAssetBytes);
+      checkAsset(asset);
+      if (original) {
+        assert.equal(asset.sha256, font.budgetException.assetSha256);
+        assert.equal(asset.bytes, font.budgetException.assetBytes);
+      } else assert(asset.bytes <= manifest.limits.maxAssetBytes);
     }
   }
   assert.equal(covered.size, font.coverage.totalCodepoints);
   assert.equal(font.totalWebBytes, font.shards.reduce((sum, shard) => sum + shard.web.bytes, 0));
   assert.equal(font.totalMobileBytes, font.shards.reduce((sum, shard) => sum + shard.mobile.bytes, 0));
-  assert(font.notices.some((notice) => notice.kind === 'license'));
+  assert(font.notices.some((notice) => notice.kind === 'license' && notice.sha256 === source.licenseSha256));
+  for (const extra of source.additionalLicenseMembers || [])
+    assert(font.notices.some((notice) => notice.kind === 'source-notice' && notice.sha256 === extra.sha256));
   assert(font.notices.some((notice) => notice.kind === 'attribution'));
   for (const notice of font.notices) checkAsset(notice);
 }

@@ -610,10 +610,32 @@
           }
         },
         "web": {
-          "$ref": "#/$defs/asset"
+          "allOf": [
+            {
+              "$ref": "#/$defs/asset"
+            },
+            {
+              "type": "object",
+              "required": [
+                "format",
+                "contentType"
+              ]
+            }
+          ]
         },
         "mobile": {
-          "$ref": "#/$defs/asset"
+          "allOf": [
+            {
+              "$ref": "#/$defs/asset"
+            },
+            {
+              "type": "object",
+              "required": [
+                "format",
+                "contentType"
+              ]
+            }
+          ]
         }
       },
       "required": [
