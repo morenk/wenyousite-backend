@@ -33,7 +33,7 @@ export class MediaDisplayInterceptor implements NestInterceptor {
         subthreadId: params?.subthreadId, postId: params?.postId ?? params?.id,
         currentUsers: threadDetail || /members|authors/.test(route), viewerId: req.user?.id, markdownContractVersion: req.headers['x-markdown-contract-version'] === '6' ? 6 : undefined };
       await this.identities.project(raw instanceof PaginatedResult ? raw.items : raw, identityContext);
-      if (isTextColorResponseRoute(route)) projectTextFonts(raw instanceof PaginatedResult ? raw.items : raw, req.headers['x-text-font-version'] === '1' ? 1 : undefined);
+      if (isTextColorResponseRoute(route)) projectTextFonts(raw instanceof PaginatedResult ? raw.items : raw, req.headers['x-text-font-version'] === '2' ? 2 : req.headers['x-text-font-version'] === '1' ? 1 : undefined);
       if (isTextColorResponseRoute(route)) projectTextColors(raw instanceof PaginatedResult ? raw.items : raw, req.headers['x-text-color-version'] === '1' ? 1 : undefined);
       if (raw instanceof PaginatedResult) {
         return new PaginatedResult(await this.projection.project(sanitizePublicUserSummaries(raw.items)), raw.pagination);

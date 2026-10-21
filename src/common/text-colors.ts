@@ -11,9 +11,20 @@ import { maskMentionCode, parseMentionSources } from './role-mentions';
 export const TEXT_COLOR_VERSION = 1;
 export const TEXT_COLOR_HEADER = 'X-Text-Color-Version';
 export const TEXT_FONT_VERSION = 1;
+export const TEXT_FONT_V2_VERSION = 2;
 export const TEXT_FONT_HEADER = 'X-Text-Font-Version';
-const STYLE_ATTRIBUTE = / data-wenyou-(color|font)-v1="([^"<>]*)"/gu;
-type Style = { color?: string; fontId?: string };
+const STYLE_ATTRIBUTE = / data-wenyou-(color-v1|font-v1|font-v2)="([^"<>]*)"/gu;
+type Style = { color?: string; fontId?: string; fontVersion?: 2 };
+type RemoveStyle = 'color' | 'font' | 'font-v2' | 'all';
+function withoutStyle(style: Style, remove: RemoveStyle): Style {
+  const copy = { ...style };
+  if (remove === 'color' || remove === 'all') delete copy.color;
+  if (remove === 'font' || remove === 'all' || (remove === 'font-v2' && copy.fontVersion === 2)) {
+    delete copy.fontId;
+    delete copy.fontVersion;
+  }
+  return copy;
+}
 function opening(tag: string): Style | undefined {
   if (!tag.startsWith('<span ') || !tag.endsWith('>')) return;
   const attributes = tag.slice(5, -1);
@@ -21,12 +32,14 @@ function opening(tag: string): Style | undefined {
   if (!matches.length || matches.map((match) => match[0]).join('') !== attributes) return;
   const result: Style = {};
   for (const match of matches) {
-    if (match[1] === 'color') {
+    if (match[1] === 'color-v1') {
       if (result.color || !/^#[0-9a-fA-F]{6}$/u.test(match[2])) return;
       result.color = match[2].toUpperCase();
     } else {
-      if (result.fontId || !/^[a-z][a-z0-9-]{0,63}$/u.test(match[2])) return;
+      const dynamic = match[1] === 'font-v2';
+      if (result.fontId || !(dynamic ? /^tfv_[a-f0-9]{32}$/u : /^[a-z][a-z0-9-]{0,63}$/u).test(match[2])) return;
       result.fontId = match[2];
+      if (dynamic) result.fontVersion = 2;
     }
   }
   return result;
@@ -34,7 +47,7 @@ function opening(tag: string): Style | undefined {
 function openingTag(style: Style): string {
   return (
     '<span' +
-    (style.fontId ? ` data-wenyou-font-v1="${style.fontId}"` : '') +
+    (style.fontId ? ` data-wenyou-font-v${style.fontVersion ?? 1}="${style.fontId}"` : '') +
     (style.color ? ` data-wenyou-color-v1="${style.color}"` : '') +
     '>'
   );
@@ -61,6 +74,7 @@ export interface TextStyleRange {
   contentEnd: number;
   color?: string;
   fontId?: string;
+  fontVersion?: 2;
   content: string;
 }
 function invalid(font = false): never {
@@ -157,7 +171,7 @@ export function parseTextStyles(source: string, strict = false): TextStyleRange[
       const position = absolute(token.meta.sourceStart as number);
       const open = opening(token.content);
       if (open) {
-        if (active || token.level !== 0 || (strict && open.fontId && !isTextFontId(open.fontId))) {
+        if (active || token.level !== 0 || (strict && open.fontId && open.fontVersion !== 2 && !isTextFontId(open.fontId))) {
           fail();
           active = undefined;
           continue;
@@ -223,7 +237,7 @@ const escapeTitle = (value: string) =>
     )
     .join('');
 /** 将内联 token 转回安全 Markdown，避免去掉 span 后把字面 #、>、* 等激活为语法。 */
-function fallbackInline(content: string, remove: 'color' | 'font' | 'all'): string {
+function fallbackInline(content: string, remove: RemoveStyle): string {
   let marker = '\uE090';
   while (content.includes(marker)) marker += '\uE090';
   const atoms = parseMentionSources(content).map(({ start, end }) => ({ start, end }));
@@ -248,10 +262,9 @@ function fallbackInline(content: string, remove: 'color' | 'font' | 'all'): stri
   let retained = false;
   const children = (parser.parseInline(protectedContent, {})[0].children ?? []).filter((token) => {
     if (token.type !== 'html_inline') return true;
-    const style = opening(token.content);
-    if (style) {
-      if (remove === 'color' || remove === 'all') delete style.color;
-      if (remove === 'font' || remove === 'all') delete style.fontId;
+    const originalStyle = opening(token.content);
+    if (originalStyle) {
+      const style = withoutStyle(originalStyle, remove);
       retained = !!(style.color || style.fontId);
       if (retained) token.content = openingTag(style);
       return retained;
@@ -343,19 +356,19 @@ function fallbackInline(content: string, remove: 'color' | 'font' | 'all'): stri
   return output;
 }
 /** 整个内联流去除样式后重序列化，避免 span 边界移除后合并分隔符造成格式损失。 */
-export function stripTextStyles(source: string, remove: 'color' | 'font' | 'all' = 'all'): string {
+export function stripTextStyles(source: string, remove: RemoveStyle = 'all'): string {
   const ranges = parseTextStyles(source).filter(
-    (range) => remove === 'all' || (remove === 'font' ? range.fontId : range.color),
+    (range) => remove === 'all' || (remove === 'font-v2' ? range.fontVersion === 2 : remove === 'font' ? range.fontId : range.color),
   );
   if (!ranges.length) return source;
   // 仍保留另一种样式时边界没有消失，仅替换开标签，保持内部字面标点原样。
   if (
     remove !== 'all' &&
-    ranges.every((range) => (remove === 'font' ? range.color : range.fontId))
+    ranges.every((range) => { const retained = withoutStyle(range, remove); return retained.color || retained.fontId; })
   ) {
     let output = source;
     for (const range of ranges.toReversed()) {
-      const style = remove === 'font' ? { color: range.color } : { fontId: range.fontId };
+      const style = withoutStyle(range, remove);
       output = output.slice(0, range.start) + openingTag(style) + output.slice(range.contentStart);
     }
     return output;
@@ -466,8 +479,8 @@ export function assertTextColorWrite(
     saved.set(key, count - 1);
   }
 }
-function requireTextFontCapability(version?: number): void {
-  if (version !== TEXT_FONT_VERSION)
+function requireTextFontCapability(version: number | undefined, dynamic = false): void {
+  if (version !== 2 && (dynamic || version !== TEXT_FONT_VERSION))
     throw new BusinessException(
       ErrorCode.TEXT_FONT_CAPABILITY_REQUIRED,
       '正文包含自定义字体，请保留草稿并升级编辑器',
@@ -475,25 +488,30 @@ function requireTextFontCapability(version?: number): void {
     );
 }
 export function assertTextFontCapability(content: string, version?: number): void {
-  if (parseTextFonts(content, true).length) requireTextFontCapability(version);
+  const ranges = parseTextFonts(content, true);
+  if (ranges.length) requireTextFontCapability(version, ranges.some((range) => range.fontVersion === 2));
 }
 export function assertTextFontWrite(
   content: string,
   previous = '',
   version?: number,
   enabled = false,
+  allowedDynamicVersions: ReadonlySet<string> = new Set(),
 ): void {
   const next = parseTextFonts(content, true),
     old = parseTextFonts(previous);
   if (!next.length && !old.length) return;
-  requireTextFontCapability(version);
-  if (enabled && next.every((range) => isTextFontSourceReady(range.fontId))) return;
+  requireTextFontCapability(version, [...next, ...old].some((range) => range.fontVersion === 2));
+  const writable = (range: TextFontRange) => range.fontVersion === 2
+    ? allowedDynamicVersions.has(range.fontId)
+    : enabled && isTextFontSourceReady(range.fontId);
+  if (next.every(writable)) return;
   const signatures = (ranges: TextFontRange[]) =>
-    colorSignatures(ranges.map((range) => ({ ...range, color: range.fontId })));
+    colorSignatures(ranges.map((range) => ({ ...range, color: `v${range.fontVersion ?? 1}:${range.fontId}` })));
   const saved = new Map<string, number>();
   for (const key of signatures(old)) saved.set(key, (saved.get(key) ?? 0) + 1);
   for (const key of signatures(
-    next.filter((range) => !enabled || !isTextFontSourceReady(range.fontId)),
+    next.filter((range) => !writable(range)),
   )) {
     const count = saved.get(key) ?? 0;
     if (!count)
@@ -506,7 +524,7 @@ export function assertTextFontWrite(
   }
 }
 export function projectTextFonts(value: unknown, version?: number): void {
-  if (version === TEXT_FONT_VERSION || value === null || typeof value !== 'object') return;
+  if (version === TEXT_FONT_V2_VERSION || value === null || typeof value !== 'object') return;
   if (Array.isArray(value)) {
     value.forEach((item) => projectTextFonts(item, version));
     return;
@@ -514,7 +532,7 @@ export function projectTextFonts(value: unknown, version?: number): void {
   const record = value as Record<string, unknown>;
   for (const [key, child] of Object.entries(record)) {
     if (['content', 'sourceContent', 'bodyContent'].includes(key) && typeof child === 'string')
-      record[key] = stripTextFonts(child);
+      record[key] = stripTextStyles(child, version === 1 ? 'font-v2' : 'font');
     else if (child && typeof child === 'object') projectTextFonts(child, version);
   }
 }

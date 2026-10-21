@@ -17,7 +17,7 @@ function isReferenceObject(value: object): value is ReferenceObject {
 }
 
 function applyOperationResponseHeaders(operation: OperationObject): void {
-  operation.parameters = [...(operation.parameters ?? []), { name: 'X-Markdown-Contract-Version', in: 'header', required: false, description: '声明 6 以读取原始角色提及源和稳定目标投影；省略/低版本安全降级响应副本，不能回写 v6 正文。服务端全局 Markdown 仍为 5', schema: { type: 'integer', enum: [6] } }, { name: 'X-Text-Color-Version', in: 'header', required: false, description: '声明 1 读取文本颜色原始源码；缺失只返回安全去色副本，不能覆盖彩色原文。', schema: { type: 'integer', enum: [1] } }, { name: 'X-Text-Font-Version', in: 'header', required: false, description: '声明 1 读取字体原始源码；缺失只返回安全去字体副本，不能覆盖字体原文。颜色能力单独协商。', schema: { type: 'integer', enum: [1] } }];
+  operation.parameters = [...(operation.parameters ?? []), { name: 'X-Markdown-Contract-Version', in: 'header', required: false, description: '声明 6 以读取原始角色提及源和稳定目标投影；省略/低版本安全降级响应副本，不能回写 v6 正文。服务端全局 Markdown 仍为 5', schema: { type: 'integer', enum: [6] } }, { name: 'X-Text-Color-Version', in: 'header', required: false, description: '声明 1 读取文本颜色原始源码；缺失只返回安全去色副本，不能覆盖彩色原文。', schema: { type: 'integer', enum: [1] } }, { name: 'X-Text-Font-Version', in: 'header', required: false, description: '声明 2 读取 v1/v2 混合字体源；1 仅保留 v1，缺失去除两版字体。降级副本不能覆盖未支持字体的原文。颜色能力单独协商。', schema: { type: 'integer', enum: [1, 2] } }];
   for (const [status, response] of Object.entries(operation.responses)) {
     if (!response || isReferenceObject(response)) continue;
     const responseObject = response as ResponseObject;

@@ -214,6 +214,17 @@ export const ErrorCode = {
   /** 用户内容写入被站务临时暂停 */
   CONTENT_WRITES_PAUSED: 40925,
 
+  /** 字体目录分页快照已变化，需从第一页重取 */
+  TEXT_FONT_CATALOG_CHANGED: 40927,
+  /** 字体管理修订或当前状态冲突 */
+  TEXT_FONT_STATE_CONFLICT: 40928,
+  /** 字体授权材料尚未完整确认 */
+  TEXT_FONT_RIGHTS_REQUIRED: 40929,
+  /** 字体版本已撤回，禁止下载与呈现 */
+  TEXT_FONT_WITHDRAWN: 41001,
+  /** 动态字体服务或隔离处理依赖未就绪 */
+  TEXT_FONT_UNAVAILABLE: 50301,
+
   // ── 限流 429xx ──
   /** 请求过于频繁 */
   RATE_LIMITED: 42900,

@@ -1,0 +1,279 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wenyou.site/contracts/thread-font-runtime-policy-v3.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "policyVersion",
+    "web",
+    "mobile",
+    "retry",
+    "fontVersion",
+    "metadata",
+    "diskCacheBytes"
+  ],
+  "properties": {
+    "policyVersion": {
+      "const": 3
+    },
+    "web": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "network",
+        "residency"
+      ],
+      "properties": {
+        "network": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "windowMs",
+            "maxRequests",
+            "maxBytes",
+            "maxConcurrent",
+            "timeoutMode",
+            "timeoutMs",
+            "maxTransferMs"
+          ],
+          "properties": {
+            "windowMs": {
+              "const": 60000
+            },
+            "maxRequests": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 64
+            },
+            "maxBytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 16777216
+            },
+            "maxConcurrent": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2
+            },
+            "timeoutMode": {
+              "const": "idle-with-total-cap"
+            },
+            "timeoutMs": {
+              "const": 15000
+            },
+            "maxTransferMs": {
+              "const": 600000
+            }
+          }
+        },
+        "residency": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "scope",
+            "maxFaces",
+            "maxSfntBytes"
+          ],
+          "properties": {
+            "mode": {
+              "const": "lease-lru"
+            },
+            "scope": {
+              "const": "document"
+            },
+            "maxFaces": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 64
+            },
+            "maxSfntBytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 16777216
+            }
+          }
+        }
+      }
+    },
+    "mobile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "network",
+        "registration"
+      ],
+      "properties": {
+        "network": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "windowMs",
+            "maxRequests",
+            "maxBytes",
+            "maxConcurrent",
+            "timeoutMode",
+            "timeoutMs",
+            "maxTransferMs"
+          ],
+          "properties": {
+            "windowMs": {
+              "const": 60000
+            },
+            "maxRequests": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 64
+            },
+            "maxBytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 25165824
+            },
+            "maxConcurrent": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1
+            },
+            "timeoutMode": {
+              "const": "idle-with-total-cap"
+            },
+            "timeoutMs": {
+              "const": 15000
+            },
+            "maxTransferMs": {
+              "const": 600000
+            }
+          }
+        },
+        "registration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "scope",
+            "key",
+            "maxAttemptsPerKey",
+            "failedAttempt",
+            "maxKeys",
+            "maxInputBytes"
+          ],
+          "properties": {
+            "mode": {
+              "const": "append-only"
+            },
+            "scope": {
+              "const": "engine"
+            },
+            "key": {
+              "const": "asset-sha256-and-family"
+            },
+            "maxAttemptsPerKey": {
+              "const": 1
+            },
+            "failedAttempt": {
+              "const": "quarantine-and-retain-charge"
+            },
+            "maxKeys": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1024
+            },
+            "maxInputBytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 67108864
+            }
+          }
+        }
+      }
+    },
+    "retry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "delayCeilingsMs",
+        "jitter",
+        "retryableHttpStatuses",
+        "retryNetworkErrors",
+        "retryTimeouts",
+        "respectRetryAfter"
+      ],
+      "properties": {
+        "delayCeilingsMs": {
+          "const": [
+            1000,
+            2000,
+            4000,
+            8000,
+            16000,
+            32000,
+            60000
+          ]
+        },
+        "jitter": {
+          "const": "full"
+        },
+        "retryableHttpStatuses": {
+          "const": [
+            408,
+            429,
+            500,
+            502,
+            503,
+            504
+          ]
+        },
+        "retryNetworkErrors": {
+          "const": true
+        },
+        "retryTimeouts": {
+          "const": true
+        },
+        "respectRetryAfter": {
+          "const": true
+        }
+      }
+    },
+    "fontVersion": {
+      "const": 2
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revalidateAfterMs",
+        "negativeCacheMs",
+        "reservationBytes",
+        "revalidateOnForeground",
+        "revalidateOnPickerOpen",
+        "coalesceUnknownVersions"
+      ],
+      "properties": {
+        "revalidateAfterMs": {
+          "const": 300000
+        },
+        "negativeCacheMs": {
+          "const": 30000
+        },
+        "reservationBytes": {
+          "const": 65536
+        },
+        "revalidateOnForeground": {
+          "const": true
+        },
+        "revalidateOnPickerOpen": {
+          "const": true
+        },
+        "coalesceUnknownVersions": {
+          "const": true
+        }
+      }
+    },
+    "diskCacheBytes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 67108864
+    }
+  }
+}

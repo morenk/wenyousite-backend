@@ -8,6 +8,11 @@ import { ACTIVE_MARKDOWN_CONTRACT_VERSION } from '../common/markdown-content';
 import { API_CONTRACT_VERSION } from '../common/swagger/openapi-document';
 
 class ApiCapabilitiesResponseDto {
+  @ApiPropertyOptional({ description: '支持正文 v2（同时包含 v1）和动态目录；缺失按 false。' })
+  textFontV2Supported?: boolean;
+  @ApiPropertyOptional({ description: '允许动态版本的新范围/扩写；仍须该版本 pasteAllowed。缺失按 false。' })
+  textFontV2WriteEnabled?: boolean;
+
   @ApiPropertyOptional({ description: '支持字体 v1 保源和旧端降级；缺失按 false' })
   textFontV1Supported?: boolean;
   @ApiPropertyOptional({ description: '允许新增/修改字体；关闭仍可保留或移除已有字体，缺失按 false' })
@@ -104,6 +109,8 @@ export class MetaController {
       buildSha: this.config.get<string>('app.buildSha') ?? null,
       markdownContractVersion: ACTIVE_MARKDOWN_CONTRACT_VERSION,
       capabilities: {
+        textFontV2Supported: true,
+        textFontV2WriteEnabled: false,
         textFontV1Supported: true,
         textFontV1WriteEnabled: this.config.get<boolean>('app.textFontV1Enabled') ?? false,
         textColorV1Supported: true,

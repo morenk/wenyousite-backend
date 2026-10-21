@@ -574,3 +574,7 @@ Web 与 Flutter 都应从仓库内已审核的 `contracts/openapi.json` 生成�
 ## 主题帖字体接入
 
 按 Backend 已提交 SHA 同步[字体 v1](markdown-text-font-v1.md)与固定资源目录；字体/颜色用同一受控 span，读取能力与保存 DTO 分别声明。选择器不预加载全部字库，正文仅按需获取带哈希的固定 WOFF2 分片；失败保留文字与标记。
+
+## 动态字体 v2 兼容阶段
+
+动态字体 v2 新增独立动态目录、版本描述符、运行策略 v3 和正文 `data-wenyou-font-v2`。声明 `textFontVersion:2` 包含 v1/v2 混合保源；旧客户端不能覆盖含 v2 的原文。旧 v1 目录、资源和固定 manifest 策略 v2 保留。迁移字段、状态、预算和契约阶段可用性见[动态字体协议](dynamic-text-fonts.md)。

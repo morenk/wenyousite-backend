@@ -1,0 +1,148 @@
+{
+  "mappingVersion": 1,
+  "retired": [
+    "xiaocheng-lafeng"
+  ],
+  "fonts": [
+    {
+      "legacyId": "source-han-sans",
+      "familyId": "tff_da5fc56bddfe835c3326815ab7ec6427",
+      "versionId": "tfv_854b8c85ea98ee9946ddb0242c01df3e"
+    },
+    {
+      "legacyId": "zcoolkuaile",
+      "familyId": "tff_e94be0c084999b43b84d27120c04bdf6",
+      "versionId": "tfv_474f09cbe75263ede78fdaaee67c414a"
+    },
+    {
+      "legacyId": "longcang",
+      "familyId": "tff_073b4f3ddad6ac825f8ae24d9323141e",
+      "versionId": "tfv_f89af08dba955b3d736984c8de95961b"
+    },
+    {
+      "legacyId": "liujianmaocao",
+      "familyId": "tff_37aff76f3c12a1f5888f4561bdf3c5e0",
+      "versionId": "tfv_b434e71260aa4d5fd22ffc5db672e70e"
+    },
+    {
+      "legacyId": "wenkai",
+      "familyId": "tff_2aec01eedd29fcb3e834c9116797c4a1",
+      "versionId": "tfv_7682a10d9b7c3cf6691c3ac5c0b34fbf"
+    },
+    {
+      "legacyId": "tiejili",
+      "familyId": "tff_3a3cfbe4b3b7a2c2acc5f31f83ad7650",
+      "versionId": "tfv_4b8360744df5acfdb318c30e74203c34"
+    },
+    {
+      "legacyId": "unbounded",
+      "familyId": "tff_628efcda7d6e3769dd234df06403eb26",
+      "versionId": "tfv_932ba6d9407eac1c6ff054a8210e38dc"
+    },
+    {
+      "legacyId": "xiaolai",
+      "familyId": "tff_48e6922974bb28003a0f5be28368412f",
+      "versionId": "tfv_5bb5ac598cd26a55df285a1b4ba49f36"
+    },
+    {
+      "legacyId": "zhuque",
+      "familyId": "tff_1325cf8614150c04f5e2c45d8940ce2b",
+      "versionId": "tfv_186e28fdce28c4cfd56fa5b6c25b7e38"
+    },
+    {
+      "legacyId": "fusion",
+      "familyId": "tff_de9978c39eb955f2f881de9c92347959",
+      "versionId": "tfv_b7417737776609fe701c12467974aa64"
+    },
+    {
+      "legacyId": "shinsyoku-mincho",
+      "familyId": "tff_523e05cc6cc32fc7335405792ffb5f50",
+      "versionId": "tfv_f7e72b58ef3b478e4233ae08b229b4e9"
+    },
+    {
+      "legacyId": "bouken-gothic",
+      "familyId": "tff_870f4300fddded947ac1a7ed3f532fc4",
+      "versionId": "tfv_7d398cca95b92b4543766a05e6b75285"
+    },
+    {
+      "legacyId": "hakkou-mincho",
+      "familyId": "tff_bff7e2428410c7efb54c34318ff779e0",
+      "versionId": "tfv_c85e8ab291c645b5d470f33e5b0d7e25"
+    },
+    {
+      "legacyId": "shattered-display",
+      "familyId": "tff_7f52111422e31eec8040a8013d7ff738",
+      "versionId": "tfv_e05d3ba26b0b3dd4876a24181e133b76"
+    },
+    {
+      "legacyId": "jf-zsk-seal",
+      "familyId": "tff_ac2d9b03b722b4a58c4fb497632023ff",
+      "versionId": "tfv_7088a82a609c270f6d3681373c8850c9"
+    },
+    {
+      "legacyId": "kaitou-yokoku-gothic",
+      "familyId": "tff_30928cdb4fee20af3ad8328c963b4cc4",
+      "versionId": "tfv_8a7a562725ce6a614ff9be6baac9b66e"
+    },
+    {
+      "legacyId": "yuji-boku",
+      "familyId": "tff_df5418529dcd858a7a51ba4ba3416671",
+      "versionId": "tfv_0ffc028a1c99ca10e5cf79bf21f79195"
+    },
+    {
+      "legacyId": "dotgothic16",
+      "familyId": "tff_c2b3de9eeab1ca4a9131073987d15cfa",
+      "versionId": "tfv_f2e383bff617dd71af53388c8e040a61"
+    },
+    {
+      "legacyId": "hachi-maru-pop",
+      "familyId": "tff_820d0354d6af2a884e4b8382540f985e",
+      "versionId": "tfv_8c6ee724b60a837748e690273a1e447b"
+    },
+    {
+      "legacyId": "reggae-one",
+      "familyId": "tff_05b0a6d203b41c22a712c1b7983ad871",
+      "versionId": "tfv_af5e8ee8919af0f3eb570468847b92bc"
+    },
+    {
+      "legacyId": "train-one",
+      "familyId": "tff_89a233a5a4bcce12ad12d8e324e266fb",
+      "versionId": "tfv_7e347dc5aa54273b720d365d1bf35b20"
+    },
+    {
+      "legacyId": "rampart-one",
+      "familyId": "tff_917fc63e3fd1e68710db8ec99708ccaf",
+      "versionId": "tfv_94c9589b87a703cf478f7d21fa37e185"
+    },
+    {
+      "legacyId": "unifraktur-cook",
+      "familyId": "tff_fc4d8fc22bc777ba1839708919bebc05",
+      "versionId": "tfv_4ce6de8735b7de93e27e5be11bf5c0f4"
+    },
+    {
+      "legacyId": "great-vibes",
+      "familyId": "tff_7065205b2d1ecd78f3edae612cf7a742",
+      "versionId": "tfv_72451c7e8503cb513f4d13bbb9ddd04d"
+    },
+    {
+      "legacyId": "special-elite",
+      "familyId": "tff_c7a613af634d7952506008b3e68d4b3a",
+      "versionId": "tfv_7893d23d55c1d2698455674585942e9c"
+    },
+    {
+      "legacyId": "monoton",
+      "familyId": "tff_e14a9812eed5bb7457c5c370f58650e2",
+      "versionId": "tfv_cb76222f87323214556ce7904947726f"
+    },
+    {
+      "legacyId": "orbitron",
+      "familyId": "tff_93f9564c01be36b4b2b4ba657d325fda",
+      "versionId": "tfv_50f3e665ad3e4586439e435ac261266e"
+    },
+    {
+      "legacyId": "rye",
+      "familyId": "tff_bf8a40dea0d73ce47073f06de28d5fa3",
+      "versionId": "tfv_937f8f7b1344bc1af110c37b103d1453"
+    }
+  ]
+}

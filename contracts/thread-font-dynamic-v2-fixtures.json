@@ -1,0 +1,103 @@
+{
+  "fontVersion": 2,
+  "policyVersion": 3,
+  "versionId": "tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "familyId": "tff_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "statusCases": [
+    {
+      "id": "active-current",
+      "published": true,
+      "enabled": true,
+      "current": true,
+      "withdrawn": false,
+      "selectable": true,
+      "pasteAllowed": true,
+      "renderAllowed": true
+    },
+    {
+      "id": "historical",
+      "published": true,
+      "enabled": true,
+      "current": false,
+      "withdrawn": false,
+      "selectable": false,
+      "pasteAllowed": true,
+      "renderAllowed": true
+    },
+    {
+      "id": "disabled",
+      "published": true,
+      "enabled": false,
+      "current": true,
+      "withdrawn": false,
+      "selectable": false,
+      "pasteAllowed": false,
+      "renderAllowed": true
+    },
+    {
+      "id": "withdrawn",
+      "published": true,
+      "enabled": true,
+      "current": true,
+      "withdrawn": true,
+      "selectable": false,
+      "pasteAllowed": false,
+      "renderAllowed": false
+    }
+  ],
+  "catalogRules": {
+    "maxItems": 200,
+    "maxEnvelopeUtf8Bytes": 65536,
+    "limitIsUpperBound": true,
+    "changedCursorHttpStatus": 409,
+    "changedCursorCode": 40927,
+    "ifNoneMatchStatus": 304
+  },
+  "metadataRules": {
+    "descriptorMaxEnvelopeUtf8Bytes": 65536,
+    "runtimeMaxEnvelopeUtf8Bytes": 65536,
+    "manifestMaxBytes": 4194304,
+    "unknownVersionNegativeCacheMs": 30000,
+    "refreshMs": 300000,
+    "refreshTriggers": [
+      "foreground",
+      "picker-open",
+      "unknown-version"
+    ],
+    "failure": "retain-last-known-good",
+    "knownWithdrawn": "sticky-deny",
+    "coalescingKey": "endpoint-and-versionId"
+  },
+  "ledgerCases": [
+    {
+      "id": "new-release-does-not-reset",
+      "events": [
+        "reserve-request",
+        "native-attempt-fails",
+        "catalog-release-changes"
+      ],
+      "requestsCharged": 1,
+      "nativeKeysCharged": 1
+    },
+    {
+      "id": "same-hash-new-family-charged",
+      "events": [
+        "register-hash-A-family-A",
+        "register-hash-A-family-B"
+      ],
+      "nativeKeysCharged": 2
+    },
+    {
+      "id": "native-budget-exhausted",
+      "inputBytes": 67108864,
+      "additionalBytes": 1,
+      "expected": "silent-system-fallback"
+    },
+    {
+      "id": "native-keys-exhausted",
+      "keys": 1024,
+      "additionalKeys": 1,
+      "expected": "silent-system-fallback"
+    }
+  ]
+}

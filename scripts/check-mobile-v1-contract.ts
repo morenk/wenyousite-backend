@@ -6,7 +6,7 @@ const coverage = JSON.parse(fs.readFileSync(coveragePath, 'utf8')) as Record<str
 const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as Record<string, any>;
 const failures: string[] = [];
 
-const expectedCounts = { total: 250, v1: 122, deferred: 66, notApplicable: 58, infrastructure: 4 };
+const expectedCounts = { total: 266, v1: 126, deferred: 66, notApplicable: 70, infrastructure: 4 };
 for (const [name, expected] of Object.entries(expectedCounts)) {
   if (coverage.counts?.[name] !== expected) {
     failures.push(

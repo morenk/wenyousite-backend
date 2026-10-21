@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "5.42.0-dev.20261022.1",
+  "contractVersion": "5.43.0-dev.20261022.1",
   "counts": {
-    "total": 250,
-    "v1": 122,
+    "total": 266,
+    "v1": 126,
     "deferred": 66,
-    "notApplicable": 58,
+    "notApplicable": 70,
     "infrastructure": 4
   },
   "operations": [
@@ -1299,6 +1299,102 @@
       "status": "not_applicable"
     },
     {
+      "operationId": "adminTextFontsList",
+      "method": "GET",
+      "path": "/api/v1/admin/text-fonts",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminTextFontsCreate",
+      "method": "POST",
+      "path": "/api/v1/admin/text-fonts",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminTextFontsGetJob",
+      "method": "GET",
+      "path": "/api/v1/admin/text-fonts/jobs/{jobId}",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminTextFontsProcess",
+      "method": "POST",
+      "path": "/api/v1/admin/text-fonts/jobs/{jobId}/process",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminTextFontsPreview",
+      "method": "GET",
+      "path": "/api/v1/admin/text-fonts/versions/{versionId}/preview",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminTextFontsAsset",
+      "method": "GET",
+      "path": "/api/v1/admin/text-fonts/versions/{versionId}/assets/{asset}",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminTextFontsWithdraw",
+      "method": "POST",
+      "path": "/api/v1/admin/text-fonts/versions/{versionId}/withdraw",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminTextFontsDetail",
+      "method": "GET",
+      "path": "/api/v1/admin/text-fonts/{familyId}",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminTextFontsUpdate",
+      "method": "PATCH",
+      "path": "/api/v1/admin/text-fonts/{familyId}",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminTextFontsUpload",
+      "method": "POST",
+      "path": "/api/v1/admin/text-fonts/{familyId}/sources",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminTextFontsPublish",
+      "method": "POST",
+      "path": "/api/v1/admin/text-fonts/{familyId}/publish",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminTextFontsEnabled",
+      "method": "PATCH",
+      "path": "/api/v1/admin/text-fonts/{familyId}/enabled",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
       "operationId": "adminAuthChallenge",
       "method": "POST",
       "path": "/api/v1/admin/auth/challenge",
@@ -1729,6 +1825,38 @@
       "module": "admin",
       "disposition": "not_applicable",
       "status": "not_applicable"
+    },
+    {
+      "operationId": "textFontsV2GetRuntimePolicy",
+      "method": "GET",
+      "path": "/api/v1/meta/text-fonts/v2/runtime-policy",
+      "module": "editor",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "textFontsV2GetCatalog",
+      "method": "GET",
+      "path": "/api/v1/meta/text-fonts/v2",
+      "module": "editor",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "textFontsV2GetVersion",
+      "method": "GET",
+      "path": "/api/v1/meta/text-fonts/v2/versions/{versionId}",
+      "module": "editor",
+      "disposition": "v1",
+      "status": "planned"
+    },
+    {
+      "operationId": "textFontsV2GetAsset",
+      "method": "GET",
+      "path": "/api/v1/meta/text-fonts/v2/versions/{versionId}/assets/{asset}",
+      "module": "editor",
+      "disposition": "v1",
+      "status": "planned"
     },
     {
       "operationId": "searchSearchMoments",

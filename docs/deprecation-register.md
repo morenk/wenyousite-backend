@@ -150,3 +150,7 @@ RP 采用 additive 字段；原 username/avatar、按 userId 互动和 Markdown 
 HTTP `5.42.0-dev.20261022.1` 为未发布运行策略 v2 增加显式 idle 模式与 10 分钟总传输截止，修复持续慢传输被 15 秒总时限反复打断的问题。Web／Mobile 同步新策略形状；缺少字段按未知策略回退。旧 v1 manifest／limits、15 秒总超时及已部署消费者保持兼容，不进行兼容清理。
 
 目录 1.2.0 按用户决定将小城从当前可选项、manifest 和新发布对象集合移除；当前为 28 款全分片字体。`xiaocheng-lafeng` 仍在正文 v1 历史身份白名单中，新写受拒绝，历史保留／移除和旧端覆盖保护继续执行。原 v1 schema／原件例外验证、旧 immutable 包和[源锁／许可审计](../contracts/archive/thread-font-xiaocheng-lafeng-v1.json)保留；不是旧协议或历史资产清理。未发布 v2 不再返回原件专属字段，两端须严格同步最终 SHA 与新 manifest 描述符。
+
+## 动态字体 v2 兼容阶段
+
+HTTP `5.43.0-dev.20261022.1` 新增独立动态目录、版本描述符、运行策略 v3 和正文 `data-wenyou-font-v2`。声明 `textFontVersion:2` 包含 v1/v2 混合保源；旧客户端不能覆盖含 v2 的原文。旧 v1 目录、资源和固定 manifest 策略 v2 保留。迁移字段、状态、预算和契约阶段可用性见[动态字体协议](dynamic-text-fonts.md)。

@@ -79,7 +79,7 @@ class FontMobileRuntimeDto {
   registration!: FontMobileRegistrationDto;
 }
 
-class FontRetryPolicyDto {
+export class FontRetryPolicyDto {
   @ApiProperty({ type: [Number], description: '第 n 次连续暂时失败的抖动上限；末项持续复用，成功后清零' })
   delayCeilingsMs!: number[];
   @ApiProperty({ enum: ['full'], description: 'floor(U×(ceiling+1))，U∈[0,1)；Retry-After 与窗口等待取更晚时间' })

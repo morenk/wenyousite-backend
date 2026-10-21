@@ -65,6 +65,7 @@ const implementedEvidence: Record<string, { module: string; tests: string[] }> =
 };
 
 const adminTags = new Set([
+  'Admin Text Fonts',
   'Admin Reports',
   'Admin Mobile Releases',
   'Admin Auth',

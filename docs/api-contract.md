@@ -259,3 +259,7 @@ GET /users/me 与有效用户的 GET /users/{id} 中，`_count.following` / `_co
 HTTP `5.42.0-dev.20261022.1` 的独立 `GET /meta/text-fonts/runtime-policy` 绑定目录 1.2.0 的 28 款全分片 manifest。Web 活动集合为 28 家族；Mobile 快照为 868 个唯一资产／注册键、184,645,488 字节。当前 v2 删除 `originalAsset`、`originalWindowBytes`、`originalSfntBytes`，不为原件开放额外槽。小城退出当前可选目录；历史 ID／正文及旧不可变资源保留，按系统字体回退。
 
 两端 `network` 必须包含 `timeoutMode: "idle-with-total-cap"`、`timeoutMs: 15000`、`maxTransferMs: 600000`：仅非空正文数据块重置 idle，实际请求开始后总传输最多 10 分钟，排队不计时。窗口、并发、元数据 64 KiB 流式上限和错误分类不变；未发布 v2 原型按同一 SHA 严格同步新形状。旧 v1 limits 及 15 秒总超时原义保持，未知策略回退旧限额。字段、拒绝边界和夹具见[运行策略](thread-font-runtime-policy.md)。文件输入账本不是 native/RSS 上限，Flutter 设备验收仍由 Windows／Android 完成。
+
+## 动态字体 v2 兼容阶段
+
+HTTP `5.43.0-dev.20261022.1` 新增独立动态目录、版本描述符、运行策略 v3 和正文 `data-wenyou-font-v2`。声明 `textFontVersion:2` 包含 v1/v2 混合保源；旧客户端不能覆盖含 v2 的原文。旧 v1 目录、资源和固定 manifest 策略 v2 保留。迁移字段、状态、预算和契约阶段可用性见[动态字体协议](dynamic-text-fonts.md)。

@@ -12,6 +12,8 @@ describe('MetaController', () => {
       buildSha: null,
       markdownContractVersion: 5,
       capabilities: {
+        textFontV2Supported: true,
+        textFontV2WriteEnabled: false,
         textFontV1Supported: true,
         textFontV1WriteEnabled: false,
         textColorV1Supported: true,
