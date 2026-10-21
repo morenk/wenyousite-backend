@@ -5,6 +5,7 @@ import { mkdtempSync, chmodSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { assertIsolatedEnvironment } from './e2e-guard';
+import { processStart } from './e2e-processes';
 import { cleanEnvironment } from './e2e-resources';
 import { resourceDiagnostic, suiteFailureDiagnostic } from './e2e-runner-diagnostics';
 function fixture() {
@@ -46,6 +47,25 @@ test('仅完整登记通过；宽松权限和资源漂移拒绝', () => {
     assert.throws(() => assertIsolatedEnvironment(f.env), /漂移/);
   } finally { f.close(); }
 });
+test('字体对象存储必须匹配本轮进程启动身份、目录、bucket 和连接', () => {
+  const f = fixture();
+  try {
+    const store = { runId: f.manifest.runId, identity: 'fixture', pid: process.pid, start: processStart(process.pid), endpoint: 'http://127.0.0.1:39004', directory: join(f.root, 'font-object-store'), bucket: 'fonts-fixture' };
+    writeFileSync(f.path, JSON.stringify({ ...f.manifest, fontObjectStore: store }));
+    writeFileSync(join(f.root, 'processes.json'), JSON.stringify({ processes: [{ group: store.pid, started: store.start }] }));
+    const env = { ...f.env, COS_ENDPOINT: store.endpoint, TEXT_FONT_BUCKET: store.bucket };
+    assert.equal(assertIsolatedEnvironment(env).fontObjectStore?.pid, process.pid);
+    for (const change of [{ COS_ENDPOINT: 'http://127.0.0.1:39005' }, { TEXT_FONT_BUCKET: 'other' }, { COS_BUCKET: store.bucket }]) {
+      assert.throws(() => assertIsolatedEnvironment({ ...env, ...change }), /对象存储/);
+    }
+    writeFileSync(f.path, JSON.stringify({ ...f.manifest, fontObjectStore: { ...store, start: 'old-process' } }));
+    assert.throws(() => assertIsolatedEnvironment(env), /对象存储/);
+    writeFileSync(f.path, JSON.stringify({ ...f.manifest, fontObjectStore: store }));
+    writeFileSync(join(f.root, 'processes.json'), JSON.stringify({ processes: [] }));
+    assert.throws(() => assertIsolatedEnvironment(env), /未登记/);
+  } finally { f.close(); }
+});
+
 test('子进程白名单环境丢弃线上连接、NODE_OPTIONS 及外部凭据', () => {
   const values = { DATABASE_URL: 'unused', REDIS_PASSWORD: 'unused', NODE_OPTIONS: '--bad', SES_SMTP_PASS: 'unused', GOOGLE_APPLICATION_CREDENTIALS: '/unused' };
   const before = { ...process.env };

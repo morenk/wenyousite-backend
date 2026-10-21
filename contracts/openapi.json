@@ -30267,7 +30267,15 @@
                 "THREAD_CATEGORY_MERGED",
                 "TAG_MERGED",
                 "SITE_SETTINGS_UPDATED",
-                "MOBILE_RELEASE_UPDATED"
+                "MOBILE_RELEASE_UPDATED",
+                "TEXT_FONT_DRAFT_UPDATED",
+                "TEXT_FONT_SOURCE_UPLOADED",
+                "TEXT_FONT_PROCESS_REQUESTED",
+                "TEXT_FONT_VERSION_READY",
+                "TEXT_FONT_PUBLISHED",
+                "TEXT_FONT_ENABLED_UPDATED",
+                "TEXT_FONT_WITHDRAWN",
+                "TEXT_FONT_IMPORTED"
               ]
             }
           },
@@ -30294,7 +30302,8 @@
                 "ADMIN_SESSION",
                 "NOTIFICATION_CAMPAIGN",
                 "SITE_SETTINGS",
-                "MOBILE_RELEASE"
+                "MOBILE_RELEASE",
+                "TEXT_FONT"
               ]
             }
           },
@@ -30508,7 +30517,15 @@
                 "THREAD_CATEGORY_MERGED",
                 "TAG_MERGED",
                 "SITE_SETTINGS_UPDATED",
-                "MOBILE_RELEASE_UPDATED"
+                "MOBILE_RELEASE_UPDATED",
+                "TEXT_FONT_DRAFT_UPDATED",
+                "TEXT_FONT_SOURCE_UPLOADED",
+                "TEXT_FONT_PROCESS_REQUESTED",
+                "TEXT_FONT_VERSION_READY",
+                "TEXT_FONT_PUBLISHED",
+                "TEXT_FONT_ENABLED_UPDATED",
+                "TEXT_FONT_WITHDRAWN",
+                "TEXT_FONT_IMPORTED"
               ]
             }
           },
@@ -30535,7 +30552,8 @@
                 "ADMIN_SESSION",
                 "NOTIFICATION_CAMPAIGN",
                 "SITE_SETTINGS",
-                "MOBILE_RELEASE"
+                "MOBILE_RELEASE",
+                "TEXT_FONT"
               ]
             }
           },
@@ -38354,7 +38372,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.43.0-dev.20261022.2",
+    "version": "5.43.0-dev.20261022.3",
     "contact": {}
   },
   "tags": [
@@ -48177,7 +48195,15 @@
               "THREAD_CATEGORY_MERGED",
               "TAG_MERGED",
               "SITE_SETTINGS_UPDATED",
-              "MOBILE_RELEASE_UPDATED"
+              "MOBILE_RELEASE_UPDATED",
+              "TEXT_FONT_DRAFT_UPDATED",
+              "TEXT_FONT_SOURCE_UPLOADED",
+              "TEXT_FONT_PROCESS_REQUESTED",
+              "TEXT_FONT_VERSION_READY",
+              "TEXT_FONT_PUBLISHED",
+              "TEXT_FONT_ENABLED_UPDATED",
+              "TEXT_FONT_WITHDRAWN",
+              "TEXT_FONT_IMPORTED"
             ]
           },
           "targetType": {
@@ -48199,7 +48225,8 @@
               "ADMIN_SESSION",
               "NOTIFICATION_CAMPAIGN",
               "SITE_SETTINGS",
-              "MOBILE_RELEASE"
+              "MOBILE_RELEASE",
+              "TEXT_FONT"
             ]
           },
           "targetId": {

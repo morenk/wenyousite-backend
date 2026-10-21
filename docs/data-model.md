@@ -633,3 +633,18 @@ media_preview_attempts 保存每次独立 UUID 尝试的精确对象 keys，通�
 ## 完整动画展示资产
 
 Media 新增可空 display_asset 与独立 display_status / display_started_at / display_failure_code，以及累计 display_attempts；历史补处理不修改原 MediaStatus 或 URL。StickerAsset 新增可空 display_asset。产物尝试复用 MediaPreviewAttempt 精确对象账本和发布 CAS；迁移及回滚边界见[完整展示契约](media-display.md)。
+
+## 动态字体
+
+新增迁移 `20261022100000_dynamic_text_fonts` 只增加字体模型、约束和审计动作，不改写历史正文或删除 v1 数据。
+
+| 模型 | 持久事实 |
+| --- | --- |
+| TextFontFamily | 草稿配置、配置修订、启用状态、当前版本和可选历史 v1 ID |
+| TextFontBuildJob | 私有源键/SHA/长度、配置快照、处理状态、领取身份、租期与尝试次数 |
+| TextFontArtifact | source/config/toolchain 构成的唯一 buildKey、不可变 manifest 和资产 SHA/长度 |
+| TextFontVersion | 家族与产物绑定、单调版本号、配置快照、发布时间与不可逆撤回墓碑 |
+| TextFontCatalogHead | 单例目录修订与当前 release 指针 |
+| TextFontCatalogRelease | 不可变目录条目快照 |
+
+发布完整验证私有对象后，在同一事务写版本状态、家族指针、目录和 AuditLog。回滚只切换未来选用版本；历史版本与资产不删除。固定历史导入映射及幂等规则见[动态字体](dynamic-text-fonts.md)。

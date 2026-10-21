@@ -13,6 +13,7 @@ import {
   Min,
   MinLength,
   ValidateNested,
+  ValidateIf,
 } from 'class-validator';
 import {
   FONT_FAMILY_PATTERN,
@@ -53,6 +54,7 @@ export class FontConfigurationDto {
   @MaxLength(200)
   author!: string;
   @ApiProperty({ maxLength: 2048, description: '出处链接，仅作授权凭据记录；后端从不抓取。' })
+  @ValidateIf((_object, value: unknown) => value !== '')
   @IsUrl({ protocols: ['https', 'http'], require_protocol: true })
   @MaxLength(2048)
   sourceUrl!: string;

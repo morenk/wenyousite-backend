@@ -36,5 +36,9 @@ if [[ ! "$BUILD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
   echo "后端 revision 不是完整 Git SHA: $REVISION_FILE" >&2
   exit 1
 fi
+if [ -n "${TEXT_FONT_STORAGE_ROOT:-}" ] && [ "$TEXT_FONT_STORAGE_ROOT" != /var/lib/wenyousite/font-work ]; then
+  echo "字体工作目录必须匹配 systemd 限制路径" >&2
+  exit 1
+fi
 cd "$RELEASE_DIR"
 exec env NODE_ENV=production BUILD_SHA="$BUILD_SHA" "$NODE_BINARY" dist/main

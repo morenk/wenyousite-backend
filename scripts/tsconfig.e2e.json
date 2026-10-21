@@ -36,6 +36,8 @@
     "thread-identity.integration.ts",
     "rp-profile.integration.ts",
     "role-mentions.integration.ts",
-    "text-color.integration.ts"
+    "text-color.integration.ts",
+    "text-font-v2.integration.ts",
+    "e2e-font-object-store.ts"
   ]
 }

@@ -9,13 +9,14 @@ import {
 } from './dto/font-public.dto';
 import { DynamicFontRuntimePolicyDto } from './dto/font-runtime.dto';
 import { DYNAMIC_FONT_RUNTIME_POLICY } from './font-runtime-policy';
-import { TextFontAvailabilityService } from './text-font-availability.service';
+import { FontQueryService } from './font-query.service';
+import { fontAssetResponse, fontMetadataResponse } from './font-http';
 
 @ApiTags('Meta')
 @Controller('meta/text-fonts/v2')
 @Public()
 export class TextFontsV2Controller {
-  constructor(private readonly fonts: TextFontAvailabilityService) {}
+  constructor(private readonly fonts: FontQueryService) {}
 
   @Get('runtime-policy')
   @Header('Cache-Control', 'public, max-age=300')
@@ -28,12 +29,12 @@ export class TextFontsV2Controller {
   @Header('Cache-Control', 'no-cache')
   @ApiOkResponse({ type: FontCatalogPageDto, headers: { ETag: { schema: { type: 'string' } } } })
   @ApiResponse({ status: 304, description: 'If-None-Match 命中当前页；无响应体。' })
-  getCatalog(
+  async getCatalog(
     @Query() query: FontCatalogQueryDto,
     @Headers('if-none-match') etag: string | undefined,
     @Res({ passthrough: true }) reply: FastifyReply,
-  ): FontCatalogPageDto {
-    return this.fonts.request('catalog', query, etag, reply);
+  ): Promise<FontCatalogPageDto | void> {
+    return fontMetadataResponse(await this.fonts.catalog(query), etag, reply);
   }
 
   @Get('versions/:versionId')
@@ -43,12 +44,12 @@ export class TextFontsV2Controller {
     headers: { ETag: { schema: { type: 'string' } } },
   })
   @ApiResponse({ status: 304, description: '状态未变化；无响应体。' })
-  getVersion(
+  async getVersion(
     @Param('versionId') versionId: string,
     @Headers('if-none-match') etag: string | undefined,
     @Res({ passthrough: true }) reply: FastifyReply,
-  ): FontVersionDescriptorDto {
-    return this.fonts.request('version', versionId, etag, reply);
+  ): Promise<FontVersionDescriptorDto | void> {
+    return fontMetadataResponse(await this.fonts.version(versionId), etag, reply);
   }
 
   @Get('versions/:versionId/assets/:asset')
@@ -58,11 +59,11 @@ export class TextFontsV2Controller {
     description:
       'asset=sha256.format；只有该版本清单列出的对象可读。字节内容不可变，响应 no-cache，撤回返回 410/41001。',
   })
-  getAsset(
+  async getAsset(
     @Param('versionId') versionId: string,
     @Param('asset') asset: string,
     @Res() reply: FastifyReply,
-  ): void {
-    this.fonts.request('asset', versionId, asset, reply);
+  ): Promise<void> {
+    fontAssetResponse(await this.fonts.asset(versionId, asset), reply);
   }
 }

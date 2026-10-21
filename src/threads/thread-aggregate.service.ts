@@ -1,6 +1,8 @@
+import { FontReadinessService } from '../text-fonts/font-readiness.service';
+import { assertFontWriteInTransaction } from '../text-fonts/font-content-policy';
 import { ConfigService } from '@nestjs/config';
 import { Optional } from '@nestjs/common';
-import { assertTextColorWrite, assertTextFontWrite } from '../common/text-colors';
+import { assertTextColorWrite } from '../common/text-colors';
 import { hasRoleMentionSource } from '../common/role-mentions';
 import { ThreadIdentitiesService } from '../thread-identities/thread-identities.service';
 import { postContentEditData } from '../posts/post-content-edit';
@@ -67,6 +69,7 @@ export class ThreadAggregateService {
     private readonly postingPolicy: PostingPolicyService,
     private readonly identities: ThreadIdentitiesService,
     @Optional() private readonly config?: ConfigService,
+    @Optional() private readonly fontReadiness?: FontReadinessService,
   ) {}
 
   async save(threadId: string, dto: SaveThreadAggregateDto, userId: string) {
@@ -199,7 +202,7 @@ export class ThreadAggregateService {
         }
 
         const existingBody = defaultSubthread.posts[0];
-        assertTextFontWrite(content, existingBody?.content ?? '', dto.textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false);
+        await assertFontWriteInTransaction(tx, content, existingBody?.content ?? '', dto.textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false, (this.config?.get<boolean>('textFonts.enabled') ?? false) && ((await this.fontReadiness?.supported()) ?? false), !!this.fontReadiness);
         assertTextColorWrite(content, existingBody?.content ?? '', dto.textColorVersion, this.config?.get<boolean>('app.textColorV1Enabled') ?? false);
         let updatedBody: UpdatedBodySideEffect | undefined;
         let createdPublishedBody:

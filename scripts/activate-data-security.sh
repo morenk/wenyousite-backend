@@ -87,6 +87,7 @@ appendonly=$(redis_cli "$REDIS_CONTAINER" CONFIG GET appendonly | tail -n 1)
 if [ "$appendonly" != yes ]; then
   systemctl stop wenyousite-backend.service || true
   systemctl stop wenyousite-image-worker.service || true
+  systemctl stop wenyousite-font-worker.service || true
   notification_waiting=$(redis_cli "$REDIS_CONTAINER" LLEN bull:notification:wait)
   notification_active=$(redis_cli "$REDIS_CONTAINER" LLEN bull:notification:active)
   notification_paused=$(redis_cli "$REDIS_CONTAINER" LLEN bull:notification:paused)

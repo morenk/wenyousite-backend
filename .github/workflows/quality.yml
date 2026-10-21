@@ -114,13 +114,15 @@ jobs:
       - name: Prepare isolated PostgreSQL and Redis binaries
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends postgresql-16 redis-server
+          sudo apt-get install -y --no-install-recommends postgresql-16 redis-server bubblewrap python3.12
           pg_bin=/usr/lib/postgresql/16/bin
           redis_bin=$(command -v redis-server)
           test -x "$pg_bin/initdb"
           test -x "$pg_bin/postgres"
           test -x "$redis_bin"
           printf 'E2E_PG_BIN=%s\nE2E_REDIS_BIN=%s\n' "$pg_bin" "$redis_bin" >> "$GITHUB_ENV"
+      - run: pnpm text-font:prepare-toolchain
+      - run: echo "TEXT_FONT_TOOLCHAIN_DIR=$GITHUB_WORKSPACE/.cache/thread-font-toolchain" >> "$GITHUB_ENV"
       - run: pnpm test:e2e:full
       - run: pnpm test:integration:audio-budget
       - run: pnpm test:e2e

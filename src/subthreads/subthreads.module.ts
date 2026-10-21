@@ -1,3 +1,4 @@
+import { TextFontCoreModule } from '../text-fonts/text-font-core.module';
 import { ThreadIdentitiesModule } from '../thread-identities/thread-identities.module';
 import { MentionsModule } from '../mentions/mentions.module';
 import { Module } from '@nestjs/common';
@@ -11,7 +12,7 @@ import { DiceModule } from '../dice/dice.module';
 
 /** 子贴模块：CRUD、排序与发帖权限 */
 @Module({
-  imports: [ThreadIdentitiesModule, MentionsModule, AccessPolicyModule, OutboxModule, StickersModule, MediaReferenceModule, DiceModule],
+  imports: [TextFontCoreModule, ThreadIdentitiesModule, MentionsModule, AccessPolicyModule, OutboxModule, StickersModule, MediaReferenceModule, DiceModule],
   controllers: [SubthreadsController],
   providers: [SubthreadsService],
   exports: [SubthreadsService],

@@ -4,7 +4,9 @@ import Ajv from 'ajv/dist/2020';
 import { DYNAMIC_FONT_RUNTIME_POLICY } from './font-runtime-policy';
 import { fontEnvelopeBytes } from './font-catalog-page';
 import { fontVersionState } from './font-version-state';
-import { TextFontAvailabilityService } from './text-font-availability.service';
+import { FontStorageService } from './font-storage.service';
+import { ConfigService } from '@nestjs/config';
+import { FontQueryService } from './font-query.service';
 import { TextFontsV2Controller } from './text-fonts-v2.controller';
 import { BusinessException } from '../common/exceptions/business.exception';
 const read = (name: string) =>
@@ -35,15 +37,15 @@ it('状态表保留历史、停用可呈现而撤回不可呈现', () => {
     });
   }
 });
-it('契约阶段运行入口关闭，不返回虚构的成功目录或管理结果', () => {
-  const service = new TextFontAvailabilityService();
+it('未配置私有存储时拒绝运行，策略响应不能修改服务端默认值', () => {
+  const service = new FontStorageService(new ConfigService());
   try {
-    service.request('catalog');
+    service.requireConfigured();
     throw new Error('应拒绝');
   } catch (error) {
     expect((error as BusinessException).errorCode).toBe(50301);
   }
-  const controller = new TextFontsV2Controller(service);
+  const controller = new TextFontsV2Controller({} as FontQueryService);
   const policy = controller.getRuntimePolicy();
   policy.web.residency.maxFaces = 1;
   expect(controller.getRuntimePolicy().web.residency.maxFaces).toBe(64);

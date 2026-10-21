@@ -37,7 +37,11 @@ function opening(tag: string): Style | undefined {
       result.color = match[2].toUpperCase();
     } else {
       const dynamic = match[1] === 'font-v2';
-      if (result.fontId || !(dynamic ? /^tfv_[a-f0-9]{32}$/u : /^[a-z][a-z0-9-]{0,63}$/u).test(match[2])) return;
+      if (
+        result.fontId ||
+        !(dynamic ? /^tfv_[a-f0-9]{32}$/u : /^[a-z][a-z0-9-]{0,63}$/u).test(match[2])
+      )
+        return;
       result.fontId = match[2];
       if (dynamic) result.fontVersion = 2;
     }
@@ -171,7 +175,11 @@ export function parseTextStyles(source: string, strict = false): TextStyleRange[
       const position = absolute(token.meta.sourceStart as number);
       const open = opening(token.content);
       if (open) {
-        if (active || token.level !== 0 || (strict && open.fontId && open.fontVersion !== 2 && !isTextFontId(open.fontId))) {
+        if (
+          active ||
+          token.level !== 0 ||
+          (strict && open.fontId && open.fontVersion !== 2 && !isTextFontId(open.fontId))
+        ) {
           fail();
           active = undefined;
           continue;
@@ -358,13 +366,22 @@ function fallbackInline(content: string, remove: RemoveStyle): string {
 /** 整个内联流去除样式后重序列化，避免 span 边界移除后合并分隔符造成格式损失。 */
 export function stripTextStyles(source: string, remove: RemoveStyle = 'all'): string {
   const ranges = parseTextStyles(source).filter(
-    (range) => remove === 'all' || (remove === 'font-v2' ? range.fontVersion === 2 : remove === 'font' ? range.fontId : range.color),
+    (range) =>
+      remove === 'all' ||
+      (remove === 'font-v2'
+        ? range.fontVersion === 2
+        : remove === 'font'
+          ? range.fontId
+          : range.color),
   );
   if (!ranges.length) return source;
   // 仍保留另一种样式时边界没有消失，仅替换开标签，保持内部字面标点原样。
   if (
     remove !== 'all' &&
-    ranges.every((range) => { const retained = withoutStyle(range, remove); return retained.color || retained.fontId; })
+    ranges.every((range) => {
+      const retained = withoutStyle(range, remove);
+      return retained.color || retained.fontId;
+    })
   ) {
     let output = source;
     for (const range of ranges.toReversed()) {
@@ -489,7 +506,11 @@ function requireTextFontCapability(version: number | undefined, dynamic = false)
 }
 export function assertTextFontCapability(content: string, version?: number): void {
   const ranges = parseTextFonts(content, true);
-  if (ranges.length) requireTextFontCapability(version, ranges.some((range) => range.fontVersion === 2));
+  if (ranges.length)
+    requireTextFontCapability(
+      version,
+      ranges.some((range) => range.fontVersion === 2),
+    );
 }
 export function assertTextFontWrite(
   content: string,
@@ -497,22 +518,27 @@ export function assertTextFontWrite(
   version?: number,
   enabled = false,
   allowedDynamicVersions: ReadonlySet<string> = new Set(),
+  blockedLegacyFonts: ReadonlySet<string> = new Set(),
 ): void {
   const next = parseTextFonts(content, true),
     old = parseTextFonts(previous);
   if (!next.length && !old.length) return;
-  requireTextFontCapability(version, [...next, ...old].some((range) => range.fontVersion === 2));
-  const writable = (range: TextFontRange) => range.fontVersion === 2
-    ? allowedDynamicVersions.has(range.fontId)
-    : enabled && isTextFontSourceReady(range.fontId);
+  requireTextFontCapability(
+    version,
+    [...next, ...old].some((range) => range.fontVersion === 2),
+  );
+  const writable = (range: TextFontRange) =>
+    range.fontVersion === 2
+      ? allowedDynamicVersions.has(range.fontId)
+      : enabled && isTextFontSourceReady(range.fontId) && !blockedLegacyFonts.has(range.fontId);
   if (next.every(writable)) return;
   const signatures = (ranges: TextFontRange[]) =>
-    colorSignatures(ranges.map((range) => ({ ...range, color: `v${range.fontVersion ?? 1}:${range.fontId}` })));
+    colorSignatures(
+      ranges.map((range) => ({ ...range, color: `v${range.fontVersion ?? 1}:${range.fontId}` })),
+    );
   const saved = new Map<string, number>();
   for (const key of signatures(old)) saved.set(key, (saved.get(key) ?? 0) + 1);
-  for (const key of signatures(
-    next.filter((range) => !writable(range)),
-  )) {
+  for (const key of signatures(next.filter((range) => !writable(range)))) {
     const count = saved.get(key) ?? 0;
     if (!count)
       throw new BusinessException(

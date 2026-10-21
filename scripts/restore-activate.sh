@@ -72,7 +72,7 @@ bash "$SCRIPT_DIR/backup-postgres-physical.sh" diff
 WENYOUSITE_OFFSITE_REQUIRED=true bash "$SCRIPT_DIR/backup.sh"
 WENYOUSITE_OFFSITE_REQUIRED=true bash "$SCRIPT_DIR/backup-redis.sh"
 
-for unit in wenyousite-backend.service wenyousite-image-worker.service; do
+for unit in wenyousite-backend.service wenyousite-image-worker.service wenyousite-font-worker.service; do
   if systemctl list-unit-files "$unit" --no-legend 2>/dev/null | grep -q "^$unit"; then
     systemctl stop "$unit"
   fi
@@ -139,6 +139,11 @@ non_bull_count=$(redis_cli "$REDIS_CONTAINER" EVAL \
 
 systemctl start wenyousite-database-migrate.service
 systemctl start wenyousite-image-worker.service
+font_security_args=()
+if systemctl list-unit-files wenyousite-font-worker.service --no-legend 2>/dev/null | grep -q "^wenyousite-font-worker.service"; then
+  systemctl start wenyousite-font-worker.service
+  font_security_args=(--require-font-worker)
+fi
 systemctl start wenyousite-backend.service
 
 healthy=false
@@ -151,10 +156,11 @@ for _attempt in $(seq 1 60); do
 done
 if [ "$healthy" != true ]; then
   systemctl stop wenyousite-backend.service wenyousite-image-worker.service
+  if [ "${#font_security_args[@]}" -gt 0 ]; then systemctl stop wenyousite-font-worker.service; fi
   echo "恢复切换后 API 未通过健康检查；候选卷保持活动，旧卷未删除: $old_pg_volume $old_redis_volume" >&2
   exit 1
 fi
-bash "$SCRIPT_DIR/validate-running-data-security.sh"
+bash "$SCRIPT_DIR/validate-running-data-security.sh" "${font_security_args[@]}"
 
 status_temp=$(mktemp "$CANDIDATE_DIR/.status.$candidate_id.XXXXXX")
 awk '$0 == "status=validated" { print "status=activated"; next } { print }' "$manifest" >"$status_temp"

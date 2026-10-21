@@ -1,3 +1,4 @@
+import { TextFontCoreModule } from '../text-fonts/text-font-core.module';
 import { ThreadIdentitiesModule } from '../thread-identities/thread-identities.module';
 import { Module } from '@nestjs/common';
 import { PostsController } from './posts.controller';
@@ -15,7 +16,7 @@ import { PostPinService } from './post-pin.service';
 
 /** 楼层模块：发帖、楼中楼、编辑、软删除 */
 @Module({
-  imports: [ThreadIdentitiesModule,
+  imports: [TextFontCoreModule, ThreadIdentitiesModule,
     AccessPolicyModule,
     OutboxModule,
     MentionsModule,

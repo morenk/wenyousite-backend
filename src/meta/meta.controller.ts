@@ -1,6 +1,7 @@
 import { AudioRuntimeService } from '../media/audio-runtime.service';
 import { AudioUploadCapabilityDto } from '../media/dto/audio-media.dto';
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Optional } from '@nestjs/common';
+import { FontReadinessService } from '../text-fonts/font-readiness.service';
 import { ConfigService } from '@nestjs/config';
 import { ApiOkResponse, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
 import { Public } from '../auth/decorators/public.decorator';
@@ -106,20 +107,23 @@ export class MetaController {
   constructor(
     private readonly config: ConfigService,
     private readonly audio?: AudioRuntimeService,
+    @Optional() private readonly fonts?: FontReadinessService,
   ) {}
 
   @Get()
   @Public()
   @ApiOkResponse({ type: ApiMetaResponseDto })
-  getMeta(): ApiMetaResponseDto {
+  async getMeta(): Promise<ApiMetaResponseDto> {
+    const fontsSupported = (await this.fonts?.supported()) ?? false;
     return {
       contractVersion: API_CONTRACT_VERSION,
       ...(this.audio?.capability() ? { audioUpload: this.audio.capability() } : {}),
       buildSha: this.config.get<string>('app.buildSha') ?? null,
       markdownContractVersion: ACTIVE_MARKDOWN_CONTRACT_VERSION,
       capabilities: {
-        textFontV2Supported: false,
-        textFontV2WriteEnabled: false,
+        textFontV2Supported: fontsSupported,
+        textFontV2WriteEnabled:
+          fontsSupported && (this.config.get<boolean>('textFonts.enabled') ?? false),
         textFontV1Supported: true,
         textFontV1WriteEnabled: this.config.get<boolean>('app.textFontV1Enabled') ?? false,
         textColorV1Supported: true,

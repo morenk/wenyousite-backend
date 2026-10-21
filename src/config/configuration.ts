@@ -88,11 +88,20 @@ export default function configuration() {
       dsn: env.SENTRY_DSN,
     },
 
+    textFonts: {
+      enabled: env.TEXT_FONT_V2_ENABLED && !!env.TEXT_FONT_STORAGE_ROOT && !!env.TEXT_FONT_BUCKET,
+      bucket: env.TEXT_FONT_BUCKET,
+      storageRoot: env.TEXT_FONT_STORAGE_ROOT,
+      toolchainDir: env.TEXT_FONT_TOOLCHAIN_DIR,
+    },
+
     // 应用基础信息
     app: {
       textColorV1Enabled: env.TEXT_COLOR_V1_ENABLED,
       textFontV1Enabled:
-        env.TEXT_FONT_V1_ENABLED && !!env.TEXT_FONT_ASSET_BASE_URL && !!TEXT_FONT_ASSET_INDEX.manifest,
+        env.TEXT_FONT_V1_ENABLED &&
+        !!env.TEXT_FONT_ASSET_BASE_URL &&
+        !!TEXT_FONT_ASSET_INDEX.manifest,
       textFontAssetBaseUrl: env.TEXT_FONT_ASSET_BASE_URL,
       roleMentionsV6Enabled: env.RP_MENTION_V6_ENABLED,
       url: env.APP_URL,

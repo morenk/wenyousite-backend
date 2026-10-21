@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# 正常启动样本不继承门禁进程的迁移凭据；拒绝样本在下方显式注入。
+unset DIRECT_DATABASE_URL
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+START_SCRIPT="$SCRIPT_DIR/wenyousite-font-worker-start.sh"
+TEST_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/wenyousite-font-worker-start-test.XXXXXX")
+RELEASE_DIR="$TEST_ROOT/release"
+FAKE_NODE="$TEST_ROOT/fake-node"
+REVISION_FILE="$RELEASE_DIR/BUILD_SHA"
+ENV_FILE="$TEST_ROOT/backend.env"
+
+cleanup() {
+  case "$TEST_ROOT" in
+    "${TMPDIR:-/tmp}"/wenyousite-font-worker-start-test.*)
+      rm -rf --one-file-system -- "$TEST_ROOT"
+      ;;
+    *)
+      echo "拒绝清理非测试目录: $TEST_ROOT" >&2
+      ;;
+  esac
+}
+trap cleanup EXIT INT TERM
+
+mkdir -p "$RELEASE_DIR/dist"
+printf 'placeholder\n' >"$RELEASE_DIR/dist/font-worker.js"
+printf 'placeholder\n' >"$ENV_FILE"
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'printf "%s|%s|%s\n" "${BUILD_SHA:-}" "${NODE_ENV:-}" "${1:-}"' \
+  >"$FAKE_NODE"
+chmod 0755 "$FAKE_NODE"
+
+valid_sha=0123456789abcdef0123456789abcdef01234567
+printf '%s\n' "$valid_sha" >"$REVISION_FILE"
+output=$(WENYOU_BACKEND_RELEASE_DIR="$RELEASE_DIR" \
+  WENYOU_NODE_BINARY="$FAKE_NODE" \
+  WENYOU_BACKEND_REVISION_FILE="$REVISION_FILE" \
+  WENYOU_BACKEND_ENV_FILE="$ENV_FILE" \
+  bash "$START_SCRIPT")
+if [ "$output" != "$valid_sha|production|dist/font-worker" ]; then
+  echo "字体 Worker 启动器没有传递精确 revision: $output" >&2
+  exit 1
+fi
+if DIRECT_DATABASE_URL=postgresql://owner:test@example.invalid/wenyousite \
+  WENYOU_BACKEND_RELEASE_DIR="$RELEASE_DIR" \
+  WENYOU_NODE_BINARY="$FAKE_NODE" \
+  WENYOU_BACKEND_REVISION_FILE="$REVISION_FILE" \
+  WENYOU_BACKEND_ENV_FILE="$ENV_FILE" \
+  bash "$START_SCRIPT" >/dev/null 2>&1; then
+  echo "Worker 启动器接受了 owner 直连凭据" >&2
+  exit 1
+fi
+
+for invalid_root in /tmp/font-work /var/lib/wenyousite/font-work; do
+  if TEXT_FONT_STORAGE_ROOT="$invalid_root" \
+    WENYOU_BACKEND_RELEASE_DIR="$RELEASE_DIR" \
+    WENYOU_NODE_BINARY="$FAKE_NODE" \
+    WENYOU_BACKEND_REVISION_FILE="$REVISION_FILE" \
+    WENYOU_BACKEND_ENV_FILE="$ENV_FILE" \
+    bash "$START_SCRIPT" >/dev/null 2>&1; then
+    echo "字体 Worker 接受错误工作目录或缺失 release 工具链" >&2
+    exit 1
+  fi
+done
+
+printf 'not-a-sha\n' >"$REVISION_FILE"
+if WENYOU_BACKEND_RELEASE_DIR="$RELEASE_DIR" \
+  WENYOU_NODE_BINARY="$FAKE_NODE" \
+  WENYOU_BACKEND_REVISION_FILE="$REVISION_FILE" \
+  WENYOU_BACKEND_ENV_FILE="$ENV_FILE" \
+  bash "$START_SCRIPT" >/dev/null 2>&1; then
+  echo "字体 Worker 启动器接受了无效 revision" >&2
+  exit 1
+fi
+
+echo "字体 Worker revision 启动测试通过"

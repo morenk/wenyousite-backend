@@ -13,6 +13,7 @@ COMPOSE_ENV=${WENYOUSITE_COMPOSE_ENV:-$CONFIG_ROOT/compose.env}
 DEPLOY_LOCK_FILE=${WENYOU_DEPLOY_LOCK_FILE:-/var/lib/wenyousite/deploy.lock}
 DEPLOY_FRONTEND=true
 IMAGE_WORKER_UNIT=wenyousite-image-worker.service
+FONT_WORKER_UNIT=wenyousite-font-worker.service
 
 usage() {
   echo "用法: $0 [--all|--backend-only]" >&2
@@ -28,7 +29,7 @@ if [ "$#" -eq 1 ]; then
 fi
 [ "$(id -u)" -eq 0 ] || { echo "公网部署必须以 root 运行" >&2; exit 1; }
 
-for command_name in curl docker flock git install jq node pnpm restic runuser systemctl; do
+for command_name in curl docker flock git install jq node pnpm restic runuser systemctl bwrap python3.12 prlimit; do
   command -v "$command_name" >/dev/null 2>&1 || { echo "缺少部署命令: $command_name" >&2; exit 1; }
 done
 if [ "$DEPLOY_FRONTEND" = true ] && [ ! -d "$FRONTEND_DIR" ]; then
@@ -84,6 +85,7 @@ set +a
 
 echo "2. 执行质量与生产依赖安全门禁..."
 (cd "$BACKEND_DIR" && pnpm security:audit && pnpm check)
+(cd "$BACKEND_DIR" && pnpm text-font:prepare-toolchain)
 if [ "$DEPLOY_FRONTEND" = true ]; then (cd "$FRONTEND_DIR" && pnpm check); fi
 
 echo "3. 在有状态操作前重新验证提交..."
@@ -123,10 +125,13 @@ current_backend_sha=$(bash "$SCRIPT_DIR/assert-releasable-repo.sh" "$BACKEND_DIR
 assert_same_sha "后端提交" "$BACKEND_BUILD_SHA" "$current_backend_sha"
 install -m 0755 "$SCRIPT_DIR/wenyousite-backend-start.sh" /usr/local/sbin/wenyousite-backend-start
 install -m 0755 "$SCRIPT_DIR/wenyousite-image-worker-start.sh" /usr/local/sbin/wenyousite-image-worker-start
+install -m 0755 "$SCRIPT_DIR/wenyousite-font-worker-start.sh" /usr/local/sbin/wenyousite-font-worker-start
+install -d -o wenyousite-backend -g wenyousite-backend -m 0700 /var/lib/wenyousite/font-work
 install -m 0755 "$SCRIPT_DIR/promote-android-release.sh" /usr/local/sbin/wenyousite-promote-android
 for unit_file in \
   wenyousite-backend.service \
   wenyousite-image-worker.service \
+  wenyousite-font-worker.service \
   wenyousite-database-migrate.service \
   'wenyousite-backup-alert@.service' \
   wenyousite-backup-health.service \
@@ -148,32 +153,37 @@ systemctl daemon-reload
 echo "7. 停止写入、执行 owner 迁移并切换应用..."
 systemctl stop wenyousite-backend.service || true
 systemctl stop wenyousite-image-worker.service || true
+systemctl stop "$FONT_WORKER_UNIT" || true
 systemctl start wenyousite-database-migrate.service
-systemctl enable wenyousite-backend.service wenyousite-image-worker.service >/dev/null
+systemctl enable wenyousite-backend.service wenyousite-image-worker.service "$FONT_WORKER_UNIT" >/dev/null
 if ! systemctl restart "$IMAGE_WORKER_UNIT"; then
   echo "图片 Worker 重启失败，拒绝继续启动后端" >&2
   systemctl show "$IMAGE_WORKER_UNIT" -p ActiveState -p SubState -p Result -p ExecMainStatus -p NRestarts --no-pager >&2 || true
-  systemctl stop wenyousite-backend.service "$IMAGE_WORKER_UNIT" || true
+  systemctl stop wenyousite-backend.service "$IMAGE_WORKER_UNIT" "$FONT_WORKER_UNIT" || true
   exit 1
 fi
 if ! wait_for_systemd_active "$IMAGE_WORKER_UNIT" "图片 Worker"; then
-  systemctl stop wenyousite-backend.service "$IMAGE_WORKER_UNIT" || true
+  systemctl stop wenyousite-backend.service "$IMAGE_WORKER_UNIT" "$FONT_WORKER_UNIT" || true
+  exit 1
+fi
+if ! systemctl restart "$FONT_WORKER_UNIT" || ! wait_for_systemd_active "$FONT_WORKER_UNIT" "字体 Worker"; then
+  systemctl stop wenyousite-backend.service "$IMAGE_WORKER_UNIT" "$FONT_WORKER_UNIT" || true
   exit 1
 fi
 if ! systemctl restart wenyousite-backend.service; then
   echo "后端重启失败，停止图片 Worker" >&2
-  systemctl stop wenyousite-backend.service "$IMAGE_WORKER_UNIT" || true
+  systemctl stop wenyousite-backend.service "$IMAGE_WORKER_UNIT" "$FONT_WORKER_UNIT" || true
   exit 1
 fi
 if ! wait_for_http http://127.0.0.1:3000/api/v1/health "后端"; then
-  systemctl stop wenyousite-backend.service "$IMAGE_WORKER_UNIT"
+  systemctl stop wenyousite-backend.service "$IMAGE_WORKER_UNIT" "$FONT_WORKER_UNIT"
   journalctl -u wenyousite-backend.service --no-pager -n 120 >&2
   exit 1
 fi
 DEPLOYED_BUILD_SHA=$(curl --fail --silent --show-error http://127.0.0.1:3000/api/v1/meta | \
   node -e 'let input=""; process.stdin.on("data", c => input += c).on("end", () => process.stdout.write(JSON.parse(input).data.buildSha ?? ""));')
 [ "$DEPLOYED_BUILD_SHA" = "$BACKEND_BUILD_SHA" ] || {
-  systemctl stop wenyousite-backend.service "$IMAGE_WORKER_UNIT"
+  systemctl stop wenyousite-backend.service "$IMAGE_WORKER_UNIT" "$FONT_WORKER_UNIT"
   echo "后端 buildSha 不一致: $DEPLOYED_BUILD_SHA != $BACKEND_BUILD_SHA" >&2
   exit 1
 }
@@ -196,7 +206,7 @@ fi
 echo "9. 验证公网入口和数据安全状态..."
 curl --fail --silent --show-error https://wenyou.site/api/v1/health >/dev/null
 if [ "$DEPLOY_FRONTEND" = true ]; then curl --fail --silent --show-error --head https://wenyou.site >/dev/null; fi
-bash "$SCRIPT_DIR/validate-running-data-security.sh" --require-image-worker
+bash "$SCRIPT_DIR/validate-running-data-security.sh" --require-image-worker --require-font-worker
 
 echo "=== 部署完成 ==="
 echo "backendGitSha: $BACKEND_BUILD_SHA"

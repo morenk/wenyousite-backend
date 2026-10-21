@@ -1,6 +1,8 @@
+import { FontReadinessService } from '../text-fonts/font-readiness.service';
+import { assertFontWritePreflight, assertFontWriteInTransaction } from '../text-fonts/font-content-policy';
 import { ConfigService } from '@nestjs/config';
 import { Optional } from '@nestjs/common';
-import { assertTextColorWrite, assertTextFontWrite } from '../common/text-colors';
+import { assertTextColorWrite } from '../common/text-colors';
 import { ThreadIdentitiesService } from '../thread-identities/thread-identities.service';
 import { postContentEditData, rethrowPostEditConflict } from './post-content-edit';
 import { Injectable, HttpStatus } from '@nestjs/common';
@@ -42,6 +44,7 @@ export class PostsService {
     private postPins: PostPinService,
     private readonly identities: ThreadIdentitiesService,
     @Optional() private readonly config?: ConfigService,
+    @Optional() private readonly fontReadiness?: FontReadinessService,
   ) {}
   async findAllBySubthread(
     subthreadId: string,
@@ -100,7 +103,7 @@ export class PostsService {
         return existingRequest;
       }
     }
-    assertTextFontWrite(content, '', dto.textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false);
+    assertFontWritePreflight(content, '', dto.textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false, (this.config?.get<boolean>('textFonts.enabled') ?? false) && ((await this.fontReadiness?.supported()) ?? false));
     assertTextColorWrite(content, '', dto.textColorVersion, this.config?.get<boolean>('app.textColorV1Enabled') ?? false);
     const stickerAssetIds = await this.stickerContent.assertContentAllowed(userId, content);
 
@@ -158,6 +161,7 @@ export class PostsService {
           floorNumber = (maxFloor._max.floorNumber ?? 0) + 1;
         }
 
+        await assertFontWriteInTransaction(tx, content, '', dto.textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false, (this.config?.get<boolean>('textFonts.enabled') ?? false) && ((await this.fontReadiness?.supported()) ?? false), !!this.fontReadiness);
         const p = await tx.post.create({
           data: {
             threadId: subthread.threadId,
@@ -308,7 +312,7 @@ export class PostsService {
       existing?.content ?? '',
     );
 
-    assertTextFontWrite(normalizedContent, existing?.content ?? '', textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false);
+    assertFontWritePreflight(normalizedContent, existing?.content ?? '', textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false, (this.config?.get<boolean>('textFonts.enabled') ?? false) && ((await this.fontReadiness?.supported()) ?? false));
     assertTextColorWrite(normalizedContent, existing?.content ?? '', textColorVersion, this.config?.get<boolean>('app.textColorV1Enabled') ?? false);
     if (!existing) {
       const post = await this.prisma
@@ -328,6 +332,7 @@ export class PostsService {
             );
           }
 
+          await assertFontWriteInTransaction(tx, normalizedContent, '', textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false, (this.config?.get<boolean>('textFonts.enabled') ?? false) && ((await this.fontReadiness?.supported()) ?? false), !!this.fontReadiness);
           const created = await tx.post.create({
             data: {
               threadId: subthread.threadId,
@@ -420,6 +425,7 @@ export class PostsService {
       .$transaction(async (tx) => {
         await this.mentionEvents.lockContentInteraction(tx, subthread.threadId, userId, normalizedContent, [existing.id]);
         await this.threadAccess.lockManagement(tx, subthread.threadId, userId);
+        await assertFontWriteInTransaction(tx, normalizedContent, oldContent, textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false, (this.config?.get<boolean>('textFonts.enabled') ?? false) && ((await this.fontReadiness?.supported()) ?? false), !!this.fontReadiness);
         const post = await tx.post.update({
           where: { id: existing.id, version, ...notDeleted },
           data: { ...postContentEditData(oldContent, normalizedContent),
@@ -499,7 +505,7 @@ export class PostsService {
     }
 
     const oldContent = postLight.content;
-    assertTextFontWrite(content, oldContent, dto.textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false);
+    assertFontWritePreflight(content, oldContent, dto.textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false, (this.config?.get<boolean>('textFonts.enabled') ?? false) && ((await this.fontReadiness?.supported()) ?? false));
     assertTextColorWrite(content, oldContent, dto.textColorVersion, this.config?.get<boolean>('app.textColorV1Enabled') ?? false);
     const stickerAssetIds = await this.stickerContent.assertContentAllowed(
       userId,
@@ -510,6 +516,7 @@ export class PostsService {
       .$transaction(async (tx) => {
         await this.mentionEvents.lockContentInteraction(tx, postLight.threadId, userId, content);
         await tx.$queryRaw`SELECT id FROM threads WHERE id = ${postLight.threadId} FOR UPDATE`;
+        await assertFontWriteInTransaction(tx, content, oldContent, dto.textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false, (this.config?.get<boolean>('textFonts.enabled') ?? false) && ((await this.fontReadiness?.supported()) ?? false), !!this.fontReadiness);
         const post = await tx.post.update({
           where: { id, version: dto.version, content: oldContent, ...notDeleted },
           data: { ...postContentEditData(oldContent, content),

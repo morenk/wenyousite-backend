@@ -1,3 +1,4 @@
+import { TextFontCoreModule } from '../text-fonts/text-font-core.module';
 import { Module } from '@nestjs/common';
 import { DraftsController } from './drafts.controller';
 import { DraftsService } from './drafts.service';
@@ -7,7 +8,7 @@ import { DiceModule } from '../dice/dice.module';
 
 /** 草稿模块：5 槽位自动/手动保存 */
 @Module({
-  imports: [StickersModule, MediaReferenceModule, DiceModule],
+  imports: [TextFontCoreModule, StickersModule, MediaReferenceModule, DiceModule],
   controllers: [DraftsController],
   providers: [DraftsService],
   exports: [DraftsService],

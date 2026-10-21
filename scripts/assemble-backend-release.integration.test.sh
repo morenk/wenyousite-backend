@@ -41,11 +41,13 @@ fi
 
 (
   umask 077
-  mkdir -p "$repo/dist/media" "$repo/docker" "$repo/prisma" "$repo/node_modules"
+  mkdir -p "$repo/dist/media" "$repo/dist/text-fonts" "$repo/contracts" "$repo/docker" "$repo/prisma" "$repo/node_modules"
   printf 'module.exports = {};\n' > "$repo/dist/main.js"
   cp "$repo/dist/main.js" "$repo/dist/image-worker.js"
+  cp "$repo/dist/main.js" "$repo/dist/font-worker.js"
   printf "module.exports = require('pino-pretty');\n" > "$repo/dist/app.module.js"
   cp "$repo/dist/app.module.js" "$repo/dist/media/image-worker.module.js"
+  cp "$repo/dist/app.module.js" "$repo/dist/text-fonts/font-worker.module.js"
   printf '{}\n' > "$repo/package.json"
   mkdir -p "$repo/.cache/audio-runtime/bin"
   printf '{}\n' > "$repo/audio-runtime.lock.json"
@@ -90,7 +92,7 @@ if [ "${1:-}" = --baseline ]; then
 fi
 [ "$(readlink "$runtime/current")" = "releases/$sha" ]
 [ "$(cat "$runtime/current-revision")" = "$sha" ]
-for entry in main.js image-worker.js; do
+for entry in main.js image-worker.js font-worker.js; do
   runuser -u "$APP_USER" -- test -r "$release/dist/$entry"
   [ "$(stat -c %a "$release/dist/$entry")" = 640 ]
 done

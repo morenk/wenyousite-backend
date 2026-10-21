@@ -1,6 +1,6 @@
 # 动态字体 v2
 
-HTTP `5.43.0-dev.20261022.2`。正文新增 `data-wenyou-font-v2`，不替换字体 v1、旧目录、旧 manifest 或旧运行策略 v2。本次先提交可同步的契约切片；动态管理与目录运行入口暂返回 `503/50301`，`textFontV2Supported=false`、`textFontV2WriteEnabled=false`。后续持久化、处理与发布验证完成前不得把本切片当作已可发布功能。
+HTTP `5.43.0-dev.20261022.3`。正文新增 `data-wenyou-font-v2`，不替换字体 v1、旧目录、旧 manifest 或旧运行策略 v2。动态接口使用数据库版本和私有资产网关；未配置私有 bucket 或沙箱目录时返回 `503/50301`。新写默认关闭，完整导入和资源校验完成前不宣告 v2 可用。代码交付不代表已经在公网启用。
 
 ## 身份与能力
 
@@ -75,4 +75,45 @@ Web 无固定家族数限制，活动预算 64 faces/16 MiB SFNT，使用 lease/
 
 运行实现需提供已提交的独立 E2E 入口，由单一任务登记 PG、Redis、暂存/输出目录、API/资产地址及清理所有者。消费者构建后，通过真实 Admin 上传→处理→预览→发布生成新 ID，验证同会话选择、发帖、复制、保存和重开。用第二份可辨别字形构建新版，旧帖继续旧版本；覆盖停用、撤回、回滚、离线、旧端保护及失败重试。不得直接 DB 种入 manifest 代替上传链路，也不得复用公网写入。
 
-Web 明暗/窄屏截图及 Android 同会话网络/剪贴板/内存证据由消费者任务提供。当前契约切片仅提供共享固定夹具和保源回归，不宣称这些运行路径已验收。
+Web 明暗/窄屏截图及 Android 同会话网络/剪贴板/内存证据由消费者任务提供。后端功能 E2E 与构建后新增 ID 的跨端验收分别记录，前者不代替后者。
+
+## 运行与历史导入
+
+API 只暂存原件和投递 Outbox；`src/font-worker.ts` 是独立进程，BullMQ 队列 `text-font` 的全局并发为 1。两个 Worker 也不能同时解析两份字体。解析子进程使用 Linux x86_64、Python 3.12、bubblewrap 和 prlimit；只读挂载输入、固定编译器与工具链，仅输出目录可写，无网络，地址空间 2 GiB，墙钟 600 秒。Pillow/fontTools/Brotli wheel 由 [工具链锁](../scripts/fonts/dynamic/toolchain.lock.json) 固定；通过 `pnpm text-font:prepare-toolchain` 下载并校验，不修改系统 Python。
+
+`TEXT_FONT_BUCKET` 指定独立私有 bucket，复用现有 `ObjectStorageService` 和 COS 连接配置；必须由管理身份配置为禁止匿名读取，不能等于公共媒体 `COS_BUCKET`。原件和不可变产物分别保存在 `text-fonts/v2/sources/` 与 `text-fonts/v2/assets/`，条件 PUT 防止覆盖；导入、发布前从远端完整复验 SHA/长度，客户端仅获得本站版本网关路径。`TEXT_FONT_STORAGE_ROOT` 仅保存 API/Worker 共用的沙箱工作目录，不是持久资产事实源。
+
+本地工作目录必须为当前运行用户所有、0700、真实路径且无符号链接。普通完成/失败立即清理；进程崩溃后，API 恢复器只回收 UID、PID 启动时间、任务尝试、claim、设备和 inode 均可核验的遗留目录，再通过 Outbox 重试。身份不足的目录保留调查，不按目录名猜测删除。未引用原件和历史产物本轮不自动删除。
+
+导入和发布事务在全部远端资源校验成功后才写入 `publishedAt`。API 冷启动的能力探测复用固定 28 款历史版本的发布事实，只对一个样张执行带 3 秒截止的 HEAD，不遍历或下载全库；写入开关还必须通过此就绪门禁。首次就绪后支持能力不随停用、撤回或暂时存储故障下降。每次版本资产下载仍有字节上限、长度与 SHA 校验，失败不会切回旧公共通道。远端读取不占用字体状态事务；返回字节前在短事务中重新核验撤回状态，避免慢存储阻塞撤回。
+
+历史导入分两步：先用 `scripts/fonts/dynamic/prepare-legacy.py` 按已提交源锁校验原件和授权材料，旧包使用 `scripts/fonts/build.py --verify` 复验；再运行导入 CLI。`--bundle` 指向含 `fonts/v1/` 的旧产物根，`--raw-sources` 指向恢复工具生成的 `raw` 目录。默认只校验、输出计划，不连接数据库：
+
+```bash
+pnpm text-font:import-v1 --bundle /absolute/legacy-bundle --raw-sources /absolute/source-cache/raw
+```
+
+执行导入时附加 `--apply --actor <管理员用户ID>`，连接身份必须为 `wenyousite_app`，配置私有存储和工具链。不可变 release 可运行 `node dist/text-fonts/font-import-cli.js`，参数相同。导入保留原 SFNT/WOFF2 字节、SHA 和 `WYF1-*` family，将原始授权正文及原始字节封装为 JSON notice，并在同样的沙箱中生成 PNG。所有文件校验完成后，一次事务写入固定 28 个历史版本、目录及不可变审计。重跑不覆盖已有配置、当前版本、停用或撤回状态，也不产生新的目录修订。
+
+## 公网部署与恢复边界
+
+部署脚本打包 `contracts/`、编译器及独立工具链，安装 [字体 Worker unit](../ops/wenyousite-font-worker.service)，按原部署门禁从已合并提交切换。公网沙箱工作目录固定为 `/var/lib/wenyousite/font-work`，应用用户拥有，API/Worker unit 仅额外开放此目录的写权限；不得用公开对象存储 URL 替代网关。Worker 启动器从不可变 release 读取 `BUILD_SHA` 和工具链，拒绝继承 owner 直连凭据。配置和首次历史导入仍由获授权的管理身份执行，本任务不重启或部署公网服务。
+
+持久字体资产随私有对象存储的数据保护策略管理；本地工作目录不进入字体资产备份。恢复需要匹配数据库中的不可变对象清单，在隔离目标 bucket 中复验全部 SHA/长度和匿名访问拒绝，再按既有门禁显式批准切换。不能只恢复数据库或本机工作目录便宣称字体资产已恢复。本任务不创建公网 bucket、不改变现有备份任务，也不宣称对象存储备份已验收。
+
+## 同一 runId 的跨端会话
+
+沿用 [统一隔离入口](e2e-isolation.md)，无需专用预览后端：
+
+```bash
+TEXT_FONT_TOOLCHAIN_DIR=/absolute/verified-toolchain \
+E2E_FONT_LEGACY_BUNDLE=/absolute/legacy-bundle \
+E2E_FONT_LEGACY_SOURCES=/absolute/source-cache/raw \
+pnpm e2e:run --source --text-font-v2 --text-font-v1 --text-color-v1 --text-font-v1-import -- <消费者命令>
+```
+
+runner 先核验独立 PostgreSQL/Redis，再以应用角色导入固定历史版本并验证幂等，启动 API 与独立 Worker，最后发布 ready manifest。manifest 增补 checkout SHA、脏状态、执行方式、工作目录、独立 S3 协议夹具的进程身份/随机私有 bucket 和 Worker PID/启动时间；消费者不获得数据库凭据。核心验收必须使用已提交且干净的源码，登记两端固定构建和打开会话后才创建新的动态 ID。消费者命令保持运行期间，Web 与 Android 顺序使用同一资源和账号；状态步骤必须等双方完成，不先为一端撤回另一端仍需使用的数据。消费者退出后 runner 统一停止进程并清理，本轮失败或清理失败均不能计为通过。动态消费者会话拒绝混入会修改这些状态的后端 `--suite`/`--full`。
+
+Backend 自身故障验证使用 `pnpm test:integration:text-font-v2`，其随机 ID 单独标记为非跨端核心证据。此套件启动两个登记 Worker，检查全局单并发、真实 Worker SIGKILL 重试和工作目录清理，并执行真实沙箱的宿主文件读取、输入写入、网络、内存、墙钟及输出上限拒绝用例。
+
+功能套件在提供 `E2E_FONT_LEGACY_BUNDLE` 与 `E2E_FONT_LEGACY_SOURCES` 时执行真实 28 款导入及幂等复验；没有私人恢复材料的 CI 仅复用本轮真实 Worker 输出构造历史就绪记录，并明确标记 `synthetic-legacy-readiness-only`。该夹具不计作真实历史导入、原生兼容或跨端核心证据；真实导入证据必须另外完成。

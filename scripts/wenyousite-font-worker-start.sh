@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+RELEASE_DIR=${WENYOU_BACKEND_RELEASE_DIR:-/var/lib/wenyousite/backend/current}
+NODE_BINARY=${WENYOU_NODE_BINARY:-$RELEASE_DIR/bin/node}
+REVISION_FILE=${WENYOU_BACKEND_REVISION_FILE:-$RELEASE_DIR/BUILD_SHA}
+ENV_FILE=${WENYOU_BACKEND_ENV_FILE:-/etc/wenyousite/backend.env}
+
+if [ ! -d "$RELEASE_DIR" ]; then
+  echo "后端 release 不存在: $RELEASE_DIR" >&2
+  exit 1
+fi
+if [ ! -x "$NODE_BINARY" ]; then
+  echo "Node 不可执行: $NODE_BINARY" >&2
+  exit 1
+fi
+if [ ! -f "$RELEASE_DIR/dist/font-worker.js" ]; then
+  echo "字体 Worker production build 不存在: $RELEASE_DIR/dist/font-worker.js" >&2
+  exit 1
+fi
+if [ ! -f "$ENV_FILE" ]; then
+  echo "后端环境文件不存在: $ENV_FILE" >&2
+  exit 1
+fi
+if [ -n "${DIRECT_DATABASE_URL:-}" ]; then
+  echo "Worker 不得继承数据库 owner 直连凭据" >&2
+  exit 1
+fi
+if [ ! -f "$REVISION_FILE" ]; then
+  echo "后端 revision 文件不存在: $REVISION_FILE" >&2
+  exit 1
+fi
+
+BUILD_SHA=$(<"$REVISION_FILE")
+if [[ ! "$BUILD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "后端 revision 不是完整 Git SHA: $REVISION_FILE" >&2
+  exit 1
+fi
+if [ -n "${TEXT_FONT_STORAGE_ROOT:-}" ] && [ "$TEXT_FONT_STORAGE_ROOT" != /var/lib/wenyousite/font-work ]; then
+  echo "字体工作目录必须匹配 systemd 限制路径" >&2
+  exit 1
+fi
+if [ -n "${TEXT_FONT_STORAGE_ROOT:-}" ]; then
+  TEXT_FONT_TOOLCHAIN_DIR=$(readlink -f -- "$RELEASE_DIR/tools/font-runtime")
+  [ -f "$TEXT_FONT_TOOLCHAIN_DIR/wenyou-toolchain.lock.json" ] || { echo "字体工具链缺失" >&2; exit 1; }
+  export TEXT_FONT_TOOLCHAIN_DIR
+fi
+cd "$RELEASE_DIR"
+exec env NODE_ENV=production BUILD_SHA="$BUILD_SHA" "$NODE_BINARY" dist/font-worker

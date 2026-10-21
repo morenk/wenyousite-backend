@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 export const DOMAIN_EVENTS = {
+  TEXT_FONT_BUILD_REQUESTED: 'text-font.build-requested',
   POST_CREATED: 'post.created',
   POST_MENTIONS_UPDATED: 'post.mentions.updated',
   THREAD_PUBLISHED: 'thread.published',
@@ -140,6 +141,7 @@ export interface ThreadCollaboratorRoleChangedEvent {
 }
 
 export interface DomainEventMap {
+  [DOMAIN_EVENTS.TEXT_FONT_BUILD_REQUESTED]: { jobId: string; attempt: number };
   [DOMAIN_EVENTS.POST_CREATED]: PostCreatedEvent;
   [DOMAIN_EVENTS.POST_MENTIONS_UPDATED]: PostMentionsUpdatedEvent;
   [DOMAIN_EVENTS.THREAD_PUBLISHED]: ThreadPublishedEvent;
@@ -162,6 +164,10 @@ const nullableId = id.nullable();
 const optionalTimestamp = z.string().datetime().optional();
 
 export const DOMAIN_EVENT_SCHEMAS = {
+  [DOMAIN_EVENTS.TEXT_FONT_BUILD_REQUESTED]: z.object({
+    jobId: z.string().regex(/^tfj_[a-f0-9]{32}$/u),
+    attempt: z.number().int().min(1),
+  }),
   [DOMAIN_EVENTS.POST_CREATED]: z.object({
     postId: id,
     content: z.string(),

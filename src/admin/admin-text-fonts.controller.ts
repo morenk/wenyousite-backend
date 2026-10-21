@@ -10,7 +10,11 @@ import {
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { AdminAuth, AdminStepUpAuth } from './admin-auth.decorator';
 import { CurrentUser, CurrentUserPayload } from '../auth/decorators/current-user.decorator';
-import { TextFontAvailabilityService } from '../text-fonts/text-font-availability.service';
+import { FontAdminService } from '../text-fonts/font-admin.service';
+import { FontQueryService } from '../text-fonts/font-query.service';
+import { fontAssetResponse } from '../text-fonts/font-http';
+import { RouteConfig } from '@nestjs/platform-fastify';
+import { FONT_SOURCE_MAX_BYTES } from '../text-fonts/font-protocol';
 import {
   FontAdminFamilyDetailDto,
   FontAdminListQueryDto,
@@ -36,28 +40,31 @@ const context = (user: CurrentUserPayload, request: FastifyRequest) => ({
 @Controller('admin/text-fonts')
 @AdminAuth()
 export class AdminTextFontsController {
-  constructor(private readonly fonts: TextFontAvailabilityService) {}
+  constructor(
+    private readonly fonts: FontAdminService,
+    private readonly queries: FontQueryService,
+  ) {}
 
   @Get()
   @ApiOkResponse({ type: FontAdminPageDto })
-  list(@Query() query: FontAdminListQueryDto): FontAdminPageDto {
-    return this.fonts.request('list', query);
+  async list(@Query() query: FontAdminListQueryDto): Promise<FontAdminPageDto> {
+    return this.queries.list(query);
   }
 
   @Post()
   @ApiCreatedResponse({ type: FontFamilyDto })
-  create(
+  async create(
     @Body() dto: FontConfigurationDto,
     @CurrentUser() user: CurrentUserPayload,
     @Req() request: FastifyRequest,
-  ): FontFamilyDto {
-    return this.fonts.request('create', dto, context(user, request));
+  ): Promise<FontFamilyDto> {
+    return this.fonts.create(dto, context(user, request));
   }
 
   @Get('jobs/:jobId')
   @ApiOkResponse({ type: FontJobDto })
-  getJob(@Param('jobId') jobId: string): FontJobDto {
-    return this.fonts.request('job', jobId);
+  async getJob(@Param('jobId') jobId: string): Promise<FontJobDto> {
+    return this.queries.job(jobId);
   }
 
   @Post('jobs/:jobId/process')
@@ -66,18 +73,18 @@ export class AdminTextFontsController {
     description:
       '确认三项权利与完整授权后排队；同一 job 重放幂等，失败 job 可重试，使用上传时配置快照。',
   })
-  process(
+  async process(
     @Param('jobId') jobId: string,
     @CurrentUser() user: CurrentUserPayload,
     @Req() request: FastifyRequest,
-  ): FontJobDto {
-    return this.fonts.request('process', jobId, context(user, request));
+  ): Promise<FontJobDto> {
+    return this.fonts.process(jobId, context(user, request));
   }
 
   @Get('versions/:versionId/preview')
   @ApiOkResponse({ type: FontVersionDescriptorDto })
-  preview(@Param('versionId') versionId: string): FontVersionDescriptorDto {
-    return this.fonts.request('preview', versionId);
+  async preview(@Param('versionId') versionId: string): Promise<FontVersionDescriptorDto> {
+    return this.queries.version(versionId, true);
   }
 
   @Get('versions/:versionId/assets/:asset')
@@ -86,12 +93,12 @@ export class AdminTextFontsController {
     schema: { type: 'string', format: 'binary' },
     description: '管理员预览输出；撤回版本也禁止下载，源文件保留在私有暂存。',
   })
-  asset(
+  async asset(
     @Param('versionId') versionId: string,
     @Param('asset') asset: string,
     @Res() reply: FastifyReply,
-  ): void {
-    this.fonts.request('previewAsset', versionId, asset, reply);
+  ): Promise<void> {
+    fontAssetResponse(await this.queries.asset(versionId, asset, true), reply, true);
   }
 
   @Post('versions/:versionId/withdraw')
@@ -100,19 +107,19 @@ export class AdminTextFontsController {
     type: FontVersionDescriptorDto,
     description: '不可逆紧急撤回；新目录原子移除，后续下载拒绝，原正文与历史对象不删除。',
   })
-  withdraw(
+  async withdraw(
     @Param('versionId') versionId: string,
     @Body() dto: FontWithdrawDto,
     @CurrentUser() user: CurrentUserPayload,
     @Req() request: FastifyRequest,
-  ): FontVersionDescriptorDto {
-    return this.fonts.request('withdraw', versionId, dto, context(user, request));
+  ): Promise<FontVersionDescriptorDto> {
+    return this.fonts.withdraw(versionId, dto, context(user, request));
   }
 
   @Get(':familyId')
   @ApiOkResponse({ type: FontAdminFamilyDetailDto })
-  detail(@Param('familyId') familyId: string): FontAdminFamilyDetailDto {
-    return this.fonts.request('detail', familyId);
+  async detail(@Param('familyId') familyId: string): Promise<FontAdminFamilyDetailDto> {
+    return this.queries.detail(familyId);
   }
 
   @Patch(':familyId')
@@ -120,16 +127,17 @@ export class AdminTextFontsController {
     type: FontFamilyDto,
     description: '修改下一次上传的配置，不改历史版本元数据；当前目录排序需重新 publish。',
   })
-  update(
+  async update(
     @Param('familyId') familyId: string,
     @Body() dto: UpdateFontConfigurationDto,
     @CurrentUser() user: CurrentUserPayload,
     @Req() request: FastifyRequest,
-  ): FontFamilyDto {
-    return this.fonts.request('update', familyId, dto, context(user, request));
+  ): Promise<FontFamilyDto> {
+    return this.fonts.update(familyId, dto, context(user, request));
   }
 
   @Post(':familyId/sources')
+  @RouteConfig({ bodyLimit: FONT_SOURCE_MAX_BYTES })
   @ApiConsumes('application/octet-stream')
   @ApiBody({
     schema: {
@@ -142,14 +150,14 @@ export class AdminTextFontsController {
     type: FontJobDto,
     description: '只暂存源，不解析。形成不可变配置快照的 draft job，需显式 process。',
   })
-  upload(
+  async upload(
     @Param('familyId') familyId: string,
     @Query() query: FontSourceQueryDto,
     @Body() source: Buffer,
     @CurrentUser() user: CurrentUserPayload,
     @Req() request: FastifyRequest,
-  ): FontJobDto {
-    return this.fonts.request('upload', familyId, query, source, context(user, request));
+  ): Promise<FontJobDto> {
+    return this.fonts.upload(familyId, query, source, context(user, request));
   }
 
   @Post(':familyId/publish')
@@ -158,13 +166,13 @@ export class AdminTextFontsController {
     description:
       '发布或回滚到已有成功版本；先核验资源可读，再原子切换未来选用与目录。旧帖版本不变。',
   })
-  publish(
+  async publish(
     @Param('familyId') familyId: string,
     @Body() dto: FontPublishDto,
     @CurrentUser() user: CurrentUserPayload,
     @Req() request: FastifyRequest,
-  ): FontFamilyDto {
-    return this.fonts.request('publish', familyId, dto, context(user, request));
+  ): Promise<FontFamilyDto> {
+    return this.fonts.publish(familyId, dto, context(user, request));
   }
 
   @Patch(':familyId/enabled')
@@ -172,12 +180,12 @@ export class AdminTextFontsController {
     type: FontFamilyDto,
     description: '停用禁止新选与粘贴，但仍可读取历史描述符/资产；重新启用不会恢复已撤回版本。',
   })
-  enabled(
+  async enabled(
     @Param('familyId') familyId: string,
     @Body() dto: FontEnabledDto,
     @CurrentUser() user: CurrentUserPayload,
     @Req() request: FastifyRequest,
-  ): FontFamilyDto {
-    return this.fonts.request('enabled', familyId, dto, context(user, request));
+  ): Promise<FontFamilyDto> {
+    return this.fonts.enabled(familyId, dto, context(user, request));
   }
 }

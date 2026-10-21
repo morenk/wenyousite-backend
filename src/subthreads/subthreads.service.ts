@@ -1,6 +1,8 @@
+import { FontReadinessService } from '../text-fonts/font-readiness.service';
+import { assertFontWritePreflight, assertFontWriteInTransaction } from '../text-fonts/font-content-policy';
 import { ConfigService } from '@nestjs/config';
 import { Optional } from '@nestjs/common';
-import { assertTextColorWrite, assertTextFontWrite } from '../common/text-colors';
+import { assertTextColorWrite } from '../common/text-colors';
 import { identityToken } from '../thread-identities/identity-policy';
 import { ThreadIdentitiesService } from '../thread-identities/thread-identities.service';
 import { MentionsService } from '../mentions/mentions.service';
@@ -43,6 +45,7 @@ export class SubthreadsService {
     private mentions: MentionsService,
     private readonly identities: ThreadIdentitiesService,
     @Optional() private readonly config?: ConfigService,
+    @Optional() private readonly fontReadiness?: FontReadinessService,
   ) {}
 
   /** 获取主题帖下的子贴列表 */
@@ -120,7 +123,7 @@ export class SubthreadsService {
       }
     }
 
-    assertTextFontWrite(content, '', dto.textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false);
+    assertFontWritePreflight(content, '', dto.textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false, (this.config?.get<boolean>('textFonts.enabled') ?? false) && ((await this.fontReadiness?.supported()) ?? false));
     assertTextColorWrite(content, '', dto.textColorVersion, this.config?.get<boolean>('app.textColorV1Enabled') ?? false);
     const result = await this.prisma
       .$transaction(async (tx) => {
@@ -128,6 +131,7 @@ export class SubthreadsService {
         // 锁主题帖行，防止并发创建子贴时 sortOrder 竞态
         const manager = await this.threadAccess.lockManagement(tx, threadId, userId);
 
+        await assertFontWriteInTransaction(tx, content, '', dto.textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false, (this.config?.get<boolean>('textFonts.enabled') ?? false) && ((await this.fontReadiness?.supported()) ?? false), !!this.fontReadiness);
         // 事务内计算 sortOrder
         let sortOrder = dto.sortOrder;
         if (sortOrder === undefined) {

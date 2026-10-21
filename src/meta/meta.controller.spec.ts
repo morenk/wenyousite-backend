@@ -3,11 +3,11 @@ import { API_CONTRACT_VERSION } from '../common/swagger/openapi-document';
 import { MetaController } from './meta.controller';
 
 describe('MetaController', () => {
-  it('未配置移动版本策略时返回显式 null，不阻断客户端', () => {
+  it('未配置移动版本策略时返回显式 null，不阻断客户端', async () => {
     const config = { get: jest.fn((key: string) => (key === 'push.enabled' ? false : undefined)) };
     const controller = new MetaController(config as unknown as ConfigService);
 
-    expect(controller.getMeta()).toEqual({
+    expect(await controller.getMeta()).toEqual({
       contractVersion: API_CONTRACT_VERSION,
       buildSha: null,
       markdownContractVersion: 5,
@@ -40,7 +40,7 @@ describe('MetaController', () => {
     });
   });
 
-  it('按平台返回最低、推荐构建号和更新地址', () => {
+  it('按平台返回最低、推荐构建号和更新地址', async () => {
     const values: Record<string, unknown> = {
       'app.buildSha': 'abc123',
       'push.enabled': true,
@@ -55,7 +55,7 @@ describe('MetaController', () => {
     const config = { get: jest.fn((key: string) => values[key]) };
     const controller = new MetaController(config as unknown as ConfigService);
 
-    expect(controller.getMeta()).toEqual(
+    expect(await controller.getMeta()).toEqual(
       expect.objectContaining({
         buildSha: 'abc123',
         capabilities: expect.objectContaining({ pushNotifications: true }),
