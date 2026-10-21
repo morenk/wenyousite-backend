@@ -123,9 +123,13 @@ jobs:
           printf 'E2E_PG_BIN=%s\nE2E_REDIS_BIN=%s\n' "$pg_bin" "$redis_bin" >> "$GITHUB_ENV"
       - name: Enable the Ubuntu bubblewrap namespace profile
         run: |
-          # Ubuntu 24.04 的发行版 profile 默认禁用；仅允许 bwrap 创建命名空间，子进程仍禁止 capabilities。
-          test -r /etc/apparmor.d/bwrap-userns-restrict
-          sudo apparmor_parser --replace /etc/apparmor.d/bwrap-userns-restrict
+          # 优先使用发行版 profile；部分 runner 的 apparmor 包尚未包含该文件。
+          if test -r /etc/apparmor.d/bwrap-userns-restrict; then
+            sudo apparmor_parser --replace /etc/apparmor.d/bwrap-userns-restrict
+          else
+            sudo install -m 0644 scripts/fonts/dynamic/ci-bwrap.apparmor /etc/apparmor.d/wenyou-font-ci-bwrap
+            sudo apparmor_parser --replace /etc/apparmor.d/wenyou-font-ci-bwrap
+          fi
       - name: Verify unprivileged font sandbox prerequisites
         run: |
           test "$(id -u)" -ne 0

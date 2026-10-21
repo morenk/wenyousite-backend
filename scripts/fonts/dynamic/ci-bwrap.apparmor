@@ -1,0 +1,8 @@
+# 仅供临时 CI runner；按 Ubuntu 24.04 的应用级 userns 配置允许 bwrap 启动。
+# https://documentation.ubuntu.com/release-notes/24.04/#unprivileged-user-namespace-restrictions
+# 子进程仍由实际沙箱的 cap-drop ALL、NoNewPrivs、只读挂载和独立网络约束。
+abi <abi/4.0>,
+include <tunables/global>
+profile wenyou-font-ci-bwrap /usr/bin/bwrap flags=(unconfined) {
+  userns,
+}
