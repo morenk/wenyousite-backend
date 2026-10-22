@@ -14,9 +14,10 @@ function resolveDependency(chain: string[]): string {
   return from;
 }
 
-it('邮件、glob 与 URI 的实际间接依赖在限时子进程处理恶意解析形状', () => {
+it('邮件、DKIM、glob 与 URI 的实际间接依赖在限时子进程处理恶意解析形状', () => {
   const paths = {
     mail: resolveDependency(['nodemailer/lib/addressparser']),
+    dkim: resolveDependency(['nodemailer/lib/dkim/message-parser']),
     braces: [
       resolveDependency(['archiver', 'readdir-glob', 'minimatch', 'brace-expansion']),
       resolveDependency(['@fastify/static', 'glob', 'minimatch', 'brace-expansion']),
@@ -34,6 +35,13 @@ it('邮件、glob 与 URI 的实际间接依赖在限时子进程处理恶意解
     assert.equal(parser('Synthetic <fixture@example.invalid>')[0].address, 'fixture@example.invalid');
     parser('x'.repeat(300000));
     parser('a(comment)'.repeat(10000) + '@example.invalid');
+    const MessageParser = require(paths.dkim);
+    const dkim = new MessageParser();
+    const continuation = 'a'.repeat(120);
+    dkim.rawHeaders = Buffer.from('Subject: fixture' + ('\\r\\n ' + continuation).repeat(50000) + '\\r\\nFrom: sender@example.invalid');
+    const unfolded = dkim.parseHeaders();
+    assert.deepEqual(unfolded.map(header => header.key), ['subject', 'from']);
+    assert.equal(unfolded[0].line, 'Subject: fixture' + ('\\n ' + continuation).repeat(50000));
     for (const path of paths.braces) {
       const module = require(path);
       const expand = typeof module === 'function' ? module : module.expand;
@@ -58,6 +66,22 @@ it('邮件、glob 与 URI 的实际间接依赖在限时子进程处理恶意解
     encoding: 'utf8',
   });
   assert.equal(output, 'passed');
+});
+
+it('直接及 Nest 间接 Fastify 均按规范头名拒绝 propertyNames 禁止项', async () => {
+  for (const chain of [['fastify'], ['@nestjs/platform-fastify', 'fastify']]) {
+    const factory: typeof fastify = createRequire(join(process.cwd(), 'package.json'))(resolveDependency(chain));
+    const server = factory();
+    try {
+      server.get('/headers', {
+        schema: { headers: { type: 'object', propertyNames: { not: { enum: ['X-Debug-Override'] } } } },
+      }, async () => ({ accepted: true }));
+      assert.equal((await server.inject({ url: '/headers' })).statusCode, 200);
+      for (const name of ['X-Debug-Override', 'x-debug-override']) {
+        assert.equal((await server.inject({ url: '/headers', headers: { [name]: 'denied' } })).statusCode, 400);
+      }
+    } finally { await server.close(); }
+  }
 });
 
 it('真实静态资源插件正常读取自身目录并拒绝目录穿越', async () => {
