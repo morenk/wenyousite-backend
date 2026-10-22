@@ -2,6 +2,9 @@ import { ConfigService } from '@nestjs/config';
 import fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createServer } from 'node:http';
+import { AddressInfo } from 'node:net';
+import { randomUUID } from 'node:crypto';
 import { ObjectStorageService, ObjectUploadOptions } from '../storage/object-storage.service';
 import { FontStorageService } from './font-storage.service';
 
@@ -72,6 +75,56 @@ describe('字体通过唯一适配器保存私有不可变对象', () => {
     const asset = await storage.putAsset(Buffer.from('good'), 'woff2');
     objects.head.mockResolvedValueOnce({ ContentLength: 999 });
     await expect(storage.readAsset(asset)).rejects.toThrow('font_asset_size');
+  });
+
+  it.each(['PUT', 'HEAD', 'GET'] as const)('%s 卡住时截止信号终止真实 S3 请求', async (phase) => {
+    const controllers: AbortController[] = [];
+    jest.spyOn(AbortSignal, 'timeout').mockImplementation((ms) => {
+      expect(ms).toBe(30000);
+      const controller = new AbortController();
+      controllers.push(controller);
+      return controller.signal;
+    });
+    const bytes = Buffer.from('isolated-font-timeout');
+    let interrupted = false;
+    const server = createServer((request, response) => {
+      request.resume();
+      if (request.method === phase) {
+        interrupted = true;
+        // GET 已开始返回正文时也必须结束，不只覆盖等待响应头。
+        if (phase === 'GET') {
+          response.writeHead(200, { 'content-length': bytes.length });
+          response.write(bytes.subarray(0, 1));
+        }
+        setImmediate(() => controllers.at(-1)!.abort());
+      } else if (request.method === 'HEAD') {
+        response.writeHead(200, { 'content-length': bytes.length });
+        response.end();
+      } else {
+        response.writeHead(200);
+        response.end();
+      }
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const config = new ConfigService({
+        textFonts: { storageRoot: root, bucket: 'isolated-private-fonts' },
+        cos: {
+          endpoint: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+          region: 'auto',
+          bucket: 'unused-public',
+          accessKeyId: randomUUID(),
+          secretAccessKey: randomUUID(),
+        },
+      });
+      const realStorage = new FontStorageService(config, new ObjectStorageService(config));
+      await expect(realStorage.putSource(bytes, 'ttf')).rejects.toThrow('字体存储暂不可用');
+      expect(interrupted).toBe(true);
+      expect(controllers.at(-1)!.signal.aborted).toBe(true);
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 
   it('禁止复用默认公共媒体 bucket，缺私有配置失败关闭', () => {

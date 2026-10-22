@@ -48,7 +48,7 @@ Web 无固定家族数限制，活动预算 64 faces/16 MiB SFNT，使用 lease/
 全部 `/admin/text-fonts` 使用既有管理员 Cookie、ADMIN/SUPER_ADMIN 和写操作 CSRF；紧急撤回额外 AdminStepUp。返回 DTO 和字段以 [OpenAPI](../contracts/openapi.json) 为准。
 
 1. `POST /admin/text-fonts` 新建家族草稿；`PATCH /:familyId` 用 expectedFamilyRevision 修改下一次源上传的配置。name、designLanguage、sortOrder、author、sourceUrl、licenseName、licenseText、specimenText 与三项 rights 为完整配置。sourceUrl 仅记录出处，禁止服务器抓取；缺材料可保存草稿。
-2. `POST /:familyId/sources?format=ttf|otf&expectedFamilyRevision=N`，`application/octet-stream` 原始单文件，最大 67108864 字节。私有暂存并绑定当次配置快照，返回 draft job。API 不解析字体；不接受 ZIP/TTC、彩色字体或 URL 拉取。
+2. `POST /:familyId/sources?format=ttf|otf&expectedFamilyRevision=N`，`application/octet-stream` 原始单文件，最大 67108864 字节。API 在该 POST 路由设置实际正文限额，定长和分块传输超限均返回 413；公网网关须为同一路由配置对应上限，其他接口不随之放宽。私有暂存并绑定当次配置快照，返回 draft job。API 不解析字体；不接受 ZIP/TTC、彩色字体或 URL 拉取。
 3. `POST /jobs/:jobId/process` 检查作者、来源、授权正文及 distribution/conversion/subsetting 三项权利。缺失返回 `409/40929` 并保留 draft。独立 Worker 从 Outbox/BullMQ 幂等领取；并发 1，非 root、无网络、隔离文件系统、2 GiB、墙钟 10 分钟。变量字体按默认轴实例化，保留 shaping/layout 所需字形，拒绝禁止嵌入/子集化的源。
 4. `GET /jobs/:jobId` 返回 draft/queued/processing/ready/failed。处理去重键为 sourceSHA+规范构建参数+固定工具链；相同输入重跑不生成重复产物/版本。失败只返回固定 failureCode，无路径或解析器原始异常。成功创建不可变版本，**不会自动发布**。
 5. `GET /versions/:versionId/preview` 及管理资产网关预览；公开未发布版本为 404。`GET /:familyId` 返回家族、jobs、versionIds；列表以 after/limit 分页。
@@ -85,6 +85,8 @@ API 只暂存原件和投递 Outbox；`src/font-worker.ts` 是独立进程，Bul
 
 本地工作目录必须为当前运行用户所有、0700、真实路径且无符号链接。普通完成/失败立即清理；进程崩溃后，API 恢复器只回收 UID、PID 启动时间、任务尝试、claim、设备和 inode 均可核验的遗留目录，再通过 Outbox 重试。身份不足的目录保留调查，不按目录名猜测删除。未引用原件和历史产物本轮不自动删除。
 
+任务处理期间每 30 秒以当前 attempt、claim 和 PROCESSING 状态续租 11 分钟，续租与过期恢复使用同一状态锁；解析、源读取及产物上传均在租约保护内，解析子进程仍受独立的 600 秒截止约束。每次对象 PUT 最多 30 秒，每次 HEAD+GET 共用 30 秒截止，存储失联不会无限续租。完成或失败后停止续租并等待在途续租结束；旧消费者不能延长新尝试的租期或提交版本。短暂数据库故障在下次续租重试，持续失联仍通过到期恢复。
+
 导入和发布事务在全部远端资源校验成功后才写入 `publishedAt`。API 冷启动的能力探测复用固定 28 款历史版本的发布事实，只对一个样张执行带 3 秒截止的 HEAD，不遍历或下载全库；写入开关还必须通过此就绪门禁。首次就绪后支持能力不随停用、撤回或暂时存储故障下降。每次版本资产下载仍有字节上限、长度与 SHA 校验，失败不会切回旧公共通道。远端读取不占用字体状态事务；返回字节前在短事务中重新核验撤回状态，避免慢存储阻塞撤回。
 
 历史导入分两步：先用 `scripts/fonts/dynamic/prepare-legacy.py` 按已提交源锁校验原件和授权材料，旧包使用 `scripts/fonts/build.py --verify` 复验；再运行导入 CLI。`--bundle` 指向含 `fonts/v1/` 的旧产物根，`--raw-sources` 指向恢复工具生成的 `raw` 目录。默认只校验、输出计划，不连接数据库：
@@ -114,6 +116,6 @@ pnpm e2e:run --source --text-font-v2 --text-font-v1 --text-color-v1 --text-font-
 
 runner 先核验独立 PostgreSQL/Redis，再以应用角色导入固定历史版本并验证幂等，启动 API 与独立 Worker，最后发布 ready manifest。manifest 增补 checkout SHA、脏状态、执行方式、工作目录、独立 S3 协议夹具的进程身份/随机私有 bucket 和 Worker PID/启动时间；消费者不获得数据库凭据。核心验收必须使用已提交且干净的源码，登记两端固定构建和打开会话后才创建新的动态 ID。消费者命令保持运行期间，Web 与 Android 顺序使用同一资源和账号；状态步骤必须等双方完成，不先为一端撤回另一端仍需使用的数据。消费者退出后 runner 统一停止进程并清理，本轮失败或清理失败均不能计为通过。动态消费者会话拒绝混入会修改这些状态的后端 `--suite`/`--full`。
 
-Backend 自身故障验证使用 `pnpm test:integration:text-font-v2`，其随机 ID 单独标记为非跨端核心证据。此套件启动两个登记 Worker，检查全局单并发、真实 Worker SIGKILL 重试和工作目录清理，并执行真实沙箱的宿主文件读取、输入写入、网络、内存、墙钟及输出上限拒绝用例。
+Backend 自身故障验证使用 `pnpm test:integration:text-font-v2`，其随机 ID 单独标记为非跨端核心证据。此套件以超过 11 MiB 的自制有效字体验证上传、处理、预览、发布与去重；暂停已构建产物的存储复验，核验真实数据库续租和恢复器不抢占；启动两个登记 Worker，检查全局单并发、真实 Worker SIGKILL 重试和工作目录清理，并执行真实沙箱的宿主文件读取、输入写入、网络、内存、墙钟及输出上限拒绝用例。
 
 功能套件在提供 `E2E_FONT_LEGACY_BUNDLE` 与 `E2E_FONT_LEGACY_SOURCES` 时执行真实 28 款导入及幂等复验；没有私人恢复材料的 CI 仅复用本轮真实 Worker 输出构造历史就绪记录，并明确标记 `synthetic-legacy-readiness-only`。该夹具不计作真实历史导入、原生兼容或跨端核心证据；真实导入证据必须另外完成。

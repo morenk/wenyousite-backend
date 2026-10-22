@@ -45,6 +45,7 @@ async function setup() {
     sourceKey: 'source-key',
     buildKey: identity.key,
     claimToken: null as string | null,
+    leaseExpiresAt: null as Date | null,
   };
   const files = new Map<string, Buffer>();
   const asset = (format: 'ttf' | 'woff2' | 'json' | 'png', bytes: Buffer) => {
@@ -93,7 +94,26 @@ async function setup() {
         current = { ...current, ...data };
         return { ...current };
       }),
-      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      updateMany: jest
+        .fn()
+        .mockImplementation(
+          async ({
+            where,
+            data,
+          }: {
+            where: Partial<typeof current>;
+            data: Partial<typeof current>;
+          }) => {
+            if (
+              !Object.entries(where).every(
+                ([key, value]) => current[key as keyof typeof current] === value,
+              )
+            )
+              return { count: 0 };
+            current = { ...current, ...data };
+            return { count: 1 };
+          },
+        ),
     },
     textFontArtifact: {
       findUnique: jest.fn().mockResolvedValue(null),
@@ -145,8 +165,97 @@ async function setup() {
   };
 }
 beforeEach(() => jest.clearAllMocks());
+afterEach(() => jest.useRealTimers());
+
+function signal() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
 
 describe('字体构建 claim、幂等与失败回收', () => {
+  it('远端上传超过初始租期仍续租，完成后停止续租并清空租期', async () => {
+    const s = await setup();
+    jest.useFakeTimers();
+    const started = signal(),
+      finish = signal();
+    s.storage.putAsset.mockImplementationOnce(async () => {
+      started.resolve();
+      await finish.promise;
+    });
+    const processing = s.service.process(jobId, 1);
+    await started.promise;
+    const initialExpiry = s.current().leaseExpiresAt!;
+    await jest.advanceTimersByTimeAsync(720000);
+    expect(initialExpiry.getTime()).toBeLessThan(Date.now());
+    expect(s.current().leaseExpiresAt!.getTime()).toBeGreaterThan(Date.now());
+    expect(s.current()).toMatchObject({ status: 'PROCESSING', attempt: 1 });
+    finish.resolve();
+    await processing;
+    expect(s.current()).toMatchObject({ status: 'READY', claimToken: null, leaseExpiresAt: null });
+    const calls = s.tx.textFontBuildJob.updateMany.mock.calls.length;
+    await jest.advanceTimersByTimeAsync(60000);
+    expect(s.tx.textFontBuildJob.updateMany).toHaveBeenCalledTimes(calls);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+  it('续租短暂失败后恢复；失去 claim 时不能延长新尝试的租期', async () => {
+    const s = await setup();
+    jest.useFakeTimers();
+    const started = signal(),
+      finish = signal();
+    s.tx.textFontArtifact.findUnique.mockResolvedValue(s.artifact);
+    s.storage.verifyAssets.mockImplementation(async () => {
+      started.resolve();
+      await finish.promise;
+    });
+    const processing = s.service.process(jobId, 1);
+    await started.promise;
+    const initialExpiry = s.current().leaseExpiresAt!;
+    s.tx.textFontBuildJob.updateMany.mockRejectedValueOnce(new Error('private-database-password'));
+    await jest.advanceTimersByTimeAsync(30000);
+    expect(s.current().leaseExpiresAt).toEqual(initialExpiry);
+    await jest.advanceTimersByTimeAsync(30000);
+    expect(s.current().leaseExpiresAt!.getTime()).toBeGreaterThan(initialExpiry.getTime());
+    s.current().attempt = 2;
+    s.current().claimToken = 'new-owner';
+    const newExpiry = s.current().leaseExpiresAt;
+    await jest.advanceTimersByTimeAsync(30000);
+    expect(s.current().leaseExpiresAt).toEqual(newExpiry);
+    finish.resolve();
+    await processing;
+    expect(s.tx.textFontVersion.create).not.toHaveBeenCalled();
+    expect(jest.getTimerCount()).toBe(0);
+  });
+  it('续租请求不重叠，失败退出会等待在途续租结束', async () => {
+    const s = await setup();
+    jest.useFakeTimers();
+    const started = signal(),
+      finish = signal(),
+      renewal = signal();
+    s.tx.textFontArtifact.findUnique.mockResolvedValue(s.artifact);
+    s.storage.verifyAssets.mockImplementation(async () => {
+      started.resolve();
+      await finish.promise;
+      throw new FontProcessingFailure('processing-failed');
+    });
+    s.tx.textFontBuildJob.updateMany.mockImplementationOnce(async () => {
+      await renewal.promise;
+      return { count: 0 };
+    });
+    const processing = s.service.process(jobId, 1);
+    const rejected = expect(processing).rejects.toMatchObject({ code: 'processing-failed' });
+    await started.promise;
+    await jest.advanceTimersByTimeAsync(120000);
+    expect(s.tx.textFontBuildJob.updateMany).toHaveBeenCalledTimes(1);
+    finish.resolve();
+    await jest.advanceTimersByTimeAsync(0);
+    expect(s.current().status).toBe('FAILED');
+    expect(jest.getTimerCount()).toBe(0);
+    renewal.resolve();
+    await rejected;
+  });
   it('核验所有产物后创建一个不可变版本，并释放登记工作目录', async () => {
     const s = await setup();
     await s.service.process(jobId, 1);

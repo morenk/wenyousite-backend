@@ -14,7 +14,7 @@ import { FontAdminService } from '../text-fonts/font-admin.service';
 import { FontQueryService } from '../text-fonts/font-query.service';
 import { fontAssetResponse } from '../text-fonts/font-http';
 import { RouteConfig } from '@nestjs/platform-fastify';
-import { FONT_SOURCE_MAX_BYTES } from '../text-fonts/font-protocol';
+import { FONT_SOURCE_ROUTE_CONFIG } from '../text-fonts/font-upload';
 import {
   FontAdminFamilyDetailDto,
   FontAdminListQueryDto,
@@ -137,7 +137,7 @@ export class AdminTextFontsController {
   }
 
   @Post(':familyId/sources')
-  @RouteConfig({ bodyLimit: FONT_SOURCE_MAX_BYTES })
+  @RouteConfig(FONT_SOURCE_ROUTE_CONFIG)
   @ApiConsumes('application/octet-stream')
   @ApiBody({
     schema: {

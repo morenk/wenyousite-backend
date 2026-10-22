@@ -11,7 +11,7 @@ import { fontSha } from '../src/text-fonts/font-domain';
 import { prepareFontReadiness, verifyLegacyReplayPreservesState } from './font-legacy-readiness.fixture';
 import { FONT_LEGACY_IMPORT } from '../src/text-fonts/font-legacy-map';
 import { verifyFontSandbox } from './font-sandbox.integration';
-import { verifyFontWorkerRecovery } from './font-worker-faults.integration';
+import { verifyFontLease, verifyFontWorkerRecovery } from './font-worker-faults.integration';
 
 type Data = Record<string, any>;
 const db = new PrismaClient();
@@ -71,7 +71,8 @@ async function main() {
     }
     throw new Error('独立 Worker 处理未完成');
   };
-  const bytes = readFileSync(join(root, 'font-fixtures/fixture-1.ttf'));
+  const bytes = readFileSync(join(root, 'font-fixtures/fixture-large.ttf'));
+  assert(bytes.length > 10 * 1024 * 1024, '大字体回归必须越过 API 默认 1 MiB 和旧网关 10 MB 限额');
   const draft = await request('/admin/text-fonts', 'POST', { ...config, author: '', sourceUrl: '', licenseName: '', licenseText: '', rights: { ...config.rights, conversion: false } }, 201);
   const pending = await upload(bytes, draft);
   await request(`/admin/text-fonts/jobs/${pending.jobId}/process`, 'POST', undefined, 409);
@@ -204,7 +205,8 @@ async function main() {
   assert.equal((await request('/meta', 'GET', undefined, 200, {})).capabilities.textFontV2Supported, true);
   await request(`/subthreads/${subthread.id}/posts`, 'POST', { content: legacyContent, textFontVersion: 2 }, 409, userHeaders);
   await verifyLegacyReplayPreservesState(db, admin.userId);
+  await verifyFontLease(db, request, config, bytes);
   await verifyFontWorkerRecovery(db, request, config, [bytes, readFileSync(join(root, 'font-fixtures/fixture-2.ttf'))]);
-  console.log(JSON.stringify({ event: 'dynamic-font-functional-passed', runId: process.env.E2E_RUN_ID, sameSessionConsumerAcceptance: false, legacyEvidence }));
+  console.log(JSON.stringify({ event: 'dynamic-font-functional-passed', runId: process.env.E2E_RUN_ID, sourceBytes: bytes.length, leaseRenewal: true, sameSessionConsumerAcceptance: false, legacyEvidence }));
 }
 void main().finally(() => db.$disconnect()).catch(error => { console.error(error); process.exitCode = 1; });
