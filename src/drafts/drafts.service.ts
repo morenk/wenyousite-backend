@@ -1,3 +1,5 @@
+import { FontReadinessService } from '../text-fonts/font-readiness.service';
+import { assertFontWritePreflight, assertFontWriteInTransaction } from '../text-fonts/font-content-policy';
 import { assertTextColorWrite } from '../common/text-colors';
 import { ConfigService } from '@nestjs/config';
 import { assertRoleMentionWrite } from '../common/role-mentions';
@@ -34,6 +36,7 @@ export class DraftsService {
     private stickerContent: StickerContentService,
     private mediaReferences: MediaReferenceService,
     @Optional() private readonly config?: ConfigService,
+    @Optional() private readonly fontReadiness?: FontReadinessService,
   ) {}
 
   /** 获取当前用户所有草稿 */
@@ -57,7 +60,7 @@ export class DraftsService {
 
   /** 保存草稿：指定 slot 则覆盖，不指定自动选空闲位 */
   async create(dto: CreateDraftDto, userId: string) {
-    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content, { markdownContractVersion: dto.markdownContractVersion, textColorVersion: dto.textColorVersion }));
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content, { markdownContractVersion: dto.markdownContractVersion, textColorVersion: dto.textColorVersion, textFontVersion: dto.textFontVersion }));
     this.assertSnapshotNotEmpty(parsedContent.contentWithoutDice, parsedContent.nodes.length);
     const requestHash = hashIdempotencyPayload({
       content: parsedContent.content,
@@ -67,6 +70,7 @@ export class DraftsService {
     if (replay) return replay;
 
     if (dto.slot === undefined) {
+      assertFontWritePreflight(parsedContent.content, '', dto.textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false, (this.config?.get<boolean>('textFonts.enabled') ?? false) && ((await this.fontReadiness?.supported()) ?? false));
       assertTextColorWrite(parsedContent.content, '', dto.textColorVersion, this.config?.get<boolean>('app.textColorV1Enabled') ?? false);
       assertRoleMentionWrite(parsedContent.content, '', dto.markdownContractVersion, this.config?.get<boolean>('app.roleMentionsV6Enabled') ?? false);
       await this.stickerContent.assertContentAllowed(userId, parsedContent.content, '');
@@ -81,6 +85,7 @@ export class DraftsService {
             const usedSlots = new Set(existing.map((draft) => draft.slot));
             const slot = [1, 2, 3, 4, 5].find((candidate) => !usedSlots.has(candidate));
             if (!slot) throw new BadRequestException('草稿位已满（5/5），请先删除旧草稿');
+            await assertFontWriteInTransaction(tx, parsedContent.content, '', dto.textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false, (this.config?.get<boolean>('textFonts.enabled') ?? false) && ((await this.fontReadiness?.supported()) ?? false), !!this.fontReadiness);
             const draft = await tx.draft.create({
               data: {
                 userId,
@@ -119,6 +124,7 @@ export class DraftsService {
       parsedContent.content,
       existing?.content ?? '',
     );
+    assertFontWritePreflight(parsedContent.content, existing?.content ?? '', dto.textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false, (this.config?.get<boolean>('textFonts.enabled') ?? false) && ((await this.fontReadiness?.supported()) ?? false));
     assertTextColorWrite(parsedContent.content, existing?.content ?? '', dto.textColorVersion, this.config?.get<boolean>('app.textColorV1Enabled') ?? false);
     assertRoleMentionWrite(parsedContent.content, existing?.content ?? '', dto.markdownContractVersion, this.config?.get<boolean>('app.roleMentionsV6Enabled') ?? false);
     if (existing) {
@@ -127,6 +133,7 @@ export class DraftsService {
       }
       return this.prisma
         .$transaction(async (tx) => {
+          await assertFontWriteInTransaction(tx, parsedContent.content, existing.content, dto.textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false, (this.config?.get<boolean>('textFonts.enabled') ?? false) && ((await this.fontReadiness?.supported()) ?? false), !!this.fontReadiness);
           const draft = await tx.draft.update({
             where: { id: existing.id, version: dto.version },
             data: { content: parsedContent.content, version: { increment: 1 } },
@@ -153,6 +160,7 @@ export class DraftsService {
           select: { id: true },
         });
         if (occupied) throw this.optimisticLockConflict();
+        await assertFontWriteInTransaction(tx, parsedContent.content, '', dto.textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false, (this.config?.get<boolean>('textFonts.enabled') ?? false) && ((await this.fontReadiness?.supported()) ?? false), !!this.fontReadiness);
         const draft = await tx.draft.create({
           data: {
             userId,
@@ -176,16 +184,18 @@ export class DraftsService {
   }
 
   /** 更新草稿内容 */
-  async update(id: string, content: string, version: number, userId: string, markdownContractVersion?: number, textColorVersion?: number) {
+  async update(id: string, content: string, version: number, userId: string, markdownContractVersion?: number, textColorVersion?: number, textFontVersion?: number) {
     const draft = await this.findById(id, userId);
+    assertFontWritePreflight(content, draft.content, textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false, (this.config?.get<boolean>('textFonts.enabled') ?? false) && ((await this.fontReadiness?.supported()) ?? false));
     assertTextColorWrite(content, draft.content, textColorVersion, this.config?.get<boolean>('app.textColorV1Enabled') ?? false);
     assertRoleMentionWrite(content, draft.content, markdownContractVersion, this.config?.get<boolean>('app.roleMentionsV6Enabled') ?? false);
     if (version !== draft.version) throw this.optimisticLockConflict();
-    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(content, { markdownContractVersion, textColorVersion }));
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(content, { markdownContractVersion, textColorVersion, textFontVersion }));
     this.assertSnapshotNotEmpty(parsedContent.contentWithoutDice, parsedContent.nodes.length);
     await this.stickerContent.assertContentAllowed(userId, parsedContent.content, draft.content);
     return this.prisma
       .$transaction(async (tx) => {
+        await assertFontWriteInTransaction(tx, parsedContent.content, draft.content, textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false, (this.config?.get<boolean>('textFonts.enabled') ?? false) && ((await this.fontReadiness?.supported()) ?? false), !!this.fontReadiness);
         const updated = await tx.draft.update({
           where: { id, version },
           data: {

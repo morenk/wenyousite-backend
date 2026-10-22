@@ -1,4 +1,4 @@
-import { assertTextColorWrite, normalizeTextColors, maskTextColorTags } from './text-colors';
+import { assertTextColorWrite, assertTextFontCapability, normalizeTextColors, maskTextColorTags } from './text-colors';
 import { assertRoleMentionWrite } from './role-mentions';
 /** Markdown v5 内容规则：规范化、工具栏能力白名单与字面文本降级。 */
 
@@ -29,6 +29,7 @@ export const IMAGE_ALIGNMENT_MARKDOWN_CONTRACT_VERSION = 5;
 export interface MarkdownValidationOptions {
   markdownContractVersion?: number;
   textColorVersion?: number;
+  textFontVersion?: number;
 }
 
 /** 仅用于可见性判断；保留原文，避免破坏 ZWJ Emoji 和变体选择符。 */
@@ -287,6 +288,7 @@ export function prepareMarkdownContent(
   options: MarkdownValidationOptions = {},
 ): string {
   assertRoleMentionWrite(markdown, '', options.markdownContractVersion, true);
+  assertTextFontCapability(markdown, options.textFontVersion);
   assertTextColorWrite(markdown, '', options.textColorVersion, true);
   const normalized = normalizeTextColors(normalizeMarkdownContent(markdown));
   assertSupportedMarkdown(normalized, options);

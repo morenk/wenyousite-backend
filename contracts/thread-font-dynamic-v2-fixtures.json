@@ -1,0 +1,297 @@
+{
+  "fontVersion": 2,
+  "policyVersion": 3,
+  "versionId": "tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "familyId": "tff_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "statusCases": [
+    {
+      "id": "active-current",
+      "published": true,
+      "enabled": true,
+      "current": true,
+      "withdrawn": false,
+      "selectable": true,
+      "pasteAllowed": true,
+      "renderAllowed": true
+    },
+    {
+      "id": "historical",
+      "published": true,
+      "enabled": true,
+      "current": false,
+      "withdrawn": false,
+      "selectable": false,
+      "pasteAllowed": true,
+      "renderAllowed": true
+    },
+    {
+      "id": "disabled",
+      "published": true,
+      "enabled": false,
+      "current": true,
+      "withdrawn": false,
+      "selectable": false,
+      "pasteAllowed": false,
+      "renderAllowed": true
+    },
+    {
+      "id": "withdrawn",
+      "published": true,
+      "enabled": true,
+      "current": true,
+      "withdrawn": true,
+      "selectable": false,
+      "pasteAllowed": false,
+      "renderAllowed": false
+    }
+  ],
+  "catalogRules": {
+    "maxItems": 200,
+    "maxEnvelopeUtf8Bytes": 65536,
+    "limitIsUpperBound": true,
+    "changedCursorHttpStatus": 409,
+    "changedCursorCode": 40927,
+    "ifNoneMatchStatus": 304
+  },
+  "metadataRules": {
+    "descriptorMaxEnvelopeUtf8Bytes": 65536,
+    "runtimeMaxEnvelopeUtf8Bytes": 65536,
+    "manifestMaxBytes": 4194304,
+    "unknownVersionNegativeCacheMs": 30000,
+    "refreshMs": 300000,
+    "refreshTriggers": [
+      "foreground",
+      "picker-open",
+      "unknown-version"
+    ],
+    "failure": "retain-last-known-good",
+    "knownWithdrawn": "sticky-deny",
+    "coalescingKey": "endpoint-and-versionId"
+  },
+  "ledgerCases": [
+    {
+      "id": "new-release-does-not-reset",
+      "events": [
+        "reserve-request",
+        "native-attempt-fails",
+        "catalog-release-changes"
+      ],
+      "requestsCharged": 1,
+      "nativeKeysCharged": 1
+    },
+    {
+      "id": "same-hash-new-family-charged",
+      "events": [
+        "register-hash-A-family-A",
+        "register-hash-A-family-B"
+      ],
+      "nativeKeysCharged": 2
+    },
+    {
+      "id": "native-budget-exhausted",
+      "inputBytes": 67108864,
+      "additionalBytes": 1,
+      "expected": "silent-system-fallback"
+    },
+    {
+      "id": "native-keys-exhausted",
+      "keys": 1024,
+      "additionalKeys": 1,
+      "expected": "silent-system-fallback"
+    }
+  ],
+  "legacyImportRegistrationCases": [
+    {
+      "id": "v1-then-imported-v2-no-additional-native-attempt",
+      "legacyId": "great-vibes",
+      "sourceManifestSha256": "e2836703a30eec5f59dd9d4d72f6887756c2dd30c070606db5cee258ebd0efa3",
+      "events": [
+        {
+          "protocol": 1,
+          "sha256": "12f2ce7c898fa10b191359313a3cda7e43ec2e8dcad9b3f5565a777f6865d276",
+          "family": "WYF1-8d509802186f1b51-core",
+          "bytes": 59832
+        },
+        {
+          "protocol": 2,
+          "sha256": "12f2ce7c898fa10b191359313a3cda7e43ec2e8dcad9b3f5565a777f6865d276",
+          "family": "WYF1-8d509802186f1b51-core",
+          "bytes": 59832
+        }
+      ],
+      "expectedNativeAttempts": 1,
+      "expectedAdditionalAttemptsAfterImport": 0,
+      "expectedChargedBytes": 59832
+    }
+  ],
+  "legacyRoutingRules": {
+    "activation": "textFontV2Supported=true",
+    "activationStickyWithinSession": true,
+    "mappingFile": "thread-font-v1-import-map.json",
+    "statusSource": "v2-version-descriptor",
+    "assetSource": "v2-version-gateway",
+    "allowLegacyManifestFallback": false,
+    "preserveSourceMarkup": true,
+    "unmappedRetiredLegacyRenderAllowed": false,
+    "serverSupportRequiresAllMappedVersionsPublished": true,
+    "writeEnabledRequiresSupportAndFeatureFlag": true,
+    "withdrawnTombstoneWins": true,
+    "legacyPublicBytesRevocable": false,
+    "supportIndependentOfCurrentSelectionEnabledOrWithdrawn": true,
+    "knownTombstoneOverridesCapabilityDowngrade": true
+  },
+  "legacyRoutingCases": [
+    {
+      "id": "mapped-active",
+      "legacyId": "great-vibes",
+      "versionId": "tfv_72451c7e8503cb513f4d13bbb9ddd04d",
+      "response": "published",
+      "lastTrustedStatus": null,
+      "expectedRenderAllowed": true,
+      "expectedPasteAllowed": true,
+      "expectedAssetRequest": "v2",
+      "expectedLegacyManifestRequests": 0,
+      "expectedSourceUnchanged": true
+    },
+    {
+      "id": "mapped-disabled",
+      "legacyId": "great-vibes",
+      "versionId": "tfv_72451c7e8503cb513f4d13bbb9ddd04d",
+      "response": "disabled",
+      "lastTrustedStatus": null,
+      "expectedRenderAllowed": true,
+      "expectedPasteAllowed": false,
+      "expectedAssetRequest": "v2",
+      "expectedLegacyManifestRequests": 0,
+      "expectedSourceUnchanged": true
+    },
+    {
+      "id": "mapped-withdrawn",
+      "legacyId": "great-vibes",
+      "versionId": "tfv_72451c7e8503cb513f4d13bbb9ddd04d",
+      "response": "withdrawn",
+      "lastTrustedStatus": null,
+      "expectedRenderAllowed": false,
+      "expectedPasteAllowed": false,
+      "expectedAssetRequest": "none",
+      "expectedLegacyManifestRequests": 0,
+      "expectedSourceUnchanged": true
+    },
+    {
+      "id": "mapped-unknown",
+      "legacyId": "great-vibes",
+      "versionId": "tfv_72451c7e8503cb513f4d13bbb9ddd04d",
+      "response": "unknown",
+      "lastTrustedStatus": null,
+      "expectedRenderAllowed": false,
+      "expectedPasteAllowed": false,
+      "expectedAssetRequest": "none",
+      "expectedLegacyManifestRequests": 0,
+      "expectedSourceUnchanged": true
+    },
+    {
+      "id": "mapped-404",
+      "legacyId": "great-vibes",
+      "versionId": "tfv_72451c7e8503cb513f4d13bbb9ddd04d",
+      "response": "404",
+      "lastTrustedStatus": null,
+      "expectedRenderAllowed": false,
+      "expectedPasteAllowed": false,
+      "expectedAssetRequest": "none",
+      "expectedLegacyManifestRequests": 0,
+      "expectedSourceUnchanged": true
+    },
+    {
+      "id": "offline-trusted",
+      "legacyId": "great-vibes",
+      "versionId": "tfv_72451c7e8503cb513f4d13bbb9ddd04d",
+      "response": "network-error",
+      "lastTrustedStatus": "published",
+      "expectedRenderAllowed": true,
+      "expectedPasteAllowed": true,
+      "expectedAssetRequest": "none",
+      "expectedLegacyManifestRequests": 0,
+      "expectedSourceUnchanged": true
+    },
+    {
+      "id": "404-trusted",
+      "legacyId": "great-vibes",
+      "versionId": "tfv_72451c7e8503cb513f4d13bbb9ddd04d",
+      "response": "404",
+      "lastTrustedStatus": "published",
+      "expectedRenderAllowed": true,
+      "expectedPasteAllowed": true,
+      "expectedAssetRequest": "none",
+      "expectedLegacyManifestRequests": 0,
+      "expectedSourceUnchanged": true
+    },
+    {
+      "id": "offline-tombstone",
+      "legacyId": "great-vibes",
+      "versionId": "tfv_72451c7e8503cb513f4d13bbb9ddd04d",
+      "response": "network-error",
+      "lastTrustedStatus": "withdrawn",
+      "expectedRenderAllowed": false,
+      "expectedPasteAllowed": false,
+      "expectedAssetRequest": "none",
+      "expectedLegacyManifestRequests": 0,
+      "expectedSourceUnchanged": true
+    },
+    {
+      "id": "stale-published-after-tombstone",
+      "legacyId": "great-vibes",
+      "versionId": "tfv_72451c7e8503cb513f4d13bbb9ddd04d",
+      "response": "stale-published",
+      "lastTrustedStatus": "withdrawn",
+      "expectedRenderAllowed": false,
+      "expectedPasteAllowed": false,
+      "expectedAssetRequest": "none",
+      "expectedLegacyManifestRequests": 0,
+      "expectedSourceUnchanged": true
+    }
+  ],
+  "legacyCapabilityCases": [
+    {
+      "id": "not-yet-imported",
+      "previouslyActivated": false,
+      "capability": false,
+      "knownWithdrawn": false,
+      "expectedRoute": "legacy-v1"
+    },
+    {
+      "id": "activated-then-false",
+      "previouslyActivated": true,
+      "capability": false,
+      "knownWithdrawn": false,
+      "expectedRoute": "mapped-v2"
+    },
+    {
+      "id": "activated-then-missing",
+      "previouslyActivated": true,
+      "capability": null,
+      "knownWithdrawn": false,
+      "expectedRoute": "mapped-v2"
+    },
+    {
+      "id": "activated-then-offline",
+      "previouslyActivated": true,
+      "capability": "network-error",
+      "knownWithdrawn": false,
+      "expectedRoute": "mapped-v2"
+    },
+    {
+      "id": "tombstone-then-false",
+      "previouslyActivated": true,
+      "capability": false,
+      "knownWithdrawn": true,
+      "expectedRoute": "default-font"
+    },
+    {
+      "id": "tombstone-then-missing",
+      "previouslyActivated": false,
+      "capability": null,
+      "knownWithdrawn": true,
+      "expectedRoute": "default-font"
+    }
+  ]
+}

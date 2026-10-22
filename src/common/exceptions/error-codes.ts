@@ -43,6 +43,12 @@ export const ErrorCode = {
   TEXT_COLOR_DISABLED: 40017,
   /** 文本颜色受控标记不合法 */
   INVALID_TEXT_COLOR: 40018,
+  /** 编辑器未声明能够保留文本字体 v1 */
+  TEXT_FONT_CAPABILITY_REQUIRED: 40019,
+  /** 文本字体新写激活开关尚未开启 */
+  TEXT_FONT_DISABLED: 40020,
+  /** 字体受控标记或字体身份不合法 */
+  INVALID_TEXT_FONT: 40021,
 
   // ── 认证 401xx ──
   /** 未认证 */
@@ -207,6 +213,17 @@ export const ErrorCode = {
   REGISTRATION_PAUSED: 40924,
   /** 用户内容写入被站务临时暂停 */
   CONTENT_WRITES_PAUSED: 40925,
+
+  /** 字体目录分页快照已变化，需从第一页重取 */
+  TEXT_FONT_CATALOG_CHANGED: 40927,
+  /** 字体管理修订或当前状态冲突 */
+  TEXT_FONT_STATE_CONFLICT: 40928,
+  /** 字体授权材料尚未完整确认 */
+  TEXT_FONT_RIGHTS_REQUIRED: 40929,
+  /** 字体版本已撤回，禁止下载与呈现 */
+  TEXT_FONT_WITHDRAWN: 41001,
+  /** 动态字体服务或隔离处理依赖未就绪 */
+  TEXT_FONT_UNAVAILABLE: 50301,
 
   // ── 限流 429xx ──
   /** 请求过于频繁 */

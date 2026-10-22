@@ -1,3 +1,5 @@
+import { FontReadinessService } from '../text-fonts/font-readiness.service';
+import { assertFontWritePreflight, assertFontWriteInTransaction } from '../text-fonts/font-content-policy';
 import { ConfigService } from '@nestjs/config';
 import { Optional } from '@nestjs/common';
 import { assertTextColorWrite } from '../common/text-colors';
@@ -62,10 +64,11 @@ export class ThreadsService {
     private mentions: MentionsService,
     private identities: ThreadIdentitiesService,
     @Optional() private readonly config?: ConfigService,
+    @Optional() private readonly fontReadiness?: FontReadinessService,
   ) {}
   /** 创建主题帖草稿：事务内创建 Thread + Owner + 默认子贴 + 可选子贴正文，一次请求完成 */
   async create(dto: CreateThreadDto, userId: string) {
-    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content ?? '', { markdownContractVersion: dto.markdownContractVersion, textColorVersion: dto.textColorVersion }));
+    const parsedContent = this.diceService.parseContent(prepareMarkdownContent(dto.content ?? '', { markdownContractVersion: dto.markdownContractVersion, textColorVersion: dto.textColorVersion, textFontVersion: dto.textFontVersion }));
     const { title, subthreadTitle, category, visibility, requestHash } =
       this.createIdempotency.prepare(dto, parsedContent.content);
     if (category) await this.categories.assertSelectable(category);
@@ -75,6 +78,7 @@ export class ThreadsService {
       requestHash,
     );
     if (replay) return replay;
+    assertFontWritePreflight(parsedContent.content, '', dto.textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false, (this.config?.get<boolean>('textFonts.enabled') ?? false) && ((await this.fontReadiness?.supported()) ?? false));
     assertTextColorWrite(parsedContent.content, '', dto.textColorVersion, this.config?.get<boolean>('app.textColorV1Enabled') ?? false);
     const hasBody =
       hasVisibleMarkdownContent(parsedContent.contentWithoutDice) || parsedContent.nodes.length > 0;
@@ -83,6 +87,7 @@ export class ThreadsService {
     try {
       result = await this.prisma.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`;
+        await assertFontWriteInTransaction(tx, parsedContent.content, '', dto.textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false, (this.config?.get<boolean>('textFonts.enabled') ?? false) && ((await this.fontReadiness?.supported()) ?? false), !!this.fontReadiness);
         const draftCount = await tx.thread.count({
           where: { ownerId: userId, published: false, ...notDeleted },
         });

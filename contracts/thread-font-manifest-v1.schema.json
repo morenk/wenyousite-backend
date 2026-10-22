@@ -1,0 +1,651 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "fontVersion": {
+      "const": 1
+    },
+    "catalogVersion": {
+      "type": "string"
+    },
+    "toolchain": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "python": {
+          "type": "string"
+        },
+        "fonttools": {
+          "type": "string"
+        },
+        "brotli": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "python",
+        "fonttools",
+        "brotli"
+      ]
+    },
+    "partition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "core": {
+          "const": "gb2312-level1-ascii-punctuation-v1"
+        },
+        "extraUnicodePageSize": {
+          "const": 2048
+        }
+      },
+      "required": [
+        "core",
+        "extraUnicodePageSize"
+      ]
+    },
+    "cacheControl": {
+      "const": "public, max-age=31536000, immutable"
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxConcurrentDownloads": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxSessionFamilies": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxSessionRequests": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxWebSessionBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxMobileSessionBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxMobileRegisteredFaces": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxPersistentCacheBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "downloadTimeoutMs": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxAssetBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxSourceBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxBuildSourceBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxBundleBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxReleaseStorageBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "monthlyEgressBudgetBytes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "maxConcurrentDownloads",
+        "maxSessionFamilies",
+        "maxSessionRequests",
+        "maxWebSessionBytes",
+        "maxMobileSessionBytes",
+        "maxMobileRegisteredFaces",
+        "maxPersistentCacheBytes",
+        "downloadTimeoutMs",
+        "maxAssetBytes",
+        "maxSourceBytes",
+        "maxBuildSourceBytes",
+        "maxBundleBytes",
+        "maxReleaseStorageBytes",
+        "monthlyEgressBudgetBytes"
+      ]
+    },
+    "fonts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,47}$"
+              },
+              "name": {
+                "type": "string"
+              },
+              "availability": {
+                "const": "ready"
+              },
+              "license": {
+                "enum": [
+                  "OFL-1.1",
+                  "Apache-2.0",
+                  "LicenseRef-ProjectAuthorization"
+                ]
+              },
+              "sourceRevision": {
+                "type": "string"
+              },
+              "sourceSha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "fontSha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "sourceBytes": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "coverage": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "totalCodepoints": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "ascii": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "present": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "total": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "missingRanges": {
+                        "type": "array",
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^U\\+[0-9A-F]{4,6}(-[0-9A-F]{4,6})?$"
+                        }
+                      }
+                    },
+                    "required": [
+                      "present",
+                      "total",
+                      "missingRanges"
+                    ]
+                  },
+                  "gb2312": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "present": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "total": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "missingRanges": {
+                        "type": "array",
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^U\\+[0-9A-F]{4,6}(-[0-9A-F]{4,6})?$"
+                        }
+                      }
+                    },
+                    "required": [
+                      "present",
+                      "total",
+                      "missingRanges"
+                    ]
+                  },
+                  "punctuation": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "present": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "total": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "missingRanges": {
+                        "type": "array",
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^U\\+[0-9A-F]{4,6}(-[0-9A-F]{4,6})?$"
+                        }
+                      }
+                    },
+                    "required": [
+                      "present",
+                      "total",
+                      "missingRanges"
+                    ]
+                  }
+                },
+                "required": [
+                  "totalCodepoints",
+                  "ascii",
+                  "gb2312",
+                  "punctuation"
+                ]
+              },
+              "notices": {
+                "type": "array",
+                "minItems": 2,
+                "items": {
+                  "$ref": "#/$defs/asset"
+                }
+              },
+              "shards": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "$ref": "#/$defs/shard"
+                }
+              },
+              "totalWebBytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "totalMobileBytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "baseWeight": {
+                "const": 400
+              },
+              "baseStyle": {
+                "const": "normal"
+              },
+              "designLanguage": {
+                "type": "string",
+                "enum": [
+                  "zh",
+                  "ja",
+                  "en"
+                ],
+                "description": "主要设计语言，仅用于分类，不表示字符覆盖。"
+              },
+              "deliveryMode": {
+                "enum": [
+                  "subset",
+                  "original"
+                ]
+              },
+              "budgetException": {
+                "const": {
+                  "kind": "original-source",
+                  "assetSha256": "cf4a4215e562d6de6e3ee88f25fc5d47d77668d28eb3a0f2533c7290de307423",
+                  "assetBytes": 18410600,
+                  "additionalSessionBytes": 18410600
+                }
+              },
+              "instance": {
+                "const": {
+                  "wght": 400
+                }
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "availability",
+              "license",
+              "sourceRevision",
+              "sourceSha256",
+              "fontSha256",
+              "sourceBytes",
+              "coverage",
+              "notices",
+              "shards",
+              "totalWebBytes",
+              "totalMobileBytes",
+              "baseWeight",
+              "baseStyle",
+              "designLanguage",
+              "deliveryMode"
+            ],
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "deliveryMode": {
+                      "const": "original"
+                    }
+                  },
+                  "type": "object"
+                },
+                "then": {
+                  "properties": {
+                    "id": {
+                      "const": "xiaocheng-lafeng"
+                    },
+                    "fontSha256": {
+                      "const": "cf4a4215e562d6de6e3ee88f25fc5d47d77668d28eb3a0f2533c7290de307423"
+                    },
+                    "license": {
+                      "const": "LicenseRef-ProjectAuthorization"
+                    },
+                    "shards": {
+                      "minItems": 1,
+                      "maxItems": 1,
+                      "items": {
+                        "properties": {
+                          "id": {
+                            "const": "original"
+                          },
+                          "web": {
+                            "properties": {
+                              "format": {
+                                "const": "ttf"
+                              },
+                              "sha256": {
+                                "const": "cf4a4215e562d6de6e3ee88f25fc5d47d77668d28eb3a0f2533c7290de307423"
+                              },
+                              "bytes": {
+                                "const": 18410600
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "mobile": {
+                            "properties": {
+                              "format": {
+                                "const": "ttf"
+                              },
+                              "sha256": {
+                                "const": "cf4a4215e562d6de6e3ee88f25fc5d47d77668d28eb3a0f2533c7290de307423"
+                              },
+                              "bytes": {
+                                "const": 18410600
+                              }
+                            },
+                            "type": "object"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "budgetException"
+                  ],
+                  "type": "object"
+                },
+                "else": {
+                  "not": {
+                    "required": [
+                      "budgetException"
+                    ],
+                    "type": "object"
+                  },
+                  "properties": {
+                    "license": {
+                      "enum": [
+                        "OFL-1.1",
+                        "Apache-2.0"
+                      ]
+                    },
+                    "shards": {
+                      "items": {
+                        "properties": {
+                          "id": {
+                            "pattern": "^(core|u[0-9a-f]{6})$",
+                            "type": "string"
+                          },
+                          "web": {
+                            "properties": {
+                              "format": {
+                                "const": "woff2"
+                              }
+                            },
+                            "type": "object"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "license": {
+                      "const": "Apache-2.0"
+                    }
+                  },
+                  "type": "object"
+                },
+                "then": {
+                  "properties": {
+                    "id": {
+                      "const": "special-elite"
+                    },
+                    "fontSha256": {
+                      "const": "a776fcb4ceb8bdf03e2967688ebdad42680de5b91a7e62c17e718ae212d14bc4"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              {
+                "if": {
+                  "required": [
+                    "instance"
+                  ],
+                  "type": "object"
+                },
+                "then": {
+                  "properties": {
+                    "id": {
+                      "const": "orbitron"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,47}$"
+              },
+              "name": {
+                "type": "string"
+              },
+              "availability": {
+                "const": "pendingSource"
+              },
+              "shards": {
+                "type": "array",
+                "maxItems": 0
+              },
+              "designLanguage": {
+                "type": "string",
+                "enum": [
+                  "zh",
+                  "ja",
+                  "en"
+                ],
+                "description": "主要设计语言，仅用于分类，不表示字符覆盖。"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "availability",
+              "shards",
+              "designLanguage"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "fontVersion",
+    "catalogVersion",
+    "toolchain",
+    "partition",
+    "cacheControl",
+    "limits",
+    "fonts"
+  ],
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://wenyou.site/contracts/thread-font-manifest-v1.schema.json",
+  "$defs": {
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^fonts/v1/[a-f0-9]{64}\\.(woff2|ttf|otf|json|txt)$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "format": {
+          "enum": [
+            "woff2",
+            "ttf",
+            "otf"
+          ]
+        },
+        "contentType": {
+          "enum": [
+            "font/woff2",
+            "font/ttf",
+            "font/otf"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "license",
+            "attribution",
+            "source-notice"
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "bytes"
+      ]
+    },
+    "shard": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^(core|original|u[0-9a-f]{6})$"
+        },
+        "family": {
+          "type": "string",
+          "pattern": "^WYF1-[0-9a-f]{16}-(core|original|u[0-9a-f]{6})$",
+          "maxLength": 63
+        },
+        "codepointCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "unicodeRanges": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^U\\+[0-9A-F]{4,6}(-[0-9A-F]{4,6})?$"
+          }
+        },
+        "web": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/asset"
+            },
+            {
+              "type": "object",
+              "required": [
+                "format",
+                "contentType"
+              ]
+            }
+          ]
+        },
+        "mobile": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/asset"
+            },
+            {
+              "type": "object",
+              "required": [
+                "format",
+                "contentType"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "family",
+        "codepointCount",
+        "unicodeRanges",
+        "web",
+        "mobile"
+      ]
+    }
+  }
+}

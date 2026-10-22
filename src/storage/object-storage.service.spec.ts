@@ -72,13 +72,41 @@ describe('ObjectStorageService', () => {
   it('下载按实际字节限制并关闭超限流，即使对象声称较小', async () => {
     let closed = false;
     async function* body() {
-      try { yield Buffer.from('12'); yield Buffer.from('34'); }
-      finally { closed = true; }
+      try {
+        yield Buffer.from('12');
+        yield Buffer.from('34');
+      } finally {
+        closed = true;
+      }
     }
     client.send.mockResolvedValue({ ContentLength: 1, Body: body() });
-    await expect(service.download('image', 'bucket', 3))
-      .rejects.toThrow('OBJECT_DOWNLOAD_LIMIT_EXCEEDED');
+    await expect(service.download('image', 'bucket', 3)).rejects.toThrow(
+      'OBJECT_DOWNLOAD_LIMIT_EXCEEDED',
+    );
     expect(closed).toBe(true);
+  });
+
+  it('私有不可变写入传递条件，并向有界探测和下载传递取消信号', async () => {
+    const signal = new AbortController().signal;
+    client.send.mockResolvedValue({});
+    await service.upload('font', Buffer.from('font'), {
+      bucket: 'private-fonts',
+      ifNoneMatch: '*',
+      abortSignal: signal,
+    });
+    expect(PutObjectCommand).toHaveBeenLastCalledWith(
+      expect.objectContaining({ Bucket: 'private-fonts', IfNoneMatch: '*' }),
+    );
+    await service.head('font', 'private-fonts', signal);
+    expect(client.send).toHaveBeenLastCalledWith(
+      expect.objectContaining({ Bucket: 'private-fonts', Key: 'font' }),
+      { abortSignal: signal },
+    );
+    await service.download('font', 'private-fonts', 4, signal);
+    expect(client.send).toHaveBeenLastCalledWith(
+      expect.objectContaining({ Bucket: 'private-fonts', Key: 'font' }),
+      { abortSignal: signal },
+    );
   });
 
   it('批量删除返回失败 key 供上层重试', async () => {

@@ -138,3 +138,21 @@ RP 采用 additive 字段；原 username/avatar、按 userId 互动和 Markdown 
 ## 主题互动总数 5.40
 
 新增可选 `bookmarkCount` / `subscriberCount`；新后端始终返回真实值，旧后端缺字段不等于 0，Web / Mobile 必须保留未知状态。保留所有旧个人互动和详情字段，不清理 Markdown / Foundation 协议，无新 Foundation Tag。索引迁移仅增加查询索引；收紧字段前仍需独立四项证据评审。见[互动总数契约](thread-action-counts.md)。
+
+## 文本字体 v1
+
+本次新增字体能力与[当前家族目录](../contracts/thread-font-catalog-v1.json)，不弃用 Markdown 5、角色提及 6、颜色 v1 或旧端读取。字体旧端投影、覆盖保护和历史 ID 兼容必须保留；移除前仍需无消费者、数据迁移、回归和回滚四项证据。发布、目录退役及旧资源清理分别评审，详见[字体契约](markdown-text-font-v1.md)。
+
+字体目录 1.1.0 增加主要设计语言和原件分发策略；1.1.1 补齐怪盗源字体与资产，协议结构与兼容策略不变；移除未发布候选 `zcoolxiaowei`，无已上线目录退役或数据迁移。旧端投影与未知 ID 保留文字的回归继续保留。
+
+字体运行策略 v2（HTTP `5.42.0-dev.20261021.1`）使用独立公开 GET 和 manifest SHA 绑定，不弃用或改义原 manifest 的累计 limits／additionalSessionBytes。旧消费者与未识别策略的新消费者继续旧限额；字体身份、资产哈希、正文和旧端保护全部保留。Mobile 当前引擎固定注册全集不随目录版本无限增长；后续快照演进仍需独立接受与资源核验。详见[运行策略](thread-font-runtime-policy.md)。
+
+HTTP `5.42.0-dev.20261022.1` 为未发布运行策略 v2 增加显式 idle 模式与 10 分钟总传输截止，修复持续慢传输被 15 秒总时限反复打断的问题。Web／Mobile 同步新策略形状；缺少字段按未知策略回退。旧 v1 manifest／limits、15 秒总超时及已部署消费者保持兼容，不进行兼容清理。
+
+目录 1.2.0 按用户决定将小城从当前可选项、manifest 和新发布对象集合移除；当前为 28 款全分片字体。`xiaocheng-lafeng` 仍在正文 v1 历史身份白名单中，新写受拒绝，历史保留／移除和旧端覆盖保护继续执行。原 v1 schema／原件例外验证、旧 immutable 包和[源锁／许可审计](../contracts/archive/thread-font-xiaocheng-lafeng-v1.json)保留；不是旧协议或历史资产清理。未发布 v2 不再返回原件专属字段，两端须严格同步最终 SHA 与新 manifest 描述符。
+
+## 动态字体 v2 兼容阶段
+
+HTTP `5.43.0-dev.20261022.1` 新增独立动态目录、版本描述符、运行策略 v3 和正文 `data-wenyou-font-v2`。声明 `textFontVersion:2` 包含 v1/v2 混合保源；旧客户端不能覆盖含 v2 的原文。旧 v1 目录、资源和固定 manifest 策略 v2 保留。迁移字段、状态、预算和契约阶段可用性见[动态字体协议](dynamic-text-fonts.md)。
+
+HTTP `5.43.0-dev.20261022.3` 明确 v1 导入撤回边界：支持 v2 的消费者须通过固定映射共用版本状态和本站网关，未知/404 不回退旧 manifest；28 款导入发布完成后才宣告 v2 支持。旧 v1 公共 URL/缓存无法立即收回，详见[兼容边界](dynamic-text-fonts.md#v1-导入后的撤回边界)。

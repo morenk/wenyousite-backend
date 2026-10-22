@@ -9,6 +9,18 @@ describe('configuration', () => {
     jest.restoreAllMocks();
   });
 
+  it('字体新写默认关闭，只有分发前缀与显式开关同时就绪才启用', () => {
+    expect(configuration().app.textFontV1Enabled).toBe(false);
+    process['env'].TEXT_FONT_V1_ENABLED = 'true';
+    expect(configuration().app.textFontV1Enabled).toBe(false);
+    process['env'].TEXT_FONT_ASSET_BASE_URL = 'https://assets.example.com/fonts/';
+    expect(configuration().app.textFontV1Enabled).toBe(true);
+    for (const invalid of ['http://assets.example.com/fonts/', 'https://assets.example.com/fonts', 'https://user:pass@assets.example.com/', 'https://assets.example.com/fonts/?key=value']) {
+      process['env'].TEXT_FONT_ASSET_BASE_URL = invalid;
+      expect(() => configuration()).toThrow('TEXT_FONT_ASSET_BASE_URL');
+    }
+  });
+
   it('音频准入预算默认与显式配置为正整数', () => {
     expect(configuration().audio.maxActiveUploads).toBe(2);
     expect(configuration().audio.dailyInputBytes).toBe(314572800);

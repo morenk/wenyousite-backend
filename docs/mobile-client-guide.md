@@ -288,3 +288,23 @@ Flutter 代码、类型生成和设备回归仅在 Windows 执行；本后端 PR
 ## 主题底栏互动总数
 
 详情新增可选 `bookmarkCount` / `subscriberCount`；新后端始终返回真实非负值，旧响应缺失必须保留为未知。写成功后重新读取详情；具体范围和升级顺序见[主题互动人数](thread-action-counts.md)。
+
+## 主题帖字体接入
+
+使用 Backend 已提交 SHA 的[字体 v1 契约](markdown-text-font-v1.md)与资源目录，同步读取、编辑、云草稿、保存及剪贴板。字体未加载时保留原文与 fontId，回退系统字体。FontLoader 注册按进程预算限制，磁盘 LRU 不能替代驻留限制；VPS 仅提供契约与隔离入口，Flutter 检查在 Windows 完成。
+
+历史字体目录扩展 `5.41.0-dev.20261021.2` 引入 `designLanguage` 与 manifest 的 `deliveryMode`／`budgetException`；目录 1.1.1 曾包含 29 款已核验资产。该格式与旧不可变资源继续保留，当前 28 款目录及消费者同步方式以下节为准，详见[字体资源事实源](thread-font-assets.md)。
+
+## 字体连续浏览与恢复
+
+HTTP `5.42.0-dev.20261022.1` 的独立 `GET /meta/text-fonts/runtime-policy` 绑定目录 1.2.0 的 28 款全分片 manifest。Web 活动集合为 28 家族；Mobile 快照为 868 个唯一资产／注册键、184,645,488 字节。当前 v2 删除 `originalAsset`、`originalWindowBytes`、`originalSfntBytes`，不为原件开放额外槽。小城退出当前可选目录；历史 ID／正文及旧不可变资源保留，按系统字体回退。
+
+两端 `network` 必须包含 `timeoutMode: "idle-with-total-cap"`、`timeoutMs: 15000`、`maxTransferMs: 600000`：仅非空正文数据块重置 idle，实际请求开始后总传输最多 10 分钟，排队不计时。窗口、并发、元数据 64 KiB 流式上限和错误分类不变；未发布 v2 原型按同一 SHA 严格同步新形状。旧 v1 limits 及 15 秒总超时原义保持，未知策略回退旧限额。字段、拒绝边界和夹具见[运行策略](thread-font-runtime-policy.md)。文件输入账本不是 native/RSS 上限，Flutter 设备验收仍由 Windows／Android 完成。
+
+## 动态字体 v2 兼容阶段
+
+HTTP `5.43.0-dev.20261022.1` 新增独立动态目录、版本描述符、运行策略 v3 和正文 `data-wenyou-font-v2`。声明 `textFontVersion:2` 包含 v1/v2 混合保源；旧客户端不能覆盖含 v2 的原文。旧 v1 目录、资源和固定 manifest 策略 v2 保留。迁移字段、状态、预算和契约阶段可用性见[动态字体协议](dynamic-text-fonts.md)。
+
+HTTP `5.43.0-dev.20261022.2` 明确 v1 导入撤回边界：支持 v2 的消费者须通过固定映射共用版本状态和本站网关，未知/404 不回退旧 manifest；28 款导入发布完成后才宣告 v2 支持。旧 v1 公共 URL/缓存无法立即收回，详见[兼容边界](dynamic-text-fonts.md#v1-导入后的撤回边界)。
+
+HTTP `5.43.0-dev.20261022.3` 新增字体管理审计枚举并交付私有存储/Worker 实现，字体端点和正文形状保持 .2。Windows Flutter 同步已提交 OpenAPI 及夹具后再生成客户端；真实新增 ID 的同会话验收使用[统一隔离会话](dynamic-text-fonts.md#同一-runid-的跨端会话)，VPS 后端测试不代替 Android 原生验收。

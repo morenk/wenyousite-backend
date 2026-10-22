@@ -220,6 +220,32 @@ export class EnvironmentVariables {
   TEXT_COLOR_V1_ENABLED = false;
 
   @IsBoolean()
+  @Transform(({ value }) => (value === 'true' ? true : value === 'false' ? false : value))
+  TEXT_FONT_V1_ENABLED = false;
+
+  @IsBoolean()
+  @Transform(({ value }) => (value === 'true' ? true : value === 'false' ? false : value))
+  TEXT_FONT_V2_ENABLED = false;
+
+  @IsString()
+  @Matches(/^(?:|[a-z0-9][a-z0-9.-]{1,61}[a-z0-9])$/)
+  TEXT_FONT_BUCKET = '';
+
+  @IsString()
+  @Matches(/^(?:|\/[^\0]+)$/u)
+  TEXT_FONT_STORAGE_ROOT = '';
+
+  @IsString()
+  @Matches(/^(?:|\/[^\0]+)$/u)
+  TEXT_FONT_TOOLCHAIN_DIR = '';
+
+  @IsString()
+  @ValidateIf((value: EnvironmentVariables) => value.TEXT_FONT_ASSET_BASE_URL !== '')
+  @IsUrl({ protocols: ['https'], require_protocol: true })
+  @Matches(/^https:\/\/[^/?#@]+\/(?:[^?#]*\/)?$/u)
+  TEXT_FONT_ASSET_BASE_URL = '';
+
+  @IsBoolean()
   @IsOptional()
   @Transform(({ value }) => {
     if (value === 'true' || value === true) return true;

@@ -2,6 +2,7 @@
  * 应用入口：Fastify + Pino + Swagger + Sentry + 限流
  */
 import './instrument';
+import { registerFontSourceParser } from './text-fonts/font-upload';
 import { NestFactory } from '@nestjs/core';
 import type { IncomingMessage } from 'http';
 import { ValidationPipe } from '@nestjs/common';
@@ -45,7 +46,7 @@ async function bootstrap() {
     origin: runtime.app.corsOrigins,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true,
-    exposedHeaders: ['X-Request-ID', 'X-API-Contract-Version', 'Retry-After'],
+    exposedHeaders: ['X-Request-ID', 'X-API-Contract-Version', 'Retry-After', 'ETag'],
   });
   await app.register(fastifyHelmet);
   await app.register(fastifyCookie);
@@ -65,6 +66,7 @@ async function bootstrap() {
   });
   const fastify = app.getHttpAdapter().getInstance();
   registerAdminCsrfProtection(fastify);
+  registerFontSourceParser(fastify);
 
   // Swagger 文档：仅当开启时挂载，与 NODE_ENV 解耦，方便线上移动端开发
   if (runtime.app.apiDocsEnabled) {

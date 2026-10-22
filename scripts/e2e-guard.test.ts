@@ -5,6 +5,7 @@ import { mkdtempSync, chmodSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { assertIsolatedEnvironment } from './e2e-guard';
+import { processStart } from './e2e-processes';
 import { cleanEnvironment } from './e2e-resources';
 import { resourceDiagnostic, suiteFailureDiagnostic } from './e2e-runner-diagnostics';
 function fixture() {
@@ -46,6 +47,25 @@ test('仅完整登记通过；宽松权限和资源漂移拒绝', () => {
     assert.throws(() => assertIsolatedEnvironment(f.env), /漂移/);
   } finally { f.close(); }
 });
+test('字体对象存储必须匹配本轮进程启动身份、目录、bucket 和连接', () => {
+  const f = fixture();
+  try {
+    const store = { runId: f.manifest.runId, identity: 'fixture', pid: process.pid, start: processStart(process.pid), endpoint: 'http://127.0.0.1:39004', directory: join(f.root, 'font-object-store'), bucket: 'fonts-fixture' };
+    writeFileSync(f.path, JSON.stringify({ ...f.manifest, fontObjectStore: store }));
+    writeFileSync(join(f.root, 'processes.json'), JSON.stringify({ processes: [{ group: store.pid, started: store.start }] }));
+    const env = { ...f.env, COS_ENDPOINT: store.endpoint, TEXT_FONT_BUCKET: store.bucket };
+    assert.equal(assertIsolatedEnvironment(env).fontObjectStore?.pid, process.pid);
+    for (const change of [{ COS_ENDPOINT: 'http://127.0.0.1:39005' }, { TEXT_FONT_BUCKET: 'other' }, { COS_BUCKET: store.bucket }]) {
+      assert.throws(() => assertIsolatedEnvironment({ ...env, ...change }), /对象存储/);
+    }
+    writeFileSync(f.path, JSON.stringify({ ...f.manifest, fontObjectStore: { ...store, start: 'old-process' } }));
+    assert.throws(() => assertIsolatedEnvironment(env), /对象存储/);
+    writeFileSync(f.path, JSON.stringify({ ...f.manifest, fontObjectStore: store }));
+    writeFileSync(join(f.root, 'processes.json'), JSON.stringify({ processes: [] }));
+    assert.throws(() => assertIsolatedEnvironment(env), /未登记/);
+  } finally { f.close(); }
+});
+
 test('子进程白名单环境丢弃线上连接、NODE_OPTIONS 及外部凭据', () => {
   const values = { DATABASE_URL: 'unused', REDIS_PASSWORD: 'unused', NODE_OPTIONS: '--bad', SES_SMTP_PASS: 'unused', GOOGLE_APPLICATION_CREDENTIALS: '/unused' };
   const before = { ...process.env };
@@ -154,6 +174,23 @@ test('启动失败和合法 pnpm 错误可分类，超长私有日志只检查�
   );
   assert.equal(result.errorType, 'TypeError');
   assert.deepEqual(result.codes, []);
+});
+
+test('字体沙箱诊断只公开登记探针和固定类别，忽略异常正文与伪造字段', () => {
+  const script = 'text-font-v2.integration.ts', allowed = new Set([script]);
+  const diagnostic = (log: string, name = script) => suiteFailureDiagnostic(
+    'e2e_' + 'a'.repeat(24), name, 1, log, allowed,
+  );
+  const result = diagnostic('Error: FONT_SANDBOX_PROBE_FAILURE:boundaries:sandbox-unavailable\nsecret-path secret-token\n');
+  assert.equal(result.category, 'font-sandbox');
+  assert.deepEqual(result.fontSandbox, { probe: 'boundaries', code: 'sandbox-unavailable' });
+  assert(!JSON.stringify(result).includes('secret'));
+  for (const log of [
+    'FONT_SANDBOX_PROBE_FAILURE:secret-probe:sandbox-unavailable',
+    'FONT_SANDBOX_PROBE_FAILURE:boundaries:secret-code',
+    'FONT_SANDBOX_PROBE_FAILURE:boundaries:sandbox-unavailable-secret',
+  ]) assert.equal(diagnostic(log).fontSandbox, undefined);
+  assert.equal(diagnostic('FONT_SANDBOX_PROBE_FAILURE:boundaries:sandbox-unavailable', 'unregistered.ts').fontSandbox, undefined);
 });
 
 test('资源审计事件仅选择身份字段，不序列化凭据或额外数据', () => {

@@ -7,18 +7,14 @@ COMPOSE_FILE="$BACKEND_DIR/docker-compose.yml"
 CONFIG_ROOT=${WENYOUSITE_CONFIG_ROOT:-/etc/wenyousite}
 COMPOSE_ENV=${WENYOUSITE_COMPOSE_ENV:-$CONFIG_ROOT/compose.env}
 REQUIRE_IMAGE_WORKER=false
-
-if [ "$#" -gt 1 ]; then
-  echo "用法: $0 [--require-image-worker]" >&2
-  exit 2
-fi
-if [ "$#" -eq 1 ]; then
-  [ "$1" = --require-image-worker ] || {
-    echo "用法: $0 [--require-image-worker]" >&2
-    exit 2
-  }
-  REQUIRE_IMAGE_WORKER=true
-fi
+REQUIRE_FONT_WORKER=false
+for option in "$@"; do
+  case "$option" in
+    --require-image-worker) REQUIRE_IMAGE_WORKER=true ;;
+    --require-font-worker) REQUIRE_FONT_WORKER=true ;;
+    *) echo "用法: $0 [--require-image-worker] [--require-font-worker]" >&2; exit 2 ;;
+  esac
+done
 
 fail() { echo "运行数据安全验证失败: $*" >&2; exit 1; }
 bash "$SCRIPT_DIR/validate-production-security.sh" >/dev/null
@@ -125,8 +121,14 @@ if systemctl is-active --quiet wenyousite-backend.service; then
   if [ "$REQUIRE_IMAGE_WORKER" = true ] && ! systemctl is-active --quiet wenyousite-image-worker.service; then
     fail "图片 Worker 未运行"
   fi
+  if [ "$REQUIRE_FONT_WORKER" = true ] && ! systemctl is-active --quiet wenyousite-font-worker.service; then
+    fail "字体 Worker 未运行"
+  fi
 fi
 if systemctl is-active --quiet wenyousite-image-worker.service; then
   [ "$(systemctl show -p User --value wenyousite-image-worker.service)" = wenyousite-backend ] || fail "Worker 仍以 root 运行"
+fi
+if systemctl is-active --quiet wenyousite-font-worker.service; then
+  [ "$(systemctl show -p User --value wenyousite-font-worker.service)" = wenyousite-backend ] || fail "字体 Worker 仍以 root 运行"
 fi
 echo "运行数据安全验证通过"

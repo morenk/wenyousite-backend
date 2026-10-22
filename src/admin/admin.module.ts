@@ -1,3 +1,5 @@
+import { TextFontsModule } from '../text-fonts/text-fonts.module';
+import { AdminTextFontsController } from './admin-text-fonts.controller';
 import { AdminContentController } from './admin-content.controller';
 import { Module } from '@nestjs/common';
 import { AdminController } from './admin.controller';
@@ -35,6 +37,7 @@ import { EmailModule } from '../email/email.module';
 /** 管理后台模块：系统通知发送、预览、历史、用户搜索 */
 @Module({
   imports: [
+    TextFontsModule,
     NotificationsModule,
     TagsModule,
     TaxonomyModule,
@@ -46,6 +49,7 @@ import { EmailModule } from '../email/email.module';
     EmailModule,
   ],
   controllers: [
+    AdminTextFontsController,
     AdminAuthController,
     AdminAccountsController,
     AdminInviteAcceptanceController,

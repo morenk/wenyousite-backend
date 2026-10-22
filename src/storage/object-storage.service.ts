@@ -17,6 +17,7 @@ export interface ObjectUploadOptions {
   cacheControl?: string;
   contentLength?: number;
   abortSignal?: AbortSignal;
+  ifNoneMatch?: '*';
 }
 
 /** S3 兼容对象存储的唯一基础设施适配器。 */
@@ -39,12 +40,23 @@ export class ObjectStorageService {
     });
   }
 
-  head(key: string, bucket = this.bucket) {
-    return this.client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+  head(key: string, bucket = this.bucket, abortSignal?: AbortSignal) {
+    return this.client.send(
+      new HeadObjectCommand({ Bucket: bucket, Key: key }),
+      ...(abortSignal ? [{ abortSignal }] : []),
+    );
   }
 
-  async download(key: string, bucket = this.bucket, maxBytes = Infinity) {
-    const response = await this.client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+  async download(
+    key: string,
+    bucket = this.bucket,
+    maxBytes = Infinity,
+    abortSignal?: AbortSignal,
+  ) {
+    const response = await this.client.send(
+      new GetObjectCommand({ Bucket: bucket, Key: key }),
+      ...(abortSignal ? [{ abortSignal }] : []),
+    );
     const chunks: Uint8Array[] = [];
     let bytes = 0;
     if (response.Body) {
@@ -66,6 +78,7 @@ export class ObjectStorageService {
         ContentType: options.contentType,
         CacheControl: options.cacheControl,
         ContentLength: options.contentLength,
+        IfNoneMatch: options.ifNoneMatch,
       }),
       ...(options.abortSignal ? [{ abortSignal: options.abortSignal }] : []),
     );

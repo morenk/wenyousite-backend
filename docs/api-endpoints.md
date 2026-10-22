@@ -249,6 +249,23 @@
 | GET | `/admin/reports/{id}` | admin | 管理员举报详情 |
 | POST | `/admin/reports/{id}/resolve` | admin | 原子结案并可选执行治理动作 |
 
+## Admin Text Fonts
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/admin/text-fonts` | admin |  |
+| POST | `/admin/text-fonts` | admin |  |
+| GET | `/admin/text-fonts/jobs/{jobId}` | admin |  |
+| POST | `/admin/text-fonts/jobs/{jobId}/process` | admin |  |
+| GET | `/admin/text-fonts/versions/{versionId}/preview` | admin |  |
+| GET | `/admin/text-fonts/versions/{versionId}/assets/{asset}` | admin |  |
+| POST | `/admin/text-fonts/versions/{versionId}/withdraw` | admin |  |
+| GET | `/admin/text-fonts/{familyId}` | admin |  |
+| PATCH | `/admin/text-fonts/{familyId}` | admin |  |
+| POST | `/admin/text-fonts/{familyId}/sources` | admin |  |
+| POST | `/admin/text-fonts/{familyId}/publish` | admin |  |
+| PATCH | `/admin/text-fonts/{familyId}/enabled` | admin |  |
+
 ## Admin Auth
 
 | 方法 | 路径 | 鉴权 | 说明 |
@@ -368,6 +385,18 @@
 | POST | `/admin/tags` | admin | 新增平台标签 |
 | PATCH | `/admin/tags/{id}` | admin | 编辑、排序或停用平台标签 |
 
+## Meta
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/meta/text-fonts/v2/runtime-policy` | public |  |
+| GET | `/meta/text-fonts/v2` | public |  |
+| GET | `/meta/text-fonts/v2/versions/{versionId}` | public |  |
+| GET | `/meta/text-fonts/v2/versions/{versionId}/assets/{asset}` | public |  |
+| GET | `/meta` | public |  |
+| GET | `/meta/text-fonts/runtime-policy` | public |  |
+| GET | `/meta/text-fonts` | public |  |
+
 ## Search
 
 | 方法 | 路径 | 鉴权 | 说明 |
@@ -403,12 +432,6 @@
 | PATCH | `/direct-conversations/{id}/archive` | authenticated | 归档或恢复自己的会话 |
 | POST | `/direct-conversations/{id}/read` | authenticated | 标记当前用户实际看到的消息为已读，不向发件人暴露回执 |
 | DELETE | `/direct-messages/{id}` | authenticated | 发送者在 10 分钟内撤回消息；待处理首条消息会取消请求 |
-
-## Meta
-
-| 方法 | 路径 | 鉴权 | 说明 |
-|---|---|---|---|
-| GET | `/meta` | public |  |
 
 ## Mobile Releases
 

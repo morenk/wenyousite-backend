@@ -1,0 +1,253 @@
+{
+  "version": 1,
+  "attribute": "data-wenyou-font-v1",
+  "capability": {
+    "readHeader": "X-Text-Font-Version",
+    "writeField": "textFontVersion",
+    "version": 1
+  },
+  "canonicalAttributeOrder": [
+    "data-wenyou-font-v1",
+    "data-wenyou-color-v1"
+  ],
+  "validCases": [
+    {
+      "id": "plain",
+      "source": "<span data-wenyou-font-v1=\"wenkai\">中英 Hello 123</span>",
+      "canonical": "<span data-wenyou-font-v1=\"wenkai\">中英 Hello 123</span>",
+      "fontOnly": "<span data-wenyou-font-v1=\"wenkai\">中英 Hello 123</span>",
+      "colorOnly": "中英 Hello 123",
+      "legacy": "中英 Hello 123"
+    },
+    {
+      "id": "plain-color",
+      "source": "<span data-wenyou-font-v1=\"wenkai\" data-wenyou-color-v1=\"#D14343\">中英 Hello 123</span>",
+      "canonical": "<span data-wenyou-font-v1=\"wenkai\" data-wenyou-color-v1=\"#D14343\">中英 Hello 123</span>",
+      "fontOnly": "<span data-wenyou-font-v1=\"wenkai\">中英 Hello 123</span>",
+      "colorOnly": "<span data-wenyou-color-v1=\"#D14343\">中英 Hello 123</span>",
+      "legacy": "中英 Hello 123"
+    },
+    {
+      "id": "bold",
+      "source": "<span data-wenyou-font-v1=\"wenkai\">**粗体 Bold**</span>",
+      "canonical": "<span data-wenyou-font-v1=\"wenkai\">**粗体 Bold**</span>",
+      "fontOnly": "<span data-wenyou-font-v1=\"wenkai\">**粗体 Bold**</span>",
+      "colorOnly": "**粗体 Bold**",
+      "legacy": "**粗体 Bold**"
+    },
+    {
+      "id": "bold-color",
+      "source": "<span data-wenyou-font-v1=\"wenkai\" data-wenyou-color-v1=\"#D14343\">**粗体 Bold**</span>",
+      "canonical": "<span data-wenyou-font-v1=\"wenkai\" data-wenyou-color-v1=\"#D14343\">**粗体 Bold**</span>",
+      "fontOnly": "<span data-wenyou-font-v1=\"wenkai\">**粗体 Bold**</span>",
+      "colorOnly": "<span data-wenyou-color-v1=\"#D14343\">**粗体 Bold**</span>",
+      "legacy": "**粗体 Bold**"
+    },
+    {
+      "id": "italic",
+      "source": "<span data-wenyou-font-v1=\"wenkai\">*斜体 Italic*</span>",
+      "canonical": "<span data-wenyou-font-v1=\"wenkai\">*斜体 Italic*</span>",
+      "fontOnly": "<span data-wenyou-font-v1=\"wenkai\">*斜体 Italic*</span>",
+      "colorOnly": "*斜体 Italic*",
+      "legacy": "*斜体 Italic*"
+    },
+    {
+      "id": "italic-color",
+      "source": "<span data-wenyou-font-v1=\"wenkai\" data-wenyou-color-v1=\"#D14343\">*斜体 Italic*</span>",
+      "canonical": "<span data-wenyou-font-v1=\"wenkai\" data-wenyou-color-v1=\"#D14343\">*斜体 Italic*</span>",
+      "fontOnly": "<span data-wenyou-font-v1=\"wenkai\">*斜体 Italic*</span>",
+      "colorOnly": "<span data-wenyou-color-v1=\"#D14343\">*斜体 Italic*</span>",
+      "legacy": "*斜体 Italic*"
+    },
+    {
+      "id": "strike",
+      "source": "<span data-wenyou-font-v1=\"wenkai\">~~删线 Strike~~</span>",
+      "canonical": "<span data-wenyou-font-v1=\"wenkai\">~~删线 Strike~~</span>",
+      "fontOnly": "<span data-wenyou-font-v1=\"wenkai\">~~删线 Strike~~</span>",
+      "colorOnly": "~~删线 Strike~~",
+      "legacy": "~~删线 Strike~~"
+    },
+    {
+      "id": "strike-color",
+      "source": "<span data-wenyou-font-v1=\"wenkai\" data-wenyou-color-v1=\"#D14343\">~~删线 Strike~~</span>",
+      "canonical": "<span data-wenyou-font-v1=\"wenkai\" data-wenyou-color-v1=\"#D14343\">~~删线 Strike~~</span>",
+      "fontOnly": "<span data-wenyou-font-v1=\"wenkai\">~~删线 Strike~~</span>",
+      "colorOnly": "<span data-wenyou-color-v1=\"#D14343\">~~删线 Strike~~</span>",
+      "legacy": "~~删线 Strike~~"
+    },
+    {
+      "id": "link",
+      "source": "<span data-wenyou-font-v1=\"wenkai\">[链接 Link](https://example.com)</span>",
+      "canonical": "<span data-wenyou-font-v1=\"wenkai\">[链接 Link](https://example.com)</span>",
+      "fontOnly": "<span data-wenyou-font-v1=\"wenkai\">[链接 Link](https://example.com)</span>",
+      "colorOnly": "[链接 Link](https://example.com)",
+      "legacy": "[链接 Link](https://example.com)"
+    },
+    {
+      "id": "link-color",
+      "source": "<span data-wenyou-font-v1=\"wenkai\" data-wenyou-color-v1=\"#D14343\">[链接 Link](https://example.com)</span>",
+      "canonical": "<span data-wenyou-font-v1=\"wenkai\" data-wenyou-color-v1=\"#D14343\">[链接 Link](https://example.com)</span>",
+      "fontOnly": "<span data-wenyou-font-v1=\"wenkai\">[链接 Link](https://example.com)</span>",
+      "colorOnly": "<span data-wenyou-color-v1=\"#D14343\">[链接 Link](https://example.com)</span>",
+      "legacy": "[链接 Link](https://example.com)"
+    },
+    {
+      "id": "code",
+      "source": "<span data-wenyou-font-v1=\"wenkai\">`a < b`</span>",
+      "canonical": "<span data-wenyou-font-v1=\"wenkai\">`a < b`</span>",
+      "fontOnly": "<span data-wenyou-font-v1=\"wenkai\">`a < b`</span>",
+      "colorOnly": "`a < b`",
+      "legacy": "`a < b`"
+    },
+    {
+      "id": "code-color",
+      "source": "<span data-wenyou-font-v1=\"wenkai\" data-wenyou-color-v1=\"#D14343\">`a < b`</span>",
+      "canonical": "<span data-wenyou-font-v1=\"wenkai\" data-wenyou-color-v1=\"#D14343\">`a < b`</span>",
+      "fontOnly": "<span data-wenyou-font-v1=\"wenkai\">`a < b`</span>",
+      "colorOnly": "<span data-wenyou-color-v1=\"#D14343\">`a < b`</span>",
+      "legacy": "`a < b`"
+    },
+    {
+      "id": "literal-heading",
+      "source": "<span data-wenyou-font-v1=\"wenkai\"># 标题</span>",
+      "canonical": "<span data-wenyou-font-v1=\"wenkai\"># 标题</span>",
+      "fontOnly": "<span data-wenyou-font-v1=\"wenkai\"># 标题</span>",
+      "colorOnly": "\\# 标题",
+      "legacy": "\\# 标题"
+    },
+    {
+      "id": "literal-heading-color",
+      "source": "<span data-wenyou-font-v1=\"wenkai\" data-wenyou-color-v1=\"#D14343\"># 标题</span>",
+      "canonical": "<span data-wenyou-font-v1=\"wenkai\" data-wenyou-color-v1=\"#D14343\"># 标题</span>",
+      "fontOnly": "<span data-wenyou-font-v1=\"wenkai\"># 标题</span>",
+      "colorOnly": "<span data-wenyou-color-v1=\"#D14343\"># 标题</span>",
+      "legacy": "\\# 标题"
+    },
+    {
+      "id": "emoji",
+      "source": "<span data-wenyou-font-v1=\"wenkai\">👨‍👩‍👧‍👦 é</span>",
+      "canonical": "<span data-wenyou-font-v1=\"wenkai\">👨‍👩‍👧‍👦 é</span>",
+      "fontOnly": "<span data-wenyou-font-v1=\"wenkai\">👨‍👩‍👧‍👦 é</span>",
+      "colorOnly": "👨‍👩‍👧‍👦 é",
+      "legacy": "👨‍👩‍👧‍👦 é"
+    },
+    {
+      "id": "emoji-color",
+      "source": "<span data-wenyou-font-v1=\"wenkai\" data-wenyou-color-v1=\"#D14343\">👨‍👩‍👧‍👦 é</span>",
+      "canonical": "<span data-wenyou-font-v1=\"wenkai\" data-wenyou-color-v1=\"#D14343\">👨‍👩‍👧‍👦 é</span>",
+      "fontOnly": "<span data-wenyou-font-v1=\"wenkai\">👨‍👩‍👧‍👦 é</span>",
+      "colorOnly": "<span data-wenyou-color-v1=\"#D14343\">👨‍👩‍👧‍👦 é</span>",
+      "legacy": "👨‍👩‍👧‍👦 é"
+    },
+    {
+      "id": "reverse-attributes",
+      "source": "<span data-wenyou-color-v1=\"#d14343\" data-wenyou-font-v1=\"wenkai\">中英</span>",
+      "canonical": "<span data-wenyou-font-v1=\"wenkai\" data-wenyou-color-v1=\"#D14343\">中英</span>",
+      "fontOnly": "<span data-wenyou-font-v1=\"wenkai\">中英</span>",
+      "colorOnly": "<span data-wenyou-color-v1=\"#D14343\">中英</span>",
+      "legacy": "中英"
+    },
+    {
+      "id": "retired-xiaocheng-history",
+      "source": "<span data-wenyou-font-v1=\"xiaocheng-lafeng\">历史小城正文</span>",
+      "canonical": "<span data-wenyou-font-v1=\"xiaocheng-lafeng\">历史小城正文</span>",
+      "fontOnly": "<span data-wenyou-font-v1=\"xiaocheng-lafeng\">历史小城正文</span>",
+      "colorOnly": "历史小城正文",
+      "legacy": "历史小城正文"
+    }
+  ],
+  "invalidSources": [
+    "<span data-wenyou-font-v1=\"missing-font\">未知</span>",
+    "<span data-wenyou-font-v1=\"https://example.com/font.ttf\">地址</span>",
+    "<span data-wenyou-font-v1=\"Arial\">字体</span>",
+    "<span data-wenyou-font-v2=\"wenkai\">未知版本</span>",
+    "<span data-wenyou-font-v1=\"wenkai\">跨\n行</span>",
+    "<span data-wenyou-font-v1=\"wenkai\"></span>",
+    "<span data-wenyou-font-v1=\"wenkai\"><span data-wenyou-font-v1=\"wenkai\">嵌套</span></span>",
+    "<span data-wenyou-font-v1=\"wenkai\">![图片](/a.png)</span>",
+    "<span data-wenyou-font-v1=\"wenkai\">[[dice:v1:123:1d6]]</span>",
+    "<span data-wenyou-font-v1=\"wenkai\" style=\"color:red\">注入</span>",
+    "<span data-wenyou-font-v1=\"wenkai\" data-wenyou-font-v1=\"wenkai\">重复</span>",
+    "<span data-wenyou-font-v1=\"wenkai\">缺少关闭",
+    "**<span data-wenyou-font-v1=\"wenkai\">外层粗体</span>**"
+  ],
+  "writeCases": [
+    {
+      "id": "missing-capability-create",
+      "content": "<span data-wenyou-font-v1=\"wenkai\">文字</span>",
+      "previous": "",
+      "enabled": true,
+      "expectedCode": 40019
+    },
+    {
+      "id": "missing-capability-clear",
+      "content": "文字",
+      "previous": "<span data-wenyou-font-v1=\"wenkai\">文字</span>",
+      "enabled": true,
+      "expectedCode": 40019
+    },
+    {
+      "id": "disabled-create",
+      "content": "<span data-wenyou-font-v1=\"wenkai\">文字</span>",
+      "previous": "",
+      "version": 1,
+      "enabled": false,
+      "expectedCode": 40020
+    },
+    {
+      "id": "disabled-retain",
+      "content": "<span data-wenyou-font-v1=\"wenkai\">文字</span> 添加普通文字",
+      "previous": "<span data-wenyou-font-v1=\"wenkai\">文字</span>",
+      "version": 1,
+      "enabled": false,
+      "expectedCode": null
+    },
+    {
+      "id": "disabled-remove",
+      "content": "文字",
+      "previous": "<span data-wenyou-font-v1=\"wenkai\">文字</span>",
+      "version": 1,
+      "enabled": false,
+      "expectedCode": null
+    },
+    {
+      "id": "disabled-change",
+      "content": "<span data-wenyou-font-v1=\"wenkai\">改变</span>",
+      "previous": "<span data-wenyou-font-v1=\"wenkai\">文字</span>",
+      "version": 1,
+      "enabled": false,
+      "expectedCode": 40020
+    },
+    {
+      "id": "retired-xiaocheng-new",
+      "content": "<span data-wenyou-font-v1=\"xiaocheng-lafeng\">历史小城正文</span>",
+      "previous": "",
+      "version": 1,
+      "enabled": true,
+      "expectedCode": 40020
+    },
+    {
+      "id": "retired-xiaocheng-keep",
+      "content": "<span data-wenyou-font-v1=\"xiaocheng-lafeng\">历史小城正文</span>",
+      "previous": "<span data-wenyou-font-v1=\"xiaocheng-lafeng\">历史小城正文</span>",
+      "version": 1,
+      "enabled": true,
+      "expectedCode": null
+    },
+    {
+      "id": "retired-xiaocheng-remove",
+      "content": "历史小城正文",
+      "previous": "<span data-wenyou-font-v1=\"xiaocheng-lafeng\">历史小城正文</span>",
+      "version": 1,
+      "enabled": true,
+      "expectedCode": null
+    },
+    {
+      "id": "retired-xiaocheng-old-overwrite",
+      "content": "历史小城正文",
+      "previous": "<span data-wenyou-font-v1=\"xiaocheng-lafeng\">历史小城正文</span>",
+      "enabled": true,
+      "expectedCode": 40019
+    }
+  ]
+}

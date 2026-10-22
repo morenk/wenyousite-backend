@@ -1,0 +1,591 @@
+{
+  "policyVersion": 2,
+  "activationCases": [
+    {
+      "id": "matching",
+      "endpoint": "available",
+      "supported": true,
+      "baseConfigured": true,
+      "manifestMatches": true,
+      "expected": "v2"
+    },
+    {
+      "id": "old-backend",
+      "endpoint": "404",
+      "supported": true,
+      "baseConfigured": true,
+      "manifestMatches": true,
+      "expected": "legacy"
+    },
+    {
+      "id": "unknown-version",
+      "endpoint": "available",
+      "supported": false,
+      "baseConfigured": true,
+      "manifestMatches": true,
+      "expected": "legacy"
+    },
+    {
+      "id": "unpublished",
+      "endpoint": "available",
+      "supported": true,
+      "baseConfigured": false,
+      "manifestMatches": true,
+      "expected": "system-fallback"
+    },
+    {
+      "id": "different-manifest",
+      "endpoint": "available",
+      "supported": true,
+      "baseConfigured": true,
+      "manifestMatches": false,
+      "expected": "legacy"
+    }
+  ],
+  "backoffCases": [
+    {
+      "failureCount": 1,
+      "random": 0,
+      "expectedDelayMs": 0
+    },
+    {
+      "failureCount": 1,
+      "random": 0.5,
+      "expectedDelayMs": 500
+    },
+    {
+      "failureCount": 2,
+      "random": 0.5,
+      "expectedDelayMs": 1000
+    },
+    {
+      "failureCount": 7,
+      "random": 0.5,
+      "expectedDelayMs": 30000
+    },
+    {
+      "failureCount": 100,
+      "random": 0.99999,
+      "expectedDelayMs": 60000
+    }
+  ],
+  "notBeforeCases": [
+    {
+      "id": "server-wait",
+      "nowMs": 100000,
+      "delayMs": 500,
+      "windowReadyAtMs": 100000,
+      "retryAfter": "120",
+      "expectedAtMs": 220000
+    },
+    {
+      "id": "window-wait",
+      "nowMs": 100000,
+      "delayMs": 500,
+      "windowReadyAtMs": 160000,
+      "retryAfter": "2",
+      "expectedAtMs": 160000
+    },
+    {
+      "id": "date-wait",
+      "nowMs": 100000,
+      "delayMs": 500,
+      "windowReadyAtMs": 100000,
+      "retryAfter": "Thu, 01 Jan 1970 00:03:00 GMT",
+      "expectedAtMs": 180000
+    },
+    {
+      "id": "invalid-retry-after",
+      "nowMs": 100000,
+      "delayMs": 500,
+      "windowReadyAtMs": 100000,
+      "retryAfter": "invalid",
+      "expectedAtMs": 100500
+    }
+  ],
+  "windowCases": [
+    {
+      "id": "full-before-boundary",
+      "reservedAtMs": 0,
+      "nowMs": 59999,
+      "expectedExpired": false
+    },
+    {
+      "id": "renew-at-boundary",
+      "reservedAtMs": 0,
+      "nowMs": 60000,
+      "expectedExpired": true
+    }
+  ],
+  "snapshotCases": [
+    {
+      "id": "current",
+      "uniqueAssets": 868,
+      "totalAssetBytes": 184645488,
+      "expected": "accept"
+    },
+    {
+      "id": "too-many",
+      "uniqueAssets": 1025,
+      "totalAssetBytes": 184645488,
+      "expected": "reject"
+    },
+    {
+      "id": "too-large",
+      "uniqueAssets": 868,
+      "totalAssetBytes": 268435457,
+      "expected": "reject"
+    }
+  ],
+  "invalidPolicies": [
+    {
+      "path": "policyVersion",
+      "value": 3
+    },
+    {
+      "path": "manifestSha256",
+      "value": "bad"
+    },
+    {
+      "path": "web.residency.mode",
+      "value": "reset-per-page"
+    },
+    {
+      "path": "web.network.windowMs",
+      "value": 0
+    },
+    {
+      "path": "mobile.registration.maxAttemptsPerKey",
+      "value": 2
+    },
+    {
+      "path": "mobile.registration.safetyCeiling.maxSnapshotAssetBytes",
+      "value": 536870912
+    },
+    {
+      "path": "mobile.registration.snapshot.assetCount",
+      "value": 1025
+    },
+    {
+      "path": "mobile.network.maxConcurrent",
+      "value": 2
+    },
+    {
+      "path": "retry.respectRetryAfter",
+      "value": false
+    },
+    {
+      "path": "mobile.network.originalWindowBytes",
+      "value": 18410600
+    },
+    {
+      "path": "web.residency.maxFamilies",
+      "value": 8
+    },
+    {
+      "path": "web.network.timeoutMode",
+      "value": "total"
+    },
+    {
+      "path": "web.network.maxTransferMs",
+      "value": 15000
+    },
+    {
+      "path": "web.network.maxTransferMs",
+      "value": 600001
+    },
+    {
+      "path": "web.network.timeoutMs",
+      "value": 0
+    },
+    {
+      "path": "mobile.network.timeoutMode",
+      "value": "total"
+    },
+    {
+      "path": "mobile.network.maxTransferMs",
+      "value": 15000
+    },
+    {
+      "path": "mobile.network.maxTransferMs",
+      "value": 600001
+    },
+    {
+      "path": "mobile.network.timeoutMs",
+      "value": 0
+    },
+    {
+      "path": "web.network.originalWindowBytes",
+      "value": 18410600
+    },
+    {
+      "path": "web.residency.originalSfntBytes",
+      "value": 18410600
+    },
+    {
+      "path": "originalAsset",
+      "value": {
+        "fontId": "xiaocheng-lafeng"
+      }
+    }
+  ],
+  "legacyManifestSha256": "7aab91a436933049bc8f55c1aba6085078a251d174c5b253456d3af0c91a0582",
+  "legacyLimits": {
+    "maxConcurrentDownloads": 2,
+    "maxSessionFamilies": 8,
+    "maxSessionRequests": 64,
+    "maxWebSessionBytes": 16777216,
+    "maxMobileSessionBytes": 25165824,
+    "maxMobileRegisteredFaces": 32,
+    "maxPersistentCacheBytes": 67108864,
+    "downloadTimeoutMs": 15000,
+    "maxAssetBytes": 6291456,
+    "maxSourceBytes": 67108864,
+    "maxBuildSourceBytes": 536870912,
+    "maxBundleBytes": 536870912,
+    "maxReleaseStorageBytes": 1073741824,
+    "monthlyEgressBudgetBytes": 536870912000
+  },
+  "sfntEstimateCases": [
+    {
+      "id": "woff2-expanded-tables",
+      "mobileBytes": 759396,
+      "verifiedWoff2TotalSfntSize": 765304,
+      "expectedBytes": 765304
+    },
+    {
+      "id": "mobile-larger",
+      "mobileBytes": 1024,
+      "verifiedWoff2TotalSfntSize": 1000,
+      "expectedBytes": 1024
+    }
+  ],
+  "transferCases": [
+    {
+      "id": "subset-completes-after-100s",
+      "queuedAtMs": 0,
+      "startedAtMs": 0,
+      "byteLimit": 6291456,
+      "events": [
+        {
+          "kind": "headers",
+          "atMs": 500
+        },
+        {
+          "kind": "data",
+          "atMs": 1000,
+          "bytes": 52428,
+          "repeat": 100,
+          "everyMs": 1000
+        },
+        {
+          "kind": "end",
+          "atMs": 100001
+        }
+      ],
+      "expected": {
+        "outcome": "complete",
+        "atMs": 100001,
+        "acceptedBytes": 5242800
+      }
+    },
+    {
+      "id": "no-first-response",
+      "queuedAtMs": 0,
+      "startedAtMs": 0,
+      "byteLimit": 6291456,
+      "events": [
+        {
+          "kind": "tick",
+          "atMs": 15000
+        }
+      ],
+      "expected": {
+        "outcome": "idle-timeout",
+        "atMs": 15000,
+        "acceptedBytes": 0
+      }
+    },
+    {
+      "id": "headers-do-not-reset-idle",
+      "queuedAtMs": 0,
+      "startedAtMs": 0,
+      "byteLimit": 6291456,
+      "events": [
+        {
+          "kind": "headers",
+          "atMs": 14000
+        },
+        {
+          "kind": "tick",
+          "atMs": 15000
+        }
+      ],
+      "expected": {
+        "outcome": "idle-timeout",
+        "atMs": 15000,
+        "acceptedBytes": 0
+      }
+    },
+    {
+      "id": "empty-chunks-do-not-reset-idle",
+      "queuedAtMs": 0,
+      "startedAtMs": 0,
+      "byteLimit": 6291456,
+      "events": [
+        {
+          "kind": "data",
+          "atMs": 1000,
+          "bytes": 0,
+          "repeat": 14,
+          "everyMs": 1000
+        },
+        {
+          "kind": "tick",
+          "atMs": 15000
+        }
+      ],
+      "expected": {
+        "outcome": "idle-timeout",
+        "atMs": 15000,
+        "acceptedBytes": 0
+      }
+    },
+    {
+      "id": "nonempty-chunk-renews-idle",
+      "queuedAtMs": 0,
+      "startedAtMs": 0,
+      "byteLimit": 6291456,
+      "events": [
+        {
+          "kind": "data",
+          "atMs": 14999,
+          "bytes": 1
+        },
+        {
+          "kind": "end",
+          "atMs": 15001
+        }
+      ],
+      "expected": {
+        "outcome": "complete",
+        "atMs": 15001,
+        "acceptedBytes": 1
+      }
+    },
+    {
+      "id": "stalled-after-progress",
+      "queuedAtMs": 0,
+      "startedAtMs": 0,
+      "byteLimit": 6291456,
+      "events": [
+        {
+          "kind": "data",
+          "atMs": 1000,
+          "bytes": 1
+        },
+        {
+          "kind": "tick",
+          "atMs": 16000
+        }
+      ],
+      "expected": {
+        "outcome": "idle-timeout",
+        "atMs": 16000,
+        "acceptedBytes": 1
+      }
+    },
+    {
+      "id": "chunk-at-idle-deadline-is-too-late",
+      "queuedAtMs": 0,
+      "startedAtMs": 0,
+      "byteLimit": 6291456,
+      "events": [
+        {
+          "kind": "data",
+          "atMs": 15000,
+          "bytes": 1
+        }
+      ],
+      "expected": {
+        "outcome": "idle-timeout",
+        "atMs": 15000,
+        "acceptedBytes": 0
+      }
+    },
+    {
+      "id": "continuous-progress-cannot-extend-total-cap",
+      "queuedAtMs": 0,
+      "startedAtMs": 0,
+      "byteLimit": 6291456,
+      "events": [
+        {
+          "kind": "data",
+          "atMs": 10000,
+          "bytes": 1,
+          "repeat": 60,
+          "everyMs": 10000
+        }
+      ],
+      "expected": {
+        "outcome": "total-timeout",
+        "atMs": 600000,
+        "acceptedBytes": 59
+      }
+    },
+    {
+      "id": "completes-before-total-cap",
+      "queuedAtMs": 0,
+      "startedAtMs": 0,
+      "byteLimit": 6291456,
+      "events": [
+        {
+          "kind": "data",
+          "atMs": 10000,
+          "bytes": 1,
+          "repeat": 59,
+          "everyMs": 10000
+        },
+        {
+          "kind": "end",
+          "atMs": 599999
+        }
+      ],
+      "expected": {
+        "outcome": "complete",
+        "atMs": 599999,
+        "acceptedBytes": 59
+      }
+    },
+    {
+      "id": "queue-time-is-excluded",
+      "queuedAtMs": 0,
+      "startedAtMs": 900000,
+      "byteLimit": 6291456,
+      "events": [
+        {
+          "kind": "data",
+          "atMs": 900001,
+          "bytes": 1
+        },
+        {
+          "kind": "end",
+          "atMs": 900002
+        }
+      ],
+      "expected": {
+        "outcome": "complete",
+        "atMs": 900002,
+        "acceptedBytes": 1
+      }
+    },
+    {
+      "id": "metadata-streaming-limit-unchanged",
+      "queuedAtMs": 0,
+      "startedAtMs": 0,
+      "byteLimit": 65536,
+      "events": [
+        {
+          "kind": "data",
+          "atMs": 1000,
+          "bytes": 65536
+        },
+        {
+          "kind": "data",
+          "atMs": 2000,
+          "bytes": 1
+        }
+      ],
+      "expected": {
+        "outcome": "length-rejected",
+        "atMs": 2000,
+        "acceptedBytes": 65536
+      }
+    },
+    {
+      "id": "cancel-offscreen",
+      "queuedAtMs": 0,
+      "startedAtMs": 0,
+      "byteLimit": 6291456,
+      "events": [
+        {
+          "kind": "data",
+          "atMs": 1000,
+          "bytes": 1
+        },
+        {
+          "kind": "cancel",
+          "atMs": 2000,
+          "reason": "offscreen"
+        },
+        {
+          "kind": "data",
+          "atMs": 3000,
+          "bytes": 1
+        }
+      ],
+      "expected": {
+        "outcome": "cancelled",
+        "atMs": 2000,
+        "acceptedBytes": 1
+      }
+    },
+    {
+      "id": "cancel-background",
+      "queuedAtMs": 0,
+      "startedAtMs": 0,
+      "byteLimit": 6291456,
+      "events": [
+        {
+          "kind": "data",
+          "atMs": 1000,
+          "bytes": 1
+        },
+        {
+          "kind": "cancel",
+          "atMs": 2000,
+          "reason": "background"
+        },
+        {
+          "kind": "data",
+          "atMs": 3000,
+          "bytes": 1
+        }
+      ],
+      "expected": {
+        "outcome": "cancelled",
+        "atMs": 2000,
+        "acceptedBytes": 1
+      }
+    },
+    {
+      "id": "cancel-withdrawn",
+      "queuedAtMs": 0,
+      "startedAtMs": 0,
+      "byteLimit": 6291456,
+      "events": [
+        {
+          "kind": "data",
+          "atMs": 1000,
+          "bytes": 1
+        },
+        {
+          "kind": "cancel",
+          "atMs": 2000,
+          "reason": "withdrawn"
+        },
+        {
+          "kind": "data",
+          "atMs": 3000,
+          "bytes": 1
+        }
+      ],
+      "expected": {
+        "outcome": "cancelled",
+        "atMs": 2000,
+        "acceptedBytes": 1
+      }
+    }
+  ],
+  "manifestSha256": "e2836703a30eec5f59dd9d4d72f6887756c2dd30c070606db5cee258ebd0efa3"
+}

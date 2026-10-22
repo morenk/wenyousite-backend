@@ -1,4 +1,4 @@
-import { stripTextColors } from './text-colors';
+import { stripTextStyles } from './text-colors';
 /** Markdown 安全截断：保证不在标记内部截断，尽量在句子或段落边界处 */
 import removeMd from 'remove-markdown';
 import { parseMentionSources } from './role-mentions';
@@ -28,7 +28,7 @@ function restorePlaceholders(s: string): string {
 
 function markdownToPlainText(md: string, omitImages = false, decode = false): string {
   if (!md) return '';
-  md = stripTextColors(md);
+  md = stripTextStyles(md);
 
   // 规范提及的昵称是原子文字，内含反引号/星号/实体样式字符时也不能按格式清理。
   const mentions = parseMentionSources(md);

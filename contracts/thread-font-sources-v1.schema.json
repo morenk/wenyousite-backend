@@ -1,0 +1,470 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "fonts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,47}$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "locked",
+              "pendingSource"
+            ]
+          },
+          "sourceRevision": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^https://(raw\\.githubusercontent\\.com|github\\.com|booth\\.pm|lavsic\\.booth\\.pm)/"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "officialPage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^https://(raw\\.githubusercontent\\.com|github\\.com|booth\\.pm|lavsic\\.booth\\.pm)/"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "licenseUrl": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^https://(raw\\.githubusercontent\\.com|github\\.com|booth\\.pm|lavsic\\.booth\\.pm)/"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "licenseSha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "license": {
+            "enum": [
+              "OFL-1.1",
+              null,
+              "LicenseRef-ProjectAuthorization",
+              "Apache-2.0"
+            ]
+          },
+          "archiveMember": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "readmeUrl": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^https://(raw\\.githubusercontent\\.com|github\\.com|booth\\.pm|lavsic\\.booth\\.pm)/"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "readmeSha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "filename": {
+            "type": "string"
+          },
+          "sourceAcquisition": {
+            "type": "string"
+          },
+          "fontSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "fontBytes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "licenseMember": {
+            "type": "string"
+          },
+          "licenseEvidence": {
+            "type": "string"
+          },
+          "licenseFilename": {
+            "type": "string"
+          },
+          "pendingReason": {
+            "type": "string"
+          },
+          "measured": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "codepoints": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "ascii": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "fsType": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "codepoints",
+              "ascii",
+              "fsType"
+            ]
+          },
+          "expectedCoverage": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ascii": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "gb2312": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "ascii",
+              "gb2312"
+            ]
+          },
+          "referencePage": {
+            "type": "string",
+            "pattern": "^https://"
+          },
+          "deliveryMode": {
+            "enum": [
+              "subset",
+              "original"
+            ]
+          },
+          "instance": {
+            "const": {
+              "wght": 400
+            }
+          },
+          "additionalLicenseMembers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "member": {
+                  "type": "string"
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "member",
+                "sha256"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "status"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "locked"
+                }
+              },
+              "type": "object"
+            },
+            "then": {
+              "required": [
+                "sourceRevision",
+                "url",
+                "sha256",
+                "bytes",
+                "license",
+                "licenseSha256"
+              ],
+              "properties": {
+                "sourceRevision": {
+                  "type": "string"
+                },
+                "url": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^https://(raw\\.githubusercontent\\.com|github\\.com|booth\\.pm|lavsic\\.booth\\.pm)/"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "license": {
+                  "enum": [
+                    "OFL-1.1",
+                    "Apache-2.0",
+                    "LicenseRef-ProjectAuthorization"
+                  ]
+                },
+                "licenseSha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "type": "object"
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "archiveMember"
+              ],
+              "properties": {
+                "archiveMember": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "then": {
+              "required": [
+                "fontSha256",
+                "fontBytes"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "license": {
+                  "const": "LicenseRef-ProjectAuthorization"
+                },
+                "status": {
+                  "const": "locked"
+                }
+              },
+              "required": [
+                "license"
+              ],
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "id": {
+                  "const": "xiaocheng-lafeng"
+                },
+                "deliveryMode": {
+                  "const": "original"
+                },
+                "fontSha256": {
+                  "const": "cf4a4215e562d6de6e3ee88f25fc5d47d77668d28eb3a0f2533c7290de307423"
+                },
+                "fontBytes": {
+                  "const": 18410600
+                },
+                "sha256": {
+                  "const": "3e19e13c7d80791ab115aae8c27f3713d6a20160b2261b91b7971fab77f24888"
+                }
+              },
+              "required": [
+                "deliveryMode",
+                "fontSha256",
+                "fontBytes",
+                "additionalLicenseMembers"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "license": {
+                  "const": "Apache-2.0"
+                },
+                "status": {
+                  "const": "locked"
+                }
+              },
+              "required": [
+                "license"
+              ],
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "id": {
+                  "const": "special-elite"
+                },
+                "sha256": {
+                  "const": "a776fcb4ceb8bdf03e2967688ebdad42680de5b91a7e62c17e718ae212d14bc4"
+                },
+                "sourceRevision": {
+                  "const": "47d54ca1ebb14fd864695f1d39dc734f39017c33"
+                },
+                "licenseSha256": {
+                  "const": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+                }
+              },
+              "type": "object"
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "instance"
+              ],
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "id": {
+                  "const": "orbitron"
+                },
+                "sha256": {
+                  "const": "f42db2dd16e642258e35782916eceb1dcdbea06fb958d77ad71dc5963587e8fd"
+                }
+              },
+              "type": "object"
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "deliveryMode"
+              ],
+              "properties": {
+                "deliveryMode": {
+                  "const": "original"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "license"
+              ],
+              "properties": {
+                "license": {
+                  "const": "LicenseRef-ProjectAuthorization"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "locked"
+                }
+              },
+              "not": {
+                "required": [
+                  "deliveryMode"
+                ],
+                "properties": {
+                  "deliveryMode": {
+                    "const": "original"
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "pattern": "^https://"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "fonts"
+  ],
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://wenyou.site/contracts/thread-font-sources-v1.schema.json"
+}

@@ -41,12 +41,13 @@ const [tree, sha] = process.argv.slice(2);
 try {
   if (process.getuid() === 0) throw new Error('root identity');
   if (fs.readFileSync(`${tree}/BUILD_SHA`, 'utf8').trim() !== sha) throw new Error('revision');
-  for (const entry of ['main.js', 'image-worker.js']) fs.readFileSync(`${tree}/dist/${entry}`);
+  for (const entry of ['main.js', 'image-worker.js', 'font-worker.js']) fs.readFileSync(`${tree}/dist/${entry}`);
   const load = createRequire(`${tree}/package.json`);
   load.resolve('pino-pretty');
   load.resolve('pino-roll');
   load('./dist/app.module.js');
   load('./dist/media/image-worker.module.js');
+  load('./dist/text-fonts/font-worker.module.js');
   load('./dist/media/audio-runtime.service.js').verifyAudioRuntime(`${tree}/tools/audio-runtime`, `${tree}/audio-runtime.lock.json`);
 } catch {
   console.error('服务身份无法读取 release 入口、revision 或加载 API/Worker 模块');
@@ -68,7 +69,7 @@ id "$APP_USER" >/dev/null 2>&1 || { echo "缺少非 root 运行用户 $APP_USER"
 command -v runuser >/dev/null || { echo "缺少 runuser，无法验证服务身份" >&2; exit 1; }
 getent group "$RUNTIME_GROUP" >/dev/null || { echo "缺少共享只读运行组 $RUNTIME_GROUP" >&2; exit 1; }
 [ -x "$NODE_SOURCE" ] || { echo "Node 运行时不可执行: $NODE_SOURCE" >&2; exit 1; }
-for path in audio-runtime.lock.json .cache/audio-runtime dist/main.js dist/image-worker.js docker docker-compose.yml node_modules package.json pnpm-lock.yaml pnpm-workspace.yaml prisma scripts; do
+for path in audio-runtime.lock.json .cache/audio-runtime dist/main.js dist/image-worker.js dist/font-worker.js contracts docker docker-compose.yml node_modules package.json pnpm-lock.yaml pnpm-workspace.yaml prisma scripts; do
   [ -e "$BACKEND_DIR/$path" ] || { echo "release 输入缺失: $path" >&2; exit 1; }
 done
 
@@ -88,12 +89,15 @@ if [ ! -d "$release_dir" ]; then
   trap cleanup EXIT
   install -d -m 0755 "$staging_dir"
   cp -a -- "$BACKEND_DIR/dist" "$BACKEND_DIR/docker" "$BACKEND_DIR/docker-compose.yml" \
-    "$BACKEND_DIR/prisma" "$BACKEND_DIR/scripts" \
+    "$BACKEND_DIR/prisma" "$BACKEND_DIR/scripts" "$BACKEND_DIR/contracts" \
     "$BACKEND_DIR/package.json" "$BACKEND_DIR/pnpm-lock.yaml" "$BACKEND_DIR/pnpm-workspace.yaml" \
     "$staging_dir/"
   # 准备阶段已按提交的清单下载；不可变 release 离线复制并由服务身份重新核验。
   install -d -m 0755 "$staging_dir/tools"
   cp -a -- "$BACKEND_DIR/.cache/audio-runtime" "$staging_dir/tools/audio-runtime"
+  if [ -d "$BACKEND_DIR/.cache/thread-font-toolchain" ]; then
+    cp -a -- "$BACKEND_DIR/.cache/thread-font-toolchain" "$staging_dir/tools/font-runtime"
+  fi
   cp -- "$BACKEND_DIR/audio-runtime.lock.json" "$staging_dir/audio-runtime.lock.json"
   DATABASE_URL=postgresql://release:release@example.invalid/wenyousite \
     DIRECT_DATABASE_URL=postgresql://release:release@example.invalid/wenyousite \
@@ -115,7 +119,7 @@ if [ ! -d "$release_dir" ]; then
   validate_release_tree "$staging_dir"
   # cp -a also preserves 0700/0600 build inputs. Only copied application assets
   # need group read/traverse repair; dependencies are installed with umask 022.
-  for path in dist docker prisma scripts tools; do
+  for path in dist docker prisma scripts contracts tools; do
     find "$staging_dir/$path" -type d -exec chmod g+rx {} +
     find "$staging_dir/$path" -type f -exec chmod g+r {} +
   done

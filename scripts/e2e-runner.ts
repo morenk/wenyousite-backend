@@ -1,6 +1,6 @@
 import { execFileSync, ChildProcess } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { PrismaClient } from '@prisma/client';
 import * as argon2 from 'argon2';
@@ -13,9 +13,18 @@ import { MobileReleasePublication } from '../src/mobile-releases/mobile-release-
 import { MobileReleasesService } from '../src/mobile-releases/mobile-releases.service';
 import { AuditService } from '../src/moderation/audit.service';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { ConfigService } from '@nestjs/config';
+import { FontLegacyImportService } from '../src/text-fonts/font-legacy-import.service';
+import { FontStorageService } from '../src/text-fonts/font-storage.service';
+import { FontSandboxService } from '../src/text-fonts/font-sandbox.service';
+import { FontWorkDirectoryService } from '../src/text-fonts/font-work-directory.service';
+import { processStart } from './e2e-processes';
+import { ObjectStorageService } from '../src/storage/object-storage.service';
 
 const SUITES: Record<string, [string, string]> = {
+  'text-font-v2': ['text-font-v2.integration.ts', 'TEXT_FONT_V2_TEST_ENV'],
   audio: ['audio.integration.ts', 'AUDIO_TEST_ENV'],
+  'text-font': ['text-font.integration.ts', 'TEXT_FONT_TEST_ENV'],
   'text-color': ['text-color.integration.ts', 'TEXT_COLOR_TEST_ENV'],
   'redis-failure': ['redis-failure.integration.ts', 'REDIS_FAILURE_TEST_ENV'],
   'content-write-consistency': ['content-write-consistency.integration.ts', 'CONTENT_WRITE_CONSISTENCY_TEST_ENV'],
@@ -56,9 +65,15 @@ export async function run(args = process.argv.slice(2)) {
   const boundary = args.indexOf('--');
   const options = boundary < 0 ? args : args.slice(0, boundary);
   const command = boundary < 0 ? [] : args.slice(boundary + 1);
-  ensure(options.every((o) => ['--api', '--full', '--block-search-only', '--admin-fixtures', '--mobile-release-fixtures', '--source', '--discussion-fixtures', '--role-mentions-v6', '--text-color-v1'].includes(o) || (o.startsWith('--suite=') && Object.hasOwn(SUITES, o.slice(8)))), '非法 runner 参数');
+  ensure(options.every((o) => ['--api', '--full', '--block-search-only', '--admin-fixtures', '--mobile-release-fixtures', '--source', '--discussion-fixtures', '--role-mentions-v6', '--text-color-v1', '--text-font-v1', '--text-font-v2', '--text-font-v1-import'].includes(o) || (o.startsWith('--suite=') && Object.hasOwn(SUITES, o.slice(8)))), '非法 runner 参数');
   ensure(command.length > 0 || options.length > 0, '使用 --api / --full 或 -- <测试命令>');
-  ensure(!options.includes('--admin-fixtures') || command.length > 0, '--admin-fixtures 必须配合本轮消费者命令');
+  const dynamicFonts = options.includes('--text-font-v2') || options.includes('--suite=text-font-v2') || options.includes('--full');
+  ensure(!options.includes('--text-font-v1-import') || dynamicFonts, '历史字体导入需要 --text-font-v2');
+  ensure(!dynamicFonts || !command.length || !options.some(o => o === '--full' || o === '--api' || o.startsWith('--suite=')), '消费者会话不能与会改变字体状态的后端验证套件混跑');
+  const sourceRevision = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: REPOSITORY, encoding: 'utf8' }).trim();
+  const sourceDirty = !!execFileSync('git', ['status', '--porcelain'], { cwd: REPOSITORY, encoding: 'utf8' }).trim();
+  const adminFixtures = options.includes('--admin-fixtures') || dynamicFonts;
+  ensure(!options.includes('--admin-fixtures') || command.length > 0 || dynamicFonts, '--admin-fixtures 必须配合本轮消费者命令');
   ensure(!options.includes('--mobile-release-fixtures') || options.includes('--admin-fixtures'), '--mobile-release-fixtures 需要 --admin-fixtures');
   ensure(!options.includes('--discussion-fixtures') || (command.length > 0 && !options.some(o => o === '--full' || o.startsWith('--suite='))), '--discussion-fixtures 仅配合独立消费者命令');
   const completedRunId = await withResources(async (r) => {
@@ -85,10 +100,12 @@ export async function run(args = process.argv.slice(2)) {
       const user = await db.user.create({ data: { username, email, password: await argon2.hash(password) } });
       let adminFixturesPath: string | undefined;
       let adminMailboxPath: string | undefined;
-      if (options.includes('--admin-fixtures')) {
+      if (adminFixtures) {
         adminMailboxPath = join(r.root, 'admin-mailbox'); mkdirSync(adminMailboxPath, { mode: 0o700 });
         const accounts = [];
-        for (const role of ['ADMIN', 'SUPER_ADMIN'] as const) {
+        // 字体流程仅需 ADMIN；SUPER_ADMIN 为全库唯一，显式管理端验收才预建。
+        const roles: Array<'ADMIN' | 'SUPER_ADMIN'> = options.includes('--admin-fixtures') ? ['ADMIN', 'SUPER_ADMIN'] : ['ADMIN'];
+        for (const role of roles) {
           const adminName = `e2e_${role.toLowerCase()}_${randomBytes(6).toString('hex')}`;
           const adminPassword = `E2e!${randomBytes(20).toString('hex')}`;
           const adminEmail = `${adminName}@e2e.invalid`;
@@ -134,8 +151,27 @@ export async function run(args = process.argv.slice(2)) {
           writeFileSync(releaseFixturesPath, JSON.stringify({ version: 1, runId: r.runId, published: await releaseService.get(published.id), draft }), { mode: 0o600, flag: 'wx' });
         } finally { await fixtureDb.$disconnect(); }
       }
+      let fontObjectStore: E2EManifest['fontObjectStore'];
+      let fontObjectProcess: ChildProcess | undefined;
+      const fontAccessKey = randomBytes(16).toString('hex'), fontSecret = randomBytes(32).toString('hex');
+      if (dynamicFonts) {
+        await r.verify();
+        writeFileSync(join(r.root, 'font-object-store.private.json'), JSON.stringify({ runId: r.runId,
+          bucket: `fonts-${r.runId.replaceAll('_', '-')}`, accessKey: fontAccessKey, secret: fontSecret,
+          identity: randomBytes(24).toString('hex') }), { flag: 'wx', mode: 0o600 });
+        fontObjectProcess = r.spawn(process.execPath, ['--require', require.resolve('ts-node/register/transpile-only'), join(REPOSITORY, 'scripts/e2e-font-object-store.ts')], { ...r.env, NODE_OPTIONS: '--max-old-space-size=512', TS_NODE_PROJECT: join(REPOSITORY, 'tsconfig.json') });
+        for (let attempt = 0; attempt < 120; attempt++) {
+          ensure(fontObjectProcess.exitCode === null && fontObjectProcess.signalCode === null, '隔离字体对象存储提前退出');
+          if (existsSync(join(r.root, 'font-object-store.ready.json'))) {
+            fontObjectStore = JSON.parse(readFileSync(join(r.root, 'font-object-store.ready.json'), 'utf8'));
+            ensure(fontObjectStore?.runId === r.runId && fontObjectStore.pid === fontObjectProcess.pid && fontObjectStore.start === processStart(fontObjectProcess.pid!), '隔离对象存储身份不符');
+            break;
+          }
+          ensure(attempt < 119, '隔离字体对象存储启动超时'); await new Promise(ok => setTimeout(ok, 250));
+        }
+      }
       const env: NodeJS.ProcessEnv = {
-        ...r.env, NODE_ENV: 'test', HOST: '127.0.0.1', PORT: String(port),
+        ...r.env, NODE_OPTIONS: '--max-old-space-size=1024', NODE_ENV: 'test', HOST: '127.0.0.1', PORT: String(port),
         DATABASE_URL: appUrl.toString(), DIRECT_DATABASE_URL: appUrl.toString(),
         REDIS_HOST: '127.0.0.1', REDIS_PORT: String(r.redisPort), REDIS_DB: '0', REDIS_PASSWORD: r.redisPassword,
         JWT_ACCESS_SECRET: randomBytes(32).toString('hex'), ADMIN_CHALLENGE_PEPPER: randomBytes(32).toString('hex'),
@@ -143,11 +179,17 @@ export async function run(args = process.argv.slice(2)) {
         E2E_ADMIN_FIXTURES: adminFixturesPath ?? '',
         E2E_MOBILE_RELEASE_FIXTURES: releaseFixturesPath ?? '',
         E2E_DISCUSSION_FIXTURES: discussionFixturesPath ?? '',
+        TEXT_FONT_ASSET_BASE_URL: 'https://fonts.e2e.invalid/',
+        TEXT_FONT_V2_ENABLED: dynamicFonts ? 'true' : 'false',
+        TEXT_FONT_STORAGE_ROOT: dynamicFonts ? join(r.root, 'fonts') : '',
+        TEXT_FONT_BUCKET: fontObjectStore?.bucket ?? '',
+        TEXT_FONT_TOOLCHAIN_DIR: dynamicFonts ? process.env.TEXT_FONT_TOOLCHAIN_DIR ?? '' : '',
+        TEXT_FONT_V1_ENABLED: options.includes('--text-font-v1') || options.includes('--full') ? 'true' : 'false',
         TEXT_COLOR_V1_ENABLED: options.includes('--text-color-v1') || options.includes('--full') ? 'true' : 'false',
         RP_MENTION_V6_ENABLED: options.includes('--role-mentions-v6') || options.includes('--full') || options.includes('--suite=role-mentions') ? 'true' : 'false',
         PUSH_ENABLED: 'false', SENTRY_DSN: '', SES_SMTP_HOST: '', SES_SMTP_USER: '', SES_SMTP_PASS: '',
-        COS_ENDPOINT: '', COS_BUCKET: '', COS_ACCESS_KEY_ID: '', COS_SECRET_ACCESS_KEY: '', GOOGLE_APPLICATION_CREDENTIALS: '',
-        ENABLE_API_DOCS: 'false', LOG_LEVEL: 'info', BUILD_SHA: 'e'.repeat(40),
+        COS_ENDPOINT: fontObjectStore?.endpoint ?? '', COS_BUCKET: '', COS_REGION: 'auto', COS_ACCESS_KEY_ID: fontObjectStore ? fontAccessKey : '', COS_SECRET_ACCESS_KEY: fontObjectStore ? fontSecret : '', GOOGLE_APPLICATION_CREDENTIALS: '',
+        ENABLE_API_DOCS: 'false', LOG_LEVEL: 'info', BUILD_SHA: options.includes('--source') ? sourceRevision : 'e'.repeat(40),
         APP_URL: backendURL, WEB_APP_URL: backendURL, CORS_ORIGINS: backendURL,
         E2E_RUN_ID: r.runId, E2E_MANIFEST: manifestPath, E2E_PRIVATE_ENV: privateEnvPath,
         E2E_BACKEND_URL: backendURL, API_BASE: `${backendURL}/api/v1`, API_E2E_ENV: 'test',
@@ -155,21 +197,62 @@ export async function run(args = process.argv.slice(2)) {
       };
       const webEnv = Object.fromEntries(['E2E_RUN_ID', 'E2E_MANIFEST', 'E2E_PRIVATE_ENV', 'E2E_BACKEND_URL', 'API_BASE', 'E2E_USERNAME', 'E2E_EMAIL', 'E2E_PASSWORD', 'E2E_USER_ID', 'E2E_ADMIN_FIXTURES', 'E2E_MOBILE_RELEASE_FIXTURES', 'E2E_DISCUSSION_FIXTURES'].map((key) => [key, env[key]]));
       writeFileSync(privateEnvPath, JSON.stringify(webEnv), { flag: 'wx', mode: 0o600 });
+      if (options.includes('--text-font-v1-import')) {
+        await r.verify();
+        ensure(process.env.E2E_FONT_LEGACY_BUNDLE && process.env.E2E_FONT_LEGACY_SOURCES, '历史导入需要已校验产物和 raw 源目录');
+        const importerDb = new PrismaClient({ datasourceUrl: appUrl.toString(), log: [] });
+        const config = new ConfigService({ textFonts: { storageRoot: env.TEXT_FONT_STORAGE_ROOT, bucket: env.TEXT_FONT_BUCKET, toolchainDir: env.TEXT_FONT_TOOLCHAIN_DIR }, cos: { endpoint: env.COS_ENDPOINT, region: 'auto', bucket: '', accessKeyId: env.COS_ACCESS_KEY_ID, secretAccessKey: env.COS_SECRET_ACCESS_KEY } });
+        const storage = new FontStorageService(config, new ObjectStorageService(config)), sandbox = new FontSandboxService(config);
+        try {
+          const actor = await importerDb.user.findFirstOrThrow({ where: { role: 'ADMIN', deletedAt: null } });
+          const service = new FontLegacyImportService(importerDb as PrismaService, storage, sandbox, new FontWorkDirectoryService(storage), new AuditService(importerDb as PrismaService));
+          const first = await service.import(process.env.E2E_FONT_LEGACY_BUNDLE, process.env.E2E_FONT_LEGACY_SOURCES, actor.id);
+          const repeated = await service.import(process.env.E2E_FONT_LEGACY_BUNDLE, process.env.E2E_FONT_LEGACY_SOURCES, actor.id);
+          ensure(first.imported === 28 && repeated.imported === 0 && repeated.catalogRevision === first.catalogRevision, '历史字体导入重跑不幂等');
+          console.log(JSON.stringify({ event: 'legacy-fonts-imported', runId: r.runId, ...first, replayVerified: true }));
+        } finally { sandbox.onModuleDestroy(); await importerDb.$disconnect(); }
+      }
       const app = r.spawn(process.execPath, options.includes('--source') ? ['--require', require.resolve('ts-node/register/transpile-only'), join(REPOSITORY, 'src/main.ts')] : [join(REPOSITORY, 'dist/main.js')], { ...env, TS_NODE_PROJECT: join(REPOSITORY, 'tsconfig.json') });
       try { await health(backendURL, app); } catch (error) {
         const failureLog = `/tmp/wenyousite-e2e-startup-${r.runId}.log`;
         writeFileSync(failureLog, readFileSync(r.logPath(app)), { flag: 'wx', mode: 0o600 });
         console.error(JSON.stringify({event:'startup-failed',runId:r.runId,privateLog:failureLog})); throw error;
       }
+      const fontWorkers: ChildProcess[] = [];
+      let fontWorker: ChildProcess | undefined;
+      if (dynamicFonts) {
+        ensure(!!env.TEXT_FONT_TOOLCHAIN_DIR, '动态字体需要已校验的独立工具链');
+        const count = options.includes('--full') || options.includes('--suite=text-font-v2') ? 2 : 1;
+        for (let workerIndex = 0; workerIndex < count; workerIndex++) {
+        fontWorker = r.spawn(process.execPath, options.includes('--source') ? ['--require', require.resolve('ts-node/register/transpile-only'), join(REPOSITORY, 'src/font-worker.ts')] : [join(REPOSITORY, 'dist/font-worker.js')], { ...env, TS_NODE_PROJECT: join(REPOSITORY, 'tsconfig.json') });
+        fontWorkers.push(fontWorker);
+        try {
+          for (let attempt = 0; attempt < 120; attempt++) {
+            ensure(fontWorker.exitCode === null && fontWorker.signalCode === null, '字体 Worker 提前退出');
+            if (readFileSync(r.logPath(fontWorker), 'utf8').includes('workerConcurrency=1')) break;
+            ensure(attempt < 119, '字体 Worker 启动超时');
+            await new Promise(ok => setTimeout(ok, 500));
+          }
+        } catch (error) {
+          const privateLog = `/tmp/wenyousite-e2e-font-worker-${r.runId}.log`;
+          writeFileSync(privateLog, readFileSync(r.logPath(fontWorker)), { flag: 'wx', mode: 0o600 });
+          console.error(JSON.stringify({ event: 'font-worker-startup-failed', runId: r.runId, privateLog }));
+          throw error;
+        }
+        }
+      }
       const resources = JSON.parse(readFileSync(join(r.root, 'resources.json'), 'utf8'));
       const manifest: E2EManifest = { version: 1, runId: r.runId, state: 'ready', backendURL, apiBase: env.API_BASE!,
+        ...(fontObjectStore ? { fontObjectStore } : {}),
+        source: { revision: sourceRevision, dirty: sourceDirty, execution: options.includes('--source') ? 'source' : 'dist' },
+        ...(fontWorker?.pid ? { textFonts: { storagePath: env.TEXT_FONT_STORAGE_ROOT!, workers: fontWorkers.map(worker => ({ pid: worker.pid!, start: processStart(worker.pid!)! })), legacyImported: options.includes('--text-font-v1-import') } } : {}),
         privateEnvPath, resourcesPath: join(r.root, 'resources.json'), uploadPath: join(r.root, 'uploads'),
         postgres: { host: '127.0.0.1', port: +ownerUrl.port, database: databaseName, clusterName: r.runId },
         redis: { host: '127.0.0.1', port: r.redisPort, instanceId: resources.redisInstance },
       };
       writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), { flag: 'wx', mode: 0o600 });
       console.log(JSON.stringify({ event: 'ready', runId: r.runId, manifestPath, backendURL }));
-      const backendTestEnv = { ...env, DATABASE_URL: ownerUrl.toString(), DIRECT_DATABASE_URL: ownerUrl.toString(), AUDIO_TEST_APP_URL: appUrl.toString(), BOOKMARK_COUNT_TEST_APP_URL: appUrl.toString(), BOOKMARK_MANAGEMENT_TEST_APP_URL: appUrl.toString() };
+      const backendTestEnv = { ...env, E2E_FONT_LEGACY_BUNDLE: process.env.E2E_FONT_LEGACY_BUNDLE, E2E_FONT_LEGACY_SOURCES: process.env.E2E_FONT_LEGACY_SOURCES, TEXT_FONT_TEST_APP_URL: appUrl.toString(), DATABASE_URL: ownerUrl.toString(), DIRECT_DATABASE_URL: ownerUrl.toString(), AUDIO_TEST_APP_URL: appUrl.toString(), BOOKMARK_COUNT_TEST_APP_URL: appUrl.toString(), BOOKMARK_MANAGEMENT_TEST_APP_URL: appUrl.toString() };
       const runScript = async (script: string, extra: NodeJS.ProcessEnv = {}) => {
         await r.verify();
         console.log(`验证：${script}`);
@@ -182,6 +265,7 @@ export async function run(args = process.argv.slice(2)) {
           console.error(JSON.stringify(suiteFailureDiagnostic(r.runId, script, code, privateLog, ALLOWED_SCRIPTS)));
           // 清理隔离资源前保留同轮后端诊断；仅私有文件，不把响应内部信息输出到终端。
           writeFileSync(`/tmp/wenyousite-e2e-backend-failure-${r.runId}.log`, readFileSync(r.logPath(app)), { flag: 'wx', mode: 0o600 });
+          for (const worker of fontWorkers) writeFileSync(`/tmp/wenyousite-e2e-font-worker-${r.runId}-${worker.pid}.log`, readFileSync(r.logPath(worker)), { flag: 'wx', mode: 0o600 });
           console.error(`隔离验证失败：${script}；私有诊断 ${failureLog}`);
           throw new Error('测试失败');
         }
@@ -192,7 +276,7 @@ export async function run(args = process.argv.slice(2)) {
       }
       const suites = options.includes('--full') ? Object.keys(SUITES).filter((key) => key !== 'search')
         : options.filter((o) => o.startsWith('--suite=')).map((o) => o.slice(8));
-      const httpSuites = ['thread-action-counts', 'text-color', 'audio', 'rp-profile', 'role-mentions', 'thread-identity', 'discussion-navigation', 'private-invite-reuse', 'gallery', 'profile-follow-counts', 'post-edited-time'];
+      const httpSuites = ['text-font-v2', 'thread-action-counts', 'text-font', 'text-color', 'audio', 'rp-profile', 'role-mentions', 'thread-identity', 'discussion-navigation', 'private-invite-reuse', 'gallery', 'profile-follow-counts', 'post-edited-time'];
       for (const key of suites.filter(key => httpSuites.includes(key))) {
         const [script, flag] = SUITES[key];
         await runScript(script, { [flag]: 'test' });
@@ -208,7 +292,9 @@ export async function run(args = process.argv.slice(2)) {
         const child = r.spawn(command[0], command.slice(1), { ...r.env, ...webEnv }, REPOSITORY);
         ensure(await waitForChildClose(child) === 0, '消费者测试命令失败');
       }
+      for (const worker of fontWorkers) await stopChild(worker);
       await stopChild(app);
+      if (fontObjectProcess) await stopChild(fontObjectProcess);
       const lifecycleObserved = readFileSync(r.logPath(app), 'utf8').includes('Application shutdown completed');
       if (!(app.exitCode === 0 || app.signalCode === 'SIGTERM') || !lifecycleObserved) {
         const log = `/tmp/wenyousite-e2e-shutdown-${r.runId}.log`;

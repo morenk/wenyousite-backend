@@ -1,6 +1,7 @@
 import { AudioRuntimeService } from '../media/audio-runtime.service';
 import { AudioUploadCapabilityDto } from '../media/dto/audio-media.dto';
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Optional } from '@nestjs/common';
+import { FontReadinessService } from '../text-fonts/font-readiness.service';
 import { ConfigService } from '@nestjs/config';
 import { ApiOkResponse, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
 import { Public } from '../auth/decorators/public.decorator';
@@ -8,9 +9,28 @@ import { ACTIVE_MARKDOWN_CONTRACT_VERSION } from '../common/markdown-content';
 import { API_CONTRACT_VERSION } from '../common/swagger/openapi-document';
 
 class ApiCapabilitiesResponseDto {
+  @ApiPropertyOptional({
+    description:
+      '私有网关及固定映射28款导入发布就绪后支持动态字体；未就绪/缺失为 false。保源协议仍有效。',
+  })
+  textFontV2Supported?: boolean;
+  @ApiPropertyOptional({
+    description: '仅 v2Supported 且新写开关开启时为 true；仍须版本 pasteAllowed。缺失按 false。',
+  })
+  textFontV2WriteEnabled?: boolean;
+
+  @ApiPropertyOptional({ description: '支持字体 v1 保源和旧端降级；缺失按 false' })
+  textFontV1Supported?: boolean;
+  @ApiPropertyOptional({
+    description: '允许新增/修改字体；关闭仍可保留或移除已有字体，缺失按 false',
+  })
+  textFontV1WriteEnabled?: boolean;
+
   @ApiPropertyOptional({ description: '支持独立文本颜色 v1 保源/旧端降级；缺失按 false' })
   textColorV1Supported?: boolean;
-  @ApiPropertyOptional({ description: '允许新增/修改颜色范围；关闭仍允许保留或移除已有颜色，缺失按 false' })
+  @ApiPropertyOptional({
+    description: '允许新增/修改颜色范围；关闭仍允许保留或移除已有颜色，缺失按 false',
+  })
   textColorV1WriteEnabled?: boolean;
 
   @ApiPropertyOptional({
@@ -87,18 +107,25 @@ export class MetaController {
   constructor(
     private readonly config: ConfigService,
     private readonly audio?: AudioRuntimeService,
+    @Optional() private readonly fonts?: FontReadinessService,
   ) {}
 
   @Get()
   @Public()
   @ApiOkResponse({ type: ApiMetaResponseDto })
-  getMeta(): ApiMetaResponseDto {
+  async getMeta(): Promise<ApiMetaResponseDto> {
+    const fontsSupported = (await this.fonts?.supported()) ?? false;
     return {
       contractVersion: API_CONTRACT_VERSION,
       ...(this.audio?.capability() ? { audioUpload: this.audio.capability() } : {}),
       buildSha: this.config.get<string>('app.buildSha') ?? null,
       markdownContractVersion: ACTIVE_MARKDOWN_CONTRACT_VERSION,
       capabilities: {
+        textFontV2Supported: fontsSupported,
+        textFontV2WriteEnabled:
+          fontsSupported && (this.config.get<boolean>('textFonts.enabled') ?? false),
+        textFontV1Supported: true,
+        textFontV1WriteEnabled: this.config.get<boolean>('app.textFontV1Enabled') ?? false,
         textColorV1Supported: true,
         textColorV1WriteEnabled: this.config.get<boolean>('app.textColorV1Enabled') ?? false,
         rpIdentityProfileSupported: true,

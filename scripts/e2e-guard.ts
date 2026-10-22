@@ -3,12 +3,16 @@ import { dirname, join } from 'node:path';
 import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
 import assert from 'node:assert/strict';
+import { processStart } from './e2e-processes';
 
 export interface E2EManifest {
   version: 1; runId: string; state: 'ready'; backendURL: string; apiBase: string;
   privateEnvPath: string; resourcesPath: string; uploadPath: string;
   postgres: { host: '127.0.0.1'; port: number; database: string; clusterName: string };
   redis: { host: '127.0.0.1'; port: number; instanceId: string };
+  source?: { revision: string; dirty: boolean; execution: 'source' | 'dist' };
+  textFonts?: { storagePath: string; workers: Array<{ pid: number; start: string }>; legacyImported: boolean };
+  fontObjectStore?: { runId: string; identity: string; pid: number; start: string; endpoint: string; directory: string; bucket: string };
 }
 function registration<T>(path: string): T {
   try { return JSON.parse(readFileSync(path, 'utf8')) as T; } catch { throw new Error('隔离登记文件读取或解析失败'); }
@@ -26,6 +30,16 @@ export function assertIsolatedEnvironment(env: NodeJS.ProcessEnv = process.env):
   const root = dirname(path);
   assert((lstatSync(root).mode & 0o777) === 0o700, '隔离目录必须为 0700');
   assert(m.resourcesPath === join(root, 'resources.json') && m.privateEnvPath === join(root, 'private.env.json') && m.uploadPath === join(root, 'uploads'), 'manifest 路径必须限定于本次目录');
+  if (m.textFonts) assert(m.textFonts.storagePath === join(root, 'fonts'), '字体存储必须属于本次隔离目录');
+  if (m.fontObjectStore) {
+    const store = m.fontObjectStore, endpoint = safeURL(store.endpoint);
+    assert(store.runId === m.runId && store.directory === join(root, 'font-object-store') &&
+      endpoint.protocol === 'http:' && endpoint.hostname === '127.0.0.1' && endpoint.port &&
+      store.endpoint === env.COS_ENDPOINT && store.bucket === env.TEXT_FONT_BUCKET && !env.COS_BUCKET &&
+      store.start === processStart(store.pid), '对象存储必须属于本轮登记进程及随机私有 bucket');
+    const registered = registration<{ processes: Array<{ group: number; started: string }> }>(join(root, 'processes.json'));
+    assert(registered.processes.some(row => row.group === store.pid && row.started === store.start), '对象存储进程未登记');
+  } else assert(!env.COS_ENDPOINT && !env.COS_ACCESS_KEY_ID && !env.COS_SECRET_ACCESS_KEY, '禁止连接未登记对象存储');
   assert(m.postgres.host === '127.0.0.1' && m.postgres.clusterName === m.runId && m.redis.host === '127.0.0.1', '数据服务身份不匹配');
   const own = registration<{ runId: string; root: string; uid: number }>(join(root, 'ownership.json'));
   assert(own.runId === m.runId && own.root === realpathSync(root) && own.uid === process.getuid?.(), '隔离资源所有权不匹配');
@@ -36,7 +50,7 @@ export function assertIsolatedEnvironment(env: NodeJS.ProcessEnv = process.env):
   assert(url.username === 'e2e_owner' || url.username === 'wenyousite_app', '非法隔离数据库身份');
   assert(env.DIRECT_DATABASE_URL === env.DATABASE_URL, '禁止继承线上 migration 凭据');
   assert(env.REDIS_HOST === '127.0.0.1' && Number(env.REDIS_PORT) === m.redis.port && m.redis.port !== 6379 && env.REDIS_DB === '0' && env.REDIS_PASSWORD, 'Redis 必须属于本次独立进程');
-  assert(env.NODE_ENV === 'test' && env.PUSH_ENABLED === 'false' && !env.SENTRY_DSN && !env.COS_ENDPOINT && !env.SES_SMTP_PASS && !env.GOOGLE_APPLICATION_CREDENTIALS, '测试副作用配置不安全');
+  assert(env.NODE_ENV === 'test' && env.PUSH_ENABLED === 'false' && !env.SENTRY_DSN && !env.SES_SMTP_PASS && !env.GOOGLE_APPLICATION_CREDENTIALS, '测试副作用配置不安全');
   const api = safeURL(m.backendURL);
   assert(api.hostname === '127.0.0.1' && api.protocol === 'http:' && api.port && api.port !== '3000', '非法测试后端地址');
   assert(env.API_BASE === m.apiBase && m.apiBase === `${m.backendURL}/api/v1`, 'API 地址未绑定本次登记');
@@ -49,6 +63,13 @@ export async function verifyIsolatedEnvironment() {
   const redis = new Redis({ host: '127.0.0.1', port: m.redis.port, password: process.env.REDIS_PASSWORD, lazyConnect: true, retryStrategy: () => null, maxRetriesPerRequest: 1 });
   redis.on('error', () => undefined);
   try {
+    if (m.fontObjectStore) {
+      const response = await fetch(m.fontObjectStore.endpoint + '/__e2e_identity', { signal: AbortSignal.timeout(3000) });
+      const identity = await response.json() as { runId: string; identity: string; pid: number; start: string; bucket: string };
+      assert(response.ok && identity.runId === m.runId && identity.identity === m.fontObjectStore.identity &&
+        identity.pid === m.fontObjectStore.pid && identity.start === m.fontObjectStore.start && identity.bucket === m.fontObjectStore.bucket,
+        '对象存储实际响应身份不符');
+    }
     const rows = await prisma.$queryRaw<Array<{ cluster_name: string }>>`SHOW cluster_name`;
     assert.equal(rows[0]?.cluster_name, m.runId, 'PostgreSQL 进程身份不匹配');
     await redis.connect();

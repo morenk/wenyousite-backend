@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "contractVersion": "5.40.0-dev.20261018.1",
+  "contractVersion": "5.43.0-dev.20261022.3",
   "scenarios": [
     {
       "name": "reply-number-does-not-renumber",

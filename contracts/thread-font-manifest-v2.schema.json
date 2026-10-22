@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wenyou.site/contracts/thread-font-manifest-v2.schema.json",
+  "title": "单个动态字体构建的不可变清单；完整 UTF-8 JSON 最大 4194304 字节",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "manifestVersion",
+    "buildKey",
+    "sourceSha256",
+    "baseWeight",
+    "baseStyle",
+    "coverage",
+    "shards",
+    "notices",
+    "specimen"
+  ],
+  "properties": {
+    "manifestVersion": {
+      "const": 2
+    },
+    "buildKey": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sourceSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "baseWeight": {
+      "const": 400
+    },
+    "baseStyle": {
+      "const": "normal"
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "codepointCount",
+        "unicodeRanges"
+      ],
+      "properties": {
+        "codepointCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1112064
+        },
+        "unicodeRanges": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^U\\+[0-9A-F]{4,6}(-[0-9A-F]{4,6})?$"
+          },
+          "minItems": 1,
+          "maxItems": 1112064,
+          "uniqueItems": true
+        }
+      }
+    },
+    "shards": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "family",
+          "unicodeRanges",
+          "codepointCount",
+          "web",
+          "mobile"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{1,32}$"
+          },
+          "family": {
+            "type": "string",
+            "pattern": "^(WYF2-[a-f0-9]{32}|WYF1-[a-f0-9]{16})-[a-z0-9-]{1,32}$"
+          },
+          "unicodeRanges": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^U\\+[0-9A-F]{4,6}(-[0-9A-F]{4,6})?$"
+            },
+            "minItems": 1,
+            "maxItems": 1112064,
+            "uniqueItems": true
+          },
+          "codepointCount": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1112064
+          },
+          "web": {
+            "$ref": "#/$defs/asset"
+          },
+          "mobile": {
+            "$ref": "#/$defs/asset"
+          }
+        }
+      },
+      "minItems": 1,
+      "maxItems": 4096
+    },
+    "notices": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/asset"
+      },
+      "minItems": 1,
+      "maxItems": 8
+    },
+    "specimen": {
+      "$ref": "#/$defs/asset"
+    }
+  },
+  "$defs": {
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sha256",
+        "bytes",
+        "format"
+      ],
+      "properties": {
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 67108864
+        },
+        "format": {
+          "enum": [
+            "woff2",
+            "ttf",
+            "otf",
+            "json",
+            "png"
+          ]
+        }
+      }
+    }
+  }
+}

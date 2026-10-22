@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wenyou.site/contracts/markdown-text-font-v1.schema.json",
+  "title": "温油站文本字体 v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "fontId",
+    "content"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "fontId": {
+      "enum": [
+        "source-han-sans",
+        "zcoolkuaile",
+        "longcang",
+        "liujianmaocao",
+        "wenkai",
+        "tiejili",
+        "unbounded",
+        "xiaolai",
+        "zhuque",
+        "fusion",
+        "shinsyoku-mincho",
+        "bouken-gothic",
+        "hakkou-mincho",
+        "shattered-display",
+        "xiaocheng-lafeng",
+        "jf-zsk-seal",
+        "kaitou-yokoku-gothic",
+        "yuji-boku",
+        "dotgothic16",
+        "hachi-maru-pop",
+        "reggae-one",
+        "train-one",
+        "rampart-one",
+        "unifraktur-cook",
+        "great-vibes",
+        "special-elite",
+        "monoton",
+        "orbitron",
+        "rye"
+      ]
+    },
+    "color": {
+      "type": "string",
+      "pattern": "^#[0-9A-F]{6}$"
+    },
+    "content": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^\\r\\n]+$"
+    }
+  }
+}

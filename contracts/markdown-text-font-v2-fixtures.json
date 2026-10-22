@@ -1,0 +1,143 @@
+{
+  "version": 2,
+  "attribute": "data-wenyou-font-v2",
+  "capability": {
+    "readHeader": "X-Text-Font-Version",
+    "writeField": "textFontVersion",
+    "version": 2,
+    "includesV1": true
+  },
+  "canonicalAttributeOrder": [
+    "data-wenyou-font-v2",
+    "data-wenyou-color-v1"
+  ],
+  "validCases": [
+    {
+      "id": "plain",
+      "source": "<span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\">新字体</span>",
+      "canonical": "<span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\">新字体</span>",
+      "v1": "新字体",
+      "legacy": "新字体"
+    },
+    {
+      "id": "bold",
+      "source": "<span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\">**粗体**</span>",
+      "canonical": "<span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\">**粗体**</span>",
+      "v1": "**粗体**",
+      "legacy": "**粗体**"
+    },
+    {
+      "id": "italic",
+      "source": "<span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\">*斜体*</span>",
+      "canonical": "<span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\">*斜体*</span>",
+      "v1": "*斜体*",
+      "legacy": "*斜体*"
+    },
+    {
+      "id": "code",
+      "source": "<span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\">`foo`</span>",
+      "canonical": "<span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\">`foo`</span>",
+      "v1": "`foo`",
+      "legacy": "`foo`"
+    },
+    {
+      "id": "escaped-block",
+      "source": "<span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"># 标题</span>",
+      "canonical": "<span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"># 标题</span>",
+      "v1": "\\# 标题",
+      "legacy": "\\# 标题"
+    },
+    {
+      "id": "mixed",
+      "source": "<span data-wenyou-font-v1=\"wenkai\">旧</span> <span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\">新</span>",
+      "canonical": "<span data-wenyou-font-v1=\"wenkai\">旧</span> <span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\">新</span>",
+      "v1": "<span data-wenyou-font-v1=\"wenkai\">旧</span> 新",
+      "legacy": "旧 新"
+    },
+    {
+      "id": "combined",
+      "source": "<span data-wenyou-color-v1=\"#d14343\" data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\">彩色</span>",
+      "canonical": "<span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" data-wenyou-color-v1=\"#D14343\">彩色</span>",
+      "v1": "<span data-wenyou-color-v1=\"#D14343\">彩色</span>",
+      "legacy": "彩色"
+    }
+  ],
+  "invalidSources": [
+    "<span data-wenyou-font-v2=\"tfv_short\">a</span>",
+    "<span data-wenyou-font-v2=\"TFV_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\">a</span>",
+    "<span data-wenyou-font-v3=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\">a</span>",
+    "<span data-wenyou-font-v1=\"wenkai\" data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\">a</span>",
+    "<span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"><span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\">a</span></span>",
+    "<span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\">a\nb</span>",
+    "<span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\">![alt](/media/a.png)</span>",
+    "<span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" onclick=\"x\">a</span>"
+  ],
+  "writeCases": [
+    {
+      "id": "new-capable-but-disabled",
+      "content": "<span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\">a</span>",
+      "previous": "",
+      "version": 2,
+      "allowed": [],
+      "expectedCode": 40020
+    },
+    {
+      "id": "unknown-preserve",
+      "content": "<span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\">a</span>",
+      "previous": "<span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\">a</span>",
+      "version": 2,
+      "allowed": [],
+      "expectedCode": null
+    },
+    {
+      "id": "unknown-remove",
+      "content": "a",
+      "previous": "<span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\">a</span>",
+      "version": 2,
+      "allowed": [],
+      "expectedCode": null
+    },
+    {
+      "id": "old-client-cannot-overwrite",
+      "content": "a",
+      "previous": "<span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\">a</span>",
+      "version": 1,
+      "allowed": [],
+      "expectedCode": 40019
+    },
+    {
+      "id": "unknown-expand",
+      "content": "<span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\">aa</span>",
+      "previous": "<span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\">a</span>",
+      "version": 2,
+      "allowed": [],
+      "expectedCode": 40020
+    },
+    {
+      "id": "allowed-new",
+      "content": "<span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\">a</span>",
+      "previous": "",
+      "version": 2,
+      "allowed": [
+        "tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "expectedCode": null
+    },
+    {
+      "id": "v2-includes-v1",
+      "content": "<span data-wenyou-font-v1=\"wenkai\">旧</span>",
+      "previous": "<span data-wenyou-font-v1=\"wenkai\">旧</span>",
+      "version": 2,
+      "allowed": [],
+      "expectedCode": null
+    },
+    {
+      "id": "mixed-old-client-refused",
+      "content": "<span data-wenyou-font-v1=\"wenkai\">旧</span>",
+      "previous": "<span data-wenyou-font-v1=\"wenkai\">旧</span><span data-wenyou-font-v2=\"tfv_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\">a</span>",
+      "version": 1,
+      "allowed": [],
+      "expectedCode": 40019
+    }
+  ]
+}
