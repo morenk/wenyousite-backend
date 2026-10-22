@@ -38,7 +38,7 @@ def make(path, variant):
 if __name__ == '__main__':
     root = Path(args.output); root.mkdir(parents=True, exist_ok=True)
     for variant in (1, 2): make(root / ('fixture-' + str(variant) + '.ttf'), variant)
-    from fontTools.ttLib import TTFont
+    from fontTools.ttLib import TTFont, newTable
     from fontTools.colorLib.builder import buildCOLR, buildCPAL
     restricted = TTFont(root / 'fixture-1.ttf', recalcTimestamp=False)
     restricted['OS/2'].fsType = 0x0100
@@ -47,3 +47,7 @@ if __name__ == '__main__':
     colored['COLR'] = buildCOLR({'A': [('A', 0)]}, version=0)
     colored['CPAL'] = buildCPAL([[(0.5, 0.5, 0.5, 1.0)]])
     colored.save(root / 'fixture-color.ttf')
+    large = TTFont(root / 'fixture-1.ttf', recalcTimestamp=False)
+    large['TEST'] = newTable('TEST')
+    large['TEST'].data = bytes(11 * 1024 * 1024)
+    large.save(root / 'fixture-large.ttf')

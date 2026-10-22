@@ -21,6 +21,7 @@ import { FONT_DOCUMENT_MAX_BYTES, fontManifestAssets, validateFontManifest } fro
 import { FontAssetDto } from './dto/font-public.dto';
 
 type ArtifactData = Prisma.TextFontArtifactUncheckedCreateInput;
+const LEASE_MS = 660000;
 function manifestDescriptor(value: unknown): FontAssetDto {
   const item = value as Partial<FontAssetDto> | null;
   if (
@@ -67,12 +68,13 @@ export class FontProcessingService {
         data: {
           status: 'PROCESSING',
           claimToken: claim,
-          leaseExpiresAt: new Date(Date.now() + 660000),
+          leaseExpiresAt: new Date(Date.now() + LEASE_MS),
           failureCode: null,
         },
       });
     });
     if (!job) return;
+    const stopLease = this.maintainLease(jobId, attempt, claim);
     try {
       requireFontRights(fontConfiguration(job.configuration));
       const build = await fontBuildIdentity(job.sourceSha256, fontConfiguration(job.configuration));
@@ -167,7 +169,36 @@ export class FontProcessingService {
           /* 原任务租约留待恢复；队列可重试，原始数据库错误不入日志。 */
         });
       throw failure;
+    } finally {
+      await stopLease();
     }
+  }
+
+  private maintainLease(jobId: string, attempt: number, claim: string): () => Promise<void> {
+    let pending: Promise<void> | undefined;
+    const timer = setInterval(() => {
+      if (pending) return;
+      pending = this.prisma
+        .$transaction(async (tx) => {
+          // 与恢复器共用状态锁；解析及远端存储期间只续租当前 claim。
+          await lockFontState(tx);
+          await tx.textFontBuildJob.updateMany({
+            where: { id: jobId, attempt, claimToken: claim, status: 'PROCESSING' },
+            data: { leaseExpiresAt: new Date(Date.now() + LEASE_MS) },
+          });
+        })
+        .catch(() => {
+          /* 短暂数据库故障留待下次续租；持续失败仍由过期恢复处理。 */
+        })
+        .finally(() => {
+          pending = undefined;
+        });
+    }, 30000);
+    timer.unref();
+    return async () => {
+      clearInterval(timer);
+      await pending;
+    };
   }
 
   private async build(
@@ -181,7 +212,11 @@ export class FontProcessingService {
         output = join(root, 'output');
       await mkdir(input, { mode: 0o700 });
       await mkdir(output, { mode: 0o700 });
-      const source = await this.storage.readSource(job.sourceKey, job.sourceSha256, job.sourceBytes);
+      const source = await this.storage.readSource(
+        job.sourceKey,
+        job.sourceSha256,
+        job.sourceBytes,
+      );
       if (fontSha(source) !== job.sourceSha256) throw new FontProcessingFailure('invalid-font');
       await writeFile(join(input, 'source'), source, { flag: 'wx', mode: 0o400 });
       await writeFile(

@@ -137,6 +137,7 @@ export class FontStorageService {
         contentLength: bytes.length,
         cacheControl: 'private, no-store',
         ifNoneMatch: '*',
+        abortSignal: AbortSignal.timeout(30000),
       });
     } catch (error) {
       const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata
