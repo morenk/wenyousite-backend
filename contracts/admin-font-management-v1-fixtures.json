@@ -1,6 +1,6 @@
 {
   "fixtureVersion": 1,
-  "apiContractVersion": "5.44.0-dev.20261024.1",
+  "apiContractVersion": "5.44.0-dev.20261024.2",
   "authorizationRuleVersion": "admin-font-upload-v1",
   "parametersVersion": 2,
   "pageSize": 20,
@@ -1110,6 +1110,33 @@
       "expectedSameVersion": false,
       "expectedNewVersionStatus": "preview",
       "expectedHistoricalWithdrawalUnchanged": true
+    }
+  ],
+  "jobRecoveryCases": [
+    {
+      "id": "legacy-job",
+      "submissionId": null,
+      "expectedProcessRoute": "legacy-job"
+    },
+    {
+      "id": "simple-job-after-refresh",
+      "submissionId": "f48fc025-1ff4-48b5-b6c2-fc9ae6517f79",
+      "expectedProcessRoute": "bound-submission"
+    },
+    {
+      "id": "older-job-after-newer-submission",
+      "submissionId": "f48fc025-1ff4-48b5-b6c2-fc9ae6517f79",
+      "latestSubmissionId": "230868b6-6404-4901-a76b-94e1455a00b4",
+      "expectedProcessSubmissionId": "f48fc025-1ff4-48b5-b6c2-fc9ae6517f79",
+      "expectedScanManagementList": false
+    },
+    {
+      "id": "anonymous-recovery",
+      "expectedHttpStatus": 401
+    },
+    {
+      "id": "ordinary-user-process",
+      "expectedHttpStatus": 403
     }
   ]
 }

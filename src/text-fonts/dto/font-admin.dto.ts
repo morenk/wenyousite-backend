@@ -165,6 +165,14 @@ export class FontFamilyDto extends FontConfigurationDto {
 }
 
 export class FontJobDto {
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      '本任务准确绑定的简化提交；旧手工任务为 null。详情/刷新恢复必须使用该值，不以最新提交替代。',
+  })
+  submissionId?: string | null;
   @ApiProperty({ pattern: FONT_JOB_PATTERN })
   jobId!: string;
   @ApiProperty({ pattern: FONT_FAMILY_PATTERN })
