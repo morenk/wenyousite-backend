@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  IsUUID,
   Matches,
   Max,
   MaxLength,
@@ -90,6 +91,13 @@ export class UpdateFontConfigurationDto extends FontConfigurationDto {
 }
 
 export class FontSourceQueryDto {
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: '简化提交标识；绑定已有提交、授权确认及唯一任务。省略时完全沿用旧授权流程。',
+  })
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsUUID('4')
+  submissionId?: string;
   @ApiProperty({ type: 'integer', minimum: 1 })
   @Type(() => Number)
   @IsInt()
@@ -182,6 +190,13 @@ export class FontJobDto {
     ],
   })
   failureCode!: string | null;
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    enum: ['embedding-restricted', 'subsetting-restricted', 'bitmap-only'],
+    description: '固定、无原始解析错误的拒绝说明；fsType 限制即使管理员确认也不能绕过。',
+  })
+  failureReason?: 'embedding-restricted' | 'subsetting-restricted' | 'bitmap-only' | null;
 }
 
 export class FontAdminFamilyDetailDto extends FontFamilyDto {

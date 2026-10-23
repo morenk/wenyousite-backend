@@ -255,6 +255,11 @@
 |---|---|---|---|
 | GET | `/admin/text-fonts` | admin |  |
 | POST | `/admin/text-fonts` | admin |  |
+| GET | `/admin/text-fonts/management` | admin |  |
+| POST | `/admin/text-fonts/submissions` | admin |  |
+| GET | `/admin/text-fonts/submissions/{submissionId}` | admin |  |
+| POST | `/admin/text-fonts/submissions/{submissionId}/process` | admin |  |
+| PUT | `/admin/text-fonts/order` | admin |  |
 | GET | `/admin/text-fonts/jobs/{jobId}` | admin |  |
 | POST | `/admin/text-fonts/jobs/{jobId}/process` | admin |  |
 | GET | `/admin/text-fonts/versions/{versionId}/preview` | admin |  |

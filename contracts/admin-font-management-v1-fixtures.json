@@ -1,0 +1,1115 @@
+{
+  "fixtureVersion": 1,
+  "apiContractVersion": "5.44.0-dev.20261024.1",
+  "authorizationRuleVersion": "admin-font-upload-v1",
+  "parametersVersion": 2,
+  "pageSize": 20,
+  "specimens": {
+    "zh": "温油站，一起书写故事。0123456789",
+    "ja": "物語を一緒に紡ぎましょう。0123456789",
+    "en": "The quick brown fox jumps over the lazy dog. 0123456789",
+    "other": "Aa Bb Cc 0123456789"
+  },
+  "createCases": [
+    {
+      "id": "minimum-default-language",
+      "input": {
+        "submissionId": "f48fc025-1ff4-48b5-b6c2-fc9ae6517f79",
+        "name": "管理字体"
+      },
+      "accepted": true,
+      "expected": {
+        "submissionId": "f48fc025-1ff4-48b5-b6c2-fc9ae6517f79",
+        "name": "管理字体",
+        "language": "other"
+      }
+    },
+    {
+      "id": "normalize-name",
+      "input": {
+        "submissionId": "f48fc025-1ff4-48b5-b6c2-fc9ae6517f79",
+        "name": "  Café  ",
+        "language": "en"
+      },
+      "accepted": true,
+      "expected": {
+        "submissionId": "f48fc025-1ff4-48b5-b6c2-fc9ae6517f79",
+        "name": "Café",
+        "language": "en"
+      }
+    },
+    {
+      "id": "existing-family",
+      "input": {
+        "submissionId": "f48fc025-1ff4-48b5-b6c2-fc9ae6517f79",
+        "name": "管理字体",
+        "familyId": "tff_00000000000000000000000000000001",
+        "expectedFamilyRevision": 2
+      },
+      "accepted": true,
+      "expected": {
+        "submissionId": "f48fc025-1ff4-48b5-b6c2-fc9ae6517f79",
+        "name": "管理字体",
+        "language": "other",
+        "familyId": "tff_00000000000000000000000000000001",
+        "expectedFamilyRevision": 2
+      }
+    },
+    {
+      "id": "null-language",
+      "input": {
+        "submissionId": "f48fc025-1ff4-48b5-b6c2-fc9ae6517f79",
+        "name": "管理字体",
+        "language": null
+      },
+      "accepted": false
+    },
+    {
+      "id": "unknown-language",
+      "input": {
+        "submissionId": "f48fc025-1ff4-48b5-b6c2-fc9ae6517f79",
+        "name": "管理字体",
+        "language": "fr"
+      },
+      "accepted": false
+    },
+    {
+      "id": "missing-revision",
+      "input": {
+        "submissionId": "f48fc025-1ff4-48b5-b6c2-fc9ae6517f79",
+        "name": "管理字体",
+        "familyId": "tff_00000000000000000000000000000001"
+      },
+      "accepted": false
+    },
+    {
+      "id": "missing-family",
+      "input": {
+        "submissionId": "f48fc025-1ff4-48b5-b6c2-fc9ae6517f79",
+        "name": "管理字体",
+        "expectedFamilyRevision": 1
+      },
+      "accepted": false
+    },
+    {
+      "id": "invalid-revision",
+      "input": {
+        "submissionId": "f48fc025-1ff4-48b5-b6c2-fc9ae6517f79",
+        "name": "管理字体",
+        "familyId": "tff_00000000000000000000000000000001",
+        "expectedFamilyRevision": 0
+      },
+      "accepted": false
+    },
+    {
+      "id": "blank-name",
+      "input": {
+        "submissionId": "f48fc025-1ff4-48b5-b6c2-fc9ae6517f79",
+        "name": "  "
+      },
+      "accepted": false
+    },
+    {
+      "id": "too-long-name",
+      "input": {
+        "submissionId": "f48fc025-1ff4-48b5-b6c2-fc9ae6517f79",
+        "name": "名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名名"
+      },
+      "accepted": false
+    },
+    {
+      "id": "client-author",
+      "input": {
+        "submissionId": "f48fc025-1ff4-48b5-b6c2-fc9ae6517f79",
+        "name": "管理字体",
+        "author": "invented"
+      },
+      "accepted": false
+    },
+    {
+      "id": "client-license",
+      "input": {
+        "submissionId": "f48fc025-1ff4-48b5-b6c2-fc9ae6517f79",
+        "name": "管理字体",
+        "licenseText": "invented"
+      },
+      "accepted": false
+    },
+    {
+      "id": "client-evidence",
+      "input": {
+        "submissionId": "f48fc025-1ff4-48b5-b6c2-fc9ae6517f79",
+        "name": "管理字体",
+        "authorization": {
+          "actorId": "forged"
+        }
+      },
+      "accepted": false
+    },
+    {
+      "id": "client-sort",
+      "input": {
+        "submissionId": "f48fc025-1ff4-48b5-b6c2-fc9ae6517f79",
+        "name": "管理字体",
+        "sortOrder": 0
+      },
+      "accepted": false
+    },
+    {
+      "id": "invalid-uuid",
+      "input": {
+        "submissionId": "not-a-uuid",
+        "name": "管理字体"
+      },
+      "accepted": false
+    }
+  ],
+  "submissionCases": [
+    {
+      "id": "create-replay-after-revision-change",
+      "events": [
+        "create",
+        "family-revision-changes",
+        "replay-identical-create"
+      ],
+      "expectedFamiliesCreated": 1,
+      "expectedSameSubmission": true
+    },
+    {
+      "id": "create-key-payload-conflict",
+      "events": [
+        "create",
+        "same-key-different-name"
+      ],
+      "expectedHttpStatus": 409,
+      "expectedCode": 40930
+    },
+    {
+      "id": "create-key-other-actor",
+      "events": [
+        "create",
+        "same-key-other-actor"
+      ],
+      "expectedHttpStatus": 409,
+      "expectedCode": 40930
+    },
+    {
+      "id": "source-concurrent-replay",
+      "events": [
+        "upload-source-A",
+        "concurrent-upload-source-A"
+      ],
+      "expectedJobsCreated": 1,
+      "expectedSameJob": true
+    },
+    {
+      "id": "source-key-bytes-conflict",
+      "events": [
+        "upload-source-A",
+        "upload-source-B"
+      ],
+      "expectedHttpStatus": 409,
+      "expectedCode": 40930
+    },
+    {
+      "id": "lost-upload-response-refresh",
+      "events": [
+        "upload-source-A",
+        "lose-response",
+        "GET-submission"
+      ],
+      "expectedJobPresent": true,
+      "expectedSourceUploadsAfterRecovery": 0
+    },
+    {
+      "id": "process-same-intent-failed",
+      "events": [
+        "process-request-A",
+        "job-fails",
+        "replay-process-request-A"
+      ],
+      "expectedAttempts": 1,
+      "expectedSourceUploads": 1
+    },
+    {
+      "id": "process-explicit-retry",
+      "events": [
+        "process-request-A",
+        "job-fails",
+        "process-request-B"
+      ],
+      "expectedAttempts": 2,
+      "expectedSourceUploads": 1,
+      "expectedSameJob": true
+    },
+    {
+      "id": "process-concurrent-intents",
+      "events": [
+        "process-request-A",
+        "concurrent-process-request-B"
+      ],
+      "expectedAttempts": 1,
+      "expectedActiveJobs": 1
+    },
+    {
+      "id": "no-automatic-publication",
+      "events": [
+        "create",
+        "upload",
+        "process",
+        "ready"
+      ],
+      "expectedPublished": false
+    }
+  ],
+  "sourceCases": [
+    {
+      "id": "metadata-absent",
+      "format": "ttf",
+      "validFont": true,
+      "nameRecords": [],
+      "fsType": 0,
+      "expectedStatus": "ready"
+    },
+    {
+      "id": "embedding-restricted",
+      "format": "ttf",
+      "validFont": true,
+      "fsType": 2,
+      "expectedStatus": "failed",
+      "expectedFailureCode": "rights-required",
+      "expectedFailureReason": "embedding-restricted"
+    },
+    {
+      "id": "subsetting-restricted",
+      "format": "ttf",
+      "validFont": true,
+      "fsType": 256,
+      "expectedStatus": "failed",
+      "expectedFailureCode": "rights-required",
+      "expectedFailureReason": "subsetting-restricted"
+    },
+    {
+      "id": "bitmap-only",
+      "format": "ttf",
+      "validFont": true,
+      "fsType": 512,
+      "expectedStatus": "failed",
+      "expectedFailureCode": "rights-required",
+      "expectedFailureReason": "bitmap-only"
+    },
+    {
+      "id": "combined-restrictions",
+      "format": "ttf",
+      "validFont": true,
+      "fsType": 770,
+      "expectedStatus": "failed",
+      "expectedFailureCode": "rights-required",
+      "expectedFailureReason": "embedding-restricted"
+    },
+    {
+      "id": "corrupt-source",
+      "format": "ttf",
+      "validFont": false,
+      "expectedStatus": "failed"
+    },
+    {
+      "id": "exact-limit",
+      "bytes": 67108864,
+      "expectedUploadStatus": 201
+    },
+    {
+      "id": "over-limit",
+      "bytes": 67108865,
+      "expectedUploadStatus": 413
+    }
+  ],
+  "metadataPolicy": {
+    "nameIds": [
+      0,
+      8,
+      9,
+      13,
+      14
+    ],
+    "maxExaminedRecords": 256,
+    "maxKeptRecords": 64,
+    "maxRecordUtf8Bytes": 8192,
+    "maxTotalUtf8Bytes": 65536,
+    "invalidRecordAction": "omit-and-count",
+    "publicAuditFieldsAllowed": false,
+    "auditExcludedFromBuildKey": true,
+    "legacyParametersUnchanged": true,
+    "allowedControlCodepoints": [
+      9,
+      10,
+      13
+    ]
+  },
+  "listDataset": [
+    {
+      "familyId": "tff_00000000000000000000000000000001",
+      "name": "Font 01",
+      "language": "zh",
+      "sortOrder": 1,
+      "revision": 1,
+      "enabled": true,
+      "status": "draft",
+      "currentVersionId": null,
+      "lastPublishedVersionId": null,
+      "createdAt": "2026-10-01T00:00:00.000Z",
+      "updatedAt": "2026-10-01T00:00:00.000Z",
+      "publishedAt": null,
+      "withdrawnAt": null,
+      "latestJob": null,
+      "latestSubmissionId": null
+    },
+    {
+      "familyId": "tff_00000000000000000000000000000002",
+      "name": "Font 02",
+      "language": "ja",
+      "sortOrder": 2,
+      "revision": 1,
+      "enabled": true,
+      "status": "enabled",
+      "currentVersionId": "tfv_00000000000000000000000000000002",
+      "lastPublishedVersionId": "tfv_00000000000000000000000000000002",
+      "createdAt": "2026-10-02T00:00:00.000Z",
+      "updatedAt": "2026-10-02T00:00:00.000Z",
+      "publishedAt": "2026-10-02T01:00:00.000Z",
+      "withdrawnAt": null,
+      "latestJob": null,
+      "latestSubmissionId": null
+    },
+    {
+      "familyId": "tff_00000000000000000000000000000003",
+      "name": "Font 03",
+      "language": "en",
+      "sortOrder": 3,
+      "revision": 1,
+      "enabled": false,
+      "status": "disabled",
+      "currentVersionId": "tfv_00000000000000000000000000000003",
+      "lastPublishedVersionId": "tfv_00000000000000000000000000000003",
+      "createdAt": "2026-10-03T00:00:00.000Z",
+      "updatedAt": "2026-10-03T00:00:00.000Z",
+      "publishedAt": "2026-10-03T01:00:00.000Z",
+      "withdrawnAt": null,
+      "latestJob": null,
+      "latestSubmissionId": null
+    },
+    {
+      "familyId": "tff_00000000000000000000000000000004",
+      "name": "Font 04",
+      "language": "other",
+      "sortOrder": 4,
+      "revision": 1,
+      "enabled": true,
+      "status": "withdrawn",
+      "currentVersionId": null,
+      "lastPublishedVersionId": "tfv_00000000000000000000000000000004",
+      "createdAt": "2026-10-04T00:00:00.000Z",
+      "updatedAt": "2026-10-04T00:00:00.000Z",
+      "publishedAt": "2026-10-04T01:00:00.000Z",
+      "withdrawnAt": "2026-10-04T02:00:00.000Z",
+      "latestJob": null,
+      "latestSubmissionId": null
+    },
+    {
+      "familyId": "tff_00000000000000000000000000000005",
+      "name": "Font 05",
+      "language": "zh",
+      "sortOrder": 5,
+      "revision": 1,
+      "enabled": true,
+      "status": "draft",
+      "currentVersionId": null,
+      "lastPublishedVersionId": null,
+      "createdAt": "2026-10-05T00:00:00.000Z",
+      "updatedAt": "2026-10-05T00:00:00.000Z",
+      "publishedAt": null,
+      "withdrawnAt": null,
+      "latestJob": null,
+      "latestSubmissionId": null
+    },
+    {
+      "familyId": "tff_00000000000000000000000000000006",
+      "name": "Font 06",
+      "language": "ja",
+      "sortOrder": 6,
+      "revision": 1,
+      "enabled": true,
+      "status": "enabled",
+      "currentVersionId": "tfv_00000000000000000000000000000006",
+      "lastPublishedVersionId": "tfv_00000000000000000000000000000006",
+      "createdAt": "2026-10-06T00:00:00.000Z",
+      "updatedAt": "2026-10-06T00:00:00.000Z",
+      "publishedAt": "2026-10-06T01:00:00.000Z",
+      "withdrawnAt": null,
+      "latestJob": null,
+      "latestSubmissionId": null
+    },
+    {
+      "familyId": "tff_00000000000000000000000000000007",
+      "name": "Font 07",
+      "language": "en",
+      "sortOrder": 7,
+      "revision": 1,
+      "enabled": false,
+      "status": "disabled",
+      "currentVersionId": "tfv_00000000000000000000000000000007",
+      "lastPublishedVersionId": "tfv_00000000000000000000000000000007",
+      "createdAt": "2026-10-07T00:00:00.000Z",
+      "updatedAt": "2026-10-07T00:00:00.000Z",
+      "publishedAt": "2026-10-07T01:00:00.000Z",
+      "withdrawnAt": null,
+      "latestJob": null,
+      "latestSubmissionId": null
+    },
+    {
+      "familyId": "tff_00000000000000000000000000000008",
+      "name": "Font 08",
+      "language": "other",
+      "sortOrder": 8,
+      "revision": 1,
+      "enabled": true,
+      "status": "withdrawn",
+      "currentVersionId": null,
+      "lastPublishedVersionId": "tfv_00000000000000000000000000000008",
+      "createdAt": "2026-10-08T00:00:00.000Z",
+      "updatedAt": "2026-10-08T00:00:00.000Z",
+      "publishedAt": "2026-10-08T01:00:00.000Z",
+      "withdrawnAt": "2026-10-08T02:00:00.000Z",
+      "latestJob": null,
+      "latestSubmissionId": null
+    },
+    {
+      "familyId": "tff_00000000000000000000000000000009",
+      "name": "Font 09",
+      "language": "zh",
+      "sortOrder": 9,
+      "revision": 1,
+      "enabled": true,
+      "status": "draft",
+      "currentVersionId": null,
+      "lastPublishedVersionId": null,
+      "createdAt": "2026-10-09T00:00:00.000Z",
+      "updatedAt": "2026-10-09T00:00:00.000Z",
+      "publishedAt": null,
+      "withdrawnAt": null,
+      "latestJob": null,
+      "latestSubmissionId": null
+    },
+    {
+      "familyId": "tff_0000000000000000000000000000000a",
+      "name": "Font 10",
+      "language": "ja",
+      "sortOrder": 10,
+      "revision": 1,
+      "enabled": true,
+      "status": "enabled",
+      "currentVersionId": "tfv_0000000000000000000000000000000a",
+      "lastPublishedVersionId": "tfv_0000000000000000000000000000000a",
+      "createdAt": "2026-10-10T00:00:00.000Z",
+      "updatedAt": "2026-10-10T00:00:00.000Z",
+      "publishedAt": "2026-10-10T01:00:00.000Z",
+      "withdrawnAt": null,
+      "latestJob": null,
+      "latestSubmissionId": null
+    },
+    {
+      "familyId": "tff_0000000000000000000000000000000b",
+      "name": "Font 11",
+      "language": "en",
+      "sortOrder": 11,
+      "revision": 1,
+      "enabled": false,
+      "status": "disabled",
+      "currentVersionId": "tfv_0000000000000000000000000000000b",
+      "lastPublishedVersionId": "tfv_0000000000000000000000000000000b",
+      "createdAt": "2026-10-11T00:00:00.000Z",
+      "updatedAt": "2026-10-11T00:00:00.000Z",
+      "publishedAt": "2026-10-11T01:00:00.000Z",
+      "withdrawnAt": null,
+      "latestJob": null,
+      "latestSubmissionId": null
+    },
+    {
+      "familyId": "tff_0000000000000000000000000000000c",
+      "name": "Font 12",
+      "language": "other",
+      "sortOrder": 12,
+      "revision": 1,
+      "enabled": true,
+      "status": "withdrawn",
+      "currentVersionId": null,
+      "lastPublishedVersionId": "tfv_0000000000000000000000000000000c",
+      "createdAt": "2026-10-12T00:00:00.000Z",
+      "updatedAt": "2026-10-12T00:00:00.000Z",
+      "publishedAt": "2026-10-12T01:00:00.000Z",
+      "withdrawnAt": "2026-10-12T02:00:00.000Z",
+      "latestJob": null,
+      "latestSubmissionId": null
+    },
+    {
+      "familyId": "tff_0000000000000000000000000000000d",
+      "name": "Font 13",
+      "language": "zh",
+      "sortOrder": 13,
+      "revision": 1,
+      "enabled": true,
+      "status": "draft",
+      "currentVersionId": null,
+      "lastPublishedVersionId": null,
+      "createdAt": "2026-10-13T00:00:00.000Z",
+      "updatedAt": "2026-10-13T00:00:00.000Z",
+      "publishedAt": null,
+      "withdrawnAt": null,
+      "latestJob": null,
+      "latestSubmissionId": null
+    },
+    {
+      "familyId": "tff_0000000000000000000000000000000e",
+      "name": "Font 14",
+      "language": "ja",
+      "sortOrder": 14,
+      "revision": 1,
+      "enabled": true,
+      "status": "enabled",
+      "currentVersionId": "tfv_0000000000000000000000000000000e",
+      "lastPublishedVersionId": "tfv_0000000000000000000000000000000e",
+      "createdAt": "2026-10-14T00:00:00.000Z",
+      "updatedAt": "2026-10-14T00:00:00.000Z",
+      "publishedAt": "2026-10-14T01:00:00.000Z",
+      "withdrawnAt": null,
+      "latestJob": null,
+      "latestSubmissionId": null
+    },
+    {
+      "familyId": "tff_0000000000000000000000000000000f",
+      "name": "Font 15",
+      "language": "en",
+      "sortOrder": 15,
+      "revision": 1,
+      "enabled": false,
+      "status": "disabled",
+      "currentVersionId": "tfv_0000000000000000000000000000000f",
+      "lastPublishedVersionId": "tfv_0000000000000000000000000000000f",
+      "createdAt": "2026-10-15T00:00:00.000Z",
+      "updatedAt": "2026-10-15T00:00:00.000Z",
+      "publishedAt": "2026-10-15T01:00:00.000Z",
+      "withdrawnAt": null,
+      "latestJob": null,
+      "latestSubmissionId": null
+    },
+    {
+      "familyId": "tff_00000000000000000000000000000010",
+      "name": "Font 16",
+      "language": "other",
+      "sortOrder": 16,
+      "revision": 1,
+      "enabled": true,
+      "status": "withdrawn",
+      "currentVersionId": null,
+      "lastPublishedVersionId": "tfv_00000000000000000000000000000010",
+      "createdAt": "2026-10-16T00:00:00.000Z",
+      "updatedAt": "2026-10-16T00:00:00.000Z",
+      "publishedAt": "2026-10-16T01:00:00.000Z",
+      "withdrawnAt": "2026-10-16T02:00:00.000Z",
+      "latestJob": null,
+      "latestSubmissionId": null
+    },
+    {
+      "familyId": "tff_00000000000000000000000000000011",
+      "name": "Font 17",
+      "language": "zh",
+      "sortOrder": 17,
+      "revision": 1,
+      "enabled": true,
+      "status": "draft",
+      "currentVersionId": null,
+      "lastPublishedVersionId": null,
+      "createdAt": "2026-10-17T00:00:00.000Z",
+      "updatedAt": "2026-10-17T00:00:00.000Z",
+      "publishedAt": null,
+      "withdrawnAt": null,
+      "latestJob": null,
+      "latestSubmissionId": null
+    },
+    {
+      "familyId": "tff_00000000000000000000000000000012",
+      "name": "Font 18",
+      "language": "ja",
+      "sortOrder": 18,
+      "revision": 1,
+      "enabled": true,
+      "status": "enabled",
+      "currentVersionId": "tfv_00000000000000000000000000000012",
+      "lastPublishedVersionId": "tfv_00000000000000000000000000000012",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "updatedAt": "2026-10-18T00:00:00.000Z",
+      "publishedAt": "2026-10-18T01:00:00.000Z",
+      "withdrawnAt": null,
+      "latestJob": null,
+      "latestSubmissionId": null
+    },
+    {
+      "familyId": "tff_00000000000000000000000000000013",
+      "name": "Font 19",
+      "language": "en",
+      "sortOrder": 19,
+      "revision": 1,
+      "enabled": false,
+      "status": "disabled",
+      "currentVersionId": "tfv_00000000000000000000000000000013",
+      "lastPublishedVersionId": "tfv_00000000000000000000000000000013",
+      "createdAt": "2026-10-19T00:00:00.000Z",
+      "updatedAt": "2026-10-19T00:00:00.000Z",
+      "publishedAt": "2026-10-19T01:00:00.000Z",
+      "withdrawnAt": null,
+      "latestJob": null,
+      "latestSubmissionId": null
+    },
+    {
+      "familyId": "tff_00000000000000000000000000000014",
+      "name": "Font 20",
+      "language": "other",
+      "sortOrder": 20,
+      "revision": 1,
+      "enabled": true,
+      "status": "withdrawn",
+      "currentVersionId": null,
+      "lastPublishedVersionId": "tfv_00000000000000000000000000000014",
+      "createdAt": "2026-10-20T00:00:00.000Z",
+      "updatedAt": "2026-10-20T00:00:00.000Z",
+      "publishedAt": "2026-10-20T01:00:00.000Z",
+      "withdrawnAt": "2026-10-20T02:00:00.000Z",
+      "latestJob": null,
+      "latestSubmissionId": null
+    },
+    {
+      "familyId": "tff_00000000000000000000000000000015",
+      "name": "Font 21",
+      "language": "zh",
+      "sortOrder": 21,
+      "revision": 1,
+      "enabled": true,
+      "status": "draft",
+      "currentVersionId": null,
+      "lastPublishedVersionId": null,
+      "createdAt": "2026-10-21T00:00:00.000Z",
+      "updatedAt": "2026-10-21T00:00:00.000Z",
+      "publishedAt": null,
+      "withdrawnAt": null,
+      "latestJob": null,
+      "latestSubmissionId": null
+    },
+    {
+      "familyId": "tff_00000000000000000000000000000016",
+      "name": "Font 22",
+      "language": "ja",
+      "sortOrder": 22,
+      "revision": 1,
+      "enabled": true,
+      "status": "enabled",
+      "currentVersionId": "tfv_00000000000000000000000000000016",
+      "lastPublishedVersionId": "tfv_00000000000000000000000000000016",
+      "createdAt": "2026-10-22T00:00:00.000Z",
+      "updatedAt": "2026-10-22T00:00:00.000Z",
+      "publishedAt": "2026-10-22T01:00:00.000Z",
+      "withdrawnAt": null,
+      "latestJob": null,
+      "latestSubmissionId": null
+    },
+    {
+      "familyId": "tff_00000000000000000000000000000017",
+      "name": "Font 23",
+      "language": "en",
+      "sortOrder": 23,
+      "revision": 1,
+      "enabled": false,
+      "status": "disabled",
+      "currentVersionId": "tfv_00000000000000000000000000000017",
+      "lastPublishedVersionId": "tfv_00000000000000000000000000000017",
+      "createdAt": "2026-10-23T00:00:00.000Z",
+      "updatedAt": "2026-10-23T00:00:00.000Z",
+      "publishedAt": "2026-10-23T01:00:00.000Z",
+      "withdrawnAt": null,
+      "latestJob": null,
+      "latestSubmissionId": null
+    },
+    {
+      "familyId": "tff_00000000000000000000000000000018",
+      "name": "Font 24",
+      "language": "other",
+      "sortOrder": 24,
+      "revision": 1,
+      "enabled": true,
+      "status": "withdrawn",
+      "currentVersionId": null,
+      "lastPublishedVersionId": "tfv_00000000000000000000000000000018",
+      "createdAt": "2026-10-24T00:00:00.000Z",
+      "updatedAt": "2026-10-24T00:00:00.000Z",
+      "publishedAt": "2026-10-24T01:00:00.000Z",
+      "withdrawnAt": "2026-10-24T02:00:00.000Z",
+      "latestJob": null,
+      "latestSubmissionId": null
+    },
+    {
+      "familyId": "tff_00000000000000000000000000000019",
+      "name": "Font 25",
+      "language": "zh",
+      "sortOrder": 25,
+      "revision": 1,
+      "enabled": true,
+      "status": "draft",
+      "currentVersionId": null,
+      "lastPublishedVersionId": null,
+      "createdAt": "2026-10-25T00:00:00.000Z",
+      "updatedAt": "2026-10-25T00:00:00.000Z",
+      "publishedAt": null,
+      "withdrawnAt": null,
+      "latestJob": null,
+      "latestSubmissionId": null
+    },
+    {
+      "familyId": "tff_0000000000000000000000000000001a",
+      "name": "Rate%_26",
+      "language": "ja",
+      "sortOrder": 26,
+      "revision": 1,
+      "enabled": true,
+      "status": "enabled",
+      "currentVersionId": "tfv_0000000000000000000000000000001a",
+      "lastPublishedVersionId": "tfv_0000000000000000000000000000001a",
+      "createdAt": "2026-10-26T00:00:00.000Z",
+      "updatedAt": "2026-10-26T00:00:00.000Z",
+      "publishedAt": "2026-10-26T01:00:00.000Z",
+      "withdrawnAt": null,
+      "latestJob": null,
+      "latestSubmissionId": null
+    }
+  ],
+  "listCases": [
+    {
+      "id": "default-page-one",
+      "query": {},
+      "expectedFamilyIds": [
+        "tff_0000000000000000000000000000001a",
+        "tff_00000000000000000000000000000019",
+        "tff_00000000000000000000000000000018",
+        "tff_00000000000000000000000000000017",
+        "tff_00000000000000000000000000000016",
+        "tff_00000000000000000000000000000015",
+        "tff_00000000000000000000000000000014",
+        "tff_00000000000000000000000000000013",
+        "tff_00000000000000000000000000000012",
+        "tff_00000000000000000000000000000011",
+        "tff_00000000000000000000000000000010",
+        "tff_0000000000000000000000000000000f",
+        "tff_0000000000000000000000000000000e",
+        "tff_0000000000000000000000000000000d",
+        "tff_0000000000000000000000000000000c",
+        "tff_0000000000000000000000000000000b",
+        "tff_0000000000000000000000000000000a",
+        "tff_00000000000000000000000000000009",
+        "tff_00000000000000000000000000000008",
+        "tff_00000000000000000000000000000007"
+      ],
+      "expectedTotal": 26,
+      "expectedHasNext": true
+    },
+    {
+      "id": "default-page-two",
+      "query": {},
+      "afterCase": "default-page-one",
+      "expectedFamilyIds": [
+        "tff_00000000000000000000000000000006",
+        "tff_00000000000000000000000000000005",
+        "tff_00000000000000000000000000000004",
+        "tff_00000000000000000000000000000003",
+        "tff_00000000000000000000000000000002",
+        "tff_00000000000000000000000000000001"
+      ],
+      "expectedTotal": 26,
+      "expectedHasNext": false
+    },
+    {
+      "id": "filter-before-pagination",
+      "query": {
+        "language": "zh"
+      },
+      "expectedFamilyIds": [
+        "tff_00000000000000000000000000000019",
+        "tff_00000000000000000000000000000015",
+        "tff_00000000000000000000000000000011",
+        "tff_0000000000000000000000000000000d",
+        "tff_00000000000000000000000000000009",
+        "tff_00000000000000000000000000000005",
+        "tff_00000000000000000000000000000001"
+      ],
+      "expectedTotal": 7,
+      "expectedHasNext": false
+    },
+    {
+      "id": "literal-wildcards",
+      "query": {
+        "q": "%_"
+      },
+      "expectedFamilyIds": [
+        "tff_0000000000000000000000000000001a"
+      ],
+      "expectedTotal": 1,
+      "expectedHasNext": false
+    },
+    {
+      "id": "name-case-and-trim",
+      "query": {
+        "q": " FONT 01 "
+      },
+      "expectedFamilyIds": [
+        "tff_00000000000000000000000000000001"
+      ],
+      "expectedTotal": 1,
+      "expectedHasNext": false
+    },
+    {
+      "id": "withdrawn-wins-enabled",
+      "query": {
+        "status": "withdrawn"
+      },
+      "expectedFamilyIds": [
+        "tff_00000000000000000000000000000018",
+        "tff_00000000000000000000000000000014",
+        "tff_00000000000000000000000000000010",
+        "tff_0000000000000000000000000000000c",
+        "tff_00000000000000000000000000000008",
+        "tff_00000000000000000000000000000004"
+      ],
+      "expectedTotal": 6,
+      "expectedHasNext": false
+    },
+    {
+      "id": "ascending-order",
+      "query": {
+        "sort": "sortOrder",
+        "direction": "asc"
+      },
+      "expectedFamilyIds": [
+        "tff_00000000000000000000000000000001",
+        "tff_00000000000000000000000000000002",
+        "tff_00000000000000000000000000000003",
+        "tff_00000000000000000000000000000004",
+        "tff_00000000000000000000000000000005",
+        "tff_00000000000000000000000000000006",
+        "tff_00000000000000000000000000000007",
+        "tff_00000000000000000000000000000008",
+        "tff_00000000000000000000000000000009",
+        "tff_0000000000000000000000000000000a",
+        "tff_0000000000000000000000000000000b",
+        "tff_0000000000000000000000000000000c",
+        "tff_0000000000000000000000000000000d",
+        "tff_0000000000000000000000000000000e",
+        "tff_0000000000000000000000000000000f",
+        "tff_00000000000000000000000000000010",
+        "tff_00000000000000000000000000000011",
+        "tff_00000000000000000000000000000012",
+        "tff_00000000000000000000000000000013",
+        "tff_00000000000000000000000000000014"
+      ],
+      "expectedTotal": 26,
+      "expectedHasNext": true
+    }
+  ],
+  "cursorCases": [
+    {
+      "id": "filter-changed",
+      "firstQuery": {},
+      "nextQuery": {
+        "language": "zh"
+      },
+      "expectedCode": 40931
+    },
+    {
+      "id": "listing-changed",
+      "firstListingRevision": 3,
+      "nextListingRevision": 4,
+      "expectedCode": 40931
+    },
+    {
+      "id": "same-primary-sort-key",
+      "direction": "desc",
+      "expectedTieBreak": "familyId-asc"
+    },
+    {
+      "id": "malformed",
+      "cursor": "!",
+      "expectedHttpStatus": 400
+    }
+  ],
+  "publicationHistoryCases": [
+    {
+      "id": "publish-rollback-withdraw",
+      "events": [
+        {
+          "action": "publish",
+          "versionId": "tfv_00000000000000000000000000000002"
+        },
+        {
+          "action": "publish",
+          "versionId": "tfv_00000000000000000000000000000001"
+        },
+        {
+          "action": "withdraw",
+          "versionId": "tfv_00000000000000000000000000000001"
+        }
+      ],
+      "expectedLastPublishedVersionId": "tfv_00000000000000000000000000000001",
+      "expectedCurrentVersionId": null,
+      "expectedStatus": "withdrawn",
+      "expectedHistoricalPublishedAtUnchanged": true
+    },
+    {
+      "id": "no-reliable-history",
+      "currentVersionId": null,
+      "events": [],
+      "expectedRestoreOldVersion": false,
+      "hasPublishedVersion": true,
+      "expectedMigrationFailure": true,
+      "expectedMisclassifiedAsDraft": false
+    }
+  ],
+  "orderCases": [
+    {
+      "id": "two-language-atomic",
+      "input": {
+        "expectedCatalogRevision": 7,
+        "groups": [
+          {
+            "language": "zh",
+            "items": [
+              {
+                "familyId": "tff_00000000000000000000000000000002",
+                "expectedFamilyRevision": 1
+              },
+              {
+                "familyId": "tff_00000000000000000000000000000001",
+                "expectedFamilyRevision": 1
+              }
+            ]
+          },
+          {
+            "language": "ja",
+            "items": [
+              {
+                "familyId": "tff_00000000000000000000000000000004",
+                "expectedFamilyRevision": 1
+              },
+              {
+                "familyId": "tff_00000000000000000000000000000003",
+                "expectedFamilyRevision": 1
+              }
+            ]
+          }
+        ]
+      },
+      "expectedChanged": true,
+      "expectedCatalogIncrements": 1,
+      "expectedListingIncrements": 1,
+      "expectedHistoricalVersionsUnchanged": true,
+      "expectedArtifactBytesUnchanged": true,
+      "expectedPostSourceUnchanged": true
+    },
+    {
+      "id": "same-order-noop",
+      "expectedChanged": false,
+      "expectedCatalogIncrements": 0,
+      "expectedListingIncrements": 0,
+      "expectedAuditCount": 0
+    },
+    {
+      "id": "missing-member",
+      "expectedHttpStatus": 409,
+      "expectedCode": 40928,
+      "expectedGroupsWritten": 0
+    },
+    {
+      "id": "duplicate-member",
+      "expectedHttpStatus": 409,
+      "expectedCode": 40928,
+      "expectedGroupsWritten": 0
+    },
+    {
+      "id": "duplicate-language",
+      "expectedHttpStatus": 409,
+      "expectedCode": 40928,
+      "expectedGroupsWritten": 0
+    },
+    {
+      "id": "cross-language",
+      "expectedHttpStatus": 409,
+      "expectedCode": 40928,
+      "expectedGroupsWritten": 0
+    },
+    {
+      "id": "no-longer-selectable",
+      "expectedHttpStatus": 409,
+      "expectedCode": 40928,
+      "expectedGroupsWritten": 0
+    },
+    {
+      "id": "concurrent-new-member",
+      "expectedHttpStatus": 409,
+      "expectedCode": 40928,
+      "expectedGroupsWritten": 0
+    },
+    {
+      "id": "stale-family-revision",
+      "expectedHttpStatus": 409,
+      "expectedCode": 40928,
+      "expectedGroupsWritten": 0
+    },
+    {
+      "id": "stale-catalog-revision",
+      "expectedHttpStatus": 409,
+      "expectedCode": 40928,
+      "expectedGroupsWritten": 0
+    }
+  ],
+  "metadataCases": [
+    {
+      "id": "multiline-original-license",
+      "nameId": 13,
+      "text": "Copyright Example\r\nPermission to redistribute.\n\tKeep this notice.",
+      "expectedText": "Copyright Example\r\nPermission to redistribute.\n\tKeep this notice.",
+      "expectedOmitted": false
+    },
+    {
+      "id": "reject-nul-in-license",
+      "nameId": 13,
+      "text": "bad\u0000text",
+      "expectedOmitted": true
+    }
+  ],
+  "versionReuseCases": [
+    {
+      "id": "same-source-renamed",
+      "sourceSame": true,
+      "nameBefore": "旧名称",
+      "nameAfter": "新名称",
+      "expectedSameArtifact": true,
+      "expectedSameVersion": false,
+      "expectedVersionName": "新名称",
+      "expectedHistoricalConfigurationUnchanged": true
+    },
+    {
+      "id": "same-source-after-withdrawal",
+      "sourceSame": true,
+      "previousWithdrawn": true,
+      "expectedSameArtifact": true,
+      "expectedSameVersion": false,
+      "expectedNewVersionStatus": "preview",
+      "expectedHistoricalWithdrawalUnchanged": true
+    }
+  ]
+}

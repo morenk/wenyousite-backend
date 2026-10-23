@@ -53,6 +53,33 @@ afterAll(async () => {
 });
 beforeEach(() => upload.mockClear());
 
+it.each([
+  ['GET', '/management', undefined],
+  ['POST', '/submissions', { submissionId: 'f48fc025-1ff4-48b5-b6c2-fc9ae6517f79', name: '字体' }],
+  ['GET', '/submissions/f48fc025-1ff4-48b5-b6c2-fc9ae6517f79', undefined],
+  [
+    'POST',
+    '/submissions/f48fc025-1ff4-48b5-b6c2-fc9ae6517f79/process',
+    { requestId: 'f48fc025-1ff4-48b5-b6c2-fc9ae6517f79' },
+  ],
+  ['PUT', '/order', { expectedCatalogRevision: 0, groups: [{ language: 'zh', items: [] }] }],
+] as const)('契约先行的 %s %s 失败关闭，不误入旧家族路由', async (method, path, payload) => {
+  const result = await app.inject({ method, url: '/api/v1/admin/text-fonts' + path, payload });
+  expect(result.statusCode).toBe(503);
+  expect(upload).not.toHaveBeenCalled();
+});
+
+it('契约先行的 submissionId 上传不会降级为非幂等旧上传', async () => {
+  const result = await app.inject({
+    method: 'POST',
+    url: sourcePath + '&submissionId=f48fc025-1ff4-48b5-b6c2-fc9ae6517f79',
+    headers: { 'content-type': 'application/octet-stream' },
+    payload: Buffer.alloc(4),
+  });
+  expect(result.statusCode).toBe(503);
+  expect(upload).not.toHaveBeenCalled();
+});
+
 it.each([1048577, 11 * 1024 * 1024, FONT_SOURCE_MAX_BYTES])(
   '真实 Controller 接受 %i 字节原件且 DTO 保持原始 Buffer',
   async (size) => {

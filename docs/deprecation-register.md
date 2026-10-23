@@ -1,5 +1,7 @@
 # 兼容协议登记
 
+- 字体后台 5.44 新增简化提交与独立管理列表，保留旧手工授权上传、after/limit 列表、公开字体 v1/v2、历史版本及资源；不清理旧缓存，不修改历史正文。原子顺序保存只影响未来目录展示。退出条件仍为无消费者、数据已迁移、回归覆盖、回滚路径明确，另行评审。见[字体管理契约](admin-font-management.md)。
+
 Android APK 源站 URL：保留历史 promotion/TSV 原文与旧 APP HEAD metadata。新公开文件 URL 独立记录；关闭 APK 公共读需完成预热、本站 meta/Web、旧 APP 验收后独立评审，不修改图片桶或实例开关。见 [下载网关契约](app-download-gateway.md)。
 
 | 协议 | 状态 | 消费者与退出条件 |

@@ -23323,6 +23323,693 @@
         "x-auth-mode": "admin"
       }
     },
+    "/api/v1/admin/text-fonts/management": {
+      "get": {
+        "operationId": "adminTextFontsManagement",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "管理展示名称包含匹配；已发布按最后当前版本、未发布按草稿。NFC、去首尾空白、不区分大小写，%/_ 按文字处理。",
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          },
+          {
+            "name": "language",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "zh",
+                "ja",
+                "en",
+                "other"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "enabled",
+                "disabled",
+                "withdrawn"
+              ]
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "createdAt",
+              "type": "string",
+              "enum": [
+                "createdAt",
+                "updatedAt",
+                "name",
+                "sortOrder"
+              ]
+            }
+          },
+          {
+            "name": "direction",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "desc",
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "不透明游标，绑定规范筛选、排序及管理列表修订；变化返回 409/40931，从第一页重取。",
+            "schema": {
+              "maxLength": 2048,
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Markdown-Contract-Version",
+            "in": "header",
+            "required": false,
+            "description": "声明 6 以读取原始角色提及源和稳定目标投影；省略/低版本安全降级响应副本，不能回写 v6 正文。服务端全局 Markdown 仍为 5",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                6
+              ]
+            }
+          },
+          {
+            "name": "X-Text-Color-Version",
+            "in": "header",
+            "required": false,
+            "description": "声明 1 读取文本颜色原始源码；缺失只返回安全去色副本，不能覆盖彩色原文。",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1
+              ]
+            }
+          },
+          {
+            "name": "X-Text-Font-Version",
+            "in": "header",
+            "required": false,
+            "description": "声明 2 读取 v1/v2 混合字体源；1 仅保留 v1，缺失去除两版字体。降级副本不能覆盖未支持字体的原文。颜色能力单独协商。",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1,
+                2
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "全量筛选后稳定排序、每页20条；独立于旧 after/limit 列表。游标绑定筛选排序与列表修订。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTextFontsManagement200Response"
+                }
+              }
+            },
+            "headers": {
+              "Vary": {
+                "description": "追加 X-Markdown-Contract-Version 、X-Text-Color-Version 与 X-Text-Font-Version，保留已有 Origin/Accept 等；缓存不得混用能力响应或会话",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "Vary": {
+                "description": "追加 X-Markdown-Contract-Version 、X-Text-Color-Version 与 X-Text-Font-Version，保留已有 Origin/Accept 等；缓存不得混用能力响应或会话",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "tags": [
+          "Admin Text Fonts"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/text-fonts/submissions": {
+      "post": {
+        "operationId": "adminTextFontsCreateSubmission",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Markdown-Contract-Version",
+            "in": "header",
+            "required": false,
+            "description": "声明 6 以读取原始角色提及源和稳定目标投影；省略/低版本安全降级响应副本，不能回写 v6 正文。服务端全局 Markdown 仍为 5",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                6
+              ]
+            }
+          },
+          {
+            "name": "X-Text-Color-Version",
+            "in": "header",
+            "required": false,
+            "description": "声明 1 读取文本颜色原始源码；缺失只返回安全去色副本，不能覆盖彩色原文。",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1
+              ]
+            }
+          },
+          {
+            "name": "X-Text-Font-Version",
+            "in": "header",
+            "required": false,
+            "description": "声明 2 读取 v1/v2 混合字体源；1 仅保留 v1，缺失去除两版字体。降级副本不能覆盖未支持字体的原文。颜色能力单独协商。",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1,
+                2
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFontSubmissionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "按 submissionId 幂等创建/恢复简化提交；新字体自动分配语言分类末尾顺序，已有家族新版沿用顺序。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTextFontsCreateSubmission201Response"
+                }
+              }
+            },
+            "headers": {
+              "Vary": {
+                "description": "追加 X-Markdown-Contract-Version 、X-Text-Color-Version 与 X-Text-Font-Version，保留已有 Origin/Accept 等；缓存不得混用能力响应或会话",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "Vary": {
+                "description": "追加 X-Markdown-Contract-Version 、X-Text-Color-Version 与 X-Text-Font-Version，保留已有 Origin/Accept 等；缓存不得混用能力响应或会话",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "tags": [
+          "Admin Text Fonts"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/text-fonts/submissions/{submissionId}": {
+      "get": {
+        "operationId": "adminTextFontsSubmission",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "submissionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Markdown-Contract-Version",
+            "in": "header",
+            "required": false,
+            "description": "声明 6 以读取原始角色提及源和稳定目标投影；省略/低版本安全降级响应副本，不能回写 v6 正文。服务端全局 Markdown 仍为 5",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                6
+              ]
+            }
+          },
+          {
+            "name": "X-Text-Color-Version",
+            "in": "header",
+            "required": false,
+            "description": "声明 1 读取文本颜色原始源码；缺失只返回安全去色副本，不能覆盖彩色原文。",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1
+              ]
+            }
+          },
+          {
+            "name": "X-Text-Font-Version",
+            "in": "header",
+            "required": false,
+            "description": "声明 2 读取 v1/v2 混合字体源；1 仅保留 v1，缺失去除两版字体。降级副本不能覆盖未支持字体的原文。颜色能力单独协商。",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1,
+                2
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "按持久化提交标识恢复；job 非 null 时不再重传源。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTextFontsSubmission200Response"
+                }
+              }
+            },
+            "headers": {
+              "Vary": {
+                "description": "追加 X-Markdown-Contract-Version 、X-Text-Color-Version 与 X-Text-Font-Version，保留已有 Origin/Accept 等；缓存不得混用能力响应或会话",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "Vary": {
+                "description": "追加 X-Markdown-Contract-Version 、X-Text-Color-Version 与 X-Text-Font-Version，保留已有 Origin/Accept 等；缓存不得混用能力响应或会话",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "tags": [
+          "Admin Text Fonts"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/text-fonts/submissions/{submissionId}/process": {
+      "post": {
+        "operationId": "adminTextFontsProcessSubmission",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "submissionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Markdown-Contract-Version",
+            "in": "header",
+            "required": false,
+            "description": "声明 6 以读取原始角色提及源和稳定目标投影；省略/低版本安全降级响应副本，不能回写 v6 正文。服务端全局 Markdown 仍为 5",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                6
+              ]
+            }
+          },
+          {
+            "name": "X-Text-Color-Version",
+            "in": "header",
+            "required": false,
+            "description": "声明 1 读取文本颜色原始源码；缺失只返回安全去色副本，不能覆盖彩色原文。",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1
+              ]
+            }
+          },
+          {
+            "name": "X-Text-Font-Version",
+            "in": "header",
+            "required": false,
+            "description": "声明 2 读取 v1/v2 混合字体源；1 仅保留 v1，缺失去除两版字体。降级副本不能覆盖未支持字体的原文。颜色能力单独协商。",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1,
+                2
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProcessFontSubmissionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "按 requestId 幂等启动或重试已上传的同一任务；旧请求重放不能重复排队，新的明确重试才生成新的尝试。成功后仍需预览和独立发布。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTextFontsProcessSubmission201Response"
+                }
+              }
+            },
+            "headers": {
+              "Vary": {
+                "description": "追加 X-Markdown-Contract-Version 、X-Text-Color-Version 与 X-Text-Font-Version，保留已有 Origin/Accept 等；缓存不得混用能力响应或会话",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "Vary": {
+                "description": "追加 X-Markdown-Contract-Version 、X-Text-Color-Version 与 X-Text-Font-Version，保留已有 Origin/Accept 等；缓存不得混用能力响应或会话",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "tags": [
+          "Admin Text Fonts"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
+    "/api/v1/admin/text-fonts/order": {
+      "put": {
+        "operationId": "adminTextFontsReorder",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "description": "管理后台写操作必填",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Markdown-Contract-Version",
+            "in": "header",
+            "required": false,
+            "description": "声明 6 以读取原始角色提及源和稳定目标投影；省略/低版本安全降级响应副本，不能回写 v6 正文。服务端全局 Markdown 仍为 5",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                6
+              ]
+            }
+          },
+          {
+            "name": "X-Text-Color-Version",
+            "in": "header",
+            "required": false,
+            "description": "声明 1 读取文本颜色原始源码；缺失只返回安全去色副本，不能覆盖彩色原文。",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1
+              ]
+            }
+          },
+          {
+            "name": "X-Text-Font-Version",
+            "in": "header",
+            "required": false,
+            "description": "声明 2 读取 v1/v2 混合字体源；1 仅保留 v1，缺失去除两版字体。降级副本不能覆盖未支持字体的原文。颜色能力单独协商。",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1,
+                2
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderFontsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "原子保存受影响语言的完整可选家族顺序；校验成员及修订，一次更新目录。顺序未变不增修订，不重建、不改版本ID或正文。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTextFontsReorder200Response"
+                }
+              }
+            },
+            "headers": {
+              "Vary": {
+                "description": "追加 X-Markdown-Contract-Version 、X-Text-Color-Version 与 X-Text-Font-Version，保留已有 Origin/Accept 等；缓存不得混用能力响应或会话",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          },
+          "default": {
+            "description": "未在此操作中单独列出的错误响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "headers": {
+              "Vary": {
+                "description": "追加 X-Markdown-Contract-Version 、X-Text-Color-Version 与 X-Text-Font-Version，保留已有 Origin/Accept 等；缓存不得混用能力响应或会话",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-API-Contract-Version": {
+                "$ref": "#/components/headers/XApiContractVersion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "adminSession": [],
+            "adminCsrf": []
+          }
+        ],
+        "tags": [
+          "Admin Text Fonts"
+        ],
+        "x-auth-mode": "admin"
+      }
+    },
     "/api/v1/admin/text-fonts/jobs/{jobId}": {
       "get": {
         "operationId": "adminTextFontsGetJob",
@@ -24224,6 +24911,16 @@
             "required": true,
             "in": "path",
             "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "submissionId",
+            "required": false,
+            "in": "query",
+            "description": "简化提交标识；绑定已有提交、授权确认及唯一任务。省略时完全沿用旧授权流程。",
+            "schema": {
+              "format": "uuid",
               "type": "string"
             }
           },
@@ -38372,7 +39069,7 @@
   "info": {
     "title": "温油站 API",
     "description": "温油站共同创作社区后端接口文档 | [前端接入指南](../docs/frontend-guide.md)",
-    "version": "5.43.0-dev.20261022.3",
+    "version": "5.44.0-dev.20261024.1",
     "contact": {}
   },
   "tags": [
@@ -46470,6 +47167,421 @@
           "nextAfter"
         ]
       },
+      "FontJobDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "pattern": "^tfj_[a-f0-9]{32}$"
+          },
+          "familyId": {
+            "type": "string",
+            "pattern": "^tff_[a-f0-9]{32}$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "queued",
+              "processing",
+              "ready",
+              "failed"
+            ]
+          },
+          "sourceSha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "sourceBytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 67108864
+          },
+          "versionId": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^tfv_[a-f0-9]{32}$"
+          },
+          "failureCode": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "invalid-font",
+              "unsupported-font",
+              "rights-required",
+              "resource-limit",
+              "sandbox-unavailable",
+              "processing-failed"
+            ]
+          },
+          "failureReason": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "embedding-restricted",
+              "subsetting-restricted",
+              "bitmap-only"
+            ],
+            "description": "固定、无原始解析错误的拒绝说明；fsType 限制即使管理员确认也不能绕过。"
+          }
+        },
+        "required": [
+          "jobId",
+          "familyId",
+          "status",
+          "sourceSha256",
+          "sourceBytes",
+          "versionId",
+          "failureCode"
+        ]
+      },
+      "FontManagementItemDto": {
+        "type": "object",
+        "properties": {
+          "familyId": {
+            "type": "string",
+            "pattern": "^tff_[a-f0-9]{32}$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "zh",
+              "ja",
+              "en",
+              "other"
+            ]
+          },
+          "sortOrder": {
+            "type": "integer"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "enabled",
+              "disabled",
+              "withdrawn"
+            ],
+            "description": "最后当前版本已撤回优先；从未发布为 draft，否则按家族 enabled 分类。"
+          },
+          "currentVersionId": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^tfv_[a-f0-9]{32}$"
+          },
+          "lastPublishedVersionId": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^tfv_[a-f0-9]{32}$",
+            "description": "最后被设为当前的已发布版本，含撤回墓碑；不是按版本号猜测。"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "家族修改时间；心跳和仅任务进度变化不作为排序修改。"
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "withdrawnAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "latestJob": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FontJobDto"
+              }
+            ]
+          },
+          "latestSubmissionId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          }
+        },
+        "required": [
+          "familyId",
+          "name",
+          "language",
+          "sortOrder",
+          "revision",
+          "enabled",
+          "status",
+          "currentVersionId",
+          "lastPublishedVersionId",
+          "createdAt",
+          "updatedAt",
+          "publishedAt",
+          "withdrawnAt",
+          "latestJob",
+          "latestSubmissionId"
+        ]
+      },
+      "FontManagementPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FontManagementItemDto"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "先对全量家族筛选，再计算匹配数量。"
+          },
+          "listingRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "catalogRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "listingRevision",
+          "catalogRevision",
+          "nextCursor"
+        ]
+      },
+      "CreateFontSubmissionDto": {
+        "type": "object",
+        "properties": {
+          "submissionId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "客户端为一次提交生成并持久化 UUID v4；超时、刷新和并发重试复用。"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "zh",
+              "ja",
+              "en",
+              "other"
+            ],
+            "default": "other"
+          },
+          "familyId": {
+            "type": "string",
+            "pattern": "^tff_[a-f0-9]{32}$",
+            "description": "为已有家族上传新版时提供；须同时提供 expectedFamilyRevision。"
+          },
+          "expectedFamilyRevision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "submissionId",
+          "name"
+        ]
+      },
+      "FontSubmissionDto": {
+        "type": "object",
+        "properties": {
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "familyId": {
+            "type": "string",
+            "pattern": "^tff_[a-f0-9]{32}$"
+          },
+          "familyRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "当前家族修订；首次源上传使用此值。已绑定源的重放不重新校验旧修订。"
+          },
+          "name": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "zh",
+              "ja",
+              "en",
+              "other"
+            ]
+          },
+          "sortOrder": {
+            "type": "integer"
+          },
+          "authorizationRuleVersion": {
+            "type": "string",
+            "enum": [
+              "admin-font-upload-v1"
+            ],
+            "description": "上传即确认分发、转码和分片；服务端记录实际上传者、时间及源 SHA，不能替代字体原始许可。"
+          },
+          "job": {
+            "nullable": true,
+            "description": "null 表示尚未完成源绑定；非 null 时无需重传，直接恢复查询/处理。",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FontJobDto"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "submissionId",
+          "familyId",
+          "familyRevision",
+          "name",
+          "language",
+          "sortOrder",
+          "authorizationRuleVersion",
+          "job",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "ProcessFontSubmissionDto": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "一次启动/重试意图的 UUID v4；网络重发复用，用户明确再次重试才生成新值。"
+          }
+        },
+        "required": [
+          "requestId"
+        ]
+      },
+      "FontOrderItemDto": {
+        "type": "object",
+        "properties": {
+          "familyId": {
+            "type": "string",
+            "pattern": "^tff_[a-f0-9]{32}$"
+          },
+          "expectedFamilyRevision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "familyId",
+          "expectedFamilyRevision"
+        ]
+      },
+      "FontOrderGroupDto": {
+        "type": "object",
+        "properties": {
+          "language": {
+            "type": "string",
+            "enum": [
+              "zh",
+              "ja",
+              "en",
+              "other"
+            ],
+            "description": "当前已发布版本的语言，与公开目录一致。"
+          },
+          "items": {
+            "maxItems": 10000,
+            "description": "此语言全部当前可选家族，数组顺序为最终展示顺序；不能只提交当前分页或搜索结果。",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FontOrderItemDto"
+            }
+          }
+        },
+        "required": [
+          "language",
+          "items"
+        ]
+      },
+      "ReorderFontsDto": {
+        "type": "object",
+        "properties": {
+          "groups": {
+            "minItems": 1,
+            "maxItems": 4,
+            "description": "本次变更的语言组，语言不得重复；所有组一次事务提交。",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FontOrderGroupDto"
+            }
+          },
+          "expectedCatalogRevision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "groups",
+          "expectedCatalogRevision"
+        ]
+      },
+      "FontReorderResultDto": {
+        "type": "object",
+        "properties": {
+          "catalogRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "listingRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "changed": {
+            "type": "boolean",
+            "description": "顺序未变为 false，不产生修订或审计；有变化后客户端刷新列表。"
+          }
+        },
+        "required": [
+          "catalogRevision",
+          "listingRevision",
+          "changed"
+        ]
+      },
       "FontConfigurationDto": {
         "type": "object",
         "properties": {
@@ -46528,64 +47640,6 @@
           "licenseText",
           "specimenText",
           "rights"
-        ]
-      },
-      "FontJobDto": {
-        "type": "object",
-        "properties": {
-          "jobId": {
-            "type": "string",
-            "pattern": "^tfj_[a-f0-9]{32}$"
-          },
-          "familyId": {
-            "type": "string",
-            "pattern": "^tff_[a-f0-9]{32}$"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "draft",
-              "queued",
-              "processing",
-              "ready",
-              "failed"
-            ]
-          },
-          "sourceSha256": {
-            "type": "string",
-            "pattern": "^[a-f0-9]{64}$"
-          },
-          "sourceBytes": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 67108864
-          },
-          "versionId": {
-            "type": "string",
-            "nullable": true,
-            "pattern": "^tfv_[a-f0-9]{32}$"
-          },
-          "failureCode": {
-            "type": "string",
-            "nullable": true,
-            "enum": [
-              "invalid-font",
-              "unsupported-font",
-              "rights-required",
-              "resource-limit",
-              "sandbox-unavailable",
-              "processing-failed"
-            ]
-          }
-        },
-        "required": [
-          "jobId",
-          "familyId",
-          "status",
-          "sourceSha256",
-          "sourceBytes",
-          "versionId",
-          "failureCode"
         ]
       },
       "FontAssetDto": {
@@ -55170,6 +56224,96 @@
           }
         ]
       },
+      "AdminTextFontsManagement200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/FontManagementPageDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminTextFontsCreateSubmission201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/FontSubmissionDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminTextFontsSubmission200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/FontSubmissionDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminTextFontsProcessSubmission201Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/FontJobDto"
+              }
+            }
+          }
+        ]
+      },
+      "AdminTextFontsReorder200Response": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiSuccessEnvelope"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/FontReorderResultDto"
+              }
+            }
+          }
+        ]
+      },
       "AdminTextFontsGetJob200Response": {
         "allOf": [
           {
@@ -57191,6 +58335,8 @@
           40927,
           40928,
           40929,
+          40930,
+          40931,
           41001,
           50301,
           42900,
@@ -57304,6 +58450,8 @@
           "TEXT_FONT_CATALOG_CHANGED",
           "TEXT_FONT_STATE_CONFLICT",
           "TEXT_FONT_RIGHTS_REQUIRED",
+          "TEXT_FONT_SUBMISSION_CONFLICT",
+          "TEXT_FONT_LIST_CHANGED",
           "TEXT_FONT_WITHDRAWN",
           "TEXT_FONT_UNAVAILABLE",
           "RATE_LIMITED",

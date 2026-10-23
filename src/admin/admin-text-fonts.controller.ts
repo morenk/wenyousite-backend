@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Put, Query, Req, Res } from '@nestjs/common';
 import {
   ApiBody,
   ApiConsumes,
@@ -29,6 +29,16 @@ import {
   UpdateFontConfigurationDto,
 } from '../text-fonts/dto/font-admin.dto';
 import { FontVersionDescriptorDto } from '../text-fonts/dto/font-public.dto';
+import {
+  CreateFontSubmissionDto,
+  FontSubmissionDto,
+  ProcessFontSubmissionDto,
+  FontManagementQueryDto,
+  FontManagementPageDto,
+  ReorderFontsDto,
+  FontReorderResultDto,
+} from '../text-fonts/dto/font-management.dto';
+import { fontManagementPending } from '../text-fonts/font-management-contract';
 
 const context = (user: CurrentUserPayload, request: FastifyRequest) => ({
   actorId: user.id,
@@ -49,6 +59,58 @@ export class AdminTextFontsController {
   @ApiOkResponse({ type: FontAdminPageDto })
   async list(@Query() query: FontAdminListQueryDto): Promise<FontAdminPageDto> {
     return this.queries.list(query);
+  }
+
+  @Get('management')
+  @ApiOkResponse({
+    type: FontManagementPageDto,
+    description:
+      '全量筛选后稳定排序、每页20条；独立于旧 after/limit 列表。游标绑定筛选排序与列表修订。',
+  })
+  async management(@Query() _query: FontManagementQueryDto): Promise<FontManagementPageDto> {
+    return fontManagementPending();
+  }
+
+  @Post('submissions')
+  @ApiCreatedResponse({
+    type: FontSubmissionDto,
+    description:
+      '按 submissionId 幂等创建/恢复简化提交；新字体自动分配语言分类末尾顺序，已有家族新版沿用顺序。',
+  })
+  async createSubmission(@Body() _dto: CreateFontSubmissionDto): Promise<FontSubmissionDto> {
+    return fontManagementPending();
+  }
+
+  @Get('submissions/:submissionId')
+  @ApiOkResponse({
+    type: FontSubmissionDto,
+    description: '按持久化提交标识恢复；job 非 null 时不再重传源。',
+  })
+  async submission(@Param('submissionId') _submissionId: string): Promise<FontSubmissionDto> {
+    return fontManagementPending();
+  }
+
+  @Post('submissions/:submissionId/process')
+  @ApiCreatedResponse({
+    type: FontJobDto,
+    description:
+      '按 requestId 幂等启动或重试已上传的同一任务；旧请求重放不能重复排队，新的明确重试才生成新的尝试。成功后仍需预览和独立发布。',
+  })
+  async processSubmission(
+    @Param('submissionId') _submissionId: string,
+    @Body() _dto: ProcessFontSubmissionDto,
+  ): Promise<FontJobDto> {
+    return fontManagementPending();
+  }
+
+  @Put('order')
+  @ApiOkResponse({
+    type: FontReorderResultDto,
+    description:
+      '原子保存受影响语言的完整可选家族顺序；校验成员及修订，一次更新目录。顺序未变不增修订，不重建、不改版本ID或正文。',
+  })
+  async reorder(@Body() _dto: ReorderFontsDto): Promise<FontReorderResultDto> {
+    return fontManagementPending();
   }
 
   @Post()
@@ -157,6 +219,7 @@ export class AdminTextFontsController {
     @CurrentUser() user: CurrentUserPayload,
     @Req() request: FastifyRequest,
   ): Promise<FontJobDto> {
+    if (query.submissionId) return fontManagementPending();
     return this.fonts.upload(familyId, query, source, context(user, request));
   }
 

@@ -4,6 +4,8 @@ Android 匿名下载 JSON、固定构建 GET/HEAD、范围请求和迁移见 [�
 
 ## 事实源与优先级
 
+字体后台 `5.44.0-dev.20261024.1` 新增简化提交、恢复、20 条管理列表与原子批量顺序接口；流程、幂等和兼容边界见[字体管理契约](admin-font-management.md)。本阶段新增运行入口暂 503 关闭，契约用于消费者准备，不表示可部署。
+
 1. `src/**` DTO、控制器装饰器与统一响应拦截器定义运行时和源 schema。
 2. `contracts/openapi.json` 是经过评审、供 Web/Flutter 生成代码的固定契约产物。
 3. `docs/api-endpoints.md` 与 `docs/error-codes.md` 是自动生成的人类索引。
