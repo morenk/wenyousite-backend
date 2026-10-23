@@ -51,3 +51,22 @@ if __name__ == '__main__':
     large['TEST'] = newTable('TEST')
     large['TEST'].data = bytes(11 * 1024 * 1024)
     large.save(root / 'fixture-large.ttf')
+
+    for bits, label in [(2, 'restricted'), (512, 'bitmap-only'), (770, 'combined-restrictions')]:
+        limited = TTFont(root / 'fixture-1.ttf', recalcTimestamp=False)
+        limited['OS/2'].fsType = bits
+        limited.save(root / ('fixture-' + label + '.ttf'))
+    licensed = TTFont(root / 'fixture-1.ttf', recalcTimestamp=False)
+    licensed['name'].setName('Copyright Example\r\nPermission to redistribute.\n\tKeep this notice.', 13, 3, 1, 0x409)
+    licensed['name'].setName('Original fixture designer', 9, 3, 1, 0x409)
+    licensed.save(root / 'fixture-multiline-license.ttf')
+    malformed = TTFont(root / 'fixture-1.ttf', recalcTimestamp=False)
+    from fontTools.ttLib.tables._n_a_m_e import NameRecord
+    record = NameRecord(); record.nameID = 13; record.platformID = 3; record.platEncID = 1; record.langID = 0x409; record.string = b'\x00'
+    malformed['name'].names.append(record)
+    malformed.save(root / 'fixture-malformed-license.ttf')
+
+    for label, count, text in [('oversize-license', 1, 'A' * 8193), ('many-license', 300, 'A'), ('total-license', 20, 'A' * 8192), ('control-license', 1, 'bad\x00text')]:
+        bounded = TTFont(root / 'fixture-1.ttf', recalcTimestamp=False)
+        for index in range(count): bounded['name'].setName(text, 13, 3, 1, 0x1000 + index)
+        bounded.save(root / ('fixture-' + label + '.ttf'))

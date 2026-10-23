@@ -21,6 +21,7 @@ import {
   FONT_JOB_PATTERN,
   FONT_SHA_PATTERN,
   FONT_SOURCE_MAX_BYTES,
+  FONT_SORT_ORDER_LIMIT,
   FONT_VERSION_PATTERN,
 } from '../font-protocol';
 
@@ -45,10 +46,10 @@ export class FontConfigurationDto {
   @ApiProperty({ enum: ['zh', 'ja', 'en', 'other'] })
   @IsIn(['zh', 'ja', 'en', 'other'])
   designLanguage!: 'zh' | 'ja' | 'en' | 'other';
-  @ApiProperty({ type: 'integer', minimum: -1000000, maximum: 1000000 })
+  @ApiProperty({ type: 'integer', minimum: -FONT_SORT_ORDER_LIMIT, maximum: FONT_SORT_ORDER_LIMIT })
   @IsInt()
-  @Min(-1000000)
-  @Max(1000000)
+  @Min(-FONT_SORT_ORDER_LIMIT)
+  @Max(FONT_SORT_ORDER_LIMIT)
   sortOrder!: number;
   @ApiProperty({ maxLength: 200 })
   @IsString()

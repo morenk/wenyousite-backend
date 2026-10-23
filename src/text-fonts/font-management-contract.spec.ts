@@ -12,11 +12,54 @@ import {
   FONT_UPLOAD_RULE_VERSION,
 } from './font-management-contract';
 import { API_CONTRACT_VERSION } from '../common/swagger/openapi-document';
+import { selectFontManagementPage } from './font-management.service';
 
 const fixture = JSON.parse(
   readFileSync(join(__dirname, '../../contracts/admin-font-management-v1-fixtures.json'), 'utf8'),
 );
 const pipe = new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true });
+
+it.each(
+  fixture.listCases as {
+    id: string;
+    query: Record<string, string>;
+    afterCase?: string;
+    expectedFamilyIds: string[];
+    expectedTotal: number;
+    expectedHasNext: boolean;
+  }[],
+)('$id：全量筛选后稳定分页符合跨端样例', (row) => {
+  const candidates = fixture.listDataset.map((item: Record<string, unknown>) => ({
+    ...item,
+    createdAt: new Date(item.createdAt as string),
+    updatedAt: new Date(item.updatedAt as string),
+  }));
+  const query = Object.assign(new FontManagementQueryDto(), row.query);
+  const result = selectFontManagementPage(candidates, query, row.afterCase ? 20 : 0);
+  expect(result.total).toBe(row.expectedTotal);
+  expect(result.items.map((item) => item.familyId)).toEqual(row.expectedFamilyIds);
+  expect((row.afterCase ? 20 : 0) + result.items.length < result.total).toBe(row.expectedHasNext);
+});
+
+it('Unicode 大小写、组合音符匹配和主排序并列不依赖 PostgreSQL locale', () => {
+  const candidates = fixture.listDataset
+    .slice(0, 3)
+    .map((item: Record<string, unknown>) => ({
+      ...item,
+      name: 'CAFÉ',
+      createdAt: new Date(0),
+      updatedAt: new Date(0),
+    }));
+  const result = selectFontManagementPage(
+    candidates.reverse(),
+    Object.assign(new FontManagementQueryDto(), { q: ' cafe\u0301 ', sort: 'name' }),
+    0,
+  );
+  expect(result.total).toBe(3);
+  expect(result.items.map((item) => item.familyId)).toEqual(
+    fixture.listDataset.slice(0, 3).map((item: Record<string, unknown>) => item.familyId),
+  );
+});
 
 it.each(
   fixture.createCases as { id: string; input: unknown; accepted: boolean; expected?: unknown }[],

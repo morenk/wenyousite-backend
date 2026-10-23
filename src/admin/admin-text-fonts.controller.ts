@@ -1,4 +1,16 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, Query, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Put,
+  Query,
+  Req,
+  Res,
+} from '@nestjs/common';
 import {
   ApiBody,
   ApiConsumes,
@@ -38,7 +50,8 @@ import {
   ReorderFontsDto,
   FontReorderResultDto,
 } from '../text-fonts/dto/font-management.dto';
-import { fontManagementPending } from '../text-fonts/font-management-contract';
+import { FontSubmissionService } from '../text-fonts/font-submission.service';
+import { FontManagementService } from '../text-fonts/font-management.service';
 
 const context = (user: CurrentUserPayload, request: FastifyRequest) => ({
   actorId: user.id,
@@ -53,6 +66,8 @@ export class AdminTextFontsController {
   constructor(
     private readonly fonts: FontAdminService,
     private readonly queries: FontQueryService,
+    private readonly submissions: FontSubmissionService,
+    private readonly managementService: FontManagementService,
   ) {}
 
   @Get()
@@ -67,8 +82,8 @@ export class AdminTextFontsController {
     description:
       '全量筛选后稳定排序、每页20条；独立于旧 after/limit 列表。游标绑定筛选排序与列表修订。',
   })
-  async management(@Query() _query: FontManagementQueryDto): Promise<FontManagementPageDto> {
-    return fontManagementPending();
+  async management(@Query() query: FontManagementQueryDto): Promise<FontManagementPageDto> {
+    return this.managementService.list(query);
   }
 
   @Post('submissions')
@@ -77,8 +92,12 @@ export class AdminTextFontsController {
     description:
       '按 submissionId 幂等创建/恢复简化提交；新字体自动分配语言分类末尾顺序，已有家族新版沿用顺序。',
   })
-  async createSubmission(@Body() _dto: CreateFontSubmissionDto): Promise<FontSubmissionDto> {
-    return fontManagementPending();
+  async createSubmission(
+    @Body() dto: CreateFontSubmissionDto,
+    @CurrentUser() user: CurrentUserPayload,
+    @Req() request: FastifyRequest,
+  ): Promise<FontSubmissionDto> {
+    return this.submissions.create(dto, context(user, request));
   }
 
   @Get('submissions/:submissionId')
@@ -86,8 +105,10 @@ export class AdminTextFontsController {
     type: FontSubmissionDto,
     description: '按持久化提交标识恢复；job 非 null 时不再重传源。',
   })
-  async submission(@Param('submissionId') _submissionId: string): Promise<FontSubmissionDto> {
-    return fontManagementPending();
+  async submission(
+    @Param('submissionId', new ParseUUIDPipe({ version: '4' })) submissionId: string,
+  ): Promise<FontSubmissionDto> {
+    return this.submissions.get(submissionId);
   }
 
   @Post('submissions/:submissionId/process')
@@ -97,10 +118,12 @@ export class AdminTextFontsController {
       '按 requestId 幂等启动或重试已上传的同一任务；旧请求重放不能重复排队，新的明确重试才生成新的尝试。成功后仍需预览和独立发布。',
   })
   async processSubmission(
-    @Param('submissionId') _submissionId: string,
-    @Body() _dto: ProcessFontSubmissionDto,
+    @Param('submissionId', new ParseUUIDPipe({ version: '4' })) submissionId: string,
+    @Body() dto: ProcessFontSubmissionDto,
+    @CurrentUser() user: CurrentUserPayload,
+    @Req() request: FastifyRequest,
   ): Promise<FontJobDto> {
-    return fontManagementPending();
+    return this.submissions.process(submissionId, dto.requestId, context(user, request));
   }
 
   @Put('order')
@@ -109,8 +132,12 @@ export class AdminTextFontsController {
     description:
       '原子保存受影响语言的完整可选家族顺序；校验成员及修订，一次更新目录。顺序未变不增修订，不重建、不改版本ID或正文。',
   })
-  async reorder(@Body() _dto: ReorderFontsDto): Promise<FontReorderResultDto> {
-    return fontManagementPending();
+  async reorder(
+    @Body() dto: ReorderFontsDto,
+    @CurrentUser() user: CurrentUserPayload,
+    @Req() request: FastifyRequest,
+  ): Promise<FontReorderResultDto> {
+    return this.managementService.reorder(dto, context(user, request));
   }
 
   @Post()
@@ -219,7 +246,8 @@ export class AdminTextFontsController {
     @CurrentUser() user: CurrentUserPayload,
     @Req() request: FastifyRequest,
   ): Promise<FontJobDto> {
-    if (query.submissionId) return fontManagementPending();
+    if (query.submissionId)
+      return this.submissions.upload(familyId, query, source, context(user, request));
     return this.fonts.upload(familyId, query, source, context(user, request));
   }
 

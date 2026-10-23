@@ -189,7 +189,10 @@ export class FontQueryService {
       const family = await tx.textFontFamily.findUnique({
         where: { id: familyId },
         include: {
-          jobs: { orderBy: { createdAt: 'desc' } },
+          jobs: {
+            orderBy: { createdAt: 'desc' },
+            include: { submission: { select: { id: true } } },
+          },
           versions: { orderBy: { versionNumber: 'desc' }, select: { id: true } },
         },
       });
@@ -197,7 +200,7 @@ export class FontQueryService {
       const head = await tx.textFontCatalogHead.findUniqueOrThrow({ where: { id: 1 } });
       return {
         ...fontFamilyDto(family, head.revision),
-        jobs: family.jobs.map(fontJobDto),
+        jobs: family.jobs.map((job) => fontJobDto(job, job.submission?.id)),
         versionIds: family.versions.map((version) => version.id),
       };
     });
@@ -206,8 +209,11 @@ export class FontQueryService {
   async job(jobId: string) {
     this.storage.requireConfigured();
     fontIdentity(jobId, 'tfj');
-    const job = await this.prisma.textFontBuildJob.findUnique({ where: { id: jobId } });
+    const job = await this.prisma.textFontBuildJob.findUnique({
+      where: { id: jobId },
+      include: { submission: { select: { id: true } } },
+    });
     if (!job) throw notFound();
-    return fontJobDto(job);
+    return fontJobDto(job, job.submission?.id);
   }
 }

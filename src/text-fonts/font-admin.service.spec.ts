@@ -51,7 +51,7 @@ function setup() {
     withdrawnAt: null as Date | null,
     artifact: { assets: [], specimenSha: 'd'.repeat(64), specimenSize: 4 },
   };
-  const head = { revision: 3 };
+  const head = { revision: 3, listingRevision: 0 };
   const tx = {
     $queryRaw: jest.fn().mockResolvedValue([{ id: actor.actorId }]),
     textFontFamily: {
@@ -74,7 +74,7 @@ function setup() {
     },
     textFontCatalogHead: {
       findUniqueOrThrow: jest.fn().mockResolvedValue(head),
-      update: jest.fn(),
+      update: jest.fn().mockResolvedValue({ ...head, listingRevision: 1 }),
     },
     textFontCatalogRelease: { create: jest.fn().mockResolvedValue({ id: 'release' }) },
   };
@@ -120,7 +120,7 @@ describe('字体管理写入策略', () => {
     ).resolves.toMatchObject({ revision: 2 });
     expect(s.tx.textFontFamily.update).toHaveBeenCalledWith({
       where: { id: familyId },
-      data: { configuration: config, revision: { increment: 1 } },
+      data: { configuration: config, specimenAutomatic: false, revision: { increment: 1 } },
     });
   });
   it('无效身份、已删除操作人和过期修订均不能写入', async () => {
@@ -212,7 +212,11 @@ describe('字体管理写入策略', () => {
     });
     expect(s.tx.textFontFamily.update).toHaveBeenCalledWith({
       where: { id: familyId },
-      data: { currentVersionId: versionId, revision: { increment: 1 } },
+      data: {
+        currentVersionId: versionId,
+        lastPublishedVersionId: versionId,
+        revision: { increment: 1 },
+      },
     });
     expect(s.tx.textFontCatalogHead.update).toHaveBeenCalledWith({
       where: { id: 1 },

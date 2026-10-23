@@ -1778,43 +1778,51 @@ enum TextFontJobStatus {
 }
 
 model TextFontFamily {
-  id               String   @id
-  configuration    Json
-  revision         Int      @default(1)
-  enabled          Boolean  @default(true)
-  currentVersionId String?  @unique @map("current_version_id")
-  nextVersion      Int      @default(1) @map("next_version")
-  legacyId         String?  @unique @map("legacy_id")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  specimenAutomatic      Boolean  @default(false) @map("specimen_automatic")
+  id                     String   @id
+  configuration          Json
+  revision               Int      @default(1)
+  enabled                Boolean  @default(true)
+  currentVersionId       String?  @unique @map("current_version_id")
+  lastPublishedVersionId String?  @unique @map("last_published_version_id")
+  nextVersion            Int      @default(1) @map("next_version")
+  legacyId               String?  @unique @map("legacy_id")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
 
-  currentVersion TextFontVersion?   @relation("CurrentFontVersion", fields: [currentVersionId], references: [id], onDelete: Restrict)
-  versions       TextFontVersion[]  @relation("FamilyFontVersions")
-  jobs           TextFontBuildJob[]
+  currentVersion       TextFontVersion?     @relation("CurrentFontVersion", fields: [currentVersionId], references: [id], onDelete: Restrict)
+  versions             TextFontVersion[]    @relation("FamilyFontVersions")
+  jobs                 TextFontBuildJob[]
+  submissions          TextFontSubmission[]
+  lastPublishedVersion TextFontVersion?     @relation("LastPublishedFontVersion", fields: [lastPublishedVersionId], references: [id], onDelete: Restrict)
 
   @@map("text_font_families")
 }
 
 model TextFontBuildJob {
-  id             String            @id
-  familyId       String            @map("family_id")
-  configuration  Json
-  sourceSha256   String            @map("source_sha256")
-  sourceBytes    Int               @map("source_bytes")
-  sourceFormat   String            @map("source_format")
-  sourceKey      String            @map("source_key")
-  status         TextFontJobStatus @default(DRAFT)
-  attempt        Int               @default(0)
-  buildKey       String?           @map("build_key")
-  versionId      String?           @map("version_id")
-  claimToken     String?           @map("claim_token")
-  leaseExpiresAt DateTime?         @map("lease_expires_at")
-  failureCode    String?           @map("failure_code")
-  createdAt      DateTime          @default(now()) @map("created_at")
-  updatedAt      DateTime          @updatedAt @map("updated_at")
+  id                  String            @id
+  familyId            String            @map("family_id")
+  configuration       Json
+  parametersVersion   Int               @default(1) @map("parameters_version")
+  uploadAuthorization Json?             @map("upload_authorization")
+  sourceSha256        String            @map("source_sha256")
+  sourceBytes         Int               @map("source_bytes")
+  sourceFormat        String            @map("source_format")
+  sourceKey           String            @map("source_key")
+  status              TextFontJobStatus @default(DRAFT)
+  attempt             Int               @default(0)
+  buildKey            String?           @map("build_key")
+  versionId           String?           @map("version_id")
+  claimToken          String?           @map("claim_token")
+  leaseExpiresAt      DateTime?         @map("lease_expires_at")
+  failureCode         String?           @map("failure_code")
+  failureReason       String?           @map("failure_reason")
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
 
-  family  TextFontFamily   @relation(fields: [familyId], references: [id], onDelete: Restrict)
-  version TextFontVersion? @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  submission TextFontSubmission?
+  family     TextFontFamily      @relation(fields: [familyId], references: [id], onDelete: Restrict)
+  version    TextFontVersion?    @relation(fields: [versionId], references: [id], onDelete: Restrict)
 
   @@index([familyId, createdAt])
   @@index([status, leaseExpiresAt])
@@ -1839,30 +1847,36 @@ model TextFontArtifact {
 }
 
 model TextFontVersion {
-  id            String    @id
-  familyId      String    @map("family_id")
-  versionNumber Int       @map("version_number")
-  artifactKey   String    @map("artifact_key")
-  configuration Json
-  publishedAt   DateTime? @map("published_at")
-  withdrawnAt   DateTime? @map("withdrawn_at")
-  createdAt     DateTime  @default(now()) @map("created_at")
+  id                  String    @id
+  familyId            String    @map("family_id")
+  versionNumber       Int       @map("version_number")
+  artifactKey         String    @map("artifact_key")
+  reuseKey            String?   @map("reuse_key")
+  parametersVersion   Int       @default(1) @map("parameters_version")
+  uploadAuthorization Json?     @map("upload_authorization")
+  configuration       Json
+  publishedAt         DateTime? @map("published_at")
+  withdrawnAt         DateTime? @map("withdrawn_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
 
-  family     TextFontFamily     @relation("FamilyFontVersions", fields: [familyId], references: [id], onDelete: Restrict)
-  currentFor TextFontFamily?    @relation("CurrentFontVersion")
-  artifact   TextFontArtifact   @relation(fields: [artifactKey], references: [buildKey], onDelete: Restrict)
-  jobs       TextFontBuildJob[]
+  family           TextFontFamily     @relation("FamilyFontVersions", fields: [familyId], references: [id], onDelete: Restrict)
+  currentFor       TextFontFamily?    @relation("CurrentFontVersion")
+  lastPublishedFor TextFontFamily?    @relation("LastPublishedFontVersion")
+  artifact         TextFontArtifact   @relation(fields: [artifactKey], references: [buildKey], onDelete: Restrict)
+  jobs             TextFontBuildJob[]
 
   @@unique([familyId, versionNumber])
-  @@unique([familyId, artifactKey])
+  @@unique([familyId, reuseKey])
+  @@index([familyId, artifactKey])
   @@map("text_font_versions")
 }
 
 model TextFontCatalogHead {
-  id        Int                     @id @default(1)
-  revision  Int                     @default(0)
-  releaseId String?                 @unique @map("release_id")
-  release   TextFontCatalogRelease? @relation(fields: [releaseId], references: [id], onDelete: Restrict)
+  id              Int                     @id @default(1)
+  revision        Int                     @default(0)
+  listingRevision Int                     @default(0) @map("listing_revision")
+  releaseId       String?                 @unique @map("release_id")
+  release         TextFontCatalogRelease? @relation(fields: [releaseId], references: [id], onDelete: Restrict)
 
   @@map("text_font_catalog_head")
 }
@@ -1875,4 +1889,32 @@ model TextFontCatalogRelease {
   head      TextFontCatalogHead?
 
   @@map("text_font_catalog_releases")
+}
+
+model TextFontSubmission {
+  id            String                   @id @db.Uuid
+  familyId      String                   @map("family_id")
+  actorId       String                   @map("actor_id")
+  requestSha256 String                   @map("request_sha256")
+  configuration Json
+  jobId         String?                  @unique @map("job_id")
+  createdAt     DateTime                 @default(now()) @map("created_at")
+  updatedAt     DateTime                 @updatedAt @map("updated_at")
+  family        TextFontFamily           @relation(fields: [familyId], references: [id], onDelete: Restrict)
+  job           TextFontBuildJob?        @relation(fields: [jobId], references: [id], onDelete: Restrict)
+  requests      TextFontProcessRequest[]
+
+  @@index([familyId, createdAt])
+  @@map("text_font_submissions")
+}
+
+model TextFontProcessRequest {
+  submissionId String             @map("submission_id") @db.Uuid
+  requestId    String             @map("request_id") @db.Uuid
+  attempt      Int
+  createdAt    DateTime           @default(now()) @map("created_at")
+  submission   TextFontSubmission @relation(fields: [submissionId], references: [id], onDelete: Restrict)
+
+  @@id([submissionId, requestId])
+  @@map("text_font_process_requests")
 }

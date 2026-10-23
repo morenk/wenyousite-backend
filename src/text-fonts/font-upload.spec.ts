@@ -7,6 +7,8 @@ import { AdminTextFontsController } from '../admin/admin-text-fonts.controller';
 import { AdminGuard } from '../admin/guards/admin.guard';
 import { FontAdminService } from './font-admin.service';
 import { FontQueryService } from './font-query.service';
+import { FontSubmissionService } from './font-submission.service';
+import { FontManagementService } from './font-management.service';
 import { registerFontSourceParser } from './font-upload';
 import { FONT_SOURCE_MAX_BYTES } from './font-protocol';
 
@@ -16,12 +18,25 @@ let app: NestFastifyApplication;
 const upload = jest.fn(async (_familyId: string, _query: unknown, bytes: Buffer) => ({
   bytes: bytes.length,
 }));
+const submissions = {
+  create: jest.fn(async () => ({ operation: 'create' })),
+  get: jest.fn(async () => ({ operation: 'get' })),
+  process: jest.fn(async () => ({ operation: 'process' })),
+  upload: jest.fn(async (_familyId: string, _query: unknown, bytes: Buffer) => ({
+    bytes: bytes.length,
+  })),
+};
+const management = {
+  list: jest.fn(async () => ({ operation: 'list' })),
+  reorder: jest.fn(async () => ({ operation: 'reorder' })),
+};
+let adminAllowed = true;
 const adminIdentity: CanActivate = {
   canActivate(context: ExecutionContext) {
     context.switchToHttp().getRequest<FastifyRequest & { user: { id: string } }>().user = {
       id: 'unit-admin',
     };
-    return true;
+    return adminAllowed;
   },
 };
 beforeAll(async () => {
@@ -30,6 +45,8 @@ beforeAll(async () => {
     providers: [
       { provide: FontAdminService, useValue: { upload } },
       { provide: FontQueryService, useValue: {} },
+      { provide: FontSubmissionService, useValue: submissions },
+      { provide: FontManagementService, useValue: management },
     ],
   })
     .overrideGuard(AdminGuard)
@@ -51,7 +68,10 @@ beforeAll(async () => {
 afterAll(async () => {
   await app.close();
 });
-beforeEach(() => upload.mockClear());
+beforeEach(() => {
+  jest.clearAllMocks();
+  adminAllowed = true;
+});
 
 it.each([
   ['GET', '/management', undefined],
@@ -63,20 +83,23 @@ it.each([
     { requestId: 'f48fc025-1ff4-48b5-b6c2-fc9ae6517f79' },
   ],
   ['PUT', '/order', { expectedCatalogRevision: 0, groups: [{ language: 'zh', items: [] }] }],
-] as const)('契约先行的 %s %s 失败关闭，不误入旧家族路由', async (method, path, payload) => {
+] as const)('%s %s 正确分派到新管理用例，不误入旧家族路由', async (method, path, payload) => {
   const result = await app.inject({ method, url: '/api/v1/admin/text-fonts' + path, payload });
-  expect(result.statusCode).toBe(503);
+  expect(result.statusCode).toBe(method === 'POST' ? 201 : 200);
+  expect(result.json().operation).toBeTruthy();
   expect(upload).not.toHaveBeenCalled();
 });
 
-it('契约先行的 submissionId 上传不会降级为非幂等旧上传', async () => {
+it('submissionId 上传使用简化用例且仍接收原始 Buffer', async () => {
   const result = await app.inject({
     method: 'POST',
     url: sourcePath + '&submissionId=f48fc025-1ff4-48b5-b6c2-fc9ae6517f79',
     headers: { 'content-type': 'application/octet-stream' },
     payload: Buffer.alloc(4),
   });
-  expect(result.statusCode).toBe(503);
+  expect(result.statusCode).toBe(201);
+  expect(submissions.upload).toHaveBeenCalledTimes(1);
+  expect(result.json()).toEqual({ bytes: 4 });
   expect(upload).not.toHaveBeenCalled();
 });
 
@@ -128,4 +151,27 @@ it('其他二进制接口保留 Fastify 默认 1 MiB 限制', async () => {
   });
   expect(result.statusCode).toBe(413);
   expect(upload).not.toHaveBeenCalled();
+});
+
+it('新管理写操作仍受管理员 Guard 约束，未授权不调用领域用例', async () => {
+  adminAllowed = false;
+  const result = await app.inject({
+    method: 'POST',
+    url: '/api/v1/admin/text-fonts/submissions',
+    payload: { submissionId: 'f48fc025-1ff4-48b5-b6c2-fc9ae6517f79', name: '字体' },
+  });
+  expect(result.statusCode).toBe(403);
+  expect(submissions.create).not.toHaveBeenCalled();
+});
+it('恢复和处理路径拒绝无效 UUID，不将格式错误传给数据库', async () => {
+  for (const suffix of ['', '/process']) {
+    const result = await app.inject({
+      method: suffix ? 'POST' : 'GET',
+      url: '/api/v1/admin/text-fonts/submissions/not-a-uuid' + suffix,
+      ...(suffix ? { payload: { requestId: 'f48fc025-1ff4-48b5-b6c2-fc9ae6517f79' } } : {}),
+    });
+    expect(result.statusCode).toBe(400);
+  }
+  expect(submissions.get).not.toHaveBeenCalled();
+  expect(submissions.process).not.toHaveBeenCalled();
 });

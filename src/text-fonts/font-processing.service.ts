@@ -8,14 +8,16 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../moderation/audit.service';
 import { FontStorageService } from './font-storage.service';
 import { FontProcessingFailure, FontSandboxService } from './font-sandbox.service';
-import { fontBuildIdentity } from './font-build-identity';
+import { fontBuildIdentity, fontVersionReuseKey } from './font-build-identity';
+import { requireFontAuthorization } from './font-authorization';
+import { FONT_UPLOAD_RULE_VERSION } from './font-management-contract';
 import {
   fontConfiguration,
   fontJson,
   fontSha,
   lockFontState,
   newFontId,
-  requireFontRights,
+  bumpFontListing,
 } from './font-domain';
 import { FONT_DOCUMENT_MAX_BYTES, fontManifestAssets, validateFontManifest } from './font-manifest';
 import { FontAssetDto } from './dto/font-public.dto';
@@ -70,14 +72,24 @@ export class FontProcessingService {
           claimToken: claim,
           leaseExpiresAt: new Date(Date.now() + LEASE_MS),
           failureCode: null,
+          failureReason: null,
         },
       });
     });
     if (!job) return;
     const stopLease = this.maintainLease(jobId, attempt, claim);
     try {
-      requireFontRights(fontConfiguration(job.configuration));
-      const build = await fontBuildIdentity(job.sourceSha256, fontConfiguration(job.configuration));
+      requireFontAuthorization(
+        fontConfiguration(job.configuration),
+        job.sourceSha256,
+        job.parametersVersion,
+        job.uploadAuthorization,
+      );
+      const build = await fontBuildIdentity(
+        job.sourceSha256,
+        fontConfiguration(job.configuration),
+        job.parametersVersion,
+      );
       if (!job.buildKey || job.buildKey !== build.key)
         throw new FontProcessingFailure('processing-failed');
       let artifact: TextFontArtifact | ArtifactData | null =
@@ -112,9 +124,15 @@ export class FontProcessingService {
         });
         if (stored.manifestSha !== complete.manifestSha)
           throw new FontProcessingFailure('processing-failed');
+        const reuseKey = fontVersionReuseKey(
+          build.key,
+          fontConfiguration(job.configuration),
+          job.parametersVersion,
+        );
         let version = await tx.textFontVersion.findUnique({
-          where: { familyId_artifactKey: { familyId: job.familyId, artifactKey: build.key } },
+          where: { familyId_reuseKey: { familyId: job.familyId, reuseKey } },
         });
+        if (version?.withdrawnAt) throw new FontProcessingFailure('processing-failed');
         if (!version) {
           const family = await tx.textFontFamily.update({
             where: { id: job.familyId },
@@ -126,9 +144,13 @@ export class FontProcessingService {
               familyId: job.familyId,
               versionNumber: family.nextVersion - 1,
               artifactKey: build.key,
+              reuseKey,
+              parametersVersion: job.parametersVersion,
+              uploadAuthorization: job.uploadAuthorization ?? Prisma.DbNull,
               configuration: fontJson(job.configuration),
             },
           });
+          await bumpFontListing(tx);
           await this.audit.record(
             {
               action: 'TEXT_FONT_VERSION_READY',
@@ -147,6 +169,7 @@ export class FontProcessingService {
             claimToken: null,
             leaseExpiresAt: null,
             failureCode: null,
+            failureReason: null,
           },
         });
       });
@@ -163,6 +186,7 @@ export class FontProcessingService {
             claimToken: null,
             leaseExpiresAt: null,
             failureCode: failure.code,
+            failureReason: failure.reason ?? null,
           },
         })
         .catch(() => {
@@ -224,11 +248,17 @@ export class FontProcessingService {
         JSON.stringify({
           sourceSha256: job.sourceSha256,
           buildKey: build.key,
-          configuration: fontConfiguration(job.configuration),
+          ...(job.parametersVersion === 2
+            ? {
+                parametersVersion: 2,
+                authorizationRuleVersion: FONT_UPLOAD_RULE_VERSION,
+                configuration: { specimenText: fontConfiguration(job.configuration).specimenText },
+              }
+            : { configuration: fontConfiguration(job.configuration) }),
         }),
         { flag: 'wx', mode: 0o400 },
       );
-      await this.sandbox.run(input, output);
+      await this.sandbox.run(input, output, { script: build.script });
       const resultStat = await lstat(join(output, 'result.json'));
       if (resultStat.size > 4096) throw new FontProcessingFailure('resource-limit');
       const result = JSON.parse(

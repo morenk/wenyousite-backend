@@ -18,8 +18,16 @@ export const FONT_FAILURE_CODES = [
   'sandbox-unavailable',
   'processing-failed',
 ] as const;
+export const FONT_FAILURE_REASONS = [
+  'embedding-restricted',
+  'subsetting-restricted',
+  'bitmap-only',
+] as const;
 export class FontProcessingFailure extends Error {
-  constructor(readonly code: (typeof FONT_FAILURE_CODES)[number]) {
+  constructor(
+    readonly code: (typeof FONT_FAILURE_CODES)[number],
+    readonly reason?: (typeof FONT_FAILURE_REASONS)[number],
+  ) {
     super(code);
   }
 }
@@ -220,7 +228,16 @@ export class FontSandboxService implements OnModuleDestroy {
             FONT_FAILURE_CODES.includes(parsed.failureCode as (typeof FONT_FAILURE_CODES)[number])
           )
             return reject(
-              new FontProcessingFailure(parsed.failureCode as (typeof FONT_FAILURE_CODES)[number]),
+              new FontProcessingFailure(
+                parsed.failureCode as (typeof FONT_FAILURE_CODES)[number],
+                parsed.failureCode === 'rights-required' &&
+                  'failureReason' in parsed &&
+                  FONT_FAILURE_REASONS.includes(
+                    parsed.failureReason as (typeof FONT_FAILURE_REASONS)[number],
+                  )
+                  ? (parsed.failureReason as (typeof FONT_FAILURE_REASONS)[number])
+                  : undefined,
+              ),
             );
         } catch {
           /* 只返回固定类别；不暴露字体正文、路径或解析器输出。 */
