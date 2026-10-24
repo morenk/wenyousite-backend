@@ -6,6 +6,11 @@ NODE_BINARY=${WENYOU_NODE_BINARY:-$RELEASE_DIR/bin/node}
 REVISION_FILE=${WENYOU_BACKEND_REVISION_FILE:-$RELEASE_DIR/BUILD_SHA}
 ENV_FILE=${WENYOU_BACKEND_ENV_FILE:-/etc/wenyousite/backend.env}
 
+if [ "$#" -gt 1 ] || { [ "$#" -eq 1 ] && [ "$1" != --sandbox-preflight ]; }; then
+  echo "用法: $0 [--sandbox-preflight]" >&2
+  exit 2
+fi
+
 if [ ! -d "$RELEASE_DIR" ]; then
   echo "后端 release 不存在: $RELEASE_DIR" >&2
   exit 1
@@ -46,4 +51,9 @@ if [ -n "${TEXT_FONT_STORAGE_ROOT:-}" ]; then
   export TEXT_FONT_TOOLCHAIN_DIR
 fi
 cd "$RELEASE_DIR"
+if [ "${1:-}" = --sandbox-preflight ]; then
+  [ -n "${TEXT_FONT_STORAGE_ROOT:-}" ] || { echo "字体工作目录缺失，拒绝启动 Worker" >&2; exit 1; }
+  exec env -i PATH=/usr/bin:/bin LANG=C.UTF-8 "$NODE_BINARY" \
+    dist/text-fonts/font-sandbox-preflight.js "$TEXT_FONT_STORAGE_ROOT" "$TEXT_FONT_TOOLCHAIN_DIR"
+fi
 exec env NODE_ENV=production BUILD_SHA="$BUILD_SHA" "$NODE_BINARY" dist/font-worker

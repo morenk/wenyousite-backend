@@ -7,6 +7,7 @@ import { dirname, join } from 'node:path';
 import { verifyIsolatedEnvironment } from './e2e-guard';
 import { FontStorageService } from '../src/text-fonts/font-storage.service';
 import { FontProcessingFailure, FontSandboxService } from '../src/text-fonts/font-sandbox.service';
+import { FONT_SANDBOX_PROBE_PATH } from '../src/text-fonts/font-sandbox-preflight';
 import { FontWorkDirectoryService } from '../src/text-fonts/font-work-directory.service';
 import { newFontId } from '../src/text-fonts/font-domain';
 
@@ -25,7 +26,8 @@ export async function verifyFontSandbox() {
     try {
       const input = join(ticket.root, 'input'), output = join(ticket.root, 'output');
       await mkdir(input, { mode: 0o700 }); await mkdir(output, { mode: 0o700 });
-      await writeFile(join(input, 'source'), 'input-canary', { mode: 0o400 });
+      await writeFile(join(input, 'source'), 'synthetic-font-sandbox-input', { mode: 0o400 });
+      await writeFile(join(input, 'probe.json'), JSON.stringify({ outsideCanary: canary }), { mode: 0o400 });
       const script = join(ticket.root, `${name}.py`);
       await writeFile(script, code, { mode: 0o400 });
       const run = sandbox.run(input, output, { script, wallMs });
@@ -40,35 +42,7 @@ export async function verifyFontSandbox() {
     } finally { await work.remove(ticket, true); }
   };
   try {
-    await probe('boundaries', `import errno, json, os, resource, socket
-resource.setrlimit(resource.RLIMIT_NPROC, (0, 0))
-assert os.getuid() != 0
-assert resource.getrlimit(resource.RLIMIT_AS) == (2147483648, 2147483648)
-assert resource.getrlimit(resource.RLIMIT_CPU) == (600, 600)
-assert 'NoNewPrivs:\\t1' in open('/proc/self/status').read()
-for path, mode in [(${JSON.stringify(canary)}, 'rb'), ('/input/source', 'wb'), ('/unexpected-write', 'wb')]:
-    try:
-        open(path, mode)
-        raise AssertionError('filesystem boundary bypass')
-    except OSError:
-        pass
-try:
-    socket.create_connection(('1.1.1.1', 443), timeout=1)
-    raise AssertionError('network boundary bypass')
-except OSError as error:
-    assert error.errno in (errno.ENETUNREACH, errno.EPERM, errno.EACCES)
-try:
-    os.fork()
-    os._exit(93)
-except OSError as error:
-    assert error.errno in (errno.EAGAIN, errno.EPERM)
-try:
-    bytearray(3 * 1024 * 1024 * 1024)
-    raise AssertionError('memory boundary bypass')
-except MemoryError:
-    pass
-open('/output/evidence.json', 'w').write(json.dumps({'passed': True}))
-`);
+    await probe('boundaries', await readFile(FONT_SANDBOX_PROBE_PATH, 'utf8'));
     await probe('wall-time', 'while True: pass\n', 'resource-limit', 150);
     await probe('oversize-output', "open('/output/oversize.ttf', 'wb').write(b'x' * 6291457)\n", 'resource-limit');
     assert.deepEqual(await work.abandoned(), []);

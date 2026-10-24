@@ -101,6 +101,14 @@ pnpm text-font:import-v1 --bundle /absolute/legacy-bundle --raw-sources /absolut
 
 部署脚本打包 `contracts/`、编译器及独立工具链，安装 [字体 Worker unit](../ops/wenyousite-font-worker.service)，按原部署门禁从已合并提交切换。公网沙箱工作目录固定为 `/var/lib/wenyousite/font-work`，应用用户拥有，API/Worker unit 仅额外开放此目录的写权限；不得用公开对象存储 URL 替代网关。Worker 启动器从不可变 release 读取 `BUILD_SHA` 和工具链，拒绝继承 owner 直连凭据。配置和首次历史导入仍由获授权的管理身份执行，本任务不重启或部署公网服务。
 
+字体 Worker 的地址族允许 `AF_NETLINK`，供 bubblewrap 在新网络命名空间内初始化 loopback；解析进程仍使用 `--unshare-net`，无法连接外网。外层 `ProtectKernelTunables` 和 `ProtectKernelLogs` 对 `/proc` 的屏蔽会阻止内层 PID/user namespace 重新挂载 proc，因此仅此 Worker 关闭这两项，同时显式清空 `CapabilityBoundingSet`、`AmbientCapabilities`，保留非 root、`NoNewPrivileges`、`PrivateDevices`、`ProtectSystem=strict` 及其他 unit 防护。宿主 sysctl 写入与内核日志读取由非 root 和空能力集拒绝，解析进程内的 `/proc`、`/dev`、输入和工具链仍只读；`ProtectSystem` 本身不负责保护 `/proc`。
+
+部署在构建、准备工具链后、任何备份/迁移/版本切换前运行 [systemd 沙箱预检](../scripts/font-sandbox-preflight.cjs)。预检从候选 unit 读取全部身份、安全和资源限制；遇到未分类、缺失或重复属性即失败。它只替换工作路径、日志和生命周期，在独立随机目录、临时 unit 中以应用身份执行合成探针，不继承业务环境，不连接数据库、Redis 或对象存储。探针验证宿主空能力集与内核资源拒绝、实际 bubblewrap 隔离、工具链版本、只读挂载、断网、禁 fork 和 2 GiB 内存上限，成功和失败都回收本次目录。管理身份可单独执行 `node scripts/font-sandbox-preflight.cjs`；`--unit FILE` 仅用于候选 unit 与故障回归验证，不修改现行服务。
+
+每次 Worker 启动还通过 `ExecStartPre` 在实际 unit 与不可变 release 下重复同一探针，失败时禁止启动队列消费者。业务凭据不会传给探针，也不输出子进程异常或用户字体信息；预检失败只输出固定失败标记。服务 `active` 与隔离测试直接启动 Worker 的结果不能替代上述同 unit 预检。排障与验收不自动重试既有字体任务。
+
+`pnpm test:font-sandbox:systemd` 由管理身份执行候选成功、缺失 `AF_NETLINK` 拒绝、外层 `/proc` 屏蔽拒绝三组真实 systemd 回归；只写合成目录与临时 unit。CI 在 `/var/lib/wenyousite` 的独立源码副本执行此门禁，避免通过关闭 `ProtectHome` 迁就 runner 工作路径。普通 `pnpm check` 覆盖启动器、属性派生、失败传播与清理单元测试，完整隔离 E2E 复用同一 Python 边界探针。
+
 持久字体资产随私有对象存储的数据保护策略管理；本地工作目录不进入字体资产备份。恢复需要匹配数据库中的不可变对象清单，在隔离目标 bucket 中复验全部 SHA/长度和匿名访问拒绝，再按既有门禁显式批准切换。不能只恢复数据库或本机工作目录便宣称字体资产已恢复。本任务不创建公网 bucket、不改变现有备份任务，也不宣称对象存储备份已验收。
 
 ## 同一 runId 的跨端会话
