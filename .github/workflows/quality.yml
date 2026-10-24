@@ -143,6 +143,20 @@ jobs:
             /usr/bin/python3.12 -I -B -c \
             'import os; assert os.getuid() != 0; assert "NoNewPrivs:\t1" in open("/proc/self/status").read(); print("font-sandbox-prerequisites: passed")'
       - run: pnpm text-font:prepare-toolchain
+      - name: Verify font sandbox under the production systemd restrictions
+        run: |
+          sudo groupadd --system wenyousite-runtime
+          sudo useradd --system --no-create-home --user-group wenyousite-backend
+          sudo install -d -m 0755 /var/lib/wenyousite
+          probe_repo=$(sudo mktemp -d /var/lib/wenyousite/font-ci-XXXXXX)
+          trap 'sudo rm -rf --one-file-system -- "$probe_repo"' EXIT
+          sudo chmod 0755 "$probe_repo"
+          sudo cp -a dist node_modules scripts ops "$probe_repo/"
+          sudo install -d -m 0755 "$probe_repo/.cache"
+          sudo cp -a .cache/thread-font-toolchain "$probe_repo/.cache/"
+          # ProtectHome 保持开启；只复制探针依赖，不传入应用环境或用户字体。
+          sudo env -i PATH="$(dirname "$(command -v node)"):/usr/bin:/bin" \
+            bash "$probe_repo/scripts/font-sandbox-preflight.integration.test.sh"
       - run: echo "TEXT_FONT_TOOLCHAIN_DIR=$GITHUB_WORKSPACE/.cache/thread-font-toolchain" >> "$GITHUB_ENV"
       - run: pnpm test:e2e:full
       - run: pnpm test:integration:audio-budget

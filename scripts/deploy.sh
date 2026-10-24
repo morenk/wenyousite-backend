@@ -29,7 +29,7 @@ if [ "$#" -eq 1 ]; then
 fi
 [ "$(id -u)" -eq 0 ] || { echo "公网部署必须以 root 运行" >&2; exit 1; }
 
-for command_name in curl docker flock git install jq node pnpm restic runuser systemctl bwrap python3.12 prlimit; do
+for command_name in curl docker flock git install jq node pnpm restic runuser systemctl systemd-run bwrap python3.12 prlimit; do
   command -v "$command_name" >/dev/null 2>&1 || { echo "缺少部署命令: $command_name" >&2; exit 1; }
 done
 if [ "$DEPLOY_FRONTEND" = true ] && [ ! -d "$FRONTEND_DIR" ]; then
@@ -86,6 +86,7 @@ set +a
 echo "2. 执行质量与生产依赖安全门禁..."
 (cd "$BACKEND_DIR" && pnpm security:audit && pnpm check)
 (cd "$BACKEND_DIR" && pnpm text-font:prepare-toolchain)
+node "$SCRIPT_DIR/font-sandbox-preflight.cjs"
 if [ "$DEPLOY_FRONTEND" = true ]; then (cd "$FRONTEND_DIR" && pnpm check); fi
 
 echo "3. 在有状态操作前重新验证提交..."

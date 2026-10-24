@@ -35,4 +35,16 @@ backend_restart_line=$(grep -n 'systemctl restart wenyousite-backend.service' "$
 }
 
 bash -n "$DEPLOY_SCRIPT"
+font_preflight_line=$(grep -n 'node "$SCRIPT_DIR/font-sandbox-preflight.cjs"' "$DEPLOY_SCRIPT" | cut -d: -f1)
+stateful_line=$(grep -n '4. 验证基础设施' "$DEPLOY_SCRIPT" | cut -d: -f1)
+[[ -n "$font_preflight_line" && -n "$stateful_line" ]] &&
+  (( font_preflight_line < stateful_line )) || {
+  echo "字体 systemd 预检必须先于备份、迁移和版本切换" >&2
+  exit 1
+}
+grep -Fxq 'ExecStartPre=/usr/local/sbin/wenyousite-font-worker-start --sandbox-preflight' \
+  "$SCRIPT_DIR/../ops/wenyousite-font-worker.service" || {
+  echo "字体 Worker 缺少同 unit 启动前预检" >&2
+  exit 1
+}
 echo "部署 Worker readiness 测试通过"

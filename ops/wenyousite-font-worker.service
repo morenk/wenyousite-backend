@@ -10,25 +10,31 @@ Group=wenyousite-backend
 SupplementaryGroups=wenyousite-runtime
 WorkingDirectory=/var/lib/wenyousite/backend/current
 EnvironmentFile=/etc/wenyousite/backend.env
+ExecStartPre=/usr/local/sbin/wenyousite-font-worker-start --sandbox-preflight
 ExecStart=/usr/local/sbin/wenyousite-font-worker-start
 Restart=on-failure
 RestartSec=2s
 TimeoutStopSec=30s
 KillSignal=SIGTERM
 NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
 UMask=0027
 PrivateTmp=true
 PrivateDevices=true
 ProtectHome=true
 ProtectSystem=strict
-ProtectKernelTunables=true
+# 外层屏蔽 /proc 会阻止 bwrap 在独立 PID/user namespace 挂载 proc。
+# 非 root、空能力集和 PrivateDevices 限制宿主内核访问；内层 /proc 保持只读。
+ProtectKernelTunables=false
 ProtectKernelModules=true
-ProtectKernelLogs=true
+ProtectKernelLogs=false
 ProtectControlGroups=true
 ProtectClock=true
 RestrictSUIDSGID=true
 LockPersonality=true
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# bwrap 通过 NETLINK_ROUTE 初始化独立网络 namespace 的 loopback。
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 ReadWritePaths=/var/log/wenyousite /var/lib/wenyousite/font-work
 LimitNOFILE=65535
 MemoryMax=3G

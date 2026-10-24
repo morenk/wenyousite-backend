@@ -66,6 +66,53 @@ for invalid_root in /tmp/font-work /var/lib/wenyousite/font-work; do
   fi
 done
 
+mkdir -p "$RELEASE_DIR/tools/font-runtime" "$RELEASE_DIR/dist/text-fonts"
+printf '{}\n' >"$RELEASE_DIR/tools/font-runtime/wenyou-toolchain.lock.json"
+printf 'placeholder\n' >"$RELEASE_DIR/dist/text-fonts/font-sandbox-preflight.js"
+cat >"$FAKE_NODE" <<'NODE'
+#!/usr/bin/env bash
+set -eu
+[ "$#" -eq 3 ]
+[ "$1" = dist/text-fonts/font-sandbox-preflight.js ]
+[ "$2" = /var/lib/wenyousite/font-work ]
+[[ "$3" = */release/tools/font-runtime ]]
+[ -z "${DATABASE_URL:-}${REDIS_PASSWORD:-}${BUILD_SHA:-}${NODE_ENV:-}" ]
+echo 'isolated-preflight'
+NODE
+output=$(TEXT_FONT_STORAGE_ROOT=/var/lib/wenyousite/font-work \
+  DATABASE_URL=synthetic-secret REDIS_PASSWORD=synthetic-secret \
+  WENYOU_BACKEND_RELEASE_DIR="$RELEASE_DIR" \
+  WENYOU_NODE_BINARY="$FAKE_NODE" \
+  WENYOU_BACKEND_REVISION_FILE="$REVISION_FILE" \
+  WENYOU_BACKEND_ENV_FILE="$ENV_FILE" \
+  bash "$START_SCRIPT" --sandbox-preflight)
+[ "$output" = isolated-preflight ] || { echo "预检未隔离环境" >&2; exit 1; }
+printf '#!/usr/bin/env bash\nexit 42\n' >"$FAKE_NODE"
+if TEXT_FONT_STORAGE_ROOT=/var/lib/wenyousite/font-work \
+  WENYOU_BACKEND_RELEASE_DIR="$RELEASE_DIR" \
+  WENYOU_NODE_BINARY="$FAKE_NODE" \
+  WENYOU_BACKEND_REVISION_FILE="$REVISION_FILE" \
+  WENYOU_BACKEND_ENV_FILE="$ENV_FILE" \
+  bash "$START_SCRIPT" --sandbox-preflight; then
+  echo "启动器吞掉了沙箱预检失败" >&2
+  exit 1
+else
+  [ "$?" -eq 42 ] || { echo "未传播预检退出码" >&2; exit 1; }
+fi
+
+printf '#!/usr/bin/env bash\nexit 0\n' >"$FAKE_NODE"
+for argument in --sandbox-preflight --unknown; do
+  if TEXT_FONT_STORAGE_ROOT= \
+    WENYOU_BACKEND_RELEASE_DIR="$RELEASE_DIR" \
+    WENYOU_NODE_BINARY="$FAKE_NODE" \
+    WENYOU_BACKEND_REVISION_FILE="$REVISION_FILE" \
+    WENYOU_BACKEND_ENV_FILE="$ENV_FILE" \
+    bash "$START_SCRIPT" "$argument" >/dev/null 2>&1; then
+    echo "启动器接受了缺失预检目录或未知参数" >&2
+    exit 1
+  fi
+done
+
 printf 'not-a-sha\n' >"$REVISION_FILE"
 if WENYOU_BACKEND_RELEASE_DIR="$RELEASE_DIR" \
   WENYOU_NODE_BINARY="$FAKE_NODE" \
