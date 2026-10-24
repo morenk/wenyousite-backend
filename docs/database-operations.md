@@ -132,6 +132,21 @@ bash scripts/validate-running-data-security.sh
 
 每个备份/维护/演练 unit 都通过 `OnFailure` 进入 SMTP 告警；同一 unit 一小时内最多发送一次。告警只包含 unit、主机、时间和受限 journal，不包含业务正文或凭据。备份成功时间戳位于 `/var/lib/wenyousite/backup-state`。
 
+备份健康巡检会记录 `pgbackrest_info` 阶段的开始、结束、命令退出码和耗时；整轮通过时记录
+`backup_health_success`，失败时记录单行 `backup_health_failure`。邮件冷却期间仍保留每轮
+journal，因此排障应同时查看首次失败、后续失败与恢复成功记录，不能根据邮件数量判断失败次数。
+
+pgBackRest 的顶层 `99/other` 只表示通用异常。失败日志中的 `diagnostics` 同时检查仓库级
+状态，并按仓库编号提取错误类型、网络原因、HTTP 状态码、S3 错误码和 stderr 中的
+pgBackRest 错误编号。例如 `HostConnectError` 配合 `timeout` 表示连接超时，HTTP `403`
+配合 `SignatureDoesNotMatch` 指向签名鉴权问题。命令非零退出、空输出或异常 JSON 均判定失败，
+并用 `output_state` 区分 `empty`、`invalid_json`、`invalid_shape` 与 `valid`。
+
+错误文本只用于白名单字段提取；日志和邮件不回显原始 stdout/stderr、请求头、URL、路径、
+S3 响应正文或未知错误文本。每条错误文本最多分析前 32768 个字符，超出时标记 `truncated`；
+最多记录四个失败仓库及有界的错误码列表。原始命令输出只暂存在本轮私有临时目录，退出时清理。
+诊断字段为空或标记截断时，需由管理入口进一步检查，不能把它解释为无错误。
+
 ## 指定时间恢复
 
 恢复准备永远创建新卷，示例目标必须为 UTC：
