@@ -38,6 +38,7 @@
     "role-mentions.integration.ts",
     "text-color.integration.ts",
     "text-font-v2.integration.ts",
+    "font-format.integration.ts",
     "e2e-font-object-store.ts"
   ]
 }
