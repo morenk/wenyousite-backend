@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createSecureContext, createServer, type TLSSocket } from 'node:tls';
 import * as nodemailer from 'nodemailer';
+import addressparser from 'nodemailer/lib/addressparser';
 import { dnsCache } from 'nodemailer/lib/shared';
 import { EmailService } from './email.service';
 
@@ -50,6 +51,27 @@ describe('Nodemailer 真实 transport 兼容与隔离', () => {
       expect(Buffer.isBuffer(result.message)).toBe(true);
       expect(result.message.toString()).toContain('Synthetic verification: 123456');
       expect(result.envelope.to).toEqual(['recipient@example.invalid']);
+    } finally {
+      transport.close();
+    }
+  });
+
+  it.each([
+    ['嵌套注释', 'Victim (x(y) <hidden@other.invalid>) <recipient@example.invalid>', 'recipient@example.invalid', 'recipient@example.invalid'],
+    ['组内注释分号', 'G: (a; <hidden@other.invalid>) <recipient@example.invalid>;', 'recipient@example.invalid', 'recipient@example.invalid'],
+    ['组内引号分号', 'G: "a;" "<hidden@other.invalid>" <recipient@example.invalid>;', 'recipient@example.invalid', 'recipient@example.invalid'],
+    ['local-part 内尖括号', '<"a@other.invalid>"@example.invalid>', '"a@other.invalid>"@example.invalid', '"a@other.invalid "@example.invalid'],
+  ])('%s 不得把显示文本变成额外收件人或改写目标域名', async (_name, to, parsed, envelope) => {
+    expect(addressparser(to, { flatten: true }).map((entry) => entry.address)).toEqual([parsed]);
+    const transport = nodemailer.createTransport({
+      streamTransport: true, buffer: true, disableFileAccess: true, disableUrlAccess: true,
+    });
+    try {
+      const result = await transport.sendMail({
+        from: 'sender@example.invalid', to, subject: 'Local address fixture', text: 'Synthetic content',
+      });
+      // MIME 组装会把 local-part 中的尖括号规范化为空格；域名和收件人数仍须精确匹配。
+      expect(result.envelope.to).toEqual([envelope]);
     } finally {
       transport.close();
     }

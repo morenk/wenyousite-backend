@@ -127,7 +127,7 @@
     "keyv": "^5.6.0",
     "markdown-it": "14.3.3",
     "nestjs-pino": "^4.2.0",
-    "nodemailer": "10.0.10",
+    "nodemailer": "10.1.4",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pino-http": "^10.4.0",
@@ -138,7 +138,7 @@
     "remove-markdown": "^0.6.4",
     "rxjs": "^7.8.2",
     "sharp": "^0.35.5",
-    "zod": "^4.4.3"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@aws-crypto/sha256-js": "^5.2.0",

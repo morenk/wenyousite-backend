@@ -1,3 +1,4 @@
+import { ZodError } from 'zod';
 import {
   FontManifest,
   validateFontManifest,
@@ -42,6 +43,13 @@ function fixture(): FontManifest {
 }
 
 describe('不可信字体 manifest 的结构、覆盖范围与资源预算', () => {
+  it('超量 notices 在遍历条目前拒绝，不为每个恶意元素分配错误', () => {
+    const readElement = jest.fn(() => { throw new Error('不应读取超量集合的元素'); });
+    const notices = Array(9);
+    Object.defineProperty(notices, 0, { get: readElement });
+    expect(() => validateFontManifest({ ...fixture(), notices })).toThrow(ZodError);
+    expect(readElement).not.toHaveBeenCalled();
+  });
   it('相邻分片合并后必须精确覆盖全集，同一内容资源可去重', () => {
     const value = fixture();
     value.notices.push({ ...value.notices[0] });

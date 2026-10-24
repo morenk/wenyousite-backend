@@ -4,7 +4,9 @@
 
 ## Nodemailer 10 兼容边界
 
-依赖精确锁定 `10.0.9`；保留 `10.0.2` 已引入的 [GHSA-6vj9-mwq6-2f5v 修复版本](https://github.com/nodemailer/nodemailer/security/advisories/GHSA-6vj9-mwq6-2f5v)。受影响版本在多个直接 TLS transport 共用 DNS 主机但使用不同 `tls.servername` 时，可能将前一连接的证书名称带入后一连接。升级后 DNS 缓存不再复用连接专属的 TLS 名称；不得通过关闭证书验证或忽略审计代替修复。
+依赖精确锁定 `10.1.4`；保留 `10.0.2` 已引入的 [GHSA-6vj9-mwq6-2f5v 修复版本](https://github.com/nodemailer/nodemailer/security/advisories/GHSA-6vj9-mwq6-2f5v)。受影响版本在多个直接 TLS transport 共用 DNS 主机但使用不同 `tls.servername` 时，可能将前一连接的证书名称带入后一连接。升级后 DNS 缓存不再复用连接专属的 TLS 名称；不得通过关闭证书验证或忽略审计代替修复。
+
+`10.1.4` 同时修复地址解析中的[嵌套注释](https://github.com/advisories/GHSA-8c8m-p3m8-cjg8)、[组内分号](https://github.com/advisories/GHSA-m943-m63m-w62w)和[引号 local-part 内尖括号](https://github.com/advisories/GHSA-85x2-q946-cp5h)边界，避免显示文本变成收件人或目标域名被改写。`nodemailer-transport.spec.ts` 用实际 stream transport 核验四类输入生成的 envelope，只允许语法指定的收件地址，不进行投递。
 
 [10.0.2 变更记录](https://github.com/nodemailer/nodemailer/releases/tag/v10.0.2)包含该 DNS 缓存修复；[10.0.0 发布说明](https://github.com/nodemailer/nodemailer/releases/tag/v10.0.0)要求 Node.js 20 以上并提供 CommonJS / ES module 双构建。本项目继续使用 CommonJS，升级验证运行时为 Node.js 24.18.0；无需更改 Node 或部署设施。
 
@@ -27,4 +29,4 @@ pnpm security:audit
 pnpm check:full
 ```
 
-本次批次同时升级 HTTP 依赖并修复管理 CSRF 路由判定，必须执行 `pnpm check:full`，包括独立 PostgreSQL/Redis 的 HTTP、认证、管理和其他关键旅程。正式发布继续由官方部署脚本重新执行安全审计及发布门禁；不得通过降级到受影响依赖或忽略审计交付修复。部署故障优先前滚，保留上一成功 release 及备份并按运维规则处理应急恢复。
+涉及邮件地址解析或 HTTP 依赖的安全补丁必须执行 `pnpm check:full`，包括独立 PostgreSQL/Redis 的 HTTP、认证、管理和其他关键旅程。正式发布继续由官方部署脚本重新执行安全审计及发布门禁；不得通过降级到受影响依赖或忽略审计交付修复。部署故障优先前滚，保留上一成功 release 及备份并按运维规则处理应急恢复。
