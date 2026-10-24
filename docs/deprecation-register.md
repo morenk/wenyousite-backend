@@ -19,6 +19,10 @@ Android APK 源站 URL：保留历史 promotion/TSV 原文与旧 APP HEAD metada
 
 - 动态帖列表静止策略复用现有 `MomentMediaResponseDto`，无新增或删除字段。GIF 原件 `url` 保留给详情播放和保存；缺少静态缩略图的历史动态在列表保持占位，不回填、不猜地址。动态表情 `mediumUrl=url` 兼容字段继续保留，静止预览使用 `thumbnailUrl`。本条不改变主题帖的预览兼容政策。
 
+## 字体默认样张兼容修订（2026-10-24）
+
+契约 `5.44.0-dev.20261024.3` 仅调整新自动提交的语言默认文案和共享 fixtures，HTTP 字段、参数版本与授权规则不变。旧提交、失败重试、已发布资源和自定义样张保留；无历史回填、协议删除或数据迁移。Backend 提交固定后，Web 管理页空值回退、Foundation 文案与 Windows Mobile fixtures 同步该提交；版本生成流程继续核验 OpenAPI 元数据，VPS 不代替 Windows 移动端验收。
+
 ## 富文本兼容保留登记
 
 本页登记 Backend 富文本专项的兼容边界，治理级清理要求仍见[统一弃用规则](https://github.com/morenk/wenyousite-workspace/blob/main/AGENTS.md#清理门禁)。新增行为 fixture/schema 仅用于测试，不表示移除任何正文协议或已发布客户端。
