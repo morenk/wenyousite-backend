@@ -21,7 +21,7 @@ export async function verifyFontSandbox() {
   const sandbox = new FontSandboxService(config);
   const canary = join(root, 'outside-font-sandbox-canary');
   await writeFile(canary, randomBytes(32), { mode: 0o600, flag: 'wx' });
-  const probe = async (name: 'boundaries' | 'wall-time' | 'oversize-output', code: string, failure?: string, wallMs?: number) => {
+  const probe = async (name: 'boundaries' | 'wall-time' | 'oversize-output' | 'diagnostic', code: string, failure?: string, wallMs?: number, diagnostic?: unknown) => {
     const ticket = await work.create(newFontId('tfj'), 1, randomBytes(16).toString('hex'), 'import');
     try {
       const input = join(ticket.root, 'input'), output = join(ticket.root, 'output');
@@ -31,7 +31,12 @@ export async function verifyFontSandbox() {
       const script = join(ticket.root, `${name}.py`);
       await writeFile(script, code, { mode: 0o400 });
       const run = sandbox.run(input, output, { script, wallMs });
-      if (failure) await assert.rejects(run, error => error instanceof Error && error.message === failure);
+      if (failure) await assert.rejects(run, error => {
+        assert(error instanceof FontProcessingFailure);
+        assert.equal(error.message, failure);
+        assert.deepEqual(error.diagnostic, diagnostic);
+        return true;
+      });
       else {
         await run;
         assert.equal(JSON.parse(await readFile(join(output, 'evidence.json'), 'utf8')).passed, true);
@@ -45,6 +50,11 @@ export async function verifyFontSandbox() {
     await probe('boundaries', await readFile(FONT_SANDBOX_PROBE_PATH, 'utf8'));
     await probe('wall-time', 'while True: pass\n', 'resource-limit', 150);
     await probe('oversize-output', "open('/output/oversize.ttf', 'wb').write(b'x' * 6291457)\n", 'resource-limit');
+    for (const valid of [true, false]) {
+      const diagnostic = { stage: valid ? 'instantiate' : '/private/font', category: valid ? 'value-error' : 'private-message', message: 'private-message', path: '/private/font' };
+      const code = `import json, sys\nsys.stderr.write('private-stderr')\nprint(json.dumps(${JSON.stringify({ failureCode: 'processing-failed', diagnostic })}))\nsys.exit(2)\n`;
+      await probe('diagnostic', code, 'processing-failed', undefined, valid ? { stage: 'instantiate', category: 'value-error' } : undefined);
+    }
     assert.deepEqual(await work.abandoned(), []);
   } finally { sandbox.onModuleDestroy(); }
 }

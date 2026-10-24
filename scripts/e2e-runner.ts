@@ -256,7 +256,12 @@ export async function run(args = process.argv.slice(2)) {
       const runScript = async (script: string, extra: NodeJS.ProcessEnv = {}) => {
         await r.verify();
         console.log(`验证：${script}`);
-        const child = r.spawn(process.execPath, ['--require', require.resolve('ts-node/register/transpile-only'), join(REPOSITORY, 'scripts', script)], { ...backendTestEnv, ...extra, TS_NODE_PROJECT: join(REPOSITORY, 'tsconfig.json') }, REPOSITORY);
+        const fontRepro = script === 'text-font-v2.integration.ts' ? {
+          E2E_FONT_REPRO_SOURCE: process.env.E2E_FONT_REPRO_SOURCE,
+          E2E_FONT_REPRO_SHA256: process.env.E2E_FONT_REPRO_SHA256,
+          E2E_FONT_REPRO_ARTIFACTS: process.env.E2E_FONT_REPRO_ARTIFACTS,
+        } : {};
+        const child = r.spawn(process.execPath, ['--require', require.resolve('ts-node/register/transpile-only'), join(REPOSITORY, 'scripts', script)], { ...backendTestEnv, ...fontRepro, ...extra, TS_NODE_PROJECT: join(REPOSITORY, 'tsconfig.json') }, REPOSITORY);
         const code = await waitForChildClose(child);
         if (code !== 0) {
           const failureLog = `/tmp/wenyousite-e2e-failure-${r.runId}.log`;

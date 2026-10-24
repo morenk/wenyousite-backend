@@ -12,8 +12,8 @@ sys.path.insert(0, str(Path(args.toolchain).resolve()))
 from fontTools.fontBuilder import FontBuilder
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 
-def make(path, variant):
-    font = FontBuilder(1000, isTTF=True)
+def make(path, variant, variable=None):
+    font = FontBuilder(1000, isTTF=variable != 'cff2')
     points = {32: 'space', 65: 'A', 66: 'B', 20013: 'uni4E2D', 25991: 'uni6587'}
     names = ['.notdef'] + list(points.values())
     font.setupGlyphOrder(names)
@@ -26,18 +26,38 @@ def make(path, variant):
             if variant != 2: pen.lineTo((80, 720))
             pen.closePath()
         glyphs[name] = pen.glyph()
-    font.setupGlyf(glyphs)
+    if variable != 'cff2':
+        font.setupGlyf(glyphs)
     font.setupHorizontalMetrics({name: (600, 0) for name in names})
     font.setupHorizontalHeader(ascent=800, descent=-200)
     font.setupNameTable({'familyName': 'WenyouFixture', 'styleName': 'Regular', 'uniqueFontIdentifier': 'WenyouFixture-' + str(variant), 'fullName': 'WenyouFixture Regular', 'psName': 'WenyouFixture-Regular'})
     font.setupOS2(sTypoAscender=800, sTypoDescender=-200, usWinAscent=800, usWinDescent=200)
     font.setupPost(); font.setupMaxp()
+    if variable:
+        # 非最小默认值和真实轮廓增量，防止只删除 fvar 而未正确实例化。
+        font.setupFvar([('BLED', 0, 40, 100, 'Bleed'), ('SCAN', -100, 20, 100, 'Scan')], [])
+        if variable == 'ttf':
+            from fontTools.ttLib.tables.TupleVariation import TupleVariation
+            font.setupGvar({name: [] if name == 'space' else [
+                TupleVariation({'BLED': (0, 1, 1)}, [(120, 0)] * 4 + [(0, 0)] * 4),
+                TupleVariation({'SCAN': (-1, -1, 0)}, [(0, 80)] * 4 + [(0, 0)] * 4),
+            ] for name in names})
+        else:
+            from fontTools.misc.psCharStrings import T2CharString
+            # 两个 region 的 blend 让 CFF2 转换路径实际处理可变轮廓。
+            strings = {name: T2CharString(program=[] if name == 'space' else [
+                80, 120, -60, 1, 'blend', 0, 'rmoveto',
+                440, 0, 0, 720, -440, 0, 'rlineto',
+            ]) for name in names}
+            font.setupCFF2(strings, regions=[{'BLED': (0, 1, 1)}, {'SCAN': (-1, -1, 0)}])
     font.font['head'].created = font.font['head'].modified = 2082844800
     font.save(path)
 
 if __name__ == '__main__':
     root = Path(args.output); root.mkdir(parents=True, exist_ok=True)
     for variant in (1, 2): make(root / ('fixture-' + str(variant) + '.ttf'), variant)
+    make(root / 'fixture-variable.ttf', 1, 'ttf')
+    make(root / 'fixture-variable.otf', 1, 'cff2')
     from fontTools.ttLib import TTFont, newTable
     from fontTools.colorLib.builder import buildCOLR, buildCPAL
     restricted = TTFont(root / 'fixture-1.ttf', recalcTimestamp=False)

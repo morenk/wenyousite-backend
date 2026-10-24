@@ -10,6 +10,7 @@ import { fontSha } from './font-domain';
 import { fontBuildIdentity } from './font-build-identity';
 import { FontConfigurationDto } from './dto/font-admin.dto';
 import { FontManifest } from './font-manifest';
+import { Logger } from '@nestjs/common';
 
 jest.mock('node:fs/promises', () => ({
   ...jest.requireActual('node:fs/promises'),
@@ -142,7 +143,10 @@ async function setup() {
   const sandbox = { run: jest.fn() },
     audit = { record: jest.fn() };
   const ticket = { root: '/virtual/font-work' },
-    work = { create: jest.fn().mockResolvedValue(ticket), remove: jest.fn() };
+    work = {
+      create: jest.fn().mockResolvedValue(ticket),
+      remove: jest.fn().mockResolvedValue(undefined),
+    };
   jest.mocked(lstat).mockResolvedValue({ size: 100 } as Awaited<ReturnType<typeof lstat>>);
   const service = new FontProcessingService(
     { ...tx, $transaction: transaction } as unknown as PrismaService,
@@ -165,8 +169,14 @@ async function setup() {
     current: () => current,
   };
 }
-beforeEach(() => jest.clearAllMocks());
-afterEach(() => jest.useRealTimers());
+beforeEach(() => {
+  jest.clearAllMocks();
+  jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+});
+afterEach(() => {
+  jest.useRealTimers();
+  jest.restoreAllMocks();
+});
 
 function signal() {
   let resolve!: () => void;
@@ -177,6 +187,73 @@ function signal() {
 }
 
 describe('字体构建 claim、幂等与失败回收', () => {
+  it('编译器失败只记录有限阶段与类别，公开错误和持久失败字段保持原契约', async () => {
+    const s = await setup();
+    s.sandbox.run.mockRejectedValue(
+      new FontProcessingFailure('processing-failed', undefined, {
+        stage: 'instantiate',
+        category: 'value-error',
+        message: 'private-font-name',
+        path: '/private/source',
+      } as never),
+    );
+    await expect(s.service.process(jobId, 1)).rejects.toMatchObject({
+      message: 'processing-failed',
+    });
+    expect(Logger.prototype.warn).toHaveBeenCalledWith({
+      event: 'font_build_failed',
+      jobId,
+      attempt: 1,
+      failureCode: 'processing-failed',
+      stage: 'instantiate',
+      category: 'value-error',
+    });
+    expect(s.tx.textFontBuildJob.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          status: 'FAILED',
+          claimToken: null,
+          leaseExpiresAt: null,
+          failureCode: 'processing-failed',
+          failureReason: null,
+        },
+      }),
+    );
+  });
+  it('恶意子进程阶段和类别回退到内部阶段，不进入日志', async () => {
+    const s = await setup();
+    s.sandbox.run.mockRejectedValue(
+      new FontProcessingFailure('processing-failed', undefined, {
+        stage: '/private/source',
+        category: 'private-password',
+      } as never),
+    );
+    await expect(s.service.process(jobId, 1)).rejects.toMatchObject({ code: 'processing-failed' });
+    expect(Logger.prototype.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ stage: 'compiler', category: 'unexpected-error' }),
+    );
+    expect(JSON.stringify(jest.mocked(Logger.prototype.warn).mock.calls)).not.toContain('private');
+  });
+  it.each(['source-read', 'asset-write', 'persist', 'workspace-cleanup'])(
+    '存储/事务/回收失败保留 %s 阶段，不记录原始错误',
+    async (stage) => {
+      const s = await setup(),
+        error = new Error('private-storage-credential');
+      if (stage === 'source-read') s.storage.readSource.mockRejectedValue(error);
+      if (stage === 'asset-write') s.storage.putAsset.mockRejectedValue(error);
+      if (stage === 'persist') s.tx.textFontArtifact.upsert.mockRejectedValue(error);
+      if (stage === 'workspace-cleanup') s.work.remove.mockRejectedValue(error);
+      await expect(s.service.process(jobId, 1)).rejects.toMatchObject({
+        code: 'processing-failed',
+      });
+      expect(Logger.prototype.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ stage, category: 'unexpected-error' }),
+      );
+      expect(JSON.stringify(jest.mocked(Logger.prototype.warn).mock.calls)).not.toContain(
+        'private',
+      );
+    },
+  );
   it('远端上传超过初始租期仍续租，完成后停止续租并清空租期', async () => {
     const s = await setup();
     jest.useFakeTimers();

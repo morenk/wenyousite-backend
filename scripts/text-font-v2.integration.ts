@@ -12,6 +12,7 @@ import { prepareFontReadiness, verifyLegacyReplayPreservesState } from './font-l
 import { FONT_LEGACY_IMPORT } from '../src/text-fonts/font-legacy-map';
 import { verifyFontSandbox } from './font-sandbox.integration';
 import { verifyFontManagement } from './font-management.integration';
+import { verifyVariableFonts } from './font-variable.integration';
 import { verifyFontManagementMigration } from './font-management-migration.integration';
 import { verifyFontLease, verifyFontWorkerRecovery } from './font-worker-faults.integration';
 
@@ -209,6 +210,7 @@ async function main() {
   await request(`/subthreads/${subthread.id}/posts`, 'POST', { content: legacyContent, textFontVersion: 2 }, 409, userHeaders);
   await verifyLegacyReplayPreservesState(db, admin.userId);
   await verifyFontManagement(db, request, root, admin.userId, userHeaders);
+  await verifyVariableFonts(db, request, root);
   await verifyFontLease(db, request, config, bytes);
   await verifyFontWorkerRecovery(db, request, config, [bytes, readFileSync(join(root, 'font-fixtures/fixture-2.ttf'))]);
   console.log(JSON.stringify({ event: 'dynamic-font-functional-passed', runId: process.env.E2E_RUN_ID, sourceBytes: bytes.length, leaseRenewal: true, sameSessionConsumerAcceptance: false, legacyEvidence }));
