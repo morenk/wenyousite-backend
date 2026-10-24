@@ -14,6 +14,51 @@ function resolveDependency(chain: string[]): string {
   return from;
 }
 
+it('Zod 在限时子进程内有界拒绝超量集合，正常元素校验仍有效', () => {
+  const script = `
+    const assert = require('node:assert/strict');
+    const { z } = require(${JSON.stringify(resolveDependency(['zod']))});
+    const schema = z.object({ items: z.array(z.string()).max(8) });
+    assert.deepEqual(schema.parse({ items: ['fixture'] }), { items: ['fixture'] });
+    assert.equal(schema.safeParse({ items: [1] }).success, false);
+    const result = schema.safeParse({ items: Array(200000).fill(1) });
+    assert.equal(result.success, false);
+    assert.deepEqual(result.error.issues.map(({ code, path }) => ({ code, path })),
+      [{ code: 'too_big', path: ['items'] }]);
+    process.stdout.write('passed');
+  `;
+  const output = execFileSync(process.execPath, ['--max-old-space-size=128', '-e', script], {
+    env: { PATH: process.env.PATH }, timeout: 5000, killSignal: 'SIGKILL',
+    maxBuffer: 4096, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  assert.equal(output, 'passed');
+});
+
+it('Fastify 的两条 URI 依赖链保留引用语义并拒绝 scheme 与 host 混淆', () => {
+  for (const compiler of ['@fastify/ajv-compiler', 'fast-json-stringify']) {
+    const uri = createRequire(join(process.cwd(), 'package.json'))(
+      resolveDependency(['fastify', compiler, 'fast-uri']),
+    );
+    for (const input of ['%6Aavascript:alert(1)', '%u006Aavascript:alert(1)']) {
+      assert.ok(uri.parse(input).error);
+    }
+    assert.equal(uri.equal('%68ttp://example.invalid/', 'http://example.invalid/'), false);
+    for (const input of ['http://a@b@example.invalid/', 'http://ex\tample.invalid/']) {
+      assert.ok(uri.parse(input).error);
+    }
+    const base = 'https://example.invalid/dir/page';
+    for (const ref of ['a/../b', '../x']) {
+      assert.equal(uri.resolve(base, uri.normalize(ref)), uri.resolve(base, ref));
+    }
+    assert.equal(uri.equal('../x', 'x'), false);
+    const suffix = { reference: 'suffix', scheme: 'x' };
+    assert.equal(uri.normalize('javascript:alert(1)', suffix), 'javascript%3Aalert(1)');
+    assert.equal(uri.parse(uri.serialize({ path: 'javascript:alert(1)' }, suffix)).scheme, undefined);
+    assert.equal(uri.normalize('path/to/file', suffix), 'path/to/file');
+    assert.equal(uri.resolve(base, 'child'), 'https://example.invalid/dir/child');
+  }
+});
+
 it('邮件、DKIM、glob 与 URI 的实际间接依赖在限时子进程处理恶意解析形状', () => {
   const paths = {
     mail: resolveDependency(['nodemailer/lib/addressparser']),
