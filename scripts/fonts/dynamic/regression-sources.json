@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "fonts": [
+    {
+      "id": "source-serif-4",
+      "url": "https://raw.githubusercontent.com/adobe-fonts/source-serif/80d3f8894c09c937bebfa9011247d2e1c79fd6f4/VAR/SourceSerif4Variable-Roman.otf",
+      "sourceRevision": "80d3f8894c09c937bebfa9011247d2e1c79fd6f4",
+      "sha256": "867b73c6a954a4a64616906d179f94572a748790a1d022ebeeff07f56ea0221a",
+      "bytes": 1884148,
+      "format": "otf",
+      "language": "en",
+      "license": "OFL-1.1",
+      "licenseUrl": "https://raw.githubusercontent.com/adobe-fonts/source-serif/80d3f8894c09c937bebfa9011247d2e1c79fd6f4/LICENSE.md",
+      "licenseSha256": "c21d7293d87b6d7ab1d0229a2f55b77f33a7613a6a4e66f6693d68d7d8d09464"
+    },
+    {
+      "id": "orbitron",
+      "url": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/orbitron/Orbitron%5Bwght%5D.ttf",
+      "sourceRevision": "47d54ca1ebb14fd864695f1d39dc734f39017c33",
+      "sha256": "f42db2dd16e642258e35782916eceb1dcdbea06fb958d77ad71dc5963587e8fd",
+      "bytes": 38576,
+      "license": "OFL-1.1",
+      "licenseUrl": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/orbitron/OFL.txt",
+      "licenseSha256": "ab609b0e110d622435ff337cdf233288556e011bbf9bd0550be98846c0630819",
+      "format": "ttf",
+      "language": "en"
+    },
+    {
+      "id": "train-one",
+      "url": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/trainone/TrainOne-Regular.ttf",
+      "sourceRevision": "47d54ca1ebb14fd864695f1d39dc734f39017c33",
+      "sha256": "07d67ad14231a4a41f0ee501b14bd6f9c7a9beada5ee6af2924114863a034623",
+      "bytes": 2152516,
+      "license": "OFL-1.1",
+      "licenseUrl": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/trainone/OFL.txt",
+      "licenseSha256": "709f9689eabbab61e913ddc288187e7e3d09550339f7df894a909548f90af814",
+      "format": "ttf",
+      "language": "ja"
+    },
+    {
+      "id": "source-han-sans",
+      "url": "https://raw.githubusercontent.com/adobe-fonts/source-han-sans/a4f7cf94edfb9d7ffbdfc4841de276358bd7e0f2/OTF/SimplifiedChinese/SourceHanSansSC-Regular.otf",
+      "sourceRevision": "a4f7cf94edfb9d7ffbdfc4841de276358bd7e0f2",
+      "sha256": "f1d8611151880c6c336aabeac4640ef434fa13cbfbf1ffe82d0a71b2a5637256",
+      "bytes": 16529832,
+      "license": "OFL-1.1",
+      "licenseUrl": "https://raw.githubusercontent.com/adobe-fonts/source-han-sans/a4f7cf94edfb9d7ffbdfc4841de276358bd7e0f2/LICENSE.txt",
+      "licenseSha256": "fcac737e761ec63dbfbdce11030a1780161920d80315edba9c8beff1c2bac5a2",
+      "format": "otf",
+      "language": "zh"
+    }
+  ]
+}

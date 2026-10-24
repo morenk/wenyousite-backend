@@ -90,3 +90,18 @@ if __name__ == '__main__':
         bounded = TTFont(root / 'fixture-1.ttf', recalcTimestamp=False)
         for index in range(count): bounded['name'].setName(text, 13, 3, 1, 0x1000 + index)
         bounded.save(root / ('fixture-' + label + '.ttf'))
+
+    import runpy
+    runpy.run_path(str(Path(__file__).with_name('make-format-fixtures.py')))['make_formats'](root)
+    from fontTools.ttLib import TTCollection
+    collection = TTCollection(); collection.fonts = [TTFont(root / 'fixture-1.ttf')]
+    collection.save(root / 'fixture-collection.ttc')
+    svg = TTFont(root / 'fixture-1.ttf')
+    from fontTools.ttLib.tables.S_V_G_ import SVGDocument
+    svg['SVG '] = newTable('SVG ')
+    svg['SVG '].docList = [SVGDocument('<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L10 0L0 10Z"/></svg>', 2, 2)]
+    svg.save(root / 'fixture-svg.ttf')
+    empty = TTFont(root / 'fixture-1.ttf')
+    for table in empty['cmap'].tables: table.cmap = {}
+    empty.save(root / 'fixture-empty-cmap.ttf')
+    (root / 'fixture-truncated.ttf').write_bytes((root / 'fixture-1.ttf').read_bytes()[:30])
