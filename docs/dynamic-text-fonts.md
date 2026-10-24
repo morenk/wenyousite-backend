@@ -57,6 +57,10 @@ Web 无固定家族数限制，活动预算 64 faces/16 MiB SFNT，使用 lease/
 
 持久化边界：family 保存可编辑草稿和当前版本指针；job 保存私有源身份、配置快照、幂等处理状态；artifact 保存按 buildKey 去重且不可变的产物身份；version 将 family 绑定至不可变 artifact/配置并保存发布时间与撤回墓碑；catalog head/release/items 保存单调修订、原子发布快照；审计复用不可修改 AuditLog。不得通过清空表、覆盖历史对象实现导入或回滚。
 
+两版编译器都将可变字体的所有轴固定到各自默认值。TrueType `glyf` 输出静态 TTF；只有包含 `CFF2` 的输入才执行 CFF2 → CFF1 转换并输出静态 OTF，Web 分片统一为 WOFF2。编译器摘要参与构建身份，修复后的重试按新摘要构建，不覆盖既有版本或产物。
+
+Worker 的 `font_build_failed` 日志仅记录 jobId、attempt、failureCode 和有限枚举的 stage/category，区分实例化、序列化、产物校验、存储和持久化等失败位置。子进程提供的诊断必须通过枚举校验；异常正文、路径、栈、原始 stderr 和字体元数据不进入日志或 HTTP 响应。HTTP 与数据库仍只保存既有 failureCode/failureReason。
+
 [28 款导入映射](../contracts/thread-font-v1-import-map.json) 固定来源 manifest SHA，仅供可重跑导入；不成为动态查询白名单。导入逐对象验证来源清单、SHA、长度及原 family，保留 `(assetSHA,family)`。v1/v2 在同一运行时共用注册账本，先读 v1 再读导入 v2 不产生新增原生注册或重复收费；不允许只按 SHA 合并不同 family，也不允许重置账本。共享零新增注册夹具是消费者必须执行的输入，不代替 Android 原生证据。小城保持 retired；v1 正文/资源不删除、不改写成 v2。
 
 ## v1 导入后的撤回边界
@@ -127,3 +131,7 @@ runner 先核验独立 PostgreSQL/Redis，再以应用角色导入固定历史�
 Backend 自身故障验证使用 `pnpm test:integration:text-font-v2`，其随机 ID 单独标记为非跨端核心证据。此套件以超过 11 MiB 的自制有效字体验证上传、处理、预览、发布与去重；暂停已构建产物的存储复验，核验真实数据库续租和恢复器不抢占；启动两个登记 Worker，检查全局单并发、真实 Worker SIGKILL 重试和工作目录清理，并执行真实沙箱的宿主文件读取、输入写入、网络、内存、墙钟及输出上限拒绝用例。
 
 功能套件在提供 `E2E_FONT_LEGACY_BUNDLE` 与 `E2E_FONT_LEGACY_SOURCES` 时执行真实 28 款导入及幂等复验；没有私人恢复材料的 CI 仅复用本轮真实 Worker 输出构造历史就绪记录，并明确标记 `synthetic-legacy-readiness-only`。该夹具不计作真实历史导入、原生兼容或跨端核心证据；真实导入证据必须另外完成。
+
+功能套件另用自制的双轴 TrueType/CFF2 可变字体覆盖两版参数的上传、Worker 处理、预览、发布与匿名资产下载。轴默认值不等于最小值，包含实际轮廓增量；产物在原沙箱中重新解析，核验默认实例轮廓、Web/Mobile 一致性、静态表、family、覆盖范围及 FreeType 渲染。此检查不代替浏览器或 Flutter 真机验收。
+
+私有故障复现可为同一入口传入 `E2E_FONT_REPRO_SOURCE` 和必填的 `E2E_FONT_REPRO_SHA256`，仅测试进程获得源路径；本轮先核验隔离资源及源摘要，再通过 v2 上传授权创建随机家族并执行同样旅程。可选 `E2E_FONT_REPRO_ARTIFACTS` 指向已存在的私有目录，套件在其下按 runId 导出验证产物与证据，不复制原件或凭据。原件不得提交；清理结果以 runner 最终结果为准，导出证据不代表跨端或线上发布验收。

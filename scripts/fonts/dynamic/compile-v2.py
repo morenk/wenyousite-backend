@@ -26,6 +26,7 @@ OUTPUT = Path('/output')
 EPOCH = 2082844800
 MAX_TOTAL = 536870912
 written = 0
+stage = 'environment'
 
 class FontFailure(Exception):
     def __init__(self, code, reason=None):
@@ -109,8 +110,10 @@ def rename(font, family):
                     fd.FontName = family
 
 def build():
+    global stage
     if os.getuid() == 0 or fontTools.__version__ != '4.67.0' or PIL.__version__ != '13.0.0' or brotli.__version__ != '1.2.0':
         raise FontFailure('sandbox-unavailable')
+    stage = 'read-input'
     params = json.loads(Path('/input/parameters.json').read_text())
     config = params['configuration']
     if params.get('parametersVersion') != 2 or params.get('authorizationRuleVersion') != 'admin-font-upload-v1':
@@ -120,22 +123,27 @@ def build():
         raise FontFailure('invalid-font')
     if payload[:4] not in (b'\0\1\0\0', b'OTTO'):
         raise FontFailure('unsupported-font')
+    stage = 'open-font'
     font = TTFont(io.BytesIO(payload), recalcTimestamp=False, checkChecksums=2)
     if set(font.keys()) & {'COLR', 'CPAL', 'CBDT', 'CBLC', 'sbix', 'SVG ', 'EBDT', 'EBLC'} or not ({'glyf', 'CFF ', 'CFF2'} & set(font.keys())):
         raise FontFailure('unsupported-font')
     for bit, reason in ((0x0002, 'embedding-restricted'), (0x0100, 'subsetting-restricted'), (0x0200, 'bitmap-only')):
         if 'OS/2' in font and font['OS/2'].fsType & bit:
             raise FontFailure('rights-required', reason)
+    stage = 'read-metadata'
     metadata = original_metadata(font)
     if 'name' not in font:
         font['name'] = newTable('name')
         font['name'].names = []
+    stage = 'decompile'
     font.ensureDecompiled()
     original_weight = font['OS/2'].usWeightClass if 'OS/2' in font else None
     axes = {}
     if 'fvar' in font:
+        stage = 'instantiate'
         axes = {axis.axisTag: axis.defaultValue for axis in font['fvar'].axes}
-        font = instantiateVariableFont(font, axes, inplace=True, downgradeCFF2=True)
+        # TrueType 的 glyf 不能送入 CFF2 降级器；CFF2 静态实例仍转换以兼容移动端。
+        font = instantiateVariableFont(font, axes, inplace=True, downgradeCFF2=('CFF2' in font))
         if 'fvar' in font:
             raise FontFailure('unsupported-font')
     default_instance_weight = font['OS/2'].usWeightClass if 'OS/2' in font else None
@@ -145,6 +153,7 @@ def build():
     if not points or any(point > 0x10ffff or 0xd800 <= point <= 0xdfff for point in points):
         raise FontFailure('invalid-font')
     normalized = io.BytesIO()
+    stage = 'normalize'
     font.save(normalized, reorderTables=True)
     static = normalized.getvalue()
     core = points & (set(range(0x20, 0x800)) | set(range(0x2000, 0x2070)) | set(range(0x3000, 0x3100)))
@@ -169,21 +178,26 @@ def build():
         options.notdef_glyph = options.notdef_outline = options.recommended_glyphs = True
         sub = subset.Subsetter(options=options)
         sub.populate(unicodes=sorted(chars))
+        stage = 'subset'
         sub.subset(part)
         family = 'WYF2-' + params['buildKey'][:32] + '-' + ident
+        stage = 'rename'
         rename(part, family)
         if set(part.getBestCmap() or {}) != chars:
             raise FontFailure('processing-failed')
         raw = io.BytesIO()
         part.flavor = None
+        stage = 'serialize-mobile'
         part.save(raw, reorderTables=True)
         extension = 'otf' if part.sfntVersion == 'OTTO' else 'ttf'
         mobile = asset(raw.getvalue(), extension)
         compressed = TTFont(io.BytesIO(raw.getvalue()), recalcTimestamp=False)
         compressed.flavor = 'woff2'
         web = io.BytesIO()
+        stage = 'serialize-web'
         compressed.save(web, reorderTables=True)
         shards.append({'id': ident, 'family': family, 'unicodeRanges': ranges(chars), 'codepointCount': len(chars), 'web': asset(web.getvalue(), 'woff2'), 'mobile': mobile})
+    stage = 'render-specimen'
     image = Image.new('RGBA', (640, 160), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
     size = 64
@@ -197,6 +211,7 @@ def build():
     picture = io.BytesIO()
     image.save(picture, format='PNG', optimize=False)
     specimen = asset(picture.getvalue(), 'png')
+    stage = 'write-manifest'
     notices = [asset(canonical({'originalMetadata': metadata, 'sourceSha256': params['sourceSha256'], 'axes': axes, 'originalWeight': original_weight, 'defaultInstanceWeight': default_instance_weight, 'outputWeight': 400, 'outputStyle': 'normal', 'modifications': 'Default-axis instance; subset with layout closure; renamed; no hinting; normalized regular style.'}), 'json')]
     manifest = {'manifestVersion': 2, 'buildKey': params['buildKey'], 'sourceSha256': params['sourceSha256'], 'baseWeight': 400, 'baseStyle': 'normal', 'coverage': {'codepointCount': len(points), 'unicodeRanges': ranges(points)}, 'shards': shards, 'notices': notices, 'specimen': specimen}
     manifest_bytes = canonical(manifest)
@@ -205,17 +220,26 @@ def build():
     descriptor = asset(manifest_bytes, 'json')
     (OUTPUT / 'result.json').write_bytes(canonical({'manifest': descriptor}))
 
+def fail(code, category, reason=None):
+    # 仅传固定阶段与类别给父进程；绝不输出异常正文、路径、字体名称或栈。
+    value = {'failureCode': code, 'diagnostic': {'stage': stage, 'category': category}}
+    if reason is not None:
+        value['failureReason'] = reason
+    sys.stdout.write(json.dumps(value))
+    sys.exit(2)
+
 try:
     build()
 except FontFailure as error:
-    sys.stdout.write(json.dumps({'failureCode': str(error), 'failureReason': error.reason}))
-    sys.exit(2)
+    fail(str(error), 'validation', getattr(error, 'reason', None))
 except MemoryError:
-    sys.stdout.write('{"failureCode":"resource-limit"}')
-    sys.exit(2)
+    fail('resource-limit', 'memory-error')
 except (TTLibError, struct.error):
-    sys.stdout.write('{"failureCode":"invalid-font"}')
-    sys.exit(2)
-except Exception:
-    sys.stdout.write('{"failureCode":"processing-failed"}')
-    sys.exit(2)
+    fail('invalid-font', 'invalid-font')
+except Exception as error:
+    categories = ((ValueError, 'value-error'), (TypeError, 'type-error'),
+                  (KeyError, 'key-error'), (AttributeError, 'attribute-error'),
+                  (OSError, 'io-error'), (AssertionError, 'assertion-error'),
+                  (NotImplementedError, 'unsupported-operation'))
+    category = next((label for kind, label in categories if isinstance(error, kind)), 'unexpected-error')
+    fail('processing-failed', category)

@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import { lstat, readdir, realpath } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { FONT_COMPILER_PATH } from './font-build-identity';
+import { FontCompilerDiagnostic, fontCompilerDiagnostic } from './font-processing-diagnostics';
 import {
   FONT_DOCUMENT_MAX_BYTES,
   FONT_OUTPUT_MAX_BYTES,
@@ -27,6 +28,7 @@ export class FontProcessingFailure extends Error {
   constructor(
     readonly code: (typeof FONT_FAILURE_CODES)[number],
     readonly reason?: (typeof FONT_FAILURE_REASONS)[number],
+    readonly diagnostic?: FontCompilerDiagnostic,
   ) {
     super(code);
   }
@@ -237,6 +239,7 @@ export class FontSandboxService implements OnModuleDestroy {
                   )
                   ? (parsed.failureReason as (typeof FONT_FAILURE_REASONS)[number])
                   : undefined,
+                fontCompilerDiagnostic('diagnostic' in parsed ? parsed.diagnostic : undefined),
               ),
             );
         } catch {

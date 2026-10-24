@@ -1,5 +1,5 @@
 import { FontWorkDirectoryService } from './font-work-directory.service';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Prisma, TextFontArtifact, TextFontBuildJob } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import { lstat, mkdir, writeFile } from 'node:fs/promises';
@@ -21,6 +21,7 @@ import {
 } from './font-domain';
 import { FONT_DOCUMENT_MAX_BYTES, fontManifestAssets, validateFontManifest } from './font-manifest';
 import { FontAssetDto } from './dto/font-public.dto';
+import { fontCompilerDiagnostic, FontProcessingStage } from './font-processing-diagnostics';
 
 type ArtifactData = Prisma.TextFontArtifactUncheckedCreateInput;
 const LEASE_MS = 660000;
@@ -50,6 +51,7 @@ function validateMagic(asset: FontAssetDto, bytes: Buffer) {
 
 @Injectable()
 export class FontProcessingService {
+  private readonly logger = new Logger(FontProcessingService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: FontStorageService,
@@ -78,6 +80,7 @@ export class FontProcessingService {
     });
     if (!job) return;
     const stopLease = this.maintainLease(jobId, attempt, claim);
+    const context: { stage: FontProcessingStage } = { stage: 'authorization' };
     try {
       requireFontAuthorization(
         fontConfiguration(job.configuration),
@@ -85,6 +88,7 @@ export class FontProcessingService {
         job.parametersVersion,
         job.uploadAuthorization,
       );
+      context.stage = 'build-identity';
       const build = await fontBuildIdentity(
         job.sourceSha256,
         fontConfiguration(job.configuration),
@@ -92,11 +96,13 @@ export class FontProcessingService {
       );
       if (!job.buildKey || job.buildKey !== build.key)
         throw new FontProcessingFailure('processing-failed');
+      context.stage = 'cached-assets';
       let artifact: TextFontArtifact | ArtifactData | null =
         await this.prisma.textFontArtifact.findUnique({ where: { buildKey: build.key } });
       if (artifact) await this.storage.verifyAssets(artifact.assets as unknown as FontAssetDto[]);
-      else artifact = await this.build(job, build);
+      else artifact = await this.build(job, build, context);
       const complete = artifact;
+      context.stage = 'persist';
       await this.prisma.$transaction(async (tx) => {
         await lockFontState(tx);
         const current = await tx.textFontBuildJob.findUnique({ where: { id: jobId } });
@@ -178,6 +184,15 @@ export class FontProcessingService {
         error instanceof FontProcessingFailure
           ? error
           : new FontProcessingFailure('processing-failed');
+      const diagnostic = fontCompilerDiagnostic(failure.diagnostic);
+      this.logger.warn({
+        event: 'font_build_failed',
+        jobId,
+        attempt,
+        failureCode: failure.code,
+        stage: diagnostic?.stage ?? context.stage,
+        category: diagnostic?.category ?? 'unexpected-error',
+      });
       await this.prisma.textFontBuildJob
         .updateMany({
           where: { id: jobId, attempt, claimToken: claim, status: 'PROCESSING' },
@@ -228,7 +243,9 @@ export class FontProcessingService {
   private async build(
     job: TextFontBuildJob,
     build: Awaited<ReturnType<typeof fontBuildIdentity>>,
+    context: { stage: FontProcessingStage },
   ): Promise<ArtifactData> {
+    context.stage = 'workspace';
     const ticket = await this.work.create(job.id, job.attempt, job.claimToken!);
     const root = ticket.root;
     try {
@@ -236,6 +253,7 @@ export class FontProcessingService {
         output = join(root, 'output');
       await mkdir(input, { mode: 0o700 });
       await mkdir(output, { mode: 0o700 });
+      context.stage = 'source-read';
       const source = await this.storage.readSource(
         job.sourceKey,
         job.sourceSha256,
@@ -258,7 +276,9 @@ export class FontProcessingService {
         }),
         { flag: 'wx', mode: 0o400 },
       );
+      context.stage = 'compiler';
       await this.sandbox.run(input, output, { script: build.script });
+      context.stage = 'manifest-validation';
       const resultStat = await lstat(join(output, 'result.json'));
       if (resultStat.size > 4096) throw new FontProcessingFailure('resource-limit');
       const result = JSON.parse(
@@ -280,12 +300,14 @@ export class FontProcessingService {
       );
       const assets = [...fontManifestAssets(manifest), descriptor];
       for (const asset of assets) {
+        context.stage = 'asset-validation';
         const bytes = await this.storage.readChecked(
           join(output, `${asset.sha256}.${asset.format}`),
           asset.bytes,
         );
         if (fontSha(bytes) !== asset.sha256) throw new FontProcessingFailure('processing-failed');
         validateMagic(asset, bytes);
+        context.stage = 'asset-write';
         await this.storage.putAsset(bytes, asset.format);
       }
       return {
@@ -300,7 +322,10 @@ export class FontProcessingService {
         specimenSize: manifest.specimen.bytes,
       };
     } finally {
-      await this.work.remove(ticket, true);
+      await this.work.remove(ticket, true).catch((error: unknown) => {
+        context.stage = 'workspace-cleanup';
+        throw error;
+      });
     }
   }
 }
