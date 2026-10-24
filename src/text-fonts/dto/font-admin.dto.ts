@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  IsUUID,
   Matches,
   Max,
   MaxLength,
@@ -20,6 +21,7 @@ import {
   FONT_JOB_PATTERN,
   FONT_SHA_PATTERN,
   FONT_SOURCE_MAX_BYTES,
+  FONT_SORT_ORDER_LIMIT,
   FONT_VERSION_PATTERN,
 } from '../font-protocol';
 
@@ -44,10 +46,10 @@ export class FontConfigurationDto {
   @ApiProperty({ enum: ['zh', 'ja', 'en', 'other'] })
   @IsIn(['zh', 'ja', 'en', 'other'])
   designLanguage!: 'zh' | 'ja' | 'en' | 'other';
-  @ApiProperty({ type: 'integer', minimum: -1000000, maximum: 1000000 })
+  @ApiProperty({ type: 'integer', minimum: -FONT_SORT_ORDER_LIMIT, maximum: FONT_SORT_ORDER_LIMIT })
   @IsInt()
-  @Min(-1000000)
-  @Max(1000000)
+  @Min(-FONT_SORT_ORDER_LIMIT)
+  @Max(FONT_SORT_ORDER_LIMIT)
   sortOrder!: number;
   @ApiProperty({ maxLength: 200 })
   @IsString()
@@ -90,6 +92,13 @@ export class UpdateFontConfigurationDto extends FontConfigurationDto {
 }
 
 export class FontSourceQueryDto {
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: '简化提交标识；绑定已有提交、授权确认及唯一任务。省略时完全沿用旧授权流程。',
+  })
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsUUID('4')
+  submissionId?: string;
   @ApiProperty({ type: 'integer', minimum: 1 })
   @Type(() => Number)
   @IsInt()
@@ -157,6 +166,14 @@ export class FontFamilyDto extends FontConfigurationDto {
 }
 
 export class FontJobDto {
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      '本任务准确绑定的简化提交；旧手工任务为 null。详情/刷新恢复必须使用该值，不以最新提交替代。',
+  })
+  submissionId?: string | null;
   @ApiProperty({ pattern: FONT_JOB_PATTERN })
   jobId!: string;
   @ApiProperty({ pattern: FONT_FAMILY_PATTERN })
@@ -182,6 +199,13 @@ export class FontJobDto {
     ],
   })
   failureCode!: string | null;
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    enum: ['embedding-restricted', 'subsetting-restricted', 'bitmap-only'],
+    description: '固定、无原始解析错误的拒绝说明；fsType 限制即使管理员确认也不能绕过。',
+  })
+  failureReason?: 'embedding-restricted' | 'subsetting-restricted' | 'bitmap-only' | null;
 }
 
 export class FontAdminFamilyDetailDto extends FontFamilyDto {

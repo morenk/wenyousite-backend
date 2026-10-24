@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "contractVersion": "5.43.0-dev.20261022.3",
+  "contractVersion": "5.44.0-dev.20261024.2",
   "counts": {
-    "total": 266,
+    "total": 271,
     "v1": 126,
     "deferred": 66,
-    "notApplicable": 70,
+    "notApplicable": 75,
     "infrastructure": 4
   },
   "operations": [
@@ -1310,6 +1310,46 @@
       "operationId": "adminTextFontsCreate",
       "method": "POST",
       "path": "/api/v1/admin/text-fonts",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminTextFontsManagement",
+      "method": "GET",
+      "path": "/api/v1/admin/text-fonts/management",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminTextFontsCreateSubmission",
+      "method": "POST",
+      "path": "/api/v1/admin/text-fonts/submissions",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminTextFontsSubmission",
+      "method": "GET",
+      "path": "/api/v1/admin/text-fonts/submissions/{submissionId}",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminTextFontsProcessSubmission",
+      "method": "POST",
+      "path": "/api/v1/admin/text-fonts/submissions/{submissionId}/process",
+      "module": "admin",
+      "disposition": "not_applicable",
+      "status": "not_applicable"
+    },
+    {
+      "operationId": "adminTextFontsReorder",
+      "method": "PUT",
+      "path": "/api/v1/admin/text-fonts/order",
       "module": "admin",
       "disposition": "not_applicable",
       "status": "not_applicable"

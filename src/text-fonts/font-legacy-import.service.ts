@@ -9,6 +9,7 @@ import { FontConfigurationDto } from './dto/font-admin.dto';
 import { FontAssetDto } from './dto/font-public.dto';
 import {
   fontJson,
+  bumpFontListing,
   fontSha,
   lockFontActor,
   lockFontState,
@@ -119,13 +120,17 @@ export class FontLegacyImportService {
               familyId: mapping.familyId,
               versionNumber: 1,
               artifactKey: artifact.buildKey,
+              reuseKey: artifact.buildKey,
               configuration: fontJson(item.configuration),
               publishedAt: new Date(),
             },
           });
           await tx.textFontFamily.update({
             where: { id: mapping.familyId },
-            data: { currentVersionId: mapping.versionId },
+            data: {
+              currentVersionId: mapping.versionId,
+              lastPublishedVersionId: mapping.versionId,
+            },
           });
           await this.audit.record(
             {
@@ -147,6 +152,7 @@ export class FontLegacyImportService {
         const catalogRevision = imported
           ? await publishFontCatalog(tx)
           : (await tx.textFontCatalogHead.findUniqueOrThrow({ where: { id: 1 } })).revision;
+        if (imported) await bumpFontListing(tx);
         return { imported, retained: bundle.fonts.length - imported, catalogRevision };
       },
       { timeout: 30000 },

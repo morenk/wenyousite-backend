@@ -5,7 +5,6 @@ import { BusinessException, notFound } from '../common/exceptions/business.excep
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { AuditService } from '../moderation/audit.service';
 import { OutboxService } from '../outbox/outbox.service';
-import { DOMAIN_EVENTS } from '../outbox/domain-events';
 import {
   FontConfigurationDto,
   FontEnabledDto,
@@ -26,12 +25,13 @@ import {
   lockFontState,
   lockFontActor,
   newFontId,
-  requireFontRights,
+  bumpFontListing,
 } from './font-domain';
 import { FontStorageService } from './font-storage.service';
 import { FontQueryService } from './font-query.service';
 import { publishFontCatalog } from './font-catalog-publisher';
-import { fontBuildIdentity } from './font-build-identity';
+import { requestFontBuild } from './font-build-request';
+import { requireFontAuthorization } from './font-authorization';
 
 function configuration(dto: FontConfigurationDto): Prisma.InputJsonValue {
   const {
@@ -76,6 +76,7 @@ export class FontAdminService {
       const family = await tx.textFontFamily.create({
         data: { id: newFontId('tff'), configuration: configuration(dto) },
       });
+      await bumpFontListing(tx);
       const head = await tx.textFontCatalogHead.findUniqueOrThrow({ where: { id: 1 } });
       await this.audit.record(
         {
@@ -102,8 +103,15 @@ export class FontAdminService {
       if (previous.revision !== dto.expectedFamilyRevision) fontConflict();
       const family = await tx.textFontFamily.update({
         where: { id: familyId },
-        data: { configuration: configuration(dto), revision: { increment: 1 } },
+        data: {
+          configuration: configuration(dto),
+          specimenAutomatic:
+            previous.specimenAutomatic === true &&
+            dto.specimenText === fontConfiguration(previous.configuration).specimenText,
+          revision: { increment: 1 },
+        },
       });
+      await bumpFontListing(tx);
       const head = await tx.textFontCatalogHead.findUniqueOrThrow({ where: { id: 1 } });
       await this.audit.record(
         {
@@ -164,39 +172,13 @@ export class FontAdminService {
       await lockFontState(tx);
       const previous = await tx.textFontBuildJob.findUnique({ where: { id: jobId } });
       if (!previous) throw notFound();
-      if (previous.status !== 'DRAFT' && previous.status !== 'FAILED') return fontJobDto(previous);
-      const config = fontConfiguration(previous.configuration);
-      requireFontRights(config);
-      const build = await fontBuildIdentity(previous.sourceSha256, config);
-      const job = await tx.textFontBuildJob.update({
-        where: { id: jobId },
-        data: {
-          status: 'QUEUED',
-          attempt: { increment: 1 },
-          buildKey: build.key,
-          failureCode: null,
-          claimToken: null,
-          leaseExpiresAt: null,
-        },
-      });
-      await this.outbox.enqueue(tx, {
-        eventType: DOMAIN_EVENTS.TEXT_FONT_BUILD_REQUESTED,
-        aggregateType: 'text-font',
-        aggregateId: jobId,
-        eventKey: `text-font-build:${jobId}:${job.attempt}`,
-        payload: { jobId, attempt: job.attempt },
-      });
-      await this.audit.record(
-        {
-          ...actor,
-          action: 'TEXT_FONT_PROCESS_REQUESTED',
-          targetType: 'TEXT_FONT',
-          targetId: jobId,
-          metadata: { attempt: job.attempt },
-        },
-        tx,
-      );
-      return fontJobDto(job);
+      if (previous.parametersVersion === 2)
+        throw new BusinessException(
+          ErrorCode.TEXT_FONT_SUBMISSION_CONFLICT,
+          '请通过简化提交记录启动或重试处理',
+          HttpStatus.CONFLICT,
+        );
+      return fontJobDto(await requestFontBuild(tx, previous, actor, this.outbox, this.audit));
     });
   }
 
@@ -208,7 +190,12 @@ export class FontAdminService {
       include: { artifact: true },
     });
     if (!candidate) throw notFound();
-    requireFontRights(fontConfiguration(candidate.configuration));
+    requireFontAuthorization(
+      fontConfiguration(candidate.configuration),
+      candidate.artifact.sourceSha256,
+      candidate.parametersVersion,
+      candidate.uploadAuthorization,
+    );
     try {
       await this.storage.verifyAssets(candidate.artifact.assets as unknown as FontAssetDto[]);
     } catch {
@@ -242,9 +229,14 @@ export class FontAdminService {
         });
       const updated = await tx.textFontFamily.update({
         where: { id: familyId },
-        data: { currentVersionId: version.id, revision: { increment: 1 } },
+        data: {
+          currentVersionId: version.id,
+          lastPublishedVersionId: version.id,
+          revision: { increment: 1 },
+        },
       });
       const revision = await publishFontCatalog(tx);
+      await bumpFontListing(tx);
       await this.audit.record(
         {
           ...actor,
@@ -278,6 +270,7 @@ export class FontAdminService {
         data: { enabled: dto.enabled, revision: { increment: 1 } },
       });
       const revision = await publishFontCatalog(tx);
+      await bumpFontListing(tx);
       await this.audit.record(
         {
           ...actor,
@@ -305,13 +298,14 @@ export class FontAdminService {
       if (head.revision !== dto.expectedCatalogRevision) fontConflict();
       await tx.textFontVersion.update({
         where: { id: versionId },
-        data: { withdrawnAt: new Date() },
+        data: { withdrawnAt: new Date(), reuseKey: null },
       });
       await tx.textFontFamily.updateMany({
         where: { id: version.familyId, currentVersionId: versionId },
         data: { currentVersionId: null, revision: { increment: 1 } },
       });
       const revision = await publishFontCatalog(tx);
+      await bumpFontListing(tx);
       await this.audit.record(
         {
           ...actor,

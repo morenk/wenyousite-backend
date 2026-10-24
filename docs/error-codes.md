@@ -108,6 +108,8 @@
 | `TEXT_FONT_CATALOG_CHANGED` | 40927 | 字体目录分页快照已变化，需从第一页重取 |
 | `TEXT_FONT_STATE_CONFLICT` | 40928 | 字体管理修订或当前状态冲突 |
 | `TEXT_FONT_RIGHTS_REQUIRED` | 40929 | 字体授权材料尚未完整确认 |
+| `TEXT_FONT_SUBMISSION_CONFLICT` | 40930 | 同一简化提交/处理键的不可变输入发生变化 |
+| `TEXT_FONT_LIST_CHANGED` | 40931 | 字体管理列表或筛选排序绑定已变化 |
 | `TEXT_FONT_WITHDRAWN` | 41001 | 字体版本已撤回，禁止下载与呈现 |
 | `TEXT_FONT_UNAVAILABLE` | 50301 | 动态字体服务或隔离处理依赖未就绪 |
 | `RATE_LIMITED` | 42900 | 请求过于频繁 |

@@ -640,11 +640,16 @@ Media 新增可空 display_asset 与独立 display_status / display_started_at /
 
 | 模型 | 持久事实 |
 | --- | --- |
-| TextFontFamily | 草稿配置、配置修订、启用状态、当前版本和可选历史 v1 ID |
-| TextFontBuildJob | 私有源键/SHA/长度、配置快照、处理状态、领取身份、租期与尝试次数 |
-| TextFontArtifact | source/config/toolchain 构成的唯一 buildKey、不可变 manifest 和资产 SHA/长度 |
-| TextFontVersion | 家族与产物绑定、单调版本号、配置快照、发布时间与不可逆撤回墓碑 |
-| TextFontCatalogHead | 单例目录修订与当前 release 指针 |
+| TextFontFamily | 草稿配置、修订、启用状态、当前与最后当前发布版本、自定义/自动样张来源及可选历史 v1 ID |
+| TextFontBuildJob | 私有源键/SHA/长度、配置快照、处理参数版本、上传确认、状态、领取身份、租期与尝试次数 |
+| TextFontArtifact | 源/处理参数/工具链构成的 buildKey、不可变 manifest 和资产 SHA/长度；旧完整配置构建身份保留 |
+| TextFontVersion | 家族与产物绑定、独立可复用身份、单调版本号、配置/授权快照、发布时间与不可逆撤回墓碑 |
+| TextFontCatalogHead | 单例目录修订、管理列表修订与当前 release 指针 |
 | TextFontCatalogRelease | 不可变目录条目快照 |
+| TextFontSubmission | 创建者及规范化请求摘要、不可变配置快照、唯一源任务绑定 |
+| TextFontProcessRequest | 提交内唯一处理意图及对应 attempt，支持超时重放与明确重试 |
 
 发布完整验证私有对象后，在同一事务写版本状态、家族指针、目录和 AuditLog。回滚只切换未来选用版本；历史版本与资产不删除。固定历史导入映射及幂等规则见[动态字体](dynamic-text-fonts.md)。
+
+
+`20261024000000_admin_font_management` 在事务内新增管理状态并回填最后当前发布版本：优先 current 指针及发布审计，目录只能用于无歧义回填，无法证明时整体失败并列出家族 ID。复用唯一性由 `(familyId, artifactKey)` 转为 `(familyId, reuseKey)`；旧有效版本保留原产物键为复用键，撤回版本置空，同源新版本可共享产物但不覆盖旧配置。新上传确认记录操作者、时间、源 SHA 和规则版本，仅为内部审计事实。回退限制见[字体管理迁移](admin-font-management.md#迁移与回退边界)。

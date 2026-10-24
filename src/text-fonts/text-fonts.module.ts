@@ -1,3 +1,5 @@
+import { FontSubmissionService } from './font-submission.service';
+import { FontManagementService } from './font-management.service';
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { AuditModule } from '../moderation/audit.module';
@@ -15,7 +17,7 @@ import { TextFontCoreModule } from './text-font-core.module';
     BullModule.registerQueue({ name: 'text-font' }),
   ],
   controllers: [TextFontsV2Controller],
-  providers: [FontAdminService, FontQueueListener],
-  exports: [FontAdminService, TextFontCoreModule],
+  providers: [FontAdminService, FontQueueListener, FontSubmissionService, FontManagementService],
+  exports: [FontAdminService, TextFontCoreModule, FontSubmissionService, FontManagementService],
 })
 export class TextFontsModule {}

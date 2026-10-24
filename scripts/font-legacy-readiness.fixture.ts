@@ -30,8 +30,8 @@ export async function prepareFontReadiness(db: PrismaClient, processedVersionId:
     await lockFontState(tx);
     for (const row of FONT_LEGACY_IMPORT.fonts) {
       await tx.textFontFamily.create({ data: { id: row.familyId, legacyId: row.legacyId, configuration: fontJson(version.configuration), nextVersion: 2 } });
-      await tx.textFontVersion.create({ data: { id: row.versionId, familyId: row.familyId, versionNumber: 1, artifactKey: version.artifactKey, configuration: fontJson(version.configuration), publishedAt: new Date() } });
-      await tx.textFontFamily.update({ where: { id: row.familyId }, data: { currentVersionId: row.versionId } });
+      await tx.textFontVersion.create({ data: { id: row.versionId, familyId: row.familyId, versionNumber: 1, artifactKey: version.artifactKey, reuseKey: version.artifactKey, configuration: fontJson(version.configuration), publishedAt: new Date() } });
+      await tx.textFontFamily.update({ where: { id: row.familyId }, data: { currentVersionId: row.versionId, lastPublishedVersionId: row.versionId } });
     }
     await publishFontCatalog(tx);
   }, { timeout: 30000 });

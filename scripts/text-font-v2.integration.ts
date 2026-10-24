@@ -11,6 +11,8 @@ import { fontSha } from '../src/text-fonts/font-domain';
 import { prepareFontReadiness, verifyLegacyReplayPreservesState } from './font-legacy-readiness.fixture';
 import { FONT_LEGACY_IMPORT } from '../src/text-fonts/font-legacy-map';
 import { verifyFontSandbox } from './font-sandbox.integration';
+import { verifyFontManagement } from './font-management.integration';
+import { verifyFontManagementMigration } from './font-management-migration.integration';
 import { verifyFontLease, verifyFontWorkerRecovery } from './font-worker-faults.integration';
 
 type Data = Record<string, any>;
@@ -20,6 +22,7 @@ async function main() {
   await verifyIsolatedEnvironment();
   assert.equal(process.env.TEXT_FONT_V2_TEST_ENV, 'test');
   await verifyFontSandbox();
+  await verifyFontManagementMigration(db);
   const root = dirname(process.env.E2E_MANIFEST!);
   const fixtures = JSON.parse(readFileSync(process.env.E2E_ADMIN_FIXTURES!, 'utf8'));
   assert.equal(fixtures.runId, process.env.E2E_RUN_ID);
@@ -205,6 +208,7 @@ async function main() {
   assert.equal((await request('/meta', 'GET', undefined, 200, {})).capabilities.textFontV2Supported, true);
   await request(`/subthreads/${subthread.id}/posts`, 'POST', { content: legacyContent, textFontVersion: 2 }, 409, userHeaders);
   await verifyLegacyReplayPreservesState(db, admin.userId);
+  await verifyFontManagement(db, request, root, admin.userId, userHeaders);
   await verifyFontLease(db, request, config, bytes);
   await verifyFontWorkerRecovery(db, request, config, [bytes, readFileSync(join(root, 'font-fixtures/fixture-2.ttf'))]);
   console.log(JSON.stringify({ event: 'dynamic-font-functional-passed', runId: process.env.E2E_RUN_ID, sourceBytes: bytes.length, leaseRenewal: true, sameSessionConsumerAcceptance: false, legacyEvidence }));

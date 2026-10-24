@@ -56,16 +56,29 @@ export function fontFamilyDto(family: TextFontFamily, catalogRevision: number): 
     catalogRevision,
   };
 }
-export function fontJobDto(job: TextFontBuildJob): FontJobDto {
+export function fontJobDto(job: TextFontBuildJob, submissionId: string | null = null): FontJobDto {
   return {
     jobId: job.id,
+    submissionId,
     familyId: job.familyId,
     status: job.status.toLowerCase() as FontJobDto['status'],
     sourceSha256: job.sourceSha256,
     sourceBytes: job.sourceBytes,
     versionId: job.versionId,
     failureCode: job.failureCode,
+    ...(job.failureReason
+      ? { failureReason: job.failureReason as FontJobDto['failureReason'] }
+      : {}),
   };
+}
+
+/** 调用者持有字体排他锁；一项领域写入只递增一次，任务心跳不调用。 */
+export async function bumpFontListing(tx: Prisma.TransactionClient): Promise<number> {
+  const head = await tx.textFontCatalogHead.update({
+    where: { id: 1 },
+    data: { listingRevision: { increment: 1 } },
+  });
+  return head.listingRevision;
 }
 
 /** 审计 actor 外键按用户→字体顺序取锁，避免与持有用户排他锁的草稿写入形成环。 */

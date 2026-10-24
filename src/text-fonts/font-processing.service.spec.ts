@@ -121,6 +121,7 @@ async function setup() {
         .fn()
         .mockImplementation(async ({ create }: { create: typeof artifact }) => create),
     },
+    textFontCatalogHead: { update: jest.fn().mockResolvedValue({ listingRevision: 1 }) },
     textFontFamily: { update: jest.fn().mockResolvedValue({ nextVersion: 2 }) },
     textFontVersion: {
       findUnique: jest.fn().mockResolvedValue(null),
@@ -348,7 +349,13 @@ describe('字体构建 claim、幂等与失败回收', () => {
         claimToken: expect.stringMatching(/^[a-f0-9]{32}$/),
         status: 'PROCESSING',
       },
-      data: { status: 'FAILED', claimToken: null, leaseExpiresAt: null, failureCode: code },
+      data: {
+        status: 'FAILED',
+        claimToken: null,
+        leaseExpiresAt: null,
+        failureCode: code,
+        failureReason: null,
+      },
     });
   });
   it('构建身份漂移和授权缺失在创建工作目录前拒绝', async () => {
