@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { ConfigService } from '@nestjs/config';
 import { FontSandboxService, FontProcessingFailure } from '../src/text-fonts/font-sandbox.service';
 import { fontBuildIdentity } from '../src/text-fonts/font-build-identity';
@@ -25,6 +25,15 @@ async function main() {
   const toolchain = resolve(process.env.TEXT_FONT_TOOLCHAIN_DIR ?? '.cache/thread-font-toolchain');
   await mkdir('.cache', { recursive: true });
   const root = await mkdtemp(resolve('.cache/font-formats-'));
+  const runId = basename(root);
+  console.log(
+    JSON.stringify({
+      event: 'font-formats-start',
+      runId,
+      resources: 'isolated-files-only',
+      businessWrites: 0,
+    }),
+  );
   const sandbox = new FontSandboxService(
     new ConfigService({ textFonts: { toolchainDir: toolchain } }),
   );
@@ -46,16 +55,41 @@ async function main() {
       { stdio: 'pipe' },
     );
     const samples: Sample[] = ['ttf', 'otf'].flatMap((format) =>
-      ['static', 'variable-1', 'variable-2'].map((kind) => ({
+      ['static', 'variable-1', 'variable-2', 'bitmap', 'bitmap-variable-2'].map((kind) => ({
         id: `${kind}-${format}`,
         path: join(fixtures, `format-${kind}.${format}`),
         language: 'en' as const,
         fixture: true,
       })),
     );
+    samples.push({
+      id: 'bitmap-stale-bounds',
+      path: join(fixtures, 'format-bitmap-stale-bounds.ttf'),
+      language: 'en',
+      fixture: true,
+    });
+    samples.push({
+      id: 'bitmap-recommended',
+      path: join(fixtures, 'format-bitmap-recommended.ttf'),
+      language: 'en',
+      fixture: true,
+    });
     samples.push(
       ...[
         ['fixture-collection.ttc', 'unsupported-font'],
+        ...['ttf', 'otf'].flatMap((format) =>
+          ['missing-outline', 'missing-ligature', 'visible-space-alias'].map((kind) => [
+            `fixture-bitmap-${kind}.${format}`,
+            'unsupported-font',
+          ]),
+        ),
+        ['fixture-bitmap-recommended-substitution.ttf', 'unsupported-font'],
+        ['fixture-bitmap-no-outlines.ttf', 'unsupported-font'],
+        ['fixture-bitmap-restricted.ttf', 'rights-required'],
+        ...['CBDT', 'CBLC', 'sbix'].map((tag) => [
+          `fixture-bitmap-color-${tag}.ttf`,
+          'unsupported-font',
+        ]),
         ['fixture-color.ttf', 'unsupported-font'],
         ['fixture-svg.ttf', 'unsupported-font'],
         ['fixture-truncated.ttf', 'invalid-font'],
@@ -95,6 +129,16 @@ async function main() {
         });
       }
     }
+    if (process.env.FONT_FORMAT_REPRO_SOURCE) {
+      assert.match(process.env.FONT_FORMAT_REPRO_SHA256 ?? '', /^[a-f0-9]{64}$/u);
+      samples.push({
+        id: 'private-repro',
+        path: resolve(process.env.FONT_FORMAT_REPRO_SOURCE),
+        language: 'zh',
+        fixture: false,
+        sha256: process.env.FONT_FORMAT_REPRO_SHA256,
+      });
+    }
     for (const version of [1, 2])
       for (const [index, sample] of samples.entries()) {
         const directory = join(root, `v${version}-${index}`),
@@ -111,10 +155,18 @@ async function main() {
           name: '字体格式回归',
           designLanguage: sample.language,
           sortOrder: 0,
-          author: sample.fixture ? 'Wenyou fixture' : 'Official regression source',
+          author: sample.fixture ? 'Wenyou fixture' : 'Regression sample',
           sourceUrl: 'https://example.invalid/font-regression',
-          licenseName: sample.license ? 'OFL-1.1' : 'CC0-1.0',
-          licenseText: sample.license ?? 'Self-authored geometric fixture.',
+          licenseName: sample.license
+            ? 'OFL-1.1'
+            : sample.fixture
+              ? 'CC0-1.0'
+              : 'Regression-only metadata',
+          licenseText:
+            sample.license ??
+            (sample.fixture
+              ? 'Self-authored geometric fixture.'
+              : 'Isolated compatibility verification only; this metadata does not grant distribution rights.'),
           specimenText: FONT_LANGUAGE_SPECIMENS[sample.language],
           rights: { redistribution: true, conversion: true, subsetting: true },
         };
@@ -220,13 +272,14 @@ async function main() {
     if (process.env.FONT_FORMAT_ARTIFACTS)
       await writeFile(
         join(resolve(process.env.FONT_FORMAT_ARTIFACTS), 'run.json'),
-        JSON.stringify({ passed, records, cleaned: true, businessWrites: 0 }, null, 2),
+        JSON.stringify({ runId, passed, records, cleaned: true, businessWrites: 0 }, null, 2),
         { mode: 0o600 },
       );
   }
   console.log(
     JSON.stringify({
       event: 'font-formats-complete',
+      runId,
       cases: records.length,
       cleaned: true,
       businessWrites: 0,

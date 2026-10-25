@@ -9,11 +9,13 @@ from pathlib import Path
 import sys
 import struct
 import resource
+import unicodedata
 resource.setrlimit(resource.RLIMIT_NPROC, (0, 0))
 
 sys.path.insert(0, '/toolchain')
 import fontTools
 from fontTools import subset
+from fontTools.pens.boundsPen import BoundsPen
 from fontTools.ttLib import TTFont, TTLibError
 from fontTools.varLib.instancer import instantiateVariableFont
 from PIL import Image, ImageDraw, ImageFont
@@ -80,6 +82,68 @@ def rename(font, family):
                 if hasattr(fd, 'FontName'):
                     fd.FontName = family
 
+def outline_origins(font):
+    glyf = font['glyf']
+    return {name: (
+        font['hmtx'][name][1] - getattr(glyf[name], 'xMin', 0),
+        font['vmtx'][name][1] + getattr(glyf[name], 'yMax', 0) if 'vmtx' in font else None,
+    ) for name in font.getGlyphOrder()}
+
+def preserve_outline_origins(font, origins):
+    # 某些混合字体保存统一的陈旧 bbox。修正真实 bounds 时保持水平/垂直字形原点，advance 不变。
+    glyf = font['glyf']
+    changed = 0
+    for name in font.getGlyphOrder():
+        glyph = glyf[name]
+        if glyph.numberOfContours == 0:
+            continue
+        horizontal, vertical = origins[name]
+        glyph.recalcBounds(glyf)
+        advance, bearing = font['hmtx'][name]
+        corrected = horizontal + glyph.xMin
+        changed += int(corrected != bearing)
+        font['hmtx'][name] = (advance, corrected)
+        if vertical is not None:
+            advance, bearing = font['vmtx'][name]
+            corrected = vertical - glyph.yMax
+            changed += int(corrected != bearing)
+            font['vmtx'][name] = (advance, corrected)
+    return changed
+
+def required_outline_glyphs(static, points):
+    # 独立求完整 cmap/layout closure；不把工具额外保留的未编码推荐占位当作可见内容。
+    required = TTFont(io.BytesIO(static), recalcTimestamp=False)
+    options = subset.Options()
+    options.layout_features = ['*']
+    options.notdef_glyph = True
+    options.recommended_glyphs = False
+    checker = subset.Subsetter(options=options)
+    checker.populate(unicodes=sorted(points))
+    checker.subset(required)
+    return set(required.getGlyphOrder())
+
+def validate_outline_glyphs(font, allowed_empty, required):
+    # 只用于已剔除传统位图的输入；检查 subset 的 layout closure，包含未编码连字及组合字形。
+    glyphs = font.getGlyphSet()
+    for name in font.getGlyphOrder():
+        if name in allowed_empty or name not in required:
+            continue
+        pen = BoundsPen(glyphs)
+        pen.skipMissingComponents = False
+        glyphs[name].draw(pen)
+        if pen.bounds is None:
+            raise FontFailure('unsupported-font')
+
+def empty_character(point):
+    # 空白、控制和默认忽略字符无需可见轮廓；普通附标不能一律当作空白。
+    return (unicodedata.category(chr(point)) in ('Zs', 'Zl', 'Zp', 'Cc', 'Cf')
+            or point in (0x034f, 0x115f, 0x1160, 0x17b4, 0x17b5, 0x3164, 0xffa0)
+            or 0x180b <= point <= 0x180f
+            or 0x2060 <= point <= 0x206f
+            or 0xfff0 <= point <= 0xfff8
+            or 0xfe00 <= point <= 0xfe0f
+            or 0xe0000 <= point <= 0xe0fff)
+
 def build():
     global stage
     if os.getuid() == 0 or fontTools.__version__ != '4.67.0' or PIL.__version__ != '13.0.0' or brotli.__version__ != '1.2.0':
@@ -96,12 +160,16 @@ def build():
         raise FontFailure('unsupported-font')
     stage = 'open-font'
     font = TTFont(io.BytesIO(payload), recalcTimestamp=False, checkChecksums=2)
-    if set(font.keys()) & {'COLR', 'CPAL', 'CBDT', 'CBLC', 'sbix', 'SVG ', 'EBDT', 'EBLC'} or not ({'glyf', 'CFF ', 'CFF2'} & set(font.keys())):
+    if set(font.keys()) & {'COLR', 'CPAL', 'CBDT', 'CBLC', 'sbix', 'SVG '} or not ({'glyf', 'CFF ', 'CFF2'} & set(font.keys())):
         raise FontFailure('unsupported-font')
     if 'OS/2' in font and font['OS/2'].fsType & (0x0002 | 0x0100 | 0x0200):
         raise FontFailure('rights-required')
+    removed_bitmaps = sorted(set(font.keys()) & {'EBDT', 'EBLC', 'EBSC'})
+    for tag in removed_bitmaps:
+        del font[tag]
     stage = 'decompile'
     font.ensureDecompiled()
+    origins = outline_origins(font) if removed_bitmaps and 'glyf' in font else None
     original_weight = font['OS/2'].usWeightClass if 'OS/2' in font else None
     axes = {}
     if 'fvar' in font:
@@ -117,10 +185,14 @@ def build():
     points = set(font.getBestCmap() or {})
     if not points or any(point > 0x10ffff or 0xd800 <= point <= 0xdfff for point in points):
         raise FontFailure('invalid-font')
+    cmap = font.getBestCmap()
+    allowed_empty = ({'.notdef'} | {name for point, name in cmap.items() if empty_character(point)}) - {name for point, name in cmap.items() if not empty_character(point)}
     normalized = io.BytesIO()
     stage = 'normalize'
+    corrected_bearings = preserve_outline_origins(font, origins) if origins else 0
     font.save(normalized, reorderTables=True)
     static = normalized.getvalue()
+    required = required_outline_glyphs(static, points) if removed_bitmaps else set()
     core = points & (set(range(0x20, 0x800)) | set(range(0x2000, 0x2070)) | set(range(0x3000, 0x3100)))
     groups = [('core', core)] if core else []
     pages = {}
@@ -145,6 +217,8 @@ def build():
         sub.populate(unicodes=sorted(chars))
         stage = 'subset'
         sub.subset(part)
+        if removed_bitmaps:
+            validate_outline_glyphs(part, allowed_empty, required)
         family = 'WYF2-' + params['buildKey'][:32] + '-' + ident
         stage = 'rename'
         rename(part, family)
@@ -177,7 +251,7 @@ def build():
     image.save(picture, format='PNG', optimize=False)
     specimen = asset(picture.getvalue(), 'png')
     stage = 'write-manifest'
-    notices = [asset(canonical({'author': config['author'], 'sourceUrl': config['sourceUrl'], 'licenseName': config['licenseName'], 'licenseText': config['licenseText'], 'sourceSha256': params['sourceSha256'], 'axes': axes, 'originalWeight': original_weight, 'defaultInstanceWeight': default_instance_weight, 'outputWeight': 400, 'outputStyle': 'normal', 'modifications': 'Default-axis instance; subset with layout closure; renamed; no hinting; normalized regular style.'}), 'json')]
+    notices = [asset(canonical({'author': config['author'], 'sourceUrl': config['sourceUrl'], 'licenseName': config['licenseName'], 'licenseText': config['licenseText'], 'sourceSha256': params['sourceSha256'], 'axes': axes, 'originalWeight': original_weight, 'defaultInstanceWeight': default_instance_weight, 'outputWeight': 400, 'outputStyle': 'normal', 'modifications': 'Default-axis instance; subset with layout closure; renamed; no hinting; normalized regular style.' + (' Removed embedded bitmap tables: ' + ', '.join(removed_bitmaps) + '.' if removed_bitmaps else '') + (' Corrected stale glyph bounds and bearings while preserving outline origins.' if corrected_bearings else '')}), 'json')]
     manifest = {'manifestVersion': 2, 'buildKey': params['buildKey'], 'sourceSha256': params['sourceSha256'], 'baseWeight': 400, 'baseStyle': 'normal', 'coverage': {'codepointCount': len(points), 'unicodeRanges': ranges(points)}, 'shards': shards, 'notices': notices, 'specimen': specimen}
     manifest_bytes = canonical(manifest)
     if len(manifest_bytes) > 4194304:
