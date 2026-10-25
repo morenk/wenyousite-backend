@@ -200,17 +200,54 @@ it('已有家族保留补充资料、顺序和自定义样张，过期修订不�
   expect(s.tx.textFontFamily.create).not.toHaveBeenCalled();
 });
 
-it('自动样张随语言变更，已有资料仍保留', async () => {
+it.each([
+  ['zh', '温油文字 Aa 0123'],
+  ['ja', '温油文字 Aa 0123'],
+  ['en', 'Wenyou Aa 0123'],
+  ['other', 'Wenyou Aa 0123'],
+] as const)('新建 %s 提交选取语言默认样张', async (language, specimenText) => {
   const s = setup();
-  s.family().specimenAutomatic = true;
-  await s.service.create(
-    { ...input(), familyId, expectedFamilyRevision: 1, language: 'en' },
+  await s.service.create({ ...input(), language }, actor);
+  expect(s.submission().configuration).toMatchObject({ specimenText });
+});
+
+it.each(['en', 'other'] as const)(
+  '已有自动家族的新 %s 提交更新默认值，保留补充资料',
+  async (language) => {
+    const s = setup();
+    s.family().specimenAutomatic = true;
+    s.family().configuration = { ...config, specimenText: 'Aa Bb Cc 0123456789' };
+    await s.service.create({ ...input(), familyId, expectedFamilyRevision: 1, language }, actor);
+    expect(s.submission().configuration).toMatchObject({
+      author: config.author,
+      specimenText: 'Wenyou Aa 0123',
+    });
+  },
+);
+
+it('历史自动提交重放、首次上传及失败重试保留原样张快照', async () => {
+  const s = setup(),
+    dto = { ...input(), language: 'en' as const };
+  const created = await s.service.create(dto, actor);
+  const original = {
+    ...(s.submission().configuration as Prisma.JsonObject),
+    specimenText: 'The quick brown fox jumps over the lazy dog. 0123456789',
+  };
+  s.submission().configuration = original;
+  await s.service.create(dto, actor);
+  expect(s.submission().configuration).toEqual(original);
+  await s.service.upload(
+    created.familyId,
+    { submissionId: dto.submissionId, expectedFamilyRevision: 1, format: 'ttf' },
+    Buffer.from('source'),
     actor,
   );
-  expect(s.submission().configuration).toMatchObject({
-    author: config.author,
-    specimenText: 'The quick brown fox jumps over the lazy dog. 0123456789',
-  });
+  const first = await s.service.process(dto.submissionId, randomUUID(), actor);
+  const buildKey = s.job().buildKey;
+  s.job().status = 'FAILED';
+  await s.service.process(dto.submissionId, randomUUID(), actor);
+  expect(s.job()).toMatchObject({ id: first.jobId, configuration: original, buildKey, attempt: 2 });
+  expect(s.family().configuration).toMatchObject({ specimenText: 'Wenyou Aa 0123' });
 });
 
 it('源首次绑定确认与任务，重复源不再 PUT，换源被拒绝', async () => {

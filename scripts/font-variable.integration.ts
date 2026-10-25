@@ -15,14 +15,16 @@ type Request = (path: string, method?: string, body?: unknown, status?: number, 
 /** 两版编译器均经真实上传/队列/发布；字体解析和轮廓比较始终留在沙箱内。 */
 export async function verifyVariableFonts(db: PrismaClient, request: Request, root: string) {
   await verifyIsolatedEnvironment();
-  const samples = [1, 2].flatMap(version => ['ttf', 'otf'].map(format => ({
-    version, format, source: join(root, 'font-fixtures', `fixture-variable.${format}`), privateRepro: false,
-  })));
+  const samples = [1, 2].flatMap(version => ['ttf', 'otf'].flatMap(format =>
+    ['fixture-variable', 'format-static', 'format-variable-1', 'format-variable-2'].map(kind => ({
+      version, format, source: join(root, 'font-fixtures', `${kind}.${format}`), privateRepro: false,
+      fixture: kind.startsWith('format-'),
+    }))));
   const privateSource = process.env.E2E_FONT_REPRO_SOURCE;
   if (privateSource) {
     assert.match(process.env.E2E_FONT_REPRO_SHA256 ?? '', /^[a-f0-9]{64}$/);
     assert.equal(fontSha(await readFile(privateSource)), process.env.E2E_FONT_REPRO_SHA256, '私有复现源身份');
-    samples.push({ version: 2, format: 'ttf', source: privateSource, privateRepro: true });
+    samples.push({ version: 2, format: 'ttf', source: privateSource, privateRepro: true, fixture: false });
   }
   const sandbox = new FontSandboxService(new ConfigService({ textFonts: { toolchainDir: process.env.TEXT_FONT_TOOLCHAIN_DIR } }));
   try {
@@ -34,7 +36,7 @@ export async function verifyVariableFonts(db: PrismaClient, request: Request, ro
         const family = await request('/admin/text-fonts', 'POST', {
           name, designLanguage: 'en', sortOrder: 0, author: 'Wenyou fixture',
           sourceUrl: 'https://example.invalid/self-authored', licenseName: 'CC0-1.0',
-          licenseText: 'Self-authored geometric fixture.', specimenText: 'AB',
+          licenseText: 'Self-authored geometric fixture.', specimenText: sample.fixture ? 'Wenyou Aa 0123' : 'AB',
           rights: { redistribution: true, conversion: true, subsetting: true },
         }, 201);
         familyId = family.familyId; revision = family.revision;
@@ -82,6 +84,9 @@ export async function verifyVariableFonts(db: PrismaClient, request: Request, ro
       await mkdir(input, { recursive: true, mode: 0o700 }); await mkdir(output, { mode: 0o700 });
       await writeFile(join(input, 'manifest.json'), document, { mode: 0o600 });
       await writeFile(join(input, 'source'), source, { mode: 0o600 });
+      await writeFile(join(input, 'verification.json'), JSON.stringify({
+        specimenText: (stored.configuration as Data).specimenText, fixture: sample.fixture,
+      }), { mode: 0o600 });
       const products = new Map<string, Buffer>([[descriptor.manifest.sha256 + '.json', document]]);
       for (const asset of fontManifestAssets(manifest)) {
         const name = asset.sha256 + '.' + asset.format, bytes = await download(asset);
