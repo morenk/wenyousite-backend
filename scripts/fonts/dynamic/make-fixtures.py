@@ -105,3 +105,5 @@ if __name__ == '__main__':
     for table in empty['cmap'].tables: table.cmap = {}
     empty.save(root / 'fixture-empty-cmap.ttf')
     (root / 'fixture-truncated.ttf').write_bytes((root / 'fixture-1.ttf').read_bytes()[:30])
+
+    runpy.run_path(str(Path(__file__).with_name('make-bitmap-fixtures.py')))['make_bitmaps'](root)

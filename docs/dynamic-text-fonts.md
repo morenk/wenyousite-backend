@@ -57,6 +57,8 @@ Web 无固定家族数限制，活动预算 64 faces/16 MiB SFNT，使用 lease/
 
 持久化边界：family 保存可编辑草稿和当前版本指针；job 保存私有源身份、配置快照、幂等处理状态；artifact 保存按 buildKey 去重且不可变的产物身份；version 将 family 绑定至不可变 artifact/配置并保存发布时间与撤回墓碑；catalog head/release/items 保存单调修订、原子发布快照；审计复用不可修改 AuditLog。不得通过清空表、覆盖历史对象实现导入或回滚。
 
+两版编译器支持附带传统嵌入位图的矢量 TTF/OTF：在解编译、默认轴实例化、分片和样张生成前移除 EBDT/EBLC/EBSC，仅使用矢量轮廓；私有上传原件保持不变，notices 记录移除的表。完整 cmap/layout closure（含未编码连字及组合字形）必需的字形须具有可用矢量轮廓；仅因工具 recommended_glyphs 策略额外保留、且不被 cmap/layout 引用的未编码空占位允许保持原义。Unicode 空白、控制、格式及默认忽略字符允许合法空字形，但与可见字符共用空字形仍拒绝。纯位图、可见字形缺轮廓及彩色 COLR/CPAL/CBDT/CBLC、sbix、SVG 输入仍返回 unsupported-font；OS/2 嵌入/子集化限制照常执行。混合位图 TrueType 的陈旧字形 bbox 会按真实轮廓重算，同时校正水平/垂直 bearing，保持原矢量字形原点与 advance，不让归一化改变字内位置；普通无位图输入沿用原路径。转换不保留原位图的小字号栅格效果，样张与分片均来自剔除后的同一静态实例。
+
 两版编译器都将可变字体的所有轴固定到各自默认值。TrueType `glyf` 输出静态 TTF；只有包含 `CFF2` 的输入才执行 CFF2 → CFF1 转换并输出静态 OTF，Web 分片统一为 WOFF2。编译器摘要参与构建身份，修复后的重试按新摘要构建，不覆盖既有版本或产物。
 
 Worker 的 `font_build_failed` 日志仅记录 jobId、attempt、failureCode 和有限枚举的 stage/category，区分实例化、序列化、产物校验、存储和持久化等失败位置。子进程提供的诊断必须通过枚举校验；异常正文、路径、栈、原始 stderr 和字体元数据不进入日志或 HTTP 响应。HTTP 与数据库仍只保存既有 failureCode/failureReason。
@@ -140,11 +142,13 @@ Backend 自身故障验证使用 `pnpm test:integration:text-font-v2`，其随�
 | --- | --- |
 | 静态 TTF / CFF OTF | 完整码点覆盖、组合轮廓、字宽、连字/字距/附标、WOFF2 与 SFNT 一致 |
 | 单轴及双轴 TTF / CFF2 | 源默认位置的展开轮廓与 advance 精确相等；横向/纵向/全局度量、默认轴记录正确；输出移除 fvar/gvar/CFF2/avar/HVAR/VVAR/MVAR 等变化数据 |
-| TTC、COLR、SVG | `unsupported-font`，不静默转换 |
+| 矢量 TTF/CFF OTF + EBDT/EBLC/EBSC | 真实 sbit strike；静态及双轴 TrueType/CFF2；完整覆盖、组合字形、GSUB/GPOS、字宽保持；WOFF2/SFNT 无位图表，样张精确匹配剔除后的静态实例；陈旧 bbox、复合 USE_MY_METRICS、水平/垂直原点及无 hint 静态夹具 32/64px 像素精确保持 |
+| 纯位图、直接可见字符或 GSUB 连字缺轮廓、可见字符/空格共用空 glyph | unsupported-font；合法空格、Unicode separators、默认忽略字符及无 cmap/layout 引用的推荐占位允许保留空轮廓；GSUB 引用同一空占位仍拒绝 |
+| TTC、COLR、CBDT/CBLC、sbix、SVG | `unsupported-font`，不静默转换 |
 | 截断字体、空 cmap | `invalid-font` |
 | 禁止嵌入 | `rights-required`，原授权门禁保留 |
 
-固定真实样本清单见 [regression-sources.json](../scripts/fonts/dynamic/regression-sources.json)：Train One（静态 TTF）、Source Han Sans（静态 CFF）、Orbitron（含 avar/HVAR 的 TrueType 变量）和 Adobe Source Serif 4（CFF2、wght/opsz 双轴）。每项固定官方 revision、源 SHA/长度与 OFL 原文 SHA；不提交二进制，也不在测试期间自动下载。将原件以 `<sourceSHA>.ttf/otf`、许可以 `<licenseSHA>` 放到只读来源目录后，使用 `FONT_FORMAT_SOURCE_ROOT=/absolute/path pnpm test:integration:font-formats`，先验证身份再运行两版矩阵。可选 `FONT_FORMAT_ARTIFACTS` 接收已验证产物和证据；退出清理本轮临时目录，失败不得把部分记录计作整轮通过。
+固定真实样本清单见 [regression-sources.json](../scripts/fonts/dynamic/regression-sources.json)：Train One（静态 TTF）、Source Han Sans（静态 CFF）、Orbitron（含 avar/HVAR 的 TrueType 变量）和 Adobe Source Serif 4（CFF2、wght/opsz 双轴）。每项固定官方 revision、源 SHA/长度与 OFL 原文 SHA；不提交二进制，也不在测试期间自动下载。将原件以 `<sourceSHA>.ttf/otf`、许可以 `<licenseSHA>` 放到只读来源目录后，使用 `FONT_FORMAT_SOURCE_ROOT=/absolute/path pnpm test:integration:font-formats`，先验证身份再运行两版矩阵。私有故障原件可通过 `FONT_FORMAT_REPRO_SOURCE` 和必填 `FONT_FORMAT_REPRO_SHA256` 加入此无数据库沙箱矩阵，先验证源摘要，再验证两版产物，不触发原任务重试或发布。可选 `FONT_FORMAT_ARTIFACTS` 接收已验证产物和证据；退出清理本轮临时目录，失败不得把部分记录计作整轮通过。
 
 轮廓比较展开组件以排除子集内部重编号差异，保持零容差；GSUB/GPOS 通过真实 Raqm 字距/连字启停和自制附标位置验证。源默认轮廓是独立判据，PNG 文案则与序列化的静态默认实例精确比较。自制无 hint TTF 的变量/静态 FreeType 扫描曾产生最多 2/255 的 alpha 差异，RGB、文字边界和轮廓不变；这不作为放宽轮廓或像素容差的理由。分片按产品策略移除 hint，源 hinted 像素不能作为其逐像素基准。Pillow/FreeType 渲染证据不等同于 Flutter 或浏览器实际字体加载验收。
 

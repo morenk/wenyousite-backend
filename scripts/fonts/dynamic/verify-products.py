@@ -15,11 +15,29 @@ from fontTools.varLib.mvar import MVAR_ENTRIES
 from fontTools.misc.roundTools import otRound
 from PIL import Image, ImageDraw, ImageFont, ImageChops, features
 
+def report_failure(kind, error, traceback):
+    # 未命名断言也只输出受控类别及本验证器行号，不输出异常正文或外部字体信息。
+    own_line = 0
+    while traceback:
+        if traceback.tb_frame.f_code.co_filename == __file__: own_line = traceback.tb_lineno
+        traceback = traceback.tb_next
+    target = Path('/output/verification-failure.json')
+    if not target.exists():
+        target.write_text(json.dumps({'check': 'unhandled-verifier-error', 'assertion': issubclass(kind, AssertionError), 'line': own_line}))
+
+sys.excepthook = report_failure
 root = Path('/input')
 manifest = json.loads((root / 'manifest.json').read_bytes())
 settings = json.loads((root / 'verification.json').read_bytes()) if (root / 'verification.json').exists() else {}
 source_bytes = (root / 'source').read_bytes() if (root / 'source').exists() else None
 source = TTFont(io.BytesIO(source_bytes), recalcTimestamp=False) if source_bytes else None
+bitmap_tables = {'EBDT', 'EBLC', 'EBSC'}
+source_bitmaps = sorted(bitmap_tables.intersection(source.keys())) if source else []
+if source_bitmaps:
+    for tag in source_bitmaps: del source[tag]
+    source.recalcBBoxes = False
+    reference = io.BytesIO(); source.save(reference)
+    source_bytes = reference.getvalue()
 axes = {axis.axisTag: axis.defaultValue for axis in source['fvar'].axes} if source and 'fvar' in source else {}
 source_glyphs = source.getGlyphSet(location=axes) if source else None
 variable_tables = {'fvar', 'gvar', 'CFF2', 'avar', 'HVAR', 'VVAR', 'MVAR', 'cvar', 'VARC'}
@@ -87,6 +105,7 @@ for shard_index, shard in enumerate(manifest['shards']):
     assert not all_points & expected; all_points.update(expected)
     for font in (web, mobile):
         font.ensureDecompiled()
+        require(not set(font.keys()) & bitmap_tables, 'remaining-bitmap-tables')
         require(not set(font.keys()) & variable_tables, 'remaining-variable-tables', tables=sorted(set(font.keys()) & variable_tables))
         assert set(font.getBestCmap()) == expected
         assert font['OS/2'].usWeightClass == 400 and font['head'].macStyle & 3 == 0
@@ -118,6 +137,8 @@ for shard_index, shard in enumerate(manifest['shards']):
                     index=table.AdvHeightMap.mapping[original_name] if table.AdvHeightMap else source.getGlyphID(original_name)
                     advance+=otRound(vertical_instancer[index])
                 require(mobile['vmtx'][m][0]==advance,'vertical-advance',point=point,shard=shard_index)
+                if source_bitmaps and 'glyf' in source and 'glyf' in mobile and not axes and hasattr(source['glyf'][original_name], 'yMax'):
+                    require(mobile['vmtx'][m][1]+mobile['glyf'][m].yMax==bearing+source['glyf'][original_name].yMax,'vertical-origin',point=point,shard=shard_index)
     face = ImageFont.truetype(io.BytesIO(mobile_bytes), size=1000)
     for text in ['AV','fi','A\u0301','Wenyou Aa 0123','温油文字']:
         if source_face and set(map(ord,text)) <= expected:
@@ -132,9 +153,20 @@ for shard_index, shard in enumerate(manifest['shards']):
         # V+acute 没有预组字符，避免先组合为 Aacute 后实际绕过 GPOS mark。
         assert face.getbbox('V\u0301') != face.getbbox('V\u0301',features=['-mark'])
         assert face.getbbox('V\u0301') == source_face.getbbox('V\u0301')
+    if source_bitmaps and settings.get('fixture') and not axes:
+        for text in ['A', chr(193), 'fi', 'V'+chr(769)]:
+            if set(map(ord,text)) <= expected:
+                for size in (32,64):
+                    reference_face=ImageFont.truetype(io.BytesIO(source_bytes),size=size)
+                    product_face=ImageFont.truetype(io.BytesIO(mobile_bytes),size=size)
+                    before=Image.new('L',(512,192));after=Image.new('L',(512,192))
+                    ImageDraw.Draw(before).text((64,16),text,font=reference_face,fill=255)
+                    ImageDraw.Draw(after).text((64,16),text,font=product_face,fill=255)
+                    require(before.tobytes()==after.tobytes(),'fixture-vector-pixels',shard=shard_index,size=size)
     small = ImageFont.truetype(io.BytesIO(mobile_bytes),size=32)
-    sample=''.join(chr(p) for p in sorted(expected) if p>=33)[:32]
-    canvas=Image.new('L',(2048,128));ImageDraw.Draw(canvas).text((8,8),sample,font=small,fill=255)
+    sample=''.join(chr(p) for p in sorted(expected) if p>=33 and outline(mobile_glyphs,mobile.getBestCmap()[p]))[:32]
+    canvas=Image.new('L',(2048,128))
+    if sample: ImageDraw.Draw(canvas).text((8,8),sample,font=small,fill=255)
     rendered += int(canvas.getbbox() is not None);formats.add(shard['mobile']['format']);count+=len(expected)
 assert count==manifest['coverage']['codepointCount'] and all_points==points(manifest['coverage']['unicodeRanges'])
 if source: assert all_points==set(source.getBestCmap())
@@ -164,9 +196,10 @@ if 'specimenText' in settings:
 for notice in manifest['notices']:
     value=json.loads(read_asset(notice))
     if source: assert value['axes']==axes
+    if source_bitmaps: assert ('Removed embedded bitmap tables: ' + ', '.join(source_bitmaps) + '.') in value['modifications']
 Path('/output/evidence.json').write_text(json.dumps({
     'passed':True,'shards':len(manifest['shards']),'codepoints':count,'mobileFormats':sorted(formats),'webFormat':'woff2',
-    'matchingOutlines':True,'mobileRendered':True,'specimenRendered':True,'defaultInstanceOutlines':source is not None,
+    'embeddedBitmapTablesRemoved':True,'sourceBitmapTables':source_bitmaps,'matchingOutlines':True,'mobileRendered':True,'specimenRendered':True,'defaultInstanceOutlines':source is not None,
     'rasterReference':'serialized-default-instance','sourceRasterDifference':raster_difference,'specimenTextVerified':'specimenText' in settings,'shapingComparisons':shaped,'variableTablesRemoved':True,
     'sourceTables':sorted(variable_tables.intersection(source.keys())) if source else [],'axes':axes,
     'renderer':{'freetype':features.version('freetype2'),'raqm':features.version('raqm'),'harfbuzz':features.version('harfbuzz')},
