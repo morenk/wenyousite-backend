@@ -70,6 +70,7 @@
 - 草稿列表：`GET /threads/draft` 返回当前用户所有未发布帖，按 createdAt DESC 排序
 - 发布校验：细粒度 PATCH 与聚合保存发布都校验 —— ① title 非空且非默认值"未命名草稿" ② category 已设置、存在且启用 ③ 默认子贴存在且有可见正文（kind=BODY）。草稿可以暂不选择分类；停用分类保留历史关联，但不能新选或用于发布。
 - 线程列表、草稿、详情、邀请预览和订阅同时返回旧 `category` 与展示读模型 `categoryInfo: { slug, name, isActive } | null`。名称始终取当前注册表；已停用分类仍可读，未知历史 slug 以自身作为名称并标记不可选，空分类返回 null。客户端不得用仅含启用项的发现列表反查历史名称。
+- 聚合保存的字体能力／存储就绪探测先在事务外完成，字体版本准入、管理权限和三层版本仍在正文事务内核验。事务级 `lock_timeout=2s` 仅限制该次聚合保存的单次数据库锁等待；锁等待取消后整笔回滚并复用 409 / 40002，不自动重放。超时不覆盖整个 HTTP 请求，也不保证多次等待累计永远小于 Prisma 事务预算。
 - 聚合保存：按 Thread → 默认 Subthread → BODY 的 version 顺序校验后，在同一事务更新元数据、标题/正文、标签和发布状态；任一冲突返回 `OPTIMISTIC_LOCK_CONFLICT(40002)` 且不产生部分写入。COLLABORATOR 不得修改 visibility 或 published
 - 草稿期各 Post 的内联骰子节点只保存在 `content` 中；发布事务会锁定 Thread，校验并结算全部帖子节点后才翻转 `published=true`，任一步失败整体回滚
 - 发布可靠事件：发布事务为草稿期全部帖子写入 `post.created` Outbox，并写入带 visibility 快照的 `thread.published`；提交后依次补解析 @提及/通知。只有 PUBLIC 主题会通知通过双向拉黑过滤的粉丝，PRIVATE 主题不会产生关注发布通知

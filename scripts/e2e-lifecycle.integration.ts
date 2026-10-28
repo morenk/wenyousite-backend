@@ -1,3 +1,4 @@
+import { consumerFailureCase } from './e2e-consumer-diagnostics.integration';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
@@ -84,6 +85,7 @@ async function main() {
   }), /injected failure/);
   assert(!existsSync(failedRoot));
   assert.deepEqual(ownedGroup(group, runId, failedRoot), [], '退出的消费者遗留后代也应被清理');
+  await consumerFailureCase();
   await signalCase('SIGTERM'); await signalCase('SIGINT'); await signalCase('SIGKILL');
   console.log('隔离生命周期通过：两轮并发独立身份、异常清理、遗留后代、SIGTERM、SIGINT、SIGKILL 残留 dry-run/拒绝/定向恢复清理');
 }

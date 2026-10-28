@@ -1,3 +1,7 @@
+import { Prisma } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
+import { FontReadinessService } from '../text-fonts/font-readiness.service';
+import { prismaDiagnostics } from '../common/prisma-diagnostics';
 import { DiceService } from '../dice/dice.service';
 import { forbidden } from '../common/exceptions/business.exception';
 import { BusinessException } from '../common/exceptions/business.exception';
@@ -118,7 +122,7 @@ describe('ThreadAggregateService', () => {
   };
   const mediaReferences = { syncPostContent: jest.fn() };
   const postingPolicy = { attachToThread: jest.fn(async (thread: unknown) => thread) };
-  const service = new ThreadAggregateService(
+  const makeService = (config?: ConfigService, readiness?: FontReadinessService) => new ThreadAggregateService(
     prisma as never,
     access as never,
     new DiceService(),
@@ -131,7 +135,9 @@ describe('ThreadAggregateService', () => {
     mediaReferences as never,
     postingPolicy as never,
     { assertMentionWrite: jest.fn(), prepareAuthor: jest.fn().mockResolvedValue({}), prepareMentions: jest.fn().mockResolvedValue([]) } as never,
+    config, readiness,
   );
+  const service = makeService();
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -218,7 +224,34 @@ describe('ThreadAggregateService', () => {
     );
   });
 
+  it('字体探测未完成时不开事务；就绪后仍重新核验管理权限', async () => {
+    let complete!: (value: boolean) => void;
+    const supported = jest.fn(() => new Promise<boolean>(resolve => { complete = resolve; }));
+    const candidate = makeService(new ConfigService({ textFonts: { enabled: true } }), { supported } as unknown as FontReadinessService);
+    const result = candidate.save('t1', { version: 3, defaultSubthreadVersion: 2, content: '新正文', tagNames: [] }, 'u1');
+    // 排空事务前的只读校验，让请求停在探测屏障。
+    for (let i = 0; i < 10 && !supported.mock.calls.length; i++) await Promise.resolve();
+    expect(supported).toHaveBeenCalledTimes(1);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    access.assertCanManage.mockRejectedValueOnce(forbidden('权限已撤回'));
+    complete(true);
+    await expect(result).rejects.toMatchObject({ status: 403 });
+    expect(access.lockManagement).toHaveBeenCalledTimes(1);
+    expect(tx.thread.update).not.toHaveBeenCalled();
+  });
+
+  it('映射锁等待冲突时保留白名单诊断，不保留原始异常', async () => {
+    const source = new Prisma.PrismaClientKnownRequestError('SQL_SECRET', { code: 'P2010', clientVersion: 'test', meta: { code: '55P03', message: 'META_SECRET' } });
+    mentions.lockContentInteraction.mockRejectedValueOnce(source as never);
+    const error: unknown = await service.save('t1', { version: 3, defaultSubthreadVersion: 2, content: '新正文', tagNames: [] }, 'u1').catch((failure: unknown) => failure);
+    expect(error).toMatchObject({ errorCode: 40002, status: 409 });
+    expect(prismaDiagnostics(error)).toMatchObject({ prismaCode: 'P2010', sqlState: '55P03', dbStage: 'interaction-lock', dbElapsedMs: expect.any(Number) });
+    expect(JSON.stringify(error)).not.toContain('_SECRET');
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
+    new Prisma.PrismaClientKnownRequestError('lock timeout', { code: 'P2010', clientVersion: 'test', meta: { code: '55P03' } }),
     { code: 'P2034' },
     { code: 'P2010', meta: { code: '40001' } },
     { code: 'P2010', meta: { code: '40P01' } },
@@ -235,8 +268,10 @@ describe('ThreadAggregateService', () => {
     expect(tx.thread.update).not.toHaveBeenCalled();
   });
 
-  it('未知原始 SQL 错误保持失败，不伪装为版本冲突', async () => {
-    const error = { code: 'P2010', meta: { code: '42P01' } };
+  it.each([
+    { code: 'P2010', meta: { code: '42P01' } },
+    new Prisma.PrismaClientKnownRequestError('expired', { code: 'P2028', clientVersion: 'test' }),
+  ])('未知 SQL 或事务状态保持失败，不伪装为可重试冲突：%j', async (error) => {
     prisma.$transaction.mockRejectedValueOnce(error as never);
     await expect(
       service.save(
@@ -245,6 +280,7 @@ describe('ThreadAggregateService', () => {
         'u1',
       ),
     ).rejects.toBe(error);
+    expect(prismaDiagnostics(error)).toMatchObject({ dbStage: 'acquire', dbOperation: 'thread.aggregate.save' });
     expect(eventEmitter.emit).not.toHaveBeenCalled();
   });
 

@@ -114,7 +114,7 @@ TypeScript 开启 `noImplicitAny` 等严格增量选项。Fastify 的 Passport `
 
 所有环境变量读取集中在 `src/config/configuration.ts`，业务代码通过 `ConfigService` 或该配置工厂获得值。入口、日志、Cookie、Swagger 和 Sentry 不应各自解释环境变量，避免默认值漂移。
 
-Sentry 在应用模块加载前由 `src/instrument.ts` 初始化；没有 `SENTRY_DSN` 时保持关闭，有 DSN 时携带部署 release/build 信息。发送前会移除请求 URL、查询、正文、认证头、Cookie、用户对象、额外上下文和 breadcrumbs，仅保留请求 ID、方法、路由模板及可控机器标签。HTTP 日志同样只记录路由模板和结构化错误字段：5xx 带脱敏堆栈，401/403/429 为 warn，其余 4xx 为 info。
+Sentry 在应用模块加载前由 `src/instrument.ts` 初始化；没有 `SENTRY_DSN` 时保持关闭，有 DSN 时携带部署 release/build 信息。发送前会移除请求 URL、查询、正文、认证头、Cookie、用户对象、额外上下文和 breadcrumbs，仅保留请求 ID、方法、路由模板及可控机器标签。HTTP 日志同样只记录路由模板和结构化错误字段：5xx 仅保留受控模块名及数字源码位置，401/403/429 为 warn，其余 4xx 为 info。
 
 ## 邮件传输
 

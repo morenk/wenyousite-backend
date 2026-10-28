@@ -7,6 +7,7 @@ import * as argon2 from 'argon2';
 import { withResources, unusedPort, stopChild, waitForChildClose } from './e2e-resources';
 import { ensure } from './webe2e-cleanup';
 import { suiteFailureDiagnostic } from './e2e-runner-diagnostics';
+import { preserveConsumerDiagnostic } from './e2e-consumer-diagnostics';
 import { createDiscussionFixtures } from './discussion-fixtures';
 import type { E2EManifest } from './e2e-guard';
 import { MobileReleasePublication } from '../src/mobile-releases/mobile-release-publication';
@@ -27,6 +28,7 @@ const SUITES: Record<string, [string, string]> = {
   'text-font': ['text-font.integration.ts', 'TEXT_FONT_TEST_ENV'],
   'text-color': ['text-color.integration.ts', 'TEXT_COLOR_TEST_ENV'],
   'redis-failure': ['redis-failure.integration.ts', 'REDIS_FAILURE_TEST_ENV'],
+  'aggregate-transaction': ['aggregate-transaction.integration.ts', 'AGGREGATE_TRANSACTION_TEST_ENV'],
   'content-write-consistency': ['content-write-consistency.integration.ts', 'CONTENT_WRITE_CONSISTENCY_TEST_ENV'],
   'rp-profile': ['rp-profile.integration.ts', 'RP_PROFILE_TEST_ENV'],
   'role-mentions': ['role-mentions.integration.ts', 'ROLE_MENTIONS_TEST_ENV'],
@@ -294,8 +296,21 @@ export async function run(args = process.argv.slice(2)) {
       if (command.length) {
         await r.verify();
         // 外部消费者只获得网页账号及 manifest，不获得数据库 owner 或应用密钥。
-        const child = r.spawn(command[0], command.slice(1), { ...r.env, ...webEnv }, REPOSITORY);
-        ensure(await waitForChildClose(child) === 0, '消费者测试命令失败');
+        let consumerExit: number | null = null;
+        try {
+          const child = r.spawn(command[0], command.slice(1), { ...r.env, ...webEnv }, REPOSITORY);
+          consumerExit = await waitForChildClose(child);
+          ensure(consumerExit === 0, '消费者测试命令失败');
+        } finally {
+          if (consumerExit !== 0) {
+            const diagnosticPath = `/tmp/wenyousite-e2e-consumer-failure-${r.runId}.json`;
+            // 先完成自有 API 停机，收齐异步日志；停止失败也尝试保留现有安全记录。
+            try { await stopChild(app); } finally {
+              await preserveConsumerDiagnostic(r.runId, consumerExit, r.logPath(app), diagnosticPath);
+            }
+            console.error(JSON.stringify({ event: 'consumer-failed', runId: r.runId, diagnosticPath }));
+          }
+        }
       }
       for (const worker of fontWorkers) await stopChild(worker);
       await stopChild(app);

@@ -13,6 +13,7 @@ import { API_CONTRACT_VERSION } from '../swagger/openapi-document';
 import { Prisma } from '@prisma/client';
 import { ErrorCode } from '../exceptions/error-codes';
 import { SentryExceptionCaptured } from '@sentry/nestjs';
+import { prismaDiagnostics, safeErrorFrames } from '../prisma-diagnostics';
 
 /** 统一错误响应体 */
 interface ErrorResponse {
@@ -88,10 +89,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
       errorCode: code,
       requestId: request.id,
       errorType: exception instanceof Error ? exception.constructor.name : 'UnknownError',
+      ...prismaDiagnostics(exception),
     };
     if (httpStatus >= HttpStatus.INTERNAL_SERVER_ERROR) {
-      const stackFrames =
-        exception instanceof Error ? exception.stack?.split('\n').slice(1).join('\n') : undefined;
+      const stackFrames = safeErrorFrames(exception);
       this.logger.error(logContext, stackFrames);
     } else if (
       httpStatus === HttpStatus.UNAUTHORIZED ||

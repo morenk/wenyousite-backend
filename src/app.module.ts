@@ -1,3 +1,4 @@
+import { safeErrorFrames } from './common/prisma-diagnostics';
 import { AppDownloadsModule } from './app-downloads/app-downloads.module';
 import { MobileReleasesModule } from './mobile-releases/mobile-releases.module';
 import { GalleryModule } from './image-gallery/gallery.module';
@@ -132,10 +133,7 @@ configureRedisQueues();
               res: (res: ServerResponse) => ({ statusCode: res.statusCode }),
               err: (error: unknown) => ({
                 type: error instanceof Error ? error.constructor.name : 'Error',
-                stack:
-                  error instanceof Error && typeof error.stack === 'string'
-                    ? error.stack.split('\n').slice(1).join('\n')
-                    : undefined,
+                stack: safeErrorFrames(error),
               }),
             },
           },
