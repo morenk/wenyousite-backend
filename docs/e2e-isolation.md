@@ -148,3 +148,11 @@ Linux 退出期间可能先置位 PF_EXITING，进程仍暂时显示 R，且 env
 ### 字体后台管理
 
 `pnpm test:integration:text-font-v2` 以 `--source --suite=text-font-v2 --text-font-v1` 启动本轮独立 PostgreSQL、Redis、私有对象存储与字体 Worker；使用本轮随机管理员及普通账号，通过真实 HTTP 验证简化提交重放、源绑定、准确任务恢复、处理失败/重试、预览后发布、元数据有界提取和原子多语言排序。迁移回归在本轮数据库内创建随机私有 schema，执行旧表升级、回滚后撤回回填、歧义失败回滚及产物共享，finally 删除本轮 schema。`--full` 同样包含该字体套件。runner 在成功、失败或中断后核验并清理全部自有资源；不可复用已清理 runId 做客户端联验，也不回退公网地址。
+
+### 聚合保存事务与消费者诊断
+
+`pnpm e2e:run --suite=aggregate-transaction` 已纳入 `--full`。验证本轮实际 PG/Redis 身份后，以 `wenyousite_app` 验证普通发布、旧版本重放、单连接池字体就绪、实际行锁等待、超时回滚及原请求重试；Outbox 后耗尽事务预算属于明确的故障注入。脱敏断言摘要位于 `/tmp/aggregate-transaction-evidence-<runId>.json`，资源仍由 runner 清理。
+
+消费者命令非零退出或异常结束时，runner 在资源清理前提取 API 过滤器的白名单字段，写入新的 0600 `/tmp/wenyousite-e2e-consumer-failure-<runId>.json`。逐行扫描日志，最多保留 100 条结构化异常记录，优先保留 5xx，避免后续大量预期 4xx 挤掉故障。超过 64 KiB 的单行跳过；摘要记录遗漏数量。字段限于 HTTP 状态、受控路由分类、请求 ID、Prisma code、有限 SQLSTATE、固定 aggregate 阶段和耗时。不会复制消费者输出、原始 API/PG 日志、SQL、message、meta、Cookie 或正文；没有匹配记录时保存空列表，不猜测原因。SIGKILL 无法执行留存，仍按原 reaper 规则处理。
+
+历史调查、受控复现和交付证据见[聚合事务 500 排查](verification/aggregate-prisma-500.md)。

@@ -15,6 +15,7 @@ import { AdminBearerGuard } from '../admin/guards/admin-bearer.guard';
 import { PaginatedResult } from './dto/paginated-result';
 import { BusinessException } from './exceptions/business.exception';
 import { ErrorCode } from './exceptions/error-codes';
+import { copyPrismaDiagnostics, recordAggregateFailure } from './prisma-diagnostics';
 import { AllExceptionsFilter } from './filters/all-exceptions.filter';
 import { TransformInterceptor } from './interceptors/response.interceptor';
 import { ParseUUIDPipe } from './pipes/uuid-validation.pipe';
@@ -171,6 +172,42 @@ describe('AllExceptionsFilter', () => {
     const serialized = JSON.stringify(logger.error.mock.calls);
     expect(serialized).not.toContain('query-secret');
     expect(serialized).not.toContain('internal-secret');
+  });
+
+  it.each(['P2010', 'P2028', 'P2024', 'P2034'])('Prisma %s 多行错误仅保留白名单诊断与受控位置', (prismaCode) => {
+    const { host, response } = httpContext(undefined, {
+      routeOptions: { url: '/api/v1/threads/:id/aggregate' },
+      headers: { cookie: 'COOKIE_SECRET' }, body: { content: 'BODY_SECRET' },
+    });
+    const error = new Prisma.PrismaClientKnownRequestError(
+      'database failure\npassword=PASSWORD_SECRET\nSELECT BODY_SECRET\nparameters=[SQL_SECRET]\nhttps://private.invalid/?sig=SIGNATURE_SECRET',
+      { code: prismaCode, clientVersion: 'VERSION_SECRET', meta: {
+        code: '55P03', message: 'META_SECRET', target: ['USER_SECRET'], query: 'SQL_SECRET',
+      } },
+    );
+    error.stack += '\n    at PASSWORD_SECRET (/private/src/PATH_SECRET.ts:11:12)';
+    recordAggregateFailure(error, 'interaction-lock', performance.now() - 25);
+    filter.catch(error, host);
+    const logger = (filter as unknown as { logger: { error: jest.Mock } }).logger;
+    expect(logger.error).toHaveBeenCalledWith(expect.objectContaining({
+      prismaCode, dbOperation: 'thread.aggregate.save', dbStage: 'interaction-lock', dbElapsedMs: expect.any(Number),
+      ...(prismaCode === 'P2010' ? { sqlState: '55P03' } : {}),
+    }), expect.any(String));
+    expect(JSON.stringify([logger.error.mock.calls, response.send.mock.calls])).not.toContain('_SECRET');
+    expect(response.send).toHaveBeenCalledWith({ code: 50000, message: '服务器内部错误', data: null });
+  });
+
+  it('最终409日志保留原锁错误诊断，响应仍使用原业务契约', () => {
+    const source = new Prisma.PrismaClientKnownRequestError('PRIVATE_SQL', { code: 'P2010', clientVersion: 'test', meta: { code: '55P03' } });
+    recordAggregateFailure(source, 'interaction-lock', performance.now());
+    const mapped = new BusinessException(ErrorCode.OPTIMISTIC_LOCK_CONFLICT, '内容已被修改，请刷新后重试', 409);
+    copyPrismaDiagnostics(source, mapped);
+    const { host, response } = httpContext();
+    filter.catch(mapped, host);
+    const logger = (filter as unknown as { logger: { log: jest.Mock } }).logger;
+    expect(logger.log).toHaveBeenCalledWith(expect.objectContaining({ prismaCode: 'P2010', sqlState: '55P03', dbStage: 'interaction-lock', statusCode: 409 }));
+    expect(response.send).toHaveBeenCalledWith({ code: 40002, message: '内容已被修改，请刷新后重试', data: null });
+    expect(JSON.stringify(logger.log.mock.calls)).not.toContain('PRIVATE_SQL');
   });
 
   it('按状态码降低预期异常日志级别', () => {

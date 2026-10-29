@@ -13,6 +13,7 @@ import { ThreadAccessService } from '../access/thread-access.service';
 import { PostingPolicyService } from '../access/posting-policy.service';
 import { BusinessException, forbidden, notFound } from '../common/exceptions/business.exception';
 import { isRecordNotFound, isTransactionConflict } from '../common/prisma-errors';
+import { AggregateStage, copyPrismaDiagnostics, prismaDiagnostics, recordAggregateFailure } from '../common/prisma-diagnostics';
 import { ErrorCode } from '../common/exceptions/error-codes';
 import { hasVisibleMarkdownContent, prepareMarkdownContent } from '../common/markdown-content';
 import { truncateMarkdown } from '../common/markdown-truncate';
@@ -110,10 +111,21 @@ export class ThreadAggregateService {
       previousBody?.content ?? '',
     );
 
+    // 就绪探测使用独立连接及对象存储，不能占用正文事务预算或持锁等待。
+    const fontV2Enabled = (this.config?.get<boolean>('textFonts.enabled') ?? false) &&
+      ((await this.fontReadiness?.supported()) ?? false);
+    let stage: AggregateStage = 'acquire';
+    const startedAt = performance.now();
     const result = await this.prisma
       .$transaction(async (tx) => {
+        stage = 'configure';
+        // 在 Prisma 事务到期前由 PostgreSQL 取消锁等待，整笔回滚并返回已有冲突语义。
+        await tx.$queryRaw`SELECT set_config('lock_timeout', '2s', true)`;
+        stage = 'interaction-lock';
         await this.mentions.lockContentInteraction(tx, threadId, userId, content, previousBody ? [previousBody.id] : []);
+        stage = 'management-lock';
         manager = await this.access.lockManagement(tx, threadId, userId);
+        stage = 'read';
         const current = await tx.thread.findUnique({
           where: { id: threadId, ...notDeleted },
           select: {
@@ -148,6 +160,7 @@ export class ThreadAggregateService {
             },
           },
         });
+        stage = 'validate';
         if (!current) throw notFound(ErrorCode.THREAD_NOT_FOUND, '主题帖不存在');
         if (current.version !== dto.version) this.optimisticLockConflict('主题帖');
         if (!current.defaultSubthread || !current.defaultSubthreadId) {
@@ -190,6 +203,7 @@ export class ThreadAggregateService {
           dto.defaultSubthreadPostingPolicy !== undefined &&
           dto.defaultSubthreadPostingPolicy !== defaultSubthread.postingPolicy;
         const subthreadChanged = subthreadTitleChanged || subthreadPolicyChanged;
+        stage = 'subthread';
         if (subthreadChanged) {
           await tx.subthread.update({
             where: { id: defaultSubthread.id, version: dto.defaultSubthreadVersion, ...notDeleted },
@@ -202,7 +216,8 @@ export class ThreadAggregateService {
         }
 
         const existingBody = defaultSubthread.posts[0];
-        await assertFontWriteInTransaction(tx, content, existingBody?.content ?? '', dto.textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false, (this.config?.get<boolean>('textFonts.enabled') ?? false) && ((await this.fontReadiness?.supported()) ?? false), !!this.fontReadiness);
+        stage = 'font-policy';
+        await assertFontWriteInTransaction(tx, content, existingBody?.content ?? '', dto.textFontVersion, this.config?.get<boolean>('app.textFontV1Enabled') ?? false, fontV2Enabled, !!this.fontReadiness);
         assertTextColorWrite(content, existingBody?.content ?? '', dto.textColorVersion, this.config?.get<boolean>('app.textColorV1Enabled') ?? false);
         let updatedBody: UpdatedBodySideEffect | undefined;
         let createdPublishedBody:
@@ -212,6 +227,7 @@ export class ThreadAggregateService {
               diceRolls: { nodeId: string; notation: string; total: number }[];
             }
           | undefined;
+        stage = 'body';
         if (existingBody) {
           this.identities.assertMentionWrite(content, existingBody.content, dto.markdownContractVersion);
           if (dto.bodyVersion !== existingBody.version) this.optimisticLockConflict('默认正文');
@@ -280,6 +296,7 @@ export class ThreadAggregateService {
           }
         }
 
+        stage = 'tags';
         const existingTags = tagNames.length
           ? await tx.topicTag.findMany({ where: { name: { in: tagNames } } })
           : [];
@@ -317,6 +334,7 @@ export class ThreadAggregateService {
           });
         }
 
+        stage = 'publish';
         if (publishing) {
           await this.settleDraftPosts(
             tx,
@@ -351,6 +369,7 @@ export class ThreadAggregateService {
           });
         }
 
+        stage = 'thread';
         const updated = await tx.thread.update({
           where: { id: threadId, version: dto.version, ...notDeleted },
           data: {
@@ -370,6 +389,7 @@ export class ThreadAggregateService {
           },
         });
 
+        stage = 'outbox';
         if (publishing) {
           await this.outbox.enqueue(tx, {
             eventType: 'thread.published',
@@ -386,7 +406,9 @@ export class ThreadAggregateService {
           });
         }
 
+        stage = 'usage';
         if (updated.published && !publishing) await this.stickerContent.recordUsage(userId, stickerAssetIds, tx);
+        stage = 'commit';
         return {
           updated,
           publishing,
@@ -395,10 +417,11 @@ export class ThreadAggregateService {
           updatedBody,
         };
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
+        recordAggregateFailure(error, stage, startedAt);
         if (error instanceof BusinessException) throw error;
-        if (isRecordNotFound(error) || isTransactionConflict(error)) {
-          this.optimisticLockConflict('内容');
+        if (isRecordNotFound(error) || isTransactionConflict(error) || prismaDiagnostics(error).sqlState === '55P03') {
+          this.optimisticLockConflict('内容', error);
         }
         throw error;
       });
@@ -426,12 +449,14 @@ export class ThreadAggregateService {
     return this.postingPolicy.attachToThread(updated, userId, manager);
   }
 
-  private optimisticLockConflict(subject: string): never {
-    throw new BusinessException(
+  private optimisticLockConflict(subject: string, source?: unknown): never {
+    const error = new BusinessException(
       ErrorCode.OPTIMISTIC_LOCK_CONFLICT,
       `${subject}已被修改，请刷新后重试`,
       HttpStatus.CONFLICT,
     );
+    if (source) copyPrismaDiagnostics(source, error);
+    throw error;
   }
 
   private assertPublishReadiness(

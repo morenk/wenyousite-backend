@@ -127,6 +127,8 @@ Web 与 Flutter 应同步本版本固定 OpenAPI，验证“数量 0 + 空列表
 
 ## 主贴发言权限的聚合保存
 
+聚合事务的数据库锁等待超过 2 秒时，确认事务回滚后沿用 HTTP 409 / `OPTIMISTIC_LOCK_CONFLICT(40002)`；客户端保留输入，刷新版本再由用户重试。服务端不自动重放事务，未知 `P2028` 或其他数据库故障仍走既有 500 envelope。请求／响应 DTO、业务错误码及 OpenAPI 无新增字段。
+
 `PATCH /threads/{id}/aggregate` 接受可选 `defaultSubthreadPostingPolicy`，枚举复用子贴发言策略。`PARTICIPANTS` 允许有权访问的登录用户，`COLLABORATORS` 允许楼主和协作者，`PLAYERS` 另允许已标记玩家；可见性、拉黑等限制继续生效。
 
 楼主和协作者通过已有管理授权保存；协作者仍不能提交 `visibility` / `published`。权限与元数据、正文和标签处于同一事务，沿用 `version`、`defaultSubthreadVersion`、`bodyVersion`；标题与权限同时改变时默认子贴版本只递增一次。省略权限字段保留现值，其他子贴不更新。
