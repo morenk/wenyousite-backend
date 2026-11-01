@@ -118,7 +118,7 @@ systemd 定时器如下，时间均为 UTC：
 | `wenyousite-redis-backup.timer` | 每 10 分钟；15 分钟未成功即告警 |
 | `wenyousite-postgres-physical-backup.timer` | 每天 03:15，周日 full、其余 differential |
 | `wenyousite-postgres-logical-backup.timer` | 每天 04:15 |
-| `wenyousite-restic-maintenance.timer` | 每天 05:15，35 天 expire/prune 和仓库 check |
+| `wenyousite-restic-maintenance.timer` | 每小时第 05/15/25/35/45/55 分钟重试；同一批准政策每天完成一次 forget、prune、check |
 | `wenyousite-backup-health.timer` | 每 5 分钟检查时间戳、WAL、checksums、pgBackRest 与 AOF |
 | `wenyousite-restore-drill.timer` | 每季度首日，隔离恢复并验证 2 小时 RTO |
 
@@ -146,6 +146,108 @@ pgBackRest 错误编号。例如 `HostConnectError` 配合 `timeout` 表示连�
 S3 响应正文或未知错误文本。每条错误文本最多分析前 32768 个字符，超出时标记 `truncated`；
 最多记录四个失败仓库及有界的错误码列表。原始命令输出只暂存在本轮私有临时目录，退出时清理。
 诊断字段为空或标记截断时，需由管理入口进一步检查，不能把它解释为无错误。
+
+### Redis 快照与分段日志
+
+Redis 的 `rdb_saves` 在后台保存开始时递增，不能只靠“计数比调用前增加”判断加入的
+已有 BGSAVE 是否完成。脚本区分本轮启动与加入已有任务，同时核对运行状态、最后保存结果
+及 Redis `run_id`。本轮启动要求计数增加；加入此前已经运行的任务允许计数不变，但拒绝
+已运行超过等待预算的旧任务。计数回退、实例重启、保存失败或没有新保存证据均不上传旧文件。
+同一秒内完成的保存不依赖 `LASTSAVE` 增加；默认仍最多等待 60 秒。
+
+只有 RDB 校验、拷贝、SHA 校验及真实异地备份都成功后才写 Redis 成功时间戳。
+新时间戳额外记录保守的 `snapshot_epoch`，巡检以该恢复点年龄判断 15 分钟 RPO；上传耗时
+不能通过刷新完成时间掩盖旧恢复点。升级期间旧格式暂按 `completed_epoch` 判断，下一次成功
+备份自动迁移，无需修改旧时间戳。
+
+Redis/逻辑备份和 restic 维护记录 `backup_operation` 总时长，以及 `backup_stage` 的
+开始、完成、耗时和原退出码。阶段包括 BGSAVE 等待、校验、拷贝、校验和、共享锁等待、
+远端备份、forget、prune、check。日志只描述脚本可观测的阶段，不能据此区分 restic 内部
+DNS、上传或重试耗时。命令原始 stdout/stderr 只进入本轮 0700 临时目录中的 0600 文件，
+退出时删除；不回显对象路径、请求头、签名 URL 或错误正文。机器审阅入口 stdout 仅为 JSON，
+阶段日志写 stderr。失败和信号的退出码由退出清理保留。
+
+### 维护优先级、重试与一致性检查
+
+本实现依据 restic 0.16.4：backup 使用原生非排他锁，forget/prune/check 需要原生排他锁。
+移除本地 flock 或给真实 check/prune 加 `--no-lock` 都不能解决安全并发。
+本地恢复入口继续保留同一仓库互斥；备份在等仓库锁前持有共享“备份意向锁”，多个等待者
+可并存，内核在实际持有进程退出后自动回收，不使用可能遗留的标记文件。
+
+维护每个阶段单独获取仓库锁；已存在备份/恢复则立即延期。阶段运行中每 100ms 检查备份
+意向，出现等待者即向整个维护子进程组发送 SIGINT，等待其退出、释放原生锁后才归还本地锁。
+每阶段最多 540 秒，优雅退出最多 30 秒；测试可下调，不能上调。即使被中止的子进程返回 0，
+也记为延期，不当成完成。如果强制终止或残留子进程无法正常退出，则失败并告警，可能残留
+原生锁；脚本绝不自动 `unlock`、删除原生锁或绕过互斥。
+
+定时器在 Redis 十分钟计划的中间重试，加入最多 30 秒抖动。各已完成阶段以批准文件摘要
+保存每日检查点，下一轮继续未完成的阶段；只有三个阶段均完成才更新 `restic-maintenance.success`。
+延期不刷新任何未完成阶段或整轮成功时间，五分钟巡检仍以 30 小时阈值报告维护逾期。
+
+check 使用 restic 支持的 `--with-cache` 保留受保护的快照、索引和树元数据缓存，降低中止后
+重试的远端读取量；仍执行完整结构检查和 pack 存在性检查，不跳过原生锁，不把缓存命中当作
+检查完成。这是结构一致性检查，不等于每轮从远端重读全部数据；季度隔离恢复演练仍保留。
+独立慢速 REST 仓库回归验证真实中止后的锁释放、缓存积累后完整完成，以及热缓存下缺失 pack
+仍报错。线上目录列举或网络若持续慢到无法在备份间隙完成，缓存不能保证收敛；此时保留告警，
+由管理入口评估仓库规模、网络和容量，不能延长 RPO 或伪造维护成功。
+
+### 保留政策审阅与显式激活
+
+**部署本版本不会启用历史删除。** 没有 root 管理的
+`/etc/wenyousite/restic-retention-approval.json` 时，定时维护只执行 check，成功只更新
+`restic-check.success`；不执行 forget/prune，也不更新整轮维护成功时间。因待审阅超过
+30 小时触发的维护逾期告警保持有效，不通过禁用告警或伪造时间戳消除。
+
+管理入口先生成新的私有清单（不要复用历史告警中的数量或过期清单）：
+
+```bash
+umask 077
+bash scripts/restic-maintenance.sh --dry-run > /root/restic-retention-review.json
+sha256sum /root/restic-retention-review.json
+```
+
+审阅入口只使用 `cat config` 和 `forget --dry-run --no-lock`，不创建原生锁、不删除快照、
+不 prune、不更新成功时间。清单包含仓库 ID、政策版本、生成时间、两组保留/拟删除的完整
+快照 ID 与时间，不包含原始路径、用户名或凭据。作用域固定为 `host=wenyousite`，精确单标签
+`redis` 或 `postgres-logical`，按 `host,tags` 分组并保留最新快照起 35 天；其它主机、其它标签
+及混合标签组均排除。restic 原有的未来时间/最老快照保护仍由原生命令决定。
+
+负责人审阅保留组与拟删除组、恢复验证及清单 SHA 后，才可由管理入口执行：
+
+```bash
+bash scripts/restic-maintenance.sh --activate-reviewed /root/restic-retention-review.json \
+  --confirm ENABLE_WENYOUSITE_RETENTION_V1
+```
+
+激活只接受 24 小时内、仓库身份一致的 root 私有实体清单，并原子写入 0600 批准文件；
+激活命令本身不删除。**其后定时器可执行已批准范围内的真实删除**：历史快照必须出现在
+审阅清单的保留或删除组中，后续仍按 35 天政策评估；清单生成后产生的新快照自动进入相同
+政策。后来导入/发现且时间早于清单生成时间的未知历史快照会拒绝整轮 forget，要求重新审阅。
+每轮重新生成候选，验证批准清单摘要及仓库 ID，再按明确 ID 分批 forget；prune 单独运行，
+每轮最多重打包 256 MiB。中止可能只完成部分已批准删除，下一轮重新计算，不能回滚已删除快照。
+
+迁移需通过标准部署安装更新后的维护 timer，并 `daemon-reload`；标准部署已包含此步骤。
+无需新增 unit、数据库 migration 或修改 DNS。先部署并确认未启用删除，再生成/审阅/激活；
+本次开发测试不会执行真实仓库的激活、forget 或 prune。
+
+暂停删除时先由管理入口停止正在运行的维护，再将批准文件移至受保护归档位置；定时器随后
+回到只检查模式。保留审阅清单、批准文件和部署记录。代码回退不得直接恢复旧版无激活门槛的
+维护入口：先停用维护 timer/service，再按标准部署前滚修复或受控回退，独立确认维护策略后
+才恢复 timer。备份 timer 与 15 分钟 RPO 不变。
+
+### 回归验证
+
+`pnpm test:redis-durability` 覆盖快照竞态、失败/超时/重启、信号退出码、锁等待与日志脱敏。
+`pnpm test:backup-reliability:integration` 使用本轮 0700 临时 restic 仓库和自建慢速 REST
+服务，以及 `e2e-resources.ts` 登记并验证的独立 PostgreSQL/Redis 进程，测试真实 Redis
+主动/已有/失败 BGSAVE、实际 check/prune 中止与锁释放、稳定分组隔离、审阅零删除及显式激活。
+需安装 restic，并配置只读 `E2E_PG_BIN`、`E2E_REDIS_BIN` 和需要的 `E2E_LIBRARY_PATH`；
+缺少工具直接失败，不回退到线上配置。所有合成数据与自有进程在结束时核验并清理。
+
+实现依据：[restic 0.16.4 保留与分组](https://restic.readthedocs.io/en/v0.16.4/060_forget.html)、
+[check 缓存和原生锁](https://github.com/restic/restic/blob/v0.16.4/cmd/restic/cmd_check.go)、
+[缓存类型](https://github.com/restic/restic/blob/v0.16.4/internal/cache/backend.go)、
+[Redis 7.4.10 保存计数](https://github.com/redis/redis/blob/7.4.10/src/rdb.c)。
 
 ## 指定时间恢复
 

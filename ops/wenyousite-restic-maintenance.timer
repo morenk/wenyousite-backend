@@ -1,9 +1,9 @@
 [Unit]
-Description=Apply 35-day offsite retention and check restic daily
+Description=Retry backup-priority daily restic maintenance
 
 [Timer]
-OnCalendar=*-*-* 05:15:00 UTC
-RandomizedDelaySec=10m
+OnCalendar=*-*-* *:05/10:00 UTC
+RandomizedDelaySec=30s
 Persistent=true
 Unit=wenyousite-restic-maintenance.service
 

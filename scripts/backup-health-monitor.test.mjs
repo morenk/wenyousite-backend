@@ -36,7 +36,10 @@ function runMonitor(t, options = {}) {
     if (options.missingStamp === kind) continue;
     writeFileSync(
       path.join(root, `state/${kind}.success`),
-      `completed_epoch=${Math.floor(Date.now() / 1000)}\n`,
+      `completed_epoch=${Math.floor(Date.now() / 1000)}\n` +
+        (kind === 'redis' && options.snapshotAge !== undefined
+          ? `snapshot_epoch=${Math.floor(Date.now() / 1000) - options.snapshotAge}\n`
+          : ''),
     );
   }
   writeFileSync(path.join(root, 'info'), options.info ?? info());
@@ -112,6 +115,12 @@ test('健康仓库记录阶段、耗时和成功结果', (t) => {
   assert.match(result.stdout, /^backup_health_check stage=pgbackrest_info event=start\n/);
   assert.match(result.stdout, /event=finish exit_code=0 elapsed_seconds=\d+\n/);
   assert.match(result.stdout, /backup_health_success elapsed_seconds=\d+\n$/);
+});
+
+test('刚完成的异地上传不能掩盖超过 15 分钟的 Redis 快照', (t) => {
+  const result = runMonitor(t, { snapshotAge: 1200 });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /stale_redis_seconds=12\d\d/);
 });
 
 test('真实 other 顶层状态保留仓库内部超时原因与执行耗时', (t) => {

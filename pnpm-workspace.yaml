@@ -10,6 +10,12 @@ allowBuilds:
   protobufjs: true
   unrs-resolver: true
 overrides:
+  # 仅覆盖已核验生产调用链：GHSA-3g3m-2fjr-6pw4 / GHSA-g3hv-75wg-m249。
+  '@fastify/static@10.1.3>glob': 14.0.2
+  'archiver-utils@5.0.2>glob': 14.0.2
+  'rimraf@5.0.10>glob': 14.0.2
+  'glob@14.0.2>minimatch': 11.0.1
+  'readdir-glob@1.1.3>minimatch': 11.0.1
   # Swagger 精确依赖旧 js-yaml；仅此链路升级，修复 GHSA-r3ph-w7gj-g6xm。
   '@nestjs/swagger@11.4.7>js-yaml': 5.4.1
   brace-expansion@2.1.2: 2.1.7

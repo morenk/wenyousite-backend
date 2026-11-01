@@ -114,13 +114,14 @@ jobs:
       - name: Prepare isolated PostgreSQL and Redis binaries
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends postgresql-16 redis-server bubblewrap python3.12 apparmor
+          sudo apt-get install -y --no-install-recommends postgresql-16 redis-server restic bubblewrap python3.12 apparmor
           pg_bin=/usr/lib/postgresql/16/bin
           redis_bin=$(command -v redis-server)
           test -x "$pg_bin/initdb"
           test -x "$pg_bin/postgres"
           test -x "$redis_bin"
           printf 'E2E_PG_BIN=%s\nE2E_REDIS_BIN=%s\n' "$pg_bin" "$redis_bin" >> "$GITHUB_ENV"
+      - run: pnpm test:backup-reliability:integration
       - name: Enable the Ubuntu bubblewrap namespace profile
         run: |
           # 优先使用发行版 profile；部分 runner 的 apparmor 包尚未包含该文件。

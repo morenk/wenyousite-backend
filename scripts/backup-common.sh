@@ -9,6 +9,9 @@ BACKUP_STATE_DIR=${WENYOUSITE_BACKUP_STATE_DIR:-/var/lib/wenyousite/backup-state
 OFFSITE_REQUIRED=${WENYOUSITE_OFFSITE_REQUIRED:-false}
 RESTIC_LOCK_FILE=${WENYOUSITE_RESTIC_LOCK:-/run/lock/wenyousite-restic.lock}
 RESTIC_LOCK_WAIT_SECONDS=${WENYOUSITE_RESTIC_LOCK_WAIT_SECONDS:-600}
+RESTIC_INTENT_LOCK=${WENYOUSITE_RESTIC_INTENT_LOCK:-/run/lock/wenyousite-restic-backup-intent.lock}
+# shellcheck source=backup-log.sh
+source "$(dirname -- "${BASH_SOURCE[0]}")/backup-log.sh"
 
 require_root_owned_private_file() {
   local file=$1
@@ -27,14 +30,14 @@ load_restic_environment() {
     fi
     return 2
   fi
-  require_root_owned_private_file "$RESTIC_ENV"
+  require_root_owned_private_file "$RESTIC_ENV" || return $?
   set -a
   # shellcheck disable=SC1090 -- the root-owned path is validated above.
-  source "$RESTIC_ENV"
+  source "$RESTIC_ENV" || return $?
   set +a
   : "${RESTIC_REPOSITORY:?RESTIC_REPOSITORY 未配置}"
   : "${RESTIC_PASSWORD_FILE:?RESTIC_PASSWORD_FILE 未配置}"
-  require_root_owned_private_file "$RESTIC_PASSWORD_FILE"
+  require_root_owned_private_file "$RESTIC_PASSWORD_FILE" || return $?
   [ -s "$RESTIC_PASSWORD_FILE" ] || { echo "restic 密码文件为空" >&2; return 1; }
   command -v restic >/dev/null 2>&1 || { echo "缺少 restic" >&2; return 1; }
 }
@@ -43,15 +46,25 @@ acquire_restic_lock() {
   [[ "$RESTIC_LOCK_WAIT_SECONDS" =~ ^[0-9]+$ ]] || { echo "restic 锁等待时间非法" >&2; return 1; }
   install -d -o root -g root -m 0700 "$(dirname -- "$RESTIC_LOCK_FILE")"
   exec 9>"$RESTIC_LOCK_FILE"
+  backup_stage_begin restic_lock_wait
   flock -w "$RESTIC_LOCK_WAIT_SECONDS" 9 || { echo "等待共享 restic 仓库锁超时" >&2; return 1; }
+  backup_stage_end 0
 }
 
 restic_backup_files() {
   local tag=$1
   shift
   if load_restic_environment; then
-    acquire_restic_lock
-    restic backup --quiet --host wenyousite --tag "$tag" -- "$@"
+    # 共享意向锁由内核随进程退出回收，可同时登记多个备份等待者。
+    install -d -o root -g root -m 0700 "$(dirname -- "$RESTIC_INTENT_LOCK")"
+    exec 7>"$RESTIC_INTENT_LOCK"
+    flock -s 7 || return $?
+    acquire_restic_lock || return $?
+    local status=0
+    backup_run remote_backup restic backup --quiet --host wenyousite --tag "$tag" -- "$@" || status=$?
+    exec 9>&-
+    exec 7>&-
+    return "$status"
   else
     local status=$?
     [ "$status" -eq 2 ] || return "$status"
@@ -62,6 +75,8 @@ restic_backup_files() {
 record_backup_success() {
   local kind=$1
   local artifact=$2
+  local snapshot_epoch=${3:-}
+  [ -z "$snapshot_epoch" ] || [[ "$snapshot_epoch" =~ ^[0-9]+$ ]] || return 1
   install -d -o root -g root -m 0700 "$BACKUP_STATE_DIR"
   local temp_file
   temp_file=$(mktemp "$BACKUP_STATE_DIR/.${kind}.XXXXXX")
@@ -69,6 +84,7 @@ record_backup_success() {
     printf 'completed_epoch=%s\n' "$(date +%s)"
     printf 'completed_utc=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     printf 'artifact=%s\n' "$artifact"
+    if [ -n "$snapshot_epoch" ]; then printf 'snapshot_epoch=%s\n' "$snapshot_epoch"; fi
   } >"$temp_file"
   chmod 0600 "$temp_file"
   mv -f -- "$temp_file" "$BACKUP_STATE_DIR/$kind.success"

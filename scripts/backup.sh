@@ -7,6 +7,8 @@ BACKEND_DIR=$(cd -- "$SCRIPT_DIR/.." && pwd)
 COMPOSE_FILE="$BACKEND_DIR/docker-compose.yml"
 # shellcheck source=backup-common.sh
 source "$SCRIPT_DIR/backup-common.sh"
+backup_log_init postgres-logical
+backup_cleanup() { [ ! -f "${TEMP_FILE:-}" ] || rm -f -- "$TEMP_FILE"; }
 
 BACKUP_DIR="$BACKUP_ROOT/postgres-logical"
 LOCK_FILE=${WENYOUSITE_POSTGRES_LOGICAL_LOCK:-/run/lock/wenyousite-postgres-logical.lock}
@@ -18,7 +20,6 @@ SHA_FILE="$BACKUP_FILE.sha256"
 install -d -o root -g root -m 0700 "$BACKUP_DIR" "$(dirname -- "$LOCK_FILE")"
 exec 8>"$LOCK_FILE"
 flock -n 8 || { echo "已有 PostgreSQL 逻辑备份正在执行" >&2; exit 1; }
-trap 'if [ -f "$TEMP_FILE" ]; then rm -f -- "$TEMP_FILE"; fi' EXIT
 
 POSTGRES_CONTAINER=$(docker compose -f "$COMPOSE_FILE" ps -q postgres)
 if [ -z "$POSTGRES_CONTAINER" ] || [ "$(docker inspect -f '{{.State.Running}}' "$POSTGRES_CONTAINER")" != true ]; then
@@ -38,7 +39,8 @@ if docker exec --user postgres "$POSTGRES_CONTAINER" psql --no-psqlrc --username
   secure_backup_role=true
 fi
 
-echo "创建 PostgreSQL custom-format 逻辑备份..."
+backup_stage_begin logical_dump
+{
 if [ "$secure_backup_role" = true ]; then
   docker exec "$POSTGRES_CONTAINER" sh -eu -c '
     password=$(tr -d "\r\n" </run/secrets/wenyousite/postgres-backup-password)
@@ -59,17 +61,21 @@ else
   docker exec "$POSTGRES_CONTAINER" pg_dump --username "$legacy_user" --dbname wenyousite \
     --format=custom --compress=zstd:6 >"$TEMP_FILE"
 fi
+} 2>"$BACKUP_LOG_DIR/stderr"
+backup_stage_end 0
 
+backup_stage_begin dump_validate
 [ "$(stat -c %s "$TEMP_FILE")" -gt 1024 ] || { echo "逻辑备份异常过小" >&2; exit 1; }
-docker exec -i "$POSTGRES_CONTAINER" pg_restore --list <"$TEMP_FILE" >/dev/null
+docker exec -i "$POSTGRES_CONTAINER" pg_restore --list <"$TEMP_FILE" >/dev/null 2>"$BACKUP_LOG_DIR/stderr"
+backup_stage_end 0
+backup_stage_begin checksum
 mv -- "$TEMP_FILE" "$BACKUP_FILE"
 (cd -- "$BACKUP_DIR" && sha256sum "$(basename -- "$BACKUP_FILE")" >"$(basename -- "$SHA_FILE")")
 (cd -- "$BACKUP_DIR" && sha256sum --check --status "$(basename -- "$SHA_FILE")")
+backup_stage_end 0
 
 restic_backup_files postgres-logical "$BACKUP_FILE" "$SHA_FILE"
 record_backup_success postgres-logical "$BACKUP_FILE"
 
 find "$BACKUP_DIR" -type f \( -name 'wenyousite_postgres_*.dump' -o -name 'wenyousite_postgres_*.dump.sha256' \) -mtime +7 -delete
-trap - EXIT
-echo "PostgreSQL 逻辑备份完成: $BACKUP_FILE"
-printf 'BACKUP_FILE=%s\n' "$BACKUP_FILE"
+printf 'postgres_logical_backup result=success\n'
