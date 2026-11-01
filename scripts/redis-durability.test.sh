@@ -34,7 +34,7 @@ grep -q 'sha256:742f40ea' "$COMPOSE_FILE" "$BACKEND_DIR/docker/postgres/Dockerfi
 grep -q 'sha256:e7723ff7' "$COMPOSE_FILE" || { echo "Redis 镜像未固定摘要" >&2; exit 1; }
 
 for expected in BGSAVE rdb_saves redis-check-rdb sha256sum restic_backup_files; do
-  grep -q -- "$expected" "$SCRIPT_DIR/backup-redis.sh" || { echo "Redis 备份缺少: $expected" >&2; exit 1; }
+  grep -q -- "$expected" "$SCRIPT_DIR/backup-redis.sh" "$SCRIPT_DIR/redis-snapshot.sh" || { echo "Redis 备份缺少: $expected" >&2; exit 1; }
 done
 for expected in 'format=custom' 'compress=zstd:6' 'pg_restore --list' sha256sum restic_backup_files; do
   grep -q -- "$expected" "$SCRIPT_DIR/backup.sh" || { echo "PostgreSQL 逻辑备份缺少: $expected" >&2; exit 1; }
@@ -129,6 +129,7 @@ grep -q '00/10' "$BACKEND_DIR/ops/wenyousite-redis-backup.timer" || { echo "Redi
 grep -q 'OnFailure=wenyousite-backup-alert@%n.service' "$BACKEND_DIR/ops/wenyousite-redis-backup.service" || { echo "备份失败未接 SMTP 告警" >&2; exit 1; }
 
 node --test "$SCRIPT_DIR/backup-health-monitor.test.mjs"
+python3 "$SCRIPT_DIR/backup-reliability.test.py"
 
 bash -n "$SCRIPT_DIR"/*.sh
 docker compose -f "$COMPOSE_FILE" config --quiet

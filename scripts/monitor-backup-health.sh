@@ -20,6 +20,9 @@ check_stamp() {
   fi
   local completed
   completed=$(awk -F= '$1 == "completed_epoch" { print $2; exit }' "$file")
+  if [ "$kind" = redis ] && grep -q '^snapshot_epoch=' "$file"; then
+    completed=$(awk -F= '$1 == "snapshot_epoch" { print $2; exit }' "$file")
+  fi
   if [[ ! "$completed" =~ ^[0-9]+$ ]]; then
     errors+=("invalid_stamp=$kind")
   elif (( now - completed > max_age )); then

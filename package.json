@@ -53,6 +53,7 @@
     "test:deploy-runtime": "bash scripts/wenyousite-backend-start.test.sh && bash scripts/wenyousite-image-worker-start.test.sh && bash scripts/wenyousite-font-worker-start.test.sh && node --test scripts/font-sandbox-preflight.test.cjs && bash scripts/deploy-worker-readiness.test.sh",
     "test:font-sandbox:systemd": "bash scripts/font-sandbox-preflight.integration.test.sh",
     "test:redis-durability": "bash scripts/redis-durability.test.sh",
+    "test:backup-reliability:integration": "python3 scripts/backup-reliability.integration.test.py && node -r ts-node/register/transpile-only scripts/backup-redis.integration.test.ts",
     "test:data-security": "bash scripts/redis-durability.test.sh && bash scripts/generate-data-security-secrets.test.sh && bash scripts/validate-production-security.test.sh",
     "test:data-security:integration": "bash scripts/harden-database-roles.integration.test.sh",
     "security:audit": "pnpm audit --prod && bash scripts/check-unsafe-sql.sh",
